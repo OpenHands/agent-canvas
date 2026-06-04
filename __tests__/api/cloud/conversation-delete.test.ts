@@ -1,4 +1,8 @@
 import axios from "axios";
+import {
+  capturedUpstreamRequest,
+  resetCloudProxyMock,
+} from "./_proxy-test-helpers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -23,7 +27,7 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.request).mockReset();
+  resetCloudProxyMock();
 });
 
 afterEach(() => {
@@ -33,12 +37,12 @@ afterEach(() => {
 
 describe("AgentServerConversationService.deleteConversation cloud branch", () => {
   it("calls the cloud DELETE app-conversations endpoint directly", async () => {
-    vi.mocked(axios.request).mockResolvedValue({ data: { success: true } });
+    vi.mocked(axios.post).mockResolvedValue({ data: { success: true } });
 
     await AgentServerConversationService.deleteConversation("conv-abc");
 
-    expect(axios.request).toHaveBeenCalledOnce();
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(axios.post).toHaveBeenCalledOnce();
+    const config = capturedUpstreamRequest(0);
 
     expect(config).toMatchObject({
       url: `${cloudBackend.host}/api/v1/app-conversations/conv-abc`,

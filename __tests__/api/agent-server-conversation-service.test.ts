@@ -5,6 +5,10 @@ import {
   SettingsClient,
 } from "@openhands/typescript-client/clients";
 import axios from "axios";
+import {
+  capturedUpstreamRequest,
+  resetCloudProxyMock,
+} from "./cloud/_proxy-test-helpers";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -813,7 +817,7 @@ describe("AgentServerConversationService", () => {
       __resetActiveStoreForTests();
       setRegisteredBackends([cloudBackend]);
       setActiveSelection({ backendId: cloudBackend.id });
-      vi.mocked(axios.request).mockReset();
+      resetCloudProxyMock();
     });
 
     afterEach(() => {
@@ -823,7 +827,7 @@ describe("AgentServerConversationService", () => {
 
     it("forwards parent_conversation_id, agent_type, and sandbox_id to the cloud createConversation payload", async () => {
       // Arrange
-      vi.mocked(axios.request).mockResolvedValue({
+      vi.mocked(axios.post).mockResolvedValue({
         data: {
           id: "task-1",
           status: "WORKING",
@@ -848,7 +852,7 @@ describe("AgentServerConversationService", () => {
       );
 
       // Assert
-      const [config] = vi.mocked(axios.request).mock.calls[0]!;
+      const config = capturedUpstreamRequest(0);
       expect(config).toMatchObject({
         url: `${cloudBackend.host}/api/v1/app-conversations`,
         method: "POST",
@@ -863,7 +867,7 @@ describe("AgentServerConversationService", () => {
 
     it("routes readConversationFile to the cloud file endpoint with the file_path query param", async () => {
       // Arrange
-      vi.mocked(axios.request).mockResolvedValue({ data: "# PLAN content" });
+      vi.mocked(axios.post).mockResolvedValue({ data: "# PLAN content" });
 
       // Act
       const content =
@@ -873,7 +877,7 @@ describe("AgentServerConversationService", () => {
 
       // Assert
       expect(content).toBe("# PLAN content");
-      const [config] = vi.mocked(axios.request).mock.calls[0]!;
+      const config = capturedUpstreamRequest(0);
       expect(config).toMatchObject({
         method: "GET",
         headers: { Authorization: "Bearer bearer-token" },

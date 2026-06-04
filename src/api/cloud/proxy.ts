@@ -63,13 +63,38 @@ function buildUpstreamAuthHeaders(
 }
 
 /**
- * Send a cloud request. App-host calls (`backend.host`) go directly to the
- * cloud API with the cloud backend's auth headers. Runtime-sandbox calls pass
- * `hostOverride`, and those still go through `/api/cloud-proxy` because the
- * per-conversation runtime hosts are not the configured cloud app origin.
+ * Send a cloud request via `/api/cloud-proxy` on the local agent-server.
  *
- * App-host auth headers are sent directly to the cloud host. Runtime auth
- * headers are carried in the proxy envelope and attached server-side.
+ * Both the cloud app host (`backend.host`, e.g. `https://app.all-hands.dev`)
+ * and per-conversation runtime sandboxes (`*.prod-runtime.all-hands.dev`,
+ * passed via `hostOverride`) only allow CORS from `https://app.all-hands.dev`
+ * itself. Any other browser origin — Vite dev, the standalone Electron
+ * `.app`, a self-hosted static build at a custom domain — gets HTTP 400 on
+ * the CORS preflight, so a direct `fetch`/`axios` from the browser fails
+ * with no response body, surfaced to the user as e.g. "Automations
+ * Unavailable".
+ *
+ * The fix is to never make the call from the browser. Every cloud request
+ * is wrapped in an envelope and POSTed to `/api/cloud-proxy` on the local
+ * agent-server (`getAgentServerBaseUrl()`); the local server unwraps the
+ * envelope and makes the upstream call server-side, where CORS does not
+ * apply. The local agent-server's own origin is either:
+ *   - the configured `VITE_BACKEND_BASE_URL` (Electron, dev, self-hosted) —
+ *     CORS-allowed by the local server, OR
+ *   - `window.location.origin` (cloud-served embedded UI) — same-origin.
+ *
+ * Upstream auth headers (bearer for the cloud app, `X-Session-API-Key` for
+ * a runtime sandbox) are carried in the envelope body and attached
+ * server-side; they never cross an origin boundary in the browser. The
+ * outer POST to the local agent-server uses the local session API key.
+ *
+ * Regression history: PR #1046 collapsed the cloud-host path into a direct
+ * `axios.request`, on the assumption that the cloud allowed CORS from the
+ * frontend's origin. That works only when agent-canvas is served from
+ * `app.all-hands.dev` itself. For every other deployment (standalone
+ * Electron, `npm run dev`, self-hosted), cloud calls were silently broken
+ * — most pages tolerated the failure by rendering empty state, but the
+ * automations page's up-front health probe surfaced it as a hard error.
  */
 export async function callCloudProxy<TResponse = unknown>(
   req: CloudProxyRequest,
@@ -92,19 +117,6 @@ export async function callCloudProxy<TResponse = unknown>(
     ...(req.headers ?? {}),
   };
   const upstreamHost = req.hostOverride ?? req.backend.host;
-
-  if (!req.hostOverride) {
-    const response = await axios.request<TResponse>({
-      url: `${upstreamHost.replace(/\/+$/, "")}${req.path}`,
-      method: req.method,
-      headers: upstreamHeaders,
-      ...(req.body !== undefined ? { data: req.body } : {}),
-      timeout: (req.timeoutSeconds ?? 30) * 1000,
-      ...(req.responseType ? { responseType: req.responseType } : {}),
-    });
-
-    return response.data;
-  }
 
   const proxyBaseUrl = getAgentServerBaseUrl();
   if (!proxyBaseUrl) throw new NoBackendAvailableError();

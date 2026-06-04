@@ -1,4 +1,8 @@
 import axios from "axios";
+import {
+  capturedUpstreamRequest,
+  resetCloudProxyMock,
+} from "./_proxy-test-helpers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -23,14 +27,14 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.request).mockReset();
-  vi.mocked(axios.request).mockResolvedValue({ data: [] });
+  resetCloudProxyMock();
+  vi.mocked(axios.post).mockResolvedValue({ data: [] });
 });
 
 afterEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
-  vi.mocked(axios.request).mockReset();
+  resetCloudProxyMock();
 });
 
 describe("batchGetCloudSandboxes", () => {
@@ -44,7 +48,7 @@ describe("batchGetCloudSandboxes", () => {
     // Act
     await batchGetCloudSandboxes(ids);
 
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    const config = capturedUpstreamRequest(0);
     expect(config).toMatchObject({
       method: "GET",
       headers: { Authorization: "Bearer bearer-token" },

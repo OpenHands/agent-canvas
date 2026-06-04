@@ -1,4 +1,8 @@
 import axios from "axios";
+import {
+  capturedUpstreamRequest,
+  resetCloudProxyMock,
+} from "./_proxy-test-helpers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -49,7 +53,7 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.request).mockReset();
+  resetCloudProxyMock();
 });
 
 afterEach(() => {
@@ -64,12 +68,12 @@ describe("pauseConversation cloud branch", () => {
       AgentServerConversationService,
       "batchGetAppConversations",
     ).mockResolvedValue([buildConversation({ sandbox_id: "sandbox-xyz" })]);
-    vi.mocked(axios.request).mockResolvedValue({ data: { success: true } });
+    vi.mocked(axios.post).mockResolvedValue({ data: { success: true } });
 
     await pauseConversation("conv-abc");
 
-    expect(axios.request).toHaveBeenCalledOnce();
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(axios.post).toHaveBeenCalledOnce();
+    const config = capturedUpstreamRequest(0);
     expect(config).toMatchObject({
       url: `${cloudBackend.host}/api/v1/sandboxes/sandbox-xyz/pause`,
       method: "POST",
@@ -84,6 +88,6 @@ describe("pauseConversation cloud branch", () => {
     ).mockResolvedValue([buildConversation({ sandbox_id: null })]);
 
     await expect(pauseConversation("conv-abc")).rejects.toThrow(/sandbox_id/);
-    expect(axios.request).not.toHaveBeenCalled();
+    expect(axios.post).not.toHaveBeenCalled();
   });
 });

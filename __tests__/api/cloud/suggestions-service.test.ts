@@ -1,4 +1,8 @@
 import axios from "axios";
+import {
+  capturedUpstreamRequest,
+  resetCloudProxyMock,
+} from "./_proxy-test-helpers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -22,15 +26,15 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.request).mockReset();
-  vi.mocked(axios.request).mockResolvedValue({
+  resetCloudProxyMock();
+  vi.mocked(axios.post).mockResolvedValue({
     data: { items: [], next_page_id: null },
   });
 });
 
 afterEach(() => {
   __resetActiveStoreForTests();
-  vi.mocked(axios.request).mockReset();
+  resetCloudProxyMock();
 });
 
 describe("getCloudSuggestedTasks", () => {
@@ -39,7 +43,7 @@ describe("getCloudSuggestedTasks", () => {
     await getCloudSuggestedTasks({ limit: 10, pageId: "p2" });
 
     // Assert
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    const config = capturedUpstreamRequest(0);
     const url = (config as { url: string }).url;
     expect(url).toContain("/api/v1/git/suggested-tasks/search");
     expect(url).toContain("limit=10");

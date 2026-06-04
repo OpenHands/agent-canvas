@@ -1,4 +1,8 @@
 import axios from "axios";
+import {
+  capturedUpstreamRequest,
+  resetCloudProxyMock,
+} from "./_proxy-test-helpers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -23,7 +27,7 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.request).mockReset();
+  resetCloudProxyMock();
 });
 
 afterEach(() => {
@@ -34,13 +38,13 @@ afterEach(() => {
 describe("AgentServerConversationService.downloadConversation cloud branch", () => {
   it("calls the cloud download endpoint directly with responseType blob and returns the Blob", async () => {
     const zipBlob = new Blob(["zip-bytes"], { type: "application/zip" });
-    vi.mocked(axios.request).mockResolvedValue({ data: zipBlob });
+    vi.mocked(axios.post).mockResolvedValue({ data: zipBlob });
 
     const result =
       await AgentServerConversationService.downloadConversation("conv-abc");
 
-    expect(axios.request).toHaveBeenCalledOnce();
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(axios.post).toHaveBeenCalledOnce();
+    const config = capturedUpstreamRequest(0);
 
     expect(config).toMatchObject({
       url: `${cloudBackend.host}/api/v1/app-conversations/conv-abc/download`,
