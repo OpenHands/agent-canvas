@@ -87,13 +87,20 @@ function searchPaginationEvents(
   };
 }
 
-const MOCK_CONVERSATION = {
-  conversation_id: PAGINATION_CONVERSATION_ID,
-  status: "STOPPED",
-  created_at: timestampForEvent(1),
-  updated_at: timestampForEvent(PAGINATION_EVENT_COUNT),
-  title: "Pagination test",
-};
+/** Build the mock conversation with the same fields the real agent-server
+ *  returns so `requireDirectConversationInfo` can parse it and the
+ *  conversation route doesn't redirect to `/conversations`. */
+function buildMockConversation() {
+  return {
+    id: PAGINATION_CONVERSATION_ID,
+    conversation_id: PAGINATION_CONVERSATION_ID,
+    status: "STOPPED",
+    execution_status: "stopped",
+    created_at: timestampForEvent(1),
+    updated_at: timestampForEvent(PAGINATION_EVENT_COUNT),
+    title: "Pagination test",
+  };
+}
 
 /** Intercept conversation lookup + event search for pagination tests. */
 async function routePaginationConversation(page: Page) {
@@ -101,26 +108,33 @@ async function routePaginationConversation(page: Page) {
 
   // The app fetches conversations via the batch endpoint:
   //   GET /api/conversations?ids=<id>
-  // Intercept any /api/conversations request and check if our ID is in
-  // the query params. If so, return the mock conversation in the batch
-  // response format. Otherwise fall through to the real agent-server.
-  await page.route("**/api/conversations?*", async (route, req) => {
-    if (req.method() !== "GET") {
-      await route.fallback();
-      return;
-    }
-    const url = new URL(req.url());
-    const ids = url.searchParams.getAll("ids");
-    if (ids.includes(PAGINATION_CONVERSATION_ID)) {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify([MOCK_CONVERSATION]),
-      });
-    } else {
-      await route.fallback();
-    }
-  });
+  // Use a regex to match the query-param form of the URL. The glob `?`
+  // character is a single-char wildcard in Playwright, so a regex is
+  // more reliable for matching literal query strings.
+  await page.route(
+    /\/api\/conversations\?/,
+    async (route, req) => {
+      if (req.method() !== "GET") {
+        await route.fallback();
+        return;
+      }
+      const url = new URL(req.url());
+      // Axios serializes array params as `ids[]=a&ids[]=b` (bracket notation).
+      const ids = [
+        ...url.searchParams.getAll("ids"),
+        ...url.searchParams.getAll("ids[]"),
+      ];
+      if (ids.includes(PAGINATION_CONVERSATION_ID)) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([buildMockConversation()]),
+        });
+      } else {
+        await route.fallback();
+      }
+    },
+  );
 
   // Stub the event search endpoint with the synthetic paginated events.
   await page.route(
