@@ -3,7 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, vi, beforeEach, it } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-import { WorkspaceSelectionForm } from "../../../../src/components/features/home/workspace-selection-form";
+import {
+  HOME_SELECTED_WORKSPACE_PATH_KEY,
+  WorkspaceSelectionForm,
+} from "../../../../src/components/features/home/workspace-selection-form";
 import WorkspacesService from "#/api/workspaces-service/workspaces-service.api";
 import { LocalWorkspace, LocalWorkspaceParent } from "#/types/workspace";
 
@@ -85,11 +88,20 @@ function renderForm({
   });
 }
 
+async function openWorkspaceDropdown(user: ReturnType<typeof userEvent.setup>) {
+  const dropdown = await screen.findByTestId("workspace-dropdown");
+  await waitFor(() => expect(dropdown).not.toBeDisabled());
+  await user.click(dropdown);
+  return screen.findByTestId("workspace-dropdown-menu");
+}
+
 describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    mockNavigate.mockReset();
     mockSearchSubdirectories.mockReset();
     mockGetHome.mockReset();
+    window.sessionStorage.clear();
     mockUseIsCreatingConversation.mockReturnValue(false);
     mockGetHome.mockResolvedValue({ home: "/Users/me" });
     // useResolvedWorkspaces always queries an implicit `/projects` parent in
@@ -98,6 +110,27 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
       items: [],
       next_page_id: null,
     });
+  });
+
+  it("renders the default empty selection when no workspace path is persisted", async () => {
+    renderForm({
+      workspaces: [
+        {
+          id: "/Users/me/dev/repo1",
+          name: "repo1",
+          path: "/Users/me/dev/repo1",
+        },
+      ],
+    });
+
+    const dropdown = await screen.findByTestId("workspace-dropdown");
+    await waitFor(() => expect(dropdown).not.toBeDisabled());
+
+    expect(dropdown).toHaveValue("");
+    expect(screen.getByTestId("workspace-launch-button")).toBeDisabled();
+    expect(
+      window.sessionStorage.getItem(HOME_SELECTED_WORKSPACE_PATH_KEY),
+    ).toBeNull();
   });
 
   it("renders workspaces returned by the agent-server in the dropdown", async () => {
@@ -114,11 +147,63 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     const user = userEvent.setup();
 
     // Act
-    await user.click(await screen.findByTestId("workspace-dropdown"));
-    const menu = await screen.findByTestId("workspace-dropdown-menu");
+    const menu = await openWorkspaceDropdown(user);
 
     // Assert
     expect(await within(menu).findByText("repo1")).toBeInTheDocument();
+  });
+
+  it("restores the selected workspace after unmounting and remounting", async () => {
+    const workspace = {
+      id: "/Users/me/dev/repo1",
+      name: "repo1",
+      path: "/Users/me/dev/repo1",
+    };
+    const user = userEvent.setup();
+
+    const { unmount } = renderForm({ workspaces: [workspace] });
+    const firstMenu = await openWorkspaceDropdown(user);
+    await user.click(await within(firstMenu).findByText("repo1"));
+
+    await waitFor(() =>
+      expect(
+        window.sessionStorage.getItem(HOME_SELECTED_WORKSPACE_PATH_KEY),
+      ).toBe(workspace.path),
+    );
+    expect(screen.getByTestId("workspace-launch-button")).not.toBeDisabled();
+
+    unmount();
+    renderForm({ workspaces: [workspace] });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("workspace-dropdown")).toHaveValue("repo1"),
+    );
+    expect(screen.getByTestId("workspace-launch-button")).not.toBeDisabled();
+  });
+
+  it("clears a persisted workspace path that is no longer resolved", async () => {
+    window.sessionStorage.setItem(
+      HOME_SELECTED_WORKSPACE_PATH_KEY,
+      "/Users/me/dev/missing",
+    );
+
+    renderForm({
+      workspaces: [
+        {
+          id: "/Users/me/dev/repo1",
+          name: "repo1",
+          path: "/Users/me/dev/repo1",
+        },
+      ],
+    });
+
+    await waitFor(() =>
+      expect(
+        window.sessionStorage.getItem(HOME_SELECTED_WORKSPACE_PATH_KEY),
+      ).toBeNull(),
+    );
+    expect(screen.getByTestId("workspace-dropdown")).toHaveValue("");
+    expect(screen.getByTestId("workspace-launch-button")).toBeDisabled();
   });
 
   it("shows a version-specific workspace message for old agent servers", async () => {
@@ -191,24 +276,31 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     ]);
   });
 
-  it("Remove Workspace dispatches removeWorkspace to the agent-server", async () => {
+  it("Remove Workspace dispatches removeWorkspace and clears the selected workspace", async () => {
     // Arrange
     const removeSpy = vi
       .spyOn(WorkspacesService, "removeWorkspace")
       .mockResolvedValue();
+    const workspace = {
+      id: "/Users/me/dev/repo1",
+      name: "repo1",
+      path: "/Users/me/dev/repo1",
+    };
     renderForm({
-      workspaces: [
-        {
-          id: "/Users/me/dev/repo1",
-          name: "repo1",
-          path: "/Users/me/dev/repo1",
-        },
-      ],
+      workspaces: [workspace],
     });
     const user = userEvent.setup();
 
     // Act
-    await user.click(await screen.findByTestId("workspace-dropdown"));
+    const selectionMenu = await openWorkspaceDropdown(user);
+    await user.click(await within(selectionMenu).findByText("repo1"));
+    await waitFor(() =>
+      expect(
+        window.sessionStorage.getItem(HOME_SELECTED_WORKSPACE_PATH_KEY),
+      ).toBe(workspace.path),
+    );
+
+    await openWorkspaceDropdown(user);
     await user.click(await screen.findByTestId("manage-workspaces-button"));
     await screen.findByTestId("manage-workspaces-modal");
     await user.click(screen.getByTestId("manage-workspaces-remove-repo1"));
@@ -218,6 +310,57 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     // Assert
     await waitFor(() => expect(removeSpy).toHaveBeenCalledTimes(1));
     expect(removeSpy).toHaveBeenCalledWith("/Users/me/dev/repo1");
+    expect(
+      window.sessionStorage.getItem(HOME_SELECTED_WORKSPACE_PATH_KEY),
+    ).toBeNull();
+    expect(screen.getByTestId("workspace-dropdown")).toHaveValue("");
+    expect(screen.getByTestId("workspace-launch-button")).toBeDisabled();
+  });
+
+  it("clears the selected parent-derived workspace when its parent is removed", async () => {
+    const removeParentSpy = vi
+      .spyOn(WorkspacesService, "removeWorkspaceParent")
+      .mockResolvedValue();
+    const workspaceParent = {
+      id: "/Users/me/dev",
+      name: "dev",
+      path: "/Users/me/dev",
+    };
+    const workspacePath = "/Users/me/dev/repo1";
+    mockSearchSubdirectories.mockImplementation(async (path: string) => {
+      if (path === workspaceParent.path) {
+        return {
+          items: [{ name: "repo1", path: workspacePath }],
+          next_page_id: null,
+        };
+      }
+      return { items: [], next_page_id: null };
+    });
+    renderForm({ workspaceParents: [workspaceParent] });
+    const user = userEvent.setup();
+
+    const selectionMenu = await openWorkspaceDropdown(user);
+    await user.click(await within(selectionMenu).findByText("repo1"));
+    await waitFor(() =>
+      expect(
+        window.sessionStorage.getItem(HOME_SELECTED_WORKSPACE_PATH_KEY),
+      ).toBe(workspacePath),
+    );
+
+    await openWorkspaceDropdown(user);
+    await user.click(await screen.findByTestId("manage-workspaces-button"));
+    await screen.findByTestId("manage-workspaces-modal");
+    await user.click(screen.getByTestId("manage-workspaces-remove-parent-dev"));
+    await screen.findByTestId("confirmation-modal");
+    await user.click(screen.getByTestId("confirm-button"));
+
+    await waitFor(() => expect(removeParentSpy).toHaveBeenCalledTimes(1));
+    expect(removeParentSpy).toHaveBeenCalledWith(workspaceParent.path);
+    expect(
+      window.sessionStorage.getItem(HOME_SELECTED_WORKSPACE_PATH_KEY),
+    ).toBeNull();
+    expect(screen.getByTestId("workspace-dropdown")).toHaveValue("");
+    expect(screen.getByTestId("workspace-launch-button")).toBeDisabled();
   });
 
   it("Add all subdirectories dispatches addWorkspaceParents to the agent-server", async () => {
