@@ -582,6 +582,42 @@ describe("LlmSettingsLocalView", () => {
       expect(savedLlm.model).toBe("openhands/claude-opus-4-5-20251101");
       expect(savedLlm.base_url).toBe(OPENHANDS_LLM_PROXY_BASE_URL);
     });
+
+    it("preserves an existing custom base_url for other providers", async () => {
+      const user = userEvent.setup();
+      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
+        name: "gpt-4-profile",
+        api_key_set: true,
+        config: {
+          model: "openai/custom-model",
+          api_key: "gAAAA_encrypted_key",
+          base_url: "https://openai-compatible.example.com/v1",
+        },
+      });
+      mockSaveMutateAsync.mockResolvedValueOnce({ success: true });
+
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      await user.click(screen.getAllByTestId("profile-menu-trigger")[0]);
+      await user.click(screen.getByTestId("profile-edit"));
+      await waitFor(() => {
+        expect(screen.getByTestId("profile-name-input")).toHaveValue(
+          "gpt-4-profile",
+        );
+      });
+      await user.click(await screen.findByTestId("sdk-section-basic-toggle"));
+      await waitFor(() => {
+        expect(screen.getByTestId("save-profile-btn")).not.toBeDisabled();
+      });
+      await user.click(screen.getByTestId("save-profile-btn"));
+
+      await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
+      const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
+      expect(savedLlm.model).toBe("openai/custom-model");
+      expect(savedLlm.base_url).toBe(
+        "https://openai-compatible.example.com/v1",
+      );
+    });
   });
 
   describe("All tab save", () => {

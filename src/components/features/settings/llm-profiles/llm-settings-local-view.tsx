@@ -256,13 +256,11 @@ export function LlmSettingsLocalView() {
     // The Basic tab has no base_url field; the provider implies it. Persist
     // the All-Hands proxy explicitly for OpenHands models because older local
     // agent-server builds do not infer the LiteLLM proxy api_base on their own.
-    // For other providers, drop any stale custom value and let the backend use
-    // its normal provider defaults.
+    // For other providers, preserve any existing base_url because the Basic tab
+    // has no way for the user to review or change it.
     if (saveControl.view === "basic") {
       if (isOpenHandsProviderModel(llmConfig.model)) {
         llmConfig.base_url = OPENHANDS_LLM_PROXY_BASE_URL;
-      } else {
-        delete llmConfig.base_url;
       }
     }
 
