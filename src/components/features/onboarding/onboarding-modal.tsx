@@ -162,7 +162,11 @@ export function OnboardingModal({
               </Slide>
               <Slide index={SETUP_SLIDE_INDEX} currentStep={currentStep}>
                 {isOpenHands ? (
-                  <SetupLlmStep onBack={goBack} onNext={goNext} />
+                  <SetupLlmStep
+                    selectedAgentId={selectedAgentId}
+                    onBack={goBack}
+                    onNext={goNext}
+                  />
                 ) : (
                   <SetupAcpSecretsStep
                     providerKey={selectedAgentId}

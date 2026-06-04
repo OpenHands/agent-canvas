@@ -18,6 +18,13 @@ import { useProviderModels } from "#/hooks/query/use-provider-models";
 import { useOpenhandsVerifiedModels } from "#/hooks/query/use-openhands-verified-models";
 import { normalizeDisplayModel } from "#/utils/normalize-display-model";
 
+const MODEL_SELECTOR_ANTI_AUTOFILL_PROPS = {
+  autoComplete: "new-password",
+  autoCorrect: "off" as const,
+  autoCapitalize: "none" as const,
+  spellCheck: "false" as const,
+};
+
 interface ModelSelectorProps {
   isDisabled?: boolean;
   currentModel?: string;
@@ -132,6 +139,7 @@ export function ModelSelector({
           isRequired
           isVirtualized={false}
           name="llm-provider-input"
+          autoComplete="new-password"
           isDisabled={isDisabled}
           aria-label={t(I18nKey.LLM$PROVIDER)}
           isClearable={false}
@@ -148,6 +156,7 @@ export function ModelSelector({
           }}
           selectorButtonProps={{ disableRipple: true }}
           inputProps={{
+            ...MODEL_SELECTOR_ANTI_AUTOFILL_PROPS,
             classNames: {
               inputWrapper: formControlSettingsFieldClassName,
             },
@@ -201,7 +210,9 @@ export function ModelSelector({
           isRequired
           isVirtualized={false}
           isLoading={isLoadingModels}
+          placeholder={t(I18nKey.LLM$SELECT_MODEL_PLACEHOLDER)}
           name="llm-model-input"
+          autoComplete="new-password"
           aria-label={t(I18nKey.LLM$MODEL)}
           isClearable={false}
           onSelectionChange={(e) => {
@@ -217,6 +228,7 @@ export function ModelSelector({
           }}
           selectorButtonProps={{ disableRipple: true }}
           inputProps={{
+            ...MODEL_SELECTOR_ANTI_AUTOFILL_PROPS,
             classNames: {
               inputWrapper: formControlSettingsFieldClassName,
             },

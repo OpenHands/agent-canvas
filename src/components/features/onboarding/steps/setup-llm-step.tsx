@@ -8,22 +8,26 @@ import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
 import { useActivateLlmProfile } from "#/hooks/mutation/use-activate-llm-profile";
 import { deriveProfileNameFromModel } from "#/utils/derive-profile-name";
+import { resolveOpenHandsModelForApiKey } from "#/utils/resolve-openhands-model";
+import { extractModelAndProvider } from "#/utils/extract-model-and-provider";
+import type { OnboardingAgentId } from "./choose-agent-step";
 
 interface SetupLlmStepProps {
+  selectedAgentId: OnboardingAgentId;
   onBack: () => void;
   onNext: () => void;
 }
 
 /**
- * Pre-fills the LLM form with the Anthropic provider's Claude Opus
- * model. Most users won't have an OpenHands account, so onboarding
- * routes directly through Anthropic by default. Keeping this as an
- * explicit override marks the model dirty so the Next button persists
- * the suggested default immediately.
+ * Onboarding should default the LLM model to the agent selected in step 1.
+ * Keep the default in an override so it is marked dirty and persists on Next.
  */
-const ONBOARDING_LLM_OVERRIDES = {
-  "llm.model": "anthropic/claude-opus-4-8",
-} as const;
+const ONBOARDING_LLM_MODEL_BY_AGENT: Record<OnboardingAgentId, string> = {
+  openhands: "anthropic/claude-opus-4-5-20251101",
+  "claude-code": "anthropic/claude-opus-4-8",
+  codex: "openai/gpt-5.5",
+  "gemini-cli": "gemini/gemini-3.1-pro",
+};
 
 /**
  * Step 2: embed the LLM settings form. The screen runs in `embedded`
@@ -37,7 +41,11 @@ const ONBOARDING_LLM_OVERRIDES = {
  * through to advancing without a save call, so users with already-
  * configured settings aren't blocked.
  */
-export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
+export function SetupLlmStep({
+  selectedAgentId,
+  onBack,
+  onNext,
+}: SetupLlmStepProps) {
   const { t } = useTranslation("openhands");
   const { backend } = useActiveBackend();
   const isLocalBackend = backend.kind === "local";
@@ -46,6 +54,14 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
   const [saveControl, setSaveControl] =
     React.useState<SdkSectionSaveControl | null>(null);
   const [isFinalizing, setIsFinalizing] = React.useState(false);
+  const initialValueOverrides = React.useMemo(
+    () => ({
+      "llm.model":
+        ONBOARDING_LLM_MODEL_BY_AGENT[selectedAgentId] ??
+        ONBOARDING_LLM_MODEL_BY_AGENT.openhands,
+    }),
+    [selectedAgentId],
+  );
 
   // On local backends the LLM profiles list is the user-facing source of
   // truth; without this step the form save only updates agent_settings and
@@ -61,9 +77,21 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
     const baseUrl =
       typeof values["llm.base_url"] === "string" ? values["llm.base_url"] : "";
 
-    const name = deriveProfileNameFromModel(model);
+    let resolvedModel = model;
+    const { provider, model: providerModel } = extractModelAndProvider(model);
+    if (provider && providerModel && apiKey) {
+      const resolvedModelId = await resolveOpenHandsModelForApiKey({
+        provider,
+        requestedModel: providerModel,
+        apiKey,
+        baseUrl,
+      });
+      resolvedModel = `${provider}/${resolvedModelId}`;
+    }
+
+    const name = deriveProfileNameFromModel(resolvedModel);
     const llmConfig: { model: string; api_key?: string; base_url?: string } = {
-      model,
+      model: resolvedModel,
     };
     if (apiKey) llmConfig.api_key = apiKey;
     if (baseUrl) llmConfig.base_url = baseUrl;
@@ -123,7 +151,7 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
           embedded
           hideSaveButton
           suppressSuccessToast
-          initialValueOverrides={ONBOARDING_LLM_OVERRIDES}
+          initialValueOverrides={initialValueOverrides}
           onSaveSuccess={handleSaveSuccess}
           onSaveControlChange={setSaveControl}
         />
