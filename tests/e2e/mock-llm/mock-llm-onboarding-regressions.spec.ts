@@ -62,38 +62,13 @@ test.describe("onboarding recent regressions", () => {
 
   // Regression coverage for #1077 / PR #1089: first-run LLM setup
   // should not default users to the OpenHands provider.
-  //
-  // Earlier spec files (conversation, model-switch, etc.) leave the
-  // active profile's base_url pointing at the mock LLM server. The
-  // LlmSettingsScreen's getInitialView callback treats any non-default
-  // base_url as "all" mode, hiding the basic-mode provider/model
-  // selectors. We intercept GET /api/settings to strip base_url so
-  // the form loads in basic mode, matching a fresh install.
 
   test("defaults the LLM setup step to Anthropic Claude Opus", async ({
     page,
   }) => {
     await showOnboarding(page, {
       apiKey: SESSION_API_KEY,
-      beforeGoto: async () => {
-        await routeSessionApiKey(page);
-        // Intercept GET /api/settings so the LLM form sees a clean
-        // base_url, forcing basic view mode regardless of what earlier
-        // specs configured. Registered AFTER routeSessionApiKey so
-        // Playwright's LIFO matching picks this up first for settings.
-        await page.route("**/api/settings", async (route, req) => {
-          if (req.method() !== "GET") {
-            await route.fallback();
-            return;
-          }
-          const response = await route.fetch();
-          const body = await response.json();
-          if (body?.agent_settings?.llm) {
-            body.agent_settings.llm.base_url = null;
-          }
-          await route.fulfill({ response, json: body });
-        });
-      },
+      beforeGoto: () => routeSessionApiKey(page),
     });
     await advanceOnboardingToLlmStep(page);
 

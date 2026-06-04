@@ -21,7 +21,6 @@
 
 import { test, expect } from "@playwright/test";
 import {
-  BACKEND_URL,
   SESSION_API_KEY,
   MOCK_LLM_AGENT_URL,
   routeSessionApiKey,
@@ -45,8 +44,6 @@ import {
 } from "../support/onboarding-helpers";
 
 const MOCK_MODEL = "openai/mock-onboarding-model";
-/** Profile name derived from MOCK_MODEL by `deriveProfileNameFromModel`. */
-const DERIVED_PROFILE_NAME = "mock-onboarding-model";
 const REPLY_TOKEN = "ONBOARDING_HAPPY_PATH_REPLY_OK";
 
 test.describe.configure({ mode: "serial" });
@@ -64,39 +61,9 @@ test.describe("onboarding happy path", () => {
       }
     }
     // Reset the mock LLM to its default trajectory so subsequent specs
-    // (e.g. onboarding-regressions) start with a clean slate.
+    // start with a clean slate.
     try {
       await resetMockLLM(request);
-    } catch {
-      // best-effort
-    }
-    // Clean up server-side state the onboarding LLM step created.
-    // The step saves llm.base_url + model AND creates/activates a named
-    // profile. If we leave these, subsequent onboarding-regression tests
-    // see base_url in the settings, auto-select "All" view, and the
-    // basic-mode provider/model inputs they assert on don't exist.
-    try {
-      // Delete the profile the onboarding step created
-      await request.delete(
-        `${BACKEND_URL}/api/profiles/${encodeURIComponent(DERIVED_PROFILE_NAME)}`,
-        { headers: { "X-Session-API-Key": SESSION_API_KEY } },
-      );
-    } catch {
-      // best-effort
-    }
-    try {
-      // Clear the LLM settings the onboarding step saved
-      await request.patch(`${BACKEND_URL}/api/settings`, {
-        headers: {
-          "X-Session-API-Key": SESSION_API_KEY,
-          "Content-Type": "application/json",
-        },
-        data: {
-          agent_settings_diff: {
-            llm: { base_url: null, model: null, api_key: null },
-          },
-        },
-      });
     } catch {
       // best-effort
     }
