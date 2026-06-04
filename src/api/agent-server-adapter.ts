@@ -268,6 +268,7 @@ export function toAppConversation(
     selected_branch: metadata?.selected_branch ?? null,
     git_provider: metadata?.git_provider ?? null,
     selected_workspace: metadata?.selected_workspace ?? null,
+    active_profile: metadata?.active_profile ?? null,
     title: info.title?.trim()
       ? info.title
       : getDefaultConversationTitle(info.id),
