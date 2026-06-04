@@ -88,11 +88,16 @@ git commit -m "chore: bump version to <new-version>"
 git push
 ```
 
-**Also update version references in `README.md`** if the Docker image tag examples reference a specific version:
+**Also update the documented Docker install version** when cutting a release:
+
+1. Set `versions.agentCanvas` in `config/defaults.json` to match the new release.
+2. Update the README Docker examples (both files):
 
 ```bash
-sed -i 's/ghcr.io\/openhands\/agent-canvas:[0-9]*\.[0-9]*\.[0-9]*[^ ]*/ghcr.io\/openhands\/agent-canvas:<new-version>/g' README.md
-git add README.md && git commit -m "docs: update README version to <new-version>" && git push
+sed -i 's/ghcr.io\/openhands\/agent-canvas:[^ ]*/ghcr.io\/openhands\/agent-canvas:<new-version>/g' README.md README.windows.md
+git add config/defaults.json README.md README.windows.md
+git commit -m "docs: update Docker install version to <new-version>"
+git push
 ```
 
 ---
