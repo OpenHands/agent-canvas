@@ -15,7 +15,7 @@ import { seedLocalStorage } from "./support/seed-local-storage";
  *   2. Loaded – four skill cards visible
  *   3. Search – filtered to one card after typing "docker"
  *   4. No match – empty message after typing an unrecognised term
- *   5. Type filter – only agentskills cards visible after clicking filter
+ *   5. Scope filter – only public cards visible after clicking filter
  */
 
 const MOCK_SKILLS = [
@@ -205,7 +205,7 @@ test.describe("Skills Page Visual Snapshots", () => {
     });
   });
 
-  test("type filter shows only matching skill type", async ({ page }) => {
+  test("scope filter shows only matching skill scope", async ({ page }) => {
     await setupMocks(page);
 
     await page.goto("/skills");
@@ -220,16 +220,20 @@ test.describe("Skills Page Visual Snapshots", () => {
       timeout: 5_000,
     });
 
-    const filter = page.getByTestId("skills-type-filter");
+    const filter = page.getByTestId("skills-scope-filter");
     await filter.getByTestId("dropdown-trigger").click();
-    await page.getByTestId("skills-type-filter-agentskills").click();
+    await expect(page.getByTestId("skills-scope-filter-project")).toHaveCount(
+      0,
+    );
+    await page.getByTestId("skills-scope-filter-public").click();
     await page.waitForTimeout(300);
 
     await expect(page.getByTestId("skill-card-code-review")).toBeVisible();
     await expect(page.getByTestId("skill-card-docker")).toBeVisible();
-    await expect(page.getByTestId("skill-card-prd")).toHaveCount(0);
+    await expect(page.getByTestId("skill-card-prd")).toBeVisible();
+    await expect(page.getByTestId("skill-card-repo-rules")).toHaveCount(0);
 
-    await expect(skillsScreen).toHaveScreenshot("skills-type-filter.png", {
+    await expect(skillsScreen).toHaveScreenshot("skills-scope-filter.png", {
       animations: "disabled",
       maxDiffPixelRatio: 0.01,
     });

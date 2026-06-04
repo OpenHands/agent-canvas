@@ -2,13 +2,12 @@ import type { SkillScope } from "#/utils/skill-scope";
 
 // --- Scope filter (replaces the old type filter) ---
 
-export type SkillScopeFilter = "all" | SkillScope;
+export type SkillScopeFilter = "all" | Exclude<SkillScope, "project">;
 
 export const SKILL_SCOPE_FILTER_OPTIONS: readonly SkillScopeFilter[] = [
   "all",
   "public",
   "personal",
-  "project",
 ] as const;
 
 // --- Status filter (enabled / disabled) ---

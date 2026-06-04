@@ -13,7 +13,6 @@ const SCOPE_LABEL_KEY: Record<SkillScopeFilter, I18nKey> = {
   all: I18nKey.SETTINGS$SKILLS_TYPE_ALL,
   public: I18nKey.SETTINGS$SKILLS_SCOPE_PUBLIC,
   personal: I18nKey.SETTINGS$SKILLS_SCOPE_PERSONAL,
-  project: I18nKey.SETTINGS$SKILLS_SCOPE_PROJECT,
 };
 
 interface SkillsScopeFilterDropdownProps {
