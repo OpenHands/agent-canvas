@@ -458,10 +458,15 @@ export function buildAgentServerCommand(env = process.env) {
     // openhands-agent-server/, openhands-sdk/, openhands-tools/, openhands-workspace/
     // All four must come from the same ref so inter-package APIs (e.g.
     // OH_PUBLIC_SKILLS_PATH support added to both the server and the SDK) stay
-    // in sync. Omitting openhands-sdk here causes uv to fall back to the
-    // released PyPI version, which may not have the matching API changes.
+    // in sync.
+    //
+    // --reinstall is required because the git branch may carry the same version
+    // string as the current PyPI release (e.g. both "1.25.0"). Without it, uv
+    // silently reuses the cached PyPI wheels and the git ref is never actually
+    // used, even though it was explicitly requested.
     const baseGitUrl = `git+${AGENT_SERVER_GIT_REPO}@${gitRef}`;
     uvxArgs.push(
+      "--reinstall",
       "--from",
       `${baseGitUrl}#subdirectory=openhands-agent-server`,
       "--with",
