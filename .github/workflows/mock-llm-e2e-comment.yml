@@ -39,6 +39,7 @@ jobs:
 
       - name: Post comment
         if: steps.download.outcome == 'success'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
