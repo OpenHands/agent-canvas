@@ -388,8 +388,8 @@ describe("LlmSettingsLocalView", () => {
       });
 
       // The LlmSettingsScreen component receives initialValueOverrides
-      // with the profile's LLM config values. We verify this by checking
-      // that getProfile was called and the form is in edit mode.
+      // with the profile's non-secret LLM config values. The saved API key is
+      // intentionally represented by an empty field plus a hidden placeholder.
       expect(ProfilesService.getProfile).toHaveBeenCalledWith(
         "gpt-4-profile",
         "encrypted",
@@ -398,6 +398,114 @@ describe("LlmSettingsLocalView", () => {
       // Verify we're in edit mode (back button and save button visible)
       expect(screen.getByTestId("back-to-profiles")).toBeInTheDocument();
       expect(screen.getByTestId("save-profile-btn")).toBeInTheDocument();
+    });
+
+    it("shows a fixed hidden placeholder instead of the saved API key value when editing", async () => {
+      const user = userEvent.setup();
+      const longSavedApiKey = `sk-${"x".repeat(96)}`;
+
+      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
+        name: "gpt-4-profile",
+        api_key_set: true,
+        config: {
+          model: "openai/gpt-4",
+          api_key: longSavedApiKey,
+          base_url: "https://api.openai.com/v1",
+        },
+      });
+
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      await user.click(screen.getAllByTestId("profile-menu-trigger")[0]);
+      await user.click(screen.getByTestId("profile-edit"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("profile-name-input")).toHaveValue(
+          "gpt-4-profile",
+        );
+      });
+
+      const apiKeyInput = await screen.findByTestId("llm-api-key-input");
+      expect(apiKeyInput).toHaveValue("");
+      expect(apiKeyInput).not.toHaveValue(longSavedApiKey);
+      await waitFor(() => {
+        expect(apiKeyInput).toHaveAttribute("placeholder", "<hidden>");
+      });
+    });
+
+    it("keeps the saved API key when the edit form is submitted with a blank key field", async () => {
+      const user = userEvent.setup();
+
+      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
+        name: "gpt-4-profile",
+        api_key_set: true,
+        config: {
+          model: "openai/gpt-4",
+          api_key: "gAAAA_encrypted_key",
+          base_url: "https://api.openai.com/v1",
+        },
+      });
+      mockSaveMutateAsync.mockResolvedValueOnce({ success: true });
+
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      await user.click(screen.getAllByTestId("profile-menu-trigger")[0]);
+      await user.click(screen.getByTestId("profile-edit"));
+
+      const apiKeyInput = await screen.findByTestId("llm-api-key-input");
+      expect(apiKeyInput).toHaveValue("");
+      await waitFor(() => {
+        expect(screen.getByTestId("save-profile-btn")).not.toBeDisabled();
+      });
+      await user.click(screen.getByTestId("save-profile-btn"));
+
+      await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
+      const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
+      expect(savedLlm.api_key).toBe("gAAAA_encrypted_key");
+    });
+
+    it("replaces the saved API key when a new key is entered during edit", async () => {
+      const user = userEvent.setup();
+
+      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
+        name: "gpt-4-profile",
+        api_key_set: true,
+        config: {
+          model: "openai/gpt-4",
+          api_key: "gAAAA_encrypted_key",
+          base_url: "https://api.openai.com/v1",
+        },
+      });
+      mockSaveMutateAsync.mockResolvedValueOnce({ success: true });
+
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      await user.click(screen.getAllByTestId("profile-menu-trigger")[0]);
+      await user.click(screen.getByTestId("profile-edit"));
+
+      const apiKeyInput = await screen.findByTestId("llm-api-key-input");
+      await user.type(apiKeyInput, "sk-new-profile-key");
+      await waitFor(() => {
+        expect(screen.getByTestId("save-profile-btn")).not.toBeDisabled();
+      });
+      await user.click(screen.getByTestId("save-profile-btn"));
+
+      await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
+      const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
+      expect(savedLlm.api_key).toBe("sk-new-profile-key");
+    });
+  });
+
+  describe("create mode API key field", () => {
+    it("shows an empty API key field with no hidden placeholder", async () => {
+      const user = userEvent.setup();
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      await user.click(screen.getByTestId("add-llm-profile"));
+
+      const apiKeyInput = await screen.findByTestId("llm-api-key-input");
+      expect(apiKeyInput).toHaveValue("");
+      expect(apiKeyInput).toHaveAttribute("placeholder", "");
     });
   });
 
