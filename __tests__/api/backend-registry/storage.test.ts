@@ -121,7 +121,6 @@ describe("backend-registry storage", () => {
     });
   });
 
-
   it("refreshes a stale API key on the default Local backend from env defaults", () => {
     vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
     window.localStorage.setItem(
@@ -147,6 +146,44 @@ describe("backend-registry storage", () => {
       JSON.parse(window.localStorage.getItem(BACKENDS_STORAGE_KEY) ?? "[]")[0],
     ).toMatchObject({
       id: "default-local",
+      apiKey: "fresh-session-key",
+    });
+  });
+
+  it("refreshes a stale API key on the default Local backend when stored with a loopback alias", () => {
+    vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
+    const currentUrl = new URL(window.location.origin);
+    const loopbackAliasHost =
+      currentUrl.hostname === "127.0.0.1" ? "localhost" : "127.0.0.1";
+    const loopbackAlias = `${currentUrl.protocol}//${loopbackAliasHost}${
+      currentUrl.port ? `:${currentUrl.port}` : ""
+    }`;
+
+    window.localStorage.setItem(
+      BACKENDS_STORAGE_KEY,
+      JSON.stringify([
+        {
+          id: "default-local",
+          name: "Local",
+          host: loopbackAlias,
+          apiKey: "stale-session-key",
+          kind: "local",
+        },
+      ]),
+    );
+
+    const result = readStoredBackends();
+
+    expect(result[0]).toMatchObject({
+      id: "default-local",
+      host: loopbackAlias,
+      apiKey: "fresh-session-key",
+    });
+    expect(
+      JSON.parse(window.localStorage.getItem(BACKENDS_STORAGE_KEY) ?? "[]")[0],
+    ).toMatchObject({
+      id: "default-local",
+      host: loopbackAlias,
       apiKey: "fresh-session-key",
     });
   });

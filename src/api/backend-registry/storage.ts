@@ -24,7 +24,18 @@ function isValidBackend(value: unknown): value is Backend {
 
 function normalizeHostForComparison(host: string): string {
   try {
-    return new URL(host).origin;
+    const url = new URL(host);
+    const hostname = url.hostname.toLowerCase();
+    const comparableHostname =
+      hostname === "127.0.0.1" ||
+      hostname === "0.0.0.0" ||
+      hostname === "localhost" ||
+      hostname === "[::1]" ||
+      hostname === "::1"
+        ? "localhost"
+        : hostname;
+    const port = url.port || (url.protocol === "https:" ? "443" : "80");
+    return `${url.protocol}//${comparableHostname}:${port}`;
   } catch {
     return host.replace(/\/+$/, "");
   }
