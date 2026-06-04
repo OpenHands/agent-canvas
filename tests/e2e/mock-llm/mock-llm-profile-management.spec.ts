@@ -265,8 +265,11 @@ test.describe("same-model profile identity", () => {
     await saveProfile(request, PROFILE_BETA, SHARED_MODEL);
     await activateProfile(request, PROFILE_BETA);
 
-    // Register a trajectory for the conversation
+    // Register a trajectory for the conversation.
+    // Turn 0 is padding: the agent-server makes an internal LLM call
+    // (condenser/skill-analysis) before the agent's main loop starts.
     await registerTrajectory(request, "profile-identity", [
+      { text: "" }, // padding for internal condenser call
       { text: REPLY_TOKEN },
     ]);
     await activateTrajectory(request, "profile-identity");

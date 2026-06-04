@@ -21,6 +21,7 @@
 
 import { test, expect } from "@playwright/test";
 import {
+  BACKEND_URL,
   SESSION_API_KEY,
   MOCK_LLM_AGENT_URL,
   routeSessionApiKey,
@@ -64,6 +65,25 @@ test.describe("onboarding happy path", () => {
     // (e.g. onboarding-regressions) start with a clean slate.
     try {
       await resetMockLLM(request);
+    } catch {
+      // best-effort
+    }
+    // Clear the custom base_url the onboarding LLM step saved to the
+    // agent-server. Without this, subsequent onboarding-regression tests
+    // see base_url in the settings and auto-select "All" view instead of
+    // "basic", hiding the provider/model dropdowns they assert on.
+    try {
+      await request.patch(`${BACKEND_URL}/api/settings`, {
+        headers: {
+          "X-Session-API-Key": SESSION_API_KEY,
+          "Content-Type": "application/json",
+        },
+        data: {
+          agent_settings_diff: {
+            llm: { base_url: "", model: "" },
+          },
+        },
+      });
     } catch {
       // best-effort
     }
