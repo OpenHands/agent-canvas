@@ -63,7 +63,7 @@ test.describe("onboarding recent regressions", () => {
   // Regression coverage for #1077 / PR #1089: first-run LLM setup
   // should not default users to the OpenHands provider.
 
-  test("defaults the LLM setup step to Anthropic Claude Opus", async ({
+  test("defaults the LLM setup step to OpenAI GPT-5.5", async ({
     page,
   }) => {
     await showOnboarding(page, {
@@ -77,19 +77,18 @@ test.describe("onboarding recent regressions", () => {
 
     await expect(
       providerInput,
-      "first-run onboarding should default to the Anthropic provider",
-    ).toHaveValue("Anthropic", { timeout: 10_000 });
-    // The model input displays the Anthropic model ID without the provider
-    // prefix.
+      "first-run onboarding should default to the OpenAI provider",
+    ).toHaveValue("OpenAI", { timeout: 10_000 });
+    // The model input displays the model ID without the provider prefix.
     await expect(
       modelInput,
-      "first-run onboarding should default to Claude Opus",
-    ).toHaveValue("claude-opus-4-8", {
+      "first-run onboarding should default to GPT-5.5",
+    ).toHaveValue("gpt-5.5", {
       timeout: 10_000,
     });
     await expect(
       page.getByTestId("openhands-account-help"),
-      "OpenHands account helper should stay hidden for Anthropic defaults",
+      "OpenHands account helper should stay hidden for OpenAI defaults",
     ).toHaveCount(0);
   });
 });
