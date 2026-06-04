@@ -88,17 +88,30 @@ git commit -m "chore: bump version to <new-version>"
 git push
 ```
 
-**Also update the documented Docker install version** when cutting a release:
-
-1. Set `versions.agentCanvas` in `config/defaults.json` to match the new release.
-2. Update the README Docker examples (both files):
+**Also update the documented Docker install version** on the release branch before tagging (the `create-release.yml` workflow fails if `versions.agentCanvas` does not match the tag):
 
 ```bash
-sed -i 's/ghcr.io\/openhands\/agent-canvas:[^ ]*/ghcr.io\/openhands\/agent-canvas:<new-version>/g' README.md README.windows.md
+VERSION=<new-version>
+export VERSION
+node <<'NODE'
+const fs = require("fs");
+const version = process.env.VERSION;
+const configPath = "config/defaults.json";
+const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+config.versions.agentCanvas = version;
+fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
+const image = `${config.images.agentCanvas}:${version}`;
+const imageRefPattern = /ghcr\.io\/openhands\/agent-canvas:[^\s`"]+/g;
+for (const file of ["README.md", "README.windows.md"]) {
+  fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace(imageRefPattern, image));
+}
+NODE
 git add config/defaults.json README.md README.windows.md
-git commit -m "docs: update Docker install version to <new-version>"
+git commit -m "docs: update Docker install version to $VERSION"
 git push
 ```
+
+External install docs on docs.openhands.dev are maintained separately; update them there when closing #1073. Pre-release Docker images are tagged by exact version only (`latest` is published for stable releases).
 
 ---
 

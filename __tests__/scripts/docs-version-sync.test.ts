@@ -39,9 +39,16 @@ describe("docs/example references stay in sync with config/defaults.json", () =>
     );
   });
 
-  it("README install examples use the current Docker image tag", () => {
-    expect(read("README.md")).toContain(dockerImage);
-    expect(read("README.windows.md")).toContain(dockerImage);
+  it("every README Docker image reference uses the pinned tag", () => {
+    const imageRefPattern = /ghcr\.io\/openhands\/agent-canvas:[^\s`"]+/g;
+
+    for (const file of ["README.md", "README.windows.md"]) {
+      const refs = read(file).match(imageRefPattern) ?? [];
+      expect(refs.length).toBeGreaterThan(0);
+      for (const ref of refs) {
+        expect(ref).toBe(dockerImage);
+      }
+    }
   });
 
   it("scripts/dev-safe.mjs JSDoc example matches the current default", () => {
