@@ -24,6 +24,8 @@ import {
 import { InstallServerModal } from "#/components/features/mcp-page/install-server-modal";
 import { useTracking } from "#/hooks/use-tracking";
 import { RecommendedAutomationsSection } from "./recommended-automations-section";
+import { AutomationConfigModal } from "./automation-config-modal";
+import { getAutomationConfig } from "./automation-config";
 
 interface RecommendedAutomationsLauncherProps {
   query?: string;
@@ -66,6 +68,8 @@ export function RecommendedAutomationsLauncher({
   const [pendingAutomation, setPendingAutomation] =
     useState<RecommendedAutomation | null>(null);
   const [installQueue, setInstallQueue] = useState<MarketplaceEntry[]>([]);
+  const [configAutomation, setConfigAutomation] =
+    useState<RecommendedAutomation | null>(null);
   const completedInstallRef = useRef(false);
   const launchInFlightRef = useRef(false);
 
@@ -76,7 +80,7 @@ export function RecommendedAutomationsLauncher({
   );
 
   const launchAutomation = useCallback(
-    (automation: RecommendedAutomation) => {
+    (automation: RecommendedAutomation, promptOverride?: string) => {
       if (
         launchInFlightRef.current ||
         createConversation.isPending ||
@@ -86,7 +90,7 @@ export function RecommendedAutomationsLauncher({
       }
       launchInFlightRef.current = true;
 
-      const prompt = buildAutomationPrompt(automation.prompt);
+      const prompt = promptOverride ?? buildAutomationPrompt(automation.prompt);
 
       createConversation.mutate(
         {},
@@ -135,24 +139,49 @@ export function RecommendedAutomationsLauncher({
     [installedMcpServers],
   );
 
+  // Once the required MCPs are installed, either gather structured config
+  // (issue #950 step 4) or — for automations without a config schema — launch
+  // straight away with the catalog prompt.
+  const proceedAfterMcpReady = useCallback(
+    (automation: RecommendedAutomation) => {
+      if (getAutomationConfig(automation.id)) {
+        setConfigAutomation(automation);
+        return;
+      }
+      launchAutomation(automation);
+    },
+    [launchAutomation],
+  );
+
   const handleSelectAutomation = (automation: RecommendedAutomation) => {
     if (
       launchInFlightRef.current ||
       createConversation.isPending ||
       isCreatingConversation ||
-      installQueue.length > 0
+      installQueue.length > 0 ||
+      configAutomation
     ) {
       return;
     }
 
     const missingEntries = getMissingEntries(automation);
     if (missingEntries.length === 0) {
-      launchAutomation(automation);
+      proceedAfterMcpReady(automation);
       return;
     }
 
     setPendingAutomation(automation);
     setInstallQueue(missingEntries);
+  };
+
+  const handleConfigSubmit = (values: Record<string, string>) => {
+    const automation = configAutomation;
+    if (!automation) return;
+    const config = getAutomationConfig(automation.id);
+    setConfigAutomation(null);
+    if (config) {
+      launchAutomation(automation, config.buildPrompt(values));
+    }
   };
 
   const cancelInstallFlow = () => {
@@ -174,7 +203,7 @@ export function RecommendedAutomationsLauncher({
         const automation = pendingAutomation;
         window.setTimeout(() => {
           setPendingAutomation(null);
-          if (automation) launchAutomation(automation);
+          if (automation) proceedAfterMcpReady(automation);
         }, 0);
       }
 
@@ -183,6 +212,9 @@ export function RecommendedAutomationsLauncher({
   };
 
   const installEntry = installQueue[0] ?? null;
+  const configForAutomation = configAutomation
+    ? getAutomationConfig(configAutomation.id)
+    : undefined;
 
   // Recommended automations are a local-backend-only feature; cloud
   // automations are managed elsewhere.
@@ -204,6 +236,16 @@ export function RecommendedAutomationsLauncher({
           entry={installEntry}
           onClose={cancelInstallFlow}
           onSuccess={handleInstallSuccess}
+        />
+      )}
+
+      {configAutomation && configForAutomation && (
+        <AutomationConfigModal
+          key={configAutomation.id}
+          automation={configAutomation}
+          config={configForAutomation}
+          onClose={() => setConfigAutomation(null)}
+          onSubmit={handleConfigSubmit}
         />
       )}
     </>
