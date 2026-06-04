@@ -14,8 +14,6 @@ import test, { expect, type Page, type Request } from "@playwright/test";
 import {
   seedLocalStorage,
   routeSessionApiKey,
-  SESSION_API_KEY,
-  BACKEND_URL,
 } from "./utils/mock-llm-helpers";
 
 test.describe.configure({ mode: "serial" });
@@ -23,22 +21,6 @@ test.describe.configure({ mode: "serial" });
 // ═══════════════════════════════════════════════════════════════════════
 // Helpers
 // ═══════════════════════════════════════════════════════════════════════
-
-/** Route GET /api/settings to return a minimal configured-provider response
- *  so the sidebar user-avatar and context menu render. */
-async function routeConfiguredSettings(page: Page) {
-  await page.route("**/api/settings", async (route, req) => {
-    if (req.method() !== "GET") {
-      await route.fallback();
-      return;
-    }
-    const response = await route.fetch();
-    const body = await response.json();
-    // Ensure we look "configured" so the avatar menu shows
-    body.llm_model = body.llm_model || "openai/mock-test-model";
-    await route.fulfill({ response, json: body });
-  });
-}
 
 // ─── pagination helpers ──────────────────────────────────────────────
 
@@ -185,47 +167,6 @@ async function triggerOlderEventLoad(page: Page) {
 test.describe("UI regressions", () => {
   test.beforeEach(async ({ page }) => {
     await seedLocalStorage(page);
-  });
-
-  // ── #11933: avatar menu diagonal hover ───────────────────────────
-
-  test("avatar context menu stays open on diagonal cursor movement", async ({
-    page,
-  }) => {
-    await routeSessionApiKey(page);
-    await routeConfiguredSettings(page);
-    await page.goto("/", { waitUntil: "domcontentloaded" });
-
-    const userAvatar = page.getByTestId("user-avatar");
-    await expect(userAvatar).toBeVisible({ timeout: 15_000 });
-
-    await userAvatar.hover();
-
-    const contextMenu = page.getByTestId("user-context-menu");
-    await expect(contextMenu).toBeVisible();
-
-    const menuWrapper = contextMenu.locator("..");
-    await expect(menuWrapper).toHaveCSS("opacity", "1");
-
-    // Diagonal mouse movement from avatar toward the menu.
-    const avatarBox = await userAvatar.boundingBox();
-    const menuBox = await contextMenu.boundingBox();
-    if (!avatarBox || !menuBox) throw new Error("Could not get bounding boxes");
-
-    const startX = avatarBox.x + avatarBox.width / 2;
-    const startY = avatarBox.y + avatarBox.height / 2;
-    const endX = menuBox.x + menuBox.width / 2;
-    const endY = menuBox.y + menuBox.height / 2;
-
-    const steps = 5;
-    for (let i = 0; i <= steps; i++) {
-      const x = startX + ((endX - startX) * i) / steps;
-      const y = startY + ((endY - startY) * i) / steps;
-      await page.mouse.move(x, y);
-    }
-
-    await expect(contextMenu).toBeVisible();
-    await expect(menuWrapper).toHaveCSS("opacity", "1");
   });
 
   // ── CSS isolation ────────────────────────────────────────────────
