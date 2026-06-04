@@ -210,6 +210,7 @@ export function ModelSelector({
           isRequired
           isVirtualized={false}
           isLoading={isLoadingModels}
+          placeholder={t(I18nKey.LLM$SELECT_MODEL_PLACEHOLDER)}
           name="llm-model-input"
           autoComplete="new-password"
           aria-label={t(I18nKey.LLM$MODEL)}

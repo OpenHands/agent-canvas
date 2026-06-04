@@ -46,7 +46,7 @@ vi.mock("react-i18next", () => ({
         LLM$PROVIDER: "LLM Provider",
         LLM$MODEL: "LLM Model",
         LLM$SELECT_PROVIDER_PLACEHOLDER: "Select a provider",
-        LLM$SELECT_MODEL_PLACEHOLDER: "Select a model",
+        LLM$SELECT_MODEL_PLACEHOLDER: "Select Model",
       };
       return translations[key] || key;
     },
@@ -137,14 +137,14 @@ describe("ModelSelector", () => {
     });
   });
 
-  it("should not render placeholder text on the provider or model inputs", () => {
+  it("should render model placeholder text when no model is selected", () => {
     renderWithQuery(<ModelSelector />);
 
     const providerInput = screen.getByLabelText("LLM Provider");
     const modelInput = screen.getByLabelText("LLM Model");
 
     expect(providerInput.getAttribute("placeholder") ?? "").toBe("");
-    expect(modelInput.getAttribute("placeholder") ?? "").toBe("");
+    expect(modelInput.getAttribute("placeholder") ?? "").toBe("Select Model");
   });
 
 });

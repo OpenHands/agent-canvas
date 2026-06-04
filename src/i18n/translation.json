@@ -7429,7 +7429,7 @@
     "ca": "Feu clic aquí per obtenir instruccions"
   },
   "LLM$SELECT_MODEL_PLACEHOLDER": {
-    "en": "Select a model",
+    "en": "Select Model",
     "ja": "モデルを選択",
     "zh-CN": "选择模型",
     "zh-TW": "選擇模型",
