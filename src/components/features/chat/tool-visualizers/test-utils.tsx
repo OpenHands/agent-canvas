@@ -15,6 +15,7 @@ import {
   FileEditorObservation,
   GrepObservation,
   GlobObservation,
+  TerminalObservation,
 } from "#/types/agent-server/core/base/observation";
 
 /** Renders a visualizer body with the standard chat providers. */
@@ -74,6 +75,32 @@ export const bashObservation = (
     command,
     exit_code: exitCode,
     error: exitCode !== 0,
+    timeout: false,
+    metadata: {
+      exit_code: exitCode ?? 0,
+      pid: 1,
+      username: "openhands",
+      hostname: "runtime",
+      prefix: "",
+      suffix: "",
+      working_dir: "/workspace",
+      py_interpreter_path: null,
+    },
+  },
+});
+
+export const terminalObservation = (
+  output: string,
+  exitCode: number | null,
+  command = "ls",
+): ObservationEvent<TerminalObservation> => ({
+  ...observationEnvelope("terminal", "terminal"),
+  observation: {
+    kind: "TerminalObservation",
+    content: [{ type: "text", text: output }],
+    command,
+    exit_code: exitCode,
+    is_error: exitCode !== 0,
     timeout: false,
     metadata: {
       exit_code: exitCode ?? 0,

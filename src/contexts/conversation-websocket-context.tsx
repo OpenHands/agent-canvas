@@ -58,7 +58,10 @@ import { useReadConversationFile } from "#/hooks/mutation/use-read-conversation-
 import useMetricsStore from "#/stores/metrics-store";
 import { useConversationHistory } from "#/hooks/query/use-conversation-history";
 import { setConversationState } from "#/utils/conversation-local-storage";
-import { recordModelSwitchMessage } from "#/hooks/chat/record-model-switch-message";
+import {
+  recordModelSwitchMessage,
+  seedModelSwitchesFromHistory,
+} from "#/hooks/chat/record-model-switch-message";
 import {
   invalidateConversationQueries,
   updateConversationLlmModelInCache,
@@ -257,6 +260,17 @@ export function ConversationWebSocketProvider({
     // timestamp). Consume any matching optimistic "Sending…" bubble here too —
     // mirroring the WS handler — so it doesn't linger as a duplicate of the echo.
     if (conversationId) {
+      // Rebuild inline "Switched to" messages from the REST-preloaded history.
+      // The live store writers (WS handler / user action) never see preloaded
+      // events, so without this past model switches wouldn't render on reload.
+      // Read the post-`addEvents` `uiEvents` (actions replaced by observations,
+      // Think/Finish observations dropped) — not the raw history — so anchors
+      // match the ids the renderer actually mounts.
+      seedModelSwitchesFromHistory(
+        conversationId,
+        useEventStore.getState().uiEvents,
+      );
+
       for (const event of preloadedHistory.events) {
         if (isUserMessageEvent(event)) {
           consumeMatchingPendingMessage(

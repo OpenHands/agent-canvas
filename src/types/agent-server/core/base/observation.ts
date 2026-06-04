@@ -110,6 +110,12 @@ export interface TerminalObservation extends ObservationBase<"TerminalObservatio
 
 export interface FileEditorObservation extends ObservationBase<"FileEditorObservation"> {
   /**
+   * Content returned from the tool as TextContent/ImageContent. For `view`
+   * commands this carries the `cat -n` snippet the agent saw; `output`,
+   * `old_content`, and `new_content` are not populated for views.
+   */
+  content?: Array<TextContent | ImageContent>;
+  /**
    * The commands to run. Allowed options are: `view`, `create`, `str_replace`, `insert`, `undo_edit`.
    */
   command: "view" | "create" | "str_replace" | "insert" | "undo_edit";
@@ -141,6 +147,12 @@ export interface FileEditorObservation extends ObservationBase<"FileEditorObserv
 
 // Keep StrReplaceEditorObservation as a separate interface for backward compatibility
 export interface StrReplaceEditorObservation extends ObservationBase<"StrReplaceEditorObservation"> {
+  /**
+   * Content returned from the tool as TextContent/ImageContent. For `view`
+   * commands this carries the `cat -n` snippet the agent saw; `output`,
+   * `old_content`, and `new_content` are not populated for views.
+   */
+  content?: Array<TextContent | ImageContent>;
   /**
    * The commands to run. Allowed options are: `view`, `create`, `str_replace`, `insert`, `undo_edit`.
    */

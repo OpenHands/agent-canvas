@@ -1,6 +1,7 @@
 import React from "react";
 import { getLanguageFromPath } from "#/utils/get-language-from-path";
 import { defineVisualizer } from "../define";
+import { textFromContent } from "../text-content";
 import { CodeBlock } from "../primitives/code-block";
 import { DiffView } from "../primitives/diff-view";
 import { FilePathChip } from "../primitives/file-path-chip";
@@ -40,7 +41,13 @@ export const fileEditorVisualizer = defineVisualizer({
       } else if (obs.old_content && obs.new_content) {
         body = <DiffView oldText={obs.old_content} newText={obs.new_content} />;
       } else {
-        const content = obs.new_content || obs.output;
+        // `view` returns the snippet the agent saw in `content` (the `cat -n`
+        // output) rather than `output`/`new_content`, so fall back to it.
+        // Mirrors the markdown path's "prefer content for view" handling.
+        const content =
+          obs.new_content ||
+          obs.output ||
+          (obs.content ? textFromContent(obs.content) : "");
         body = content ? (
           <CodeBlock code={content} language={language} />
         ) : null;

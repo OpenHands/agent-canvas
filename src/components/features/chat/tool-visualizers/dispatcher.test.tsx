@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { ActionEvent, SecurityRisk } from "#/types/agent-server/core";
 import { resolveVisualizerBody } from "./dispatcher";
-import { bashAction, grepObservation } from "./test-utils";
+import { bashAction, grepObservation, terminalObservation } from "./test-utils";
 
 describe("resolveVisualizerBody", () => {
   it("returns a body for a migrated action kind", () => {
@@ -12,6 +12,10 @@ describe("resolveVisualizerBody", () => {
     expect(
       resolveVisualizerBody(grepObservation({ pattern: "x" })),
     ).not.toBeNull();
+  });
+
+  it("returns a body for the terminal tool (shares the bash visualizer)", () => {
+    expect(resolveVisualizerBody(terminalObservation("ok", 0))).not.toBeNull();
   });
 
   it("returns null for an unmigrated tool so the markdown fallback runs", () => {

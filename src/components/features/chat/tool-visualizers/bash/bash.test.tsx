@@ -2,7 +2,12 @@ import { describe, it, expect } from "vitest";
 import { screen } from "@testing-library/react";
 import { SecurityRisk } from "#/types/agent-server/core";
 import { bashVisualizer } from "./bash";
-import { renderVisualizer, bashAction, bashObservation } from "../test-utils";
+import {
+  renderVisualizer,
+  bashAction,
+  bashObservation,
+  terminalObservation,
+} from "../test-utils";
 
 const Body = bashVisualizer.Body;
 
@@ -42,6 +47,14 @@ describe("bashVisualizer", () => {
     expect(
       screen.getByText("OBSERVATION$COMMAND_NO_OUTPUT"),
     ).toBeInTheDocument();
+  });
+
+  it("renders command and output for the terminal tool", () => {
+    const { container } = renderVisualizer(
+      <Body observation={terminalObservation("362 index.html", 0, "wc -l")} />,
+    );
+    expect(container).toHaveTextContent("wc -l");
+    expect(container).toHaveTextContent("362 index.html");
   });
 
   it("matches snapshot", () => {

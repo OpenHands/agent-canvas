@@ -37,6 +37,23 @@ describe("fileEditorVisualizer", () => {
     expect(container).toHaveTextContent("/workspace/app.ts:1-10");
   });
 
+  it("shows the file snippet the agent saw for a view observation", () => {
+    const { container } = renderVisualizer(
+      <Body
+        observation={fileEditorObservation({
+          command: "view",
+          content: [
+            {
+              type: "text",
+              text: "Here's the result of running `cat -n`:\n     1\tconst x = 1;",
+            },
+          ],
+        })}
+      />,
+    );
+    expect(container).toHaveTextContent("const x = 1;");
+  });
+
   it("renders a diff for an edit observation", () => {
     const { container } = renderVisualizer(
       <Body
