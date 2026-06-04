@@ -49,11 +49,21 @@ export function SwitchProfileButton() {
 
   // Resolution priority for the active profile name:
   //   1. Optimistic (just-clicked) — instant feedback before the refetch.
-  //   2. Profile whose model matches the running llm_model — cold loads.
-  //   3. User-level active_profile — home page / before the conversation has
+  //   2. Profile stamped on the conversation at creation / last switch —
+  //      exact identity, survives reload, and is unambiguous when several
+  //      profiles share one underlying model (#1082). Validated against the
+  //      live list so a since-deleted/renamed profile falls through.
+  //   3. Profile whose model matches the running llm_model — legacy fallback.
+  //   4. User-level active_profile — home page / before the conversation has
   //      sent any messages.
+  const stampedProfile = conversation?.active_profile ?? null;
+  const conversationProfile =
+    stampedProfile && profiles.some((p) => p.name === stampedProfile)
+      ? stampedProfile
+      : null;
   const activeProfileName =
     optimisticActiveProfile ??
+    conversationProfile ??
     (conversationModel
       ? (profiles.find((p) => p.model === conversationModel)?.name ?? null)
       : (data?.active_profile ?? null));
