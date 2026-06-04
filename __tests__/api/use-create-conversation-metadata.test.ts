@@ -15,12 +15,14 @@ const {
   mockSettingsClient,
   mockGetSettings,
   mockGetSettingsForConversation,
+  mockUseLlmProfiles,
 } = vi.hoisted(() => ({
   mockHttpPost: vi.fn(),
   mockConversationClient: vi.fn(),
   mockSettingsClient: vi.fn(),
   mockGetSettings: vi.fn(),
   mockGetSettingsForConversation: vi.fn(),
+  mockUseLlmProfiles: vi.fn(),
 }));
 
 vi.mock("@openhands/typescript-client/clients", async () => {
@@ -66,6 +68,10 @@ vi.mock("#/hooks/use-tracking", () => ({
   useTracking: () => ({ trackConversationCreated: vi.fn() }),
 }));
 
+vi.mock("#/hooks/query/use-llm-profiles", () => ({
+  useLlmProfiles: () => mockUseLlmProfiles(),
+}));
+
 const wrapper = ({ children }: { children: React.ReactNode }) => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -76,6 +82,10 @@ const wrapper = ({ children }: { children: React.ReactNode }) => {
 describe("useCreateConversation persists selected repository metadata", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    mockUseLlmProfiles.mockReset();
+    // Default: no active profile, so metadata is written only for repo/
+    // workspace attachments (as before). Individual tests override this.
+    mockUseLlmProfiles.mockReturnValue({ data: { active_profile: null } });
     mockHttpPost.mockReset();
     mockGetSettings.mockReset();
     mockGetSettingsForConversation.mockReset();
@@ -163,5 +173,25 @@ describe("useCreateConversation persists selected repository metadata", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(getStoredConversationMetadata("conv-new")).toBeNull();
+  });
+
+  it("stamps the active LLM profile even when no repo or workspace is attached (#1082)", async () => {
+    mockUseLlmProfiles.mockReturnValue({
+      data: { active_profile: "team-default" },
+    });
+
+    const { result } = renderHook(() => useCreateConversation(), { wrapper });
+
+    result.current.mutate({ query: "scratch session" });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(getStoredConversationMetadata("conv-new")).toEqual({
+      selected_repository: null,
+      selected_branch: null,
+      git_provider: null,
+      selected_workspace: null,
+      active_profile: "team-default",
+    });
   });
 });
