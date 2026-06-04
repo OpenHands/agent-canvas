@@ -229,39 +229,19 @@ wait "$WAIT_PID1" "$WAIT_PID2"
 log "Starting frontend + proxy on port $PORT..."
 
 # Describe the local runtime services so the frontend can populate the agent's
-# <RUNTIME_SERVICES> system-prompt block (without it the agent does not know
-# how to reach the local automation backend and falls back to the cloud API).
-# Static builds have no VITE_RUNTIME_SERVICES_INFO baked in, so we inject it at
-# serve time via static-server.mjs --runtime-services-info. URLs are written
-# from the agent's point of view and reuse the same sandbox-facing values
-# (AGENT_SERVER_URL, AUTOMATION_BASE_URL) the entrypoint already exports. Built
-# with node — already required for static-server.mjs — to avoid jq/python.
-# Shape mirrors buildRuntimeServicesInfo() in scripts/dev-safe.mjs.
-RUNTIME_SERVICES_INFO="$(node -e '
-const prefix = "/api/automation";
-const agent = process.env.AGENT_SERVER_URL;
-const autoBase = process.env.AUTOMATION_BASE_URL;
-process.stdout.write(JSON.stringify({
-  mode: "docker",
-  agent_host_alias: "127.0.0.1",
-  services: {
-    agent_server: {
-      description:
-        "The OpenHands Agent Server this agent is running inside. Tool calls (terminal, file_editor, browser, etc.) execute here.",
-      url_from_agent: agent,
-    },
-    automation: {
-      description:
-        "OpenHands Automations service. All routes are mounted under " + prefix + ".",
-      url_from_agent: autoBase,
-      api_prefix: prefix,
-      docs_url: autoBase + prefix + "/docs",
-      openapi_url: autoBase + prefix + "/openapi.json",
-      auth_env_var: "OPENHANDS_AUTOMATION_API_KEY",
-    },
-  },
-}));
-')"
+# <RUNTIME_SERVICES> system-prompt block (without it the agent does not know how
+# to reach the local automation backend and falls back to the cloud API). These
+# URLs are runtime config (overridable at `docker run`), so unlike the dev
+# launchers we cannot bake VITE_RUNTIME_SERVICES_INFO into the image at build
+# time — we build the JSON here from the sandbox-facing URLs the entrypoint
+# already exports and inject it at serve time via
+# static-server.mjs --runtime-services-info. The shape comes from the same
+# builder the dev stack uses (scripts/runtime-services-info.mjs).
+RUNTIME_SERVICES_INFO="$(node /opt/agent-canvas/runtime-services-info.mjs \
+  --mode docker \
+  --agent-host-alias 127.0.0.1 \
+  --agent-server-url "$AGENT_SERVER_URL" \
+  --automation-url "$AUTOMATION_BASE_URL")"
 
 # EFFECTIVE_SESSION_KEY is set above from LOCAL_BACKEND_API_KEY or the persisted api-key.txt
 node /opt/agent-canvas/static-server.mjs \

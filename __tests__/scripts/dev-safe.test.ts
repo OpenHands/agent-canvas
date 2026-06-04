@@ -978,12 +978,12 @@ describe("buildRuntimeServicesInfo", () => {
     expect(info.services.automation).toBeUndefined();
   });
 
-  it("throws when agentServerPort is missing", () => {
+  it("throws when neither agentServerPort nor agentServerUrl is given", () => {
     expect(() =>
       buildRuntimeServicesInfo({
         mode: "dev:safe",
       }),
-    ).toThrow(/agentServerPort is required/);
+    ).toThrow(/agentServerPort or agentServerUrl is required/);
   });
 
   it("accepts the legacy vitePort alias for frontendPort", () => {
