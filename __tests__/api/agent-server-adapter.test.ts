@@ -793,6 +793,27 @@ describe("toAppConversation", () => {
     }
   });
 
+  it("hydrates active_profile from stored metadata so the switcher shows the exact profile (#1082)", () => {
+    setStoredConversationMetadata(baseInfo.id, {
+      selected_repository: null,
+      selected_branch: null,
+      git_provider: null,
+      active_profile: "claude-sonnet-4.6",
+    });
+    try {
+      const result = toAppConversation({
+        ...baseInfo,
+        agent: {
+          kind: "Agent",
+          llm: { model: "litellm_proxy/claude-sonnet-4-6" },
+        },
+      });
+      expect(result.active_profile).toBe("claude-sonnet-4.6");
+    } finally {
+      removeStoredConversationMetadata(baseInfo.id);
+    }
+  });
+
   it("marks openhands conversations and surfaces the agent.llm.model", () => {
     const result = toAppConversation({
       ...baseInfo,
