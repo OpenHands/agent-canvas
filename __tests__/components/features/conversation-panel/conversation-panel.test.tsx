@@ -1809,6 +1809,41 @@ describe("ConversationPanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders pinned conversations only in the pinned section in chronological mode", async () => {
+    usePinnedConversationsStore
+      .getState()
+      .pinConversation("default-local", "2");
+
+    renderConversationPanel();
+
+    const pinnedSection = await screen.findByTestId(
+      "conversation-panel-pinned-section",
+    );
+    expect(within(pinnedSection).getAllByTestId("conversation-card")).toHaveLength(
+      1,
+    );
+    expect(await screen.findAllByTestId("conversation-card")).toHaveLength(3);
+    expect(screen.getAllByText("Conversation 2")).toHaveLength(1);
+  });
+
+  it("renders pinned conversations only in the pinned section in grouped mode", async () => {
+    useConversationPanelPreferencesStore.setState({ organizeMode: "grouped" });
+    usePinnedConversationsStore
+      .getState()
+      .pinConversation("default-local", "2");
+
+    renderConversationPanel();
+
+    const pinnedSection = await screen.findByTestId(
+      "conversation-panel-pinned-section",
+    );
+    expect(within(pinnedSection).getAllByTestId("conversation-card")).toHaveLength(
+      1,
+    );
+    expect(await screen.findAllByTestId("conversation-card")).toHaveLength(3);
+    expect(screen.getAllByText("Conversation 2")).toHaveLength(1);
+  });
+
   it("hides the pinned section after the last pin is removed", async () => {
     usePinnedConversationsStore
       .getState()

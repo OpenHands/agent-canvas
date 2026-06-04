@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 
 interface UpgradeButtonProps {
@@ -24,7 +25,7 @@ export function UpgradeButton({
         className,
       )}
     >
-      {t("SETTINGS$UPGRADE_BUTTON")}
+      {t(I18nKey.SETTINGS$UPGRADE_BUTTON)}
     </button>
   );
 }

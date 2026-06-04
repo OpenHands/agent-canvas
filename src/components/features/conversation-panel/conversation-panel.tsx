@@ -35,6 +35,7 @@ import { ConversationGroupFolderList } from "./conversation-group-folder-list";
 import { ConversationPanelPinnedSection } from "./conversation-panel-pinned-section";
 import {
   applyGroupFolderOrder,
+  filterOutPinnedConversations,
   groupConversations,
   resolvePinnedConversations,
   sortConversationsByField,
@@ -273,11 +274,19 @@ export function ConversationPanel({
   }, [pinnedIds.length]);
 
   const scopedConversations = React.useMemo(() => {
-    if (threadScope === "relevant") {
-      return conversations.filter((c) => isExecutionActive(c.execution_status));
+    const scopeFiltered =
+      threadScope === "relevant"
+        ? conversations.filter((c) => isExecutionActive(c.execution_status))
+        : conversations;
+
+    // In the expanded panel, pinned conversations should only appear inside
+    // the dedicated pinned section (not duplicated in grouped/flat lists).
+    if (compact) {
+      return scopeFiltered;
     }
-    return conversations;
-  }, [conversations, threadScope]);
+
+    return filterOutPinnedConversations(scopeFiltered, pinnedIds);
+  }, [compact, conversations, pinnedIds, threadScope]);
 
   const { recent: recentScoped, older: olderScoped } = React.useMemo(
     () => partitionByCutoff(scopedConversations),
@@ -699,16 +708,17 @@ export function ConversationPanel({
   // not `isFetching` — the latter flips back to true on every 10s background
   // refetch, causing the skeleton/empty-state to flicker when the list is empty.
   const showInitialSkeleton = isLoading || !isFetched;
+  const showPinnedSection =
+    !compact && !showInitialSkeleton && pinnedConversations.length > 0;
   const showEmptyState =
     isFetched &&
     !isLoading &&
     !compact &&
     listIsEffectivelyEmpty &&
+    !showPinnedSection &&
     !startTasks?.length;
 
   const showConversationHeader = !compact;
-  const showPinnedSection =
-    !compact && !showInitialSkeleton && pinnedConversations.length > 0;
 
   return (
     <div

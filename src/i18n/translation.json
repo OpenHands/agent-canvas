@@ -6391,6 +6391,23 @@
     "uk": "Ключ API пошуку (Tavily)",
     "ca": "Clau d'API de cerca (Tavily)"
   },
+  "SETTINGS$UPGRADE_BUTTON": {
+    "en": "Upgrade",
+    "ja": "アップグレード",
+    "zh-CN": "升级",
+    "zh-TW": "升級",
+    "ko-KR": "업그레이드",
+    "de": "Upgrade",
+    "no": "Oppgrader",
+    "it": "Aggiorna",
+    "pt": "Atualizar",
+    "es": "Actualizar",
+    "ar": "ترقية",
+    "fr": "Mettre à niveau",
+    "tr": "Yükselt",
+    "uk": "Оновити",
+    "ca": "Actualitza"
+  },
   "SETTINGS$SEARCH_API_KEY_OPTIONAL": {
     "en": "This field is optional. We use Tavily as our default search engine provider.",
     "ja": "このフィールドは任意です。デフォルトの検索エンジンプロバイダーとしてTavilyを使用しています。",

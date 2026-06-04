@@ -71,6 +71,20 @@ export function resolvePinnedConversations(
     );
 }
 
+export function filterOutPinnedConversations(
+  conversations: readonly AppConversation[],
+  pinnedIds: readonly string[],
+): AppConversation[] {
+  if (pinnedIds.length === 0) {
+    return [...conversations];
+  }
+
+  const pinnedSet = new Set(pinnedIds);
+  return conversations.filter(
+    (conversation) => !pinnedSet.has(conversation.id),
+  );
+}
+
 /** Subset of `useCreateConversation` variables for launching from a group row */
 export type ConversationGroupLaunch = {
   workingDir?: string;
