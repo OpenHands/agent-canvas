@@ -31,12 +31,15 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   vi.mocked(axios.request).mockReset();
   vi.mocked(axios.request).mockResolvedValue({ data: {} });
+  vi.mocked(axios.post).mockReset();
+  vi.mocked(axios.post).mockResolvedValue({ data: {} });
 });
 
 afterEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
   vi.mocked(axios.request).mockReset();
+  vi.mocked(axios.post).mockReset();
 });
 
 describe("callCloudProxy X-Org-Id injection", () => {
@@ -93,5 +96,65 @@ describe("callCloudProxy X-Org-Id injection", () => {
     expect(
       (config as { headers: Record<string, string> }).headers,
     ).not.toHaveProperty("X-Org-Id");
+  });
+});
+
+describe("callCloudProxy forceProxy routing", () => {
+  it("routes through the local /api/cloud-proxy instead of the cloud host when forceProxy is set", async () => {
+    // Arrange — automation endpoints opt into the proxy hop because the
+    // standalone automation service's CORS allowlist rejects browser
+    // requests from the local GUI origin.
+    setRegisteredBackends([cloudPersonal]);
+    setActiveSelection({ backendId: cloudPersonal.id, orgId: null });
+    vi.mocked(axios.post).mockResolvedValue({ data: { status: "ok" } });
+
+    // Act
+    const result = await callCloudProxy({
+      backend: cloudPersonal,
+      method: "GET",
+      path: "/api/automation/health",
+      forceProxy: true,
+    });
+
+    // Assert — the browser only makes a same-origin POST to the bundled
+    // agent-server's proxy endpoint carrying the upstream call as an
+    // envelope, and the upstream payload is unwrapped for the caller.
+    expect(axios.request).not.toHaveBeenCalled();
+    const [url, envelope] = vi.mocked(axios.post).mock.calls[0]!;
+    expect(url).toMatch(/\/api\/cloud-proxy$/);
+    expect(envelope).toMatchObject({
+      host: cloudPersonal.host,
+      method: "GET",
+      path: "/api/automation/health",
+    });
+    expect(result).toEqual({ status: "ok" });
+  });
+
+  it("carries bearer auth and X-Org-Id inside the proxy envelope", async () => {
+    // Arrange — org scoping must survive the server-side hop: the envelope
+    // headers are what the agent-server attaches to the upstream call in
+    // place of the headers a direct browser request would have sent.
+    setRegisteredBackends([cloudPersonal]);
+    setActiveSelection({
+      backendId: cloudPersonal.id,
+      orgId: "org-personal-uuid",
+    });
+
+    // Act
+    await callCloudProxy({
+      backend: cloudPersonal,
+      method: "GET",
+      path: "/api/automation/health",
+      forceProxy: true,
+    });
+
+    // Assert
+    const [, envelope] = vi.mocked(axios.post).mock.calls[0]!;
+    expect(
+      (envelope as { headers: Record<string, string> }).headers,
+    ).toMatchObject({
+      Authorization: `Bearer ${cloudPersonal.apiKey}`,
+      "X-Org-Id": "org-personal-uuid",
+    });
   });
 });
