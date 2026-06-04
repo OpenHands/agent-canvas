@@ -724,10 +724,11 @@ export function buildAgentServerEnv(config) {
     // Make the host tools/ directory importable so the agent-server can
     // resolve modules listed in tool_module_qualnames (e.g. canvas_ui_tool).
     OH_EXTRA_PYTHON_PATH: config.canvasToolsDir,
-    // Pin the agent-server's extensions to the same commit that the frontend
-    // bundled its MCP catalog and automations from. Always set unconditionally
-    // so the value matches the pre-seeded cache regardless of any ambient env.
-    ...(DEFAULT_EXTENSIONS_REF ? { EXTENSIONS_REF: DEFAULT_EXTENSIONS_REF } : {}),
+    // Pin the agent-server's extensions to the same commit the frontend was
+    // built against. Only injected when the caller has not already set it.
+    ...(DEFAULT_EXTENSIONS_REF && !process.env.EXTENSIONS_REF
+      ? { EXTENSIONS_REF: DEFAULT_EXTENSIONS_REF }
+      : {}),
   };
 }
 
@@ -1007,11 +1008,9 @@ async function main() {
   console.log(`- session API key: ${sessionKeySource}`);
   console.log("");
 
-  // Clear any stale extensions cache so the SDK starts with a clean slate and
-  // picks up the version specified by EXTENSIONS_REF rather than leftover files.
-  if (DEFAULT_EXTENSIONS_REF) {
-    clearExtensionsCache(path.join(homedir(), ".openhands", "cache", "skills"));
-  }
+  // Always clear the extensions cache so the SDK clones fresh on every startup
+  // rather than reusing stale files from a prior run.
+  clearExtensionsCache(path.join(homedir(), ".openhands", "cache", "skills"));
 
   const backend = spawnProcess(
     agentServerCmd.command,
