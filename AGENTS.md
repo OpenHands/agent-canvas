@@ -55,9 +55,10 @@ Two distinct PostHog systems exist. **Never mix them at a call site.**
   - Host-side services (ingress, Vite, automation) are reachable as `http://localhost:<port>`.
 - Agents should treat the `<RUNTIME_SERVICES>` block as authoritative: don't hardcode `localhost:8000` for "the automation server", and don't probe random ports trying to discover services. If the block says automation is not running, skip `/api/automation` calls; otherwise use the listed `url_from_agent` + `api_prefix` (default `/api/automation`) and the `X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY` header.
 - The launcher → frontend → suffix plumbing is:
-  - `scripts/dev-safe.mjs::buildRuntimeServicesInfo()` — pure helper that constructs the info object.
-  - `scripts/dev-with-automation.mjs::buildAutomationRuntimeServicesInfo()` — wraps it with automation details; called from both Vite spawn (`startVite`) and the static build (`static-build.mjs`).
-  - `src/api/agent-server-adapter.ts::buildRuntimeServicesSystemSuffix()` reads `VITE_RUNTIME_SERVICES_INFO` and renders the `<RUNTIME_SERVICES>` markdown block; `createAgentFromSettings()` attaches it to `agent_context.system_message_suffix` when present.
+  - `scripts/runtime-services-info.mjs::buildRuntimeServicesInfo()` — dependency-free module that constructs the info object; also runs as a CLI for the Docker entrypoint. Re-exported by `scripts/dev-safe.mjs` for backward compat.
+  - `scripts/dev-with-automation.mjs::buildAutomationRuntimeServicesInfo()` — wraps it with automation details; called from Vite spawn (`startVite`), static frontend spawn (`startStaticFrontend` → `--runtime-services-info` flag), and the static build (`static-build.mjs`).
+  - `src/api/agent-server-adapter.ts::buildRuntimeServicesSystemSuffix()` reads `VITE_RUNTIME_SERVICES_INFO` (Vite dev) or `window.__AGENT_CANVAS_RUNTIME_SERVICES_INFO__` (static builds, injected by `static-server.mjs`) and renders the `<RUNTIME_SERVICES>` markdown block; `buildAgentContext()` attaches it to `agent_context.system_message_suffix` when present.
+  - E2E coverage: the mock-LLM automation test (`tests/e2e/mock-llm/mock-llm-automation.spec.ts`) verifies the `<RUNTIME_SERVICES>` block reaches the LLM via `getMockLLMRequests()` and checks for Agent Server, Automation backend, and `/api/automation` entries.
 
 ### `VITE_RUNTIME_SERVICES_INFO` shape
 
@@ -209,6 +210,45 @@ you are running inside of — NOT the automation backend.
 - **Docker image**: Set `MOCK_LLM_DOCKER_IMAGE` to the image tag (default: `ghcr.io/openhands/agent-canvas:latest`). The container is started with `--rm --network host` and a unique `--name` for cleanup.
 - **State isolation**: The Docker container uses its internal state directory (no host mount needed for tests). Each test run starts a fresh container.
 - CI workflow: `.github/workflows/mock-llm-docker-e2e.yml` has three triggers — all pull the already-built image from GHCR (no rebuild): (1) `workflow_run` fires automatically after the `Docker` workflow completes on main; (2) `pull_request` with the `e2e-tests` label polls the Docker workflow until it finishes for the PR's head SHA, then pulls the image (needed because `workflow_run` only fires for workflow files already on the default branch); (3) `workflow_dispatch` accepts a custom `docker_image` input. The image tag is derived from the commit SHA (`ghcr.io/openhands/agent-canvas:sha-<short>-amd64`). Fork PRs are skipped (no GHCR push). Report artifacts go to `test-results-mock-llm-docker/` and `playwright-report-mock-llm-docker/`.
+
+## Debugging E2E Test Failures
+
+When an E2E test fails in CI, use this workflow to diagnose the root cause efficiently:
+
+### 1. Read the PR comment first
+The mock-LLM E2E workflow posts a structured comment on the PR with a test results table, pass/fail status, and collapsible failure details including the Playwright error message. **Start here** — the error message usually reveals whether the failure is a locator mismatch, a timeout, or a missing element.
+
+### 2. Download CI artifacts
+Every failing test run uploads artifacts (`mock-llm-e2e-results` for npm, `test-results-mock-llm-docker` for Docker). Download them with:
+```bash
+gh run download <run_id> --repo OpenHands/agent-canvas --name mock-llm-e2e-results --dir /tmp/artifacts
+```
+Artifacts contain:
+- `test-results-mock-llm/` — per-test directories with `test-failed-N.png` (screenshot at failure) and `error-context.md` (Playwright page snapshot as YAML accessibility tree + test source with the failing line marked)
+- `playwright-report-mock-llm/` — full HTML report (`npx playwright show-report /tmp/artifacts/playwright-report-mock-llm`)
+
+### 3. Inspect the error-context.md page snapshot
+The `error-context.md` file contains a YAML accessibility tree of the entire page at the moment of failure. This is the single most useful artifact — it shows exactly what DOM elements exist, which tabs are selected, what text is in inputs, and whether a component rendered at all. Search for the element your test expects (e.g. `llm-provider-input`) to see if it's present or absent, and check surrounding context (tab selection state, form view mode, etc.) to understand why.
+
+### 4. Common failure patterns
+
+**"element(s) not found"** — The locator matched zero elements. The component either:
+- Didn't render (conditional rendering path not taken — check the page snapshot for what DID render)
+- Has a different `name`/`data-testid` than expected
+- Is behind a lazy-load boundary that hasn't resolved
+
+**Stale state from earlier serial tests** — Mock-LLM tests run serially (`workers: 1`) against a real agent-server. Earlier tests (conversation, automation) persist settings on the server. If your test depends on "clean" state but a prior test configured `llm_base_url`, `llm_model`, etc., the form may render in a different view mode. Use Playwright `page.route()` to intercept and normalize the settings response. Example: `routeOnboardingLlmCatalog` in `tests/e2e/support/onboarding-helpers.ts` intercepts `GET /api/settings` to clear `llm_base_url` so the LLM form always opens in "Basic" view.
+
+**View mode mismatch (Basic vs Advanced)** — `LlmSettingsScreen` switches between "Basic" (renders `ModelSelector` with provider/model dropdowns) and "Advanced" (renders plain text inputs). The view is determined by `getInitialView()` which checks `currentSettings.llm_base_url` — a non-default base URL triggers "Advanced" view. If your test expects `input[name="llm-provider-input"]` but sees text inputs instead, the settings have a stale `base_url`.
+
+**Playwright route interception vs real server** — In mock-LLM tests, routes registered with `page.route()` intercept at the browser level before requests reach the real agent-server. However, `page.route()` must be set up BEFORE `page.goto()`. The `showOnboarding` helper handles this correctly (routes are registered before navigation). Non-GET methods should use `route.fallback()` to pass through to the real server.
+
+### 5. Running locally
+```bash
+npm run test:e2e:mock-llm                    # full suite
+npm run test:e2e:mock-llm -- --headed        # watch in browser
+npm run test:e2e:mock-llm -- -g "test name"  # run single test by name
+```
 
 ## Additional Notes
 

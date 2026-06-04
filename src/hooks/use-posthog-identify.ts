@@ -31,7 +31,9 @@ export const usePostHogIdentify = () => {
     if (!posthog || !isCloud || settings === undefined) return;
 
     if (consent === true && userId) {
-      posthog.identify(userId, { email: settings.email ?? undefined });
+      posthog.identify(userId, {
+        email: settings.email ?? settings.git_user_email ?? undefined,
+      });
       hasIdentifiedRef.current = true;
       return;
     }

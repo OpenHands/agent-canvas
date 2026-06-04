@@ -1269,6 +1269,13 @@ function startStaticFrontend(config, staticDir) {
   logService("static", `Starting on port ${config.vitePort}...`, c.magenta);
   logService("static", `Serving from: ${staticDir}`, c.dim);
 
+  // Build the runtime-services info JSON so the pre-built frontend can
+  // populate the agent's <RUNTIME_SERVICES> system-prompt block without
+  // VITE_RUNTIME_SERVICES_INFO baked in at build time.
+  const runtimeServicesInfo = config.launchAgentServer
+    ? JSON.stringify(buildAutomationRuntimeServicesInfo(config))
+    : null;
+
   const staticServerScript = join(projectRoot, "scripts", "static-server.mjs");
   spawnService(
     "static",
@@ -1287,6 +1294,10 @@ function startStaticFrontend(config, staticDir) {
         : []),
       ...(config.launchAgentServer && config.isPublic
         ? ["--auth-required"]
+        : []),
+      // Inject runtime-services info so the agent knows what's reachable.
+      ...(runtimeServicesInfo
+        ? ["--runtime-services-info", runtimeServicesInfo]
         : []),
       // Proxy routes only to services that this launch mode started.
       ...buildRouteArgs(getLocalServiceRoutes(config)),
