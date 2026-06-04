@@ -6,6 +6,7 @@ import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { useLocalWorkspaces } from "#/hooks/query/use-local-workspaces";
 import { useModelInterceptor } from "#/hooks/chat/use-model-interceptor";
+import { useLlmConfigured } from "#/hooks/use-llm-configured";
 import { HOME_PROMPT_DRAFT_KEY } from "#/hooks/chat/use-draft-persistence";
 import { useChatAttachmentUpload } from "#/hooks/chat/use-chat-attachment-upload";
 import { useConversationStore } from "#/stores/conversation-store";
@@ -46,6 +47,8 @@ export function HomeChatLauncher() {
   const { mutate: createConversation, isPending } = useCreateConversation();
   const isCreatingElsewhere = useIsCreatingConversation();
   const isCreating = isPending || isCreatingElsewhere;
+  const { isConfigured: isLlmConfigured, isLoading: isLlmConfigLoading } =
+    useLlmConfigured();
   const { images, files, imagesMarkedUploadAsFile, clearAllFiles } =
     useConversationStore();
   const { handleUpload } = useChatAttachmentUpload();
@@ -62,6 +65,16 @@ export function HomeChatLauncher() {
     const trimmed = message.trim();
     const hasAttachments = images.length > 0 || files.length > 0;
     if ((!trimmed && !hasAttachments) || isCreating) return;
+
+    // Don't start a conversation the agent can't run. Without a usable LLM the
+    // backend accepts the request but fails with a cryptic API-key error on the
+    // first turn, so send the user to configure one instead. The typed prompt
+    // is preserved in the home draft.
+    if (!isLlmConfigLoading && !isLlmConfigured) {
+      toast.error(t(I18nKey.HOME$LLM_NOT_CONFIGURED_MESSAGE), TOAST_OPTIONS);
+      navigate("/settings/llm");
+      return;
+    }
 
     const attachmentSnapshot = {
       images: [...images],
