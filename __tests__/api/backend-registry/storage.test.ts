@@ -174,6 +174,35 @@ describe("backend-registry storage", () => {
     });
   });
 
+  it("syncs a stale default Local API key when stored with a loopback alias", () => {
+    vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
+    const currentUrl = new URL(window.location.origin);
+    const loopbackAliasHost =
+      currentUrl.hostname === "127.0.0.1" ? "localhost" : "127.0.0.1";
+    const loopbackAlias = `${currentUrl.protocol}//${loopbackAliasHost}${
+      currentUrl.port ? `:${currentUrl.port}` : ""
+    }`;
+
+    window.localStorage.setItem(
+      BACKENDS_STORAGE_KEY,
+      JSON.stringify([
+        {
+          id: "default-local",
+          name: "Local",
+          host: loopbackAlias,
+          apiKey: "stale-session-key",
+          kind: "local",
+        },
+      ]),
+    );
+
+    expect(readStoredBackends()[0]).toMatchObject({
+      id: "default-local",
+      host: loopbackAlias,
+      apiKey: "fresh-session-key",
+    });
+  });
+
   it("syncs a stale default Local API key across localhost and 127.0.0.1", () => {
     vi.stubEnv("VITE_BACKEND_BASE_URL", "http://127.0.0.1:8000");
     vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
