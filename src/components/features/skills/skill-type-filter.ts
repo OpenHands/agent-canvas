@@ -6,7 +6,7 @@ export type SkillScopeFilter = "all" | Exclude<SkillScope, "project">;
 
 export const SKILL_SCOPE_FILTER_OPTIONS: readonly SkillScopeFilter[] = [
   "all",
-  "public",
+  "bundled",
   "personal",
 ] as const;
 

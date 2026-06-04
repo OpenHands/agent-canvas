@@ -69,7 +69,7 @@ describe("SkillDetailModal", () => {
     ).toBeInTheDocument();
     expect(
       within(modal).getByTestId("skill-type-badge-knowledge"),
-    ).toHaveTextContent("SETTINGS$SKILLS_TYPE_KNOWLEDGE");
+    ).toHaveTextContent("SETTINGS$SKILLS_BADGE_TRIGGER_BASED");
     expect(
       within(modal).getByTestId(
         `skill-modal-pill-${skill.name}-metadata-author`,

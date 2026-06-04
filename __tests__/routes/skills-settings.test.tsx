@@ -139,7 +139,7 @@ Full skill body.`,
     ).toBeInTheDocument();
     expect(
       within(card).getByTestId("skill-type-badge-knowledge"),
-    ).toHaveTextContent("SETTINGS$SKILLS_TYPE_KNOWLEDGE");
+    ).toHaveTextContent("SETTINGS$SKILLS_BADGE_TRIGGER_BASED");
   });
 
   it("copies the source path when the copy button is clicked", async () => {
@@ -217,10 +217,12 @@ Full skill body.`,
 
     const filter = screen.getByTestId("skills-scope-filter");
     await user.click(within(filter).getByTestId("dropdown-trigger"));
-    await user.click(screen.getByTestId("skills-scope-filter-project"));
+    await user.click(screen.getByTestId("skills-scope-filter-bundled"));
 
-    expect(screen.queryByTestId("skill-card-deno")).not.toBeInTheDocument();
-    expect(screen.getByTestId("skill-card-project-rules")).toBeInTheDocument();
+    expect(screen.getByTestId("skill-card-deno")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("skill-card-project-rules"),
+    ).not.toBeInTheDocument();
   });
 
   it("filters skills by enabled/disabled status", async () => {

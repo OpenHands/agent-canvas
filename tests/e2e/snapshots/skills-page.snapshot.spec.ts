@@ -15,7 +15,7 @@ import { seedLocalStorage } from "./support/seed-local-storage";
  *   2. Loaded – four skill cards visible
  *   3. Search – filtered to one card after typing "docker"
  *   4. No match – empty message after typing an unrecognised term
- *   5. Scope filter – only public cards visible after clicking filter
+ *   5. Scope filter – only bundled cards visible after clicking filter
  */
 
 const MOCK_SKILLS = [
@@ -225,7 +225,7 @@ test.describe("Skills Page Visual Snapshots", () => {
     await expect(page.getByTestId("skills-scope-filter-project")).toHaveCount(
       0,
     );
-    await page.getByTestId("skills-scope-filter-public").click();
+    await page.getByTestId("skills-scope-filter-bundled").click();
     await page.waitForTimeout(300);
 
     await expect(page.getByTestId("skill-card-code-review")).toBeVisible();

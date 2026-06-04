@@ -23,7 +23,7 @@ interface SkillsModalProps {
 const SECTION_TITLE_KEY: Record<SkillScope, I18nKey> = {
   project: I18nKey.SKILLS_MODAL$SECTION_PROJECT,
   personal: I18nKey.SKILLS_MODAL$SECTION_USER,
-  public: I18nKey.SKILLS_MODAL$SECTION_PUBLIC,
+  bundled: I18nKey.SKILLS_MODAL$SECTION_BUNDLED,
 };
 
 export function SkillsModal({ onClose }: SkillsModalProps) {

@@ -12,15 +12,15 @@ function buildSkill(overrides: Partial<SkillInfo> = {}): SkillInfo {
 }
 
 describe("getSkillScope", () => {
-  it("classifies public catalog skills", () => {
+  it("classifies bundled catalog skills", () => {
     expect(
       getSkillScope(
         buildSkill({
           source: "/Users/test/.openhands/cache/skills/public-skills/skills/deno/SKILL.md",
         }),
       ),
-    ).toBe("public");
-    expect(getSkillScope(buildSkill({ source: "public" }))).toBe("public");
+    ).toBe("bundled");
+    expect(getSkillScope(buildSkill({ source: "public" }))).toBe("bundled");
   });
 
   it("classifies personal user skills from home directories", () => {
@@ -59,7 +59,7 @@ describe("groupSkillsByScope", () => {
       }),
     ], "/workspace/project");
 
-    expect(grouped.public.map((skill) => skill.name)).toEqual(["beta"]);
+    expect(grouped.bundled.map((skill) => skill.name)).toEqual(["beta"]);
     expect(grouped.personal.map((skill) => skill.name)).toEqual(["alpha"]);
     expect(grouped.project.map((skill) => skill.name)).toEqual(["gamma"]);
   });
