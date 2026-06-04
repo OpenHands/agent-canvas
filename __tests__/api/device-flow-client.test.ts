@@ -6,18 +6,6 @@ import {
   DeviceFlowError,
 } from "../../src/api/device-flow-client";
 
-// Mock the backend registry to avoid import issues
-vi.mock("../../src/api/backend-registry/active-store", () => ({
-  getEffectiveLocalBackend: () => ({
-    host: "http://localhost:18000",
-    apiKey: "test-api-key",
-  }),
-}));
-
-vi.mock("../../src/api/backend-registry/auth", () => ({
-  buildAuthHeaders: () => ({ "X-Session-API-Key": "test-api-key" }),
-}));
-
 const TEST_HOST_URL = "https://app.all-hands.dev";
 
 describe("device-flow-client", () => {
@@ -91,14 +79,13 @@ describe("device-flow-client", () => {
       const result = await startDeviceFlow(TEST_HOST_URL);
 
       expect(result).toEqual(mockResponse);
-      // Should call the local proxy endpoint
+      // Should call the cloud endpoint directly.
       expect(fetch).toHaveBeenCalledWith(
-        "http://localhost:18000/api/cloud-proxy",
+        `${TEST_HOST_URL}/oauth/device/authorize`,
         expect.objectContaining({
           method: "POST",
           headers: expect.objectContaining({
             "Content-Type": "application/json",
-            "X-Session-API-Key": "test-api-key",
           }),
         }),
       );
@@ -120,10 +107,9 @@ describe("device-flow-client", () => {
 
       await startDeviceFlow(`${TEST_HOST_URL}///`);
 
-      // Verify the proxy body contains the normalized host
+      // Verify the direct request targets the normalized host.
       const fetchCall = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
-      const body = JSON.parse(fetchCall[1].body);
-      expect(body.host).toBe(TEST_HOST_URL);
+      expect(fetchCall[0]).toBe(`${TEST_HOST_URL}/oauth/device/authorize`);
     });
 
     it("throws DeviceFlowError on HTTP error", async () => {
@@ -189,14 +175,13 @@ describe("device-flow-client", () => {
       });
 
       expect(result).toEqual(mockTokenResponse);
-      // Should call the local proxy endpoint
+      // Should call the cloud endpoint directly.
       expect(fetch).toHaveBeenCalledWith(
-        "http://localhost:18000/api/cloud-proxy",
+        `${TEST_HOST_URL}/oauth/device/token`,
         expect.objectContaining({
           method: "POST",
           headers: expect.objectContaining({
-            "Content-Type": "application/json",
-            "X-Session-API-Key": "test-api-key",
+            "Content-Type": "application/x-www-form-urlencoded",
           }),
         }),
       );

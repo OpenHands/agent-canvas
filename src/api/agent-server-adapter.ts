@@ -268,6 +268,7 @@ export function toAppConversation(
     selected_branch: metadata?.selected_branch ?? null,
     git_provider: metadata?.git_provider ?? null,
     selected_workspace: metadata?.selected_workspace ?? null,
+    active_profile: metadata?.active_profile ?? null,
     title: info.title?.trim()
       ? info.title
       : getDefaultConversationTitle(info.id),
@@ -565,6 +566,15 @@ function buildConfiguredAcpAgentSettings(
     }
   }
 
+  // ``mcp_config`` is a *shared* field (not in ACP_SETTINGS_KEYS): forward it
+  // so the ACP subprocess connects to the configured MCP servers at session
+  // creation. Only include it when it actually carries servers — an empty or
+  // malformed value is dropped rather than sending ``mcp_config: {}``.
+  const mcpConfig = toRecord(agentSettings.mcp_config);
+  if (Object.keys(mcpConfig).length > 0 && "mcpServers" in mcpConfig) {
+    payload.mcp_config = mcpConfig;
+  }
+
   // Saved settings may carry ``acp_model: null`` (existing users predating
   // the default-model registry, or saved fields the agent-server stripped).
   // Fall back to the provider's ``default_model`` so the conversation starts
@@ -800,7 +810,7 @@ export function buildStartConversationRequest(
 
   if (options.customSecrets && options.customSecrets.length > 0) {
     const backend = getEffectiveLocalBackend();
-    const headers = buildAuthHeaders(backend);
+    const headers = backend ? buildAuthHeaders(backend) : {};
 
     const secrets: Record<string, LookupSecret> = {};
     for (const secret of options.customSecrets) {

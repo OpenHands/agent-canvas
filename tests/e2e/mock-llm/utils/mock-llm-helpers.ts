@@ -12,6 +12,18 @@ export const BASH_TOKEN = "MOCK_LLM_E2E_BASH_OK";
 export const REPLY_TOKEN = "MOCK_LLM_E2E_REPLY_OK";
 export const BASH_COMMAND = `printf '${BASH_TOKEN}\\n'`;
 
+/** Reply token used by the image-upload test trajectory. */
+export const IMAGE_REPLY_TOKEN = "MOCK_LLM_IMAGE_OK";
+
+/**
+ * A minimal valid 1×1 white pixel PNG, base64-encoded.
+ * Used as a lightweight test fixture for image-upload E2E tests — small
+ * enough to keep request bodies manageable while still being a real PNG that
+ * the browser's FileReader can process.
+ */
+export const MINIMAL_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAABjE+ibYAAAAASUVORK5CYII=";
+
 // Ports / URLs — set via env or defaults matching playwright.mock-llm.config.ts.
 // The agent-canvas binary exposes a single ingress port; API calls are proxied
 // through it, so BACKEND_URL = ingress URL (no separate backend port).
@@ -42,14 +54,43 @@ export const SESSION_API_KEY = (() => {
   return key;
 })();
 
-/** Seed localStorage with flags that skip onboarding / analytics modals. */
+/** Seed localStorage with flags that skip onboarding / analytics modals
+ *  and a default local backend so the app boots straight into the home
+ *  page. The backend registry is seeded explicitly for two reasons:
+ *
+ *    1. It guarantees a deterministic backend entry across tests even
+ *       when key rotation or stale-state scenarios are exercised.
+ *    2. It avoids depending on the runtime injection ordering between
+ *       `page.addInitScript` and the static-server's `<head>` script.
+ *
+ *  As of the published-binary session-key fix, the static-server also
+ *  exposes the runtime key via `window.__AGENT_CANVAS_SESSION_API_KEY__`,
+ *  which `getBakedSessionApiKey()` reads — so a real user with an empty
+ *  localStorage no longer needs this seeding to reach onboarding.  See
+ *  `auth mode: fresh install with runtime-injected key` in
+ *  `mock-llm-auth-modes.spec.ts` for the test that covers that path. */
 export async function seedLocalStorage(page: Page) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem("analytics-consent", "false");
-    window.localStorage.setItem("openhands-telemetry-consent", "denied");
-    window.localStorage.setItem("openhands-telemetry-first-use", "true");
-    window.localStorage.setItem("openhands-onboarded", "1");
-  });
+  await page.addInitScript(
+    ({ apiKey }) => {
+      window.localStorage.setItem("analytics-consent", "false");
+      window.localStorage.setItem("openhands-telemetry-consent", "denied");
+      window.localStorage.setItem("openhands-telemetry-first-use", "true");
+      window.localStorage.setItem("openhands-onboarded", "1");
+      window.localStorage.setItem(
+        "openhands-backends",
+        JSON.stringify([
+          {
+            id: "default-local",
+            name: "Local",
+            host: window.location.origin,
+            apiKey,
+            kind: "local",
+          },
+        ]),
+      );
+    },
+    { apiKey: SESSION_API_KEY },
+  );
 }
 
 /** Inject session API key header into requests targeting the backend. */
@@ -374,10 +415,27 @@ export async function activateTrajectory(
 
 /**
  * Reset the mock LLM server to its default trajectory.
+ * Also clears the stored completion-request history.
  */
 export async function resetMockLLM(request: APIRequestContext) {
   const resp = await request.post(`${MOCK_LLM_BASE_URL}/admin/reset`);
   expect(resp.ok(), `Reset mock LLM: ${resp.status()}`).toBe(true);
+}
+
+/**
+ * Fetch all chat-completion request bodies captured by the mock LLM server
+ * since the last /admin/reset.
+ *
+ * The server stores every POST to /v1/chat/completions, so callers can assert
+ * that at least one request contained image content (or any other field).
+ */
+export async function getMockLLMRequests(
+  request: APIRequestContext,
+): Promise<Record<string, unknown>[]> {
+  const resp = await request.get(`${MOCK_LLM_BASE_URL}/admin/requests`);
+  expect(resp.ok(), `GET /admin/requests: ${resp.status()}`).toBe(true);
+  const body = await resp.json();
+  return (body.requests as Record<string, unknown>[]) ?? [];
 }
 
 /**
