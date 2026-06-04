@@ -6,7 +6,7 @@ import { fetchCloudSkills } from "./cloud/skills-service.api";
 import { getAgentServerClientOptions } from "./agent-server-client-options";
 
 class SkillsService {
-  static async getSkills(): Promise<SkillInfo[]> {
+  static async getSkills(projectDir?: string): Promise<SkillInfo[]> {
     if (getActiveBackend().backend.kind === "cloud") {
       return fetchCloudSkills();
     }
@@ -22,7 +22,7 @@ class SkillsService {
       load_user: true,
       load_project: true,
       load_org: false,
-      project_dir: getAgentServerWorkingDir(),
+      project_dir: projectDir ?? getAgentServerWorkingDir(),
     });
 
     return (response.skills ?? []) as SkillInfo[];

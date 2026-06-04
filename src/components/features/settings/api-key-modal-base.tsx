@@ -1,10 +1,17 @@
 import React, { ReactNode, useEffect, useRef } from "react";
+import { BaseModalTitle } from "#/components/shared/modals/confirmation-modals/base-modal";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
+import {
+  MODAL_MAX_WIDTH_VIEWPORT,
+  type ModalWidth,
+  modalWidthClassName,
+} from "#/components/shared/modals/modal-body";
+import { cn } from "#/utils/utils";
 
 interface ApiKeyModalBaseProps {
   isOpen: boolean;
   title: string;
-  width?: string;
+  width?: ModalWidth;
   children: ReactNode;
   footer: ReactNode;
   /** Called when the modal should close (e.g., Escape key or backdrop click) */
@@ -16,7 +23,7 @@ interface ApiKeyModalBaseProps {
 export function ApiKeyModalBase({
   isOpen,
   title,
-  width = "500px",
+  width = "md",
   children,
   footer,
   onClose,
@@ -79,13 +86,13 @@ export function ApiKeyModalBase({
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
-        className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)]"
-        // runtime prop-driven width; cannot move to className
-        style={{ width }}
+        className={cn(
+          "bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)]",
+          modalWidthClassName(width),
+          MODAL_MAX_WIDTH_VIEWPORT,
+        )}
       >
-        <h3 id="modal-title" className="text-xl font-bold">
-          {title}
-        </h3>
+        <BaseModalTitle id="modal-title" title={title} />
         {children}
         <div className="w-full flex justify-end gap-2 mt-2">{footer}</div>
       </div>

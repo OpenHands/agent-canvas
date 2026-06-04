@@ -7,6 +7,13 @@ import {
   createUserMessageEvent,
 } from "test-utils";
 import { ACPToolCallEvent } from "#/types/agent-server/core/events/acp-tool-call-event";
+import {
+  ActionEvent,
+  ObservationEvent,
+  SecurityRisk,
+} from "#/types/agent-server/core";
+import { SwitchLLMAction } from "#/types/agent-server/core/base/action";
+import { SwitchLLMObservation } from "#/types/agent-server/core/base/observation";
 
 const makeACPEvent = (
   overrides: Partial<ACPToolCallEvent> = {},
@@ -54,13 +61,21 @@ describe("shouldRenderEvent - PlanningFileEditorAction", () => {
 });
 
 describe("shouldRenderEvent - ACPToolCallEvent", () => {
-  it("hides in_progress events so the card doesn't flash half-formed", () => {
-    // ACP streams multiple events per ``tool_call_id``; the partially-
-    // populated in-flight ones have to stay off-screen, otherwise the
-    // user watches the card update in place mid-stream — visibly noisy.
+  it("renders the early in_progress 'started' card", () => {
+    // The SDK now persists exactly one ``started`` (in_progress) event and
+    // one terminal event per ``tool_call_id`` — the action->observation pair.
+    // The started event renders the card as "running"; ``handleEventForUI``
+    // then replaces it in place when the terminal event arrives. The old
+    // half-formed flashing came from the now-removed per-progress fan-out.
     const event = makeACPEvent({ status: "in_progress", raw_input: {} });
 
-    expect(shouldRenderEvent(event)).toBe(false);
+    expect(shouldRenderEvent(event)).toBe(true);
+  });
+
+  it("renders pending 'started' cards", () => {
+    const event = makeACPEvent({ status: "pending" });
+
+    expect(shouldRenderEvent(event)).toBe(true);
   });
 
   it("renders completed events", () => {
@@ -75,16 +90,75 @@ describe("shouldRenderEvent - ACPToolCallEvent", () => {
     expect(shouldRenderEvent(event)).toBe(true);
   });
 
-  it("hides events with null status — treated as in-flight, not legacy", () => {
-    // ``null`` used to be allowed for backwards compat with old agent-
-    // server builds (before the field was required). Canvas's pinned
-    // agent-server always sets a status, so a ``null`` we see today is
-    // a streaming intermediate the SDK hasn't filled yet. Treating it
-    // as in-flight matches the "wait for terminal" rule and stops the
-    // pre-stream half-rendered card. If we ever need to reach an older
-    // build, the right knob is to bump the pin, not loosen this gate.
+  it("renders events with null status as a running card", () => {
+    // A ``null`` status (legacy builds before the field was required) renders
+    // as "running" via the absent check mark rather than being hidden — better
+    // a card than a silently dropped tool call.
     const event = makeACPEvent({ status: null });
 
-    expect(shouldRenderEvent(event)).toBe(false);
+    expect(shouldRenderEvent(event)).toBe(true);
+  });
+});
+
+describe("shouldRenderEvent - SwitchLLM", () => {
+  const switchAction: ActionEvent<SwitchLLMAction> = {
+    id: "switch-action",
+    timestamp: "2024-01-01T00:00:00Z",
+    source: "agent",
+    thought: [],
+    thinking_blocks: [],
+    action: {
+      kind: "SwitchLLMAction",
+      profile_name: "haiku",
+      reason: "Use a cheaper model.",
+    },
+    tool_name: "switch_llm",
+    tool_call_id: "tool-switch",
+    tool_call: {
+      id: "tool-switch",
+      type: "function",
+      function: {
+        name: "switch_llm",
+        arguments: JSON.stringify({ profile_name: "haiku" }),
+      },
+    },
+    llm_response_id: "response-switch",
+    security_risk: SecurityRisk.LOW,
+  };
+
+  const makeSwitchObservation = (
+    overrides: Partial<SwitchLLMObservation> = {},
+  ): ObservationEvent<SwitchLLMObservation> => ({
+    id: "switch-observation",
+    timestamp: "2024-01-01T00:00:01Z",
+    source: "environment",
+    tool_name: "switch_llm",
+    tool_call_id: "tool-switch",
+    action_id: "switch-action",
+    observation: {
+      kind: "SwitchLLMObservation",
+      content: [{ type: "text", text: "Switched." }],
+      is_error: false,
+      profile_name: "haiku",
+      reason: "Use a cheaper model.",
+      active_model: "anthropic/claude-haiku-4-5",
+      ...overrides,
+    },
+  });
+
+  it("hides switch actions and successful observations for the shared model UI", () => {
+    expect(shouldRenderEvent(switchAction)).toBe(false);
+    expect(shouldRenderEvent(makeSwitchObservation())).toBe(false);
+  });
+
+  it("keeps failed switch observations visible", () => {
+    expect(
+      shouldRenderEvent(
+        makeSwitchObservation({
+          is_error: true,
+          content: [{ type: "text", text: "Profile was not found." }],
+        }),
+      ),
+    ).toBe(true);
   });
 });

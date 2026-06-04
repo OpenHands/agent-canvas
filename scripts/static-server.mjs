@@ -20,7 +20,7 @@
  *
  * Usage (mirrors scripts/ingress.mjs's --route flag style):
  *   node scripts/static-server.mjs \
- *     --port 3001 --host 0.0.0.0 --dir build \
+ *     --port 3001 --dir build \
  *     --route "/api/automation=http://localhost:18001" \
  *     --route "/api=http://localhost:18000" \
  *     --route "/server_info=http://localhost:18000" \
@@ -29,7 +29,7 @@
 
 import { createServer, request as httpRequest } from "node:http";
 import { createReadStream } from "node:fs";
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { extname, isAbsolute, normalize, relative, resolve } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -69,9 +69,13 @@ const MIME = {
 export function parseArgs(argv = process.argv.slice(2)) {
   const config = {
     port: 3001,
-    host: "0.0.0.0",
+    host: "::",
     dir: "build",
     routes: {},
+    rejectPrefixes: [],
+    sessionApiKey: null,
+    authRequired: false,
+    runtimeServicesInfo: null,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -104,6 +108,25 @@ export function parseArgs(argv = process.argv.slice(2)) {
         config.routes[prefix] = url;
         break;
       }
+      case "--session-api-key":
+        config.sessionApiKey = argv[++i] || null;
+        break;
+      case "--runtime-services-info":
+        config.runtimeServicesInfo = argv[++i] || null;
+        break;
+      case "--auth-required":
+        config.authRequired = true;
+        break;
+      case "--reject-prefix": {
+        const prefix = argv[++i];
+        if (!prefix || !prefix.startsWith("/")) {
+          throw new Error(
+            `--reject-prefix value must start with '/': ${prefix ?? "(empty)"}`,
+          );
+        }
+        config.rejectPrefixes.push(prefix);
+        break;
+      }
       case "-h":
       case "--help":
         showHelp();
@@ -111,6 +134,19 @@ export function parseArgs(argv = process.argv.slice(2)) {
       default:
         throw new Error(`Unknown flag: ${flag}`);
     }
+  }
+
+  // Guard: --session-api-key and --auth-required are semantically
+  // mutually exclusive. The first auto-injects the key (local mode);
+  // the second forces the user to paste it (public mode). Combining
+  // both is a misconfiguration.
+  if (config.sessionApiKey && config.authRequired) {
+    console.error(
+      "ERROR: --session-api-key and --auth-required are mutually exclusive.\n" +
+        "  Use --session-api-key for local mode (key auto-injected).\n" +
+        "  Use --auth-required for public mode (user pastes key).",
+    );
+    process.exit(1);
   }
 
   return config;
@@ -125,19 +161,155 @@ USAGE:
 
 OPTIONS:
   -p, --port  <port>           Port to bind (default: 3001)
-  -H, --host  <host>           Hostname to bind (default: 0.0.0.0)
+  -H, --host  <host>           Hostname to bind (default: :: dual-stack)
   -d, --dir   <dir>            Directory to serve (default: build)
   -r, --route <prefix=url>     Proxy <prefix> (and subpaths) to <url>;
                                may be repeated. WebSockets supported.
+  --session-api-key <key>      Inject session API key into index.html so the
+                               pre-built frontend authenticates to agent-server
+                               without needing VITE_SESSION_API_KEY baked in.
+  --auth-required              Inject authRequired flag into index.html so the
+                               pre-built frontend shows the API key entry screen
+                               (public mode) without VITE_AUTH_REQUIRED baked in.
+  --runtime-services-info <json>
+                               Inject a JSON description of the local runtime
+                               services into index.html so the pre-built
+                               frontend can populate the agent's
+                               <RUNTIME_SERVICES> system-prompt block without
+                               VITE_RUNTIME_SERVICES_INFO baked in.
+  --reject-prefix <prefix>     Return 503 for requests matching <prefix>
+                               instead of SPA-fallbacking to index.html;
+                               may be repeated. Useful in --frontend-only
+                               mode to cleanly reject API paths.
   -h, --help                   Show this help
 
 ROUTING:
   • Routes are matched by longest prefix first (most-specific wins).
-  • Anything that does not match a route is served from --dir.
+  • Reject prefixes are checked before SPA fallback — matching requests
+    get 503 immediately.
+  • Anything that does not match a route or reject prefix is served
+    from --dir.
   • Unknown paths fall back to index.html (SPA mode), unless they look
     like an asset request (have a known file extension), in which case
     a 404 is returned.
 `);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Runtime config injection
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Build a tiny inline script that seeds runtime config into the page.
+ *
+ * - `sessionApiKey`: exposed to the app two ways so a fresh-localStorage
+ *   browser can authenticate even though the published bundle has no
+ *   VITE_SESSION_API_KEY baked in:
+ *     1. `window.__AGENT_CANVAS_SESSION_API_KEY__` — read by
+ *        `getBakedSessionApiKey()` in `agent-server-config.ts` as a fallback
+ *        when the env var is empty. This is symmetric with how
+ *        `__AGENT_CANVAS_AUTH_REQUIRED__` works for the auth-required flag.
+ *     2. Written to `openhands-agent-server-config.sessionApiKey` in
+ *        localStorage for compatibility with the legacy storage key. Useful
+ *        for any code path that still reads it (e.g. e2e test fixtures).
+ *        Always overwrites when the stored value differs so a rotated key
+ *        is not shadowed by a stale one.
+ *
+ * - `authRequired`: sets `window.__AGENT_CANVAS_AUTH_REQUIRED__ = true` so the
+ *   pre-built frontend shows the API key entry screen (public mode) without
+ *   VITE_AUTH_REQUIRED baked in.
+ *
+ * - `runtimeServicesInfo`: a JSON string describing the local services
+ *   (agent-server, automation, …), exposed as
+ *   `window.__AGENT_CANVAS_RUNTIME_SERVICES_INFO__`. Read by
+ *   `parseRuntimeServicesInfo()` in `agent-server-adapter.ts` as a fallback
+ *   when `VITE_RUNTIME_SERVICES_INFO` is empty, so static builds (Docker /
+ *   published binary) still populate the agent's `<RUNTIME_SERVICES>` block.
+ */
+function makeConfigInjectionScript(
+  sessionApiKey,
+  authRequired,
+  runtimeServicesInfo,
+) {
+  const parts = [];
+
+  if (sessionApiKey) {
+    const keyLiteral = JSON.stringify(sessionApiKey);
+    // Window global — read at module init by getBakedSessionApiKey().
+    // Set first so it's available even if the localStorage write throws.
+    parts.push(`window.__AGENT_CANVAS_SESSION_API_KEY__=${keyLiteral};`);
+    // Always overwrite when the stored key differs from the runtime key.
+    // A previous session may have persisted a now-stale key; the runtime
+    // value (from --session-api-key) is the server's truth.
+    parts.push(
+      `try{` +
+        `var _k='openhands-agent-server-config',` +
+        `_c=JSON.parse(localStorage.getItem(_k)||'{}');` +
+        `if(_c.sessionApiKey!==${keyLiteral}){` +
+        `_c.sessionApiKey=${keyLiteral};` +
+        `localStorage.setItem(_k,JSON.stringify(_c));` +
+        `}` +
+        `}catch(e){}`,
+    );
+  }
+
+  if (authRequired) {
+    parts.push(`window.__AGENT_CANVAS_AUTH_REQUIRED__=true;`);
+  }
+
+  if (runtimeServicesInfo) {
+    // Stored as the raw JSON string so the browser-side parser
+    // (parseRuntimeServicesInfo) can JSON.parse it exactly like the
+    // VITE_RUNTIME_SERVICES_INFO env var. JSON.stringify produces a safe JS
+    // string literal for the inline <script>.
+    parts.push(
+      `window.__AGENT_CANVAS_RUNTIME_SERVICES_INFO__=${JSON.stringify(runtimeServicesInfo)};`,
+    );
+  }
+
+  if (parts.length === 0) return "";
+
+  return `<script>(function(){${parts.join("")}}());</script>`;
+}
+
+/**
+ * Serve index.html with runtime config injected into <head>.
+ * Returns true if the response was written, false if the file was not found.
+ */
+async function serveInjectedIndexHtml(
+  req,
+  res,
+  indexPath,
+  { sessionApiKey, authRequired, runtimeServicesInfo } = {},
+) {
+  let content;
+  try {
+    content = await readFile(indexPath, "utf8");
+  } catch {
+    return false;
+  }
+
+  const script = makeConfigInjectionScript(
+    sessionApiKey,
+    authRequired,
+    runtimeServicesInfo,
+  );
+  // Inject right before </head> so the key is available before any app code runs.
+  // replace() targets the first (and only) </head> in well-formed HTML.
+  const injected = content.includes("</head>")
+    ? content.replace("</head>", `${script}\n</head>`)
+    : content.includes("</body>")
+      ? content.replace("</body>", `${script}\n</body>`)
+      : script + content;
+
+  const buf = Buffer.from(injected, "utf8");
+  res.writeHead(200, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Content-Length": buf.length,
+    "Cache-Control": "no-cache",
+  });
+  if (req.method !== "HEAD") res.end(buf);
+  return true;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -193,6 +365,11 @@ function proxyRequest(req, res, backendUrl) {
     },
   );
 
+  // Absorb client-disconnect errors (EPIPE/ECONNRESET) so the server
+  // process survives abrupt navigations and health-check probes.
+  req.on("error", () => {});
+  res.on("error", () => {});
+
   proxyReq.on("error", (err) => {
     console.error(`Proxy error for ${req.url} -> ${backendUrl}:`, err.message);
     if (!res.headersSent) {
@@ -218,7 +395,12 @@ function proxyWebSocket(req, socket, head, backendUrl) {
     },
   });
 
+  // Absorb socket errors so the process survives mid-flight disconnects.
+  socket.on("error", () => socket.destroy());
+
   proxyReq.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
+    proxySocket.on("error", () => proxySocket.destroy());
+
     socket.write(
       `HTTP/${proxyRes.httpVersion} ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`,
     );
@@ -322,7 +504,13 @@ async function serveFile(req, res, filePath, urlPath) {
   return true;
 }
 
-async function handleStatic(req, res, dirAbs) {
+async function handleStatic(
+  req,
+  res,
+  dirAbs,
+  injectionOpts = {},
+  rejectPrefixes = [],
+) {
   const rawPath = req.url.split("?")[0];
   let urlPath;
   try {
@@ -346,7 +534,35 @@ async function handleStatic(req, res, dirAbs) {
     filePath = resolve(filePath, "index.html");
   }
 
+  const needsInjection =
+    injectionOpts.sessionApiKey ||
+    injectionOpts.authRequired ||
+    injectionOpts.runtimeServicesInfo;
+
+  // Serve index.html with runtime config injection when configured.
+  if (needsInjection && filePath.endsWith("index.html")) {
+    if (await serveInjectedIndexHtml(req, res, filePath, injectionOpts)) return;
+    // Fall through to regular serveFile (handles 404 path correctly).
+  }
+
   if (await serveFile(req, res, filePath, urlPath)) return;
+
+  // Reject prefixes: return 503 for known API paths that have no backend
+  // configured (e.g. in --frontend-only mode). Checked before SPA fallback
+  // so these paths never silently serve index.html.
+  if (rejectPrefixes.length > 0) {
+    for (const prefix of rejectPrefixes) {
+      if (
+        urlPath === prefix ||
+        urlPath.startsWith(prefix + "/") ||
+        urlPath.startsWith(prefix + "?")
+      ) {
+        res.writeHead(503, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Service Unavailable (no backend configured for this route)");
+        return;
+      }
+    }
+  }
 
   // SPA fallback: only for non-asset requests, and not for non-GET/HEAD.
   if (
@@ -354,7 +570,10 @@ async function handleStatic(req, res, dirAbs) {
     !looksLikeAssetRequest(urlPath)
   ) {
     const indexPath = resolve(dirAbs, "index.html");
-    if (await serveFile(req, res, indexPath, "/")) return;
+    if (needsInjection) {
+      if (await serveInjectedIndexHtml(req, res, indexPath, injectionOpts))
+        return;
+    } else if (await serveFile(req, res, indexPath, "/")) return;
   }
 
   res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
@@ -368,6 +587,12 @@ async function handleStatic(req, res, dirAbs) {
 export function startStaticServer(config) {
   const route = createRouter(config.routes);
   const dirAbs = resolve(config.dir);
+  const injectionOpts = {
+    sessionApiKey: config.sessionApiKey || null,
+    authRequired: config.authRequired || false,
+    runtimeServicesInfo: config.runtimeServicesInfo || null,
+  };
+  const rejectPrefixes = config.rejectPrefixes ?? [];
 
   const server = createServer((req, res) => {
     const backend = route(req.url);
@@ -375,7 +600,7 @@ export function startStaticServer(config) {
       proxyRequest(req, res, backend);
       return;
     }
-    handleStatic(req, res, dirAbs).catch((err) => {
+    handleStatic(req, res, dirAbs, injectionOpts, rejectPrefixes).catch((err) => {
       console.error(`Static handler error for ${req.url}:`, err);
       if (!res.headersSent) {
         res.writeHead(500);
@@ -405,6 +630,11 @@ export function startStaticServer(config) {
       );
       for (const [prefix, backend] of sortedRoutes) {
         console.log(`  ${prefix} -> ${backend}`);
+      }
+      if (rejectPrefixes.length > 0) {
+        for (const prefix of rejectPrefixes) {
+          console.log(`  ${prefix} -> 503 (rejected)`);
+        }
       }
       console.log("  * (default) -> static files + SPA fallback");
       console.log("");

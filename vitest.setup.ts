@@ -1,7 +1,12 @@
-import { afterAll, afterEach, beforeAll, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { server } from "#/mocks/node";
 import "@testing-library/jest-dom/vitest";
+
+// Some modules read env at import time before Vitest's per-test hooks run.
+// The beforeEach below restores the same default after tests call
+// `vi.unstubAllEnvs()`.
+vi.stubEnv("VITE_SESSION_API_KEY", "test-session-key");
 
 if (typeof HTMLCanvasElement !== "undefined") {
   HTMLCanvasElement.prototype.getContext = vi.fn();
@@ -18,6 +23,32 @@ const windowStub =
 
 vi.stubGlobal("window", windowStub);
 windowStub.scrollTo = vi.fn();
+
+// Node.js 25+ ships a built-in localStorage that requires --localstorage-file
+// and is not functional without it. Stub it with a plain in-memory
+// implementation so zustand's persist middleware works in tests.
+if (
+  typeof localStorage === "undefined" ||
+  typeof localStorage.setItem !== "function"
+) {
+  const store: Record<string, string> = {};
+  vi.stubGlobal("localStorage", {
+    getItem: (key: string) => store[key] ?? null,
+    setItem: (key: string, value: string) => {
+      store[key] = String(value);
+    },
+    removeItem: (key: string) => {
+      delete store[key];
+    },
+    clear: () => {
+      Object.keys(store).forEach((k) => delete store[k]);
+    },
+    get length() {
+      return Object.keys(store).length;
+    },
+    key: (index: number) => Object.keys(store)[index] ?? null,
+  });
+}
 
 if (typeof requestAnimationFrame === "undefined") {
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) =>
@@ -74,6 +105,11 @@ beforeAll(() => {
   server.listen({ onUnhandledRequest: "bypass" });
   vi.stubGlobal("ResizeObserver", MockResizeObserver);
 });
+
+beforeEach(() => {
+  vi.stubEnv("VITE_SESSION_API_KEY", "test-session-key");
+});
+
 afterEach(async () => {
   server.resetHandlers();
   // Cleanup the document body after each test

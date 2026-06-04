@@ -2,6 +2,7 @@ import { useCallback, useEffect, RefObject, useRef } from "react";
 import { IMessageToSend } from "#/stores/conversation-store";
 import { EPS } from "#/utils/constants";
 import { getStyleHeightPx, setStyleHeightPx } from "#/utils/utils";
+import { focusContentEditableAtEnd } from "#/components/features/chat/utils/chat-input.utils";
 import { useDragResize } from "./use-drag-resize";
 
 // Constants
@@ -325,12 +326,38 @@ export const useAutoResize = (
       manualHeightRef.current = finalHeight;
     }
   };
-useEffect(() => {
-    const element = elementRef.current;
-    if (element && value !== undefined && value.text.length > 0) {
+
+  // Update content and resize when value prop changes
+  useEffect(() => {
+    if (value === undefined) {
+      return undefined;
+    }
+
+    let rafId = 0;
+
+    const applyValue = () => {
+      const element = elementRef.current;
+      if (!element) {
+        return false;
+      }
+
       element.textContent = value.text;
       smartResize();
+      focusContentEditableAtEnd(element);
+      return true;
+    };
+
+    if (!applyValue()) {
+      rafId = requestAnimationFrame(() => {
+        applyValue();
+      });
     }
+
+    return () => {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
+    };
   }, [value, smartResize]);
 
   // Initialize auto-resize on mount

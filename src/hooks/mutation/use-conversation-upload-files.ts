@@ -1,11 +1,16 @@
 import { useMutation } from "@tanstack/react-query";
 import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
+import {
+  buildWorkspaceUploadPath,
+  getSafeUploadFileName,
+} from "#/api/workspace-upload-path";
 import { FileUploadSuccessResponse } from "#/api/open-hands.types";
 
 interface UploadFilesVariables {
   conversationUrl: string | null | undefined;
   sessionApiKey: string | null | undefined;
+  workingDir: string;
   files: File[];
 }
 
@@ -21,22 +26,41 @@ export const useConversationUploadFiles = () =>
     mutationFn: async (
       variables: UploadFilesVariables,
     ): Promise<FileUploadSuccessResponse> => {
-      const { conversationUrl, sessionApiKey, files } = variables;
+      const { conversationUrl, sessionApiKey, workingDir, files } = variables;
 
-      // Upload all files in parallel
       const uploadPromises = files.map(async (file) => {
+        // @spec WUP-001 — Resolve once so both the success and failure
+        // branches report the same absolute path.
+        let filePath: string;
         try {
-          // Upload to /workspace/{filename}
-          const filePath = `/workspace/${file.name}`;
-          await new RemoteWorkspace(
-            getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
-          ).fileUpload(file, filePath);
-          return { success: true as const, fileName: file.name, filePath };
+          filePath = await buildWorkspaceUploadPath(file.name, workingDir, {
+            conversationUrl,
+            sessionApiKey,
+          });
         } catch (error) {
           return {
             success: false as const,
             fileName: file.name,
-            filePath: `/workspace/${file.name}`,
+            filePath: file.name,
+            error: error instanceof Error ? error.message : "Unknown error",
+          };
+        }
+
+        try {
+          const safeName = getSafeUploadFileName(file.name);
+          await new RemoteWorkspace(
+            getAgentServerClientOptions({
+              conversationUrl,
+              sessionApiKey,
+              workingDir,
+            }),
+          ).fileUpload(file, filePath);
+          return { success: true as const, fileName: safeName, filePath };
+        } catch (error) {
+          return {
+            success: false as const,
+            fileName: file.name,
+            filePath,
             error: error instanceof Error ? error.message : "Unknown error",
           };
         }

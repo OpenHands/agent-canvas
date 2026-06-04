@@ -1,6 +1,10 @@
 import axios from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  __resetActiveStoreForTests,
+  setRegisteredBackends,
+} from "#/api/backend-registry/active-store";
+import {
   getCloudOrganizations,
   getCurrentCloudApiKey,
 } from "#/api/cloud/organization-service.api";
@@ -18,16 +22,20 @@ const cloudBackend: Backend = {
 
 beforeEach(() => {
   window.localStorage.clear();
-  vi.mocked(axios.post).mockReset();
+  __resetActiveStoreForTests();
+  setRegisteredBackends([]);
+  vi.mocked(axios.request).mockReset();
 });
 
 afterEach(() => {
-  vi.mocked(axios.post).mockReset();
+  window.localStorage.clear();
+  __resetActiveStoreForTests();
+  vi.mocked(axios.request).mockReset();
 });
 
-describe("cloud organization-service via local proxy", () => {
-  it("getCloudOrganizations posts the right envelope to the local proxy and returns normalized data", async () => {
-    vi.mocked(axios.post).mockResolvedValue({
+describe("cloud organization-service", () => {
+  it("getCloudOrganizations calls the cloud API directly and returns normalized data", async () => {
+    vi.mocked(axios.request).mockResolvedValue({
       data: {
         items: [{ id: "org-1", name: "Personal" }],
         current_org_id: "org-1",
@@ -36,27 +44,14 @@ describe("cloud organization-service via local proxy", () => {
 
     const result = await getCloudOrganizations(cloudBackend);
 
-    expect(axios.post).toHaveBeenCalledOnce();
-    const [url, body, options] = vi.mocked(axios.post).mock.calls[0]!;
+    expect(axios.request).toHaveBeenCalledOnce();
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
 
-    // Should target the bundled local agent-server, not the cloud host.
-    expect(url).toMatch(/\/api\/cloud-proxy$/);
-    expect(url).not.toContain("app.all-hands.dev");
-
-    // The envelope carries the cloud host + path + bearer header.
-    expect(body).toMatchObject({
-      host: cloudBackend.host,
+    expect(config).toMatchObject({
+      url: `${cloudBackend.host}/api/organizations`,
       method: "GET",
-      path: "/api/organizations",
       headers: { Authorization: "Bearer bearer-token" },
     });
-
-    // The outer request to the local agent-server uses the local
-    // X-Session-API-Key auth, NOT the cloud bearer.
-    expect(
-      (options as { headers?: Record<string, string> } | undefined)?.headers ??
-        {},
-    ).not.toHaveProperty("Authorization");
 
     expect(result).toEqual({
       items: [{ id: "org-1", name: "Personal" }],
@@ -65,7 +60,7 @@ describe("cloud organization-service via local proxy", () => {
   });
 
   it("getCurrentCloudApiKey hits /api/keys/current and returns the bound orgId", async () => {
-    vi.mocked(axios.post).mockResolvedValue({
+    vi.mocked(axios.request).mockResolvedValue({
       data: {
         id: "key-1",
         name: "k",
@@ -77,8 +72,12 @@ describe("cloud organization-service via local proxy", () => {
 
     const result = await getCurrentCloudApiKey(cloudBackend);
 
-    const [, body] = vi.mocked(axios.post).mock.calls[0]!;
-    expect((body as { path: string }).path).toBe("/api/keys/current");
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(config).toMatchObject({
+      url: `${cloudBackend.host}/api/keys/current`,
+      method: "GET",
+      headers: { Authorization: "Bearer bearer-token" },
+    });
     expect(result).toEqual({ orgId: "org-bound", isLegacyKey: false });
   });
 
@@ -87,7 +86,7 @@ describe("cloud organization-service via local proxy", () => {
       response: { status: 400 },
     });
     vi.mocked(axios.isAxiosError).mockReturnValueOnce(true);
-    vi.mocked(axios.post).mockRejectedValueOnce(error);
+    vi.mocked(axios.request).mockRejectedValueOnce(error);
 
     const result = await getCurrentCloudApiKey(cloudBackend);
 
@@ -99,7 +98,7 @@ describe("cloud organization-service via local proxy", () => {
       response: { status: 401 },
     });
     vi.mocked(axios.isAxiosError).mockReturnValueOnce(true);
-    vi.mocked(axios.post).mockRejectedValueOnce(error);
+    vi.mocked(axios.request).mockRejectedValueOnce(error);
 
     await expect(getCurrentCloudApiKey(cloudBackend)).rejects.toBe(error);
   });

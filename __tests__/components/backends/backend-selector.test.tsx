@@ -22,7 +22,10 @@ import {
 } from "#/components/features/backends/environment-switch-overlay";
 import { ENVIRONMENT_SWITCH_SETACTIVE_DELAY_MS } from "#/components/features/backends/environment-switch-store";
 
-import { ServerClient } from "@openhands/typescript-client/clients";
+import {
+  ServerClient,
+  SettingsClient,
+} from "@openhands/typescript-client/clients";
 import {
   getCloudOrganizations,
   getCloudOrganizationMe,
@@ -37,6 +40,7 @@ vi.mock("#/api/cloud/organization-service.api", () => ({
 
 vi.mock("@openhands/typescript-client/clients", () => ({
   ServerClient: vi.fn(),
+  SettingsClient: vi.fn(),
 }));
 
 // Shared seed configs reused across tests.
@@ -95,8 +99,14 @@ async function openDropdown() {
 
 beforeEach(() => {
   window.localStorage.clear();
+  vi.stubEnv("VITE_BACKEND_BASE_URL", "http://localhost:9000");
+  vi.stubEnv("VITE_SESSION_API_KEY", "session-key");
   __resetActiveStoreForTests();
   vi.mocked(getCloudOrganizations).mockReset();
+  vi.mocked(getCloudOrganizations).mockResolvedValue({
+    items: [],
+    currentOrgId: null,
+  });
   vi.mocked(getCloudOrganizationMe).mockReset();
   vi.mocked(getCloudOrganizationMe).mockResolvedValue({
     orgId: "",
@@ -117,10 +127,13 @@ beforeEach(() => {
   vi.mocked(ServerClient).mockImplementation(function ServerClientMock() {
     return {
       getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
-      // The dropdown only invokes getServerInfo on the returned client;
-      // the rest of the ServerClient surface is unused here, so a
-      // partial cast is sufficient.
     } as unknown as ServerClient;
+  });
+  vi.mocked(SettingsClient).mockReset();
+  vi.mocked(SettingsClient).mockImplementation(function SettingsClientMock() {
+    return {
+      getSettings: vi.fn().mockResolvedValue({}),
+    } as unknown as SettingsClient;
   });
 });
 
@@ -140,6 +153,7 @@ afterEach(async () => {
     });
   }
   window.localStorage.clear();
+  vi.unstubAllEnvs();
   __resetActiveStoreForTests();
   __resetEnvironmentSwitchOverlayForTests();
 });
@@ -385,85 +399,75 @@ describe("BackendSelector", () => {
     expect(input.value).toBe("Local");
   });
 
-  it("redirects to home when switching backends from a conversation route", async () => {
-    function ConversationRoute() {
-      return (
-        <TestSeed
-          onMount={(ctx) => {
-            ctx.addBackend(SEED_LOCAL_1);
-          }}
-        >
-          <BackendSelector />
-        </TestSeed>
+  // @spec BM-002 — Switching backends keeps the user on the same page
+  it.each([
+    {
+      name: "conversation detail → conversations list",
+      startPath: "/conversations/abc",
+      startRoute: "/conversations/:conversationId",
+      landingRoute: "/conversations",
+      expectRedirect: true,
+    },
+    {
+      name: "automation detail → automations list",
+      startPath: "/automations/abc-123",
+      startRoute: "/automations/:automationId",
+      landingRoute: "/automations",
+      expectRedirect: true,
+    },
+    {
+      name: "settings → stays on settings",
+      startPath: "/settings",
+      startRoute: "/settings",
+      landingRoute: "/conversations",
+      expectRedirect: false,
+    },
+  ])(
+    "$name",
+    async ({ startPath, startRoute, landingRoute, expectRedirect }) => {
+      function StartRoute() {
+        return (
+          <TestSeed
+            onMount={(ctx) => {
+              ctx.addBackend(SEED_LOCAL_1);
+            }}
+          >
+            <div data-testid="start-route" />
+            <BackendSelector />
+          </TestSeed>
+        );
+      }
+      function LandingRoute() {
+        return <div data-testid="landing-route" />;
+      }
+      const RouterStub = createRoutesStub([
+        { path: startRoute, Component: StartRoute },
+        { path: landingRoute, Component: LandingRoute },
+      ]);
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      });
+      render(
+        <QueryClientProvider client={queryClient}>
+          <ActiveBackendProvider>
+            <RouterStub initialEntries={[startPath]} />
+          </ActiveBackendProvider>
+        </QueryClientProvider>,
       );
-    }
-    function HomeRoute() {
-      return <div data-testid="home" />;
-    }
-    const RouterStub = createRoutesStub([
-      { path: "/conversations/:conversationId", Component: ConversationRoute },
-      { path: "/conversations", Component: HomeRoute },
-    ]);
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ActiveBackendProvider>
-          <RouterStub initialEntries={["/conversations/abc"]} />
-        </ActiveBackendProvider>
-      </QueryClientProvider>,
-    );
 
-    // Auto-switch lands on "Local 1"; click the seeded default to switch.
-    const user = await openDropdown();
-    await user.click(screen.getByText("Local"));
+      const user = await openDropdown();
+      await user.click(screen.getByText("Local"));
 
-    expect(await screen.findByTestId("home")).toBeInTheDocument();
-  });
-
-  it("stays on the current page when switching backends from a non-conversation route", async () => {
-    function SettingsRoute() {
-      return (
-        <TestSeed
-          onMount={(ctx) => {
-            ctx.addBackend(SEED_LOCAL_1);
-          }}
-        >
-          <div data-testid="settings-route" />
-          <BackendSelector />
-        </TestSeed>
-      );
-    }
-    function HomeRoute() {
-      return <div data-testid="home" />;
-    }
-    const RouterStub = createRoutesStub([
-      { path: "/settings", Component: SettingsRoute },
-      { path: "/conversations", Component: HomeRoute },
-    ]);
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ActiveBackendProvider>
-          <RouterStub initialEntries={["/settings"]} />
-        </ActiveBackendProvider>
-      </QueryClientProvider>,
-    );
-
-    // Auto-switch lands on "Local 1"; click the seeded default to switch.
-    const user = await openDropdown();
-    await user.click(screen.getByText("Local"));
-
-    // The settings route is still in the DOM after the switch — no
-    // redirect to /conversations or anywhere else.
-    await waitFor(() => {
-      expect(screen.getByTestId("settings-route")).toBeInTheDocument();
-    });
-    expect(screen.queryByTestId("home")).not.toBeInTheDocument();
-  });
+      if (expectRedirect) {
+        expect(await screen.findByTestId("landing-route")).toBeInTheDocument();
+      } else {
+        await waitFor(() => {
+          expect(screen.getByTestId("start-route")).toBeInTheDocument();
+        });
+        expect(screen.queryByTestId("landing-route")).not.toBeInTheDocument();
+      }
+    },
+  );
 
   it("keeps the environment-switch overlay visible even after the selector unmounts mid-switch", async () => {
     // Arrange — selector and overlay are rendered in independent trees
@@ -587,7 +591,8 @@ describe("BackendSelector", () => {
     expect(remaining.map((b: { name: string }) => b.name)).toEqual(["Local"]);
   });
 
-  it("falls back to the seeded default backend when removing the active backend from manage backends", async () => {
+  // @spec BM-003 — Fallback on active backend removal
+  it("shows no backend when removing the only active backend from manage backends", async () => {
     // Pre-seed the registry and active selection in localStorage so the
     // initial render already reflects `Local 1` as active. Seeding via
     // `TestSeed.onMount` instead would call `setActive` AFTER the first
@@ -633,7 +638,8 @@ describe("BackendSelector", () => {
     });
 
     // The active selection is cleared because its target was removed;
-    // the active store then falls back to the seeded default backend.
+    // no registered backend remains, so the selector shows the explicit
+    // unavailable state instead of synthesizing a backend.
     const stored = JSON.parse(
       window.localStorage.getItem("openhands-active-backend") ?? "null",
     );
@@ -641,96 +647,18 @@ describe("BackendSelector", () => {
 
     wrapper = screen.getByTestId("backend-selector");
     input = wrapper.querySelector("input") as HTMLInputElement;
-    expect(input.value).toBe("Local");
-  });
-
-  it("redirects to the automations list when switching backends from an automation detail route", async () => {
-    function AutomationDetailRoute() {
-      return (
-        <TestSeed
-          onMount={(ctx) => {
-            ctx.addBackend(SEED_LOCAL_1);
-          }}
-        >
-          <BackendSelector />
-        </TestSeed>
-      );
-    }
-    function AutomationsListRoute() {
-      return <div data-testid="automations-list" />;
-    }
-    const RouterStub = createRoutesStub([
-      { path: "/automations/:automationId", Component: AutomationDetailRoute },
-      { path: "/automations", Component: AutomationsListRoute },
-    ]);
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ActiveBackendProvider>
-          <RouterStub initialEntries={["/automations/abc-123"]} />
-        </ActiveBackendProvider>
-      </QueryClientProvider>,
-    );
-
-    // Auto-switch lands on "Local 1"; click the seeded default to switch.
-    const user = await openDropdown();
-    await user.click(screen.getByText("Local"));
-
-    expect(await screen.findByTestId("automations-list")).toBeInTheDocument();
-  });
-
-  it("does not redirect when switching backends from a non-conversation route", async () => {
-    function SettingsRoute() {
-      return (
-        <TestSeed
-          onMount={(ctx) => {
-            ctx.addBackend(SEED_LOCAL_1);
-          }}
-        >
-          <BackendSelector />
-        </TestSeed>
-      );
-    }
-    function HomeRoute() {
-      return <div data-testid="home" />;
-    }
-    const RouterStub = createRoutesStub([
-      { path: "/settings", Component: SettingsRoute },
-      { path: "/", Component: HomeRoute },
-    ]);
-    const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    });
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ActiveBackendProvider>
-          <RouterStub initialEntries={["/settings"]} />
-        </ActiveBackendProvider>
-      </QueryClientProvider>,
-    );
-
-    const settingsButton = screen.getByTestId("backend-selector-settings-link");
-    expect(settingsButton).toHaveAttribute("data-active", "true");
-
-    // Auto-switch lands on "Local 1"; click the seeded default to switch.
-    const user = await openDropdown();
-    await user.click(screen.getByText("Local"));
-
-    const wrapper = screen.getByTestId("backend-selector");
-    const input = wrapper.querySelector("input") as HTMLInputElement;
-    expect(input.value).toBe("Local");
-    expect(screen.queryByTestId("home")).not.toBeInTheDocument();
+    expect(input.value).toBe("BACKEND$NO_BACKEND_AVAILABLE");
   });
 
   describe("connection indicator", () => {
     it("renders one status dot per option, green when the probe succeeds", async () => {
-      vi.mocked(ServerClient).mockImplementation(function ServerClientMock() {
-        return {
-          getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
-        } as unknown as ServerClient;
-      });
+      vi.mocked(SettingsClient).mockImplementation(
+        function SettingsClientMock() {
+          return {
+            getSettings: vi.fn().mockResolvedValue({}),
+          } as unknown as SettingsClient;
+        },
+      );
 
       renderWithProviders(
         <TestSeed
@@ -757,11 +685,13 @@ describe("BackendSelector", () => {
     });
 
     it("flips the status dot to red when the local probe fails", async () => {
-      vi.mocked(ServerClient).mockImplementation(function ServerClientMock() {
-        return {
-          getServerInfo: vi.fn().mockRejectedValue(new Error("ECONNREFUSED")),
-        } as unknown as ServerClient;
-      });
+      vi.mocked(SettingsClient).mockImplementation(
+        function SettingsClientMock() {
+          return {
+            getSettings: vi.fn().mockRejectedValue(new Error("ECONNREFUSED")),
+          } as unknown as SettingsClient;
+        },
+      );
 
       renderWithProviders(<BackendSelector />);
 

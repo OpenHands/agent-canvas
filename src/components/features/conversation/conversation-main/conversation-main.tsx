@@ -43,7 +43,7 @@ export function ConversationMain() {
     <div
       className={cn(
         isMobile
-          ? "relative flex-1 flex flex-col"
+          ? "relative min-h-0 flex-1 flex flex-col"
           : "h-full flex flex-col overflow-hidden",
       )}
     >

@@ -1,12 +1,13 @@
 import { useTranslation } from "react-i18next";
 import { NavigationLink } from "#/components/shared/navigation-link";
-import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
-import { useSettings } from "#/hooks/query/use-settings";
-import { ACP_PROVIDERS } from "#/constants/acp-providers";
 import { cn } from "#/utils/utils";
 import SkillsIcon from "#/icons/skills.svg?react";
 import ServerProcessIcon from "#/icons/server-process.svg?react";
 import { BackendSyncedSettingsBadge } from "#/components/features/settings/backend-synced-settings-badge";
+import {
+  SIDEBAR_ROW_INTERACTIVE_CLASS,
+  sidebarNavRowClassName,
+} from "#/components/features/sidebar/sidebar-layout";
 import { I18nKey } from "#/i18n/declaration";
 import { useSidebarStore } from "#/stores/sidebar-store";
 import { useBreakpoint } from "#/hooks/use-breakpoint";
@@ -17,14 +18,6 @@ interface ExtensionNavItem {
   icon: React.ReactElement;
   end?: boolean;
   comingSoon?: boolean;
-  /**
-   * When true, this item greys out (and the /route's ``clientLoader``
-   * bounces to ``/settings/agent``) while an ACP agent is active.
-   * The ACP sub-agent manages its own MCP servers; the SDK rejects
-   * ``mcp_config`` on ``ACPAgent`` init outright, so the OpenHands-
-   * side editor would silently no-op against the running subprocess.
-   */
-  disabledByAcp?: boolean;
 }
 
 export const EXTENSIONS_NAV_ITEMS: ExtensionNavItem[] = [
@@ -39,7 +32,6 @@ export const EXTENSIONS_NAV_ITEMS: ExtensionNavItem[] = [
     label: "MCP Servers",
     icon: <ServerProcessIcon width={16} height={16} />,
     end: true,
-    disabledByAcp: true,
   },
   {
     to: "/plugins",
@@ -69,7 +61,6 @@ export const EXTENSIONS_NAV_ITEMS: ExtensionNavItem[] = [
 
 export function ExtensionsNavigation() {
   const { t } = useTranslation("openhands");
-  const { data: settings } = useSettings();
   const sidebarCollapsed = useSidebarStore((state) => state.collapsed);
   // At iPad portrait widths (md to <lg) an expanded primary Sidebar (300px)
   // plus this nav (260px) leaves the main content unreadable. Hide ourselves
@@ -77,15 +68,6 @@ export function ExtensionsNavigation() {
   const belowLg = useBreakpoint(1023);
   const belowMd = useBreakpoint(767);
   const hideForExpandedSidebar = !sidebarCollapsed && belowLg && !belowMd;
-  const isAcpAgent = settings?.agent_settings?.agent_kind === "acp";
-  const acpServerKey =
-    typeof settings?.agent_settings?.acp_server === "string"
-      ? settings.agent_settings.acp_server
-      : undefined;
-  const acpServerName = isAcpAgent
-    ? (ACP_PROVIDERS.find(({ key }) => key === acpServerKey)?.display_name ??
-      "ACP Agent")
-    : undefined;
 
   if (hideForExpandedSidebar) return null;
 
@@ -95,11 +77,10 @@ export function ExtensionsNavigation() {
       className="hidden md:flex md:w-[260px] md:shrink-0 md:flex-col md:gap-2 md:sticky md:top-8 md:self-start"
     >
       <span className="px-2 text-sm font-normal text-white">
-        {t(I18nKey.NAV$EXTENSIONS)}
+        {t(I18nKey.NAV$CUSTOMIZE)}
       </span>
       <div className="flex flex-col gap-0.5 pt-0.5">
         {EXTENSIONS_NAV_ITEMS.map((item) => {
-          const disabled = !!(isAcpAgent && item.disabledByAcp);
           const baseRow = (
             <span className="shrink-0 flex items-center justify-center">
               {item.icon}
@@ -112,34 +93,6 @@ export function ExtensionsNavigation() {
             </span>
           );
 
-          if (disabled) {
-            // Render a non-clickable surrogate so the URL and a11y tree
-            // both communicate "you can't go here right now," then wrap
-            // in StyledTooltip for the why. Mirrors the SettingsNavLink
-            // disabled rendering — same flag (``disabledByAcp``), same
-            // explanatory tooltip ("Disabled while {agentName} is the
-            // active agent"), same greyed styles.
-            return (
-              <StyledTooltip
-                key={item.to}
-                content={t(I18nKey.SETTINGS$AGENT_DISABLED_TOOLTIP, {
-                  agentName: acpServerName,
-                })}
-                placement="right"
-              >
-                <span
-                  aria-disabled="true"
-                  data-testid={`sidebar-extensions-${item.to}`}
-                  className="flex items-center gap-2 rounded-md text-sm leading-5 truncate px-2 py-2 w-full text-[var(--oh-muted)] opacity-50 cursor-not-allowed"
-                >
-                  {baseRow}
-                  {label}
-                  {comingSoonBadge}
-                </span>
-              </StyledTooltip>
-            );
-          }
-
           return (
             <NavigationLink
               key={item.to}
@@ -148,10 +101,11 @@ export function ExtensionsNavigation() {
               data-testid={`sidebar-extensions-${item.to}`}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-2 rounded-md transition-colors text-sm leading-5 truncate px-2 py-2 w-full",
+                  sidebarNavRowClassName(),
+                  "truncate",
                   isActive
-                    ? "bg-tertiary text-white font-medium"
-                    : "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
+                    ? SIDEBAR_ROW_INTERACTIVE_CLASS.active
+                    : SIDEBAR_ROW_INTERACTIVE_CLASS.idle,
                 )
               }
             >

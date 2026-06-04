@@ -1,5 +1,6 @@
 import {
   Links,
+  LinksFunction,
   Meta,
   MetaFunction,
   Outlet,
@@ -10,7 +11,13 @@ import "./tailwind.css";
 import "./index.css";
 import React from "react";
 import { Toaster } from "react-hot-toast";
-import { isAgentServerUnavailableError } from "#/api/agent-server-compatibility";
+import {
+  isAgentServerUnavailableError,
+  isAgentServerAuthError,
+} from "#/api/agent-server-compatibility";
+import { isAuthRequiredAndMissing } from "#/api/agent-server-config";
+import { getEffectiveLocalBackend } from "#/api/backend-registry/active-store";
+import { TOAST_OPTIONS } from "#/utils/custom-toast-handlers";
 import { TelemetryConsentBanner } from "#/components/features/analytics/telemetry-consent-banner";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useConfig } from "#/hooks/query/use-config";
@@ -36,6 +43,11 @@ const ManageBackendsModal = React.lazy(() =>
   })),
 );
 
+// Rendered when the backend returns 401 (public mode — user must paste key).
+const ApiKeyEntryScreen = React.lazy(
+  () => import("#/components/features/backends/api-key-entry-screen"),
+);
+
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -49,7 +61,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <AgentServerUIRoot contentClassName="min-h-screen">
           <ColorThemeApplier />
           {children}
-          <Toaster />
+          <Toaster toastOptions={TOAST_OPTIONS} />
           <TelemetryConsentBanner />
           <div id="modal-portal-exit" />
         </AgentServerUIRoot>
@@ -93,13 +105,44 @@ function MissingAgentServerScreen() {
   );
 }
 
+export const links: LinksFunction = () => [
+  { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
+];
+
 export const meta: MetaFunction = () => [
   { title: "OpenHands" },
   { name: "description", content: "Let's Start Building!" },
 ];
 
 export default function App() {
-  const config = useConfig();
+  // Flag-based gate: in public mode (VITE_AUTH_REQUIRED=true) with no
+  // session key yet, show the auth screen immediately — no network
+  // round-trip needed.
+  //
+  // `isAuthRequiredAndMissing()` only checks for a *baked-in* session
+  // key (env var / window global). In public mode the baked key is
+  // intentionally absent — the user enters it through the auth screen,
+  // which persists it to the backend registry (localStorage). After a
+  // reload the baked key is still null, but the registry has the key.
+  // So: skip the instant gate when a registered backend already carries
+  // an API key — let the normal /server_info probe validate it instead.
+  const bakedKeyMissing = isAuthRequiredAndMissing();
+  const hasRegisteredKey = Boolean(getEffectiveLocalBackend()?.apiKey);
+  const authMissing = bakedKeyMissing && !hasRegisteredKey;
+
+  // Skip the /server_info probe entirely when we already know auth is
+  // required and missing — it would just 401 and waste time.
+  const config = useConfig({ enabled: !authMissing });
+
+  // No key at all → instant auth screen (no network).
+  // Stale key → /server_info 401 → auth screen (public mode only).
+  if (authMissing || isAgentServerAuthError(config.error)) {
+    return (
+      <React.Suspense fallback={<AgentServerBootstrapLoading />}>
+        <ApiKeyEntryScreen />
+      </React.Suspense>
+    );
+  }
 
   if (config.isPending || config.isLoading) {
     return <AgentServerBootstrapLoading />;

@@ -18,10 +18,14 @@ import {
 import { ManageBackendsModal } from "#/components/features/backends/manage-backends-modal";
 
 const getServerInfoMock = vi.fn().mockResolvedValue({ version: "1.18.0" });
+const getSettingsMock = vi.fn().mockResolvedValue({});
 
 vi.mock("@openhands/typescript-client/clients", () => ({
   ServerClient: vi.fn(function ServerClientMock() {
     return { getServerInfo: getServerInfoMock };
+  }),
+  SettingsClient: vi.fn(function SettingsClientMock() {
+    return { getSettings: getSettingsMock };
   }),
 }));
 
@@ -60,6 +64,10 @@ function TestSeed({
 
 beforeEach(() => {
   window.localStorage.clear();
+  getServerInfoMock.mockReset();
+  getServerInfoMock.mockResolvedValue({ version: "1.18.0" });
+  getSettingsMock.mockReset();
+  getSettingsMock.mockResolvedValue({});
   __resetActiveStoreForTests();
   __resetHealthStoreForTests();
 });
@@ -82,6 +90,39 @@ describe("ManageBackendsModal", () => {
     // indicator alongside its name + host.
     const dots = await screen.findAllByTestId("backend-status-dot");
     expect(dots.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("shows invalid API key status when the backend auth probe returns 401", async () => {
+    getSettingsMock.mockRejectedValue(
+      Object.assign(new Error("Unauthorized"), {
+        name: "HttpError",
+        status: 401,
+      }),
+    );
+
+    renderWithProviders(<ManageBackendsModal onClose={vi.fn()} />);
+
+    const row = await screen.findByTestId("manage-backends-row-Local");
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("manage-backends-status-Local"),
+      ).toHaveTextContent("AUTH$INVALID_KEY"),
+    );
+    expect(
+      row.querySelector('[data-testid="backend-status-dot"]'),
+    ).toHaveAttribute("data-status", "disconnected");
+  });
+
+  it("closes when the header close button is clicked", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    renderWithProviders(<ManageBackendsModal onClose={onClose} />);
+
+    await user.click(
+      await screen.findByTestId("close-manage-backends-modal"),
+    );
+
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("opens the add-backend form when '+ Add backend' is clicked", async () => {
@@ -164,5 +205,38 @@ describe("ManageBackendsModal", () => {
     const row = screen.getByTestId("manage-backends-row-Acme Local");
     expect(row.textContent).toContain("http://localhost:9999");
     expect(backendId).not.toBe("");
+  });
+
+  it("closes the edit form when the header close button is clicked", async () => {
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          ctx.addBackend({
+            name: "Acme Local",
+            host: "http://localhost:9000",
+            apiKey: "old-key",
+            kind: "local",
+          });
+        }}
+      >
+        <ManageBackendsModal onClose={vi.fn()} />
+      </TestSeed>,
+    );
+
+    await user.click(
+      await screen.findByTestId("manage-backends-edit-Acme Local"),
+    );
+    await screen.findByTestId("edit-backend-modal");
+
+    await user.click(screen.getByTestId("edit-backend-close"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("edit-backend-modal"),
+      ).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId("manage-backends-modal")).toBeInTheDocument();
   });
 });

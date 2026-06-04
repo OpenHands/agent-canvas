@@ -89,17 +89,23 @@ async function setupMocks(page: Page) {
 async function seedSkills(page: Page, skills = MOCK_SKILLS) {
   await page.waitForFunction(
     () =>
-      !!(window as unknown as { __OH_QUERY_CLIENT__?: unknown }).__OH_QUERY_CLIENT__,
+      !!(window as unknown as { __OH_QUERY_CLIENT__?: unknown })
+        .__OH_QUERY_CLIENT__,
     { timeout: 10_000 },
   );
   await page.evaluate((skillsData) => {
+    // Matches the `useSkills` queryKey: `["skills", projectDir ?? null]`.
+    // The global Skills page calls `useSkills()` with no projectDir, so the
+    // key resolves to `["skills", null]`. Seeding with the bare `["skills"]`
+    // tuple (as the test originally did) misses the cache entry and the
+    // skill cards never render.
     (
       window as unknown as {
         __OH_QUERY_CLIENT__: {
           setQueryData: (key: unknown[], data: unknown) => void;
         };
       }
-    ).__OH_QUERY_CLIENT__.setQueryData(["skills"], skillsData);
+    ).__OH_QUERY_CLIENT__.setQueryData(["skills", null], skillsData);
   }, skills);
   await page.waitForTimeout(200);
 }
@@ -214,6 +220,8 @@ test.describe("Skills Page Visual Snapshots", () => {
       timeout: 5_000,
     });
 
+    const filter = page.getByTestId("skills-type-filter");
+    await filter.getByTestId("dropdown-trigger").click();
     await page.getByTestId("skills-type-filter-agentskills").click();
     await page.waitForTimeout(300);
 

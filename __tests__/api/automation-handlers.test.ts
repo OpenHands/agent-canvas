@@ -23,8 +23,10 @@ describe("Automation MSW Handlers", () => {
       const data = await res.json();
 
       expect(res.status).toBe(200);
-      expect(data.automations).toHaveLength(5);
-      expect(data.total).toBe(5);
+      expect(data.automations).toHaveLength(
+        MOCK_AUTOMATIONS_RESPONSE.automations.length,
+      );
+      expect(data.total).toBe(MOCK_AUTOMATIONS_RESPONSE.total);
     });
 
     it("respects pagination parameters", async () => {
@@ -97,6 +99,27 @@ describe("Automation MSW Handlers", () => {
     it("returns 404 for non-existent automation", async () => {
       const res = await fetch("/api/automation/v1/non-existent-id", {
         method: "DELETE",
+      });
+
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe("POST /api/automation/v1/:id/dispatch", () => {
+    it("creates a pending run for an existing automation", async () => {
+      const id = MOCK_AUTOMATIONS_RESPONSE.automations[0].id;
+      const res = await fetch(`/api/automation/v1/${id}/dispatch`, {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      expect(res.status).toBe(201);
+      expect(data.status).toBe("PENDING");
+    });
+
+    it("returns 404 for non-existent automation", async () => {
+      const res = await fetch("/api/automation/v1/non-existent-id/dispatch", {
+        method: "POST",
       });
 
       expect(res.status).toBe(404);

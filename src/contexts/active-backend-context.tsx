@@ -3,6 +3,7 @@ import {
   getActiveSelection,
   getRegisteredBackends,
   getSnapshot,
+  NO_BACKEND,
   setActiveSelection,
   setRegisteredBackends,
   subscribeActiveBackend,
@@ -165,5 +166,5 @@ export function useActiveBackendContext(): ActiveBackendContextValue {
 export function useActiveBackend(): ResolvedActiveBackend {
   const ctx = React.useContext(ActiveBackendContext);
   if (ctx) return ctx.active;
-  return { backend: makeDefaultLocalBackend(), orgId: null };
+  return { backend: makeDefaultLocalBackend() ?? NO_BACKEND, orgId: null };
 }

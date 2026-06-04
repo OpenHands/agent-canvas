@@ -1,4 +1,8 @@
 import { cn } from "#/utils/utils";
+import {
+  formControlTransitionClassName,
+  formControlMutedHoverClassName,
+} from "#/utils/form-control-classes";
 
 /**
  * Shared control for icon-only buttons in mobile top bars (global nav, chat
@@ -7,8 +11,9 @@ import { cn } from "#/utils/utils";
  */
 export const mobileTopBarIconButtonClassName = cn(
   "inline-flex shrink-0 cursor-pointer items-center justify-center rounded-md p-1",
-  "text-[var(--oh-muted)] transition-colors",
-  "hover:bg-white/10 hover:text-white",
+  "text-[var(--oh-muted)]",
+  formControlTransitionClassName,
+  formControlMutedHoverClassName,
 );
 
 /** Lucide / inline SVG wrapper size aligned with `BlockDrawerLeftIcon` (`w-5 h-5`). */

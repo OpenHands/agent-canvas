@@ -38,7 +38,7 @@ const MOBILE_DRAWER_TRANSITION_MS = 250;
 
 export function Sidebar() {
   const { t } = useTranslation("openhands");
-  const { currentPath, navigate } = useNavigation();
+  const { currentPath } = useNavigation();
   const { data: config } = useConfig();
   const {
     data: settings,
@@ -64,6 +64,8 @@ export function Sidebar() {
   const [manageBackendsModalOpen, setManageBackendsModalOpen] =
     React.useState(false);
   const [collapsedRailHovered, setCollapsedRailHovered] = React.useState(false);
+  const suppressCollapsedExpandRef = React.useRef(false);
+  const [, refreshCollapsedExpandGate] = React.useReducer((n) => n + 1, 0);
   const { isOpen: isMobileNavOpen, close: closeMobileNav } =
     useSidebarMobileNav();
   const [mobileDrawerMounted, setMobileDrawerMounted] = React.useState(false);
@@ -165,7 +167,18 @@ export function Sidebar() {
     },
     [collapsed, setCollapsed],
   );
-  const showCollapsedExpandButton = collapsed && collapsedRailHovered;
+  const handleCollapse = React.useCallback(() => {
+    setCollapsedRailHovered(false);
+    suppressCollapsedExpandRef.current = true;
+    refreshCollapsedExpandGate();
+    setCollapsed(true);
+    window.setTimeout(() => {
+      suppressCollapsedExpandRef.current = false;
+      refreshCollapsedExpandGate();
+    }, 250);
+  }, [setCollapsed]);
+  const showCollapsedExpandButton =
+    collapsed && collapsedRailHovered && !suppressCollapsedExpandRef.current;
 
   const isExtensionsActive =
     currentPath === "/customize" ||
@@ -176,12 +189,11 @@ export function Sidebar() {
   const railBodyProps = {
     linkDisabled,
     collapseToggleLabel,
-    onCollapse: () => setCollapsed(true),
+    onCollapse: handleCollapse,
     onExpand: () => setCollapsed(false),
     showCollapsedExpandButton,
     isExtensionsActive,
     currentPath,
-    navigate,
     activeBackendHealth,
     collapsedBackendPopoverOpen,
     setCollapsedBackendPopoverOpen,

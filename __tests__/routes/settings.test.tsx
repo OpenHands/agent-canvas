@@ -36,10 +36,8 @@ describe("settings route", () => {
   });
 
   it("prefers /settings/agent when LLM settings are hidden", () => {
-    // /settings/agent is the ACP landing page and is always available.
-    // When ``hide_llm_settings`` flips on, the user is steered there
-    // rather than to ``/settings/app`` (which is a far less useful
-    // landing for first-time setup).
+    // /settings/agent is the unconditional first fallback — always
+    // available and the single place to switch agent kinds.
     expect(
       getFirstAvailablePath({
         hide_llm_settings: true,
@@ -48,15 +46,16 @@ describe("settings route", () => {
     ).toBe("/settings/agent");
   });
 
-  it("prefers /settings/llm when LLM settings are visible", () => {
-    // ``/settings/llm`` is the first non-hidden entry in the fallback
-    // order when ``hide_llm_settings`` is off.
+  it("prefers /settings/agent when LLM settings are visible", () => {
+    // /settings/agent wins unconditionally, so OpenHands users land
+    // there too and reach LLM via the left nav instead of bouncing
+    // through /settings/llm (which is disabled for ACP users).
     expect(
       getFirstAvailablePath({
         hide_llm_settings: false,
         hide_users_page: true,
       }),
-    ).toBe("/settings/llm");
+    ).toBe("/settings/agent");
   });
 
   it("redirects hidden OSS settings pages to the first available route", async () => {

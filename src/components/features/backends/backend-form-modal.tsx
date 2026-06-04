@@ -4,13 +4,25 @@ import { useTranslation } from "react-i18next";
 import { ServerClient } from "@openhands/typescript-client/clients";
 import OpenHandsLogoWhite from "#/assets/branding/openhands-logo-white.svg?react";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
+import {
+  MODAL_MAX_WIDTH_VIEWPORT,
+  modalWidthClassName,
+} from "#/components/shared/modals/modal-body";
+import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
+import { useNavigation } from "#/context/navigation-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
+import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend, BackendKind } from "#/api/backend-registry/types";
+import { cn } from "#/utils/utils";
+import {
+  modalTitleLgClassName,
+  modalTitleLgMediumClassName,
+} from "#/utils/modal-classes";
 import { BackendStatusDot } from "./backend-status-dot";
 import { DeviceFlowAuth } from "./device-flow-auth";
 
@@ -105,6 +117,42 @@ function isValidHostUrl(host: string): boolean {
 }
 
 const DEFAULT_OPENHANDS_CLOUD_HOST = "https://app.all-hands.dev";
+
+function getConnectionTestFailedTitle(
+  t: ReturnType<typeof useTranslation>["t"],
+  host: string,
+): string {
+  return t(I18nKey.BACKEND$CONNECTION_TEST_FAILED, {
+    host,
+    interpolation: { escapeValue: false },
+  });
+}
+
+function getConnectionErrorDetail(error: unknown): string | null {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  return null;
+}
+
+function getConnectionTestFailedMessage(title: string, error: unknown): string {
+  const detail = getConnectionErrorDetail(error);
+  return detail ? `${title}\n${detail}` : title;
+}
+
+async function testBackendConnection(
+  backend: Pick<Backend, "host" | "apiKey" | "kind">,
+): Promise<void> {
+  // Cloud backends authenticate via OAuth; preflight GET is not applicable.
+  if (backend.kind !== "local") return;
+
+  await new ServerClient(
+    getAgentServerClientOptions({
+      host: backend.host,
+      sessionApiKey: backend.apiKey || null,
+      timeout: 5000,
+    }),
+  ).getServerInfo();
+}
 
 /**
  * Live status row for the edit form: shows a connection dot, a
@@ -207,6 +255,13 @@ function BackendStatusBadge({
   );
 }
 
+export interface BackendFormSubmitPayload {
+  name: string;
+  host: string;
+  apiKey: string;
+  kind: BackendKind;
+}
+
 export interface BackendFormProps {
   mode: BackendFormMode;
   /** Required when `mode === "edit"`. */
@@ -226,10 +281,32 @@ export interface BackendFormProps {
    */
   renderActions?: (state: {
     canSubmit: boolean;
+    isSubmitting: boolean;
     testIdRoot: string;
   }) => React.ReactNode;
   /** Used to disambiguate test ids across the same screen. */
   testIdRoot?: string;
+  /** When true, the host field is pre-filled and disabled. */
+  hostReadOnly?: boolean;
+  /**
+   * When true, a non-empty API key is required for submission regardless
+   * of the inferred backend kind.  The standard add form allows empty
+   * keys for local backends; the auth-gate screen needs to enforce one.
+   */
+  requireApiKey?: boolean;
+  /**
+   * When true, hides the name/host/API-key inputs (and related inline
+   * errors) while keeping the action row visible — used by onboarding
+   * after a successful connection probe.
+   */
+  hideConfigurationFields?: boolean;
+  /**
+   * Replace the default synchronous add/update-and-close submit with a
+   * custom async handler.  The form builds the payload, validates
+   * client-side, then hands it to this callback. If the callback throws,
+   * the form remains open so the caller can surface errors.
+   */
+  onSubmitOverride?: (payload: BackendFormSubmitPayload) => Promise<void>;
 }
 
 /**
@@ -248,6 +325,10 @@ export function BackendForm({
   onSubmitted,
   renderActions,
   testIdRoot: explicitTestIdRoot,
+  hostReadOnly,
+  requireApiKey,
+  hideConfigurationFields = false,
+  onSubmitOverride,
 }: BackendFormProps) {
   const { t } = useTranslation("openhands");
   const { addBackend, updateBackend } = useActiveBackendContext();
@@ -255,6 +336,10 @@ export function BackendForm({
   const [name, setName] = React.useState(backend?.name ?? "");
   const [host, setHost] = React.useState(backend?.host ?? "");
   const [apiKey, setApiKey] = React.useState(backend?.apiKey ?? "");
+  const [connectionError, setConnectionError] = React.useState<string | null>(
+    null,
+  );
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   // Inline validation: only show errors after the user has left a field.
   const [nameTouched, setNameTouched] = React.useState(false);
@@ -266,10 +351,11 @@ export function BackendForm({
   const testIdRoot =
     explicitTestIdRoot ?? (mode === "edit" ? "edit-backend" : "add-backend");
 
+  const needsApiKey = requireApiKey || kind !== "local";
   const canSubmit =
     name.trim().length > 0 &&
     isValidHostUrl(host) &&
-    (kind === "local" || apiKey.trim().length > 0);
+    (!needsApiKey || apiKey.trim().length > 0);
 
   // Error messages — only surfaced after the user has blurred the field.
   const nameError =
@@ -282,8 +368,10 @@ export function BackendForm({
         : undefined
     : undefined;
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (isSubmitting) return;
+
     if (!canSubmit) {
       // Mark all validated fields as touched so inline errors become visible
       // (e.g. user pressed Enter before filling required fields).
@@ -292,20 +380,41 @@ export function BackendForm({
       return;
     }
 
-    const payload = {
+    const payload: BackendFormSubmitPayload = {
       name: name.trim(),
       host: normalizeHost(host),
       apiKey: apiKey.trim(),
       kind,
     };
 
-    if (mode === "edit" && backend) {
-      updateBackend(backend.id, payload);
-    } else {
-      addBackend(payload);
-    }
+    setConnectionError(null);
+    setIsSubmitting(true);
 
-    onSubmitted();
+    try {
+      if (onSubmitOverride) {
+        await onSubmitOverride(payload);
+        return;
+      }
+
+      await testBackendConnection(payload);
+
+      if (mode === "edit" && backend) {
+        updateBackend(backend.id, payload);
+      } else {
+        addBackend(payload);
+      }
+
+      onSubmitted();
+    } catch (error) {
+      setConnectionError(
+        getConnectionTestFailedMessage(
+          getConnectionTestFailedTitle(t, payload.host),
+          error,
+        ),
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -314,51 +423,87 @@ export function BackendForm({
       onSubmit={handleSubmit}
       className="flex flex-col gap-4"
     >
-      <SettingsInput
-        testId={`${testIdRoot}-name`}
-        name={`${testIdRoot}-name`}
-        type="text"
-        label={t(I18nKey.BACKEND$NAME_LABEL)}
-        value={name}
-        onChange={setName}
-        onBlur={() => setNameTouched(true)}
-        placeholder="Production"
-        className="w-full"
-        showRequiredTag
-        error={nameError}
-      />
+      <div
+        data-testid={`${testIdRoot}-configuration-fields`}
+        className={cn(
+          "flex flex-col gap-4",
+          hideConfigurationFields && "hidden",
+        )}
+      >
+        <SettingsInput
+          testId={`${testIdRoot}-name`}
+          name={`${testIdRoot}-name`}
+          type="text"
+          label={t(I18nKey.BACKEND$NAME_LABEL)}
+          value={name}
+          onChange={(value) => {
+            setName(value);
+            setConnectionError(null);
+          }}
+          onBlur={() => setNameTouched(true)}
+          placeholder="Production"
+          className="w-full"
+          showRequiredTag
+          error={nameError}
+        />
 
-      <SettingsInput
-        testId={`${testIdRoot}-host`}
-        name={`${testIdRoot}-host`}
-        type="text"
-        label={t(I18nKey.BACKEND$HOST_LABEL)}
-        value={host}
-        onChange={setHost}
-        onBlur={() => setHostTouched(true)}
-        placeholder={DEFAULT_OPENHANDS_CLOUD_HOST}
-        className="w-full"
-        showRequiredTag
-        error={hostError}
-      />
+        <SettingsInput
+          testId={`${testIdRoot}-host`}
+          name={`${testIdRoot}-host`}
+          type="text"
+          label={t(I18nKey.BACKEND$HOST_LABEL)}
+          value={host}
+          onChange={
+            hostReadOnly
+              ? undefined
+              : (value) => {
+                  setHost(value);
+                  setConnectionError(null);
+                }
+          }
+          onBlur={() => setHostTouched(true)}
+          placeholder={DEFAULT_OPENHANDS_CLOUD_HOST}
+          className="w-full"
+          showRequiredTag
+          error={hostError}
+          isDisabled={hostReadOnly}
+        />
 
-      <SettingsInput
-        testId={`${testIdRoot}-api-key`}
-        name={`${testIdRoot}-api-key`}
-        type="password"
-        label={t(I18nKey.BACKEND$KEY_LABEL)}
-        value={apiKey}
-        onChange={setApiKey}
-        placeholder=""
-        className="w-full"
-      />
+        <SettingsInput
+          testId={`${testIdRoot}-api-key`}
+          name={`${testIdRoot}-api-key`}
+          type="password"
+          label={t(I18nKey.BACKEND$KEY_LABEL)}
+          value={apiKey}
+          onChange={(value) => {
+            setApiKey(value);
+            setConnectionError(null);
+          }}
+          placeholder=""
+          className="w-full"
+        />
 
-      {mode === "edit" && backend && (
-        <BackendStatusBadge backend={backend} testIdRoot={testIdRoot} />
-      )}
+        {connectionError ? (
+          <div
+            role="alert"
+            data-testid={`${testIdRoot}-error`}
+            className="rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300 whitespace-pre-wrap break-words"
+          >
+            {connectionError}
+          </div>
+        ) : null}
+
+        {mode === "edit" && backend && (
+          <BackendStatusBadge backend={backend} testIdRoot={testIdRoot} />
+        )}
+      </div>
 
       {renderActions ? (
-        renderActions({ canSubmit, testIdRoot })
+        renderActions({
+          canSubmit: canSubmit && !isSubmitting,
+          isSubmitting,
+          testIdRoot,
+        })
       ) : (
         <div className="flex justify-end gap-2 mt-2 w-full">
           <BrandButton
@@ -372,7 +517,7 @@ export function BackendForm({
           <BrandButton
             type="submit"
             variant="primary"
-            isDisabled={!canSubmit}
+            isDisabled={!canSubmit || isSubmitting}
             testId={`${testIdRoot}-submit`}
           >
             {t(I18nKey.BACKEND$SAVE)}
@@ -386,6 +531,21 @@ export function BackendForm({
 // ── Add-mode two-column layout ──────────────────────────────────────
 
 /**
+ * @spec BM-002 — Adding a backend auto-switches the active selection to it
+ * (BM-001), so a backend-scoped detail page the user is viewing now belongs
+ * to the previous backend. Redirect to that section's list so they never see
+ * stale data, mirroring the switch-backend redirect in BackendSelector.
+ */
+function useRedirectAfterAddBackend() {
+  const { currentPath, navigate } = useNavigation();
+  return React.useCallback(() => {
+    if (/^\/automations\/[^/]+/.test(currentPath)) navigate("/automations");
+    else if (/^\/conversations\/[^/]+/.test(currentPath))
+      navigate("/conversations");
+  }, [currentPath, navigate]);
+}
+
+/**
  * Left column of the "Add a Backend" modal: manual connection via
  * Host + API Key. Designed for self-hosted agent servers and
  * self-hosted OpenHands Cloud with API key auth.
@@ -393,10 +553,15 @@ export function BackendForm({
 function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation("openhands");
   const { addBackend } = useActiveBackendContext();
+  const redirectAfterAdd = useRedirectAfterAddBackend();
 
   const [name, setName] = React.useState("");
   const [host, setHost] = React.useState("");
   const [apiKey, setApiKey] = React.useState("");
+  const [connectionError, setConnectionError] = React.useState<string | null>(
+    null,
+  );
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const kind: BackendKind = inferKindFromHost(host);
   const canSubmit =
@@ -404,16 +569,35 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
     isValidHostUrl(host) &&
     (kind === "local" || apiKey.trim().length > 0);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!canSubmit) return;
-    addBackend({
+    if (!canSubmit || isSubmitting) return;
+
+    const payload = {
       name: name.trim(),
       host: normalizeHost(host),
       apiKey: apiKey.trim(),
       kind,
-    });
-    onClose();
+    };
+
+    setConnectionError(null);
+    setIsSubmitting(true);
+
+    try {
+      await testBackendConnection(payload);
+      addBackend(payload);
+      redirectAfterAdd();
+      onClose();
+    } catch (error) {
+      setConnectionError(
+        getConnectionTestFailedMessage(
+          getConnectionTestFailedTitle(t, payload.host),
+          error,
+        ),
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -429,11 +613,14 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
           type="text"
           label={t(I18nKey.BACKEND$NAME_LABEL)}
           value={name}
-          onChange={setName}
+          onChange={(value) => {
+            setName(value);
+            setConnectionError(null);
+          }}
           placeholder="e.g. My Server"
           className="w-full"
         />
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-[var(--oh-muted)]">
           {t(I18nKey.BACKEND$NAME_HELPER)}
         </p>
       </div>
@@ -445,12 +632,15 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
           type="text"
           label={t(I18nKey.BACKEND$HOST_LABEL)}
           value={host}
-          onChange={setHost}
+          onChange={(value) => {
+            setHost(value);
+            setConnectionError(null);
+          }}
           placeholder="http://localhost:8000"
           className="w-full"
         />
         <p
-          className="text-xs text-gray-500"
+          className="text-xs text-[var(--oh-muted)]"
           data-testid="add-backend-host-helper"
         >
           {t(I18nKey.BACKEND$HOST_HELPER)}
@@ -463,19 +653,34 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
         type="password"
         label={t(I18nKey.BACKEND$KEY_LABEL)}
         value={apiKey}
-        onChange={setApiKey}
+        onChange={(value) => {
+          setApiKey(value);
+          setConnectionError(null);
+        }}
         placeholder="sk-••••••••••"
         className="w-full"
       />
 
+      {connectionError ? (
+        <div
+          role="alert"
+          data-testid="add-backend-error"
+          className="rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300 whitespace-pre-wrap break-words"
+        >
+          {connectionError}
+        </div>
+      ) : null}
+
       <BrandButton
         type="submit"
         variant="secondary"
-        isDisabled={!canSubmit}
+        isDisabled={!canSubmit || isSubmitting}
         testId="add-backend-submit"
         className="w-full text-center"
       >
-        {t(I18nKey.BACKEND$CONNECT)}
+        {isSubmitting
+          ? t(I18nKey.ONBOARDING$BACKEND_STATUS_CHECKING)
+          : t(I18nKey.BACKEND$CONNECT)}
       </BrandButton>
     </form>
   );
@@ -489,6 +694,7 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
 function CloudLoginColumn({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation("openhands");
   const { addBackend } = useActiveBackendContext();
+  const redirectAfterAdd = useRedirectAfterAddBackend();
 
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [customHost, setCustomHost] = React.useState("");
@@ -502,21 +708,24 @@ function CloudLoginColumn({ onClose }: { onClose: () => void }) {
       apiKey,
       kind: "cloud",
     });
+    redirectAfterAdd();
     onClose();
   };
 
   return (
-    <div className="flex flex-col items-center justify-center gap-4 flex-1 min-w-0 px-4">
-      <OpenHandsLogoWhite width={56} height={56} aria-hidden />
+    <div className="flex flex-1 min-w-0 flex-col items-center gap-3">
+      <div className="flex flex-col items-center gap-1">
+        <OpenHandsLogoWhite width={56} height={56} aria-hidden />
 
-      <h4
-        className="text-lg font-bold text-white"
-        data-testid="add-backend-cloud-title"
-      >
-        {t(I18nKey.BACKEND$CLOUD_TITLE)}
-      </h4>
+        <h4
+          className={modalTitleLgMediumClassName}
+          data-testid="add-backend-cloud-title"
+        >
+          {t(I18nKey.BACKEND$CLOUD_TITLE)}
+        </h4>
+      </div>
 
-      <p className="text-sm text-gray-400 text-center leading-relaxed">
+      <p className="text-center text-sm leading-relaxed text-[var(--oh-muted)]">
         {t(I18nKey.BACKEND$CLOUD_DESCRIPTION)}
       </p>
 
@@ -526,18 +735,30 @@ function CloudLoginColumn({ onClose }: { onClose: () => void }) {
         testIdRoot="add-backend"
       />
 
-      <details
-        className="w-full"
-        open={advancedOpen}
-        onToggle={(e) => setAdvancedOpen((e.target as HTMLDetailsElement).open)}
-      >
-        <summary
-          className="text-xs text-gray-400 cursor-pointer select-none text-center hover:text-gray-300"
+      <div className="w-full">
+        <button
+          type="button"
+          onClick={() => setAdvancedOpen((open) => !open)}
+          aria-expanded={advancedOpen}
           data-testid="add-backend-advanced-toggle"
+          className="flex w-full cursor-pointer items-center justify-center gap-1 text-center text-xs text-[var(--oh-muted)] transition-colors hover:text-content-2"
         >
-          {t(I18nKey.BACKEND$ADVANCED)}
-        </summary>
-        <div className="mt-3">
+          <span>{t(I18nKey.BACKEND$ADVANCED)}</span>
+          <ChevronDownSmallIcon
+            className={cn(
+              "h-4 w-4 shrink-0 text-muted transition-transform",
+              advancedOpen && "rotate-180",
+            )}
+            aria-hidden
+          />
+        </button>
+        <div
+          className={cn(
+            "pt-2",
+            !advancedOpen && "pointer-events-none invisible",
+          )}
+          aria-hidden={!advancedOpen}
+        >
           <SettingsInput
             testId="add-backend-cloud-host"
             name="add-backend-cloud-host"
@@ -548,11 +769,11 @@ function CloudLoginColumn({ onClose }: { onClose: () => void }) {
             placeholder={DEFAULT_OPENHANDS_CLOUD_HOST}
             className="w-full"
           />
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="mt-1 text-xs text-[var(--oh-muted)]">
             {t(I18nKey.BACKEND$LOGIN_CLOUD_HINT)}
           </p>
         </div>
-      </details>
+      </div>
     </div>
   );
 }
@@ -580,42 +801,38 @@ export function BackendFormModal({
       >
         <div
           data-testid="add-backend-modal"
-          className="bg-base-secondary rounded-xl border border-tertiary w-[720px]"
+          className={cn(
+            "relative rounded-xl border border-[var(--oh-border)] bg-base-secondary",
+            modalWidthClassName("xl"),
+            MODAL_MAX_WIDTH_VIEWPORT,
+          )}
         >
+          <ModalCloseButton onClose={onClose} testId="add-backend-close" />
           {/* Header */}
-          <div className="flex items-center justify-between px-6 pt-6 pb-2">
-            <h3 className="text-xl font-bold">
+          <div className="px-6 pt-6 pb-2 pr-12">
+            <h2 className={modalTitleLgClassName}>
               {t(I18nKey.BACKEND$ADD_TITLE)}
-            </h3>
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-gray-400 hover:text-white text-xl leading-none cursor-pointer"
-              data-testid="add-backend-close"
-              aria-label="Close"
-            >
-              {"✕"}
-            </button>
+            </h2>
           </div>
 
           {/* Two-column body */}
-          <div className="flex px-6 pb-6 pt-2">
+          <div className="flex gap-6 px-6 pb-6 pt-2">
             {/* Left: manual connection */}
-            <div className="flex-1 min-w-0 pr-6">
+            <div className="flex-1 min-w-0">
               <ManualConnectionColumn onClose={onClose} />
             </div>
 
             {/* Vertical OR divider */}
-            <div className="flex flex-col items-center mx-2 shrink-0">
-              <div className="flex-1 w-px bg-gray-600" />
-              <span className="text-xs text-gray-500 uppercase py-3">
+            <div className="flex shrink-0 flex-col items-center">
+              <div className="flex-1 w-px bg-[var(--oh-border)]" />
+              <span className="py-3 text-xs uppercase text-[var(--oh-muted)]">
                 {t(I18nKey.BACKEND$LOGIN_OR)}
               </span>
-              <div className="flex-1 w-px bg-gray-600" />
+              <div className="flex-1 w-px bg-[var(--oh-border)]" />
             </div>
 
             {/* Right: cloud login */}
-            <div className="flex-1 min-w-0 pl-6">
+            <div className="flex-1 min-w-0">
               <CloudLoginColumn onClose={onClose} />
             </div>
           </div>
@@ -634,9 +851,15 @@ export function BackendFormModal({
     >
       <div
         data-testid={`${testIdRoot}-modal`}
-        className="bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)] w-[480px]"
+        className={cn(
+          "relative bg-base-secondary p-6 rounded-xl flex flex-col gap-4 border border-[var(--oh-border)]",
+          modalWidthClassName("md"),
+        )}
       >
-        <h3 className="text-xl font-bold">{t(I18nKey.BACKEND$EDIT_TITLE)}</h3>
+        <ModalCloseButton onClose={onClose} testId={`${testIdRoot}-close`} />
+        <h2 className={cn("pr-6", modalTitleLgClassName)}>
+          {t(I18nKey.BACKEND$EDIT_TITLE)}
+        </h2>
         <BackendForm
           mode="edit"
           backend={backend}

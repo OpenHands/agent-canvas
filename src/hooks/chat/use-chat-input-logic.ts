@@ -19,28 +19,60 @@ export const useChatInputLogic = () => {
   const { conversationId } = useOptionalConversationId();
 
   const {
-    messageToSend,
+    messageToSend: rawMessageToSend,
+    messageRestoreIfEmpty,
     hasRightPanelToggled,
     setMessageToSend,
+    clearMessageRestoreIfEmpty,
     setIsRightPanelShown,
   } = useConversationStore();
 
-  // Draft persistence - saves to localStorage, restores on mount
+  // Draft persistence - saves to localStorage/sessionStorage, restores on mount
   const { saveDraft, clearDraft } = useDraftPersistence(
     conversationId,
     chatInputRef,
   );
 
-  const messageToSendForResize = conversationId ? messageToSend : null;
+  // On the home page (no conversationId) the right-panel / messageToSend
+  // mechanism is not relevant.  More importantly, a stale messageToSend value
+  // in the Zustand store causes useAutoResize to overwrite the just-restored
+  // sessionStorage draft with an empty string (see useAutoResize value effect).
+  // Returning null here keeps value=undefined in useAutoResize so it never
+  // touches the element content on the home page.
+  const messageToSend = conversationId ? rawMessageToSend : null;
 
-  // Save current input value when drawer state changes
+  // Restore a cancelled pending send back into the input only when empty.
   useEffect(() => {
+    if (!conversationId || !messageRestoreIfEmpty) {
+      return;
+    }
+
+    const currentText = getTextContent(chatInputRef.current).trim();
+    if (currentText.length === 0) {
+      setMessageToSend(messageRestoreIfEmpty.text);
+    }
+    clearMessageRestoreIfEmpty();
+  }, [
+    conversationId,
+    messageRestoreIfEmpty,
+    setMessageToSend,
+    clearMessageRestoreIfEmpty,
+  ]);
+
+  // Save current input value when drawer state changes (conversation view only)
+  useEffect(() => {
+    if (!conversationId) return;
     if (chatInputRef.current) {
       const currentText = getTextContent(chatInputRef.current);
       setMessageToSend(currentText);
       setIsRightPanelShown(hasRightPanelToggled);
     }
-  }, [hasRightPanelToggled, setMessageToSend, setIsRightPanelShown]);
+  }, [
+    conversationId,
+    hasRightPanelToggled,
+    setMessageToSend,
+    setIsRightPanelShown,
+  ]);
 
   // Helper function to check if contentEditable is truly empty
   const checkIsContentEmpty = useCallback(
@@ -61,7 +93,7 @@ export const useChatInputLogic = () => {
 
   return {
     chatInputRef,
-    messageToSend: messageToSendForResize,
+    messageToSend,
     checkIsContentEmpty,
     clearEmptyContentHandler,
     getCurrentMessage,

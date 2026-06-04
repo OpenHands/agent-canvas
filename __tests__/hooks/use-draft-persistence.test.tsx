@@ -10,19 +10,14 @@ vi.mock("#/utils/conversation-local-storage", () => ({
   setConversationState: vi.fn(),
 }));
 
-// Mock the getTextContent utility
+// Mock the chat-input utilities. The hook uses both `getTextContent`
+// (to read the current contentEditable text) and `focusContentEditableAtEnd`
+// (to place the caret at the end of the input after restoring a draft).
+// Both need to be mocked here so the hook doesn't crash on
+// `focusContentEditableAtEnd is not a function`.
 vi.mock("#/components/features/chat/utils/chat-input.utils", () => ({
   getTextContent: vi.fn((el: HTMLDivElement | null) => el?.textContent || ""),
-}));
-
-const mockSetMessageToSend = vi.fn();
-
-vi.mock("#/stores/conversation-store", () => ({
-  useConversationStore: {
-    getState: () => ({
-      setMessageToSend: mockSetMessageToSend,
-    }),
-  },
+  focusContentEditableAtEnd: vi.fn(),
 }));
 
 describe("useDraftPersistence", () => {
@@ -38,7 +33,6 @@ describe("useDraftPersistence", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSetMessageToSend.mockClear();
     vi.useFakeTimers();
     localStorage.clear();
 
@@ -78,39 +72,6 @@ describe("useDraftPersistence", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
-  });
-
-  describe("home / zero state (no conversationId)", () => {
-    it("clears the input and session messageToSend instead of restoring a draft", () => {
-      const staleDraft = "Draft that must not appear on home";
-      const chatInputRef = createMockChatInputRef(staleDraft);
-
-      renderHook(() =>
-        useDraftPersistence(undefined, chatInputRef),
-      );
-
-      expect(chatInputRef.current?.textContent).toBe("");
-      expect(mockSetMessageToSend).toHaveBeenCalledWith("");
-      expect(conversationLocalStorage.getConversationState).not.toHaveBeenCalled();
-    });
-
-    it("saveDraft is a no-op without a conversationId", () => {
-      const chatInputRef = createMockChatInputRef("typed on home");
-
-      const { result } = renderHook(() =>
-        useDraftPersistence(undefined, chatInputRef),
-      );
-
-      act(() => {
-        result.current.saveDraft();
-      });
-
-      act(() => {
-        vi.advanceTimersByTime(500);
-      });
-
-      expect(mockSetDraftMessage).not.toHaveBeenCalled();
-    });
   });
 
   describe("draft restoration on mount", () => {
@@ -547,8 +508,6 @@ describe("useDraftPersistence", () => {
 
       // Act - normal conversation switch (not task-to-real)
       rerender({ conversationId: "conv-B" });
-
-      expect(mockSetMessageToSend).toHaveBeenCalledWith("");
 
       // Assert - should not use setConversationState directly
       // (the normal path uses setDraftMessage from the hook)

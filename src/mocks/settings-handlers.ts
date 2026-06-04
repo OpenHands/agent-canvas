@@ -437,7 +437,9 @@ const MOCK_MODELS = [
   "anthropic/claude-sonnet-4-5-20250929",
   "anthropic/claude-haiku-4-5-20251001",
   "anthropic/claude-opus-4-5-20251101",
+  "anthropic/claude-opus-4-8",
   "openai/gpt-3.5-turbo",
+  "openai/gpt-5.5",
   "openai/gpt-4o",
   "openai/gpt-4o-mini",
   "openhands/claude-sonnet-4-20250514",
@@ -450,7 +452,9 @@ const MOCK_MODELS = [
 
 const MOCK_VERIFIED_MODELS = new Set([
   "anthropic/claude-opus-4-5-20251101",
+  "anthropic/claude-opus-4-8",
   "anthropic/claude-sonnet-4-5-20250929",
+  "openai/gpt-5.5",
   "openhands/claude-opus-4-5-20251101",
   "openhands/claude-sonnet-4-5-20250929",
   "openhands/minimax-m2.7",
@@ -488,6 +492,8 @@ const MOCK_VERIFIED_MODELS_BY_PROVIDER = MOCK_MODELS.reduce<
   return acc;
 }, {});
 
+const MOCK_AGENT_SERVER_VERSION = "1.24.0";
+
 // --- Handlers for options/config/settings ---
 // Uses wildcard "*" prefix to match both relative paths and absolute URLs
 // (e.g., http://127.0.0.1:8000/api/...) since the code uses absolute URLs
@@ -498,7 +504,7 @@ export const SETTINGS_HANDLERS = [
     HttpResponse.json({
       uptime: 0,
       idle_time: 0,
-      version: "1.18.1",
+      version: MOCK_AGENT_SERVER_VERSION,
       usable_tools: [
         "terminal",
         "file_editor",
@@ -879,6 +885,11 @@ export const SETTINGS_HANDLERS = [
       conversation_settings: nextSettings.conversation_settings ?? {},
       llm_api_key_is_set: nextSettings.llm_api_key_set ?? false,
     });
+  }),
+
+  http.post("*/api/mcp/test", async () => {
+    await delay();
+    return HttpResponse.json({ ok: true, tools: ["mock_tool"] });
   }),
 
   http.get("*/api/settings/agent-schema", async () => {

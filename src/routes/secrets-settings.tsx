@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import React, { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { BackNavButton } from "#/components/shared/buttons/back-nav-button";
 import { useSearchSecrets } from "#/hooks/query/use-get-secrets";
 import { useDeleteSecret } from "#/hooks/mutation/use-delete-secret";
 import { SecretForm } from "#/components/features/settings/secrets-settings/secret-form";
@@ -10,8 +11,17 @@ import {
 } from "#/components/features/settings/secrets-settings/secret-list-item";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
+import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
+import { cn } from "#/utils/utils";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
+import {
+  settingsListScrollContainerClassName,
+  settingsListTableHeadClassName,
+  settingsListTableHeaderCellClassName,
+} from "#/utils/settings-list-classes";
+
+export const handle = { hideTitle: true };
 
 export function SecretsSettingsScreen() {
   const queryClient = useQueryClient();
@@ -77,8 +87,54 @@ export function SecretsSettingsScreen() {
     setConfirmationModalIsVisible(false);
   };
 
+  const handleBackToList = () => {
+    setView("list");
+    setSelectedSecret(null);
+  };
+
+  const isFormView = view === "add-secret-form" || view === "edit-secret-form";
+  const formTitle =
+    view === "add-secret-form"
+      ? t(I18nKey.SECRETS$ADD_A_SECRET)
+      : t(I18nKey.SECRETS$EDIT_A_SECRET);
+
   return (
-    <div data-testid="secrets-settings-screen" className="flex flex-col gap-5">
+    <div data-testid="secrets-settings-screen" className="flex flex-col gap-6">
+      {view === "list" ? (
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 space-y-1">
+            <Typography.H2>{t(I18nKey.SETTINGS$NAV_SECRETS)}</Typography.H2>
+            <p
+              data-testid="settings-page-subtitle"
+              className="text-sm leading-5 text-tertiary-light"
+            >
+              {t(I18nKey.SETTINGS$PAGE_SECRETS_SUBLINE)}
+            </p>
+          </div>
+          <BrandButton
+            testId="add-secret-button"
+            type="button"
+            variant="primary"
+            className="shrink-0 whitespace-nowrap"
+            onClick={() => setView("add-secret-form")}
+            isDisabled={isLoadingSecrets}
+          >
+            {t("SECRETS$ADD_NEW_SECRET")}
+          </BrandButton>
+        </div>
+      ) : null}
+
+      {isFormView ? (
+        <div className="flex flex-col gap-2">
+          <BackNavButton testId="back-to-secrets" onClick={handleBackToList}>
+            {t(I18nKey.BUTTON$BACK)}
+          </BackNavButton>
+          <Typography.H2 testId="secret-editor-title">
+            {formTitle}
+          </Typography.H2>
+        </div>
+      ) : null}
+
       {isLoadingSecrets && view === "list" && (
         <ul>
           <SecretListItemSkeleton />
@@ -87,34 +143,31 @@ export function SecretsSettingsScreen() {
         </ul>
       )}
 
-      {view === "list" && (
-        <BrandButton
-          testId="add-secret-button"
-          type="button"
-          variant="primary"
-          onClick={() => setView("add-secret-form")}
-          isDisabled={isLoadingSecrets}
-        >
-          {t("SECRETS$ADD_NEW_SECRET")}
-        </BrandButton>
-      )}
-
       {view === "list" && !isLoadingSecrets && (
         <div
           ref={tableContainerRef}
-          className="border border-[var(--oh-border)] rounded-md overflow-auto max-h-[min(40vh,22rem)] bg-base-secondary"
+          className={settingsListScrollContainerClassName}
           onScroll={handleScroll}
         >
           <table className="w-full min-w-full table-fixed">
-            <thead className="bg-base-tertiary sticky top-0">
+            <thead className={settingsListTableHeadClassName}>
               <tr>
-                <th className="w-1/4 px-3 py-2 text-left text-sm font-medium">
+                <th
+                  className={cn(settingsListTableHeaderCellClassName, "w-1/4")}
+                >
                   {t(I18nKey.SETTINGS$NAME)}
                 </th>
-                <th className="w-1/2 px-3 py-2 text-left text-sm font-medium">
+                <th
+                  className={cn(settingsListTableHeaderCellClassName, "w-1/2")}
+                >
                   {t(I18nKey.SECRETS$DESCRIPTION)}
                 </th>
-                <th className="w-1/4 px-3 py-2 text-right text-sm font-medium">
+                <th
+                  className={cn(
+                    settingsListTableHeaderCellClassName,
+                    "w-1/4 text-right",
+                  )}
+                >
                   {t(I18nKey.SETTINGS$ACTIONS)}
                 </th>
               </tr>
@@ -150,7 +203,7 @@ export function SecretsSettingsScreen() {
         <SecretForm
           mode={view === "add-secret-form" ? "add" : "edit"}
           selectedSecret={selectedSecret}
-          onCancel={() => setView("list")}
+          onCancel={handleBackToList}
         />
       )}
 

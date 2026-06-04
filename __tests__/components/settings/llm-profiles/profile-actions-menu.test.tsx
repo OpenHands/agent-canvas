@@ -11,6 +11,7 @@ vi.mock("react-i18next", () => ({
         "BUTTON$RENAME": "Rename",
         "SETTINGS$PROFILE_SET_ACTIVE": "Set as active",
         "BUTTON$DELETE": "Delete",
+        "SETTINGS$PROFILE_CANNOT_DELETE_ACTIVE": "Cannot delete the active profile",
       };
       return translations[key] || key;
     },
@@ -108,6 +109,18 @@ describe("ProfileActionsMenu", () => {
     expect(setActiveButton).toBeDisabled();
   });
 
+  it("disables Delete button when isActive is true", () => {
+    render(<ProfileActionsMenu {...defaultProps} isActive />);
+
+    expect(screen.getByTestId("profile-delete")).toBeDisabled();
+  });
+
+  it("enables Delete button when isActive is false", () => {
+    render(<ProfileActionsMenu {...defaultProps} isActive={false} />);
+
+    expect(screen.getByTestId("profile-delete")).not.toBeDisabled();
+  });
+
   it("calls onDelete and onClose when Delete is clicked", async () => {
     const user = userEvent.setup();
     const handleDelete = vi.fn();
@@ -173,11 +186,12 @@ describe("ProfileActionsMenu", () => {
     expect(menuItems).toHaveLength(4);
   });
 
-  it("marks the Delete menu item as destructive", () => {
+  it("styles Delete like other menu items", () => {
     render(<ProfileActionsMenu {...defaultProps} />);
 
     const deleteButton = screen.getByTestId("profile-delete");
-    expect(deleteButton).toHaveAttribute("data-destructive", "true");
+    expect(deleteButton).not.toHaveAttribute("data-destructive");
+    expect(deleteButton.className).not.toMatch(/text-red/);
   });
 
   it("does not call onClose when clicking inside the menu container", () => {

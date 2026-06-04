@@ -9,6 +9,7 @@ import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useLocalGitInfo } from "#/hooks/query/use-local-git-info";
 import { useTaskPolling } from "#/hooks/query/use-task-polling";
 import { useUnifiedWebSocketStatus } from "#/hooks/use-unified-websocket-status";
+import { useConversationWebSocket } from "#/contexts/conversation-websocket-context";
 import { useSendMessage } from "#/hooks/use-send-message";
 import { useUpdateConversationRepository } from "#/hooks/mutation/use-update-conversation-repository";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
@@ -23,6 +24,8 @@ import { useHomeStore } from "#/stores/home-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { getStoredConversationMetadata } from "#/api/conversation-metadata-store";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import { useUserProviders } from "#/hooks/use-user-providers";
+import { useOptionalScrollContext } from "#/context/scroll-context";
 
 interface GitControlBarProps {
   onSuggestionsClick: (value: string) => void;
@@ -43,11 +46,15 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   );
   const { backend } = useActiveBackend();
   const isLocalBackend = backend.kind === "local";
+  const { providers } = useUserProviders();
+  const providerTokensReady = isLocalBackend || providers.length > 0;
 
   const { data: conversation } = useActiveConversation();
   const { repositoryInfo } = useTaskPolling();
   const { data: localGitInfo } = useLocalGitInfo();
   const webSocketStatus = useUnifiedWebSocketStatus();
+  const conversationWebSocket = useConversationWebSocket();
+  const isLoadingHistory = conversationWebSocket?.isLoadingHistory ?? false;
   const webSocketStatusRef = useRef(webSocketStatus);
   useEffect(() => {
     webSocketStatusRef.current = webSocketStatus;
@@ -57,6 +64,7 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   useEffect(() => {
     sendRef.current = send;
   }, [send]);
+  const scrollContext = useOptionalScrollContext();
   const { mutate: updateRepository } = useUpdateConversationRepository();
   const { mutate: _createConversation, isPending: _isCreatingConversation } =
     useCreateConversation();
@@ -96,8 +104,10 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   // local conversations where repo metadata is inferred from git remotes.
   const hasRepository = !!selectedRepository && !!gitProvider;
 
-  // Enable buttons only when conversation exists and WS is connected
-  const isConversationReady = !!conversation && webSocketStatus === "OPEN";
+  // Enable buttons only when conversation exists, WS is connected, and the
+  // initial history preload has finished (matches chat-interface loading gate).
+  const isConversationReady =
+    !!conversation && webSocketStatus === "OPEN" && !isLoadingHistory;
 
   useEffect(() => {
     if (!isWorkspaceMenuOpen) return undefined;
@@ -166,6 +176,9 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
           const pendingId = conversationId
             ? enqueuePendingMessage({ conversationId, text: clonePrompt })
             : null;
+          // Pull chat back to the bottom so the optimistic "Clone …" bubble
+          // is visible even if the user had scrolled up.
+          scrollContext?.scrollDomToBottom();
           // `send` returns a Promise; surface a failed send by flipping the
           // matching pending entry to "error" so the user gets the retry link
           // rather than a perpetual "Sending…" bubble.
@@ -237,6 +250,8 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
             >
               <GitControlBarPullButton
                 onSuggestionsClick={onSuggestionsClick}
+                hasRepository={hasRepository}
+                providerTokensReady={providerTokensReady}
                 isConversationReady={isConversationReady}
               />
             </GitControlBarTooltipWrapper>
@@ -249,6 +264,7 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
               <GitControlBarPushButton
                 onSuggestionsClick={onSuggestionsClick}
                 hasRepository={hasRepository}
+                providerTokensReady={providerTokensReady}
                 currentGitProvider={gitProvider}
                 isConversationReady={isConversationReady}
               />
@@ -262,6 +278,7 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
               <GitControlBarPrButton
                 onSuggestionsClick={onSuggestionsClick}
                 hasRepository={hasRepository}
+                providerTokensReady={providerTokensReady}
                 currentGitProvider={gitProvider}
                 isConversationReady={isConversationReady}
               />

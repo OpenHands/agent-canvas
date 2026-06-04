@@ -40,7 +40,7 @@ export function getMobileTopBarState(pathname: string): MobileTopBarState {
     return {
       mode: "back",
       backTo: CUSTOMIZE_HUB,
-      backLabelKey: I18nKey.NAV$EXTENSIONS,
+      backLabelKey: I18nKey.NAV$CUSTOMIZE,
     };
   }
 

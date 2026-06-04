@@ -3,6 +3,11 @@ import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { ProfileRow } from "./profile-row";
 import { ProfileInfo } from "#/api/profiles-service/profiles-service.api";
 import { I18nKey } from "#/i18n/declaration";
+import { cn } from "#/utils/utils";
+import {
+  settingsListContainerClassName,
+  settingsListDividerClassName,
+} from "#/utils/settings-list-classes";
 
 interface ProfilesBodyProps {
   isLoading: boolean;
@@ -54,7 +59,12 @@ export function ProfilesBody({
   }
 
   return (
-    <div className="border border-[var(--oh-border)] rounded-md divide-y divide-[var(--oh-border-subtle)]">
+    <div
+      className={cn(
+        settingsListContainerClassName,
+        settingsListDividerClassName,
+      )}
+    >
       {profiles.map((profile) => (
         <ProfileRow
           key={profile.name}

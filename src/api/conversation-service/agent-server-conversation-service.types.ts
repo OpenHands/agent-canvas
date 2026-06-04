@@ -127,8 +127,8 @@ export interface AppConversation {
    * driven Agent, ``"acp"`` for an ACPAgent that delegates to an external
    * ACP CLI subprocess. Consumers can use this to gate UI affordances that
    * only make sense for one kind (e.g. the LLM-profile switcher in the chat
-   * header is a no-op for ACP conversations because model selection lives
-   * on the subprocess via ``acp_model``, not on ``llm_model``).
+   * header is a no-op for ACP conversations even though ``llm_model`` may
+   * carry the ACP subprocess model for display).
    */
   agent_kind?: "openhands" | "acp" | null;
   /**
@@ -166,6 +166,15 @@ export interface AppConversation {
    * the runtime actually operates in).
    */
   selected_workspace?: string | null;
+  /**
+   * The LLM profile this conversation was created with / last switched to.
+   * Hydrated from client-side metadata (see
+   * `ConversationMetadata.active_profile`). Preferred over matching
+   * `llm_model` against the profile list, which is ambiguous when several
+   * profiles share a model (#1082). Null when unknown (e.g. created by an
+   * older client) — consumers fall back to model-matching.
+   */
+  active_profile?: string | null;
   public?: boolean;
   sub_conversation_ids: string[];
 }

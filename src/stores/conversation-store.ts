@@ -25,10 +25,15 @@ interface ConversationState {
   selectedTab: ConversationTab | null;
   images: File[];
   files: File[];
-  uploadImagesAsFiles: boolean; // If true, attached images are sent through the file-upload path instead of being embedded in the LLM message
+  /** Image file names (e.g. pasted screenshots) to send via file upload instead of vision embed. */
+  imagesMarkedUploadAsFile: string[];
+  /** Image file names attached in chat (controls per-image upload-as-file UI). */
+  pastedImageNames: string[];
   loadingFiles: string[]; // File names currently being processed
   loadingImages: string[]; // Image names currently being processed
   messageToSend: IMessageToSend | null;
+  /** One-shot restore request consumed by the chat input when empty. */
+  messageRestoreIfEmpty: IMessageToSend | null;
   shouldShownAgentLoading: boolean;
   submittedMessage: string | null;
   shouldHideSuggestions: boolean; // New state to hide suggestions when input expands
@@ -45,7 +50,8 @@ interface ConversationActions {
   setShouldHideSuggestions: (shouldHideSuggestions: boolean) => void;
   addImages: (images: File[]) => void;
   addFiles: (files: File[]) => void;
-  setUploadImagesAsFiles: (uploadImagesAsFiles: boolean) => void;
+  toggleImageUploadAsFile: (fileName: string) => void;
+  markImagesAsPasted: (fileNames: string[]) => void;
   removeImage: (index: number) => void;
   removeFile: (index: number) => void;
   clearImages: () => void;
@@ -57,6 +63,8 @@ interface ConversationActions {
   removeImageLoading: (imageName: string) => void;
   clearAllLoading: () => void;
   setMessageToSend: (text: string) => void;
+  restoreMessageToInputIfEmpty: (text: string) => void;
+  clearMessageRestoreIfEmpty: () => void;
   setSubmittedMessage: (message: string | null) => void;
   resetConversationState: () => void;
   setHasRightPanelToggled: (hasRightPanelToggled: boolean) => void;
@@ -108,10 +116,12 @@ export const useConversationStore = create<ConversationStore>()(
       selectedTab: "files" as ConversationTab,
       images: [],
       files: [],
-      uploadImagesAsFiles: false,
+      imagesMarkedUploadAsFile: [],
+      pastedImageNames: [],
       loadingFiles: [],
       loadingImages: [],
       messageToSend: null,
+      messageRestoreIfEmpty: null,
       shouldShownAgentLoading: false,
       submittedMessage: null,
       shouldHideSuggestions: false,
@@ -147,15 +157,48 @@ export const useConversationStore = create<ConversationStore>()(
           "addFiles",
         ),
 
-      setUploadImagesAsFiles: (uploadImagesAsFiles) =>
-        set({ uploadImagesAsFiles }, false, "setUploadImagesAsFiles"),
+      toggleImageUploadAsFile: (fileName) =>
+        set(
+          (state) => {
+            const marked = new Set(state.imagesMarkedUploadAsFile);
+            if (marked.has(fileName)) {
+              marked.delete(fileName);
+            } else {
+              marked.add(fileName);
+            }
+            return { imagesMarkedUploadAsFile: [...marked] };
+          },
+          false,
+          "toggleImageUploadAsFile",
+        ),
+
+      markImagesAsPasted: (fileNames) =>
+        set(
+          (state) => {
+            const merged = new Set([...state.pastedImageNames, ...fileNames]);
+            return { pastedImageNames: [...merged] };
+          },
+          false,
+          "markImagesAsPasted",
+        ),
 
       removeImage: (index) =>
         set(
           (state) => {
+            const removed = state.images[index];
             const newImages = [...state.images];
             newImages.splice(index, 1);
-            return { images: newImages };
+            return {
+              images: newImages,
+              imagesMarkedUploadAsFile: removed
+                ? state.imagesMarkedUploadAsFile.filter(
+                    (name) => name !== removed.name,
+                  )
+                : state.imagesMarkedUploadAsFile,
+              pastedImageNames: removed
+                ? state.pastedImageNames.filter((name) => name !== removed.name)
+                : state.pastedImageNames,
+            };
           },
           false,
           "removeImage",
@@ -181,7 +224,8 @@ export const useConversationStore = create<ConversationStore>()(
           {
             images: [],
             files: [],
-            uploadImagesAsFiles: false,
+            imagesMarkedUploadAsFile: [],
+            pastedImageNames: [],
             loadingFiles: [],
             loadingImages: [],
           },
@@ -248,6 +292,25 @@ export const useConversationStore = create<ConversationStore>()(
           },
           false,
           "setMessageToSend",
+        ),
+
+      restoreMessageToInputIfEmpty: (text) =>
+        set(
+          {
+            messageRestoreIfEmpty: {
+              text,
+              timestamp: Date.now(),
+            },
+          },
+          false,
+          "restoreMessageToInputIfEmpty",
+        ),
+
+      clearMessageRestoreIfEmpty: () =>
+        set(
+          { messageRestoreIfEmpty: null },
+          false,
+          "clearMessageRestoreIfEmpty",
         ),
 
       setSubmittedMessage: (submittedMessage) =>

@@ -36,7 +36,7 @@ export function CreateConversationButton() {
       type="button"
       onClick={handleCreateConversation}
       isDisabled={isCreatingConversation}
-      className="w-auto absolute bottom-5 left-5 right-5 font-semibold"
+      className="w-auto absolute bottom-5 left-5 right-5"
     >
       {!isCreatingConversation && t("COMMON$NEW_CONVERSATION")}
       {isCreatingConversation && t("HOME$LOADING")}
