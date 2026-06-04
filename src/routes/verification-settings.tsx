@@ -139,11 +139,15 @@ export function VerificationSettingsScreen({
         isConversationSettingsDisabled={isDisabled}
         onConfirmationModeChange={(value) => {
           setConfirmationMode(value);
-          setConfirmationModeDirty(true);
+          const initialMode =
+            settings?.confirmation_mode ?? DEFAULT_SETTINGS.confirmation_mode;
+          setConfirmationModeDirty(value !== initialMode);
         }}
         onSecurityAnalyzerChange={(value) => {
           setSecurityAnalyzer(value);
-          setSecurityAnalyzerDirty(true);
+          const initialAnalyzer =
+            settings?.security_analyzer ?? DEFAULT_SETTINGS.security_analyzer;
+          setSecurityAnalyzerDirty(value !== initialAnalyzer);
         }}
         renderTopContent={renderTopContent}
       />

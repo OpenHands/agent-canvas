@@ -349,10 +349,37 @@ export function SdkSectionPage({
     );
   }, [filteredSchema, values, view, excludeKeys]);
 
+  const initialValuesRef = React.useRef<SettingsFormValues | null>(null);
+  initialValuesRef.current = initialValues;
+
+  const initialValueOverridesRef = React.useRef<SettingsFormValues | undefined>(
+    undefined,
+  );
+  initialValueOverridesRef.current = initialValueOverrides;
+
   const handleFieldChange = React.useCallback(
     (fieldKey: string, nextValue: string | boolean) => {
       setValues((prev) => ({ ...prev, [fieldKey]: nextValue }));
-      setDirty((prev) => ({ ...prev, [fieldKey]: true }));
+      setDirty((prev) => {
+        const initialVal = initialValuesRef.current?.[fieldKey];
+        const isOverride =
+          initialValueOverridesRef.current &&
+          fieldKey in initialValueOverridesRef.current;
+
+        if (nextValue === initialVal && !isOverride) {
+          if (prev[fieldKey]) {
+            const nextDirty = { ...prev };
+            delete nextDirty[fieldKey];
+            return nextDirty;
+          }
+          return prev;
+        }
+
+        if (!prev[fieldKey]) {
+          return { ...prev, [fieldKey]: true };
+        }
+        return prev;
+      });
     },
     [],
   );

@@ -29,10 +29,19 @@ export function SecretForm({
   const { t } = useTranslation("openhands");
 
   const { data: secrets } = useSearchSecrets();
-  const { mutate: createSecret } = useCreateSecret();
-  const { mutate: updateSecret } = useUpdateSecret();
+  const { mutate: createSecret, isPending: isCreating } = useCreateSecret();
+  const { mutate: updateSecret, isPending: isUpdating } = useUpdateSecret();
 
+  const [name, setName] = React.useState(
+    mode === "edit" && selectedSecret ? selectedSecret : "",
+  );
+  const [value, setValue] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
+
+  const isSubmitDisabled =
+    isCreating ||
+    isUpdating ||
+    (mode === "add" ? !name.trim() || !value.trim() : !name.trim());
 
   const secretDescription =
     (mode === "edit" &&
@@ -126,7 +135,8 @@ export function SecretForm({
         label="Name"
         className="w-full min-w-0"
         required
-        defaultValue={mode === "edit" && selectedSecret ? selectedSecret : ""}
+        value={name}
+        onChange={setName}
         placeholder={t("SECRETS$API_KEY_EXAMPLE")}
         pattern="^[a-zA-Z][a-zA-Z0-9_]{0,63}$"
         title="Must start with a letter, contain only letters/numbers/underscores, and be 1-64 characters"
@@ -140,6 +150,8 @@ export function SecretForm({
             data-testid="value-input"
             name="secret-value"
             required
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
             className={cn(
               "resize-none",
               formControlMultilineFieldClassName,
@@ -176,7 +188,12 @@ export function SecretForm({
         >
           {t(I18nKey.BUTTON$CANCEL)}
         </BrandButton>
-        <BrandButton testId="submit-button" type="submit" variant="primary">
+        <BrandButton
+          testId="submit-button"
+          type="submit"
+          variant="primary"
+          isDisabled={isSubmitDisabled}
+        >
           {mode === "add" && t("SECRETS$ADD_SECRET")}
           {mode === "edit" && t("SECRETS$EDIT_SECRET")}
         </BrandButton>
