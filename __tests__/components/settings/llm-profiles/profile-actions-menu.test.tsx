@@ -127,6 +127,12 @@ describe("ProfileActionsMenu", () => {
     expect(handleClose).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps Delete enabled for active profiles", () => {
+    render(<ProfileActionsMenu {...defaultProps} isActive />);
+
+    expect(screen.getByTestId("profile-delete")).toBeEnabled();
+  });
+
   it("calls onClose when clicking outside the menu", () => {
     const handleClose = vi.fn();
 
