@@ -34,7 +34,7 @@ import {
   nativeTheme,
   shell,
 } from "electron";
-import { chmodSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -107,127 +107,75 @@ function uvxAvailable() {
 }
 
 /**
- * Ensure `node`, `npm`, and `npx` are available in PATH for spawning
- * backend scripts and stdio MCP servers.
+ * Inject the bundled Node.js distribution into PATH so subsequent spawns
+ * can find `node`, `npm`, and `npx`.
  *
  * When the app runs as a packaged .app on macOS, the system PATH is minimal
- * (/usr/bin:/bin only) — Homebrew, nvm, and other Node installs are absent.
- * Two problems flow from that:
+ * (/usr/bin:/bin only) — Homebrew, nvm, asdf etc. installs of Node are
+ * invisible. Two breakages flow from that:
  *
  *   1. The dev-with-automation.mjs stack spawns `node scripts/ingress.mjs`
  *      and `node scripts/static-server.mjs`; if `node` is not found those
  *      processes fail silently and port 8000 never responds.
- *   2. Most stdio MCP servers in the marketplace use `npx -y <package>`
- *      as their command (Slack, GitHub, Figma, etc.). When the agent-server
- *      spawns them via subprocess, the missing `npx` makes the spawn fail
- *      and the test endpoint reports an "error_kind: connection" failure,
- *      which the UI shows as "Could not reach the server".
+ *   2. Most stdio MCP marketplace entries (Slack, GitHub, Figma, etc.)
+ *      use `command: "npx"`. When the agent-server tries to spawn one the
+ *      missing `npx` makes the spawn fail with ENOENT; the SDK reports it
+ *      as an `error_kind: "connection"` MCP test failure, surfaced in the
+ *      install modal as "Could not reach the server".
  *
- * Electron ships its own Node.js runtime. Setting ELECTRON_RUN_AS_NODE=1
- * makes the Electron binary behave as plain Node. For `node`, that's all
- * we need — a thin wrapper that invokes ourselves. For `npm`/`npx`, we
- * also need the npm CLI JS, which we bundle via electron-builder
- * extraResources at <Resources>/npm/ (see scripts/download-npm.mjs).
+ * We tried bridging via Electron-as-Node (ELECTRON_RUN_AS_NODE=1) wrappers
+ * first. That fixed the ENOENT but introduced a new failure: stdio MCP
+ * servers spawned through the wrapper exited with "McpError: Connection
+ * closed" before the JSON-RPC handshake completed. Electron-as-Node is
+ * fine for our networking helper scripts but its stdin/stdout semantics
+ * differ enough from a vanilla `node` binary that stdio JSON-RPC servers
+ * are not reliable under it. The robust fix is to ship a real Node.js
+ * runtime as an extraResource (see scripts/download-node.mjs and the
+ * `resources/node/` entry in electron-builder.config.mjs) and just put
+ * its bin dir on PATH.
  *
- * We write all three wrappers into one temp directory and prepend it to
- * PATH so subsequent spawns resolve `node`, `npm`, and `npx` to our
- * Electron-as-Node bridge.
- *
- * In dev mode (`npm run desktop`) the user's terminal PATH already has
- * Node tooling installed, so the up-front `spawnSync` probe returns 0 and
- * we skip the wrappers entirely. This is the same opt-out the previous
- * single-purpose `ensureNodeWrapper()` used for `node`.
+ * No-op in dev mode (`npm run desktop`): the user's terminal PATH already
+ * has Node tooling and `app.isPackaged` is false. If the bundled dir is
+ * somehow missing (e.g. the download step was skipped during packaging),
+ * we log a loud warning and leave PATH untouched so the failure mode is
+ * obvious in the console rather than confusing downstream.
  */
-function ensureNodeAndNpmWrappers() {
-  const wrapperDir = join(app.getPath("temp"), "agent-canvas-node-wrapper");
+function injectBundledNode() {
+  if (!app.isPackaged) return;
+
   const isWin = process.platform === "win32";
-  const sep = isWin ? ";" : ":";
+  const nodeRoot = join(process.resourcesPath, "node");
+  // POSIX Node distributions put binaries in bin/; Windows zips put node.exe
+  // and the npm.cmd / npx.cmd wrappers at the distribution root.
+  const binDir = isWin ? nodeRoot : join(nodeRoot, "bin");
+  const nodeExe = isWin ? join(nodeRoot, "node.exe") : join(binDir, "node");
 
-  // Resolve the bundled npm CLI scripts. They only exist in a packaged build
-  // (extraResources copies resources/npm/ → <Resources>/npm/). In dev we just
-  // skip the npm/npx wrappers and let system npm satisfy whatever needs them.
-  const bundledNpmDir = app.isPackaged
-    ? join(process.resourcesPath, "npm")
-    : null;
-  const bundledNpmCli = bundledNpmDir
-    ? join(bundledNpmDir, "bin", "npm-cli.js")
-    : null;
-  const bundledNpxCli = bundledNpmDir
-    ? join(bundledNpmDir, "bin", "npx-cli.js")
-    : null;
-  const hasBundledNpm = !!(
-    bundledNpmCli &&
-    existsSync(bundledNpmCli) &&
-    bundledNpxCli &&
-    existsSync(bundledNpxCli)
-  );
-
-  const need = {
-    node: spawnSync("node", ["--version"], { stdio: "pipe" }).status !== 0,
-    // npm/npx wrappers require the bundled npm CLI — without it the wrapper
-    // would just exec an Electron-as-Node that immediately fails to require
-    // a missing module, which would be more confusing than just leaving npx
-    // missing on PATH.
-    npm:
-      hasBundledNpm &&
-      spawnSync("npm", ["--version"], { stdio: "pipe" }).status !== 0,
-    npx:
-      hasBundledNpm &&
-      spawnSync("npx", ["--version"], { stdio: "pipe" }).status !== 0,
-  };
-  if (!need.node && !need.npm && !need.npx) return;
-
-  mkdirSync(wrapperDir, { recursive: true });
-
-  /**
-   * Write one wrapper that, when invoked, runs Electron in Node mode against
-   * `cliJs` (or just forwards argv when `cliJs` is null, i.e. for `node`).
-   */
-  const writeWrapper = (name, cliJs) => {
-    if (isWin) {
-      const bat = join(wrapperDir, `${name}.cmd`);
-      // Quote both ELECTRON and CLI_JS so paths with spaces (e.g.
-      // "C:\Program Files\Agent Canvas\…") survive cmd.exe parsing.
-      // %* forwards all original args after our injected CLI script.
-      const body = cliJs
-        ? `@echo off\r\nset ELECTRON_RUN_AS_NODE=1\r\n"${process.execPath}" "${cliJs}" %*\r\n`
-        : `@echo off\r\nset ELECTRON_RUN_AS_NODE=1\r\n"${process.execPath}" %*\r\n`;
-      writeFileSync(bat, body);
-    } else {
-      const sh = join(wrapperDir, name);
-      // POSIX sh: `exec` replaces this shell so the wrapped process inherits
-      // signal handling cleanly. Quote $ELECTRON / $CLI to handle paths with
-      // spaces ("/Applications/Agent Canvas.app/…").
-      const body = cliJs
-        ? `#!/bin/sh\nexec env ELECTRON_RUN_AS_NODE=1 "${process.execPath}" "${cliJs}" "$@"\n`
-        : `#!/bin/sh\nexec env ELECTRON_RUN_AS_NODE=1 "${process.execPath}" "$@"\n`;
-      writeFileSync(sh, body);
-      chmodSync(sh, 0o755);
-    }
-  };
-
-  if (need.node) writeWrapper("node", null);
-  if (need.npm) writeWrapper("npm", bundledNpmCli);
-  if (need.npx) writeWrapper("npx", bundledNpxCli);
-
-  process.env.PATH = `${wrapperDir}${sep}${process.env.PATH ?? ""}`;
-
-  const installed = Object.entries(need)
-    .filter(([, v]) => v)
-    .map(([k]) => k)
-    .join(", ");
-  console.log(`[desktop] node/npm wrappers → ${wrapperDir} (${installed})`);
-
-  // Loud warning if we needed npx but couldn't provide it — without this the
-  // failure mode (stdio MCPs fail with "Could not reach the server") is hard
-  // to diagnose from outside.
-  if (app.isPackaged && !hasBundledNpm) {
+  if (!existsSync(nodeExe)) {
     console.warn(
-      "[desktop] Bundled npm CLI not found at " +
-        `${bundledNpmDir} — stdio MCP servers that use \`npx\` will fail. ` +
-        "Run `npm run download-npm` and rebuild.",
+      `[desktop] Bundled Node.js not found at ${nodeExe} — backend ` +
+        "scripts and stdio MCP servers will fail. Run `npm run download-node` " +
+        "and rebuild.",
     );
+    return;
   }
+
+  // electron-builder doesn't always preserve the +x bit on POSIX. node, npm,
+  // and npx need to be executable for shell PATH lookup to consider them.
+  if (!isWin) {
+    const required = ["node", "npm", "npx"];
+    for (const name of required) {
+      const p = join(binDir, name);
+      try {
+        if (existsSync(p)) chmodSync(p, 0o755);
+      } catch {
+        // best-effort: a stale read-only mount or test fixture is fine to skip
+      }
+    }
+  }
+
+  const sep = isWin ? ";" : ":";
+  process.env.PATH = `${binDir}${sep}${process.env.PATH ?? ""}`;
+  console.log("[desktop] Injected bundled Node from", binDir);
 }
 
 // ── Readiness polling ─────────────────────────────────────────────────────────
@@ -487,7 +435,7 @@ app.whenReady().then(async () => {
   }
 
   injectBundledUv();
-  ensureNodeAndNpmWrappers();
+  injectBundledNode();
 
   if (!uvxAvailable()) {
     dialog.showErrorBox(

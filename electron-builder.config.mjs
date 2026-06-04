@@ -37,12 +37,12 @@
  * The bundled uv binary (resources/bin/) lands in <Resources>/bin/ via
  * extraResources so Electron can inject it into PATH on startup.
  *
- * The bundled npm CLI (resources/npm/) lands in <Resources>/npm/ via
- * extraResources. Electron creates thin `npm` and `npx` wrappers at
- * startup that run Electron-as-Node against <Resources>/npm/bin/{npm,npx}-cli.js
- * — that's what lets stdio MCP servers like `npx -y @zencoderai/slack-mcp-server`
- * spawn correctly when the .app is launched from Finder/Spotlight on macOS
- * (where the OS gives the app a minimal PATH of /usr/bin:/bin only).
+ * The bundled Node.js distribution (resources/node/) lands in
+ * <Resources>/node/ via extraResources. Electron prepends its bin dir to
+ * PATH at startup so backend scripts (`node scripts/ingress.mjs` etc.) and
+ * stdio MCP servers spawned via `npx -y …` (Slack, GitHub, Figma, etc.)
+ * can find a working node/npm/npx — the OS gives a Finder-launched .app
+ * a minimal PATH (/usr/bin:/bin) that has none of those.
  */
 
 import { rm } from "node:fs/promises";
@@ -174,15 +174,16 @@ const config = {
 
   // Bundled prerequisites — placed in <Resources>/ so Electron can put
   // them on PATH before starting the backend stack.
-  //   bin/  — uv + uvx (downloaded by `npm run download-uv`)
-  //   npm/  — npm CLI tarball, used to provide `npm` / `npx` to stdio MCP
-  //           servers via Electron-as-Node wrappers in main.mjs (downloaded
-  //           by `npm run download-npm`)
+  //   bin/   — uv + uvx (downloaded by `npm run download-uv`)
+  //   node/  — official Node.js distribution; provides `node` plus the
+  //            bundled `npm` / `npx` that stdio MCP servers (Slack, GitHub,
+  //            Figma, etc.) spawn via `npx -y <package>` (downloaded by
+  //            `npm run download-node`)
   // `from` is relative to the project root (not directories.app).
   // build:desktop calls both download scripts before invoking electron-builder.
   extraResources: [
     { from: "resources/bin/", to: "bin/", filter: ["**/*"] },
-    { from: "resources/npm/", to: "npm/", filter: ["**/*"] },
+    { from: "resources/node/", to: "node/", filter: ["**/*"] },
   ],
 
   // ── macOS ──────────────────────────────────────────────────────────────────

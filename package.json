@@ -99,10 +99,10 @@
     "build:lib": "npm run make-i18n && react-router typegen && cross-env BUILD_LIB=true VITE_APP_ENV=production vite build && tsc -p tsconfig.lib.json",
     "build:docker": "node scripts/docker-build.mjs",
     "desktop": "npm run build:app && electron electron/main.mjs",
-    "build:desktop": "npm run build:app && node scripts/download-uv.mjs && node scripts/download-npm.mjs && electron-builder --config electron-builder.config.mjs",
-    "build:desktop:universal": "npm run build:app && node scripts/download-uv.mjs && node scripts/download-npm.mjs && cross-env ELECTRON_ARCH=universal electron-builder --config electron-builder.config.mjs",
+    "build:desktop": "npm run build:app && node scripts/download-uv.mjs && node scripts/download-node.mjs && electron-builder --config electron-builder.config.mjs",
+    "build:desktop:universal": "npm run build:app && node scripts/download-uv.mjs && node scripts/download-node.mjs && cross-env ELECTRON_ARCH=universal electron-builder --config electron-builder.config.mjs",
     "download-uv": "node scripts/download-uv.mjs",
-    "download-npm": "node scripts/download-npm.mjs"
+    "download-node": "node scripts/download-node.mjs"
   },
   "lint-staged": {
     "src/**/*.{ts,tsx,js}": [
