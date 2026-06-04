@@ -233,14 +233,14 @@ describe("OnboardingModal", () => {
     );
   });
 
-  it("pre-fills the LLM step with an OpenHands model when OpenHands is selected", () => {
+  it("pre-fills the LLM step with an Anthropic model when OpenHands is selected", () => {
     renderModal();
 
     expect(llmSettingsScreenMock).toHaveBeenCalledTimes(1);
     expect(llmSettingsScreenMock).toHaveBeenCalledWith(
       expect.objectContaining({
         initialValueOverrides: {
-          "llm.model": "openhands/minimax-m2.7",
+          "llm.model": "anthropic/claude-opus-4-5-20251101",
         },
       }),
     );

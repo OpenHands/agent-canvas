@@ -23,7 +23,7 @@ interface SetupLlmStepProps {
  * Keep the default in an override so it is marked dirty and persists on Next.
  */
 const ONBOARDING_LLM_MODEL_BY_AGENT: Record<OnboardingAgentId, string> = {
-  openhands: "openhands/minimax-m2.7",
+  openhands: "anthropic/claude-opus-4-5-20251101",
   "claude-code": "anthropic/claude-opus-4-8",
   codex: "openai/gpt-5.5",
   "gemini-cli": "gemini/gemini-3.1-pro",
