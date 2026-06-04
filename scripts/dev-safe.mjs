@@ -457,7 +457,7 @@ export function buildAgentServerCommand(env = process.env) {
     // The software-agent-sdk repo has packages in subdirectories:
     // openhands-agent-server/, openhands-sdk/, openhands-tools/, openhands-workspace/
     // All four must come from the same ref so inter-package APIs (e.g.
-    // OH_PUBLIC_SKILLS_PATH support added to both the server and the SDK) stay
+    // PUBLIC_SKILLS_PATH support added to both the server and the SDK) stay
     // in sync.
     //
     // --reinstall is required because the git branch may carry the same version
@@ -738,9 +738,9 @@ export function buildAgentServerEnv(config) {
     // Point the agent-server at the pre-cloned skills directory so the SDK
     // bypasses git polling entirely. Only injected when the caller has not
     // already set it. Requires cloneExtensionsForSkillsCache() to have run.
-    ...(DEFAULT_EXTENSIONS_REF && !process.env.OH_PUBLIC_SKILLS_PATH
+    ...(DEFAULT_EXTENSIONS_REF && !process.env.PUBLIC_SKILLS_PATH
       ? {
-          OH_PUBLIC_SKILLS_PATH: path.join(
+          PUBLIC_SKILLS_PATH: path.join(
             homedir(),
             ".openhands",
             "cache",
@@ -1069,7 +1069,7 @@ async function main() {
   console.log("");
 
   // Clone the pinned extensions commit into the skills cache so the SDK can
-  // use it directly via OH_PUBLIC_SKILLS_PATH without any git polling.
+  // use it directly via PUBLIC_SKILLS_PATH without any git polling.
   if (DEFAULT_EXTENSIONS_REF) {
     cloneExtensionsForSkillsCache(
       DEFAULT_EXTENSIONS_REF,

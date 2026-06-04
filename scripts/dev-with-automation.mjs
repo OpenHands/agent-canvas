@@ -704,7 +704,7 @@ function startAgentServer(config) {
   };
 
   // Clone the pinned extensions commit into the skills cache so the SDK can
-  // use it directly via OH_PUBLIC_SKILLS_PATH without any git polling.
+  // use it directly via PUBLIC_SKILLS_PATH without any git polling.
   if (DEFAULT_EXTENSIONS_REF) {
     cloneExtensionsForSkillsCache(
       DEFAULT_EXTENSIONS_REF,

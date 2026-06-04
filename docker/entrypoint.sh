@@ -129,7 +129,7 @@ export AUTOMATION_AGENT_SERVER_URL="${AUTOMATION_AGENT_SERVER_URL:-http://127.0.
 export OH_EXTRA_PYTHON_PATH="${OH_EXTRA_PYTHON_PATH:-/opt/agent-canvas/tools}"
 
 # Copy the pre-baked extensions into the skills cache and tell the agent-server
-# to use that directory directly via OH_PUBLIC_SKILLS_PATH, bypassing git polling.
+# to use that directory directly via PUBLIC_SKILLS_PATH, bypassing git polling.
 _ext_baked="/opt/agent-canvas/extensions-cache"
 _ext_cache="${HOME}/.openhands/cache/skills/public-skills"
 if [ -d "${_ext_baked}" ]; then
@@ -137,7 +137,7 @@ if [ -d "${_ext_baked}" ]; then
     rm -rf "${_ext_cache}"
     mkdir -p "${_ext_cache}"
     cp -r "${_ext_baked}/." "${_ext_cache}/"
-    export OH_PUBLIC_SKILLS_PATH="${_ext_cache}"
+    export PUBLIC_SKILLS_PATH="${_ext_cache}"
     log "Extensions cache ready."
 fi
 
