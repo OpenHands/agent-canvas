@@ -43,24 +43,6 @@ export async function routeOnboardingLlmCatalog(page: Page) {
       }),
     });
   });
-
-  // Earlier mock-LLM tests (conversation, automation, etc.) configure the
-  // real agent-server with a custom llm_base_url pointing at the mock LLM
-  // server. That stale base_url causes LlmSettingsScreen's getInitialView
-  // to select the "Advanced" view instead of "Basic", which renders text
-  // inputs instead of the ModelSelector dropdowns the onboarding tests
-  // assert against. Strip llm_base_url from the settings response so the
-  // form always starts in "Basic" view during onboarding.
-  await page.route("**/api/settings", async (route) => {
-    if (route.request().method() !== "GET") {
-      await route.fallback();
-      return;
-    }
-    const response = await route.fetch();
-    const body = await response.json();
-    body.llm_base_url = "";
-    await route.fulfill({ response, json: body });
-  });
 }
 
 type ShowOnboardingOptions = {
