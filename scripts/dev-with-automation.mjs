@@ -57,10 +57,10 @@ import {
   buildAgentServerEnv,
   buildNpmScriptCommand,
   buildRuntimeServicesInfo,
+  copyExtensionsToSkillsCache,
   DEFAULT_EXTENSIONS_REF,
   formatMissingUvxGuidance,
   getOrCreatePersistedApiKey,
-  preseedExtensionsCache,
   validateFrontendDependencies,
   validateLocalAgentServerPath,
 } from "./dev-safe.mjs";
@@ -703,20 +703,10 @@ function startAgentServer(config) {
     OH_SESSION_API_KEYS_0: config.sessionApiKey,
   };
 
-  // Pre-seed the extensions cache when EXTENSIONS_REF is a commit SHA so the
-  // SDK's broken "git clone --branch <sha>" path is never reached on first run.
-  const effectiveExtensionsRef =
-    agentServerEnv.EXTENSIONS_REF ||
-    process.env.EXTENSIONS_REF ||
-    DEFAULT_EXTENSIONS_REF;
-  if (
-    effectiveExtensionsRef &&
-    /^[0-9a-f]{40}$/i.test(effectiveExtensionsRef)
-  ) {
-    preseedExtensionsCache(
-      effectiveExtensionsRef,
-      join(homedir(), ".openhands", "cache", "skills"),
-    );
+  // Seed the extensions cache from the bundled npm package so the agent-server
+  // uses the same pinned version as the frontend, always overwriting stale content.
+  if (DEFAULT_EXTENSIONS_REF) {
+    copyExtensionsToSkillsCache(join(homedir(), ".openhands", "cache", "skills"));
   }
 
   spawnService(

@@ -1,10 +1,12 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import {
+  cpSync,
   existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
+  rmSync,
   statSync,
   unlinkSync,
   writeFileSync,
@@ -723,13 +725,10 @@ export function buildAgentServerEnv(config) {
     // Make the host tools/ directory importable so the agent-server can
     // resolve modules listed in tool_module_qualnames (e.g. canvas_ui_tool).
     OH_EXTRA_PYTHON_PATH: config.canvasToolsDir,
-    // Pin the agent-server's extensions repo to the same commit that the
-    // frontend bundled its MCP catalog and automations from, keeping skills
-    // and UI in sync. Skipped when the caller has already set EXTENSIONS_REF
-    // so user overrides are always respected.
-    ...(process.env.EXTENSIONS_REF || !DEFAULT_EXTENSIONS_REF
-      ? {}
-      : { EXTENSIONS_REF: DEFAULT_EXTENSIONS_REF }),
+    // Pin the agent-server's extensions to the same commit that the frontend
+    // bundled its MCP catalog and automations from. Always set unconditionally
+    // so the value matches the pre-seeded cache regardless of any ambient env.
+    ...(DEFAULT_EXTENSIONS_REF ? { EXTENSIONS_REF: DEFAULT_EXTENSIONS_REF } : {}),
   };
 }
 
@@ -946,74 +945,41 @@ function spawnProcess(command, args, options = {}) {
 }
 
 /**
- * When EXTENSIONS_REF is a raw 40-char commit SHA the SDK cannot clone via
- *   git clone --depth 1 --branch <sha>
- * because --branch only accepts branch/tag names, not raw SHAs.  Pre-seed the
- * local cache with a full git clone + checkout so the SDK's update path (fetch
- * + git checkout) can pin to the specific commit.  Non-fatal: on failure a
- * warning is logged and the agent-server falls back to its default (`main`).
+ * Copy the bundled `@openhands/extensions` npm package into the agent-server's
+ * skills cache, always overwriting any existing content so stale files from a
+ * prior run are replaced.  The npm package is already installed at the pinned
+ * commit SHA recorded in `package.json`, so no network access is needed.
  *
- * @param {string} sha - 40-char hex commit SHA to checkout.
+ * The agent-server SDK will still attempt its normal git-checkout update on
+ * startup; that will warn "Using cached version" for a raw SHA ref — that is
+ * the expected fallback until SDK polling is disabled in a follow-up change.
+ *
  * @param {string} cacheDir - Path to the skills cache dir (~/.openhands/cache/skills).
  */
-export function preseedExtensionsCache(sha, cacheDir) {
-  const repoDir = path.join(cacheDir, "public-skills");
-  if (existsSync(path.join(repoDir, ".git"))) {
-    // Verify the pinned SHA is actually accessible in the existing clone.
-    // A shallow clone (e.g. from a prior `EXTENSIONS_REF=main` run) may not
-    // contain the pinned commit, causing `git checkout <sha>` to fail at runtime.
-    const check = spawnSync("git", ["-C", repoDir, "cat-file", "-t", sha], {
-      stdio: "pipe",
-    });
-    if (check.status === 0 && check.stdout?.toString().trim() === "commit") {
-      return; // SHA is present — SDK's fetch + checkout will succeed.
-    }
-
-    // SHA absent — unshallow the existing clone so the full history is available.
-    console.log(
-      `Extensions cache exists but is missing pinned commit ${sha.slice(0, 12)} (shallow clone). Unshallowing...`,
+export function copyExtensionsToSkillsCache(cacheDir) {
+  const extensionsDir = path.join(
+    __dev_safe_dirname,
+    "..",
+    "node_modules",
+    "@openhands",
+    "extensions",
+  );
+  if (!existsSync(extensionsDir)) {
+    console.warn(
+      "Warning: node_modules/@openhands/extensions not found; run `npm ci` first.",
     );
-    const unshallow = spawnSync(
-      "git",
-      ["-C", repoDir, "fetch", "--unshallow"],
-      { stdio: "inherit" },
-    );
-    if (unshallow.status !== 0) {
-      console.warn(
-        "Warning: extensions cache unshallow failed; agent-server will use the cached version.",
-      );
-      return;
-    }
-    spawnSync("git", ["-C", repoDir, "checkout", sha], { stdio: "inherit" });
     return;
   }
 
-  // No cache yet — do a fresh full clone + checkout.
+  const destDir = path.join(cacheDir, "public-skills");
   console.log(
-    `Pre-seeding extensions cache for pinned commit ${sha.slice(0, 12)}...`,
+    "Seeding extensions cache from node_modules/@openhands/extensions...",
   );
-  mkdirSync(cacheDir, { recursive: true });
-
-  const clone = spawnSync(
-    "git",
-    ["clone", "https://github.com/OpenHands/extensions", repoDir],
-    { stdio: "inherit" },
-  );
-  if (clone.status !== 0) {
-    console.warn(
-      "Warning: extensions pre-seed (clone) failed; agent-server will use default.",
-    );
-    return;
+  // Always overwrite so stale content from a prior run is replaced.
+  if (existsSync(destDir)) {
+    rmSync(destDir, { recursive: true, force: true });
   }
-
-  const checkout = spawnSync("git", ["-C", repoDir, "checkout", sha], {
-    stdio: "inherit",
-  });
-  if (checkout.status !== 0) {
-    console.warn(
-      `Warning: extensions pre-seed (checkout ${sha.slice(0, 12)}) failed; agent-server will use default.`,
-    );
-  }
+  cpSync(extensionsDir, destDir, { recursive: true });
 }
 
 async function main() {
@@ -1060,17 +1026,10 @@ async function main() {
   console.log(`- session API key: ${sessionKeySource}`);
   console.log("");
 
-  // Pre-seed the extensions cache before starting the agent-server so that a
-  // pinned commit SHA in EXTENSIONS_REF doesn't trigger the SDK's broken
-  // "git clone --branch <sha>" path on first run.
-  const effectiveExtensionsRef =
-    process.env.EXTENSIONS_REF || DEFAULT_EXTENSIONS_REF;
-  if (
-    effectiveExtensionsRef &&
-    /^[0-9a-f]{40}$/i.test(effectiveExtensionsRef)
-  ) {
-    preseedExtensionsCache(
-      effectiveExtensionsRef,
+  // Seed the extensions cache from the bundled npm package so the agent-server
+  // uses the same pinned version as the frontend, always overwriting stale content.
+  if (DEFAULT_EXTENSIONS_REF) {
+    copyExtensionsToSkillsCache(
       path.join(homedir(), ".openhands", "cache", "skills"),
     );
   }

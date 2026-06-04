@@ -128,33 +128,22 @@ export AUTOMATION_AGENT_SERVER_URL="${AUTOMATION_AGENT_SERVER_URL:-http://127.0.
 # OH_EXTRA_PYTHON_PATH: config.canvasToolsDir.
 export OH_EXTRA_PYTHON_PATH="${OH_EXTRA_PYTHON_PATH:-/opt/agent-canvas/tools}"
 
-# Pin the agent-server's extensions repo to the same commit the frontend
-# bundled its MCP catalog and automations from (extracted from package.json
-# at image build time and baked into defaults.env as CONFIG_EXTENSIONS_REF).
-# A user-supplied EXTENSIONS_REF always takes precedence.
-# Guard: only export when a non-empty value is available, so an absent
-# CONFIG_EXTENSIONS_REF doesn't overwrite the agent-server's own default
-# with an empty string (which would cause os.environ.get('EXTENSIONS_REF','main')
-# to return '' instead of 'main').
-[ -n "${CONFIG_EXTENSIONS_REF:-}" ] && export EXTENSIONS_REF="${EXTENSIONS_REF:-${CONFIG_EXTENSIONS_REF}}"
+# Pin the agent-server's extensions to the version baked into the image.
+# Set EXTENSIONS_REF unconditionally so the value always matches the pre-seeded
+# cache — guard only against an absent CONFIG_EXTENSIONS_REF so we don't export
+# an empty string when the image was built without a pinned SHA.
+[ -n "${CONFIG_EXTENSIONS_REF:-}" ] && export EXTENSIONS_REF="${CONFIG_EXTENSIONS_REF}"
 
-# When EXTENSIONS_REF is a raw commit SHA the SDK cannot do
-#   git clone --depth 1 --branch <sha>
-# because --branch only accepts branch/tag names, not raw SHAs.
-# The image pre-bakes the clone in the extensions-cache Dockerfile stage and
-# stores it at /opt/agent-canvas/extensions-cache.  On first container start
-# we seed the runtime cache with a fast filesystem copy — no network required.
-# This block is a no-op when EXTENSIONS_REF is empty/a branch name, the cache
-# already exists, or the pre-baked directory was not populated at build time.
-if echo "${EXTENSIONS_REF:-}" | grep -qE '^[0-9a-f]{40}$'; then
-    _ext_baked="/opt/agent-canvas/extensions-cache"
-    _ext_cache="${HOME}/.openhands/cache/skills/public-skills"
-    if [ ! -d "${_ext_cache}/.git" ] && [ -d "${_ext_baked}/.git" ]; then
-        log "Seeding extensions cache from image for commit ${EXTENSIONS_REF:0:12}..."
-        mkdir -p "${_ext_cache}"
-        cp -r "${_ext_baked}/." "${_ext_cache}/"
-        log "Extensions cache ready."
-    fi
+# Always copy the pre-baked extensions into the skills cache, overwriting any
+# existing content so stale files from a prior container run are replaced.
+_ext_baked="/opt/agent-canvas/extensions-cache"
+_ext_cache="${HOME}/.openhands/cache/skills/public-skills"
+if [ -d "${_ext_baked}" ]; then
+    log "Seeding extensions cache from image${EXTENSIONS_REF:+ (${EXTENSIONS_REF:0:12})}..."
+    rm -rf "${_ext_cache}"
+    mkdir -p "${_ext_cache}"
+    cp -r "${_ext_baked}/." "${_ext_cache}/"
+    log "Extensions cache ready."
 fi
 
 # Track child PIDs so we can clean up on exit.
