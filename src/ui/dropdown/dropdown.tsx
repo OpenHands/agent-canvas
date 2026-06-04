@@ -71,6 +71,16 @@ export function Dropdown({
   const [inputValue, setInputValue] = useState(defaultValue?.label ?? "");
   const [searchTerm, setSearchTerm] = useState("");
 
+  React.useEffect(
+    () => () => {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
+    },
+    [],
+  );
+
   const filteredOptions = options.filter((option) =>
     option.label.toLowerCase().includes(searchTerm.toLowerCase()),
   );
@@ -163,6 +173,9 @@ export function Dropdown({
       onMouseLeave={
         openOnHover
           ? () => {
+              if (closeTimerRef.current) {
+                clearTimeout(closeTimerRef.current);
+              }
               closeTimerRef.current = setTimeout(() => closeMenu(), 150);
             }
           : undefined
