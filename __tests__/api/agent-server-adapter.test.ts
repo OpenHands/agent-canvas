@@ -761,6 +761,8 @@ describe("toAppConversation", () => {
 describe("buildRuntimeServicesSystemSuffix", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_RUNTIME_SERVICES_INFO__;
   });
 
   it("returns undefined when VITE_RUNTIME_SERVICES_INFO is unset", () => {
@@ -896,6 +898,58 @@ describe("buildRuntimeServicesSystemSuffix", () => {
     const suffix = buildRuntimeServicesSystemSuffix();
     expect(suffix).toBeDefined();
     expect(suffix).toContain("Automation backend: not running");
+  });
+
+  it("falls back to window.__AGENT_CANVAS_RUNTIME_SERVICES_INFO__ when the env var is unset (static builds)", () => {
+    // Static builds (Docker image / published binary) have no
+    // VITE_RUNTIME_SERVICES_INFO baked in; scripts/static-server.mjs injects
+    // the JSON onto window at serve time instead.
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_RUNTIME_SERVICES_INFO__ = JSON.stringify({
+      mode: "docker",
+      services: {
+        agent_server: { url_from_agent: "http://127.0.0.1:18000" },
+        automation: {
+          url_from_agent: "http://127.0.0.1:8000",
+          api_prefix: "/api/automation",
+          auth_env_var: "OPENHANDS_AUTOMATION_API_KEY",
+        },
+      },
+    });
+    const suffix = buildRuntimeServicesSystemSuffix();
+    expect(suffix).toBeDefined();
+    expect(suffix).toContain("<RUNTIME_SERVICES>");
+    expect(suffix).toContain("docker");
+    expect(suffix).toContain("http://127.0.0.1:18000");
+    expect(suffix).toContain("http://127.0.0.1:8000");
+    expect(suffix).toContain(
+      "X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY",
+    );
+  });
+
+  it("prefers VITE_RUNTIME_SERVICES_INFO over the window fallback", () => {
+    vi.stubEnv(
+      "VITE_RUNTIME_SERVICES_INFO",
+      JSON.stringify({
+        mode: "dev:env",
+        services: {
+          agent_server: { url_from_agent: "http://localhost:18000" },
+        },
+      }),
+    );
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_RUNTIME_SERVICES_INFO__ = JSON.stringify({
+      mode: "docker:window",
+      services: {
+        agent_server: { url_from_agent: "http://127.0.0.1:99999" },
+      },
+    });
+    const suffix = buildRuntimeServicesSystemSuffix();
+    expect(suffix).toContain("dev:env");
+    expect(suffix).not.toContain("docker:window");
+    expect(suffix).not.toContain("99999");
   });
 });
 
