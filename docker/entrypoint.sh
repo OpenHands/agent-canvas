@@ -138,6 +138,28 @@ export OH_EXTRA_PYTHON_PATH="${OH_EXTRA_PYTHON_PATH:-/opt/agent-canvas/tools}"
 # to return '' instead of 'main').
 [ -n "${CONFIG_EXTENSIONS_REF:-}" ] && export EXTENSIONS_REF="${EXTENSIONS_REF:-${CONFIG_EXTENSIONS_REF}}"
 
+# When EXTENSIONS_REF is a raw commit SHA the SDK cannot do
+#   git clone --depth 1 --branch <sha>
+# because --branch only accepts branch/tag names, not raw SHAs.  Pre-seed the
+# cache with a plain full clone + checkout so the SDK's update path (which CAN
+# handle SHAs via fetch + git checkout) takes over from there.
+# This block is a no-op when EXTENSIONS_REF is empty, a branch/tag name, or
+# the cache already exists from a previous container start.
+if echo "${EXTENSIONS_REF:-}" | grep -qE '^[0-9a-f]{40}$'; then
+    _ext_cache="${HOME}/.openhands/cache/skills/public-skills"
+    if [ ! -d "${_ext_cache}/.git" ]; then
+        log "Pre-seeding extensions cache for pinned commit ${EXTENSIONS_REF:0:12}..."
+        mkdir -p "${_ext_cache%/*}"
+        if git clone https://github.com/OpenHands/extensions "${_ext_cache}" \
+           && git -C "${_ext_cache}" checkout "${EXTENSIONS_REF}"; then
+            log "Extensions cache ready at ${EXTENSIONS_REF:0:12}."
+        else
+            log "Warning: extensions pre-seed failed; agent-server will use default."
+            rm -rf "${_ext_cache}"
+        fi
+    fi
+fi
+
 # Track child PIDs so we can clean up on exit.
 PIDS=()
 

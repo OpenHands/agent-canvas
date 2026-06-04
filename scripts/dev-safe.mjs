@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import {
   existsSync,
@@ -55,7 +55,7 @@ function getExtensionsRef() {
 }
 
 /** Pinned extensions commit SHA derived from package.json, or null if not pinned. */
-const DEFAULT_EXTENSIONS_REF = getExtensionsRef();
+export const DEFAULT_EXTENSIONS_REF = getExtensionsRef();
 
 const DEFAULT_BACKEND_PORT = SHARED_DEFAULTS.ports.agentServer;
 const DEFAULT_VITE_PORT = 3001;
@@ -929,6 +929,50 @@ function spawnProcess(command, args, options = {}) {
   return child;
 }
 
+/**
+ * When EXTENSIONS_REF is a raw 40-char commit SHA the SDK cannot clone via
+ *   git clone --depth 1 --branch <sha>
+ * because --branch only accepts branch/tag names, not raw SHAs.  Pre-seed the
+ * local cache with a full git clone + checkout so the SDK's update path (fetch
+ * + git checkout) can pin to the specific commit.  Non-fatal: on failure a
+ * warning is logged and the agent-server falls back to its default (`main`).
+ *
+ * @param {string} sha - 40-char hex commit SHA to checkout.
+ * @param {string} cacheDir - Path to the skills cache dir (~/.openhands/cache/skills).
+ */
+export function preseedExtensionsCache(sha, cacheDir) {
+  const repoDir = path.join(cacheDir, "public-skills");
+  if (existsSync(path.join(repoDir, ".git"))) {
+    return; // Cache already exists — SDK update path handles it.
+  }
+
+  console.log(
+    `Pre-seeding extensions cache for pinned commit ${sha.slice(0, 12)}...`,
+  );
+  mkdirSync(cacheDir, { recursive: true });
+
+  const clone = spawnSync(
+    "git",
+    ["clone", "https://github.com/OpenHands/extensions", repoDir],
+    { stdio: "inherit" },
+  );
+  if (clone.status !== 0) {
+    console.warn(
+      "Warning: extensions pre-seed (clone) failed; agent-server will use default.",
+    );
+    return;
+  }
+
+  const checkout = spawnSync("git", ["-C", repoDir, "checkout", sha], {
+    stdio: "inherit",
+  });
+  if (checkout.status !== 0) {
+    console.warn(
+      `Warning: extensions pre-seed (checkout ${sha.slice(0, 12)}) failed; agent-server will use default.`,
+    );
+  }
+}
+
 async function main() {
   console.log("Starting isolated agent-server + frontend dev stack...");
   validateFrontendDependencies();
@@ -972,6 +1016,21 @@ async function main() {
   console.log(`- secret key: ${secretKeySource}`);
   console.log(`- session API key: ${sessionKeySource}`);
   console.log("");
+
+  // Pre-seed the extensions cache before starting the agent-server so that a
+  // pinned commit SHA in EXTENSIONS_REF doesn't trigger the SDK's broken
+  // "git clone --branch <sha>" path on first run.
+  const effectiveExtensionsRef =
+    process.env.EXTENSIONS_REF || DEFAULT_EXTENSIONS_REF;
+  if (
+    effectiveExtensionsRef &&
+    /^[0-9a-f]{40}$/i.test(effectiveExtensionsRef)
+  ) {
+    preseedExtensionsCache(
+      effectiveExtensionsRef,
+      path.join(homedir(), ".openhands", "cache", "skills"),
+    );
+  }
 
   const backend = spawnProcess(
     agentServerCmd.command,
