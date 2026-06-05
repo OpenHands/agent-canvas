@@ -153,7 +153,9 @@
     "tailwindcss": "4.2.4",
     "typescript": "6.0.3",
     "vite-plugin-svgr": "5.2.0",
-    "vitest": "4.1.5"
+    "vitest": "4.1.5",
+    "winston": "^3.19.0",
+    "winston-daily-rotate-file": "^5.0.0"
   },
   "packageManager": "npm@10.5.0",
   "volta": {
