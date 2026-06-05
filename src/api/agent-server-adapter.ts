@@ -91,9 +91,11 @@ function browserToolsEnabled() {
 }
 
 /**
- * Shape of `VITE_RUNTIME_SERVICES_INFO` (set by the dev launchers in
- * scripts/dev-*.mjs). All URLs are written from the agent's point of view,
- * not the browser's. The block is rendered into the agent's system prompt
+ * Shape of the runtime services info (set by the dev launchers in
+ * scripts/dev-*.mjs as `VITE_RUNTIME_SERVICES_INFO`, or injected at serve time
+ * by `scripts/static-server.mjs` for static builds — see
+ * `getRawRuntimeServicesInfo`). All URLs are written from the agent's point of
+ * view, not the browser's. The block is rendered into the agent's system prompt
  * via `AgentContext.system_message_suffix` so the agent knows what's
  * reachable from inside its sandbox without having to probe.
  */
@@ -122,8 +124,35 @@ interface RuntimeServicesInfo {
   };
 }
 
+/**
+ * Return the raw runtime-services JSON string, consulting two sources in order
+ * (mirrors `getBakedSessionApiKey` in agent-server-config.ts):
+ *   1. `VITE_RUNTIME_SERVICES_INFO` — baked into the bundle at build time by
+ *      the dev launchers (`npm run dev`, dev:static).
+ *   2. `window.__AGENT_CANVAS_RUNTIME_SERVICES_INFO__` — injected into
+ *      index.html at serve time by `scripts/static-server.mjs
+ *      --runtime-services-info <json>`. This is the path used by static builds
+ *      (the Docker image and the published binary), where the env var is empty
+ *      in the prebuilt bundle. Without it the `<RUNTIME_SERVICES>` block is
+ *      missing and the agent cannot reach the local automation backend.
+ */
+function getRawRuntimeServicesInfo(): string | null {
+  const envRaw = import.meta.env.VITE_RUNTIME_SERVICES_INFO?.trim();
+  if (envRaw) return envRaw;
+
+  if (typeof window !== "undefined") {
+    const injected = (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_RUNTIME_SERVICES_INFO__;
+    if (typeof injected === "string") {
+      return injected.trim() || null;
+    }
+  }
+
+  return null;
+}
+
 function parseRuntimeServicesInfo(): RuntimeServicesInfo | null {
-  const raw = import.meta.env.VITE_RUNTIME_SERVICES_INFO?.trim();
+  const raw = getRawRuntimeServicesInfo();
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as RuntimeServicesInfo;
@@ -131,7 +160,8 @@ function parseRuntimeServicesInfo(): RuntimeServicesInfo | null {
     return parsed;
   } catch {
     // Malformed JSON: ignore and fall back to no runtime info, rather than
-    // tearing down conversation creation over a misconfigured dev env var.
+    // tearing down conversation creation over a misconfigured env var or
+    // injected value.
     return null;
   }
 }
@@ -199,8 +229,10 @@ export function buildRuntimeServicesSystemSuffix(): string | undefined {
       lines.push(`    OpenAPI: ${automation.openapi_url}`);
     }
     if (automation.auth_env_var) {
+      // X-Session-API-Key is the local convention shared by the agent-server
+      // and automation backend (see openhands-automation auth.py).
       lines.push(
-        `    Auth:    header 'X-API-Key: $${automation.auth_env_var}'`,
+        `    Auth:    header 'X-Session-API-Key: $${automation.auth_env_var}'`,
       );
     }
   } else {
@@ -266,6 +298,7 @@ export function toAppConversation(
     selected_branch: metadata?.selected_branch ?? null,
     git_provider: metadata?.git_provider ?? null,
     selected_workspace: metadata?.selected_workspace ?? null,
+    active_profile: metadata?.active_profile ?? null,
     title: info.title?.trim()
       ? info.title
       : getDefaultConversationTitle(info.id),
@@ -366,7 +399,6 @@ type ConversationSettingsPayload = SettingsRecord & {
 const ACP_SETTINGS_KEYS = [
   "acp_command",
   "acp_args",
-  "acp_env",
   "acp_model",
   "acp_session_mode",
   "acp_prompt_timeout",
@@ -564,6 +596,15 @@ function buildConfiguredAcpAgentSettings(
     }
   }
 
+  // ``mcp_config`` is a *shared* field (not in ACP_SETTINGS_KEYS): forward it
+  // so the ACP subprocess connects to the configured MCP servers at session
+  // creation. Only include it when it actually carries servers — an empty or
+  // malformed value is dropped rather than sending ``mcp_config: {}``.
+  const mcpConfig = toRecord(agentSettings.mcp_config);
+  if (Object.keys(mcpConfig).length > 0 && "mcpServers" in mcpConfig) {
+    payload.mcp_config = mcpConfig;
+  }
+
   // Saved settings may carry ``acp_model: null`` (existing users predating
   // the default-model registry, or saved fields the agent-server stripped).
   // Fall back to the provider's ``default_model`` so the conversation starts
@@ -593,7 +634,9 @@ function buildConfiguredOpenHandsAgentSettings(
   const llm = toRecord(agentSettings.llm);
 
   llm.model =
-    typeof llm.model === "string" ? llm.model : DEFAULT_SETTINGS.llm_model;
+    typeof llm.model === "string" && llm.model.trim().length > 0
+      ? llm.model
+      : DEFAULT_SETTINGS.llm_model;
 
   const apiKey = normalizeSecretString(llm.api_key);
   if (apiKey) {
@@ -618,6 +661,10 @@ function buildConfiguredOpenHandsAgentSettings(
   for (const key of ACP_SETTINGS_KEYS) {
     delete agentSettings[key];
   }
+  // ``acp_env`` is no longer a forwarded ACP setting (provider creds ride the
+  // Secrets panel), but a legacy value may linger on persisted settings —
+  // scrub it so it never leaks onto the OpenHands payload.
+  delete agentSettings.acp_env;
 
   return {
     ...agentSettings,
@@ -793,7 +840,7 @@ export function buildStartConversationRequest(
 
   if (options.customSecrets && options.customSecrets.length > 0) {
     const backend = getEffectiveLocalBackend();
-    const headers = buildAuthHeaders(backend);
+    const headers = backend ? buildAuthHeaders(backend) : {};
 
     const secrets: Record<string, LookupSecret> = {};
     for (const secret of options.customSecrets) {

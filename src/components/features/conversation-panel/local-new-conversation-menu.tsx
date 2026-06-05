@@ -14,6 +14,11 @@ import { useLocalWorkspaces } from "#/hooks/query/use-local-workspaces";
 import { useResolvedWorkspaces } from "#/hooks/query/use-resolved-workspaces";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
+import {
+  dropdownMenuRowClassName,
+  dropdownMenuListClassName,
+  dropdownMenuRowIconWrapperClassName,
+} from "#/utils/dropdown-classes";
 import { getWorkspacesUnsupportedMessage } from "#/utils/workspaces-compatibility";
 import RepoIcon from "#/icons/repo.svg?react";
 
@@ -126,11 +131,7 @@ export function LocalNewConversationMenu({
     );
   };
 
-  const itemClass = cn(
-    "flex w-full cursor-pointer items-center gap-2 rounded px-2 py-2 text-left text-sm text-white",
-    "font-normal transition-colors hover:bg-[var(--oh-interactive-hover)]",
-    "disabled:cursor-not-allowed disabled:opacity-60",
-  );
+  const itemClass = dropdownMenuRowClassName;
 
   const keepPopoverOpenOnMouseDown = React.useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -207,7 +208,12 @@ export function LocalNewConversationMenu({
           )}
           style={fixedStyle}
         >
-          <ul className="flex max-h-[40vh] flex-col overflow-y-auto sm:max-h-[280px]">
+          <ul
+            className={cn(
+              "max-h-[40vh] overflow-y-auto sm:max-h-[280px]",
+              dropdownMenuListClassName,
+            )}
+          >
             <li>
               <button
                 type="button"
@@ -231,7 +237,12 @@ export function LocalNewConversationMenu({
                   onClick={() => launch(w.path)}
                   className={itemClass}
                 >
-                  <RepoIcon width={14} height={14} className="shrink-0" />
+                  <span
+                    className={dropdownMenuRowIconWrapperClassName}
+                    aria-hidden
+                  >
+                    <RepoIcon width={14} height={14} />
+                  </span>
                   <span className="truncate">{w.name}</span>
                 </button>
               </li>
@@ -239,7 +250,7 @@ export function LocalNewConversationMenu({
           </ul>
 
           <div
-            className="flex flex-col"
+            className={cn("flex flex-col", dropdownMenuListClassName)}
             data-testid="new-conversation-menu-footer"
           >
             <Divider

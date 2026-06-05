@@ -18,6 +18,10 @@ import {
   buildAgentServerAutomationEnv,
   buildAutomationCommand,
   buildConfig,
+  buildRouteArgs,
+  buildViteBackendEnv,
+  getFrontendBackend,
+  getLocalServiceRoutes,
   DEFAULT_AUTOMATION_REPO,
   DEFAULT_AUTOMATION_PACKAGE,
   DEFAULT_AUTOMATION_VERSION,
@@ -318,71 +322,159 @@ describe("buildConfig", () => {
     expect(second.sessionApiKey).toBe(first.sessionApiKey);
   });
 
-  it("reads sessionApiKey from SESSION_API_KEY", async () => {
+  it("reads sessionApiKey from LOCAL_BACKEND_API_KEY", async () => {
     const config = await buildConfig(
       {},
-      { ...envWithIsolatedKeyPath(), SESSION_API_KEY: "my-session-key" },
+      { ...envWithIsolatedKeyPath(), LOCAL_BACKEND_API_KEY: "my-api-key" },
     );
 
-    expect(config.sessionApiKey).toBe("my-session-key");
+    expect(config.sessionApiKey).toBe("my-api-key");
+  });
+});
+
+describe("stack mode routing", () => {
+  const keyDirs: string[] = [];
+
+  afterEach(() => {
+    while (keyDirs.length > 0) {
+      const dir = keyDirs.pop();
+      if (dir) rmSync(dir, { recursive: true, force: true });
+    }
+    resetPersistedSessionApiKeyCache();
   });
 
-  it("reads sessionApiKey from VITE_SESSION_API_KEY as fallback", async () => {
+  function envWithIsolatedKeyPath(
+    extra: Record<string, string> = {},
+  ): Record<string, string> {
+    const dir = mkdtempSync(path.join(tmpdir(), "stack-mode-key-"));
+    keyDirs.push(dir);
+    return {
+      OH_SESSION_API_KEY_PATH: path.join(dir, "session-api-key.txt"),
+      PORT: "19802",
+      OH_CANVAS_SAFE_BACKEND_PORT: "19800",
+      OH_CANVAS_SAFE_AUTOMATION_PORT: "19801",
+      OH_CANVAS_SAFE_VITE_PORT: "19803",
+      ...extra,
+    };
+  }
+
+  it("uses only a frontend default route in frontend-only mode", async () => {
     const config = await buildConfig(
-      {},
-      { ...envWithIsolatedKeyPath(), VITE_SESSION_API_KEY: "vite-session-key" },
+      { frontendOnly: true },
+      envWithIsolatedKeyPath(),
     );
 
-    expect(config.sessionApiKey).toBe("vite-session-key");
+    expect(config.launchFrontend).toBe(true);
+    expect(config.launchAgentServer).toBe(false);
+    expect(config.launchAutomation).toBe(false);
+    expect(getLocalServiceRoutes(config)).toEqual([]);
+    expect(getFrontendBackend(config)).toBe(
+      `http://localhost:${config.vitePort}`,
+    );
+    expect(buildRouteArgs(getLocalServiceRoutes(config))).toEqual([]);
   });
 
-  it("SESSION_API_KEY takes precedence over VITE_SESSION_API_KEY", async () => {
+  it("does not bake a host workspace path in frontend-only mode by default", async () => {
     const config = await buildConfig(
-      {},
-      {
-        ...envWithIsolatedKeyPath(),
-        SESSION_API_KEY: "session-key",
-        VITE_SESSION_API_KEY: "vite-key",
-      },
+      { frontendOnly: true },
+      envWithIsolatedKeyPath(),
     );
 
-    expect(config.sessionApiKey).toBe("session-key");
+    expect(config.viteWorkingDir).toBeUndefined();
   });
 
-  it("reads sessionApiKey from OH_SESSION_API_KEYS_0 (agent-server V1 env)", async () => {
+  it("honors explicit frontend-only VITE_WORKING_DIR values", async () => {
     const config = await buildConfig(
-      {},
-      { ...envWithIsolatedKeyPath(), OH_SESSION_API_KEYS_0: "v1-session-key" },
+      { frontendOnly: true },
+      envWithIsolatedKeyPath({ VITE_WORKING_DIR: "workspace/project" }),
     );
 
-    expect(config.sessionApiKey).toBe("v1-session-key");
+    expect(config.viteWorkingDir).toBe("workspace/project");
   });
 
-  it("SESSION_API_KEY takes precedence over OH_SESSION_API_KEYS_0", async () => {
-    const config = await buildConfig(
-      {},
-      {
-        ...envWithIsolatedKeyPath(),
-        SESSION_API_KEY: "v0-key",
-        OH_SESSION_API_KEYS_0: "v1-key",
-      },
-    );
+  it("bakes the host workspace path when this launcher starts the agent-server", async () => {
+    const config = await buildConfig({}, envWithIsolatedKeyPath());
 
-    expect(config.sessionApiKey).toBe("v0-key");
+    expect(config.viteWorkingDir).toBe(
+      path.join(config.stateDir, "workspaces"),
+    );
   });
 
-  it("SESSION_API_KEY takes precedence over all other session key env vars", async () => {
+  it("points frontend-only Vite at a separately running backend by default", async () => {
     const config = await buildConfig(
-      {},
-      {
-        ...envWithIsolatedKeyPath(),
-        SESSION_API_KEY: "v0-key",
-        OH_SESSION_API_KEYS_0: "v1-key",
-        VITE_SESSION_API_KEY: "vite-key",
-      },
+      { frontendOnly: true },
+      envWithIsolatedKeyPath(),
     );
 
-    expect(config.sessionApiKey).toBe("v0-key");
+    expect(buildViteBackendEnv(config, {})).toEqual({
+      VITE_BACKEND_HOST: "127.0.0.1:8000",
+      VITE_BACKEND_BASE_URL: "http://127.0.0.1:8000",
+    });
+  });
+
+  it("keeps full-stack Vite pointed at this launcher's ingress", async () => {
+    const config = await buildConfig({}, envWithIsolatedKeyPath());
+
+    expect(buildViteBackendEnv(config, {})).toEqual({
+      VITE_BACKEND_HOST: `127.0.0.1:${config.ingressPort}`,
+      VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
+    });
+  });
+
+  it("allows frontend-only Vite to target an explicit backend URL", async () => {
+    const config = await buildConfig(
+      { frontendOnly: true },
+      envWithIsolatedKeyPath(),
+    );
+
+    expect(
+      buildViteBackendEnv(config, {
+        VITE_BACKEND_BASE_URL: "https://backend.example.test",
+      }),
+    ).toEqual({
+      VITE_BACKEND_HOST: "backend.example.test",
+      VITE_BACKEND_BASE_URL: "https://backend.example.test",
+    });
+  });
+
+  it("routes only agent-server and automation in backend-only mode", async () => {
+    const config = await buildConfig(
+      { backendOnly: true },
+      envWithIsolatedKeyPath(),
+    );
+
+    expect(config.launchFrontend).toBe(false);
+    expect(config.launchAgentServer).toBe(true);
+    expect(config.launchAutomation).toBe(true);
+    expect(getFrontendBackend(config)).toBeNull();
+
+    const routes = getLocalServiceRoutes(config);
+    expect(routes).toContainEqual([
+      "/api/automation",
+      `http://localhost:${config.autoBackendPort}`,
+    ]);
+    expect(routes).toContainEqual([
+      "/api",
+      `http://localhost:${config.agentServerPort}`,
+    ]);
+
+    const routeArgs = buildRouteArgs(routes);
+    expect(routeArgs).toContain(
+      `/api/automation=http://localhost:${config.autoBackendPort}`,
+    );
+    expect(routeArgs).toContain(
+      `/server_info=http://localhost:${config.agentServerPort}`,
+    );
+    expect(routeArgs).not.toContain("--default");
+  });
+
+  it("rejects mutually exclusive partial-stack modes", async () => {
+    await expect(
+      buildConfig(
+        { frontendOnly: true, backendOnly: true },
+        envWithIsolatedKeyPath(),
+      ),
+    ).rejects.toThrow(/cannot be used together/);
   });
 });
 
@@ -395,10 +487,6 @@ describe("default constants", () => {
 
   it("has expected default automation package", () => {
     expect(DEFAULT_AUTOMATION_PACKAGE).toBe("openhands-automation");
-  });
-
-  it("has expected default automation version", () => {
-    expect(DEFAULT_AUTOMATION_VERSION).toBe("1.0.0a5");
   });
 
   it("has expected default backend port", () => {
@@ -435,6 +523,8 @@ describe("dev-with-automation CLI", () => {
     expect(output).toContain("--automation-repo");
     expect(output).toContain("--static");
     expect(output).toContain("--dynamic");
+    expect(output).toContain("--frontend-only");
+    expect(output).toContain("--backend-only");
     expect(output).toContain("OH_AUTOMATION_GIT_REF");
     expect(output).toContain("OH_AGENT_SERVER_LOCAL_PATH");
     expect(output).toContain("OPENHANDS_AUTOMATION_API_KEY");

@@ -90,18 +90,37 @@ jobs:
           fi
           echo "✓ Version $PACKAGE_VERSION matches release tag"
 
-      # Temporary: publish all versions (including prerelease) as "latest"
-      # until the first stable release (see cleanup issue #395).
-      # Note: OIDC trusted-publishing tokens cover only the `npm publish`
-      # call itself; a separate `npm dist-tag add` after publish fails
-      # with E401, so we publish directly with --tag latest in one step.
-      #
-      # Named prerelease dist-tags (alpha/beta/rc) are intentionally NOT
-      # published under this policy — only "latest" is used. This means
-      # `npm install @openhands/agent-canvas@alpha` will not resolve to
-      # any published version. When prerelease dist-tags need to be
-      # re-introduced (issue #395 cleanup), update this step to publish
-      # with a versioned dist-tag (e.g. --tag alpha) and only tag stable
-      # releases as "latest".
+      # Determine if any full stable release (no pre-release suffix) has ever been
+      # published. Until one exists, all releases use --tag latest so plain
+      # `npm install @openhands/agent-canvas` always resolves to the newest build.
+      # Once a stable version is published, pre-release versions revert to their
+      # own dist-tags (alpha / beta / rc) and only stable versions keep latest.
+      # Note: OIDC trusted-publishing tokens cover only the `npm publish` call
+      # itself; a separate `npm dist-tag add` would fail with E401, so the tag
+      # is resolved and passed directly in one step.
+      - name: Resolve npm dist-tag
+        id: dist_tag
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          VERSIONS_JSON=$(npm view @openhands/agent-canvas versions --json 2>/dev/null || echo "[]")
+          STABLE_EXISTS=$(VERSIONS_JSON="$VERSIONS_JSON" node -e "
+            const vs = JSON.parse(process.env.VERSIONS_JSON);
+            const arr = Array.isArray(vs) ? vs : [vs];
+            console.log(arr.some(v => !v.includes('-')));
+          ")
+          if [[ "$STABLE_EXISTS" != "true" ]]; then
+            DIST_TAG="latest"
+          elif [[ "$VERSION" == *-alpha* ]]; then
+            DIST_TAG="alpha"
+          elif [[ "$VERSION" == *-beta* ]]; then
+            DIST_TAG="beta"
+          elif [[ "$VERSION" == *-rc* ]]; then
+            DIST_TAG="rc"
+          else
+            DIST_TAG="latest"
+          fi
+          echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
+          echo "📦 Version $VERSION → dist-tag: $DIST_TAG (stable release exists: $STABLE_EXISTS)"
+
       - name: Publish to npm with provenance
-        run: npm publish --access public --provenance --tag latest
+        run: npm publish --access public --provenance --tag ${{ steps.dist_tag.outputs.dist_tag }}

@@ -1,6 +1,14 @@
 import { getAcpProvider as getClientAcpProvider } from "@openhands/typescript-client";
 import { I18nKey } from "#/i18n/declaration";
 
+/** Upstream registry fields not yet on the pinned client's exported type. */
+type ClientAcpProviderRegistry = NonNullable<
+  ReturnType<typeof getClientAcpProvider>
+> & {
+  available_models?: Array<{ id: string; label: string }>;
+  default_model?: string;
+};
+
 export type ACPProviderIcon =
   | "claude-code"
   | "codex"
@@ -154,7 +162,7 @@ const ACP_PROVIDER_UI: Record<
 export const ACP_PROVIDERS: ACPProviderConfig[] = Object.entries(
   ACP_PROVIDER_UI,
 ).map(([key, ui]) => {
-  const info = getClientAcpProvider(key);
+  const info = getClientAcpProvider(key) as ClientAcpProviderRegistry | null;
   return {
     key,
     display_name: info?.display_name ?? key,
@@ -170,6 +178,66 @@ export const ACP_PROVIDERS: ACPProviderConfig[] = Object.entries(
 });
 
 export const ACP_CUSTOM_PRESET_KEY = "custom";
+
+/**
+ * A credential an ACP provider authenticates with, surfaced during onboarding
+ * so the user can populate it without leaving the flow. The {@link name} is
+ * both the global-secret name and the environment variable the agent-server
+ * exports into the ACP subprocess — keeping them identical is what makes a
+ * saved secret actually reach the provider CLI.
+ */
+export interface ACPProviderSecretField {
+  /** Secret name and env var (e.g. ``"ANTHROPIC_API_KEY"``). Must satisfy the
+   * secret-name pattern ``^[a-zA-Z][a-zA-Z0-9_]{0,63}$``. */
+  name: string;
+  /** Render as a masked password input (API keys) rather than a plain-text
+   * input (base URLs). Every field is optional regardless — the whole step is
+   * skippable — so this only controls masking, not whether the field gates. */
+  secret?: boolean;
+  /** i18n key for the one-line helper text under the field. */
+  hint_key: I18nKey;
+}
+
+/**
+ * List the credentials Canvas should prompt for when onboarding the given ACP
+ * provider, derived from the SDK registry's ``api_key_env_var`` /
+ * ``base_url_env_var`` (mirrored via ``@openhands/typescript-client``) rather
+ * than a hand-maintained per-provider list — so the field names track the SDK
+ * as providers are added or renamed, with no parallel copy to drift. Each field
+ * name equals the env var the agent-server exports into the provider subprocess
+ * (which is what makes a saved secret reach the CLI); the API key renders
+ * masked, the base URL plain-text. All three built-ins (Claude Code, Codex,
+ * Gemini CLI) expose an API key + optional base URL.
+ *
+ * Every field is optional — the step is skippable — and a subscription / OAuth
+ * login takes precedence over a key at runtime (most relevant for Gemini, whose
+ * Google login is the common local path).
+ *
+ * Returns ``[]`` for OpenHands, the ``"custom"`` preset, any unknown key, and a
+ * future OAuth-only provider whose registry entry has no ``api_key_env_var`` —
+ * callers treat an empty list as "no credentials step for this provider".
+ */
+export function getAcpProviderSecrets(
+  key: string | null | undefined,
+): ACPProviderSecretField[] {
+  const info = key ? getClientAcpProvider(key) : null;
+  if (!info) return [];
+  const fields: ACPProviderSecretField[] = [];
+  if (info.api_key_env_var) {
+    fields.push({
+      name: info.api_key_env_var,
+      secret: true,
+      hint_key: I18nKey.ONBOARDING$ACP_SECRET_API_KEY_HINT,
+    });
+  }
+  if (info.base_url_env_var) {
+    fields.push({
+      name: info.base_url_env_var,
+      hint_key: I18nKey.ONBOARDING$ACP_SECRET_BASE_URL_HINT,
+    });
+  }
+  return fields;
+}
 
 /**
  * Look up a built-in ACP provider config by its registry key.

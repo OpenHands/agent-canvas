@@ -32,6 +32,8 @@ interface ConversationState {
   loadingFiles: string[]; // File names currently being processed
   loadingImages: string[]; // Image names currently being processed
   messageToSend: IMessageToSend | null;
+  /** One-shot restore request consumed by the chat input when empty. */
+  messageRestoreIfEmpty: IMessageToSend | null;
   shouldShownAgentLoading: boolean;
   submittedMessage: string | null;
   shouldHideSuggestions: boolean; // New state to hide suggestions when input expands
@@ -61,6 +63,8 @@ interface ConversationActions {
   removeImageLoading: (imageName: string) => void;
   clearAllLoading: () => void;
   setMessageToSend: (text: string) => void;
+  restoreMessageToInputIfEmpty: (text: string) => void;
+  clearMessageRestoreIfEmpty: () => void;
   setSubmittedMessage: (message: string | null) => void;
   resetConversationState: () => void;
   setHasRightPanelToggled: (hasRightPanelToggled: boolean) => void;
@@ -117,6 +121,7 @@ export const useConversationStore = create<ConversationStore>()(
       loadingFiles: [],
       loadingImages: [],
       messageToSend: null,
+      messageRestoreIfEmpty: null,
       shouldShownAgentLoading: false,
       submittedMessage: null,
       shouldHideSuggestions: false,
@@ -287,6 +292,25 @@ export const useConversationStore = create<ConversationStore>()(
           },
           false,
           "setMessageToSend",
+        ),
+
+      restoreMessageToInputIfEmpty: (text) =>
+        set(
+          {
+            messageRestoreIfEmpty: {
+              text,
+              timestamp: Date.now(),
+            },
+          },
+          false,
+          "restoreMessageToInputIfEmpty",
+        ),
+
+      clearMessageRestoreIfEmpty: () =>
+        set(
+          { messageRestoreIfEmpty: null },
+          false,
+          "clearMessageRestoreIfEmpty",
         ),
 
       setSubmittedMessage: (submittedMessage) =>

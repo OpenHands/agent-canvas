@@ -38,8 +38,7 @@ function resolveBackend(backend?: Backend): Backend {
  * cloud backend; pass `backend` explicitly to fetch for an inactive cloud
  * (used by the selector to flatten all cloud rows).
  *
- * Routed through the bundled agent-server's `/api/cloud-proxy` to avoid
- * cross-origin browser calls.
+ * Calls the cloud API directly with the backend's bearer token.
  */
 export async function getCloudOrganizations(
   backend?: Backend,

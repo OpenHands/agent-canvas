@@ -73,17 +73,21 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install openhands-sdk (for mock LLM server)
+        env:
+          AGENT_SERVER_VERSION: ${{ steps.defaults.outputs.agent_server_version }}
         run: |
           uv venv .mock-llm-venv
-          uv pip install -p .mock-llm-venv openhands-sdk==${{ steps.defaults.outputs.agent_server_version }}
+          uv pip install -p .mock-llm-venv "openhands-sdk==$AGENT_SERVER_VERSION"
 
       - name: Pre-warm automation backend (uvx cache)
+        env:
+          AUTOMATION_VERSION: ${{ steps.defaults.outputs.automation_version }}
         run: |
           # Pre-install openhands-automation into the uvx cache so the
           # agent-canvas binary doesn't need to download it at startup.
           # Without this, the 180s Playwright webServer timeout expires
           # before the automation backend finishes installing (~60-90s).
-          uvx --from "openhands-automation==${{ steps.defaults.outputs.automation_version }}" python -c "from openhands.automation.app import app; print('automation package cached')"
+          uvx --from "openhands-automation==$AUTOMATION_VERSION" python -c "from openhands.automation.app import app; print('automation package cached')"
 
       - name: Verify mock LLM server starts
         run: |
@@ -195,8 +199,26 @@ jobs:
             --artifact-url "${{ steps.upload_artifacts.outputs.artifact-url || '' }}"
           cat "$MOCK_LLM_REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Post PR comment
+      - name: Save PR number for comment workflow
         if: always() && github.event.pull_request.number
+        run: echo "${{ github.event.pull_request.number }}" > pr_number.txt
+
+      - name: Upload PR comment payload
+        if: always() && github.event.pull_request.number
+        uses: actions/upload-artifact@v7
+        with:
+          name: mock-llm-pr-comment-payload
+          retention-days: 3
+          path: |
+            ${{ env.MOCK_LLM_REPORT_PATH }}
+            pr_number.txt
+
+      - name: Post PR comment (same-repo PRs only)
+        if: >-
+          always() &&
+          github.event.pull_request.number &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |

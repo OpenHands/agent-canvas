@@ -2,6 +2,11 @@ import React from "react";
 import { Divider } from "#/ui/divider";
 import { cn } from "#/utils/utils";
 import { DropdownOption } from "./types";
+import {
+  dropdownMenuListClassName,
+  dropdownMenuRowClassName,
+  dropdownMenuRowIconWrapperClassName,
+} from "#/utils/dropdown-classes";
 
 interface DropdownMenuProps {
   isOpen: boolean;
@@ -41,7 +46,9 @@ export function DropdownMenu({
         !isOpen && "hidden",
       )}
     >
-      <ul {...getMenuProps({ className: "p-0" })}>
+      <ul
+        {...getMenuProps({ className: cn("p-0", dropdownMenuListClassName) })}
+      >
         {isOpen && filteredOptions.length === 0 && (
           <li className="px-2 py-2 text-sm text-[var(--oh-muted)] italic">
             {emptyMessage}
@@ -55,16 +62,18 @@ export function DropdownMenu({
                 item: option,
                 index,
                 className: cn(
-                  "px-2 py-2 cursor-pointer text-sm rounded",
-                  "text-white focus:outline-none font-normal",
-                  "flex items-center gap-2",
-                  selectedItem?.value === option.value
-                    ? "bg-[var(--oh-interactive-selected)] text-white"
-                    : "hover:bg-[var(--oh-interactive-hover)]",
+                  dropdownMenuRowClassName,
+                  "focus:outline-none",
+                  selectedItem?.value === option.value &&
+                    "bg-[var(--oh-interactive-selected)] text-white",
                 ),
               })}
             >
-              {option.prefix}
+              {option.prefix ? (
+                <span className={dropdownMenuRowIconWrapperClassName}>
+                  {option.prefix}
+                </span>
+              ) : null}
               <span className="min-w-0 truncate">{option.label}</span>
             </li>
           ))}

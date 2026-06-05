@@ -1,7 +1,22 @@
 export interface AutomationTrigger {
+  /**
+   * Trigger kind. Known values are the schedule aliases "cron" / "schedule"
+   * (time-based) and "event" (webhook/event-driven). Kept as `string` rather
+   * than a closed union on purpose: the backend emits more than one
+   * scheduled-trigger alias and may introduce new kinds, so UI code branches
+   * on `type === "event"` and treats every other value as a schedule.
+   */
   type: string;
+  /** Cron expression (schedule triggers only). */
   schedule?: string;
+  /** Human-readable schedule description (schedule triggers only). */
   schedule_human?: string;
+  /** Event source, e.g. "github" (event triggers only). */
+  source?: string;
+  /** Event key pattern(s) to match, e.g. "pull_request.opened" or ["push", "release.*"]. */
+  on?: string | string[];
+  /** JMESPath filter expression evaluated against the raw webhook payload. */
+  filter?: string;
 }
 
 export interface Automation {

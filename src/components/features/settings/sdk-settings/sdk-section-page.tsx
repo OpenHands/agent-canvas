@@ -19,6 +19,7 @@ import {
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import {
   buildInitialSettingsFormValues,
+  buildSdkSettingsPayload,
   buildSdkSettingsPayloadForView,
   getVisibleSettingsSections,
   hasAdvancedSettings,
@@ -117,6 +118,15 @@ export interface SdkSectionSaveControl {
   isDirty: boolean;
   /** Current form values (for custom save flows). */
   values: SettingsFormValues;
+  /** The active view tier (basic/advanced/all) the form is rendering. */
+  view: SettingsView;
+  /**
+   * Returns the coerced, dirty-only payload as a nested object
+   * (e.g. `{ llm: { temperature: 0.7 } }`). Lets a custom save flow persist
+   * exactly the fields the user changed, with proper types, without
+   * re-implementing schema-driven coercion. Throws if a field fails coercion.
+   */
+  getDirtyPayload: () => Record<string, unknown>;
 }
 
 /**
@@ -143,6 +153,7 @@ export function SdkSectionPage({
   initialValueOverrides,
   embedded = false,
   hideSaveButton = false,
+  suppressSuccessToast = false,
   onSaveControlChange,
   testId = "sdk-section-settings-screen",
 }: {
@@ -174,7 +185,7 @@ export function SdkSectionPage({
    * marked dirty on hydration so the user can save the form without
    * having to touch the prefilled fields. Useful when the page is
    * embedded in a flow that wants to nudge brand-new users toward a
-   * particular default (e.g. onboarding pre-filling Anthropic/Opus).
+   * particular default (e.g. onboarding pre-filling OpenHands/Opus).
    */
   initialValueOverrides?: SettingsFormValues;
   /**
@@ -189,6 +200,8 @@ export function SdkSectionPage({
    * action (e.g. an onboarding "Next" button).
    */
   hideSaveButton?: boolean;
+  /** Suppress the default success toast after save completes. */
+  suppressSuccessToast?: boolean;
   /**
    * Fires whenever the save state changes (a mutation starts/finishes,
    * dirty status flips). Provides a stable `save()` callback the
@@ -360,6 +373,17 @@ export function SdkSectionPage({
     handleSaveRef.current();
   }, []);
 
+  // Stable accessor for the coerced, dirty-only payload. Mirrors the
+  // `handleSaveRef` pattern so the exposed function reference stays stable
+  // across renders while always reading the latest closure at call time.
+  const buildDirtyPayloadRef = React.useRef<() => Record<string, unknown>>(
+    () => ({}),
+  );
+  const stableGetDirtyPayload = React.useCallback(
+    () => buildDirtyPayloadRef.current(),
+    [],
+  );
+
   const handleSave = () => {
     if (!filteredSchema || isReadOnly) return;
 
@@ -392,7 +416,9 @@ export function SdkSectionPage({
     saveSettings(payload, {
       onError: handleError,
       onSuccess: () => {
-        displaySuccessToast(t(I18nKey.SETTINGS$SAVED_WARNING));
+        if (!suppressSuccessToast) {
+          displaySuccessToast(t(I18nKey.SETTINGS$SAVED_WARNING));
+        }
         setDirty({});
         onSaveSuccess?.();
       },
@@ -400,6 +426,14 @@ export function SdkSectionPage({
   };
 
   handleSaveRef.current = handleSave;
+  // Dirty-only (NOT view-filtered): we must never inject defaults for
+  // non-visible fields here, or a custom save flow would reset fields the
+  // user never touched. `buildSdkSettingsPayloadForView` is reserved for the
+  // built-in full-replace save above.
+  buildDirtyPayloadRef.current = () =>
+    filteredSchema
+      ? buildSdkSettingsPayload(filteredSchema, values, dirty)
+      : {};
 
   // Surface save state to the parent. Hooks must run before any
   // conditional early-returns below, so this lives here rather than
@@ -415,10 +449,15 @@ export function SdkSectionPage({
       isSaving: isPending,
       isDirty: saveControlIsDirty,
       values,
+      view,
+      getDirtyPayload: stableGetDirtyPayload,
     });
-  }, [isPending, saveControlIsDirty, values]);
+  }, [isPending, saveControlIsDirty, values, view]);
 
-  if (isLoading || isFetching || isSchemaLoading) {
+  // Keep existing form content visible during background refetches to avoid
+  // flashing the full skeleton (notably during onboarding Next transitions).
+  const isInitialSettingsLoad = (isLoading || isFetching) && !settings;
+  if (isInitialSettingsLoad || isSchemaLoading) {
     return <LlmSettingsInputsSkeleton />;
   }
 

@@ -105,3 +105,9 @@ export function parseTimeOfDay(
   }
   return { hour, minute };
 }
+
+export function formatEventOn(on: string | string[] | undefined): string {
+  if (!on) return "—";
+  if (Array.isArray(on)) return on.join(", ");
+  return on;
+}

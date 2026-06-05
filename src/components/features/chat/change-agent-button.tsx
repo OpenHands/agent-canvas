@@ -9,6 +9,10 @@ import { CodePillIcon } from "#/icons/code-pill";
 import { useConversationStore } from "#/stores/conversation-store";
 import { ChangeAgentContextMenu } from "./change-agent-context-menu";
 import { cn } from "#/utils/utils";
+import {
+  formControlMutedHoverClassName,
+  formControlTransitionClassName,
+} from "#/utils/form-control-classes";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
@@ -161,16 +165,17 @@ export function ChangeAgentButton() {
         onClick={handleButtonClick}
         disabled={isButtonDisabled}
         className={cn(
-          "flex items-center rounded-[100px] transition-[border-color,color,opacity]",
+          "flex items-center rounded-[100px]",
+          formControlTransitionClassName,
           isExecutionAgent
             ? "border border-transparent text-[var(--oh-muted)]"
             : "border border-[#597FF4] bg-[#4A67BD]",
           !isButtonDisabled &&
             isExecutionAgent &&
-            "cursor-pointer hover:text-white hover:bg-white/10",
+            cn("cursor-pointer", formControlMutedHoverClassName),
           !isButtonDisabled &&
             !isExecutionAgent &&
-            "cursor-pointer text-white hover:bg-white/10",
+            "cursor-pointer text-white hover:bg-[#597FF4]",
           isButtonDisabled &&
             cn(
               "opacity-50 cursor-not-allowed",
@@ -188,6 +193,7 @@ export function ChangeAgentButton() {
       </button>
       {contextMenuOpen && (
         <ChangeAgentContextMenu
+          activeMode={conversationMode}
           onClose={() => setContextMenuOpen(false)}
           onCodeClick={handleCodeClick}
           onPlanClick={handlePlanClick}

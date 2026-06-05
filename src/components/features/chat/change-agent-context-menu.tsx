@@ -7,14 +7,18 @@ import { ContextMenu } from "#/ui/context-menu";
 import { ContextMenuListItem } from "../context-menu/context-menu-list-item";
 import { ContextMenuIconTextWithDescription } from "../context-menu/context-menu-icon-text-with-description";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
+import { cn } from "#/utils/utils";
+import type { ConversationMode } from "#/stores/conversation-store";
 
 interface ChangeAgentContextMenuProps {
+  activeMode: ConversationMode;
   onClose: () => void;
   onCodeClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onPlanClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
 export function ChangeAgentContextMenu({
+  activeMode,
   onClose,
   onCodeClick,
   onPlanClick,
@@ -42,20 +46,34 @@ export function ChangeAgentContextMenu({
       testId="change-agent-context-menu"
       position="top"
       alignment="left"
-      className="min-h-fit mb-2 min-w-[195px] max-w-[195px] gap-0"
+      className="min-h-fit mb-2 min-w-[195px] max-w-[195px]"
     >
-      <ContextMenuListItem testId="code-option" onClick={handleCodeClick}>
+      <ContextMenuListItem
+        testId="code-option"
+        onClick={handleCodeClick}
+        className={cn(
+          activeMode === "code" && "bg-[var(--oh-interactive-hover)]",
+        )}
+      >
         <ContextMenuIconTextWithDescription
           icon={CodeTagIcon}
           title={t(I18nKey.COMMON$CODE)}
           description={t(I18nKey.COMMON$CODE_AGENT_DESCRIPTION)}
+          isActive={activeMode === "code"}
         />
       </ContextMenuListItem>
-      <ContextMenuListItem testId="plan-option" onClick={handlePlanClick}>
+      <ContextMenuListItem
+        testId="plan-option"
+        onClick={handlePlanClick}
+        className={cn(
+          activeMode === "plan" && "bg-[var(--oh-interactive-hover)]",
+        )}
+      >
         <ContextMenuIconTextWithDescription
           icon={LessonPlanIcon}
           title={t(I18nKey.COMMON$PLAN)}
           description={t(I18nKey.COMMON$PLAN_AGENT_DESCRIPTION)}
+          isActive={activeMode === "plan"}
         />
       </ContextMenuListItem>
     </ContextMenu>

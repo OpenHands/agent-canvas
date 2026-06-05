@@ -437,7 +437,9 @@ const MOCK_MODELS = [
   "anthropic/claude-sonnet-4-5-20250929",
   "anthropic/claude-haiku-4-5-20251001",
   "anthropic/claude-opus-4-5-20251101",
+  "anthropic/claude-opus-4-8",
   "openai/gpt-3.5-turbo",
+  "openai/gpt-5.5",
   "openai/gpt-4o",
   "openai/gpt-4o-mini",
   "openhands/claude-sonnet-4-20250514",
@@ -450,7 +452,9 @@ const MOCK_MODELS = [
 
 const MOCK_VERIFIED_MODELS = new Set([
   "anthropic/claude-opus-4-5-20251101",
+  "anthropic/claude-opus-4-8",
   "anthropic/claude-sonnet-4-5-20250929",
+  "openai/gpt-5.5",
   "openhands/claude-opus-4-5-20251101",
   "openhands/claude-sonnet-4-5-20250929",
   "openhands/minimax-m2.7",

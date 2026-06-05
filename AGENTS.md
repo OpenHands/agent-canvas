@@ -19,17 +19,46 @@
 - Verification command: `npm run typecheck && npm run build`.
 - GitHub automation now includes `.github/workflows/ci.yml` for `npm ci`, `npm test`, and `npm run build`, plus `.github/dependabot.yml` with weekly npm/github-actions updates gated by a 7-day cooldown.
 
+## Tracking / Analytics Architecture
+
+Two distinct PostHog systems exist. **Never mix them at a call site.**
+
+### System 1 — `telemetry.ts` (library-level, anonymous)
+- **Purpose**: anonymous npm-consumer telemetry (`canvas_install`, `canvas_new_session`)
+- **Keys**: hardcoded staging/prod keys in `telemetry.ts`; routed through `https://z.openhands.dev`
+- **Consent**: `localStorage["openhands-telemetry-consent"]` via `useTelemetry` / `TelemetryConsentBanner`
+- **`canvas_install`** fires once, pre-consent, per installation
+- **Exports**: `trackEvent`, `useTelemetry`, `TelemetryConsentBanner`, etc. from `src/lib/index.ts` — these are the **public library API for npm consumers**
+- **Rule**: Do NOT import `trackEvent` from `#/services/telemetry` in app routes or components
+
+### System 2 — `useTracking` hook (app-level, identified)
+- **Purpose**: product analytics for app behaviour events
+- **Key**: `VITE_POSTHOG_CLIENT_KEY` env var → `OptionService.getConfig()` → `PostHogWrapper` → `PostHogProvider`; routed to `https://us.i.posthog.com`
+- **Consent**: `user_consents_to_analytics` (backend setting) + `useSyncPostHogConsent` in `root-layout`; `AnalyticsConsentFormModal` also calls `setTelemetryConsent` to keep both systems in sync
+- **All events** are typed, named functions in `src/hooks/use-tracking.ts` — add a new function there for every new event; never call `posthog.capture()` raw from a component
+- **`commonProperties`** (`current_url`, `user_email`) are attached automatically by the hook
+- **Rule**: Do NOT use raw `usePostHog()` + `posthog.capture()` in components — always go through `useTracking`
+
+### Adding a new event
+1. Add a typed function to `useTracking` in `src/hooks/use-tracking.ts`
+2. Add the function to the hook's `return` object
+3. Destructure and call it from the component: `const { trackFoo } = useTracking()`
+
+### Env var
+`VITE_POSTHOG_CLIENT_KEY` — see `.env.sample`. Without it, `PostHogProvider` never mounts and all `useTracking` calls are silently dropped (safe default for local dev).
+
 ## Runtime Services in Dev Stacks
 
 - When the agent-canvas dev launchers (`npm run dev` / `dev:minimal` / the published `agent-canvas` binary) start a stack, they set a `VITE_RUNTIME_SERVICES_INFO` env var on the frontend describing which services are running and how the agent should reach them. The frontend forwards this verbatim as `AgentContext.system_message_suffix` on every `POST /api/conversations`, so conversations land with a `<RUNTIME_SERVICES>` block appended to the system prompt.
 - The block lists URLs **from the agent's point of view**:
   - The Agent Server is always reachable as `http://localhost:<port>` from inside the sandbox — but that is _you_, not the automation backend.
   - Host-side services (ingress, Vite, automation) are reachable as `http://localhost:<port>`.
-- Agents should treat the `<RUNTIME_SERVICES>` block as authoritative: don't hardcode `localhost:8000` for "the automation server", and don't probe random ports trying to discover services. If the block says automation is not running, skip `/api/automation` calls; otherwise use the listed `url_from_agent` + `api_prefix` (default `/api/automation`) and the `X-API-Key: $OPENHANDS_AUTOMATION_API_KEY` header.
+- Agents should treat the `<RUNTIME_SERVICES>` block as authoritative: don't hardcode `localhost:8000` for "the automation server", and don't probe random ports trying to discover services. If the block says automation is not running, skip `/api/automation` calls; otherwise use the listed `url_from_agent` + `api_prefix` (default `/api/automation`) and the `X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY` header.
 - The launcher → frontend → suffix plumbing is:
-  - `scripts/dev-safe.mjs::buildRuntimeServicesInfo()` — pure helper that constructs the info object.
-  - `scripts/dev-with-automation.mjs::buildAutomationRuntimeServicesInfo()` — wraps it with automation details; called from both Vite spawn (`startVite`) and the static build (`static-build.mjs`).
-  - `src/api/agent-server-adapter.ts::buildRuntimeServicesSystemSuffix()` reads `VITE_RUNTIME_SERVICES_INFO` and renders the `<RUNTIME_SERVICES>` markdown block; `createAgentFromSettings()` attaches it to `agent_context.system_message_suffix` when present.
+  - `scripts/runtime-services-info.mjs::buildRuntimeServicesInfo()` — dependency-free module that constructs the info object; also runs as a CLI for the Docker entrypoint. Re-exported by `scripts/dev-safe.mjs` for backward compat.
+  - `scripts/dev-with-automation.mjs::buildAutomationRuntimeServicesInfo()` — wraps it with automation details; called from Vite spawn (`startVite`), static frontend spawn (`startStaticFrontend` → `--runtime-services-info` flag), and the static build (`static-build.mjs`).
+  - `src/api/agent-server-adapter.ts::buildRuntimeServicesSystemSuffix()` reads `VITE_RUNTIME_SERVICES_INFO` (Vite dev) or `window.__AGENT_CANVAS_RUNTIME_SERVICES_INFO__` (static builds, injected by `static-server.mjs`) and renders the `<RUNTIME_SERVICES>` markdown block; `buildAgentContext()` attaches it to `agent_context.system_message_suffix` when present.
+  - E2E coverage: the mock-LLM automation test (`tests/e2e/mock-llm/mock-llm-automation.spec.ts`) verifies the `<RUNTIME_SERVICES>` block reaches the LLM via `getMockLLMRequests()` and checks for Agent Server, Automation backend, and `/api/automation` entries.
 
 ### `VITE_RUNTIME_SERVICES_INFO` shape
 
@@ -53,7 +82,7 @@ The env var is a JSON string of:
       "url_from_agent": "http://localhost:3001"
     },
     "automation": {
-      "description": "OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.",
+      "description": "OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.",
       "url_from_agent": "http://localhost:18001",
       "api_prefix": "/api/automation",
       "docs_url": "http://localhost:18001/api/automation/docs",
@@ -81,10 +110,10 @@ from your point of view (i.e., as you should curl/fetch them).
 * Frontend: http://localhost:3001
     Vite dev server hosting the agent-canvas frontend.
 * Automation backend: http://localhost:18001
-    OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.
+    OpenHands Automations service. All routes are mounted under '/api/automation'. Authenticate with header 'X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY'.
     Docs:    http://localhost:18001/api/automation/docs
     OpenAPI: http://localhost:18001/api/automation/openapi.json
-    Auth:    header 'X-API-Key: $OPENHANDS_AUTOMATION_API_KEY'
+    Auth:    header 'X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY'
 
 Trust this block over guessing: do not assume any other URLs are running.
 In particular, http://localhost:18000 inside your sandbox is the Agent Server
@@ -148,25 +177,83 @@ you are running inside of — NOT the automation backend.
 - **Production-fidelity launch**: The Playwright config (`playwright.mock-llm.config.ts`) starts the full `agent-canvas` stack via `bin/agent-canvas.mjs` — the same binary that `npx @openhands/agent-canvas` executes when users install the npm package. This means mock-LLM tests exercise the actual production path: pre-built static frontend + static-server.mjs + agent-server via uvx + automation backend via uvx + ingress proxy, all behind a single port.
 - A pre-built `build/` directory is required. The Playwright webServer command runs `npm run build:app` when `build/index.html` is absent, but CI should run the build step explicitly for caching (`npm run build:app` in `.github/workflows/mock-llm-e2e.yml`).
 - **Single ingress URL**: Tests use one URL for both the browser (`baseURL`) and backend API assertions (`BACKEND_URL`). The ingress proxy routes `/api/*` to the agent-server, `/api/automation/*` to the automation backend, and `/*` to the static frontend. Default ingress port for tests is `18300` (override via `MOCK_LLM_INGRESS_PORT` env var).
-- **State isolation**: `OH_CANVAS_SAFE_STATE_DIR=.tmp/mock-llm-state` isolates test state from the user's real `~/.openhands/agent-canvas/` directory. The directory is cleaned before each test run.
+- **State isolation**: `OH_CANVAS_SAFE_STATE_DIR=.tmp/mock-llm-state` isolates test state from the user's real `~/.openhands/agent-canvas/` directory. Both `STATE_DIR` (`.tmp/mock-llm-state`) and the automation DB dir (`.tmp/automation/`) are cleaned before each test run — the automation DB now lives outside STATE_DIR at `dirname(STATE_DIR)/automation/automations.db`, mirroring Docker's `~/.openhands/automation/automations.db`.
 - **Session API key**: A random key is generated per test run and passed to the stack via `SESSION_API_KEY` / `OH_SESSION_API_KEYS_0` / `VITE_SESSION_API_KEY`. The static server injects it into `index.html` at serve time so the frontend authenticates automatically.
 - **Mock LLM server** (`tests/e2e/mock-llm/scripts/mock-llm-server.py`): Python HTTP server using openhands-sdk's `TestLLM` to return scripted tool-call + text trajectories. Supports admin API endpoints for dynamic trajectory management:
-  - `POST /admin/reset` — reset to the default trajectory (terminal printf + text reply)
+  - `POST /admin/reset` — reset to the default trajectory (terminal printf + text reply); also clears the stored completion-request history
   - `POST /admin/trajectory/register` — register a named trajectory (JSON body: `{name, turns}` where each turn is `{tool_call: {name, arguments}}` or `{text: "..."}`)
   - `POST /admin/trajectory/activate` — activate a previously registered trajectory
+  - `GET /admin/requests` — return the list of all `/v1/chat/completions` request bodies captured since the last reset (used by the image-upload test to verify the image was forwarded to the LLM)
 - **Real automation backend**: The automation test uses the production automation backend (started by `bin/agent-canvas.mjs`), NOT a mock server. Terminal `curl` commands from the agent hit the automation API through the ingress proxy at the test's `BACKEND_URL` (default `http://localhost:18300`). Auth uses the `X-Session-API-Key` header matching the stack's session key. The `mock-automation-server.py` file still exists as a reference but is not used by current tests.
-- **Test helpers** (`tests/e2e/mock-llm/utils/mock-llm-helpers.ts`): Exports `registerTrajectory()`, `activateTrajectory()`, `resetMockLLM()`, `ensureMockLLMProfile()`, etc.
+- **Test helpers** (`tests/e2e/mock-llm/utils/mock-llm-helpers.ts`): Exports `registerTrajectory()`, `activateTrajectory()`, `resetMockLLM()`, `ensureMockLLMProfile()`, `getMockLLMRequests()` (fetches captured completion bodies from `GET /admin/requests`), `IMAGE_REPLY_TOKEN` + `MINIMAL_PNG_BASE64` (constants for the image-upload spec), ACP helpers (`configureAcpAgent()`, `verifyAcpAgentSettings()`, `resetToOpenHandsAgent()`, `ACP_REPLY_TOKEN`, `MOCK_ACP_SERVER_PATH`), and more.
 - **Padding response for internal LLM call**: The agent-server makes an internal LLM call (condenser/skill-analysis) before the agent's main loop starts when skills are activated. This consumes one trajectory response. Automation tests prepend a throwaway `{ text: "" }` response as padding. The conversation test does NOT need this because its user message doesn't trigger skill activation.
+- **Mock ACP server** (`tests/e2e/mock-llm/scripts/mock-acp-server.py`): A minimal stdio-based ACP agent that speaks JSON-RPC using the `acp` Python library (installed as a dependency of `openhands-sdk`). Handles `initialize`, `session/new`, and `session/prompt`; sends a scripted `session/update` notification with `ACP_REPLY_TOKEN` in a text content block, then returns `stop_reason: "end_turn"`. The agent-server spawns it as a subprocess via `acp_command`. Accepts `--reply-token TOKEN` to customize the reply token.
 - **Test specs**:
+  - `mock-llm-acp-agent.spec.ts` — ACP (Agent Client Protocol) agent E2E test. Configures the agent through the browser UI the same way a real user would: navigates to Settings → Agent, switches the agent type dropdown to "ACP (external subprocess)", selects the "Custom" preset, types the mock ACP server command into the command textarea, and clicks Save. Then verifies the settings persisted by reloading the page, starts a conversation from the home page, verifies the ACP agent's reply token appears in the chat UI, checks the POST `/api/conversations` payload contains `agent_kind: "acp"`, and resumes the conversation from the sidebar after navigating away. Uses `selectDropdownOption()` helper to interact with HeroUI Autocomplete dropdowns via `getByRole("combobox")` + `getByRole("option")`. Works in both npm and Docker E2E paths: the Docker Playwright config volume-mounts the mock ACP script into the container and sets `MOCK_ACP_CONTAINER_PYTHON` / `MOCK_ACP_CONTAINER_SCRIPT` env vars so the test types container-side paths into the UI instead of host-local paths. The `afterAll` cleanup resets back to `agent_kind: "openhands"` and restores the mock LLM profile so subsequent alphabetically-ordered specs are not affected.
   - `mock-llm-conversation.spec.ts` — Creates LLM profile via UI, runs a conversation with a terminal tool call, verifies bash execution and agent reply.
+  - `mock-llm-image-upload.spec.ts` — Attaches a 1×1 PNG via the hidden file input, sends "What is in this image?", verifies the agent replies, that the user message event stores image_urls, and that the mock LLM received an image_url content block with a base64 data: URL in at least one completion call.
   - `mock-llm-automation.spec.ts` — Full automation lifecycle: registers a trajectory (7 responses total — 4 for the main conversation + 3 for the automation run's spawned conversation) where the LLM creates a cron automation and dispatches a run via terminal `curl` commands to the real automation backend. Verifies: automation created with correct schedule, run reaches COMPLETED status with a conversation_id, automation appears on the `/automations` list page, detail page shows COMPLETED badge (`data-testid="run-status-icon-completed"`), and clicking the run's conversation link navigates to the correct `/conversations/{id}` page.
-- Tests run serially (`workers: 1`, `mode: "serial"` per describe block). Files are discovered alphabetically so automation tests run before conversation tests; each spec is self-contained (automation test configures its own LLM profile via the settings API). The `afterEach` hook resets the mock LLM to its default trajectory so subsequent specs start fresh even when a preceding test fails.
+  - `mock-llm-partial-stack.spec.ts` — Partial stack mode tests. Unlike other specs, these spawn their own `bin/agent-canvas.mjs` child processes instead of relying on the config's webServer entries. Three describe blocks: (1) `--frontend-only` verifies static frontend is served (200 on `/`), backend routes return 503 (`/server_info`, `/api/settings`, `/api/automation/v1`), and the browser shows the manage-backends modal; (2) `--backend-only` verifies `/server_info` returns 200, `/api/settings` is reachable, automation endpoint works, and root/asset requests return 503; (3) port conflict verifies the process exits non-zero with a clear error message when the ingress port is occupied, then starts successfully on a free port. Each test uses isolated state dirs and high port numbers (18310+ range) to avoid collisions with the main full-stack instance.
+  - `mock-llm-ui-regressions.spec.ts` — UI regression tests (CSS isolation scoping, event pagination on scroll-up, workspace selection persistence). Uses `page.route()` to intercept specific API responses where deterministic mock data is needed. Consolidated from the former `tests/e2e/regressions/` directory (which was never wired into CI).
+- Tests run serially (`workers: 1`, `mode: "serial"` per describe block). Files are discovered alphabetically so the ACP agent test runs first, followed by auth-modes, automation, conversation, etc.; each spec is self-contained (automation test configures its own LLM profile via the settings API, ACP test resets back to OpenHands agent in afterAll). The `afterEach` hook resets the mock LLM to its default trajectory so subsequent specs start fresh even when a preceding test fails.
 - CI workflow: `.github/workflows/mock-llm-e2e.yml` runs on PRs with the `e2e-tests` label or on manual dispatch. It builds the frontend, starts the mock LLM server, runs the tests, and posts a PR comment with results.
 - The custom `DoneMarkerReporter` writes `.mock-llm-markers/.tests-done` after all tests complete (before webServer teardown) so the CI wrapper can detect completion and kill the lingering teardown process.
 
+### Docker Image Testing (Shared Specs)
+
+- The same test specs and helpers are reused to validate the Docker image via `playwright.mock-llm-docker.config.ts`. Run locally with `npm run test:e2e:mock-llm:docker` (requires Docker daemon and a built image).
+- **Architecture**: The Docker config replaces the npm path's `bin/agent-canvas.mjs` webServer with a `docker run --network host` command. The mock LLM server still runs on the host. On Linux (including CI), `--network host` lets the container share the host's network stack so all `127.0.0.1` URLs work identically. On macOS/Windows Docker Desktop (bridge networking), set `MOCK_LLM_AGENT_URL=http://host.docker.internal:<port>` so the agent-server inside Docker can reach the host-side mock LLM server.
+- **Dual-stack binding**: Both `scripts/static-server.mjs` and `scripts/ingress.mjs` default to `::` (dual-stack, accepting IPv4 and IPv6 connections). The Docker entrypoint passes `--host ::` explicitly. This means `localhost` is safe in both the Docker and npm Playwright configs — whether it resolves to `127.0.0.1` (IPv4) or `::1` (IPv6), the server accepts the connection. The mock LLM server URL (`MOCK_LLM_URL`) still uses `127.0.0.1` because the Python mock server is a separate process whose bind behavior we don't control.
+- **Entrypoint crash resilience**: `docker/entrypoint.sh` uses a `while kill -0 "$STATIC_PID"; do sleep 10 & wait $!; done` loop instead of `wait -n "${PIDS[@]}"` (any child). If the agent-server or automation backend exits mid-test, the static-server proxy stays up and returns 502s for backend routes — the container doesn't disappear with `ECONNREFUSED`. The container exits only when the static-server (ingress) dies or on SIGTERM/SIGINT. The `sleep & wait $!` pattern ensures `wait` (a bash builtin) is the foreground op, so trapped signals fire immediately. `cleanup()` includes `exit 0` so the script terminates after a signal-triggered trap return.
+- **URL split**: `mock-llm-helpers.ts` exports two mock LLM URL constants:
+  - `MOCK_LLM_BASE_URL` — always `http://127.0.0.1:<port>`, used by tests for the mock LLM admin API (register/activate/reset trajectories).
+  - `MOCK_LLM_AGENT_URL` — defaults to `MOCK_LLM_BASE_URL`, overridable via `MOCK_LLM_AGENT_URL` env var. Used when configuring the LLM profile (`base_url` field) — this is the URL the agent-server uses for inference calls. The npm path and Docker-with-`--network host` path use the same value; Docker on macOS needs the override.
+- **Docker image**: Set `MOCK_LLM_DOCKER_IMAGE` to the image tag (default: `ghcr.io/openhands/agent-canvas:latest`). The container is started with `--rm --network host` and a unique `--name` for cleanup.
+- **State isolation**: The Docker container uses its internal state directory (no host mount needed for tests). Each test run starts a fresh container.
+- CI workflow: `.github/workflows/mock-llm-docker-e2e.yml` has three triggers — all pull the already-built image from GHCR (no rebuild): (1) `workflow_run` fires automatically after the `Docker` workflow completes on main; (2) `pull_request` with the `e2e-tests` label polls the Docker workflow until it finishes for the PR's head SHA, then pulls the image (needed because `workflow_run` only fires for workflow files already on the default branch); (3) `workflow_dispatch` accepts a custom `docker_image` input. The image tag is derived from the commit SHA (`ghcr.io/openhands/agent-canvas:sha-<short>-amd64`). Fork PRs are skipped (no GHCR push). Report artifacts go to `test-results-mock-llm-docker/` and `playwright-report-mock-llm-docker/`.
+
+## Debugging E2E Test Failures
+
+When an E2E test fails in CI, use this workflow to diagnose the root cause efficiently:
+
+### 1. Read the PR comment first
+The mock-LLM E2E workflow posts a structured comment on the PR with a test results table, pass/fail status, and collapsible failure details including the Playwright error message. **Start here** — the error message usually reveals whether the failure is a locator mismatch, a timeout, or a missing element.
+
+### 2. Download CI artifacts
+Every failing test run uploads artifacts (`mock-llm-e2e-results` for npm, `test-results-mock-llm-docker` for Docker). Download them with:
+```bash
+gh run download <run_id> --repo OpenHands/agent-canvas --name mock-llm-e2e-results --dir /tmp/artifacts
+```
+Artifacts contain:
+- `test-results-mock-llm/` — per-test directories with `test-failed-N.png` (screenshot at failure) and `error-context.md` (Playwright page snapshot as YAML accessibility tree + test source with the failing line marked)
+- `playwright-report-mock-llm/` — full HTML report (`npx playwright show-report /tmp/artifacts/playwright-report-mock-llm`)
+
+### 3. Inspect the error-context.md page snapshot
+The `error-context.md` file contains a YAML accessibility tree of the entire page at the moment of failure. This is the single most useful artifact — it shows exactly what DOM elements exist, which tabs are selected, what text is in inputs, and whether a component rendered at all. Search for the element your test expects (e.g. `llm-provider-input`) to see if it's present or absent, and check surrounding context (tab selection state, form view mode, etc.) to understand why.
+
+### 4. Common failure patterns
+
+**"element(s) not found"** — The locator matched zero elements. The component either:
+- Didn't render (conditional rendering path not taken — check the page snapshot for what DID render)
+- Has a different `name`/`data-testid` than expected
+- Is behind a lazy-load boundary that hasn't resolved
+
+**Stale state from earlier serial tests** — Mock-LLM tests run serially (`workers: 1`) against a real agent-server. Earlier tests (conversation, automation) persist settings on the server. If your test depends on "clean" state but a prior test configured `llm_base_url`, `llm_model`, etc., the form may render in a different view mode. Use Playwright `page.route()` to intercept and normalize the settings response. Example: `routeOnboardingLlmCatalog` in `tests/e2e/support/onboarding-helpers.ts` intercepts `GET /api/settings` to clear `llm_base_url` so the LLM form always opens in "Basic" view.
+
+**View mode mismatch (Basic vs Advanced)** — `LlmSettingsScreen` switches between "Basic" (renders `ModelSelector` with provider/model dropdowns) and "Advanced" (renders plain text inputs). The view is determined by `getInitialView()` which checks `currentSettings.llm_base_url` — a non-default base URL triggers "Advanced" view. If your test expects `input[name="llm-provider-input"]` but sees text inputs instead, the settings have a stale `base_url`.
+
+**Playwright route interception vs real server** — In mock-LLM tests, routes registered with `page.route()` intercept at the browser level before requests reach the real agent-server. However, `page.route()` must be set up BEFORE `page.goto()`. The `showOnboarding` helper handles this correctly (routes are registered before navigation). Non-GET methods should use `route.fallback()` to pass through to the real server.
+
+### 5. Running locally
+```bash
+npm run test:e2e:mock-llm                    # full suite
+npm run test:e2e:mock-llm -- --headed        # watch in browser
+npm run test:e2e:mock-llm -- -g "test name"  # run single test by name
+```
+
 ## Additional Notes
 
-- **Published binary auth fix**: When users install the npm package globally (`npm install -g @openhands/agent-canvas`) and run `agent-canvas`, the pre-built static frontend has a `VITE_SESSION_API_KEY` baked in at publish time that differs from the user's persisted runtime key (`~/.openhands/agent-canvas/session-api-key.txt`). The fix is to inject the runtime session key into `index.html` responses at serve time (not build time). `scripts/static-server.mjs` accepts a `--session-api-key <key>` flag and injects a tiny inline `<script>` before `</head>` that seeds the key into `localStorage['openhands-agent-server-config'].sessionApiKey` — only if no key is already stored (preserving user-set overrides). `scripts/dev-with-automation.mjs` and `scripts/dev-static.mjs` both pass `--session-api-key ${config.sessionApiKey}` when starting the static server.
+- **Published binary auth fix**: When users install the npm package globally (`npm install -g @openhands/agent-canvas`) and run `agent-canvas`, the pre-built static frontend has NO `VITE_SESSION_API_KEY` baked in (npm publish runs `npm run build` with no such env var). The runtime session key is generated when the CLI launches and reaches the frontend via `scripts/static-server.mjs --session-api-key <key>`, which injects a `<head>` script that does two things: (a) sets `window.__AGENT_CANVAS_SESSION_API_KEY__ = <key>` — read by `getBakedSessionApiKey()` in `src/api/agent-server-config.ts` as a fallback when the env var is empty, symmetric with `__AGENT_CANVAS_AUTH_REQUIRED__` / `isAuthRequired()`; (b) writes the same key into `localStorage['openhands-agent-server-config'].sessionApiKey`, always overwriting when the value differs, so any code path that still reads the legacy storage key (e.g. e2e fixtures) sees the live key. The window-global path is the load-bearing one — without it, `makeDefaultLocalBackend()` returns null on a fresh install, the backend registry seeds empty, and `root.tsx` traps the user behind the Manage Backends modal instead of onboarding. `scripts/dev-with-automation.mjs` and `scripts/dev-static.mjs` both pass `--session-api-key ${config.sessionApiKey}` when starting the static server.
 
 - Direct `dependencies` and `devDependencies` in `package.json` are exact-pinned (no caret ranges); reproducible installs should use the committed `package-lock.json` plus `npm ci`, and targeted transitive fixes still belong in `overrides`.
 - `package-lock.json` must also retain the optional peer entry for `node_modules/vite-tsconfig-paths/node_modules/typescript@5.9.3`; without that nested lock entry, clean `npm ci` installs on CI fail with `Missing: typescript@5.9.3 from lock file`.
@@ -406,19 +493,28 @@ When adding code that needs a new string, decide up front which rule it falls un
   2. **localStorage** (`openhands-agent-server-git-provider-tokens`) - for frontend git API calls (repo search, branches, etc.)
      The `addGitProvider` method stores to server FIRST (must succeed), then updates localStorage. This ensures server-side persistence is the source of truth.
 - Agent server connection settings now live at `Settings > Agent Server` (`/settings/agent-server`). The page reads deployment defaults from `VITE_BACKEND_BASE_URL` / `VITE_SESSION_API_KEY`, saves user overrides in the `openhands-agent-server-config` localStorage key, and must stay reachable even when the backend compatibility probe fails so users can recover from missing or wrong backend configuration.
+- Auth modes for `agent-canvas` (dev and production):
+  - **Local mode** (default, no `--public` flag): A session API key is auto-generated and persisted to `~/.openhands/agent-canvas/session-api-key.txt`. The key is baked into the Vite dev server via `VITE_SESSION_API_KEY` or injected into static builds via `static-server.mjs --session-api-key`. Users never need to paste a key.
+  - **Public mode** (`--public` flag): Requires `LOCAL_BACKEND_API_KEY` env var. The key is used as the agent-server session key (`OH_SESSION_API_KEYS_0`) but is NOT baked into the frontend (no `VITE_SESSION_API_KEY`, no `--session-api-key` to static-server). The frontend detects a 401 from `/server_info` via `isAgentServerAuthError()` and shows `ApiKeyEntryScreen` (`src/components/features/backends/api-key-entry-screen.tsx`). The screen reuses `BackendForm` with the host pre-filled (read-only) and prompts for the API key. On submit, the key is persisted to `localStorage['openhands-agent-server-config']` and the page reloads.
+  - Dev usage: `LOCAL_BACKEND_API_KEY=my-secret npm run dev -- --public`
+  - Production usage: `LOCAL_BACKEND_API_KEY=my-secret npx @openhands/agent-canvas --public`
+  - The `--public` flag is supported by both `scripts/dev-with-automation.mjs` (parsed in `parseArgs()`, propagated via `config.isPublic`) and `bin/agent-canvas.mjs` (passed as `isPublic` to `main()`).
+  - The 401 detection lives in `src/api/agent-server-compatibility.ts` (`isAgentServerAuthError()`), and the gate is in `src/root.tsx`'s `App` component, between the `AgentServerUnavailableError` check and the `<Outlet />` render.
+  - **Key rotation resilience (non-public):** Stale registry entries are reconciled in two places. (1) `syncLauncherDefaultLocalBackend()` in `src/api/backend-registry/storage.ts` re-runs at module init: for any stored backend whose id is `default-local` and whose host matches (or is loopback-equivalent to) the launcher's default, its `apiKey` is overwritten with the current `makeDefaultLocalBackend().apiKey` (sourced from `VITE_SESSION_API_KEY` or, in the published-binary path, `window.__AGENT_CANVAS_SESSION_API_KEY__`). (2) `scripts/static-server.mjs`'s injection script always overwrites `localStorage['openhands-agent-server-config'].sessionApiKey` when it differs from the runtime key, keeping any code that still reads that legacy storage in sync. E2E coverage: `tests/e2e/mock-llm/mock-llm-auth-modes.spec.ts` (fresh-install, key-rotation, and public-mode scenarios).
 - Backend/footer actions that launch modals from inside a dropdown or popover should intercept `onMouseDown` to keep the menu mounted, then perform the actual open on `onClick`. Current examples: `Add backend` / `Manage backends` in `src/components/features/backends/backend-selector.tsx`, plus the mirrored workspace-footer buttons in `src/components/features/conversation-panel/new-conversation-button.tsx`.
 - `BackendSelector`'s cloud-org switch paths should never rethrow from the dropdown `onChange` handler: unexpected non-Axios failures need a generic error toast instead of an unhandled promise rejection, and the malformed `(cloud backend, null org)` self-heal path should fall back to the bundled backend if `/switch` fails.
 - `NewConversationButton` should support keyboard dismissal (`Escape`) for its inline popover, while still keeping the popover open when its modal children (`FolderBrowserModal`, `ManageWorkspacesModal`) are active.
 
 - README expectation: keep the first section as a concrete, chronological from-scratch quickstart for running this frontend against a real `openhands-agent-server` (clone, install prerequisites, optional `.env`, run `npm run dev`).
 - Keep README user-focused and move contributor/developer-specific workflows (`dev:safe`, mock mode, detailed env vars/build-test notes) into `DEVELOPMENT.md`.
+- Windows-specific command syntax (PowerShell) lives in `README.windows.md`. When changing install / Docker sandbox instructions in `README.md`, update `README.windows.md` in the same PR to keep them in sync.
 - `scripts/dev-safe.mjs` uses `uvx` for temporary agent-server installation — no permanent `uv tool install` needed. Environment variables (highest precedence first):
   - `OH_AGENT_SERVER_LOCAL_PATH` — absolute path to a local `software-agent-sdk` checkout. Runs the local checkout via `uvx` with `--with-editable` for `openhands-sdk`/`openhands-tools`/`openhands-workspace` and `--reinstall` for `openhands-agent-server`, so SDK edits are picked up on restart. Highest precedence.
   - `OH_AGENT_SERVER_GIT_REF` — git commit SHA or branch name (takes precedence over version)
-  - `OH_AGENT_SERVER_VERSION` — specific PyPI version (e.g., "1.24.0")
+  - `OH_AGENT_SERVER_VERSION` — specific PyPI version (e.g., "1.25.0")
   - `OH_SECRET_KEY` — secret key for settings encryption; auto-generated and persisted to `~/.openhands/agent-canvas/secret-key.txt` on first run (same file Docker uses), ensuring dev mode and Docker share the same key when both mount the same `~/.openhands` directory. Override with the env var to pin a specific key.
   - `SESSION_API_KEY` / `OH_SESSION_API_KEYS_0` / `VITE_SESSION_API_KEY` — session API key for agent-server authentication; auto-generated using `crypto.randomBytes(32)` if not set, passed to both agent-server (`OH_SESSION_API_KEYS_0`) and frontend (`VITE_SESSION_API_KEY`)
-  - Default: released PyPI version `1.24.0` for agent-server SDK libraries
+  - Default: released PyPI version `1.25.0` for agent-server SDK libraries
 
 - Security: `scripts/dev-safe.mjs` and `scripts/dev-with-automation.mjs` auto-generate random API keys when needed and persist the defaults so static builds, localStorage, and restarted services stay in sync:
   - `SESSION_API_KEY` — 64-character hex (256-bit) for agent-server API authentication; persisted at `~/.openhands/agent-canvas/session-api-key.txt` unless overridden via env var
@@ -464,7 +560,7 @@ When adding code that needs a new string, decide up front which rule it falls un
 - Public embedding entry points should use `AgentServerUIProviders` (scoped root on by default) or `AgentServerUIRoot` for manual control. The standalone app already renders its own scoped root in `src/root.tsx`, so `src/entry.client.tsx` must pass `withStyleRoot={false}` to avoid nesting duplicate shells. Keep `AgentServerUIRoot` and the scoping constants re-exported from `src/lib/index.ts` so library consumers can customize the host wrapper without reaching into private paths.
 - `AgentServerUIRoot`'s themed inner wrapper must set a default `color: var(--foreground)` in addition to the `dark` / `data-theme` markers; otherwise inherited text and `currentColor` SVG icons fall back to dark browser defaults after CSS scoping, causing dark-on-dark regressions on pages like the home screen.
 - Theme/customization tokens for the embedded shell are exposed as `--oh-*` CSS variables. Override them through `styleOverrides`, `style`, or host CSS targeting `[data-agent-server-ui]`; Tailwind theme tokens in `src/tailwind.css` should continue to reference those variables with `@theme inline` so host apps can restyle the UI without reworking component class names.
-- Regression coverage for the CSS isolation work lives in `__tests__/agent-server-ui-providers.test.tsx`, `__tests__/agent-server-ui-style-scope.test.ts`, and the browser-level `tests/e2e/regressions/css-isolation.spec.ts` Playwright test.
+- Regression coverage for the CSS isolation work lives in `__tests__/agent-server-ui-providers.test.tsx`, `__tests__/agent-server-ui-style-scope.test.ts`, and the browser-level CSS-isolation test in `tests/e2e/mock-llm/mock-llm-ui-regressions.spec.ts`.
 
 - Conversation history is loaded lazily, REST-first then WebSocket:
   - `useConversationHistory` (in `src/hooks/query/use-conversation-history.ts`) fetches only the most recent `INITIAL_HISTORY_PAGE_SIZE` (default 50) events using `sort_order='TIMESTAMP_DESC'`, then reverses to chronological order. Older pages are paginated in via `useLoadOlderEvents` when the user scrolls near the top of the chat.
@@ -491,6 +587,8 @@ When adding code that needs a new string, decide up front which rule it falls un
   - `useResolvedWorkspaces()` now returns `isLoading` / `isError` for parent-directory scans; `WorkspaceSelectionForm` should surface that state (status text and disabling the empty dropdown while parent results are still loading) instead of assuming the merged list is immediately ready.
   - `ManageWorkspacesModal` should require a confirmation step before removing either a saved workspace or a workspace parent; parent removals should mention the child-workspace impact, and tests should assert both the confirmation flow and that removing the selected workspace clears the launch selection.
   - In `useWorkspacesStore`, keep `clearWorkspaces()` scoped to literal workspaces only; use explicit helpers like `clearWorkspaceParents()` / `clearAll()` for broader resets so future callers do not accidentally wipe parent registrations.
+
+- Default LLM model — `DEFAULT_SETTINGS.llm_model` (`"openhands/minimax-m2.7"`, defined in `src/services/settings.ts`) is the canonical frontend default. `buildConfiguredOpenHandsAgentSettings` in `src/api/agent-server-adapter.ts` **always** sends this value explicitly when the resolved `llm.model` is absent, empty, or whitespace-only — the frontend never relies on the agent-server SDK's own default (`gpt-5.5`). If you change the default model, update `DEFAULT_SETTINGS.llm_model` in `src/services/settings.ts` **and** the checklist in `specs/llm-defaults.md`. Spec: `@spec LLD-001`.
 
 - Custom secrets are NOT auto-attached by the agent-server. `POST /api/conversations` only persists what the client sends in `request.secrets`; the persisted secrets store (`/api/settings/secrets`) is never read at conversation-start. `buildStartConversationRequestWithEncryptedSettings` enumerates `SecretsService.getSecrets()` and turns each entry into a `LookupSecret` whose `url` points back at `/api/settings/secrets/{name}` and whose `headers` carry `X-Session-API-Key` for auth. Pre-1.21.x agent-server SDKs would silently drop that header during validation when `secrets_encrypted=true` (the cipher in the validation context tried to `cipher.decrypt(plaintext_session_key)`, failed, and the validator removed the header — the conversation runtime then got 401s for every saved secret). The SDK fix preserves plaintext header values when decryption fails; if you still see saved secrets unavailable inside a conversation, verify the running agent-server bundles a `LookupSecret._validate_secrets` that falls back to plaintext on decrypt failure.
 
@@ -542,6 +640,6 @@ When adding code that needs a new string, decide up front which rule it falls un
 
 - Spec files live under `specs/`. Spec IDs are stable — never renumber. Mark deprecated specs with ~~strikethrough~~. Tag implementation code and tests with `// @spec BM-002 — Short title` comments so specs are grep-able across the codebase (`grep -rn '@spec BM-' src/ __tests__/`). Place the comment on the line immediately above the relevant code block or test. When multiple tests cover the same spec, use `it.each` if the test structure is identical.
 
-- Release automation: `.github/workflows/create-release.yml` automatically creates a GitHub release (with tag `v<version>`) when a PR from a `rel-*` branch is merged into `main`. This is modeled after the SDK's `create-release.yml`. The tag push then triggers `npm-publish.yml` and `docker.yml` downstream. The release skill (`.agents/skills/release.md`, keyword trigger: `release`) guides agents through the full process: version bump PR, `e2e-tests` label for mock-LLM E2E validation, merge with auto-tagging. Pre-release versions (containing a hyphen) are marked as pre-releases on the GitHub release.
+- Release automation: releases use a **long-lived release branch** model — a `rel-X.Y.Z` branch is created from `main`, QA/fixes land there, and publishing is triggered by pushing a `v*` tag directly to that branch (the branch is never merged back to main). The dist-tag is resolved dynamically at publish time by querying npm: if no stable version (no pre-release suffix) has ever been published, all releases use `--tag latest`; once a stable version exists, pre-release versions get their own dist-tag (`alpha` / `beta` / `rc`) and only stable versions keep `latest`. The transition is automatic — no workflow change is needed when the first stable release ships. Three workflows fire in parallel on every `v*` tag push: `create-release.yml` (creates the GitHub Release object with auto-generated notes and marks pre-release for hyphenated versions), `npm-publish.yml` (builds and publishes to npm with the correct dist-tag), and `docker.yml` (builds multi-arch Docker images). The release skill (`.agents/skills/release.md`, keyword trigger: `release`) guides agents through the full process.
 
 - Cloud conversation resume gating: when a cloud conversation is closed from the UI (`pauseCloudSandbox` is called), the conversation's `conversation_url` is NOT cleared -- it still points to the old sandbox host. `WebSocketProviderWrapper` must suppress the URL (pass `null` to `ConversationWebSocketProvider`) while `sandbox_status === "PAUSED"`, otherwise the WebSocket immediately tries the stale URL before the sandbox wakes. Symmetrically, `useActiveConversation`'s refetch interval must fast-poll (3 s) on both `!conversation_url` AND `sandbox_status === "PAUSED"` -- checking only the missing URL would leave the hook on the 30 s interval while the sandbox is resuming. The resume sequence: navigate -> sandbox PAUSED detected -> `resumeCloudSandbox` called (in `conversation.tsx`) -> fast-poll detects RUNNING -> `conversationUrl` unblocked -> WebSocket connects.

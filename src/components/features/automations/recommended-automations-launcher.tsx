@@ -22,11 +22,14 @@ import {
   getMcpMarketplaceCatalog,
 } from "#/utils/mcp-marketplace-utils";
 import { InstallServerModal } from "#/components/features/mcp-page/install-server-modal";
+import { useTracking } from "#/hooks/use-tracking";
 import { RecommendedAutomationsSection } from "./recommended-automations-section";
 
 interface RecommendedAutomationsLauncherProps {
   query?: string;
   onLaunched?: () => void;
+  /** When true, only the automation card grid scrolls inside its section. */
+  scrollableGrid?: boolean;
 }
 
 function getRequiredEntries(automation: RecommendedAutomation) {
@@ -37,54 +40,24 @@ function getRequiredEntries(automation: RecommendedAutomation) {
 }
 
 /**
- * Augment the catalog prompt with explicit API instructions so the agent
- * calls the correct automation endpoint instead of guessing (e.g. calling
- * the cloud API when running locally, or vice-versa).
+ * The catalog prompt (or slash command) is passed through as-is.
+ * API routing (host, auth) is discovered by the agent at runtime from
+ * `<RUNTIME_SERVICES>` in the system prompt — the skills themselves
+ * contain the instructions for reading that block.
  */
-function trimTrailingSlashes(value: string): string {
-  return value.replace(/\/+$/, "");
-}
-
-export function buildAutomationPrompt(
-  basePrompt: string,
-  backendKind: "local" | "cloud",
-  backendHost?: string,
-): string {
-  if (backendKind === "cloud") {
-    const endpoint = backendHost
-      ? `POST ${trimTrailingSlashes(backendHost)}/api/automation/v1/preset/prompt`
-      : "POST /api/automation/v1/preset/prompt on the active OpenHands Cloud backend";
-
-    return [
-      basePrompt,
-      "",
-      "---",
-      "**Which API to use:** Create this automation using the active OpenHands Cloud Automations API.",
-      `- Endpoint: \`${endpoint}\``,
-      "- Auth: `Authorization: Bearer $OPENHANDS_API_KEY`",
-    ].join("\n");
-  }
-
-  // Local backend — the automation sidecar URL is in <RUNTIME_SERVICES>.
-  return [
-    basePrompt,
-    "",
-    "---",
-    "**Which API to use:** Create this automation using the **local** OpenHands Automations API that is running alongside this agent.",
-    "- Read the Automation backend URL from the `<RUNTIME_SERVICES>` block in your system context.",
-    "- Endpoint path: `POST /api/automation/v1/preset/prompt`",
-    "- Auth: `X-API-Key: $OPENHANDS_AUTOMATION_API_KEY`",
-    "- If no local Automation backend is listed in `<RUNTIME_SERVICES>`, stop and ask me to start the full local automation stack instead of using any remote/cloud automation API.",
-  ].join("\n");
+export function buildAutomationPrompt(basePrompt: string): string {
+  return basePrompt;
 }
 
 export function RecommendedAutomationsLauncher({
   query,
   onLaunched,
+  scrollableGrid = false,
 }: RecommendedAutomationsLauncherProps) {
   const activeBackend = useActiveBackend();
   const { navigate } = useNavigation();
   const { data: settings } = useSettings();
+  const { trackPrebuiltAutomationEnabled } = useTracking();
   const createConversation = useCreateConversation();
   const isCreatingConversation = useIsCreatingConversation();
   const setMessageToSend = useConversationStore(
@@ -113,16 +86,16 @@ export function RecommendedAutomationsLauncher({
       }
       launchInFlightRef.current = true;
 
-      const prompt = buildAutomationPrompt(
-        automation.prompt,
-        activeBackend.backend.kind,
-        activeBackend.backend.host,
-      );
+      const prompt = buildAutomationPrompt(automation.prompt);
 
       createConversation.mutate(
         {},
         {
           onSuccess: (conversation) => {
+            trackPrebuiltAutomationEnabled({
+              automationName: automation.name,
+              automationCategory: automation.category,
+            });
             if (
               conversation.conversation_id.startsWith("task-") &&
               conversation.task_id
@@ -150,6 +123,7 @@ export function RecommendedAutomationsLauncher({
       navigate,
       onLaunched,
       setMessageToSend,
+      trackPrebuiltAutomationEnabled,
     ],
   );
 
@@ -221,6 +195,7 @@ export function RecommendedAutomationsLauncher({
         installedServers={installedMcpServers}
         query={query}
         onSelect={handleSelectAutomation}
+        scrollableGrid={scrollableGrid}
       />
 
       {installEntry && (
