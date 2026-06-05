@@ -27,3 +27,25 @@ Invariants:
 - Keep the lookup scoped to a render of `Messages`; it should not become a
   long-lived global cache.
 - Do not reintroduce per-observation full-history scans in hot render paths.
+
+## Retained event payload sanitizing
+
+Browser observations can include base64 screenshots. Those payloads are useful
+for the live Browser tab, but retaining every historical screenshot inside
+React Query and the event store causes conversation memory to grow with browser
+tool usage.
+
+Before events are retained in history or Zustand, browser observation
+`screenshot_data` is stripped through `stripHeavyEventPayloads`. The WebSocket
+handler still reads the raw event first, so the Browser tab can keep showing the
+latest screenshot. Only the retained history copy is sanitized.
+
+Invariants:
+
+- Sanitize both REST-loaded history pages and live events before they are stored
+  in `useEventStore`.
+- Keep the sanitizer narrow. It should remove payloads that are redundant for
+  historical chat rendering, not change event identity, timestamps, action
+  links, or visible text.
+- If another event type starts carrying large binary or base64 data, add it to
+  the same sanitizer rather than handling it in one fetch path only.

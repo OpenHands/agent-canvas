@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { OpenHandsEvent } from "#/types/agent-server/core";
 import { handleEventForUI } from "#/utils/handle-event-for-ui";
+import { stripHeavyEventPayloads } from "#/utils/sanitize-conversation-event";
 
 export type OHEvent = OpenHandsEvent & {
   isFromPlanningAgent?: boolean;
@@ -84,7 +85,9 @@ export interface EventState {
   clearEventsForConversation: (conversationId: string | null) => void;
 }
 
-const appendEvent = (state: EventState, event: OHEvent): EventState => {
+const appendEvent = (state: EventState, incomingEvent: OHEvent): EventState => {
+  const event = stripHeavyEventPayloads(incomingEvent);
+
   // Deduplicate: skip if event with same id already exists (O(1) lookup)
   const eventId = getEventId(event);
   if (eventId !== undefined && state.eventIds.has(eventId)) {
@@ -141,7 +144,8 @@ export const useEventStore = create<EventState>()((set) => ({
       let uiEvents = [...state.uiEvents];
       let added = false;
 
-      for (const event of incoming) {
+      for (const incomingEvent of incoming) {
+        const event = stripHeavyEventPayloads(incomingEvent);
         const eventId = getEventId(event);
         const isDuplicate = eventId !== undefined && eventIds.has(eventId);
 

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import EventService from "#/api/event-service/event-service.api";
 import { useUserConversation } from "#/hooks/query/use-user-conversation";
 import type { OpenHandsEvent } from "#/types/agent-server/core";
+import { stripHeavyEventPayloadsFromList } from "#/utils/sanitize-conversation-event";
 
 /**
  * Number of events to load on the initial REST history fetch and on each
@@ -62,7 +63,7 @@ export const useConversationHistory = (conversationId?: string) => {
       }
 
       // Reverse so callers can append in chronological order.
-      const events = [...page.items].reverse();
+      const events = stripHeavyEventPayloadsFromList([...page.items].reverse());
       return {
         events,
         hasMore:
