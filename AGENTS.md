@@ -488,10 +488,7 @@ When adding code that needs a new string, decide up front which rule it falls un
   - Keep the settings route on the compact `AgentServerConnectionForm` variant with `showSectionHeader={false}` and no checklist; the blocked root onboarding should stay similarly minimal, with only the status card plus a single sentence that links to the repo setup instructions.
   - For local screenshot/GIF capture of SPA routes, serve `build/` with an SPA fallback (for example `sirv build --single`) and restart the static server after each rebuild so hashed asset URLs stay in sync.
 
-- Git provider token persistence note: `src/api/secrets-service.ts` stores git provider tokens in TWO places:
-  1. **Agent-server secrets API** (`PUT /api/settings/secrets`) with naming convention `GIT_PROVIDER_{PROVIDER}_TOKEN` - for agent runtime use
-  2. **localStorage** (`openhands-agent-server-git-provider-tokens`) - for frontend git API calls (repo search, branches, etc.)
-     The `addGitProvider` method stores to server FIRST (must succeed), then updates localStorage. This ensures server-side persistence is the source of truth.
+- Git provider tokens are stored exclusively on the agent-server via `SecretsService` (`PUT /api/settings/secrets`). They are NOT mirrored to localStorage; the frontend reads which providers are connected from `settings.provider_tokens_set` (populated by `GET /api/settings`). Older notes about an `openhands-agent-server-git-provider-tokens` localStorage key are obsolete — no such key is read or written anywhere in the codebase.
 - Agent server connection settings now live at `Settings > Agent Server` (`/settings/agent-server`). The page reads deployment defaults from `VITE_BACKEND_BASE_URL` / `VITE_SESSION_API_KEY`, saves user overrides in the `openhands-agent-server-config` localStorage key, and must stay reachable even when the backend compatibility probe fails so users can recover from missing or wrong backend configuration.
 - Auth modes for `agent-canvas` (dev and production):
   - **Local mode** (default, no `--public` flag): A session API key is auto-generated and persisted to `~/.openhands/agent-canvas/session-api-key.txt`. The key is baked into the Vite dev server via `VITE_SESSION_API_KEY` or injected into static builds via `static-server.mjs --session-api-key`. Users never need to paste a key.
