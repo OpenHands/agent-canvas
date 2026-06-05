@@ -4,6 +4,7 @@ import {
   isGroupableEvent,
   EVENT_GROUP_MIN_SIZE,
 } from "#/components/conversation-events/chat/group-events";
+import { buildActionById } from "#/components/conversation-events/chat/event-thought-helpers";
 import {
   ActionEvent,
   AgentErrorEvent,
@@ -338,6 +339,35 @@ describe("groupEvents", () => {
     if (result[2].kind === "group") {
       expect(result[2].events).toHaveLength(3);
     }
+  });
+
+  it("produces identical output whether passed a raw event list or a precomputed action lookup", () => {
+    // The production render path passes a precomputed Map (the O(1) optimization);
+    // direct tests/callers still pass a raw list (the compatibility fallback).
+    // Both branches must group identically.
+    const a1 = makeBashAction("a1");
+    const a2 = makeBashAction("a2");
+    const a3 = makeBashAction("a3");
+    const a4 = makeBashAction("a4", [
+      { type: "text", text: "Let me check tests for the new conversation button:" },
+    ]);
+    const a5 = makeBashAction("a5");
+    const a6 = makeBashAction("a6");
+
+    const events = [
+      makeBashObservation("o1", "a1"),
+      makeBashObservation("o2", "a2"),
+      makeBashObservation("o3", "a3"),
+      makeBashObservation("o4", "a4"),
+      makeBashObservation("o5", "a5"),
+      makeBashObservation("o6", "a6"),
+    ];
+    const allEvents = [a1, a2, a3, ...events.slice(0, 3), a4, a5, a6, ...events.slice(3)];
+
+    const fromList = groupEvents(events, undefined, allEvents);
+    const fromLookup = groupEvents(events, undefined, buildActionById(allEvents));
+
+    expect(fromLookup).toEqual(fromList);
   });
 
   it("hoists thoughts attached to action events that haven't been observed yet", () => {
