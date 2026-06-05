@@ -1,3 +1,4 @@
+import { ACP_SETTINGS_KEYS } from "@openhands/typescript-client";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { Settings, SettingsValue } from "#/types/settings";
@@ -396,14 +397,6 @@ type ConversationSettingsPayload = SettingsRecord & {
   initial_message?: InitialMessagePayload;
 };
 
-const ACP_SETTINGS_KEYS = [
-  "acp_command",
-  "acp_args",
-  "acp_model",
-  "acp_session_mode",
-  "acp_prompt_timeout",
-] as const;
-
 export const ACP_SERVER_TAG_KEY = "acpserver";
 
 const CONVERSATION_SETTINGS_METADATA_KEYS = new Set([
@@ -587,6 +580,8 @@ function buildConfiguredAcpAgentSettings(
     // ``acp_model`` is resolved separately below so a saved ``null`` still
     // falls back to the provider's default rather than being dropped.
     if (key === "acp_model") continue;
+    // ``acp_env`` is deprecated — provider creds now route via agent_context.secrets.
+    if (key === "acp_env") continue;
     const value =
       key === "acp_command"
         ? resolveAcpCommand(agentSettings)
