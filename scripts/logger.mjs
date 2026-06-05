@@ -9,13 +9,19 @@
  */
 
 import { mkdirSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import process from "node:process";
 import { createLogger, format } from "winston";
 import DailyRotateFile from "winston-daily-rotate-file";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const logDir = resolve(__dirname, "..", "logs");
+// Mirror the state-directory logic from dev-safe.mjs so log files live
+// alongside all other agent-canvas runtime state (e.g. ~/.openhands/agent-canvas).
+// The same env var (OH_CANVAS_SAFE_STATE_DIR) overrides both.
+const stateDir =
+  process.env.OH_CANVAS_SAFE_STATE_DIR ||
+  join(homedir(), ".openhands", "agent-canvas");
+const logDir = join(stateDir, "logs");
 
 // Ensure the logs directory exists before the transport tries to open a file.
 mkdirSync(logDir, { recursive: true });
