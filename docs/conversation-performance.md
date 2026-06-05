@@ -49,3 +49,24 @@ Invariants:
   links, or visible text.
 - If another event type starts carrying large binary or base64 data, add it to
   the same sanitizer rather than handling it in one fetch path only.
+
+## Terminal replay retention
+
+The Terminal tab replays command input and output from `useCommandStore` when
+the xterm instance remounts. Without retention bounds, long-running
+conversations can keep a large command array and very large output strings alive
+even when the terminal is not visible.
+
+The command store now keeps only the latest retained command entries and
+truncates very large output chunks before storing them. This preserves recent
+terminal context while bounding replay memory.
+
+Invariants:
+
+- Retention limits apply to terminal replay state only. They do not alter the
+  canonical conversation event history or chat transcript.
+- Keep the truncation marker explicit so users can distinguish missing replay
+  output from a command that produced short output.
+- If a future terminal implementation streams directly from server-side history,
+  reevaluate these client-side limits rather than stacking multiple retention
+  systems.
