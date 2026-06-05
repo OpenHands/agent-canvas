@@ -338,40 +338,23 @@ export async function ensureMockLLMProfile(
   // The GUI now treats the ACTIVE LLM PROFILE as the source of truth in local
   // mode — a bare agent_settings.llm key no longer counts as "configured" (see
   // useLlmConfigured). So back the mock LLM with a real, *active* profile;
-  // activating it also stamps agent_settings.llm so the agent-server uses it
-  // for inference. Use MOCK_LLM_AGENT_URL — the URL the agent-server reaches
-  // the mock LLM at, which may differ from MOCK_LLM_BASE_URL in Docker.
+  // activating it stamps agent_settings.llm so the agent-server uses it for
+  // inference. Use MOCK_LLM_AGENT_URL — the URL the agent-server reaches the
+  // mock LLM at, which may differ from MOCK_LLM_BASE_URL in Docker.
+  //
+  // Always delete-then-create to guarantee clean state: other tests
+  // (e.g. resetToOpenHandsAgent) may PATCH agent_settings between runs,
+  // and re-activating an existing profile ensures the flat settings are
+  // re-stamped. include_secrets: true tells the server to persist the
+  // api_key as a real secret — without it the key is silently dropped and
+  // the conversation starts with api_key=None.
   const PROFILE_NAME = "mock-llm";
 
-  // Short-circuit if an active profile already points at the mock LLM.
-  const profilesResp = await request.get(`${BACKEND_URL}/api/profiles`, {
-    headers: { "X-Session-API-Key": SESSION_API_KEY },
-  });
-  if (profilesResp.ok()) {
-    const data = (await profilesResp.json()) as {
-      profiles?: {
-        name: string;
-        model?: string;
-        base_url?: string | null;
-        api_key_set?: boolean;
-      }[];
-      active_profile?: string | null;
-    };
-    const active = data.profiles?.find((p) => p.name === data.active_profile);
-    if (
-      active?.model === model &&
-      active?.base_url === MOCK_LLM_AGENT_URL &&
-      active?.api_key_set
-    ) {
-      return; // Already configured
-    }
-  }
-
-  // Create (delete-then-create resets any stale config) and activate.
   await request.delete(
     `${BACKEND_URL}/api/profiles/${encodeURIComponent(PROFILE_NAME)}`,
     { headers: { "X-Session-API-Key": SESSION_API_KEY } },
   );
+
   const createResp = await request.post(
     `${BACKEND_URL}/api/profiles/${encodeURIComponent(PROFILE_NAME)}`,
     {
@@ -385,6 +368,7 @@ export async function ensureMockLLMProfile(
           api_key: "mock-api-key-for-testing",
           base_url: MOCK_LLM_AGENT_URL,
         },
+        include_secrets: true,
       },
     },
   );

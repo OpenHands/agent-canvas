@@ -74,6 +74,7 @@ async function saveProfile(
           api_key: "mock-api-key-for-testing",
           base_url: MOCK_LLM_AGENT_URL,
         },
+        include_secrets: true,
       },
     },
   );
