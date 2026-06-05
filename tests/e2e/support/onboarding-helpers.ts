@@ -13,6 +13,7 @@ export async function routeOnboardingLlmCatalog(page: Page) {
       body: JSON.stringify({
         models: {
           anthropic: ["claude-opus-4-8"],
+          openai: ["gpt-5.5"],
           openhands: ["claude-opus-4-5-20251101"],
         },
       }),
@@ -26,6 +27,7 @@ export async function routeOnboardingLlmCatalog(page: Page) {
       body: JSON.stringify({
         models: [
           "anthropic/claude-opus-4-8",
+          "openai/gpt-5.5",
           "openhands/claude-opus-4-5-20251101",
         ],
       }),
@@ -36,7 +38,9 @@ export async function routeOnboardingLlmCatalog(page: Page) {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ providers: ["anthropic", "openhands"] }),
+      body: JSON.stringify({
+        providers: ["anthropic", "openai", "openhands"],
+      }),
     });
   });
 }

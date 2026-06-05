@@ -91,9 +91,11 @@ function browserToolsEnabled() {
 }
 
 /**
- * Shape of `VITE_RUNTIME_SERVICES_INFO` (set by the dev launchers in
- * scripts/dev-*.mjs). All URLs are written from the agent's point of view,
- * not the browser's. The block is rendered into the agent's system prompt
+ * Shape of the runtime services info (set by the dev launchers in
+ * scripts/dev-*.mjs as `VITE_RUNTIME_SERVICES_INFO`, or injected at serve time
+ * by `scripts/static-server.mjs` for static builds — see
+ * `getRawRuntimeServicesInfo`). All URLs are written from the agent's point of
+ * view, not the browser's. The block is rendered into the agent's system prompt
  * via `AgentContext.system_message_suffix` so the agent knows what's
  * reachable from inside its sandbox without having to probe.
  */
@@ -122,8 +124,35 @@ interface RuntimeServicesInfo {
   };
 }
 
+/**
+ * Return the raw runtime-services JSON string, consulting two sources in order
+ * (mirrors `getBakedSessionApiKey` in agent-server-config.ts):
+ *   1. `VITE_RUNTIME_SERVICES_INFO` — baked into the bundle at build time by
+ *      the dev launchers (`npm run dev`, dev:static).
+ *   2. `window.__AGENT_CANVAS_RUNTIME_SERVICES_INFO__` — injected into
+ *      index.html at serve time by `scripts/static-server.mjs
+ *      --runtime-services-info <json>`. This is the path used by static builds
+ *      (the Docker image and the published binary), where the env var is empty
+ *      in the prebuilt bundle. Without it the `<RUNTIME_SERVICES>` block is
+ *      missing and the agent cannot reach the local automation backend.
+ */
+function getRawRuntimeServicesInfo(): string | null {
+  const envRaw = import.meta.env.VITE_RUNTIME_SERVICES_INFO?.trim();
+  if (envRaw) return envRaw;
+
+  if (typeof window !== "undefined") {
+    const injected = (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_RUNTIME_SERVICES_INFO__;
+    if (typeof injected === "string") {
+      return injected.trim() || null;
+    }
+  }
+
+  return null;
+}
+
 function parseRuntimeServicesInfo(): RuntimeServicesInfo | null {
-  const raw = import.meta.env.VITE_RUNTIME_SERVICES_INFO?.trim();
+  const raw = getRawRuntimeServicesInfo();
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as RuntimeServicesInfo;
@@ -131,7 +160,8 @@ function parseRuntimeServicesInfo(): RuntimeServicesInfo | null {
     return parsed;
   } catch {
     // Malformed JSON: ignore and fall back to no runtime info, rather than
-    // tearing down conversation creation over a misconfigured dev env var.
+    // tearing down conversation creation over a misconfigured env var or
+    // injected value.
     return null;
   }
 }
@@ -564,6 +594,15 @@ function buildConfiguredAcpAgentSettings(
     if (value !== undefined && value !== null) {
       payload[key] = value;
     }
+  }
+
+  // ``mcp_config`` is a *shared* field (not in ACP_SETTINGS_KEYS): forward it
+  // so the ACP subprocess connects to the configured MCP servers at session
+  // creation. Only include it when it actually carries servers — an empty or
+  // malformed value is dropped rather than sending ``mcp_config: {}``.
+  const mcpConfig = toRecord(agentSettings.mcp_config);
+  if (Object.keys(mcpConfig).length > 0 && "mcpServers" in mcpConfig) {
+    payload.mcp_config = mcpConfig;
   }
 
   // Saved settings may carry ``acp_model: null`` (existing users predating

@@ -796,8 +796,10 @@ function startAutomationBackend(config) {
           join(config.stateDir, "workspaces"),
         // Session API key for self-hosted auth — shared with agent-server via X-Session-API-Key header
         AUTOMATION_LOCAL_API_KEY: config.sessionApiKey,
-        // CORS: allow localhost origins for dev
-        AUTOMATION_CORS_ORIGINS: `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
+        // CORS: allow localhost origins for dev, unless explicitly overridden.
+        AUTOMATION_CORS_ORIGINS:
+          process.env.AUTOMATION_CORS_ORIGINS ||
+          `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
         FILE_STORE: "local",
         LOCAL_STORAGE_PATH: join(config.stateDir, "storage"),
         OPENHANDS_SUPPRESS_BANNER: "1",
@@ -1269,6 +1271,13 @@ function startStaticFrontend(config, staticDir) {
   logService("static", `Starting on port ${config.vitePort}...`, c.magenta);
   logService("static", `Serving from: ${staticDir}`, c.dim);
 
+  // Build the runtime-services info JSON so the pre-built frontend can
+  // populate the agent's <RUNTIME_SERVICES> system-prompt block without
+  // VITE_RUNTIME_SERVICES_INFO baked in at build time.
+  const runtimeServicesInfo = config.launchAgentServer
+    ? JSON.stringify(buildAutomationRuntimeServicesInfo(config))
+    : null;
+
   const staticServerScript = join(projectRoot, "scripts", "static-server.mjs");
   spawnService(
     "static",
@@ -1287,6 +1296,10 @@ function startStaticFrontend(config, staticDir) {
         : []),
       ...(config.launchAgentServer && config.isPublic
         ? ["--auth-required"]
+        : []),
+      // Inject runtime-services info so the agent knows what's reachable.
+      ...(runtimeServicesInfo
+        ? ["--runtime-services-info", runtimeServicesInfo]
         : []),
       // Proxy routes only to services that this launch mode started.
       ...buildRouteArgs(getLocalServiceRoutes(config)),

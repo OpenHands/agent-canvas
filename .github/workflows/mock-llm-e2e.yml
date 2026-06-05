@@ -199,8 +199,26 @@ jobs:
             --artifact-url "${{ steps.upload_artifacts.outputs.artifact-url || '' }}"
           cat "$MOCK_LLM_REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Post PR comment
+      - name: Save PR number for comment workflow
         if: always() && github.event.pull_request.number
+        run: echo "${{ github.event.pull_request.number }}" > pr_number.txt
+
+      - name: Upload PR comment payload
+        if: always() && github.event.pull_request.number
+        uses: actions/upload-artifact@v7
+        with:
+          name: mock-llm-pr-comment-payload
+          retention-days: 3
+          path: |
+            ${{ env.MOCK_LLM_REPORT_PATH }}
+            pr_number.txt
+
+      - name: Post PR comment (same-repo PRs only)
+        if: >-
+          always() &&
+          github.event.pull_request.number &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
