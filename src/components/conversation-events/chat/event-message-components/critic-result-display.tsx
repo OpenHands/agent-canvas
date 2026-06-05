@@ -48,7 +48,12 @@ function getIssueColorClass(probability: number): string {
 }
 
 function isSettingsRecord(value: unknown): value is Record<string, unknown> {
-  return value != null && typeof value === "object" && !Array.isArray(value);
+  return (
+    value !== null &&
+    value !== undefined &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+  );
 }
 
 function getIterativeRefinementEnabled(
