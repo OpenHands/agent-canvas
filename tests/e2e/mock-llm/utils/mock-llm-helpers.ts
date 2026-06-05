@@ -401,11 +401,10 @@ async function deleteProfileIfExists(page: Page, profileName: string) {
       const deleteBtn = page.getByTestId("profile-delete");
       if (await deleteBtn.isVisible()) {
         await deleteBtn.click();
-        // Wait for the confirmation dialog and confirm
-        const confirmBtn = page.getByTestId("confirm-delete-btn");
-        if (await confirmBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
-          await confirmBtn.click();
-        }
+        // Confirm the deletion dialog (test ID: delete-profile-confirm)
+        const confirmBtn = page.getByTestId("delete-profile-confirm");
+        await confirmBtn.waitFor({ state: "visible", timeout: 5_000 });
+        await confirmBtn.click();
         await waitForTestId(page, "add-llm-profile");
       } else {
         await page.keyboard.press("Escape");
