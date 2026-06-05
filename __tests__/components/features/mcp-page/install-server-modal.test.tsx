@@ -251,7 +251,10 @@ describe("InstallServerModal", () => {
       mcp_config: { mcpServers: Record<string, unknown> };
     };
     expect(sent.mcp_config.mcpServers).toMatchObject({
-      shttp: { url: "https://mcp.linear.app/mcp", auth: "lin_api_secret" },
+      shttp: {
+        url: "https://mcp.linear.app/mcp",
+        headers: { Authorization: "Bearer lin_api_secret" },
+      },
     });
   });
 
