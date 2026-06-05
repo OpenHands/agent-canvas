@@ -5,6 +5,18 @@ import {
   isObservationEvent,
 } from "#/types/agent-server/type-guards";
 
+export type ActionById = ReadonlyMap<string, ActionEvent>;
+
+export const buildActionById = (allEvents: OpenHandsEvent[]): ActionById => {
+  const actionById = new Map<string, ActionEvent>();
+  for (const event of allEvents) {
+    if (isActionEvent(event)) {
+      actionById.set(event.id, event);
+    }
+  }
+  return actionById;
+};
+
 /**
  * Returns the displayable thought text of an `ActionEvent`, or an empty
  * string if the event has no usable thought content.
@@ -53,7 +65,7 @@ export const hasNonEmptyThought = (action: ActionEvent): boolean =>
  */
 export const getThoughtSourceAction = (
   event: OpenHandsEvent,
-  allEvents: OpenHandsEvent[],
+  actionById: ActionById,
 ): ActionEvent | null => {
   if (isActionEvent(event)) {
     if (event.action.kind === "ThinkAction") return null;
@@ -61,9 +73,7 @@ export const getThoughtSourceAction = (
   }
 
   if (isObservationEvent(event)) {
-    const action = allEvents.find(
-      (e): e is ActionEvent => isActionEvent(e) && e.id === event.action_id,
-    );
+    const action = actionById.get(event.action_id);
     if (!action) return null;
     if (action.action.kind === "ThinkAction") return null;
     return hasNonEmptyThought(action) ? action : null;

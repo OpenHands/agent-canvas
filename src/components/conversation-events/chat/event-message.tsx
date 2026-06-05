@@ -31,11 +31,13 @@ import { CollapsibleThinking } from "./event-message-components/collapsible-thin
 import { HookExecutionEventMessage } from "./event-message-components/hook-execution-event-message";
 import { createSkillReadyEvent } from "./event-content-helpers/create-skill-ready-event";
 import { shouldShowPlanPreview } from "./hooks/use-plan-preview-events";
-import { getReasoningContent } from "./event-thought-helpers";
+import { buildActionById, getReasoningContent } from "./event-thought-helpers";
+import type { ActionById } from "./event-thought-helpers";
 
 interface EventMessageProps {
   event: OpenHandsEvent & { isFromPlanningAgent?: boolean };
-  messages: OpenHandsEvent[];
+  messages?: OpenHandsEvent[];
+  actionById?: ActionById;
   isLastMessage: boolean;
   isInLast10Actions: boolean;
   /** Set of event IDs that should render PlanPreview (one per user message phase) */
@@ -131,7 +133,8 @@ const renderUserMessageWithSkillReady = (
 
 export function EventMessage({
   event,
-  messages,
+  messages = [],
+  actionById,
   isLastMessage,
   isInLast10Actions,
   planPreviewEventIds,
@@ -140,6 +143,10 @@ export function EventMessage({
   const { data: config } = useConfig();
   const { planContent } = useConversationStore();
   const { curAgentState } = useAgentState();
+  const actionLookup = React.useMemo(
+    () => actionById ?? buildActionById(messages),
+    [actionById, messages],
+  );
 
   // Disable Build button while agent is running (streaming)
   const isAgentRunning =
@@ -240,22 +247,17 @@ export function EventMessage({
       return null;
     }
 
-    // Find the action that this observation is responding to
-    const correspondingAction = messages.find(
-      (msg) => isActionEvent(msg) && msg.id === event.action_id,
-    );
+    const correspondingAction = actionLookup.get(event.action_id);
 
     // Skip ThoughtEventMessage for ThinkAction (thought IS the action)
     const shouldShowThought =
       !suppressThought &&
       correspondingAction &&
-      isActionEvent(correspondingAction) &&
       correspondingAction.action.kind !== "ThinkAction";
 
-    const reasoningContent =
-      correspondingAction && isActionEvent(correspondingAction)
-        ? getReasoningContent(correspondingAction)
-        : "";
+    const reasoningContent = correspondingAction
+      ? getReasoningContent(correspondingAction)
+      : "";
 
     return (
       <>
@@ -269,11 +271,7 @@ export function EventMessage({
         <GenericEventMessageWrapper
           event={event}
           isLastMessage={isLastMessage}
-          correspondingAction={
-            correspondingAction && isActionEvent(correspondingAction)
-              ? correspondingAction
-              : undefined
-          }
+          correspondingAction={correspondingAction}
         />
       </>
     );

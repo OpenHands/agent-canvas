@@ -11,17 +11,15 @@ import {
 import { I18nKey } from "#/i18n/declaration";
 import { getEventContent } from "../event-content-helpers/get-event-content";
 import { IsInEventGroupContext } from "../../../features/chat/is-in-event-group-context";
+import { buildActionById, type ActionById } from "../event-thought-helpers";
 
 interface EventGroupProps {
   /** The events represented by this group. Used to compute the summary. */
   events: OpenHandsEvent[];
-  /**
-   * Full event history. Used to resolve the action that produced the latest
-   * observation in the group so the summary title matches what the individual
-   * card would show (e.g. "Editing path/to/file"). Falls back to `events` when
-   * omitted.
-   */
+  /** Full event history fallback used by direct component tests/callers. */
   allEvents?: OpenHandsEvent[];
+  /** Precomputed action lookup used by the chat list render path. */
+  actionById?: ActionById;
   /**
    * `true` once an event outside this group has been emitted after it, so the
    * group is no longer the "live" tail of the chat. While `false` (the
@@ -58,6 +56,7 @@ interface EventGroupProps {
 export function EventGroup({
   events,
   allEvents,
+  actionById,
   isFinalized = false,
   children,
 }: EventGroupProps) {
@@ -65,6 +64,10 @@ export function EventGroup({
   const [expanded, setExpanded] = React.useState(false);
   const contentId = React.useId();
   const buttonId = `${contentId}-toggle`;
+  const actionLookup = React.useMemo(
+    () => actionById ?? buildActionById(allEvents ?? events),
+    [actionById, allEvents, events],
+  );
 
   if (events.length === 0) {
     return null;
@@ -88,11 +91,7 @@ export function EventGroup({
     if (isActionEvent(latestEvent)) {
       latestTitle = getEventContent(latestEvent).title;
     } else if (isObservationEvent(latestEvent)) {
-      const lookupSource = allEvents ?? events;
-      const correspondingAction = lookupSource.find(
-        (e): e is ActionEvent =>
-          isActionEvent(e) && e.id === latestEvent.action_id,
-      );
+      const correspondingAction = actionLookup.get(latestEvent.action_id);
       latestTitle = getEventContent(latestEvent, correspondingAction).title;
     }
   }

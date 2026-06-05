@@ -8,6 +8,7 @@ import { ThoughtEventMessage } from "./event-message-components/thought-event-me
 import { useModelStore } from "#/stores/model-store";
 import { ModelMessages } from "#/components/features/chat/model-messages";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
+import { buildActionById } from "./event-thought-helpers";
 // TODO: Implement microagent functionality for V1 when APIs support V1 event IDs
 // import { AgentState } from "#/types/agent-state";
 // import MemoryIcon from "#/icons/memory_icon.svg?react";
@@ -22,6 +23,10 @@ const getLastEventId = (events: OpenHandsEvent[]) => events.at(-1)?.id;
 export const Messages: React.FC<MessagesProps> = React.memo(
   ({ messages, allEvents }) => {
     const { conversationId } = useOptionalConversationId();
+    const actionById = React.useMemo(
+      () => buildActionById(allEvents),
+      [allEvents],
+    );
     // Get the set of event IDs that should render PlanPreview
     // This ensures only one preview per user message "phase"
     const planPreviewEventIds = usePlanPreviewEvents(allEvents);
@@ -57,8 +62,8 @@ export const Messages: React.FC<MessagesProps> = React.memo(
     // hoisted out as their own rendered item so they always show up in the
     // message pane and a thought between actions starts a fresh group.
     const renderedItems = React.useMemo(
-      () => groupEvents(messages, undefined, allEvents),
-      [messages, allEvents],
+      () => groupEvents(messages, undefined, actionById),
+      [messages, actionById],
     );
 
     const renderEventMessage = (
@@ -69,7 +74,7 @@ export const Messages: React.FC<MessagesProps> = React.memo(
       <EventMessage
         key={event.id}
         event={event}
-        messages={allEvents}
+        actionById={actionById}
         isLastMessage={messages.length - 1 === index}
         isInLast10Actions={messages.length - 1 - index < 10}
         planPreviewEventIds={planPreviewEventIds}
@@ -111,7 +116,7 @@ export const Messages: React.FC<MessagesProps> = React.memo(
             <React.Fragment key={`group-${groupKey}`}>
               <EventGroup
                 events={item.events}
-                allEvents={allEvents}
+                actionById={actionById}
                 isFinalized={isFinalized}
               >
                 {item.events.map((event, offset) =>
