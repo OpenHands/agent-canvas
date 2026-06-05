@@ -68,6 +68,7 @@ import {
   isProcessRunning,
   signalProcessTree,
 } from "./dev-process-utils.mjs";
+import { fileLog, stripAnsi } from "./logger.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -105,18 +106,22 @@ const c = {
 function logService(name, message, color = c.reset) {
   const ts = new Date().toISOString().split("T")[1].split(".")[0];
   console.log(`${c.dim}${ts}${c.reset} ${color}[${name}]${c.reset} ${message}`);
+  fileLog("info", `[${name}] ${stripAnsi(message)}`);
 }
 
 function logStep(step, message) {
   console.log(`${c.cyan}[${step}]${c.reset} ${message}`);
+  fileLog("info", `[${step}] ${message}`);
 }
 
 function logSuccess(message) {
   console.log(`${c.green}✓${c.reset} ${message}`);
+  fileLog("info", `✓ ${message}`);
 }
 
 function logError(message) {
   console.error(`${c.red}✗${c.reset} ${message}`);
+  fileLog("error", `✗ ${stripAnsi(message)}`);
 }
 
 /**
@@ -472,7 +477,9 @@ function checkPrerequisites({
 
   if (checkUvx) {
     if (!commandExists("uvx")) {
-      console.error(formatMissingUvxGuidance(projectRoot));
+      const uvxGuidance = formatMissingUvxGuidance(projectRoot);
+      console.error(uvxGuidance);
+      fileLog("error", stripAnsi(uvxGuidance));
       process.exit(1);
     }
     logSuccess("uvx found");
@@ -862,6 +869,7 @@ function shutdown() {
 
   console.log("");
   console.log(`${c.yellow}Shutting down...${c.reset}`);
+  fileLog("info", "Shutting down...");
 
   for (const [name, proc] of processes) {
     logService(name, "Stopping...", c.dim);
@@ -1133,6 +1141,20 @@ function printBanner(config) {
   console.log(`${c.dim}State directory: ${config.stateDir}${c.reset}`);
   console.log(`${c.dim}Press Ctrl+C to stop${c.reset}`);
   console.log("");
+
+  // Write a compact plain-text summary to the log file.
+  const summary = [
+    `${stackName} — started`,
+    `  Ingress:         http://localhost:${config.ingressPort}/`,
+    ...(config.launchFrontend
+      ? [`  Main UI:         http://localhost:${config.ingressPort}/`]
+      : []),
+    ...(config.launchAutomation
+      ? [`  API Docs:        http://localhost:${config.ingressPort}/api/automation/docs`]
+      : []),
+    `  State directory: ${config.stateDir}`,
+  ];
+  fileLog("info", summary.join("\n"));
 }
 
 async function main(options = {}) {
@@ -1186,6 +1208,7 @@ async function main(options = {}) {
   console.log("");
   console.log(`${c.cyan}${c.bold}${titleWithMode}${c.reset}`);
   console.log("");
+  fileLog("info", titleWithMode);
 
   // Setup phase
   checkPrerequisites({
@@ -1397,6 +1420,7 @@ if (isMainModule) {
     logError(`Fatal error: ${err.message}`);
     if (err.stack) {
       console.error(c.dim + err.stack + c.reset);
+      fileLog("error", err.stack);
     }
     process.exit(1);
   });
