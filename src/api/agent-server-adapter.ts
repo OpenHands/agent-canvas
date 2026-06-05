@@ -1,3 +1,4 @@
+import { ACP_SETTINGS_KEYS } from "@openhands/typescript-client";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { Settings, SettingsValue } from "#/types/settings";
@@ -395,14 +396,6 @@ type ConversationSettingsPayload = SettingsRecord & {
   workspace: LocalWorkspacePayload;
   initial_message?: InitialMessagePayload;
 };
-
-const ACP_SETTINGS_KEYS = [
-  "acp_command",
-  "acp_args",
-  "acp_model",
-  "acp_session_mode",
-  "acp_prompt_timeout",
-] as const;
 
 export const ACP_SERVER_TAG_KEY = "acpserver";
 
