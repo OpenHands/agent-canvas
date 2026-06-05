@@ -335,32 +335,51 @@ export async function ensureMockLLMProfile(
   request: APIRequestContext,
   model = "openai/mock-test-model",
 ) {
-  // Check if the current profile already has the mock LLM settings.
-  // Use MOCK_LLM_AGENT_URL — this is the URL the agent-server will use to
-  // reach the mock LLM, which may differ from MOCK_LLM_BASE_URL in Docker.
-  const settingsResp = await request.get(`${BACKEND_URL}/api/settings`, {
-    headers: {
-      "X-Session-API-Key": SESSION_API_KEY,
-      "X-Expose-Secrets": "encrypted",
-    },
-  });
+  // The GUI now treats the ACTIVE LLM PROFILE as the source of truth in local
+  // mode — a bare agent_settings.llm key no longer counts as "configured" (see
+  // useLlmConfigured). So back the mock LLM with a real, *active* profile;
+  // activating it also stamps agent_settings.llm so the agent-server uses it
+  // for inference. Use MOCK_LLM_AGENT_URL — the URL the agent-server reaches
+  // the mock LLM at, which may differ from MOCK_LLM_BASE_URL in Docker.
+  const PROFILE_NAME = "mock-llm";
 
-  if (settingsResp.ok()) {
-    const settings = await settingsResp.json();
-    const llm = settings?.agent_settings?.llm;
-    if (llm?.model === model && llm?.base_url === MOCK_LLM_AGENT_URL) {
+  // Short-circuit if an active profile already points at the mock LLM.
+  const profilesResp = await request.get(`${BACKEND_URL}/api/profiles`, {
+    headers: { "X-Session-API-Key": SESSION_API_KEY },
+  });
+  if (profilesResp.ok()) {
+    const data = (await profilesResp.json()) as {
+      profiles?: {
+        name: string;
+        model?: string;
+        base_url?: string | null;
+        api_key_set?: boolean;
+      }[];
+      active_profile?: string | null;
+    };
+    const active = data.profiles?.find((p) => p.name === data.active_profile);
+    if (
+      active?.model === model &&
+      active?.base_url === MOCK_LLM_AGENT_URL &&
+      active?.api_key_set
+    ) {
       return; // Already configured
     }
   }
 
-  // Configure the active profile's LLM settings
-  const patchResp = await request.patch(`${BACKEND_URL}/api/settings`, {
-    headers: {
-      "X-Session-API-Key": SESSION_API_KEY,
-      "Content-Type": "application/json",
-    },
-    data: {
-      agent_settings_diff: {
+  // Create (delete-then-create resets any stale config) and activate.
+  await request.delete(
+    `${BACKEND_URL}/api/profiles/${encodeURIComponent(PROFILE_NAME)}`,
+    { headers: { "X-Session-API-Key": SESSION_API_KEY } },
+  );
+  const createResp = await request.post(
+    `${BACKEND_URL}/api/profiles/${encodeURIComponent(PROFILE_NAME)}`,
+    {
+      headers: {
+        "X-Session-API-Key": SESSION_API_KEY,
+        "Content-Type": "application/json",
+      },
+      data: {
         llm: {
           model,
           api_key: "mock-api-key-for-testing",
@@ -368,10 +387,19 @@ export async function ensureMockLLMProfile(
         },
       },
     },
-  });
+  );
   expect(
-    patchResp.ok(),
-    `PATCH /api/settings failed: ${patchResp.status()}`,
+    createResp.ok(),
+    `POST /api/profiles/${PROFILE_NAME}: ${createResp.status()}`,
+  ).toBe(true);
+
+  const activateResp = await request.post(
+    `${BACKEND_URL}/api/profiles/${encodeURIComponent(PROFILE_NAME)}/activate`,
+    { headers: { "X-Session-API-Key": SESSION_API_KEY } },
+  );
+  expect(
+    activateResp.ok(),
+    `POST /api/profiles/${PROFILE_NAME}/activate: ${activateResp.status()}`,
   ).toBe(true);
 }
 
