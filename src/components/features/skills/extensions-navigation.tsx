@@ -9,8 +9,6 @@ import {
   sidebarNavRowClassName,
 } from "#/components/features/sidebar/sidebar-layout";
 import { I18nKey } from "#/i18n/declaration";
-import { useSidebarStore } from "#/stores/sidebar-store";
-import { useBreakpoint } from "#/hooks/use-breakpoint";
 
 interface ExtensionNavItem {
   to: string;
@@ -61,15 +59,6 @@ export const EXTENSIONS_NAV_ITEMS: ExtensionNavItem[] = [
 
 export function ExtensionsNavigation() {
   const { t } = useTranslation("openhands");
-  const sidebarCollapsed = useSidebarStore((state) => state.collapsed);
-  // At iPad portrait widths (md to <lg) an expanded primary Sidebar (300px)
-  // plus this nav (260px) leaves the main content unreadable. Hide ourselves
-  // until the user collapses the Sidebar or the viewport reaches `lg`.
-  const belowLg = useBreakpoint(1023);
-  const belowMd = useBreakpoint(767);
-  const hideForExpandedSidebar = !sidebarCollapsed && belowLg && !belowMd;
-
-  if (hideForExpandedSidebar) return null;
 
   return (
     <aside

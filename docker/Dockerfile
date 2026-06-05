@@ -45,10 +45,16 @@ RUN npm run build
 
 # ── Stage 1b: Generate shell-sourceable defaults from config/defaults.json ──
 # This avoids needing jq/python at container runtime to parse the JSON.
+# package.json is also read to extract the pinned @openhands/extensions SHA
+# and emit it as CONFIG_EXTENSIONS_REF so the agent-server uses the same
+# extensions commit as the bundled UI (via EXTENSIONS_REF in entrypoint.sh).
 FROM node:24-slim AS config-gen
-COPY config/defaults.json /tmp/defaults.json
+COPY config/defaults.json package.json /tmp/
 RUN node -e " \
   const c = JSON.parse(require('fs').readFileSync('/tmp/defaults.json','utf-8')); \
+  const pkg = JSON.parse(require('fs').readFileSync('/tmp/package.json','utf-8')); \
+  const extUrl = (pkg.dependencies || pkg.devDependencies || {})['@openhands/extensions'] || ''; \
+  const extSha = (extUrl.match(/#([0-9a-f]{40})\$/i) || [])[1] || ''; \
   const lines = [ \
     'CONFIG_AGENT_SERVER_PORT=' + c.ports.agentServer, \
     'CONFIG_AUTOMATION_PORT=' + c.ports.automation, \
@@ -58,6 +64,7 @@ RUN node -e " \
     'CONFIG_BASH_EVENTS=' + c.paths.bashEvents, \
     'CONFIG_AUTOMATION_DB=' + c.paths.automationDb, \
   ]; \
+  if (extSha) lines.push('CONFIG_EXTENSIONS_REF=' + extSha); \
   require('fs').writeFileSync('/tmp/defaults.env', lines.join('\n') + '\n'); \
 "
 
@@ -101,6 +108,10 @@ COPY --from=frontend-build /build/build /opt/agent-canvas/frontend
 
 # Copy the static-server script (serves frontend + proxies to backends)
 COPY scripts/static-server.mjs /opt/agent-canvas/static-server.mjs
+
+# Copy the runtime-services-info builder (entrypoint.sh runs it as a CLI to
+# emit the agent's <RUNTIME_SERVICES> block; same builder the dev stack uses).
+COPY scripts/runtime-services-info.mjs /opt/agent-canvas/runtime-services-info.mjs
 
 # Copy custom tools (e.g. canvas_ui_tool.py) so the agent-server can import
 # them via tool_module_qualnames. OH_EXTRA_PYTHON_PATH is set in entrypoint.sh.

@@ -34,6 +34,36 @@ interface WorkspaceSelectionFormProps {
   onConfirm?: (workspace: LocalWorkspace) => void;
 }
 
+export const HOME_SELECTED_WORKSPACE_PATH_KEY =
+  "oh:home-selected-workspace-path";
+
+function getStoredSelectedWorkspacePath(): string | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const path = window.sessionStorage.getItem(
+      HOME_SELECTED_WORKSPACE_PATH_KEY,
+    );
+    return path && path.length > 0 ? path : null;
+  } catch {
+    return null;
+  }
+}
+
+function setStoredSelectedWorkspacePath(path: string | null): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    if (path) {
+      window.sessionStorage.setItem(HOME_SELECTED_WORKSPACE_PATH_KEY, path);
+    } else {
+      window.sessionStorage.removeItem(HOME_SELECTED_WORKSPACE_PATH_KEY);
+    }
+  } catch {
+    // sessionStorage may be unavailable in private browsing contexts.
+  }
+}
+
 export function WorkspaceSelectionForm({
   isLoadingSettings = false,
   onConfirm,
@@ -70,6 +100,43 @@ export function WorkspaceSelectionForm({
   const isCreatingConversationElsewhere = useIsCreatingConversation();
   const isCreatingConversation =
     isPending || isSuccess || isCreatingConversationElsewhere;
+
+  const handleWorkspaceChange = React.useCallback(
+    (workspace: LocalWorkspace | null) => {
+      setSelectedWorkspace(workspace);
+      setStoredSelectedWorkspacePath(workspace?.path ?? null);
+    },
+    [],
+  );
+
+  React.useEffect(() => {
+    const storedPath = getStoredSelectedWorkspacePath();
+    if (!storedPath) return;
+
+    const restoredWorkspace = workspaces.find((w) => w.path === storedPath);
+    if (restoredWorkspace) {
+      setSelectedWorkspace((current) =>
+        current?.path === restoredWorkspace.path ? current : restoredWorkspace,
+      );
+      return;
+    }
+
+    if (
+      !isLoadingWorkspaces &&
+      !hasWorkspaceError &&
+      !workspacesUnsupportedMessage
+    ) {
+      setStoredSelectedWorkspacePath(null);
+      setSelectedWorkspace((current) =>
+        current?.path === storedPath ? null : current,
+      );
+    }
+  }, [
+    hasWorkspaceError,
+    isLoadingWorkspaces,
+    workspaces,
+    workspacesUnsupportedMessage,
+  ]);
 
   const showWorkspaceStatus =
     workspaceParents.length > 0 || Boolean(workspacesUnsupportedMessage);
@@ -127,10 +194,11 @@ export function WorkspaceSelectionForm({
           disabled={isDropdownDisabled}
           disabledTooltip={workspacesUnsupportedMessage}
           showManage={workspaces.length > 0 || workspaceParents.length > 0}
-          onChange={setSelectedWorkspace}
+          onChange={handleWorkspaceChange}
           onAddClick={() => setIsBrowserOpen(true)}
           onManageClick={() => setIsManageOpen(true)}
           className="max-w-auto"
+          key={selectedWorkspace?.path ?? "empty-workspace-selection"}
         />
 
         {showWorkspaceStatus && workspaceStatusText && (
@@ -178,13 +246,13 @@ export function WorkspaceSelectionForm({
         onClose={() => setIsManageOpen(false)}
         onRemove={(path) => {
           if (selectedWorkspace?.path === path) {
-            setSelectedWorkspace(null);
+            handleWorkspaceChange(null);
           }
           removeWorkspace(path);
         }}
         onRemoveParent={(path) => {
           if (selectedWorkspace?.parentPath === path) {
-            setSelectedWorkspace(null);
+            handleWorkspaceChange(null);
           }
           removeWorkspaceParent(path);
         }}

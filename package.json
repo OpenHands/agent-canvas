@@ -23,7 +23,7 @@
     "@heroui/react": "2.8.10",
     "@microlink/react-json-view": "1.31.20",
     "@monaco-editor/react": "4.7.0",
-    "@openhands/extensions": "git+https://github.com/OpenHands/extensions.git#62594156a187722344736bc2ff5edfb12c0cc75c",
+    "@openhands/extensions": "github:OpenHands/extensions#8a6690071e0e9229ae70b30ff0352aff9e6fca21",
     "@openhands/typescript-client": "1.24.3",
     "@react-router/node": "7.14.2",
     "@react-router/serve": "7.14.2",
@@ -153,7 +153,9 @@
     "tailwindcss": "4.2.4",
     "typescript": "6.0.3",
     "vite-plugin-svgr": "5.2.0",
-    "vitest": "4.1.5"
+    "vitest": "4.1.5",
+    "winston": "^3.19.0",
+    "winston-daily-rotate-file": "^5.0.0"
   },
   "packageManager": "npm@10.5.0",
   "volta": {
