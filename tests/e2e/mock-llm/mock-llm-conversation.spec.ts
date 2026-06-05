@@ -173,9 +173,18 @@ test.describe("mock-LLM agent-server conversation", () => {
 
     // Open the actions menu for this profile
     await targetRow!.getByTestId("profile-menu-trigger").click();
+    await waitForTestId(page, "profile-actions-menu");
 
-    // Click "Set as active"
-    await page.getByTestId("profile-set-active").click();
+    // Click "Set as active" — with client-side reconciliation
+    // (useEnsureActiveProfile) a freshly-created keyed profile may already be
+    // auto-activated, which disables this item. Only click when it isn't active
+    // yet; either way the badge poll below verifies the end state.
+    const setActive = page.getByTestId("profile-set-active");
+    if (await setActive.isEnabled()) {
+      await setActive.click();
+    } else {
+      await page.keyboard.press("Escape");
+    }
 
     // Verify the "Active" badge appears on our profile.
     // Poll with reload instead of a fixed timeout — the mutation may take

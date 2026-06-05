@@ -197,6 +197,32 @@ async function navigateToConversation(page: Page, events: unknown[]) {
     });
   });
 
+  // The GUI now hides ChatSuggestions (and shows the "LLM not configured"
+  // banner) unless an active profile with a key exists — see useLlmConfigured.
+  // Seed one so the empty conversation renders normally: it restores the
+  // "Let's start building!" readiness signal below and keeps the banner out of
+  // the captured screenshots (matching the baselines).
+  await page.route(
+    (url) => url.pathname.endsWith("/api/profiles"),
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          profiles: [
+            {
+              name: "mock",
+              model: "anthropic/claude-sonnet-4-20250514",
+              base_url: null,
+              api_key_set: true,
+            },
+          ],
+          active_profile: "mock",
+        }),
+      });
+    },
+  );
+
   await stubWebSocket(page);
 
   await page.goto(`/conversations/${CONVERSATION_ID}`, {
