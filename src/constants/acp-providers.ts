@@ -200,15 +200,16 @@ export interface ACPProviderSecretField {
    * Gemini Vertex service-account / ADC JSON). */
   multiline?: boolean;
   /**
-   * The credential must reach a containerized agent-server as a
-   * {@link https://github.com/OpenHands/software-agent-sdk StaticSecret}
-   * (literal value sent inline in the start request), not a back-end lookup.
-   * The SDK's ``acp_file_secrets`` defaults read ``agent_context.secrets`` at
-   * spawn time — before any ``LookupSecret`` URL could be resolved — to
-   * materialise the ``*_JSON`` blobs to disk and point the CLI's data-dir env
-   * at them. Set ``true`` for every credential canvas collects here except the
-   * optional base URL (see the {@link getAcpProviderSecrets} note on
-   * ``ANTHROPIC_BASE_URL``).
+   * Marks a provider-specific credential a fresh container needs (subscription
+   * token, Codex ``auth.json``, Gemini Vertex SA) — as opposed to a generic API
+   * key or base URL. This is an **onboarding/validation** concept only: it
+   * drives which fields the credential step prompts for and which are required
+   * per backend capability (see ``backendRequiresAcpCredentials``). It does
+   * **not** affect the wire — every saved credential travels uniformly as a
+   * ``LookupSecret`` resolved from the agent-server's store at spawn time (off
+   * the event loop, software-agent-sdk#3510). Set ``true`` for every credential
+   * canvas collects here except the optional base URL (see the
+   * {@link getAcpProviderSecrets} note on ``ANTHROPIC_BASE_URL``).
    */
   reserved?: boolean;
   /** i18n key for the one-line helper text under the field. */
@@ -333,7 +334,8 @@ export function getAcpPreferredDefaultModel(
  *
  * Field order is: reserved subscription/Vertex credentials → API key → optional
  * base URL. Everything except the base URL is {@link ACPProviderSecretField.reserved}
- * (sent inline as a ``StaticSecret`` for containerized backends).
+ * (a credential a fresh container needs; an onboarding/validation marker, not a
+ * wire distinction — all of them ride as ``LookupSecret``s).
  *
  * Every field is optional at the UI level — the step is skippable, and a
  * subscription / OAuth login on the backend takes precedence over a key at
@@ -343,7 +345,7 @@ export function getAcpPreferredDefaultModel(
  * NB: the base URL is deliberately **not** ``reserved``. Sending
  * ``ANTHROPIC_BASE_URL`` alongside a ``CLAUDE_CODE_OAUTH_TOKEN`` silently breaks
  * the token's bearer auth (an inherited LiteLLM base URL routes the request away
- * from Anthropic), so canvas never auto-promotes it to a StaticSecret — it only
+ * from Anthropic), so canvas never auto-promotes it to a request secret — it only
  * travels if the user explicitly set it as a global secret.
  *
  * Returns ``[]`` for OpenHands, the ``"custom"`` preset, any unknown key, and a

@@ -1,10 +1,16 @@
 # Live ACP-in-Docker e2e
 
-Proves the containerized ACP credential path **through Canvas's own request
-builder** (`buildStartConversationRequest`) against a real agent-server
-container, with real provider API calls. It's the "it actually works" companion
-to the unit tests in `__tests__/api/agent-server-adapter.test.ts` — those assert
-the request shape; this asserts a real agent reply.
+Proves the containerized ACP credential path **through Canvas's own code** —
+each credential is saved to the agent-server's secret store (as onboarding does)
+and `buildStartConversationRequest` references it as a `LookupSecret` the server
+resolves at spawn time — against a real agent-server container, with real
+provider API calls. It's the "it actually works" companion to the unit tests in
+`__tests__/api/agent-server-adapter.test.ts` — those assert the request shape;
+this asserts a real agent reply.
+
+> **Requires `agent-server:1.25.0-python` or newer** (software-agent-sdk#3510):
+> the ACP credentials ride as loopback LookupSecrets, and only #3510 resolves
+> them off the event loop. An older image deadlocks the first turn.
 
 It is **not** part of `npm test` (it lives under `tests/`, which Vitest excludes,
 and needs a running container + real host credentials).
@@ -13,11 +19,11 @@ and needs a running container + real host credentials).
 
 ```bash
 # 1. Agent-server container with the canvas_ui tool mounted (as the dev stack does).
-SHA=$(gh api repos/OpenHands/software-agent-sdk/commits/main --jq '.sha[0:7]')
+#    Minimum 1.25.0-python (software-agent-sdk#3510); override for a newer build.
 docker run -d --name oh-acp -p 8010:8000 \
   -v oh-acp-data:/workspace \
   -v "$(pwd)/tools:/canvas-tools:ro" -e OH_EXTRA_PYTHON_PATH=/canvas-tools \
-  ghcr.io/openhands/agent-server:${SHA}-python
+  ghcr.io/openhands/agent-server:1.25.0-python
 
 # 2. Run the e2e (all providers, or a subset).
 npx vite-node -c tests/e2e/live-acp/vite-node.config.mts \
@@ -32,22 +38,34 @@ the Claude Code OAuth token from the macOS keychain, and the gcloud ADC for Gemi
 Vertex (`gcloud auth application-default login` first). A provider whose creds
 aren't present is skipped.
 
-## Last validated result (agent-server `c950fdb-python`)
+## Last validated result (agent-server `1.25.0-python`, unified LookupSecret path)
+
+Re-validated 2026-06-05 against `ghcr.io/openhands/agent-server:1.25.0-python`
+(the first release with software-agent-sdk#3510). Each credential rides as a
+loopback `LookupSecret`; the logs confirm the agent-server resolved it
+(`GET /api/settings/secrets/<name>` 200) during ACP cold-start — **no deadlock,
+no "Failed to start ACP server: timed out"**, which is exactly what #3510 fixes.
 
 | Provider | Result | Evidence (agent-server logs) |
 |---|---|---|
 | **Codex** | ✅ real reply `ACPOK-CODEX` | `Materialised ACP file-secret 'CODEX_AUTH_JSON' -> …/acp/codex/auth.json`; codex-acp 0.15.0; `Authenticating with ACP method: chatgpt` |
-| **Claude Code** | ✅ real reply `ACPOK-CLAUDE` | claude-agent-acp 0.40.0; `CLAUDE_CODE_OAUTH_TOKEN` env path (no `ANTHROPIC_BASE_URL`) |
-| **Gemini CLI** | ✅ real reply `ACPOK-GEMINI`¹ | `Materialised ACP file-secret 'GOOGLE_APPLICATION_CREDENTIALS_JSON' -> …/acp/gemini-cli/gcloud-credentials.json`; gemini-cli 0.45.0; `Authenticating with ACP method: vertex-ai` |
+| **Claude Code** | ✅ real reply `ACPOK-CLAUDE` | claude-agent-acp 0.30.0; `CLAUDE_CODE_OAUTH_TOKEN` env path (no `ANTHROPIC_BASE_URL`) |
+| **Gemini CLI** | ⚠️ credential path proven; blocked downstream on model selection¹ | `Materialised ACP file-secret 'GOOGLE_APPLICATION_CREDENTIALS_JSON' -> …/acp/gemini-cli/gcloud-credentials.json`; gemini-cli 0.45.1; `Authenticating with ACP method: vertex-ai` ✅ → `Publisher Model …/gemini-3-flash was not found` |
 
-¹ **Gemini caveat.** The credential path (materialise ADC → `vertex-ai` auth →
-real reply) is fully proven, but only after working around an SDK/gemini-cli
-blocker: gemini-cli ≥0.43 rejects the registry default session mode (`yolo`) with
-`set_session_mode … RequestError` during headless init. Run with
-`ACP_E2E_GEMINI_SESSION_MODE=default` to confirm the full turn (that's how the ✅
-above was obtained). This is an SDK-side issue (the ACP provider registry's
-`default_session_mode`), not a Canvas credential problem and not addressed by this
-PR — see `docs/ACP_AGENTS.md`.
+¹ **Gemini caveat (credential path proven; model selection is the blocker).** The
+credential **delivery is fully validated**: the LookupSecret resolves, the ADC
+blob materialises to disk, and gemini-cli authenticates via `vertex-ai`. With a
+**fresh** host ADC (`gcloud auth application-default login`) the earlier
+`invalid_rapt` is gone and the turn reaches real Vertex inference. It then fails
+because gemini-cli 0.45.1 runs **`gemini-3-flash`** — its own built-in default —
+*ignoring* the `acp_model=gemini-2.5-flash` Canvas/the SDK requests
+(`set_session_model` does not stick), and that model isn't served by the test
+Vertex project. This is an **SDK/gemini-cli model-selection** concern, not a
+Canvas credential issue: Canvas correctly sends a Vertex-safe `acp_model`; the
+runtime doesn't honor it. Follow-up belongs in the SDK registry (make
+`set_session_model` apply for gemini-cli 0.45.x, or pin a default the project
+serves). Run with `ACP_E2E_GEMINI_SESSION_MODE=default` to also clear the
+separate gemini-cli ≥0.43 `set_session_mode("yolo")` headless-init blocker.
 
 ## Knobs
 

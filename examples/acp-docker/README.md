@@ -16,13 +16,18 @@ cp .env.example .env          # optional — only if baking creds into the conta
 docker compose up
 ```
 
-This starts `ghcr.io/openhands/agent-server:<sha>-python` on
+This starts `ghcr.io/openhands/agent-server:1.25.0-python` on
 `http://localhost:8010` with a persistent `acp-data` volume. The image
 pre-installs the ACP CLI wrappers and the SDK rewrites `npx -y <pkg>` to those
 pinned binaries in-pod, so Canvas can keep sending the default `npx` command
 unchanged.
 
-To pin a newer build:
+> **Minimum version:** `1.25.0-python`. Canvas delivers every ACP credential as
+> a loopback `LookupSecret`; only software-agent-sdk#3510 (first released in
+> v1.25.0) resolves it off the event loop. An older image deadlocks the first
+> ACP turn with `Failed to start ACP server: timed out`.
+
+To pin a newer release or a post-#3510 main build:
 
 ```bash
 AGENT_SERVER_IMAGE=ghcr.io/openhands/agent-server:$(gh api repos/OpenHands/software-agent-sdk/commits/main --jq '.sha[0:7]')-python docker compose up
@@ -52,9 +57,10 @@ fall back on):
 | **Gemini CLI** (Vertex) | `GOOGLE_APPLICATION_CREDENTIALS_JSON` (SA / ADC JSON) + `GOOGLE_CLOUD_PROJECT` + `GOOGLE_CLOUD_LOCATION` + `GOOGLE_GENAI_USE_VERTEXAI=true` |
 
 Each provider also accepts an API-key path (`OPENAI_API_KEY` / `ANTHROPIC_API_KEY` /
-`GEMINI_API_KEY`). Canvas sends these as inline secrets on the start request; the
-SDK materialises the `*_JSON` blobs to disk and points the CLI's data-dir env at
-them automatically.
+`GEMINI_API_KEY`). Canvas saves these to the agent-server's secret store and the
+start request references them as `LookupSecret`s; the SDK resolves each value at
+spawn time (off the event loop, per #3510), materialises the `*_JSON` blobs to
+disk, and points the CLI's data-dir env at them automatically.
 
 > ⚠️ **Do not set `ANTHROPIC_BASE_URL` with the Claude OAuth token.** An inherited
 > LiteLLM base URL silently breaks bearer auth. Canvas never auto-sends it.

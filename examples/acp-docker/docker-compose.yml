@@ -19,13 +19,17 @@
 
 services:
   agent-server:
-    # Pin to a software-agent-sdk main commit that includes the containerized
-    # ACP merges (#1020 file-secret materialisation, #3490 npx→pinned-binary,
-    # #3492 per-conversation data-dir). Override with:
+    # Pin to a software-agent-sdk release that includes the containerized ACP
+    # merges (#1020 file-secret materialisation, #3490 npx→pinned-binary, #3492
+    # per-conversation data-dir) AND #3510 (ACP cold-start off the event loop),
+    # which is REQUIRED: Canvas now delivers every ACP credential as a loopback
+    # LookupSecret, and only #3510 resolves it without self-deadlocking the
+    # conversation ("Failed to start ACP server: timed out"). #3510 first ships
+    # in v1.25.0, so 1.25.0-python is the minimum. Override with a newer release
+    # or a post-#3510 main sha:
     #   AGENT_SERVER_IMAGE=ghcr.io/openhands/agent-server:<sha>-python docker compose up
-    # Get the latest main sha with:
     #   gh api repos/OpenHands/software-agent-sdk/commits/main --jq '.sha[0:7]'
-    image: ${AGENT_SERVER_IMAGE:-ghcr.io/openhands/agent-server:c950fdb-python}
+    image: ${AGENT_SERVER_IMAGE:-ghcr.io/openhands/agent-server:1.25.0-python}
     container_name: oh-acp
     ports:
       # host:container — Canvas points VITE_BACKEND_BASE_URL at http://localhost:8010.
@@ -37,8 +41,9 @@ services:
       # this var, conversation creation fails to import ``canvas_ui_tool``.
       - OH_EXTRA_PYTHON_PATH=/canvas-tools
       # Optional cipher key. ACP conversations work without it (Canvas sends ACP
-      # provider credentials as plaintext StaticSecrets and does NOT flag the
-      # request secrets_encrypted). Set it to (a) persist saved secrets across
+      # provider credentials as loopback LookupSecrets resolved from the
+      # agent-server's own secret store, and does NOT flag the request
+      # secrets_encrypted). Set it to (a) persist saved secrets across
       # container restarts and (b) enable the encrypted-settings path used by
       # OpenHands-agent (non-ACP) conversations. Generate one with
       # `python -c "import secrets;print(secrets.token_urlsafe(32))"`.

@@ -147,10 +147,11 @@ point Canvas at it). In short:
 #    to it directly). The image pre-installs the ACP CLI wrappers. The
 #    canvas_ui tool is mounted so the agent-server can import the module Canvas
 #    references in every start request.
-SHA=$(gh api repos/OpenHands/software-agent-sdk/commits/main --jq '.sha[0:7]')
+# Minimum image: 1.25.0-python (first release with software-agent-sdk#3510;
+# older images deadlock the first ACP turn). Override SHA with a newer build.
 docker run -d --name oh-acp -p 8010:8000 -v acp-data:/workspace \
   -v "$(pwd)/tools:/canvas-tools:ro" -e OH_EXTRA_PYTHON_PATH=/canvas-tools \
-  ghcr.io/openhands/agent-server:${SHA}-python
+  ghcr.io/openhands/agent-server:1.25.0-python
 
 # 2. Canvas pointed at the container.
 VITE_BACKEND_BASE_URL=http://localhost:8010 npm run dev:frontend
@@ -159,9 +160,12 @@ VITE_BACKEND_BASE_URL=http://localhost:8010 npm run dev:frontend
 ### How credentials reach a containerized agent
 
 In onboarding's **Set up credentials** step, the credentials you enter are saved
-as global secrets (as usual) and then sent **inline on the start request** as
-`StaticSecret`s for ACP conversations — not as a backend lookup. The SDK's
-`acp_file_secrets` defaults then:
+as global secrets in the agent-server's secret store (as usual). The start
+request then references each as a **`LookupSecret`** — uniformly for ACP and
+non-ACP — and the agent-server resolves the value back from its own store at
+spawn time. For ACP this resolution runs **off the event loop**
+(software-agent-sdk#3510), so the loopback fetch does not self-deadlock. The
+SDK's `acp_file_secrets` defaults then:
 
 - materialise `CODEX_AUTH_JSON` back to `auth.json` under `CODEX_HOME` and point
   Codex at it;
@@ -178,16 +182,24 @@ needed.
 > [!IMPORTANT]
 > **Do not set `ANTHROPIC_BASE_URL` alongside the Claude OAuth token.** An
 > inherited LiteLLM base URL silently breaks the token's bearer auth (it routes
-> the request away from Anthropic). Canvas never auto-promotes the base URL to an
-> inline secret for exactly this reason; only set it deliberately, and not with
+> the request away from Anthropic). Canvas never auto-promotes the base URL to a
+> request secret for exactly this reason; only set it deliberately, and not with
 > the OAuth path.
 
 > [!IMPORTANT]
 > **Gemini Vertex needs a fresh ADC.** Run `gcloud auth application-default login`
 > before copying `~/.config/gcloud/application_default_credentials.json` — a stale
 > token surfaces as `invalid_rapt`, which is a credential problem, not a Canvas
-> bug. Canvas preselects the Vertex-safe model `gemini-2.5-flash`; gemini-cli's
-> own preview default 404s in many projects.
+> bug.
+
+> [!NOTE]
+> **Gemini model selection is an SDK/gemini-cli concern.** Canvas preselects a
+> Vertex-safe `acp_model` (`gemini-2.5-flash`), but gemini-cli 0.45.x has been
+> observed to run its **own** built-in default (e.g. `gemini-3-flash`) regardless
+> — the SDK's `set_session_model` doesn't stick — and that model 404s on projects
+> that don't serve it. Canvas sends the right model; honoring it is the SDK
+> registry's job. If a Gemini turn fails with `Publisher Model … was not found`,
+> that's this issue, not a credential problem.
 
 ### Per-conversation isolation
 

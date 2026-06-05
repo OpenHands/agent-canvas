@@ -1,34 +1,62 @@
 /**
  * Live e2e for the containerized ACP path (agent-canvas#1013/#1014).
  *
- * Exercises CANVAS'S OWN code path — it imports {@link buildStartConversationRequest}
- * and builds each provider's start request exactly as the app does, then POSTs it
- * to a real agent-server container and asserts a real agent reply. This is the
- * "it actually works" check the unit tests can't give: it proves the secrets
- * Canvas emits, plus the SDK's acp_file_secrets materialisation, authenticate the
- * CLI end-to-end.
+ * Exercises CANVAS'S OWN code path — it saves each credential to the
+ * agent-server's secret store via {@link SecretsService.createSecret} (exactly
+ * as onboarding does), then imports {@link buildStartConversationRequest} and
+ * builds each provider's start request as the app does, POSTs it to a real
+ * agent-server container, and asserts a real agent reply. This is the
+ * "it actually works" check the unit tests can't give: it proves the
+ * LookupSecrets Canvas emits resolve back from the store and authenticate the
+ * CLI end-to-end (including the SDK's acp_file_secrets materialisation).
  *
- * Excluded from `npm test` (lives under tests/). Run it by hand against a running
- * container:
+ * Requires an agent-server with software-agent-sdk#3510 (first in v1.25.0): the
+ * ACP credentials ride as loopback LookupSecrets, and only #3510 resolves them
+ * off the event loop — an older image deadlocks ("Failed to start ACP server:
+ * timed out").
+ *
+ * Excluded from `npm test` (lives under tests/). Run it by hand against a
+ * running container:
  *
  *   docker run -d --name oh-acp -p 8010:8000 -v oh-acp-data:/workspace \
  *     -v "$(pwd)/tools:/canvas-tools:ro" -e OH_EXTRA_PYTHON_PATH=/canvas-tools \
- *     ghcr.io/openhands/agent-server:<sha>-python
- *   npx vite-node tests/e2e/live-acp/acp-docker-e2e.mts -- codex claude gemini
+ *     ghcr.io/openhands/agent-server:1.25.0-python
+ *   npx vite-node -c tests/e2e/live-acp/vite-node.config.mts \
+ *     tests/e2e/live-acp/acp-docker-e2e.mts -- codex claude gemini
  *
  * Credentials are read from the host (never printed): Codex ~/.codex/auth.json,
  * the Claude Code OAuth token from the macOS keychain, and the gcloud ADC for
  * Gemini Vertex. A provider whose credentials aren't present is skipped.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 
+import {
+  setActiveSelection,
+  setRegisteredBackends,
+} from "#/api/backend-registry/active-store";
+import { SecretsService } from "#/api/secrets-service";
 import { buildStartConversationRequest } from "#/api/agent-server-adapter";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 
 const BASE = process.env.ACP_E2E_BASE_URL ?? "http://localhost:8010";
+
+// Point the app's backend registry at the container, exactly as if the user had
+// added it in the backend selector. SecretsService (the credential store) and
+// buildStartConversationRequest's LookupSecret auth headers both resolve the
+// host through this.
+setRegisteredBackends([
+  {
+    id: "acp-docker",
+    name: "ACP Docker",
+    host: BASE,
+    apiKey: "",
+    kind: "local",
+  },
+]);
+setActiveSelection({ backendId: "acp-docker", orgId: null });
 // Canvas gives every conversation its OWN working_dir (<base>/<id_hex>) so the
 // agent-server can init a fresh git repo + worktree per conversation. Mirror
 // that here with a unique dir per run/provider — sharing one dir makes the
@@ -148,12 +176,13 @@ const PLANS: ProviderPlan[] = [
 
 function buildRequest(
   plan: ProviderPlan,
-  secrets: Record<string, string>,
+  secretNames: string[],
   workingDir: string,
 ) {
   // Build via the same function the app uses — this is the whole point of the
-  // exercise. We pass acpStaticSecrets directly (the app reads these back from
-  // the saved global secrets in buildStartConversationRequestWithEncryptedSettings).
+  // exercise. Each saved credential is referenced by name as a LookupSecret; the
+  // agent-server resolves the value back from its own store (where the
+  // SecretsService.createSecret calls above put it) at spawn time.
   return buildStartConversationRequest({
     settings: {
       ...DEFAULT_SETTINGS,
@@ -171,7 +200,7 @@ function buildRequest(
     },
     query: `Reply with exactly: ${plan.expectedToken}`,
     workingDir,
-    acpStaticSecrets: secrets,
+    customSecrets: secretNames.map((name) => ({ name })),
   });
 }
 
@@ -197,14 +226,11 @@ async function getJson(url: string): Promise<any> {
   return text ? JSON.parse(text) : null;
 }
 
-const TERMINAL = new Set([
-  "finished",
-  "idle",
-  "error",
-  "stuck",
-  "completed",
-  "stopped",
-]);
+// Terminal states for a single-turn run. NB: "idle" is deliberately NOT here —
+// a freshly-created conversation reports "idle" before the agent starts, so
+// treating it as terminal bails out before the reply exists. Wait for the run
+// to actually finish (or error/stuck).
+const TERMINAL = new Set(["finished", "error", "stuck", "stopped"]);
 
 async function runProvider(plan: ProviderPlan): Promise<boolean> {
   const secrets = plan.collectSecrets();
@@ -218,8 +244,14 @@ async function runProvider(plan: ProviderPlan): Promise<boolean> {
       `secrets=[${Object.keys(secrets).join(", ")}])`,
   );
 
+  // Onboarding step: save each credential to the agent-server's secret store so
+  // the LookupSecret the start request emits can be resolved back.
+  for (const [name, value] of Object.entries(secrets)) {
+    await SecretsService.createSecret(name, value);
+  }
+
   const workingDir = `${WORKING_DIR_BASE}/${plan.id}-${Date.now()}`;
-  const payload = buildRequest(plan, secrets, workingDir);
+  const payload = buildRequest(plan, Object.keys(secrets), workingDir);
   // Sanity-check the request the app would send, without leaking values.
   const emitted = payload.secrets as Record<string, { kind: string }>;
   console.log(
@@ -227,6 +259,17 @@ async function runProvider(plan: ProviderPlan): Promise<boolean> {
       .map(([k, v]) => `${k}=${v.kind}`)
       .join(", ")}`,
   );
+  const notLookup = Object.entries(emitted ?? {}).filter(
+    ([, v]) => v.kind !== "LookupSecret",
+  );
+  if (notLookup.length > 0) {
+    console.log(
+      `   ❌ ${plan.id}: expected all secrets as LookupSecret, got ${notLookup
+        .map(([k, v]) => `${k}=${v.kind}`)
+        .join(", ")}`,
+    );
+    return false;
+  }
 
   const created = await postJson(`${BASE}/api/conversations`, payload);
   const id = created.id;

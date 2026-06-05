@@ -5,13 +5,16 @@
  *   onboarding "Set up credentials"  -> SecretsService.createSecret(name, value)
  *   choose-agent step                -> buildAcpAgentSettingsDiff(...) PATCH /api/settings
  *   conversation start               -> buildStartConversationRequestWithEncryptedSettings(...)
- *                                         (reads settings + reads the saved reserved
- *                                          creds BACK via SecretsService.getSecretValues,
- *                                          emits them as StaticSecrets)
+ *                                         (reads settings + the saved secret NAMES,
+ *                                          emits each as a LookupSecret the
+ *                                          agent-server resolves from its store)
  *
  * This is the piece the request-builder script can't cover: it proves the saved
- * credentials round-trip through the backend store and the orchestrator inlines
- * them correctly, end-to-end, against a real container.
+ * credentials round-trip through the backend store and the orchestrator emits
+ * the right LookupSecrets, end-to-end, against a real container.
+ *
+ * Requires an agent-server with software-agent-sdk#3510 (first in v1.25.0) —
+ * ACP credentials resolve off the event loop; an older image deadlocks.
  *
  *   npx vite-node -c tests/e2e/live-acp/vite-node.config.mts \
  *     tests/e2e/live-acp/acp-docker-app-e2e.mts -- codex
@@ -164,14 +167,11 @@ async function getJson(url: string): Promise<any> {
   return text ? JSON.parse(text) : null;
 }
 
-const TERMINAL = new Set([
-  "finished",
-  "idle",
-  "error",
-  "stuck",
-  "completed",
-  "stopped",
-]);
+// Terminal states for a single-turn run. NB: "idle" is deliberately NOT here —
+// a freshly-created conversation reports "idle" before the agent starts, so
+// treating it as terminal bails out before the reply exists. Wait for the run
+// to actually finish (or error/stuck).
+const TERMINAL = new Set(["finished", "error", "stuck", "stopped"]);
 
 async function run(plan: ProviderPlan): Promise<boolean> {
   const secrets = plan.collectSecrets();
@@ -207,7 +207,7 @@ async function run(plan: ProviderPlan): Promise<boolean> {
   );
 
   // 3) conversation start — the app's own orchestrator. It re-reads settings +
-  //    reads the saved reserved creds BACK and inlines them as StaticSecrets.
+  //    the saved secret names and emits each as a LookupSecret.
   const workingDir = `/workspace/app-e2e/${plan.id}-${Date.now()}`;
   const payload = (await buildStartConversationRequestWithEncryptedSettings({
     settings: undefined as any, // base settings come from the backend fetch
@@ -221,13 +221,13 @@ async function run(plan: ProviderPlan): Promise<boolean> {
       .map(([k, v]: any) => `${k}=${v.kind}`)
       .join(", ")}`,
   );
-  // Assert the read-back actually produced StaticSecrets for the reserved creds.
+  // Assert the orchestrator emitted a LookupSecret for each saved credential.
   const missing = Object.keys(secrets).filter(
-    (n) => emitted[n]?.kind !== "StaticSecret",
+    (n) => emitted[n]?.kind !== "LookupSecret",
   );
   if (missing.length > 0) {
     console.log(
-      `   ❌ ${plan.id}: orchestrator did NOT inline as StaticSecret: ${missing.join(", ")}`,
+      `   ❌ ${plan.id}: orchestrator did NOT emit a LookupSecret for: ${missing.join(", ")}`,
     );
     return false;
   }
