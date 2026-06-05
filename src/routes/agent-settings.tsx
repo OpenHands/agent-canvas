@@ -35,6 +35,13 @@ export const handle = { hideTitle: true };
 
 type AgentType = "openhands" | "acp";
 
+type AgentSettingsSnapshot = {
+  agentType: AgentType;
+  commandText: string;
+  acpModel: string;
+  isCustomAcpModel: boolean;
+};
+
 const ENABLE_SUB_AGENTS_FIELD_KEY = "enable_sub_agents";
 const COMMAND_PLACEHOLDER_FALLBACK = "npx -y <package-name>";
 const ACP_CUSTOM_MODEL_KEY = "__custom_model__";
@@ -112,11 +119,16 @@ function AgentSettingsScreen() {
   const [commandText, setCommandText] = useState("");
   const [acpModel, setAcpModel] = useState("");
   const [isCustomAcpModel, setIsCustomAcpModel] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
 
   const lastInitializedSettingsRef = useRef<unknown>(null);
   const loadedAcpServerRef = useRef<string | null>(null);
   const loadedCommandTextRef = useRef<string>("");
+  const [loadedSnapshot, setLoadedSnapshot] = useState<AgentSettingsSnapshot>({
+    agentType: "openhands",
+    commandText: "",
+    acpModel: "",
+    isCustomAcpModel: false,
+  });
 
   useEffect(() => {
     if (!settings) return;
@@ -150,11 +162,19 @@ function AgentSettingsScreen() {
       const savedModel = settings.agent_settings?.acp_model;
       const normalizedSavedModel =
         typeof savedModel === "string" ? savedModel.trim() : "";
-      setAcpModel(normalizedSavedModel || provider?.default_model || "");
-      setIsCustomAcpModel(
+      const nextAcpModel =
+        normalizedSavedModel || provider?.default_model || "";
+      const nextIsCustomAcpModel =
         !!normalizedSavedModel &&
-          (!provider || !isKnownAcpModel(provider, normalizedSavedModel)),
-      );
+        (!provider || !isKnownAcpModel(provider, normalizedSavedModel));
+      setAcpModel(nextAcpModel);
+      setIsCustomAcpModel(nextIsCustomAcpModel);
+      setLoadedSnapshot({
+        agentType: "acp",
+        commandText: renderedCommandText,
+        acpModel: nextAcpModel,
+        isCustomAcpModel: nextIsCustomAcpModel,
+      });
     } else {
       setAgentType("openhands");
       setCommandText("");
@@ -162,8 +182,13 @@ function AgentSettingsScreen() {
       loadedAcpServerRef.current = null;
       loadedCommandTextRef.current = "";
       setIsCustomAcpModel(false);
+      setLoadedSnapshot({
+        agentType: "openhands",
+        commandText: "",
+        acpModel: "",
+        isCustomAcpModel: false,
+      });
     }
-    setIsDirty(false);
   }, [settings]);
 
   // Sync the sub-agents toggle when settings reload
@@ -192,10 +217,13 @@ function AgentSettingsScreen() {
     formatCommand(ACP_PROVIDERS[0]?.default_command ?? []) ||
     COMMAND_PLACEHOLDER_FALLBACK;
 
-  // Dirty tracking: for OpenHands path, also check sub-agents toggle
-  const isOpenHandsDirty =
-    !isAcp && subAgentsEnabled !== initialSubAgentsEnabled;
-  const effectiveIsDirty = isDirty || isOpenHandsDirty;
+  const effectiveIsDirty =
+    agentType !== loadedSnapshot.agentType ||
+    (isAcp
+      ? commandText !== loadedSnapshot.commandText ||
+        acpModel !== loadedSnapshot.acpModel ||
+        isCustomAcpModel !== loadedSnapshot.isCustomAcpModel
+      : subAgentsEnabled !== initialSubAgentsEnabled);
 
   const handleSave = () => {
     if (isAcp) {
@@ -233,7 +261,13 @@ function AgentSettingsScreen() {
           },
           onSuccess: () => {
             displaySuccessToast(t(I18nKey.SETTINGS$SAVED));
-            setIsDirty(false);
+            setLoadedSnapshot({
+              agentType,
+              commandText,
+              acpModel,
+              isCustomAcpModel,
+            });
+            loadedCommandTextRef.current = commandText;
           },
         },
       );
@@ -253,7 +287,12 @@ function AgentSettingsScreen() {
           },
           onSuccess: () => {
             displaySuccessToast(t(I18nKey.SETTINGS$SAVED));
-            setIsDirty(false);
+            setLoadedSnapshot({
+              agentType,
+              commandText,
+              acpModel,
+              isCustomAcpModel,
+            });
           },
         },
       );
@@ -312,7 +351,6 @@ function AgentSettingsScreen() {
           } else if (newType === "openhands") {
             setIsCustomAcpModel(false);
           }
-          setIsDirty(true);
         }}
       />
 
@@ -376,7 +414,6 @@ function AgentSettingsScreen() {
                 setAcpModel("");
                 setIsCustomAcpModel(true);
               }
-              setIsDirty(true);
             }}
           />
 
@@ -409,7 +446,6 @@ function AgentSettingsScreen() {
                   setIsCustomAcpModel(false);
                 }
                 setCommandText(nextCommandText);
-                setIsDirty(true);
               }}
             />
             <Typography.Text className="text-xs text-[#717888]">
@@ -444,7 +480,6 @@ function AgentSettingsScreen() {
                     setIsCustomAcpModel(false);
                     setAcpModel(modelKey);
                   }
-                  setIsDirty(true);
                 }}
               />
             )}
@@ -460,10 +495,7 @@ function AgentSettingsScreen() {
                 className="w-full"
                 value={acpModel}
                 showOptionalTag
-                onChange={(value) => {
-                  setAcpModel(value);
-                  setIsDirty(true);
-                }}
+                onChange={setAcpModel}
               />
             )}
             <Typography.Text className="text-xs text-[#717888]">

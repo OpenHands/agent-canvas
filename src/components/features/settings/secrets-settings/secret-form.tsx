@@ -91,32 +91,28 @@ export function SecretForm({
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      return;
+    }
+
     const formData = new FormData(event.currentTarget);
-    const name = formData.get("secret-name")?.toString();
-    const value = formData.get("secret-value")?.toString().trim();
     const description = formData.get("secret-description")?.toString();
 
-    if (name) {
-      setError(null);
+    setError(null);
 
-      const isNameAlreadyUsed = secrets?.some(
-        (secret) => secret.name === name && secret.name !== selectedSecret,
-      );
-      if (isNameAlreadyUsed) {
-        setError(t("SECRETS$SECRET_ALREADY_EXISTS"));
-        return;
-      }
+    const isNameAlreadyUsed = secrets?.some(
+      (secret) => secret.name === trimmedName && secret.name !== selectedSecret,
+    );
+    if (isNameAlreadyUsed) {
+      setError(t("SECRETS$SECRET_ALREADY_EXISTS"));
+      return;
+    }
 
-      if (mode === "add") {
-        if (!value) {
-          setError(t("SECRETS$SECRET_VALUE_REQUIRED"));
-          return;
-        }
-
-        handleCreateSecret(name, value, description || undefined);
-      } else if (mode === "edit" && selectedSecret) {
-        handleEditSecret(selectedSecret, name, description || undefined);
-      }
+    if (mode === "add") {
+      handleCreateSecret(trimmedName, value.trim(), description || undefined);
+    } else if (mode === "edit" && selectedSecret) {
+      handleEditSecret(selectedSecret, trimmedName, description || undefined);
     }
   };
 

@@ -109,11 +109,15 @@ export function VerificationSettingsScreen({
   testId?: string;
 }) {
   const { data: settings } = useSettings(scope);
+  const initialConfirmationMode =
+    settings?.confirmation_mode ?? DEFAULT_SETTINGS.confirmation_mode;
+  const initialSecurityAnalyzer =
+    settings?.security_analyzer ?? DEFAULT_SETTINGS.security_analyzer;
   const [confirmationMode, setConfirmationMode] = React.useState(
-    DEFAULT_SETTINGS.confirmation_mode,
+    initialConfirmationMode,
   );
   const [securityAnalyzer, setSecurityAnalyzer] = React.useState<string | null>(
-    DEFAULT_SETTINGS.security_analyzer,
+    initialSecurityAnalyzer,
   );
   const [confirmationModeDirty, setConfirmationModeDirty] =
     React.useState(false);
@@ -121,15 +125,11 @@ export function VerificationSettingsScreen({
     React.useState(false);
 
   React.useEffect(() => {
-    setConfirmationMode(
-      settings?.confirmation_mode ?? DEFAULT_SETTINGS.confirmation_mode,
-    );
-    setSecurityAnalyzer(
-      settings?.security_analyzer ?? DEFAULT_SETTINGS.security_analyzer,
-    );
+    setConfirmationMode(initialConfirmationMode);
+    setSecurityAnalyzer(initialSecurityAnalyzer);
     setConfirmationModeDirty(false);
     setSecurityAnalyzerDirty(false);
-  }, [settings?.confirmation_mode, settings?.security_analyzer]);
+  }, [initialConfirmationMode, initialSecurityAnalyzer]);
 
   const buildHeader = React.useCallback(
     ({ isDisabled }: SdkSectionHeaderProps) => (
@@ -139,20 +139,22 @@ export function VerificationSettingsScreen({
         isConversationSettingsDisabled={isDisabled}
         onConfirmationModeChange={(value) => {
           setConfirmationMode(value);
-          const initialMode =
-            settings?.confirmation_mode ?? DEFAULT_SETTINGS.confirmation_mode;
-          setConfirmationModeDirty(value !== initialMode);
+          setConfirmationModeDirty(value !== initialConfirmationMode);
         }}
         onSecurityAnalyzerChange={(value) => {
           setSecurityAnalyzer(value);
-          const initialAnalyzer =
-            settings?.security_analyzer ?? DEFAULT_SETTINGS.security_analyzer;
-          setSecurityAnalyzerDirty(value !== initialAnalyzer);
+          setSecurityAnalyzerDirty(value !== initialSecurityAnalyzer);
         }}
         renderTopContent={renderTopContent}
       />
     ),
-    [confirmationMode, renderTopContent, securityAnalyzer],
+    [
+      confirmationMode,
+      initialConfirmationMode,
+      initialSecurityAnalyzer,
+      renderTopContent,
+      securityAnalyzer,
+    ],
   );
 
   const buildPayload = React.useCallback(
