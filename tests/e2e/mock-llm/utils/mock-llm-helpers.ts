@@ -5,12 +5,25 @@
  * shorter timeouts (responses are instant), no real credential handling.
  */
 
+import { resolve } from "node:path";
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
 // Tokens that the mock LLM server uses — must match mock-llm-server.py.
 export const BASH_TOKEN = "MOCK_LLM_E2E_BASH_OK";
 export const REPLY_TOKEN = "MOCK_LLM_E2E_REPLY_OK";
 export const BASH_COMMAND = `printf '${BASH_TOKEN}\\n'`;
+
+/** Reply token used by the image-upload test trajectory. */
+export const IMAGE_REPLY_TOKEN = "MOCK_LLM_IMAGE_OK";
+
+/**
+ * A minimal valid 1×1 white pixel PNG, base64-encoded.
+ * Used as a lightweight test fixture for image-upload E2E tests — small
+ * enough to keep request bodies manageable while still being a real PNG that
+ * the browser's FileReader can process.
+ */
+export const MINIMAL_PNG_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAABjE+ibYAAAAASUVORK5CYII=";
 
 // Ports / URLs — set via env or defaults matching playwright.mock-llm.config.ts.
 // The agent-canvas binary exposes a single ingress port; API calls are proxied
@@ -43,10 +56,20 @@ export const SESSION_API_KEY = (() => {
 })();
 
 /** Seed localStorage with flags that skip onboarding / analytics modals
- *  and a default local backend so the app doesn't show the manage-backends
- *  modal. The backend registry must be seeded because the static build has
- *  no baked VITE_SESSION_API_KEY — makeDefaultLocalBackend() returns null
- *  and readLegacyBackend() can't infer a host from the injected config. */
+ *  and a default local backend so the app boots straight into the home
+ *  page. The backend registry is seeded explicitly for two reasons:
+ *
+ *    1. It guarantees a deterministic backend entry across tests even
+ *       when key rotation or stale-state scenarios are exercised.
+ *    2. It avoids depending on the runtime injection ordering between
+ *       `page.addInitScript` and the static-server's `<head>` script.
+ *
+ *  As of the published-binary session-key fix, the static-server also
+ *  exposes the runtime key via `window.__AGENT_CANVAS_SESSION_API_KEY__`,
+ *  which `getBakedSessionApiKey()` reads — so a real user with an empty
+ *  localStorage no longer needs this seeding to reach onboarding.  See
+ *  `auth mode: fresh install with runtime-injected key` in
+ *  `mock-llm-auth-modes.spec.ts` for the test that covers that path. */
 export async function seedLocalStorage(page: Page) {
   await page.addInitScript(
     ({ apiKey }) => {
@@ -393,10 +416,27 @@ export async function activateTrajectory(
 
 /**
  * Reset the mock LLM server to its default trajectory.
+ * Also clears the stored completion-request history.
  */
 export async function resetMockLLM(request: APIRequestContext) {
   const resp = await request.post(`${MOCK_LLM_BASE_URL}/admin/reset`);
   expect(resp.ok(), `Reset mock LLM: ${resp.status()}`).toBe(true);
+}
+
+/**
+ * Fetch all chat-completion request bodies captured by the mock LLM server
+ * since the last /admin/reset.
+ *
+ * The server stores every POST to /v1/chat/completions, so callers can assert
+ * that at least one request contained image content (or any other field).
+ */
+export async function getMockLLMRequests(
+  request: APIRequestContext,
+): Promise<Record<string, unknown>[]> {
+  const resp = await request.get(`${MOCK_LLM_BASE_URL}/admin/requests`);
+  expect(resp.ok(), `GET /admin/requests: ${resp.status()}`).toBe(true);
+  const body = await resp.json();
+  return (body.requests as Record<string, unknown>[]) ?? [];
 }
 
 /**
@@ -443,3 +483,73 @@ export const BACKEND_ONLY_URL = `http://localhost:${BACKEND_ONLY_INGRESS_PORT}`;
 
 // Mock automation helpers removed — the automation test now hits the real
 // automation backend running inside the bin/agent-canvas.mjs stack.
+
+// ═══════════════════════════════════════════════════════════════════════
+// ACP agent configuration helpers
+// ═══════════════════════════════════════════════════════════════════════
+
+/** Reply token the mock ACP server includes in its responses. */
+export const ACP_REPLY_TOKEN = "MOCK_ACP_E2E_REPLY_OK";
+
+/**
+ * Absolute path to the Python binary for the mock ACP server.
+ *
+ * In CI, ``MOCK_LLM_PYTHON`` is a relative venv path like
+ * ``.mock-llm-venv/bin/python3``. The agent-server spawns the ACP
+ * subprocess from its own CWD (which may differ from the repo root),
+ * so we resolve relative paths to absolute here. Bare executable
+ * names (no directory separator) are left for PATH lookup.
+ */
+export const MOCK_ACP_PYTHON = (() => {
+  const raw = process.env.MOCK_LLM_PYTHON ?? "python3";
+  // Resolve paths containing a directory separator (relative like
+  // ".mock-llm-venv/bin/python3"); leave bare names like "python3"
+  // for PATH lookup.
+  return raw.includes("/") || raw.includes("\\") ? resolve(raw) : raw;
+})();
+
+/**
+ * Absolute path to the mock ACP server script, resolved from the project root.
+ * The agent-server spawns this as a subprocess via ``acp_command``.
+ */
+export const MOCK_ACP_SERVER_PATH = resolve(
+  "tests/e2e/mock-llm/scripts/mock-acp-server.py",
+);
+
+/**
+ * The Python + script path the test types into the ACP command textarea.
+ *
+ * When running the Docker E2E config, the agent-server lives inside a
+ * container where host-filesystem paths don't exist. The Docker config
+ * volume-mounts the mock ACP script and sets ``MOCK_ACP_CONTAINER_*``
+ * env vars with the container-side paths. The npm config leaves those
+ * vars unset, so we fall back to the host-local absolute paths.
+ */
+export const MOCK_ACP_COMMAND_PYTHON =
+  process.env.MOCK_ACP_CONTAINER_PYTHON || MOCK_ACP_PYTHON;
+export const MOCK_ACP_COMMAND_SCRIPT =
+  process.env.MOCK_ACP_CONTAINER_SCRIPT || MOCK_ACP_SERVER_PATH;
+
+/**
+ * Reset the agent-server back to the default OpenHands agent.
+ * Used in afterAll cleanup to avoid polluting other test suites.
+ */
+export async function resetToOpenHandsAgent(
+  request: APIRequestContext,
+) {
+  const resp = await request.patch(`${BACKEND_URL}/api/settings`, {
+    headers: {
+      "X-Session-API-Key": SESSION_API_KEY,
+      "Content-Type": "application/json",
+    },
+    data: {
+      agent_settings_diff: {
+        agent_kind: "openhands",
+      },
+    },
+  });
+  // Best-effort — don't fail the test if cleanup fails
+  if (!resp.ok()) {
+    console.warn(`[cleanup] Reset to OpenHands failed: ${resp.status()}`);
+  }
+}

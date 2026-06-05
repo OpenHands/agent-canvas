@@ -12,6 +12,25 @@ const EMPTY_MCP_CONFIG: MCPConfig = {
   shttp_servers: [],
 };
 
+const LINEAR_DEPRECATED_SSE_URL = "https://mcp.linear.app/sse";
+const LINEAR_SHTTP_URL = "https://mcp.linear.app/mcp";
+
+/**
+ * Linear removed its MCP SSE transport (the /sse endpoint rejects every
+ * call since 2026-04-08). Detect persisted configs that still point at
+ * the dead endpoint so they can be migrated to streamable HTTP at the
+ * /mcp replacement. Matches only the exact deprecated URL (tolerating a
+ * trailing slash or query string) — nothing else is rewritten.
+ */
+function isDeprecatedLinearSse(
+  url: string,
+  transport: string | undefined,
+): boolean {
+  if (transport !== "sse") return false;
+  const normalized = url.split("?")[0].replace(/\/+$/, "");
+  return normalized === LINEAR_DEPRECATED_SSE_URL;
+}
+
 type SdkMcpServerConfig = Record<string, SettingsValue>;
 type SdkMcpConfig = { mcpServers: Record<string, SdkMcpServerConfig> };
 
@@ -37,6 +56,10 @@ export function parseMcpConfig(value: unknown): MCPConfig {
   const sseServers: (string | MCPSSEServer)[] = [];
   const stdioServers: MCPStdioServer[] = [];
   const shttpServers: (string | MCPSHTTPServer)[] = [];
+  // Legacy Linear SSE entries rewritten to the /mcp endpoint. Collected
+  // separately and merged after the loop so an existing hand-added /mcp
+  // entry (with its own api_key/timeout) wins over the migrated one.
+  const migratedShttpServers: MCPSHTTPServer[] = [];
 
   const mcpServers = obj.mcpServers as Record<string, Record<string, unknown>>;
 
@@ -51,7 +74,11 @@ export function parseMcpConfig(value: unknown): MCPConfig {
       const apiKey =
         typeof auth === "string" && auth !== "oauth" ? auth : undefined;
 
-      if (transport === "sse") {
+      if (isDeprecatedLinearSse(url, transport)) {
+        const server: MCPSHTTPServer = { url: LINEAR_SHTTP_URL };
+        if (apiKey) server.api_key = apiKey;
+        migratedShttpServers.push(server);
+      } else if (transport === "sse") {
         const server: MCPSSEServer = { url };
         if (apiKey) server.api_key = apiKey;
         sseServers.push(server);
@@ -76,6 +103,15 @@ export function parseMcpConfig(value: unknown): MCPConfig {
       }
       stdioServers.push(stdioServer);
     }
+  }
+
+  const normalizeUrl = (u: string) => u.replace(/\/+$/, "");
+  for (const migrated of migratedShttpServers) {
+    const alreadyPresent = shttpServers.some((entry) => {
+      const entryUrl = typeof entry === "string" ? entry : entry.url;
+      return normalizeUrl(entryUrl) === normalizeUrl(migrated.url);
+    });
+    if (!alreadyPresent) shttpServers.push(migrated);
   }
 
   return {

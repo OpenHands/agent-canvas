@@ -24,7 +24,7 @@ import {
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import {
   OPENHANDS_LLM_PROXY_BASE_URL,
-  isOpenHandsProviderModel,
+  isOpenHandsProxyModel,
 } from "#/utils/openhands-llm";
 
 const LLM_EXCLUDED_KEYS = new Set(["llm.model", "llm.api_key", "llm.base_url"]);
@@ -104,6 +104,7 @@ export function LlmSettingsScreen({
   initialValueOverrides,
   embedded,
   hideSaveButton,
+  suppressSuccessToast,
   onSaveControlChange,
 }: {
   scope?: SettingsScope;
@@ -115,6 +116,8 @@ export function LlmSettingsScreen({
   embedded?: boolean;
   /** Forwarded to {@link SdkSectionPage}. */
   hideSaveButton?: boolean;
+  /** Forwarded to {@link SdkSectionPage}. */
+  suppressSuccessToast?: boolean;
   /** Forwarded to {@link SdkSectionPage}. */
   onSaveControlChange?: (control: SdkSectionSaveControl) => void;
 }) {
@@ -283,7 +286,8 @@ export function LlmSettingsScreen({
 
       if (context.view === "basic") {
         const model = llm.model ?? context.values["llm.model"];
-        llm.base_url = isOpenHandsProviderModel(model)
+        const baseUrl = llm.base_url ?? context.values["llm.base_url"];
+        llm.base_url = isOpenHandsProxyModel(model, baseUrl)
           ? OPENHANDS_LLM_PROXY_BASE_URL
           : getSchemaFieldDefaultValue(schema, "llm.base_url");
         agentSettings.llm = llm;
@@ -308,6 +312,7 @@ export function LlmSettingsScreen({
       initialValueOverrides={initialValueOverrides}
       embedded={embedded}
       hideSaveButton={hideSaveButton}
+      suppressSuccessToast={suppressSuccessToast}
       onSaveControlChange={onSaveControlChange}
       testId="llm-settings-screen"
     />

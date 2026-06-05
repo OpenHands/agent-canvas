@@ -20,7 +20,7 @@
  *
  * Usage (mirrors scripts/ingress.mjs's --route flag style):
  *   node scripts/static-server.mjs \
- *     --port 3001 --host 0.0.0.0 --dir build \
+ *     --port 3001 --dir build \
  *     --route "/api/automation=http://localhost:18001" \
  *     --route "/api=http://localhost:18000" \
  *     --route "/server_info=http://localhost:18000" \
@@ -69,12 +69,13 @@ const MIME = {
 export function parseArgs(argv = process.argv.slice(2)) {
   const config = {
     port: 3001,
-    host: "0.0.0.0",
+    host: "::",
     dir: "build",
     routes: {},
     rejectPrefixes: [],
     sessionApiKey: null,
     authRequired: false,
+    runtimeServicesInfo: null,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -109,6 +110,9 @@ export function parseArgs(argv = process.argv.slice(2)) {
       }
       case "--session-api-key":
         config.sessionApiKey = argv[++i] || null;
+        break;
+      case "--runtime-services-info":
+        config.runtimeServicesInfo = argv[++i] || null;
         break;
       case "--auth-required":
         config.authRequired = true;
@@ -157,7 +161,7 @@ USAGE:
 
 OPTIONS:
   -p, --port  <port>           Port to bind (default: 3001)
-  -H, --host  <host>           Hostname to bind (default: 0.0.0.0)
+  -H, --host  <host>           Hostname to bind (default: :: dual-stack)
   -d, --dir   <dir>            Directory to serve (default: build)
   -r, --route <prefix=url>     Proxy <prefix> (and subpaths) to <url>;
                                may be repeated. WebSockets supported.
@@ -167,6 +171,12 @@ OPTIONS:
   --auth-required              Inject authRequired flag into index.html so the
                                pre-built frontend shows the API key entry screen
                                (public mode) without VITE_AUTH_REQUIRED baked in.
+  --runtime-services-info <json>
+                               Inject a JSON description of the local runtime
+                               services into index.html so the pre-built
+                               frontend can populate the agent's
+                               <RUNTIME_SERVICES> system-prompt block without
+                               VITE_RUNTIME_SERVICES_INFO baked in.
   --reject-prefix <prefix>     Return 503 for requests matching <prefix>
                                instead of SPA-fallbacking to index.html;
                                may be repeated. Useful in --frontend-only
@@ -192,19 +202,42 @@ ROUTING:
 /**
  * Build a tiny inline script that seeds runtime config into the page.
  *
- * - `sessionApiKey`: written to `openhands-agent-server-config` in localStorage
- *   so the pre-built frontend authenticates without VITE_SESSION_API_KEY baked in.
- *   Only writes if no key is already stored — explicit user overrides are preserved.
+ * - `sessionApiKey`: exposed to the app two ways so a fresh-localStorage
+ *   browser can authenticate even though the published bundle has no
+ *   VITE_SESSION_API_KEY baked in:
+ *     1. `window.__AGENT_CANVAS_SESSION_API_KEY__` — read by
+ *        `getBakedSessionApiKey()` in `agent-server-config.ts` as a fallback
+ *        when the env var is empty. This is symmetric with how
+ *        `__AGENT_CANVAS_AUTH_REQUIRED__` works for the auth-required flag.
+ *     2. Written to `openhands-agent-server-config.sessionApiKey` in
+ *        localStorage for compatibility with the legacy storage key. Useful
+ *        for any code path that still reads it (e.g. e2e test fixtures).
+ *        Always overwrites when the stored value differs so a rotated key
+ *        is not shadowed by a stale one.
  *
  * - `authRequired`: sets `window.__AGENT_CANVAS_AUTH_REQUIRED__ = true` so the
  *   pre-built frontend shows the API key entry screen (public mode) without
  *   VITE_AUTH_REQUIRED baked in.
+ *
+ * - `runtimeServicesInfo`: a JSON string describing the local services
+ *   (agent-server, automation, …), exposed as
+ *   `window.__AGENT_CANVAS_RUNTIME_SERVICES_INFO__`. Read by
+ *   `parseRuntimeServicesInfo()` in `agent-server-adapter.ts` as a fallback
+ *   when `VITE_RUNTIME_SERVICES_INFO` is empty, so static builds (Docker /
+ *   published binary) still populate the agent's `<RUNTIME_SERVICES>` block.
  */
-function makeConfigInjectionScript(sessionApiKey, authRequired) {
+function makeConfigInjectionScript(
+  sessionApiKey,
+  authRequired,
+  runtimeServicesInfo,
+) {
   const parts = [];
 
   if (sessionApiKey) {
     const keyLiteral = JSON.stringify(sessionApiKey);
+    // Window global — read at module init by getBakedSessionApiKey().
+    // Set first so it's available even if the localStorage write throws.
+    parts.push(`window.__AGENT_CANVAS_SESSION_API_KEY__=${keyLiteral};`);
     // Always overwrite when the stored key differs from the runtime key.
     // A previous session may have persisted a now-stale key; the runtime
     // value (from --session-api-key) is the server's truth.
@@ -224,6 +257,16 @@ function makeConfigInjectionScript(sessionApiKey, authRequired) {
     parts.push(`window.__AGENT_CANVAS_AUTH_REQUIRED__=true;`);
   }
 
+  if (runtimeServicesInfo) {
+    // Stored as the raw JSON string so the browser-side parser
+    // (parseRuntimeServicesInfo) can JSON.parse it exactly like the
+    // VITE_RUNTIME_SERVICES_INFO env var. JSON.stringify produces a safe JS
+    // string literal for the inline <script>.
+    parts.push(
+      `window.__AGENT_CANVAS_RUNTIME_SERVICES_INFO__=${JSON.stringify(runtimeServicesInfo)};`,
+    );
+  }
+
   if (parts.length === 0) return "";
 
   return `<script>(function(){${parts.join("")}}());</script>`;
@@ -237,7 +280,7 @@ async function serveInjectedIndexHtml(
   req,
   res,
   indexPath,
-  { sessionApiKey, authRequired } = {},
+  { sessionApiKey, authRequired, runtimeServicesInfo } = {},
 ) {
   let content;
   try {
@@ -246,7 +289,11 @@ async function serveInjectedIndexHtml(
     return false;
   }
 
-  const script = makeConfigInjectionScript(sessionApiKey, authRequired);
+  const script = makeConfigInjectionScript(
+    sessionApiKey,
+    authRequired,
+    runtimeServicesInfo,
+  );
   // Inject right before </head> so the key is available before any app code runs.
   // replace() targets the first (and only) </head> in well-formed HTML.
   const injected = content.includes("</head>")
@@ -318,6 +365,11 @@ function proxyRequest(req, res, backendUrl) {
     },
   );
 
+  // Absorb client-disconnect errors (EPIPE/ECONNRESET) so the server
+  // process survives abrupt navigations and health-check probes.
+  req.on("error", () => {});
+  res.on("error", () => {});
+
   proxyReq.on("error", (err) => {
     console.error(`Proxy error for ${req.url} -> ${backendUrl}:`, err.message);
     if (!res.headersSent) {
@@ -343,7 +395,12 @@ function proxyWebSocket(req, socket, head, backendUrl) {
     },
   });
 
+  // Absorb socket errors so the process survives mid-flight disconnects.
+  socket.on("error", () => socket.destroy());
+
   proxyReq.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
+    proxySocket.on("error", () => proxySocket.destroy());
+
     socket.write(
       `HTTP/${proxyRes.httpVersion} ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`,
     );
@@ -478,7 +535,9 @@ async function handleStatic(
   }
 
   const needsInjection =
-    injectionOpts.sessionApiKey || injectionOpts.authRequired;
+    injectionOpts.sessionApiKey ||
+    injectionOpts.authRequired ||
+    injectionOpts.runtimeServicesInfo;
 
   // Serve index.html with runtime config injection when configured.
   if (needsInjection && filePath.endsWith("index.html")) {
@@ -531,6 +590,7 @@ export function startStaticServer(config) {
   const injectionOpts = {
     sessionApiKey: config.sessionApiKey || null,
     authRequired: config.authRequired || false,
+    runtimeServicesInfo: config.runtimeServicesInfo || null,
   };
   const rejectPrefixes = config.rejectPrefixes ?? [];
 

@@ -582,6 +582,49 @@ describe("LlmSettingsLocalView", () => {
       expect(savedLlm.model).toBe("openhands/claude-opus-4-5-20251101");
       expect(savedLlm.base_url).toBe(OPENHANDS_LLM_PROXY_BASE_URL);
     });
+
+    it("keeps the proxy base_url for a stored litellm_proxy OpenHands model (issue #1146)", async () => {
+      // Arrange — the shape actually persisted after onboarding through the
+      // OpenHands provider: the SDK has already rewritten openhands/* to
+      // litellm_proxy/* and paired it with the All-Hands proxy base URL. A
+      // Basic-tab re-save must not strip that base URL, otherwise the profile
+      // is stranded as `litellm_proxy/* + base_url:null` and LiteLLM reroutes
+      // the OpenHands key to the default OpenAI endpoint.
+      const user = userEvent.setup();
+      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
+        name: "gpt-4-profile",
+        api_key_set: true,
+        config: {
+          model: "litellm_proxy/claude-opus-4-8",
+          api_key: "gAAAA_encrypted_key",
+          base_url: OPENHANDS_LLM_PROXY_BASE_URL,
+        },
+      });
+      mockSaveMutateAsync.mockResolvedValueOnce({ success: true });
+
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      // Act — open the profile in edit mode, force the Basic tab, and save
+      // without touching the model dropdown.
+      await user.click(screen.getAllByTestId("profile-menu-trigger")[0]);
+      await user.click(screen.getByTestId("profile-edit"));
+      await waitFor(() => {
+        expect(screen.getByTestId("profile-name-input")).toHaveValue(
+          "gpt-4-profile",
+        );
+      });
+      await user.click(await screen.findByTestId("sdk-section-basic-toggle"));
+      await waitFor(() => {
+        expect(screen.getByTestId("save-profile-btn")).not.toBeDisabled();
+      });
+      await user.click(screen.getByTestId("save-profile-btn"));
+
+      // Assert — the rewritten model is preserved and so is the proxy base URL.
+      await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
+      const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
+      expect(savedLlm.model).toBe("litellm_proxy/claude-opus-4-8");
+      expect(savedLlm.base_url).toBe(OPENHANDS_LLM_PROXY_BASE_URL);
+    });
   });
 
   describe("All tab save", () => {

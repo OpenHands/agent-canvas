@@ -61,6 +61,7 @@ jobs:
         run: npm run lint
 
       - name: Test
+        if: matrix.full_checks
         run: npm test
 
       - name: Build app

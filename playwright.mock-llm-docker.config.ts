@@ -29,6 +29,7 @@
 
 import { defineConfig, devices } from "@playwright/test";
 import { randomBytes } from "node:crypto";
+import { resolve } from "node:path";
 
 // ── Docker image ────────────────────────────────────────────────────────
 const DOCKER_IMAGE =
@@ -58,14 +59,11 @@ const sessionApiKey =
 process.env.MOCK_LLM_SESSION_API_KEY = sessionApiKey;
 
 // ── URLs ───────────────────────────────────────────────────────────────
-// Use 127.0.0.1 (not localhost) everywhere so Playwright and Chromium
-// connect via IPv4 directly.  The Docker container's static-server binds
-// to 0.0.0.0 (IPv4 only).  `localhost` can resolve to ::1 (IPv6) on CI
-// runners, causing intermittent ECONNREFUSED when the server doesn't
-// listen on IPv6.  The non-Docker config uses `localhost` because its
-// ingress.mjs binds to :: (dual-stack), but the Docker entrypoint uses
-// static-server.mjs which is IPv4-only.
-const INGRESS_URL = `http://127.0.0.1:${INGRESS_PORT}/`;
+// The Docker entrypoint starts static-server.mjs with `--host ::` (dual-
+// stack), so it accepts both IPv4 and IPv6 connections — same as the npm
+// path's ingress.mjs.  `localhost` is safe for both configs now.
+// The mock LLM server (Python, host-side) also listens dual-stack.
+const INGRESS_URL = `http://localhost:${INGRESS_PORT}/`;
 const MOCK_LLM_URL = `http://127.0.0.1:${MOCK_LLM_PORT}`;
 
 // Python binary for the mock server — defaults to "python3" but CI can
@@ -75,9 +73,9 @@ const MOCK_LLM_PYTHON = process.env.MOCK_LLM_PYTHON ?? "python3";
 
 // Export for the test helpers — BACKEND_URL points to the ingress (API
 // calls are proxied to the agent-server, so no direct backend port needed).
-process.env.MOCK_LLM_BACKEND_URL = `http://127.0.0.1:${INGRESS_PORT}`;
+process.env.MOCK_LLM_BACKEND_URL = `http://localhost:${INGRESS_PORT}`;
 process.env.MOCK_LLM_PORT = MOCK_LLM_PORT;
-process.env.MOCK_LLM_PUBLIC_MODE_URL = `http://127.0.0.1:${PUBLIC_MODE_PORT}`;
+process.env.MOCK_LLM_PUBLIC_MODE_URL = `http://localhost:${PUBLIC_MODE_PORT}`;
 process.env.VITE_SESSION_API_KEY = sessionApiKey;
 
 // MOCK_LLM_AGENT_URL — the URL the agent-server inside Docker uses to
@@ -87,6 +85,19 @@ process.env.VITE_SESSION_API_KEY = sessionApiKey;
 if (!process.env.MOCK_LLM_AGENT_URL) {
   process.env.MOCK_LLM_AGENT_URL = MOCK_LLM_URL;
 }
+
+// ── ACP test support ──────────────────────────────────────────────────
+// The mock ACP server script lives on the host. We volume-mount it into
+// the container and tell the test which container-side paths to use when
+// typing the `acp_command` into the Settings UI.
+const MOCK_ACP_HOST_PATH = resolve(
+  "tests/e2e/mock-llm/scripts/mock-acp-server.py",
+);
+const MOCK_ACP_CONTAINER_PATH = "/opt/mock-acp-server.py";
+
+// The agent-server image ships Python 3 via the openhands-sdk base.
+process.env.MOCK_ACP_CONTAINER_PYTHON = "python3";
+process.env.MOCK_ACP_CONTAINER_SCRIPT = MOCK_ACP_CONTAINER_PATH;
 
 export default defineConfig({
   testDir: "./tests/e2e/mock-llm",
@@ -155,6 +166,9 @@ export default defineConfig({
         "--rm",
         `--name ${CONTAINER_NAME}`,
         "--network host",
+        // Mount the mock ACP server script so the agent-server inside
+        // Docker can spawn it as an ACP subprocess.
+        `-v ${MOCK_ACP_HOST_PATH}:${MOCK_ACP_CONTAINER_PATH}:ro`,
         `-e PORT=${INGRESS_PORT}`,
         `-e SESSION_API_KEY=${sessionApiKey}`,
         `-e OH_SESSION_API_KEYS_0=${sessionApiKey}`,
@@ -168,9 +182,7 @@ export default defineConfig({
       // up before tests start. GET /api/automation/v1 returns 200 (empty
       // list) without auth — the automation backend does not enforce
       // session-key auth on the list endpoint.
-      // Use 127.0.0.1 (not localhost) to avoid IPv6 resolution — see URL
-      // comment block above.
-      url: `http://127.0.0.1:${INGRESS_PORT}/api/automation/v1`,
+      url: `http://localhost:${INGRESS_PORT}/api/automation/v1`,
       timeout: 180_000, // Docker pull + all services startup
       reuseExistingServer: !process.env.CI,
     },

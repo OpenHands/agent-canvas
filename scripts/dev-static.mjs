@@ -384,8 +384,6 @@ function startStaticServer(config) {
       staticServerScript,
       "--dir",
       join(config.canvasPath, "build"),
-      "--host",
-      "0.0.0.0",
       "--port",
       String(config.vitePort),
       // Inject the API key so the pre-built frontend can authenticate
