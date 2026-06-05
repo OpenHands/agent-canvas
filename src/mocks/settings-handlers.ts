@@ -964,4 +964,11 @@ export const SETTINGS_HANDLERS = [
 
     return HttpResponse.json(null, { status: 400 });
   }),
+
+  // POST /api/mcp/test – MCP server connectivity check before install.
+  // Returns ok:true so the install modal can proceed to save and close.
+  http.post("*/api/mcp/test", async () => {
+    await delay();
+    return HttpResponse.json({ ok: true, tools: [] });
+  }),
 ];
