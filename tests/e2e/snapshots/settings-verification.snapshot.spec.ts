@@ -18,9 +18,9 @@ import { seedLocalStorage } from "./support/seed-local-storage";
  * Save Changes button. Toggling it ON reveals the Security Analyzer dropdown
  * and enables Save Changes — captured in the second snapshot.
  *
- * Three snapshots, not four: there is no separate "dirty" snapshot because
- * clicking the toggle IS the dirty action — the "ON" snapshot already captures
- * the dirty/enabled-Save-Changes state.
+ * There is no separate "dirty" snapshot for confirmation mode because clicking
+ * the toggle IS the dirty action — the "ON" snapshot already captures the
+ * dirty/enabled-Save-Changes state.
  */
 
 async function dismissConsentModal(page: Page) {
@@ -48,7 +48,9 @@ test.describe("Settings – Verification & Condenser Visual Snapshots", () => {
    * (styled toggle pattern), so we assert on the label text instead.
    */
   async function waitForVerificationPage(page: Page) {
-    await expect(page.getByText("Enable Critic")).toBeVisible({
+    await expect(
+      page.getByTestId("sdk-settings-verification.critic_enabled"),
+    ).toBeAttached({
       timeout: 10_000,
     });
     await page.getByTestId("sdk-section-all-toggle").click();
@@ -57,6 +59,20 @@ test.describe("Settings – Verification & Condenser Visual Snapshots", () => {
     await expect(page.getByText("Confirmation Mode")).toBeVisible({
       timeout: 5_000,
     });
+  }
+
+  async function ensureCriticEnabled(page: Page) {
+    const apiKeyInput = page.getByTestId(
+      "sdk-settings-verification.critic_api_key",
+    );
+    if (!(await apiKeyInput.isVisible())) {
+      await page
+        .locator(
+          `label:has([data-testid="sdk-settings-verification.critic_enabled"])`,
+        )
+        .click();
+    }
+    await expect(apiKeyInput).toBeVisible({ timeout: 5_000 });
   }
 
   test("verification settings with confirmation mode OFF (default)", async ({
@@ -78,8 +94,30 @@ test.describe("Settings – Verification & Condenser Visual Snapshots", () => {
     ).toHaveCount(0);
 
     const rootLayout = page.getByTestId("root-layout");
+    await expect(rootLayout).toHaveScreenshot("verification-settings-off.png", {
+      animations: "disabled",
+      maxDiffPixelRatio: 0.01,
+    });
+  });
+
+  test("verification settings with critic enabled shows API key guidance", async ({
+    page,
+  }) => {
+    await setupMocks(page);
+    await page.goto("/settings/verification");
+    await dismissConsentModal(page);
+    await waitForVerificationPage(page);
+
+    await ensureCriticEnabled(page);
+    await expect(
+      page.getByText(
+        /Critic API Key is the same as your OpenHands Provider LLM Key/i,
+      ),
+    ).toBeVisible();
+
+    const rootLayout = page.getByTestId("root-layout");
     await expect(rootLayout).toHaveScreenshot(
-      "verification-settings-off.png",
+      "verification-settings-critic-enabled.png",
       { animations: "disabled", maxDiffPixelRatio: 0.01 },
     );
   });
@@ -106,10 +144,10 @@ test.describe("Settings – Verification & Condenser Visual Snapshots", () => {
     ).toBeVisible({ timeout: 5_000 });
 
     const rootLayout = page.getByTestId("root-layout");
-    await expect(rootLayout).toHaveScreenshot(
-      "verification-settings-on.png",
-      { animations: "disabled", maxDiffPixelRatio: 0.01 },
-    );
+    await expect(rootLayout).toHaveScreenshot("verification-settings-on.png", {
+      animations: "disabled",
+      maxDiffPixelRatio: 0.01,
+    });
   });
 
   test("condenser settings page renders schema form", async ({ page }) => {
@@ -118,16 +156,13 @@ test.describe("Settings – Verification & Condenser Visual Snapshots", () => {
     await dismissConsentModal(page);
     await page.waitForLoadState("networkidle");
 
-    // Wait for the condenser form to render: the schema provides
-    // "Enable default condenser" as the first field label
-    await expect(
-      page.getByText("Enable default condenser"),
-    ).toBeVisible({ timeout: 15_000 });
-
     // The wrapper div with data-testid should be present once the form renders
+    await expect(page.getByTestId("condenser-settings-screen")).toBeAttached({
+      timeout: 5_000,
+    });
     await expect(
-      page.getByTestId("condenser-settings-screen"),
-    ).toBeAttached({ timeout: 5_000 });
+      page.getByText(/Enable (default condenser|Memory Condensation)/i),
+    ).toBeVisible({ timeout: 15_000 });
 
     const rootLayout = page.getByTestId("root-layout");
     await expect(rootLayout).toHaveScreenshot("condenser-settings.png", {
