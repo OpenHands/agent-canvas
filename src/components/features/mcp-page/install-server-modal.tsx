@@ -2,7 +2,6 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { AxiosError } from "axios";
 import { v4 as uuidv4 } from "uuid";
-import type { MCPTestFailure } from "@openhands/typescript-client";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { BrandButton } from "#/components/features/settings/brand-button";
@@ -11,7 +10,7 @@ import { SaveAsSecretToggle } from "#/components/features/mcp-page/save-as-secre
 import { I18nKey } from "#/i18n/declaration";
 import type { IntegrationCatalogEntry as MarketplaceEntry } from "@openhands/extensions/integrations";
 import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
-import { MCPServerConfig } from "#/types/mcp-server";
+import { ExtendedMCPTestFailure, MCPServerConfig } from "#/types/mcp-server";
 import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
 import { useTestMcpServer } from "#/hooks/mutation/use-test-mcp-server";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
@@ -150,12 +149,14 @@ export function InstallServerModal({
     }));
   };
 
-  const makeTestErrorMessage = (failure: MCPTestFailure): string => {
+  const makeTestErrorMessage = (failure: ExtendedMCPTestFailure): string => {
     switch (failure.error_kind) {
       case "timeout":
         return t(I18nKey.MCP$TEST_ERROR_TIMEOUT);
       case "connection":
         return t(I18nKey.MCP$TEST_ERROR_CONNECTION);
+      case "credentials":
+        return t(I18nKey.MCP$TEST_ERROR_CREDENTIALS, { error: failure.error });
       default:
         return t(I18nKey.MCP$TEST_ERROR_UNKNOWN, { error: failure.error });
     }
