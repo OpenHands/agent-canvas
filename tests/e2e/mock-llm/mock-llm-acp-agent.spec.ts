@@ -105,6 +105,7 @@ test.describe("mock-LLM ACP agent conversation", () => {
     }
     const page = await browser.newPage();
     try {
+      await seedLocalStorage(page);
       await ensureMockLLMProfile(page);
     } catch {
       // best-effort

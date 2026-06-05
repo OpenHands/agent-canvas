@@ -137,10 +137,12 @@ export async function dismissAnalyticsModal(page: Page) {
   // appear several seconds after DOM-content-loaded.  Wait for the form's
   // test ID (more specific than the generic ModalBackdrop) or give up after
   // a generous window so tests that have already dismissed the modal don't
-  // stall.
+  // stall.  Also dismiss any other ModalBackdrop dialog that may block
+  // pointer events (e.g. the delete-profile confirmation left by a prior
+  // test).
   try {
     const form = page.getByTestId("user-capture-consent-form");
-    await form.waitFor({ state: "visible", timeout: 8_000 });
+    await form.waitFor({ state: "visible", timeout: 5_000 });
     await form.getByRole("button", { name: "Confirm preferences" }).click();
     // Wait for the modal to fully close so the backdrop no longer
     // intercepts pointer events.
@@ -390,27 +392,26 @@ export async function ensureMockLLMProfile(
  * Assumes the page is already on /settings/llm with profiles loaded.
  */
 async function deleteProfileIfExists(page: Page, profileName: string) {
-  const rows = page.getByTestId("profile-row");
-  const count = await rows.count();
-  for (let i = 0; i < count; i++) {
-    const row = rows.nth(i);
-    const text = await row.textContent();
-    if (text?.includes(profileName)) {
-      await row.getByTestId("profile-menu-trigger").click();
-      await waitForTestId(page, "profile-actions-menu");
-      const deleteBtn = page.getByTestId("profile-delete");
-      if (await deleteBtn.isVisible()) {
-        await deleteBtn.click();
-        // Confirm the deletion dialog (test ID: delete-profile-confirm)
-        const confirmBtn = page.getByTestId("delete-profile-confirm");
-        await confirmBtn.waitFor({ state: "visible", timeout: 5_000 });
-        await confirmBtn.click();
-        await waitForTestId(page, "add-llm-profile");
-      } else {
-        await page.keyboard.press("Escape");
-      }
-      return;
-    }
+  // Use the profile name span's `title` attribute for exact matching
+  // to avoid substring collisions (e.g. "mock-llm" vs "mock-llm-e2e").
+  const row = page
+    .getByTestId("profile-row")
+    .filter({ has: page.locator(`span[title="${profileName}"]`) })
+    .first();
+  if ((await row.count()) === 0) return;
+
+  await row.getByTestId("profile-menu-trigger").click();
+  await waitForTestId(page, "profile-actions-menu");
+  const deleteBtn = page.getByTestId("profile-delete");
+  if (await deleteBtn.isVisible()) {
+    await deleteBtn.click();
+    // Confirm the deletion dialog (test ID: delete-profile-confirm)
+    const confirmBtn = page.getByTestId("delete-profile-confirm");
+    await confirmBtn.waitFor({ state: "visible", timeout: 5_000 });
+    await confirmBtn.click();
+    await waitForTestId(page, "add-llm-profile");
+  } else {
+    await page.keyboard.press("Escape");
   }
 }
 
@@ -420,22 +421,22 @@ async function deleteProfileIfExists(page: Page, profileName: string) {
  * Polls until the "Active" badge is visible on the target profile row.
  */
 async function activateProfileViaUI(page: Page, profileName: string) {
-  const rows = page.getByTestId("profile-row");
-  const count = await rows.count();
-  for (let i = 0; i < count; i++) {
-    const row = rows.nth(i);
-    const text = await row.textContent();
-    if (text?.includes(profileName)) {
-      await row.getByTestId("profile-menu-trigger").click();
-      await waitForTestId(page, "profile-actions-menu");
-      const setActive = page.getByTestId("profile-set-active");
-      if (await setActive.isEnabled()) {
-        await setActive.click();
-      } else {
-        // Already active
-        await page.keyboard.press("Escape");
-      }
-      break;
+  const exactRow = (p: Page) =>
+    p
+      .getByTestId("profile-row")
+      .filter({ has: p.locator(`span[title="${profileName}"]`) })
+      .first();
+
+  const row = exactRow(page);
+  if ((await row.count()) > 0) {
+    await row.getByTestId("profile-menu-trigger").click();
+    await waitForTestId(page, "profile-actions-menu");
+    const setActive = page.getByTestId("profile-set-active");
+    if (await setActive.isEnabled()) {
+      await setActive.click();
+    } else {
+      // Already active
+      await page.keyboard.press("Escape");
     }
   }
 
@@ -445,16 +446,9 @@ async function activateProfileViaUI(page: Page, profileName: string) {
       async () => {
         await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
         await waitForTestId(page, "add-llm-profile");
-        const allRows = page.getByTestId("profile-row");
-        const rowCount = await allRows.count();
-        for (let i = 0; i < rowCount; i++) {
-          const row = allRows.nth(i);
-          const text = await row.textContent();
-          if (text?.includes(profileName)) {
-            return (await row.getByTestId("profile-active-badge").count()) > 0;
-          }
-        }
-        return false;
+        const target = exactRow(page);
+        if ((await target.count()) === 0) return false;
+        return (await target.getByTestId("profile-active-badge").count()) > 0;
       },
       {
         message: `Profile "${profileName}" should have an "Active" badge`,
