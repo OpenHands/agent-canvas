@@ -33,6 +33,21 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "📦 Version: $VERSION"
 
+      - name: Checkout tag
+        uses: actions/checkout@v6
+
+      - name: Verify documented Docker install version matches release
+        id: docker_docs
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          PINNED=$(node -p "require('./config/defaults.json').versions.agentCanvas")
+          if [ "$PINNED" != "$VERSION" ]; then
+            echo "❌ versions.agentCanvas is '$PINNED' but release tag is v$VERSION"
+            echo "Update config/defaults.json and README Docker examples before tagging."
+            exit 1
+          fi
+          echo "✅ versions.agentCanvas matches release ($VERSION)"
+
       - name: Check release does not already exist
         id: check
         env:
