@@ -458,7 +458,12 @@ export function ChatInterface() {
           !isChatLoading &&
           !isProvisioningTask &&
           totalEvents === 0 &&
-          !isArchivedConversation && (
+          !isArchivedConversation &&
+          // With no usable LLM the suggestions can't be acted on (the input is
+          // disabled). They're also a `pointer-events-auto` overlay that would
+          // sit over the LlmNotConfiguredBanner below and swallow clicks on its
+          // setup button — so hide them and let the banner be the lone CTA.
+          !llmBlocked && (
             <ChatSuggestions
               onSuggestionsClick={(message) => setMessageToSend(message)}
             />
