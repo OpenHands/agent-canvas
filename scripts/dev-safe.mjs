@@ -25,6 +25,7 @@ import {
 // Docker entrypoint can run it as a CLI. Re-exported below for back-compat
 // (dev-with-automation.mjs and tests still import it from here).
 import { buildRuntimeServicesInfo } from "./runtime-services-info.mjs";
+import { fileLog, stripAnsi } from "./logger.mjs";
 
 // ── Centralized config (single source of truth for versions, ports, etc.) ───
 const __dev_safe_dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -834,13 +835,16 @@ function spawnProcess(command, args, options = {}) {
 
   child.once("error", (error) => {
     if (isEnoentError(error) && command === "uvx") {
-      console.error(formatMissingUvxGuidance(options?.cwd));
+      const msg = formatMissingUvxGuidance(options?.cwd);
+      console.error(msg);
+      fileLog("error", stripAnsi(msg));
     } else if (isEnoentError(error)) {
-      console.error(
-        `Failed to start ${command}. Make sure it is installed and on your PATH.`,
-      );
+      const msg = `Failed to start ${command}. Make sure it is installed and on your PATH.`;
+      console.error(msg);
+      fileLog("error", msg);
     } else {
       console.error(`Failed to start ${command}:`, error);
+      fileLog("error", `Failed to start ${command}: ${error.message}`);
     }
   });
 
@@ -849,9 +853,12 @@ function spawnProcess(command, args, options = {}) {
 
 async function main() {
   console.log("Starting isolated agent-server + frontend dev stack...");
+  fileLog("info", "Starting isolated agent-server + frontend dev stack...");
   validateFrontendDependencies();
   console.log("Frontend dependencies found.");
+  fileLog("info", "Frontend dependencies found.");
   console.log("Allocating ports...");
+  fileLog("info", "Allocating ports...");
 
   // Use async config builder with dynamic port allocation
   const config = await buildSafeDevConfigAsync();
@@ -890,6 +897,16 @@ async function main() {
   console.log(`- secret key: ${secretKeySource}`);
   console.log(`- session API key: ${sessionKeySource}`);
   console.log("");
+  fileLog(
+    "info",
+    [
+      "Agent-server stack config:",
+      `  agent-server: ${agentServerCmd.source}`,
+      `  backend:      ${config.backendBaseUrl}`,
+      `  working dir:  ${config.workingDir}`,
+      `  state dir:    ${config.stateDir}`,
+    ].join("\n"),
+  );
 
   const backend = spawnProcess(
     agentServerCmd.command,
@@ -990,7 +1007,9 @@ async function main() {
 
   backend.once("exit", (code) => {
     if (!shuttingDown) {
-      console.error(`agent-server exited unexpectedly with code ${code ?? 0}`);
+      const msg = `agent-server exited unexpectedly with code ${code ?? 0}`;
+      console.error(msg);
+      fileLog("error", msg);
       shutdown();
       process.exitCode = code ?? 1;
     }
@@ -1077,7 +1096,12 @@ if (
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   main().catch((error) => {
-    console.error(error instanceof Error ? error.message : error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(msg);
+    fileLog("error", `Fatal error: ${msg}`);
+    if (error instanceof Error && error.stack) {
+      fileLog("error", error.stack);
+    }
     process.exit(1);
   });
 }
