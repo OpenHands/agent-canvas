@@ -1,6 +1,6 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { ChatMessage } from "#/components/features/chat/chat-message";
 
 describe("ChatMessage", () => {
@@ -45,8 +45,9 @@ describe("ChatMessage", () => {
   });
 
   it("should render a component passed as a prop", () => {
+    const customComponentText = "Custom Component";
     function Component() {
-      return <div data-testid="custom-component">Custom Component</div>;
+      return <div data-testid="custom-component">{customComponentText}</div>;
     }
     render(
       <ChatMessage type="user" message="Hello, World">
@@ -70,14 +71,47 @@ describe("ChatMessage", () => {
     const longMessage = `${"Here's a long message. ".repeat(40)}`.trim();
     render(<ChatMessage type="user" message={longMessage} />);
 
-    expect(screen.getByTestId("chat-message-truncation-gradient")).toBeInTheDocument();
-    expect(screen.getByTestId("chat-message-view-more")).toHaveClass("opacity-0");
+    expect(
+      screen.getByTestId("chat-message-truncation-gradient"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("chat-message-view-more")).toHaveClass(
+      "opacity-0",
+    );
 
     fireEvent.mouseEnter(screen.getByTestId("user-message"));
-    expect(screen.getByTestId("chat-message-view-more")).toHaveClass("opacity-100");
+    expect(screen.getByTestId("chat-message-view-more")).toHaveClass(
+      "opacity-100",
+    );
 
     fireEvent.click(screen.getByTestId("chat-message-expand"));
-    expect(screen.queryByTestId("chat-message-truncation-gradient")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("chat-message-view-more")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("chat-message-truncation-gradient"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("chat-message-view-more"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not issue a cross-component update warning when measuring truncation", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const longMessage = `${"Here's a long message. ".repeat(40)}`.trim();
+
+    try {
+      render(<ChatMessage type="user" message={longMessage} />);
+
+      expect(
+        screen.getByTestId("chat-message-truncation-gradient"),
+      ).toBeInTheDocument();
+
+      const consoleOutput = errorSpy.mock.calls
+        .flat()
+        .map((part) => String(part))
+        .join("\n");
+      expect(consoleOutput).not.toContain(
+        "Cannot update a component (`ChatMessage`) while rendering a different component (`UserMessageBody`)",
+      );
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });
