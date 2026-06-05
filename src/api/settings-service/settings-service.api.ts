@@ -1,11 +1,6 @@
 import { SettingsClient } from "@openhands/typescript-client/clients";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { Settings, SettingsSchema, SettingsValue } from "#/types/settings";
-import {
-  extractAppPreferences,
-  readStoredAppPreferences,
-  writeStoredAppPreferences,
-} from "../app-preferences-store";
 import { getActiveBackend } from "../backend-registry/active-store";
 import {
   fetchCloudConversationSettingsSchema,
@@ -14,6 +9,25 @@ import {
   saveCloudSettings,
 } from "../cloud/settings-service.api";
 import { getAgentServerClientOptions } from "../agent-server-client-options";
+import { migrateLegacyAppPreferences } from "./legacy-app-preferences-migration";
+
+/**
+ * Fields the agent-server stores under `app_preferences` (see SDK
+ * `openhands.sdk.settings.AppPreferences`). Mirrored here as a flat partial of
+ * Settings so the rest of the frontend can keep treating them as top-level.
+ */
+export const APP_PREFERENCE_FIELDS = [
+  "language",
+  "user_consents_to_analytics",
+  "enable_sound_notifications",
+  "git_user_name",
+  "git_user_email",
+  "disabled_skills",
+] as const;
+
+export type AppPreferenceField = (typeof APP_PREFERENCE_FIELDS)[number];
+
+export type AppPreferences = Partial<Pick<Settings, AppPreferenceField>>;
 
 /**
  * Response from GET /api/settings
@@ -23,16 +37,58 @@ export interface SettingsApiResponse {
   agent_settings: Record<string, SettingsValue>;
   conversation_settings: Record<string, SettingsValue>;
   llm_api_key_is_set: boolean;
+  /**
+   * App-level user preferences persisted on the agent-server. Added in
+   * agent-server 1.27 (SDK PR #3539); earlier servers omit the field
+   * entirely, in which case the frontend falls back to the empty default.
+   */
+  app_preferences?: AppPreferences;
 }
 
 /**
- * Request payload for PATCH /api/settings
+ * Request payload for PATCH /api/settings.
+ *
+ * `app_preferences_diff` is a shallow overlay: fields present overwrite,
+ * fields absent are left alone. `disabled_skills` lists are replaced
+ * wholesale (no merge). See SDK `SettingsUpdateRequest`.
  */
 export interface SettingsUpdateRequest {
   agent_settings_diff?: Record<string, SettingsValue>;
   conversation_settings_diff?: Record<string, SettingsValue>;
-  disabled_skills?: string[];
+  app_preferences_diff?: AppPreferences;
+  // Permit additional keys so this stays assignable to the underlying
+  // typescript-client SDK type, which uses `[key: string]: unknown` for
+  // forward compatibility.
+  [key: string]: unknown;
 }
+
+const APP_PREFERENCE_FIELD_SET: ReadonlySet<string> = new Set(
+  APP_PREFERENCE_FIELDS,
+);
+
+const isAppPreferenceField = (key: string): key is AppPreferenceField =>
+  APP_PREFERENCE_FIELD_SET.has(key);
+
+/**
+ * Split known app-preference keys out of a save payload so callers can
+ * route them through `app_preferences_diff` while the remaining fields
+ * flow into the `agent_settings_diff` / `conversation_settings_diff`
+ * branches.
+ */
+const extractAppPreferences = (
+  input: Record<string, unknown>,
+): { extracted: AppPreferences; rest: Record<string, unknown> } => {
+  const extracted: AppPreferences = {};
+  const rest: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (isAppPreferenceField(key)) {
+      (extracted as Record<string, unknown>)[key] = value;
+    } else {
+      rest[key] = value;
+    }
+  }
+  return { extracted, rest };
+};
 
 /**
  * Secret exposure mode for X-Expose-Secrets header.
@@ -44,36 +100,6 @@ export interface SettingsUpdateRequest {
 export type ExposeSecretsMode = "encrypted" | "plaintext" | undefined;
 
 const deepClone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
-
-// disabled_skills is not persisted by the local agent-server, so we mirror
-// the app-preferences pattern: write to localStorage on save, read back on fetch.
-export const DISABLED_SKILLS_STORAGE_KEY =
-  "openhands-agent-server-disabled-skills";
-
-const readStoredDisabledSkills = (): string[] | null => {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(DISABLED_SKILLS_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return null;
-    return parsed.filter((v): v is string => typeof v === "string");
-  } catch {
-    return null;
-  }
-};
-
-const writeStoredDisabledSkills = (skills: string[]): void => {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(
-      DISABLED_SKILLS_STORAGE_KEY,
-      JSON.stringify(skills),
-    );
-  } catch {
-    // ignore write failures (e.g. private-browsing quota exceeded)
-  }
-};
 
 const mergeRecords = (
   base: Record<string, SettingsValue> | null | undefined,
@@ -147,11 +173,20 @@ const transformApiResponse = (
     llm_api_key_set: response.llm_api_key_is_set,
   };
 
-  // The local agent-server never returns disabled_skills; read it from
-  // localStorage where saveSettings writes it for local-mode clients.
-  const stored = readStoredDisabledSkills();
-  if (stored !== null) {
-    partial.disabled_skills = stored;
+  // App-level user preferences come back nested under `app_preferences` from
+  // the local agent-server (added in 1.27 / SDK PR #3539). Hoist them onto
+  // the flat Settings shape the rest of the frontend already speaks. Older
+  // servers omit the field; the migration helper invoked from `getSettings`
+  // promotes any leftover localStorage values to the server on first run, so
+  // the omitted case just falls back to defaults.
+  const prefs = response.app_preferences;
+  if (prefs) {
+    for (const key of APP_PREFERENCE_FIELDS) {
+      const value = prefs[key];
+      if (value !== undefined) {
+        (partial as Record<string, unknown>)[key] = value;
+      }
+    }
   }
 
   return partial;
@@ -171,14 +206,8 @@ const syncDerivedSettings = (settings: Partial<Settings>): Settings => {
     settings.conversation_settings ?? {},
   );
 
-  // App-level user preferences (language, git identity, sound notifications,
-  // analytics consent) live in localStorage in local mode. In cloud mode the
-  // server response carries them and overrides the local cache.
-  const storedAppPrefs = readStoredAppPreferences();
-
   const merged = {
     ...deepClone(DEFAULT_SETTINGS),
-    ...storedAppPrefs,
     ...settings,
     provider_tokens_set: {
       ...(DEFAULT_SETTINGS.provider_tokens_set ?? {}),
@@ -280,7 +309,23 @@ class SettingsService {
     }
 
     try {
-      const response = await this.fetchSettingsFromApi();
+      let response = await this.fetchSettingsFromApi();
+      // One-shot migration: if the user previously stored app preferences in
+      // localStorage (older agent-canvas versions) and the server has no
+      // app_preferences for this user yet, promote the local values to the
+      // server now. Re-fetches so the cache is seeded with the migrated
+      // response. Safe to call repeatedly — clears the legacy keys after a
+      // successful push and no-ops thereafter.
+      const migrated = await migrateLegacyAppPreferences(
+        response,
+        (diff) =>
+          new SettingsClient(getAgentServerClientOptions()).updateSettings({
+            app_preferences_diff: diff,
+          }) as Promise<unknown>,
+      );
+      if (migrated) {
+        response = await this.fetchSettingsFromApi();
+      }
       settingsCache.redacted = response;
       settingsCache.timestamp = Date.now();
       return syncDerivedSettings(transformApiResponse(response));
@@ -353,17 +398,15 @@ class SettingsService {
     settings: Partial<Settings> & Record<string, unknown>,
   ): Promise<boolean> {
     // Split app-level user-preference fields (language, git identity, sound
-    // notifications, analytics consent) off before building the diff payload.
-    // The local agent-server's PATCH /api/settings has no schema for these
-    // and Pydantic would drop them silently; persist them in localStorage
-    // instead, and forward them as flat top-level keys to the cloud POST.
+    // notifications, analytics consent, disabled_skills) off and route them
+    // through `app_preferences_diff` (local) or as flat top-level keys
+    // (cloud). The local agent-server stores them under
+    // `PersistedSettings.app_preferences`; the cloud accepts them as flat
+    // keys on `POST /api/v1/settings`.
     const { extracted: appPreferences, rest } = extractAppPreferences(
       settings as Record<string, unknown>,
     );
     const hasAppPreferences = Object.keys(appPreferences).length > 0;
-    if (hasAppPreferences) {
-      writeStoredAppPreferences(appPreferences);
-    }
 
     const payload: SettingsUpdateRequest = {};
 
@@ -386,10 +429,8 @@ class SettingsService {
       payload.conversation_settings_diff = conversationSettingsDiff;
     }
 
-    // Extract disabled_skills (cloud-only — local agent-server has no skills concept)
-    const disabledSkills = rest.disabled_skills as string[] | undefined;
-    if (Array.isArray(disabledSkills)) {
-      payload.disabled_skills = disabledSkills;
+    if (hasAppPreferences) {
+      payload.app_preferences_diff = appPreferences;
     }
 
     const isCloud = getActiveBackend().backend.kind === "cloud";
@@ -455,7 +496,6 @@ class SettingsService {
       const hasCloudWork =
         !!payload.agent_settings_diff ||
         !!payload.conversation_settings_diff ||
-        payload.disabled_skills !== undefined ||
         hasAppPreferences;
       if (!hasCloudWork) {
         return true;
@@ -467,13 +507,25 @@ class SettingsService {
           }),
         );
       }
+      // Build the cloud payload from the same diffs, but as a separate
+      // object so undefined keys don't appear in the call (saveCloudSettings
+      // is called from tests with an exact-shape assertion).
+      const cloudPayload: Parameters<typeof saveCloudSettings>[0] = {};
+      if (payload.agent_settings_diff) {
+        cloudPayload.agent_settings_diff = payload.agent_settings_diff;
+      }
+      if (payload.conversation_settings_diff) {
+        cloudPayload.conversation_settings_diff =
+          payload.conversation_settings_diff;
+      }
+      if (hasAppPreferences) {
+        // The cloud `POST /api/v1/settings` takes app-preference fields as
+        // flat top-level keys (not under `app_preferences_diff`).
+        // `saveCloudSettings` re-flattens them onto the request body.
+        cloudPayload.app_preferences = appPreferences;
+      }
       try {
-        await withRetry(() =>
-          saveCloudSettings({
-            ...payload,
-            ...(hasAppPreferences ? { app_preferences: appPreferences } : {}),
-          }),
-        );
+        await withRetry(() => saveCloudSettings(cloudPayload));
       } catch (err) {
         if (needsMcpPreClear && mcpConfigSnapshot) {
           // Best-effort rollback. We deliberately do not wrap in withRetry:
@@ -493,24 +545,13 @@ class SettingsService {
         throw err;
       }
     } else {
-      // The local agent-server PATCH /api/settings rejects unknown fields and
-      // requires at least one of the two diff fields. Strip disabled_skills
-      // and skip the request entirely if no diffs remain. App preferences
-      // are persisted to localStorage above and never sent to this endpoint.
-      if (Array.isArray(disabledSkills)) {
-        writeStoredDisabledSkills(disabledSkills);
-      }
-      const localPayload = { ...payload };
-      delete localPayload.disabled_skills;
+      // The local agent-server PATCH /api/settings requires at least one of
+      // the three diff fields. Skip the request entirely if nothing changed.
       const hasLocalDiffs =
-        !!localPayload.agent_settings_diff ||
-        !!localPayload.conversation_settings_diff;
+        !!payload.agent_settings_diff ||
+        !!payload.conversation_settings_diff ||
+        !!payload.app_preferences_diff;
       if (!hasLocalDiffs) {
-        if (hasAppPreferences) {
-          // The localStorage write changed user-visible settings; clear the
-          // in-memory cache so the next getSettings() re-derives from disk.
-          clearCache();
-        }
         return true;
       }
       if (needsMcpPreClear) {
@@ -523,7 +564,7 @@ class SettingsService {
       try {
         await withRetry(() =>
           new SettingsClient(getAgentServerClientOptions()).updateSettings(
-            localPayload,
+            payload,
           ),
         );
       } catch (err) {

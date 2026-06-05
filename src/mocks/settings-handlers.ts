@@ -780,11 +780,21 @@ export const SETTINGS_HANDLERS = [
     await delay();
     const { settings } = MOCK_USER_PREFERENCES;
 
+    const DEFAULT_APP_PREFERENCES = {
+      language: null,
+      user_consents_to_analytics: null,
+      enable_sound_notifications: null,
+      git_user_name: null,
+      git_user_email: null,
+      disabled_skills: [],
+    };
+
     if (!settings) {
       return HttpResponse.json({
         agent_settings: {},
         conversation_settings: {},
         llm_api_key_is_set: false,
+        app_preferences: DEFAULT_APP_PREFERENCES,
       });
     }
 
@@ -818,10 +828,21 @@ export const SETTINGS_HANDLERS = [
           >
         )?.api_key);
 
+    // Reuse the persisted app_preferences for repeat fetches, but always
+    // fall back to the default-empty block so the GUI sees a deterministic
+    // shape on first read.
+    const appPreferences = {
+      ...DEFAULT_APP_PREFERENCES,
+      ...((settings as Record<string, unknown>).app_preferences as
+        | Record<string, unknown>
+        | undefined),
+    };
+
     return HttpResponse.json({
       agent_settings: agentSettings,
       conversation_settings: settings.conversation_settings ?? {},
       llm_api_key_is_set: llmApiKeySet,
+      app_preferences: appPreferences,
     });
   }),
 
@@ -831,17 +852,22 @@ export const SETTINGS_HANDLERS = [
     const body = (await request.json()) as {
       agent_settings_diff?: Record<string, unknown>;
       conversation_settings_diff?: Record<string, SettingsValue>;
+      app_preferences_diff?: Record<string, unknown>;
     } | null;
 
     if (!body) {
       return HttpResponse.json({ error: "Empty body" }, { status: 400 });
     }
 
-    if (!body.agent_settings_diff && !body.conversation_settings_diff) {
+    if (
+      !body.agent_settings_diff &&
+      !body.conversation_settings_diff &&
+      !body.app_preferences_diff
+    ) {
       return HttpResponse.json(
         {
           error:
-            "At least one of agent_settings_diff or conversation_settings_diff must be provided",
+            "At least one of agent_settings_diff, conversation_settings_diff, or app_preferences_diff must be provided",
         },
         { status: 400 },
       );
@@ -877,6 +903,18 @@ export const SETTINGS_HANDLERS = [
       };
     }
 
+    if (body.app_preferences_diff) {
+      const existing = (current as Record<string, unknown>).app_preferences as
+        | Record<string, unknown>
+        | undefined;
+      // Shallow overlay: each field present in the diff replaces the
+      // existing value; `disabled_skills` lists are replaced wholesale.
+      (nextSettings as Record<string, unknown>).app_preferences = {
+        ...(existing ?? {}),
+        ...body.app_preferences_diff,
+      };
+    }
+
     MOCK_USER_PREFERENCES.settings = nextSettings;
 
     // Return the updated settings (without secrets exposed)
@@ -884,6 +922,10 @@ export const SETTINGS_HANDLERS = [
       agent_settings: nextSettings.agent_settings ?? {},
       conversation_settings: nextSettings.conversation_settings ?? {},
       llm_api_key_is_set: nextSettings.llm_api_key_set ?? false,
+      app_preferences:
+        ((nextSettings as Record<string, unknown>).app_preferences as
+          | Record<string, unknown>
+          | undefined) ?? {},
     });
   }),
 
