@@ -58,7 +58,6 @@ import {
   buildNpmScriptCommand,
   buildRuntimeServicesInfo,
   formatMissingUvxGuidance,
-  getOrCreatePersistedApiKey,
   validateFrontendDependencies,
   validateLocalAgentServerPath,
 } from "./dev-safe.mjs";
@@ -68,6 +67,7 @@ import {
   isProcessRunning,
   signalProcessTree,
 } from "./dev-process-utils.mjs";
+import { buildAutomationCompatEnv } from "./automation-compat-env.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -83,6 +83,7 @@ const DEFAULT_AUTOMATION_VERSION = SHARED_DEFAULTS.versions.automation;
 // SDK version used by DEFAULT_AUTOMATION_VERSION. This can intentionally lag
 // the agent-server version while automation releases catch up.
 const DEFAULT_AUTOMATION_SDK_VERSION = SHARED_DEFAULTS.versions.automationSdk;
+const AUTOMATION_RUNTIME_DEPENDENCIES = ["tzdata"];
 const DEFAULT_BACKEND_PORT = SHARED_DEFAULTS.ports.agentServer;
 const DEFAULT_AUTOMATION_PORT = SHARED_DEFAULTS.ports.automation;
 
@@ -283,33 +284,26 @@ function buildAutomationCommand(env = process.env) {
   if (gitRef) {
     // Use git ref - refresh to ensure latest commit is fetched
     const gitUrl = `git+${repoUrl}@${gitRef}`;
-    uvxArgs.push(
-      "--refresh",
-      "--from",
-      gitUrl,
-      "uvicorn",
-      "openhands.automation.app:app",
-    );
+    uvxArgs.push("--refresh", "--from", gitUrl);
     source = `git (${gitRef})`;
   } else if (version) {
     // Use specific PyPI version
-    uvxArgs.push(
-      "--from",
-      `${DEFAULT_AUTOMATION_PACKAGE}==${version}`,
-      "uvicorn",
-      "openhands.automation.app:app",
-    );
+    uvxArgs.push("--from", `${DEFAULT_AUTOMATION_PACKAGE}==${version}`);
     source = `PyPI (${version})`;
   } else {
     // Default to released PyPI version
     uvxArgs.push(
       "--from",
       `${DEFAULT_AUTOMATION_PACKAGE}==${DEFAULT_AUTOMATION_VERSION}`,
-      "uvicorn",
-      "openhands.automation.app:app",
     );
     source = `PyPI (${DEFAULT_AUTOMATION_VERSION}, default)`;
   }
+
+  for (const dependency of AUTOMATION_RUNTIME_DEPENDENCIES) {
+    uvxArgs.push("--with", dependency);
+  }
+
+  uvxArgs.push("uvicorn", "openhands.automation.app:app");
 
   return {
     command: "uvx",
@@ -581,7 +575,7 @@ function spawnService(name, command, args, options = {}) {
     logError(`${name} failed to start: ${error.message}`);
   });
 
-  proc.on("exit", (code, signal) => {
+  proc.on("exit", (code, _signal) => {
     if (code !== 0 && code !== null && !shuttingDown) {
       logService(name, `Exited with code ${code}`, c.red);
     }
@@ -783,6 +777,7 @@ function startAutomationBackend(config) {
     {
       cwd: config.stateDir,
       env: {
+        ...buildAutomationCompatEnv(process.env),
         // Force UTF-8 for all Python file I/O (same reason as agent-server;
         // see buildAgentServerEnv in dev-safe.mjs).
         PYTHONUTF8: "1",
@@ -1076,7 +1071,7 @@ function printBanner(config) {
 
   // padEnd counts invisible ANSI escape bytes as visible characters, so we
   // compute the visible length separately and pad with spaces accordingly.
-  const ansiRe = /\x1b\[[0-9;]*m/g;
+  const ansiRe = new RegExp(String.raw`\u001b\[[0-9;]*m`, "g");
   const ansiPadEnd = (str, targetVisible) => {
     const visible = str.replace(ansiRe, "").length;
     return str + " ".repeat(Math.max(0, targetVisible - visible));
@@ -1362,6 +1357,7 @@ function startStaticFrontend(config, staticDir) {
 export {
   buildAgentServerAutomationEnv,
   buildAutomationCommand,
+  buildAutomationCompatEnv,
   buildConfig,
   buildRouteArgs,
   buildViteBackendEnv,

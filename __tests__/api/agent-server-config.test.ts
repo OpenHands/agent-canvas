@@ -12,11 +12,19 @@ import {
 } from "#/api/agent-server-config";
 
 const ORIGINAL_LOCATION = window.location;
+const ORIGINAL_NAVIGATOR_PLATFORM = window.navigator.platform;
 
 function mockWindowLocation(url: string) {
   Object.defineProperty(window, "location", {
     configurable: true,
     value: new URL(url),
+  });
+}
+
+function mockNavigatorPlatform(platform: string) {
+  Object.defineProperty(window.navigator, "platform", {
+    configurable: true,
+    value: platform,
   });
 }
 
@@ -29,6 +37,7 @@ afterEach(() => {
     configurable: true,
     value: ORIGINAL_LOCATION,
   });
+  mockNavigatorPlatform(ORIGINAL_NAVIGATOR_PLATFORM);
 });
 
 describe("agent server config", () => {
@@ -75,20 +84,30 @@ describe("agent server config", () => {
     ).toBe("/srv/workspaces/4a8dca373bf048dea0af949d711c3d48");
   });
 
-  it("loads public skills by default when VITE_LOAD_PUBLIC_SKILLS is unset", () => {
+  it("loads public skills by default when VITE_LOAD_PUBLIC_SKILLS is unset on non-Windows browsers", () => {
     vi.stubEnv("VITE_LOAD_PUBLIC_SKILLS", "");
+    mockNavigatorPlatform("MacIntel");
 
     expect(shouldLoadPublicSkills()).toBe(true);
   });
 
   it("loads public skills when VITE_LOAD_PUBLIC_SKILLS is explicitly 'true'", () => {
     vi.stubEnv("VITE_LOAD_PUBLIC_SKILLS", "true");
+    mockNavigatorPlatform("Win32");
 
     expect(shouldLoadPublicSkills()).toBe(true);
   });
 
   it("does not load public skills only when VITE_LOAD_PUBLIC_SKILLS is explicitly 'false'", () => {
     vi.stubEnv("VITE_LOAD_PUBLIC_SKILLS", "false");
+    mockNavigatorPlatform("MacIntel");
+
+    expect(shouldLoadPublicSkills()).toBe(false);
+  });
+
+  it("does not load public skills by default on Windows browsers", () => {
+    vi.stubEnv("VITE_LOAD_PUBLIC_SKILLS", "");
+    mockNavigatorPlatform("Win32");
 
     expect(shouldLoadPublicSkills()).toBe(false);
   });

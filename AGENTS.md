@@ -13,7 +13,7 @@
   - `VITE_WORKING_DIR` for the default workspace path sent when starting conversations.
   - `VITE_WORKER_URLS` as a comma-separated list of browser worker URLs if you want the Browser tab to probe exposed app hosts.
   - `VITE_ENABLE_BROWSER_TOOLS=false` to omit `BrowserToolSet` from new conversation payloads.
-  - `VITE_LOAD_PUBLIC_SKILLS=false` to disable loading public skills from the OpenHands extensions marketplace (https://github.com/OpenHands/extensions). Defaults to true (opt-out).
+  - `VITE_LOAD_PUBLIC_SKILLS=false` to disable loading public skills from the OpenHands extensions marketplace (https://github.com/OpenHands/extensions). Defaults to true on non-Windows browsers. Windows browsers default to false because the current public-skills repo includes command filenames that Windows cannot checkout; set `VITE_LOAD_PUBLIC_SKILLS=true` to opt back in explicitly.
 - Default working-dir fallback is now the relative path `workspace/project` (exported as `DEFAULT_WORKING_DIR` from `src/api/agent-server-config.ts`); git-path heuristics and the default PLAN preview path should reuse that constant instead of hardcoding `/workspace/project`.
 - The UI keeps most OpenHands routes/layout intact, but hosted-only behavior (org, account management, integrations) has been removed via the fabricated OSS config because there is no separate app backend.
 - Verification command: `npm run typecheck && npm run build`.
@@ -520,6 +520,8 @@ When adding code that needs a new string, decide up front which rule it falls un
 - `scripts/dev-safe.mjs` should fail fast if `uvx` cannot be spawned (for example missing PATH entries).
 - `npm run dev` runs the full local stack via `uvx` (agent-server + automation backend + Vite dev server + ingress proxy) with no Docker dependency. `npm run dev:static` does the same but serves a production build of the frontend instead of the Vite dev server.
 - `scripts/dev-with-automation.mjs` runs the full stack: agent-server, automation backend (both via uvx), frontend server, and ingress proxy. It defaults to Vite when run directly, supports `--static` for an existing build, and supports `--dynamic` so wrappers that default static can opt back into Vite. Uses a standalone ingress proxy (`scripts/ingress.mjs`) to route traffic:
+- Local automation compatibility shim: both `dev-with-automation.mjs` and `dev-static.mjs` now prepend `scripts/automation-compat-python/` to `PYTHONPATH` and set `OPENHANDS_AGENT_CANVAS_AUTOMATION_COMPAT=1` for the automation backend. The `sitecustomize.py` shim monkeypatches `openhands.automation.execution` at process start to (a) upload tarballs via `/api/file/upload/{path}` instead of the stale query-param form, and (b) use a real local temp path for local `localhost` agent-server runs on Windows. Keep this shim until `openhands-automation` ships a release compatible with the current local agent-server file-upload route on source installs.
+- Local automation timezone note: the uvx-launched automation backend now always includes `tzdata` as an extra runtime dependency. This keeps cron triggers working on Windows/other minimal Python installs where `zoneinfo` cannot resolve `UTC` (or other IANA zones) from the host environment and would otherwise crash the scheduler loop with `ZoneInfoNotFoundError`.
   - `/api/automation/*` → automation backend (:18001)
   - `/api/*`, `/sockets`, etc. → agent server (:18000)
   - `/*` (default) → frontend server (:3001), either Vite or static depending on launcher mode
