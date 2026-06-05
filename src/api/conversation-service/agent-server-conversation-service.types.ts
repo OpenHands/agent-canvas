@@ -166,6 +166,15 @@ export interface AppConversation {
    * the runtime actually operates in).
    */
   selected_workspace?: string | null;
+  /**
+   * The LLM profile this conversation was created with / last switched to.
+   * Hydrated from client-side metadata (see
+   * `ConversationMetadata.active_profile`). Preferred over matching
+   * `llm_model` against the profile list, which is ambiguous when several
+   * profiles share a model (#1082). Null when unknown (e.g. created by an
+   * older client) — consumers fall back to model-matching.
+   */
+  active_profile?: string | null;
   public?: boolean;
   sub_conversation_ids: string[];
 }

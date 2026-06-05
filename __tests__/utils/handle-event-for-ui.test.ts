@@ -7,6 +7,7 @@ import {
   OpenHandsEvent,
 } from "#/types/agent-server/core";
 import { ACPToolCallEvent } from "#/types/agent-server/core/events/acp-tool-call-event";
+import { StreamingDeltaEvent } from "#/types/agent-server/core/events/streaming-delta-event";
 import { handleEventForUI } from "#/utils/handle-event-for-ui";
 
 describe("handleEventForUI", () => {
@@ -75,6 +76,56 @@ describe("handleEventForUI", () => {
     activated_microagents: [],
     extended_content: [],
   };
+
+  const mockFinishActionEvent: ActionEvent = {
+    id: "test-finish-action-1",
+    timestamp: Date.now().toString(),
+    source: "agent",
+    thought: [],
+    thinking_blocks: [],
+    action: {
+      kind: "FinishAction",
+      message: "I'll start working on that. Done.",
+    },
+    tool_name: "finish",
+    tool_call_id: "call_finish_1",
+    tool_call: {
+      id: "call_finish_1",
+      type: "function",
+      function: {
+        name: "finish",
+        arguments: JSON.stringify({
+          message: "I'll start working on that. Done.",
+        }),
+      },
+    },
+    llm_response_id: "response_finish",
+    security_risk: SecurityRisk.UNKNOWN,
+  };
+
+  const mockAgentMessageEvent: MessageEvent = {
+    id: "test-agent-message-1",
+    timestamp: Date.now().toString(),
+    source: "agent",
+    llm_message: {
+      role: "assistant",
+      content: [{ type: "text", text: "I'll start working on that. Done." }],
+    },
+    activated_microagents: [],
+    extended_content: [],
+  };
+
+  const makeStreamingDelta = (
+    id: string,
+    content: string | null,
+  ): StreamingDeltaEvent => ({
+    id,
+    kind: "StreamingDeltaEvent",
+    timestamp: Date.now().toString(),
+    source: "agent",
+    content,
+    reasoning_content: null,
+  });
 
   it("should add non-observation events to the end of uiEvents", () => {
     const initialUiEvents = [mockMessageEvent];
@@ -238,6 +289,223 @@ describe("handleEventForUI", () => {
       ]);
 
       expect(result).toEqual([mockMessageEvent, other, mockCompleted]);
+    });
+  });
+
+  describe("StreamingDeltaEvent", () => {
+    it("merges consecutive deltas into a single provisional assistant event", () => {
+      const first = makeStreamingDelta("delta-1", "I'll start ");
+      const second = makeStreamingDelta("delta-2", "working on that.");
+
+      const afterFirst = handleEventForUI(first, [mockMessageEvent]);
+      const afterSecond = handleEventForUI(second, afterFirst);
+
+      expect(afterSecond).toEqual([
+        mockMessageEvent,
+        {
+          ...first,
+          content: "I'll start working on that.",
+          reasoning_content: null,
+        },
+      ]);
+    });
+
+    it("finalizes streamed deltas in place when finish arrives", () => {
+      const first = makeStreamingDelta("delta-1", "I'll start ");
+      const second = makeStreamingDelta("delta-2", "working on that.");
+      const streamedDelta = handleEventForUI(
+        second,
+        handleEventForUI(first, []),
+      ).at(-1)!;
+      const uiEvents = [mockMessageEvent, streamedDelta];
+
+      const result = handleEventForUI(mockFinishActionEvent, uiEvents);
+
+      expect(result).toEqual([
+        mockMessageEvent,
+        {
+          ...streamedDelta,
+          content: "I'll start working on that. Done.",
+        },
+      ]);
+    });
+
+    it("finalizes streamed deltas in place when an agent message arrives", () => {
+      const first = makeStreamingDelta("delta-1", "I'll start ");
+      const second = makeStreamingDelta("delta-2", "working on that.");
+      const streamedDelta = handleEventForUI(
+        second,
+        handleEventForUI(first, []),
+      ).at(-1)!;
+      const uiEvents = [mockMessageEvent, streamedDelta];
+
+      const result = handleEventForUI(mockAgentMessageEvent, uiEvents);
+
+      expect(result).toEqual([
+        mockMessageEvent,
+        {
+          ...streamedDelta,
+          content: "I'll start working on that. Done.",
+        },
+      ]);
+    });
+
+    it("keeps streamed deltas in their original locations when the final message aggregates them", () => {
+      const first = makeStreamingDelta(
+        "delta-1",
+        "I'll start working on that.",
+      );
+      const second = makeStreamingDelta("delta-2", "I found the issue.");
+      const aggregateAgentMessage: MessageEvent = {
+        ...mockAgentMessageEvent,
+        llm_message: {
+          role: "assistant",
+          content: [
+            {
+              type: "text",
+              text: "I'll start working on that.I found the issue.",
+            },
+          ],
+        },
+      };
+
+      const afterFirst = handleEventForUI(first, [mockMessageEvent]);
+      const afterObservation = handleEventForUI(
+        mockObservationEvent,
+        afterFirst,
+      );
+      const afterSecond = handleEventForUI(second, afterObservation);
+      const result = handleEventForUI(aggregateAgentMessage, afterSecond);
+
+      expect(result).toEqual([
+        mockMessageEvent,
+        first,
+        mockObservationEvent,
+        second,
+      ]);
+    });
+
+    it("appends unstreamed suffix to the last content-bearing delta", () => {
+      const contentDelta = makeStreamingDelta(
+        "delta-content",
+        "I'll start working on that.",
+      );
+      const reasoningDelta: StreamingDeltaEvent = {
+        id: "delta-reasoning",
+        kind: "StreamingDeltaEvent",
+        timestamp: Date.now().toString(),
+        source: "agent",
+        content: null,
+        reasoning_content: "thinking...",
+      };
+      const finalMessage: MessageEvent = {
+        ...mockAgentMessageEvent,
+        llm_message: {
+          role: "assistant",
+          content: [
+            {
+              type: "text",
+              text: "I'll start working on that. Done.",
+            },
+          ],
+        },
+      };
+
+      const result = handleEventForUI(finalMessage, [
+        mockMessageEvent,
+        contentDelta,
+        mockObservationEvent,
+        reasoningDelta,
+      ]);
+
+      expect(result).toEqual([
+        mockMessageEvent,
+        {
+          ...contentDelta,
+          content: "I'll start working on that. Done.",
+        },
+        mockObservationEvent,
+        reasoningDelta,
+      ]);
+    });
+
+    it("appends a distinct final message that does not match streamed text", () => {
+      const streamedDelta = makeStreamingDelta(
+        "delta-1",
+        "I'll start working on that.",
+      );
+      const finalMessage: MessageEvent = {
+        ...mockAgentMessageEvent,
+        llm_message: {
+          role: "assistant",
+          content: [{ type: "text", text: "Done." }],
+        },
+      };
+
+      const result = handleEventForUI(finalMessage, [
+        mockMessageEvent,
+        streamedDelta,
+      ]);
+
+      expect(result).toEqual([mockMessageEvent, streamedDelta, finalMessage]);
+    });
+
+    it("keeps deltas from older turns when a later turn finishes", () => {
+      const oldUserMessage: MessageEvent = {
+        ...mockMessageEvent,
+        id: "old-user-message",
+      };
+      const nextUserMessage: MessageEvent = {
+        ...mockMessageEvent,
+        id: "next-user-message",
+        llm_message: {
+          role: "user",
+          content: [{ type: "text", text: "Next task" }],
+        },
+      };
+      const oldDelta = makeStreamingDelta("old-delta", "Old live text");
+      const currentDelta = makeStreamingDelta(
+        "current-delta",
+        "Current live text",
+      );
+
+      const result = handleEventForUI(mockFinishActionEvent, [
+        oldUserMessage,
+        oldDelta,
+        nextUserMessage,
+        currentDelta,
+      ]);
+
+      expect(result).toEqual([
+        oldUserMessage,
+        oldDelta,
+        nextUserMessage,
+        currentDelta,
+        mockFinishActionEvent,
+      ]);
+    });
+
+    it("appends final message normally when all deltas are reasoning-only", () => {
+      // When every streaming delta carries only reasoning_content (no content),
+      // streamingSegments is empty → finalizeStreamingDeltasInPlace returns null
+      // → finalEvent is appended after the delta as a regular message bubble.
+      const reasoningDelta: StreamingDeltaEvent = {
+        id: "delta-reasoning",
+        kind: "StreamingDeltaEvent",
+        timestamp: Date.now().toString(),
+        source: "agent",
+        content: null,
+        reasoning_content: "thinking...",
+      };
+      const result = handleEventForUI(mockAgentMessageEvent, [
+        mockMessageEvent,
+        reasoningDelta,
+      ]);
+      expect(result).toEqual([
+        mockMessageEvent,
+        reasoningDelta,
+        mockAgentMessageEvent,
+      ]);
     });
   });
 
