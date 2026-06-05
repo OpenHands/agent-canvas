@@ -756,6 +756,10 @@ export interface StartConversationOptions {
   customSecrets?: Array<{ name: string; description?: string }>;
 }
 
+type ResolveAgentSettings = (
+  agentSettings: Record<string, SettingsValue>,
+) => Promise<Record<string, SettingsValue> | undefined>;
+
 export function buildStartConversationRequest(
   options: StartConversationOptions,
 ): StartConversationPayload {
@@ -877,6 +881,7 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   plugins?: PluginSpec[];
   conversationId?: string;
   workingDir?: string;
+  resolveAgentSettings?: ResolveAgentSettings;
 }): Promise<Record<string, unknown>> {
   const { SecretsService } = await import("./secrets-service");
 
@@ -887,10 +892,12 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
 
   const { agentSettings, conversationSettings, secretsEncrypted } =
     settingsResult;
+  const resolvedAgentSettings =
+    (await options.resolveAgentSettings?.(agentSettings)) ?? agentSettings;
 
   return buildStartConversationRequest({
     ...options,
-    encryptedAgentSettings: agentSettings,
+    encryptedAgentSettings: resolvedAgentSettings,
     encryptedConversationSettings: conversationSettings,
     secretsEncrypted,
     customSecrets,

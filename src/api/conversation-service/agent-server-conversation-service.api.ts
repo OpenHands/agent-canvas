@@ -9,7 +9,7 @@ import {
   VSCodeClient,
 } from "@openhands/typescript-client/clients";
 import { v4 as uuidv4 } from "uuid";
-import { Provider } from "#/types/settings";
+import type { Provider, SettingsValue } from "#/types/settings";
 import type { ConversationRuntimeContext } from "#/api/conversation-file-upload.api";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import {
@@ -292,6 +292,117 @@ function requireAppConversation(
   return conversation;
 }
 
+function stringArrayOrUndefined(value: unknown): string[] | undefined {
+  return Array.isArray(value) &&
+    value.every((item): item is string => typeof item === "string")
+    ? value
+    : undefined;
+}
+
+function parentAcpServer(parent: Record<string, unknown>): string | undefined {
+  const tags = isRecord(parent.tags) ? parent.tags : null;
+  const value = tags?.acpserver;
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function resolveParentAcpAgentSettings(
+  parent: Record<string, unknown>,
+  encryptedAgentSettings: Record<string, SettingsValue>,
+): Record<string, SettingsValue> | undefined {
+  const agent = isRecord(parent.agent) ? parent.agent : null;
+  if (agent?.kind !== "ACPAgent") return undefined;
+
+  const inherited: Record<string, SettingsValue> = {
+    ...encryptedAgentSettings,
+    agent_kind: "acp",
+  };
+  const acpServer = parentAcpServer(parent);
+  if (acpServer) inherited.acp_server = acpServer;
+
+  const acpCommand = stringArrayOrUndefined(agent.acp_command);
+  if (acpCommand) inherited.acp_command = acpCommand;
+  const acpArgs = stringArrayOrUndefined(agent.acp_args);
+  if (acpArgs) inherited.acp_args = acpArgs;
+
+  const runtimeModel = stringOrNull(parent.current_model_id);
+  const configuredModel = stringOrNull(agent.acp_model);
+  const acpModel = runtimeModel?.trim() || configuredModel?.trim();
+  if (acpModel) inherited.acp_model = acpModel;
+
+  if (
+    typeof agent.acp_session_mode === "string" ||
+    agent.acp_session_mode === null
+  ) {
+    inherited.acp_session_mode = agent.acp_session_mode;
+  }
+  if (typeof agent.acp_prompt_timeout === "number") {
+    inherited.acp_prompt_timeout = agent.acp_prompt_timeout;
+  }
+
+  return inherited;
+}
+
+async function resolveParentOpenHandsAgentSettings(
+  parentConversationId: string,
+  encryptedAgentSettings: Record<string, SettingsValue>,
+): Promise<Record<string, SettingsValue> | undefined> {
+  const activeProfile =
+    getStoredConversationMetadata(parentConversationId)?.active_profile?.trim();
+  if (!activeProfile) return undefined;
+
+  try {
+    const profile = await new ProfilesClient(
+      getAgentServerClientOptions(),
+    ).getProfile(activeProfile, { exposeSecrets: "encrypted" });
+    const profileConfig = isRecord(profile.config) ? profile.config : null;
+    const model =
+      typeof profileConfig?.model === "string"
+        ? profileConfig.model.trim()
+        : "";
+    if (!profileConfig || !model) return undefined;
+
+    return {
+      ...encryptedAgentSettings,
+      agent_kind: "openhands",
+      llm: {
+        ...(isRecord(encryptedAgentSettings.llm)
+          ? encryptedAgentSettings.llm
+          : {}),
+        ...(profileConfig as Record<string, SettingsValue>),
+        model,
+      },
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+async function resolveParentAgentSettings(
+  parentConversationId: string,
+  encryptedAgentSettings: Record<string, SettingsValue>,
+): Promise<Record<string, SettingsValue> | undefined> {
+  const parent = await new ConversationClient(
+    getAgentServerClientOptions(),
+  ).getConversation<Record<string, unknown>>(parentConversationId);
+  if (!isRecord(parent)) return undefined;
+
+  const acpSettings = resolveParentAcpAgentSettings(
+    parent,
+    encryptedAgentSettings,
+  );
+  if (acpSettings) return acpSettings;
+
+  const agent = isRecord(parent.agent) ? parent.agent : null;
+  if (agent?.kind === "Agent") {
+    return resolveParentOpenHandsAgentSettings(
+      parentConversationId,
+      encryptedAgentSettings,
+    );
+  }
+
+  return undefined;
+}
+
 class AgentServerConversationService {
   static async sendMessage(
     conversationId: string,
@@ -394,6 +505,10 @@ class AgentServerConversationService {
       plugins,
       conversationId,
       workingDir,
+      resolveAgentSettings: parentConversationId
+        ? (agentSettings) =>
+            resolveParentAgentSettings(parentConversationId, agentSettings)
+        : undefined,
     });
 
     const data = await new ConversationClient(
