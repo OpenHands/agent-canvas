@@ -1,14 +1,24 @@
 <!-- Keep this PR as draft until it is ready for review. -->
 
-<!-- AI/LLM agents: be concise and specific. Do not check the box below. -->
+<!-- AI/LLM agents:
+Do not edit the HUMAN section or human-tested checkbox.
+In the AGENT section and the template fields below, provide evidence that the
+code runs properly end-to-end. Just running unit tests is NOT sufficient. Explain
+exactly what command you ran and include logs, screenshots, or reproduction notes.
+-->
+
+HUMAN:
+
 
 - [ ] A human has tested these changes.
+
+AGENT:
 
 ---
 
 ## Why
 
-<!-- Describe problem, motivation, etc.-->
+<!-- Describe problem, motivation, etc. -->
 
 ## Summary
 

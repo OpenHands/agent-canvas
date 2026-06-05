@@ -19,6 +19,15 @@
 - Verification command: `npm run typecheck && npm run build`.
 - GitHub automation now includes `.github/workflows/ci.yml` for `npm ci`, `npm test`, and `npm run build`, plus `.github/dependabot.yml` with weekly npm/github-actions updates gated by a 7-day cooldown.
 
+## PR Description Human Check
+
+The `HUMAN:` section and the `A human has tested these changes.` checkbox in
+PR descriptions are reserved for human contributors only. AI agents
+MUST NOT add to, edit, move, remove, or check these fields. If the PR description
+CI fails because these fields are missing, empty, or unchecked, stop and ask the
+human user to update them in their own words. If the fields were already updated
+by a human, report the exact validator error rather than editing them yourself.
+
 ## Tracking / Analytics Architecture
 
 Two distinct PostHog systems exist. **Never mix them at a call site.**
