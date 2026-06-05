@@ -580,6 +580,8 @@ function buildConfiguredAcpAgentSettings(
     // ``acp_model`` is resolved separately below so a saved ``null`` still
     // falls back to the provider's default rather than being dropped.
     if (key === "acp_model") continue;
+    // ``acp_env`` is deprecated — provider creds now route via agent_context.secrets.
+    if (key === "acp_env") continue;
     const value =
       key === "acp_command"
         ? resolveAcpCommand(agentSettings)
