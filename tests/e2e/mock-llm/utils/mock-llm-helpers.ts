@@ -133,12 +133,18 @@ export async function waitForTestId(
 /** Dismiss the analytics consent modal if it appears. */
 export async function dismissAnalyticsModal(page: Page) {
   await page.waitForLoadState("domcontentloaded");
-  // Quick check — if the modal is there, click "Confirm preferences"
+  // The analytics consent modal is lazy-loaded via React.Suspense and may
+  // appear several seconds after DOM-content-loaded.  Wait for the form's
+  // test ID (more specific than the generic ModalBackdrop) or give up after
+  // a generous window so tests that have already dismissed the modal don't
+  // stall.
   try {
-    const confirmButton = page.getByRole("button", {
-      name: "Confirm preferences",
-    });
-    await confirmButton.click({ timeout: 3_000 });
+    const form = page.getByTestId("user-capture-consent-form");
+    await form.waitFor({ state: "visible", timeout: 8_000 });
+    await form.getByRole("button", { name: "Confirm preferences" }).click();
+    // Wait for the modal to fully close so the backdrop no longer
+    // intercepts pointer events.
+    await form.waitFor({ state: "hidden", timeout: 5_000 });
   } catch {
     // Modal didn't appear — that's fine
   }
