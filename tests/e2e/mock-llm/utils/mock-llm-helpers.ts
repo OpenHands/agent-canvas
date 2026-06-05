@@ -318,73 +318,146 @@ export async function deleteConversation(
 // ═══════════════════════════════════════════════════════════════════════
 
 /**
- * Ensure the currently-active LLM profile is configured to point at the mock
- * LLM server.
+ * Create (or overwrite) an LLM profile and activate it through the Settings
+ * UI — the same flow a real user follows.
  *
- * This bypasses the UI-driven profile creation (steps 1+2 in the conversation
- * test) and directly PATCHes the agent-server settings on whatever profile is
- * currently active. Useful for tests that need to run independently of the
- * conversation test's UI-based profile setup.
- *
- * Note: this does NOT create or switch profiles — it only configures the
- * current profile's LLM settings. Profile creation/activation is handled
- * by the conversation test's UI flow or by the agent-server's default
- * profile behavior.
+ * Exercises the full frontend save path (including `include_secrets`) so the
+ * api_key is persisted correctly. Callers that previously used the API-only
+ * `ensureMockLLMProfile(request)` should switch to this.
  */
 export async function ensureMockLLMProfile(
-  request: APIRequestContext,
-  model = "openai/mock-test-model",
+  page: Page,
+  {
+    profileName = "mock-llm",
+    model = "openai/mock-test-model",
+    apiKey = "mock-api-key-for-testing",
+    baseUrl = MOCK_LLM_AGENT_URL,
+  }: {
+    profileName?: string;
+    model?: string;
+    apiKey?: string;
+    baseUrl?: string;
+  } = {},
 ) {
-  // The GUI now treats the ACTIVE LLM PROFILE as the source of truth in local
-  // mode — a bare agent_settings.llm key no longer counts as "configured" (see
-  // useLlmConfigured). So back the mock LLM with a real, *active* profile;
-  // activating it stamps agent_settings.llm so the agent-server uses it for
-  // inference. Use MOCK_LLM_AGENT_URL — the URL the agent-server reaches the
-  // mock LLM at, which may differ from MOCK_LLM_BASE_URL in Docker.
-  //
-  // Always delete-then-create to guarantee clean state: other tests
-  // (e.g. resetToOpenHandsAgent) may PATCH agent_settings between runs,
-  // and re-activating an existing profile ensures the flat settings are
-  // re-stamped. include_secrets: true tells the server to persist the
-  // api_key as a real secret — without it the key is silently dropped and
-  // the conversation starts with api_key=None.
-  const PROFILE_NAME = "mock-llm";
+  await routeSessionApiKey(page);
+  await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
+  await dismissAnalyticsModal(page);
+  await waitForTestId(page, "add-llm-profile");
 
-  await request.delete(
-    `${BACKEND_URL}/api/profiles/${encodeURIComponent(PROFILE_NAME)}`,
-    { headers: { "X-Session-API-Key": SESSION_API_KEY } },
-  );
+  // If a profile with this name already exists, delete it first so we
+  // always start clean (other tests may have left stale config).
+  await deleteProfileIfExists(page, profileName);
 
-  const createResp = await request.post(
-    `${BACKEND_URL}/api/profiles/${encodeURIComponent(PROFILE_NAME)}`,
-    {
-      headers: {
-        "X-Session-API-Key": SESSION_API_KEY,
-        "Content-Type": "application/json",
+  // ── Create the profile ──────────────────────────────────────────────
+  await page.getByTestId("add-llm-profile").click();
+  await waitForTestId(page, "profile-editor-title");
+
+  const nameInput = page.getByTestId("profile-name-input");
+  await nameInput.click();
+  await nameInput.fill(profileName);
+
+  // Switch to "All" view so base_url is visible
+  await page.getByTestId("sdk-section-all-toggle").click();
+  await waitForTestId(page, "llm-settings-form-advanced");
+
+  const modelInput = page.getByTestId("llm-custom-model-input");
+  await modelInput.click();
+  await modelInput.fill(model);
+
+  const baseUrlInput = page.getByTestId("base-url-input");
+  await baseUrlInput.click();
+  await baseUrlInput.fill(baseUrl);
+
+  const apiKeyInput = page.getByTestId("llm-api-key-input");
+  await apiKeyInput.click();
+  await apiKeyInput.fill(apiKey);
+
+  await page.getByTestId("save-profile-btn").click();
+  await waitForTestId(page, "add-llm-profile");
+
+  // ── Activate the profile ────────────────────────────────────────────
+  await activateProfileViaUI(page, profileName);
+}
+
+/**
+ * Delete a profile by name through the Settings UI if it exists.
+ * Assumes the page is already on /settings/llm with profiles loaded.
+ */
+async function deleteProfileIfExists(page: Page, profileName: string) {
+  const rows = page.getByTestId("profile-row");
+  const count = await rows.count();
+  for (let i = 0; i < count; i++) {
+    const row = rows.nth(i);
+    const text = await row.textContent();
+    if (text?.includes(profileName)) {
+      await row.getByTestId("profile-menu-trigger").click();
+      await waitForTestId(page, "profile-actions-menu");
+      const deleteBtn = page.getByTestId("profile-delete");
+      if (await deleteBtn.isVisible()) {
+        await deleteBtn.click();
+        // Wait for the confirmation dialog and confirm
+        const confirmBtn = page.getByTestId("confirm-delete-btn");
+        if (await confirmBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+          await confirmBtn.click();
+        }
+        await waitForTestId(page, "add-llm-profile");
+      } else {
+        await page.keyboard.press("Escape");
+      }
+      return;
+    }
+  }
+}
+
+/**
+ * Activate a profile by name through the Settings UI.
+ * Assumes the page is already on /settings/llm with profiles loaded.
+ * Polls until the "Active" badge is visible on the target profile row.
+ */
+async function activateProfileViaUI(page: Page, profileName: string) {
+  const rows = page.getByTestId("profile-row");
+  const count = await rows.count();
+  for (let i = 0; i < count; i++) {
+    const row = rows.nth(i);
+    const text = await row.textContent();
+    if (text?.includes(profileName)) {
+      await row.getByTestId("profile-menu-trigger").click();
+      await waitForTestId(page, "profile-actions-menu");
+      const setActive = page.getByTestId("profile-set-active");
+      if (await setActive.isEnabled()) {
+        await setActive.click();
+      } else {
+        // Already active
+        await page.keyboard.press("Escape");
+      }
+      break;
+    }
+  }
+
+  // Poll until the active badge appears on our profile
+  await expect
+    .poll(
+      async () => {
+        await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
+        await waitForTestId(page, "add-llm-profile");
+        const allRows = page.getByTestId("profile-row");
+        const rowCount = await allRows.count();
+        for (let i = 0; i < rowCount; i++) {
+          const row = allRows.nth(i);
+          const text = await row.textContent();
+          if (text?.includes(profileName)) {
+            return (await row.getByTestId("profile-active-badge").count()) > 0;
+          }
+        }
+        return false;
       },
-      data: {
-        llm: {
-          model,
-          api_key: "mock-api-key-for-testing",
-          base_url: MOCK_LLM_AGENT_URL,
-        },
-        include_secrets: true,
+      {
+        message: `Profile "${profileName}" should have an "Active" badge`,
+        timeout: 15_000,
+        intervals: [1_000, 2_000, 3_000],
       },
-    },
-  );
-  expect(
-    createResp.ok(),
-    `POST /api/profiles/${PROFILE_NAME}: ${createResp.status()}`,
-  ).toBe(true);
-
-  const activateResp = await request.post(
-    `${BACKEND_URL}/api/profiles/${encodeURIComponent(PROFILE_NAME)}/activate`,
-    { headers: { "X-Session-API-Key": SESSION_API_KEY } },
-  );
-  expect(
-    activateResp.ok(),
-    `POST /api/profiles/${PROFILE_NAME}/activate: ${activateResp.status()}`,
-  ).toBe(true);
+    )
+    .toBe(true);
 }
 
 /**

@@ -129,12 +129,12 @@ test.describe("mock-LLM /model slash command", () => {
   // ── Step 1: Configure LLM + create switch-target profile + register trajectory
 
   test("step 1: configure LLM, create switch-target profile, register trajectory", async ({
+    page,
     request,
   }) => {
-    // Use the proven ensureMockLLMProfile helper to set agent_settings.llm
-    // so the agent-server can reach the mock LLM. This is the same approach
-    // used by mock-llm-conversation.spec.ts.
-    await ensureMockLLMProfile(request);
+    // Use the Settings UI to create + activate a mock LLM profile — the same
+    // flow used by mock-llm-conversation.spec.ts.
+    await ensureMockLLMProfile(page);
 
     // Create profile B as the switch target — it has a different model name
     // but the same mock LLM base_url so post-switch inference still works.
