@@ -90,7 +90,9 @@ describe("VerificationSettingsScreen", () => {
     );
     expect(helpLink).toBeInTheDocument();
     expect(
-      helpLink.querySelector('a[href="https://app.all-hands.dev/settings/api-keys"]'),
+      helpLink.querySelector(
+        'a[href="https://app.all-hands.dev/settings/api-keys"]',
+      ),
     ).not.toBeNull();
 
     // Major-prominence fields (confirmation_mode) are hidden in basic view
@@ -144,5 +146,85 @@ describe("VerificationSettingsScreen", () => {
     expect(
       screen.getByTestId("sdk-settings-security_analyzer"),
     ).toBeInTheDocument();
+  });
+
+  it("deduplicates legacy agent verification fields in favor of conversation settings", async () => {
+    const legacyAgentSchema = structuredClone(
+      MOCK_DEFAULT_USER_SETTINGS.agent_settings_schema!,
+    );
+    const verificationSection = legacyAgentSchema.sections.find(
+      (section) => section.key === "verification",
+    );
+    expect(verificationSection).toBeDefined();
+    verificationSection!.fields.push(
+      {
+        key: "verification.confirmation_mode",
+        label: "Legacy confirmation mode",
+        description: "Legacy agent-owned confirmation mode.",
+        section: "verification",
+        section_label: "Verification",
+        value_type: "boolean",
+        default: false,
+        choices: [],
+        depends_on: [],
+        prominence: "major",
+        secret: false,
+        required: false,
+      },
+      {
+        key: "verification.security_analyzer",
+        label: "Legacy security analyzer",
+        description: "Legacy agent-owned security analyzer.",
+        section: "verification",
+        section_label: "Verification",
+        value_type: "string",
+        default: "llm",
+        choices: [
+          { label: "llm", value: "llm" },
+          { label: "none", value: "none" },
+        ],
+        depends_on: ["verification.confirmation_mode"],
+        prominence: "major",
+        secret: false,
+        required: false,
+      },
+    );
+
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings_schema: legacyAgentSchema,
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          verification: {
+            critic_enabled: false,
+            enable_iterative_refinement: false,
+            confirmation_mode: true,
+            security_analyzer: "llm",
+          },
+        },
+        conversation_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.conversation_settings,
+          confirmation_mode: true,
+          security_analyzer: "llm",
+        },
+      }),
+    );
+
+    renderVerificationSettingsScreen();
+
+    await screen.findByTestId("verification-settings-screen");
+
+    expect(
+      screen.getByTestId("sdk-settings-confirmation_mode"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("sdk-settings-security_analyzer"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("sdk-settings-verification.confirmation_mode"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("sdk-settings-verification.security_analyzer"),
+    ).not.toBeInTheDocument();
   });
 });
