@@ -128,18 +128,10 @@ export AUTOMATION_AGENT_SERVER_URL="${AUTOMATION_AGENT_SERVER_URL:-http://127.0.
 # OH_EXTRA_PYTHON_PATH: config.canvasToolsDir.
 export OH_EXTRA_PYTHON_PATH="${OH_EXTRA_PYTHON_PATH:-/opt/agent-canvas/tools}"
 
-# Copy the pre-baked extensions into the skills cache and tell the agent-server
-# to use that directory directly via PUBLIC_SKILLS_PATH, bypassing git polling.
-_ext_baked="/opt/agent-canvas/extensions-cache"
-_ext_cache="${HOME}/.openhands/cache/skills/public-skills"
-if [ -d "${_ext_baked}" ]; then
-    log "Seeding extensions cache from image${CONFIG_EXTENSIONS_REF:+ (${CONFIG_EXTENSIONS_REF:0:12})}..."
-    rm -rf "${_ext_cache}"
-    mkdir -p "${_ext_cache}"
-    cp -r "${_ext_baked}/." "${_ext_cache}/"
-    export PUBLIC_SKILLS_PATH="${_ext_cache}"
-    log "Extensions cache ready."
-fi
+# Pin the public-skills catalog to the same @openhands/extensions commit that
+# the frontend bundle was built with. The agent-server SDK skips network polling
+# when EXTENSIONS_REF is already present in its local cache.
+export EXTENSIONS_REF="${EXTENSIONS_REF:-${CONFIG_EXTENSIONS_REF:-}}"
 
 # Track child PIDs so we can clean up on exit.
 PIDS=()

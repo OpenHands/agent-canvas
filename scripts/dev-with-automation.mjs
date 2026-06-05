@@ -57,8 +57,6 @@ import {
   buildAgentServerEnv,
   buildNpmScriptCommand,
   buildRuntimeServicesInfo,
-  cloneExtensionsForSkillsCache,
-  DEFAULT_EXTENSIONS_REF,
   formatMissingUvxGuidance,
   getOrCreatePersistedApiKey,
   validateFrontendDependencies,
@@ -742,15 +740,6 @@ function startAgentServer(config) {
     // parseAgentServerLogLine re-formats into a clean single-line entry.
     LOG_JSON: "true",
   };
-
-  // Clone the pinned extensions commit into the skills cache so the SDK can
-  // use it directly via PUBLIC_SKILLS_PATH without any git polling.
-  if (DEFAULT_EXTENSIONS_REF) {
-    cloneExtensionsForSkillsCache(
-      DEFAULT_EXTENSIONS_REF,
-      join(homedir(), ".openhands", "cache", "skills"),
-    );
-  }
 
   spawnService(
     "agent-server",
