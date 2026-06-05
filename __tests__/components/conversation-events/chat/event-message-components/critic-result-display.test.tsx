@@ -51,6 +51,25 @@ describe("CriticResultDisplay", () => {
     expect(screen.getByText("(72.0%)")).toBeInTheDocument();
   });
 
+  it("adds an accessible score label to the star rating", () => {
+    renderWithProviders(
+      <CriticResultDisplay criticResult={makeCriticResult({ score: 0.72 })} />,
+    );
+
+    expect(screen.getByLabelText("Score: 72.0%")).toHaveTextContent("★★★★☆");
+  });
+
+  it("renders non-finite scores as 0%", () => {
+    renderWithProviders(
+      <CriticResultDisplay
+        criticResult={makeCriticResult({ score: Number.NaN })}
+      />,
+    );
+
+    expect(screen.getByLabelText("Score: 0.0%")).toHaveTextContent("☆☆☆☆☆");
+    expect(screen.getByText("(0.0%)")).toBeInTheDocument();
+  });
+
   it("renders 5 stars for a perfect score", () => {
     renderWithProviders(
       <CriticResultDisplay criticResult={makeCriticResult({ score: 1.0 })} />,
@@ -109,9 +128,7 @@ describe("CriticResultDisplay", () => {
       <CriticResultDisplay criticResult={makeCriticResult()} />,
     );
 
-    expect(
-      screen.queryByLabelText("Expand details"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Expand details")).not.toBeInTheDocument();
   });
 
   it("prompts users to enable iterative refinement when it is disabled", () => {
@@ -182,9 +199,7 @@ describe("CriticResultDisplay", () => {
 
     renderWithProviders(<CriticResultDisplay criticResult={result} />);
 
-    expect(
-      screen.queryByText("Insufficient Testing"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Insufficient Testing")).not.toBeInTheDocument();
 
     await user.click(screen.getByLabelText("Expand details"));
 

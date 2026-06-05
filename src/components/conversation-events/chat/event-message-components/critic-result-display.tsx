@@ -11,10 +11,21 @@ import type {
 } from "#/types/agent-server/core/base/critic";
 
 /**
- * Convert a score (0-1) to a 5-star rating string.
+ * Normalize potentially malformed runtime scores before rendering.
  */
-function getStarRating(score: number): { filled: number; empty: number } {
-  const filled = Math.round(score * 5);
+function normalizeScore(score: number): number {
+  if (!Number.isFinite(score)) return 0;
+  return Math.min(1, Math.max(0, score));
+}
+
+/**
+ * Convert a normalized score (0-1) to a 5-star rating string.
+ */
+function getStarRating(normalizedScore: number): {
+  filled: number;
+  empty: number;
+} {
+  const filled = Math.round(normalizedScore * 5);
   return { filled, empty: 5 - filled };
 }
 
@@ -163,9 +174,10 @@ export function CriticResultDisplay({
   const { data: settings } = useSettings();
   const [expanded, setExpanded] = React.useState(false);
 
-  const { filled, empty } = getStarRating(criticResult.score);
-  const colorClass = getScoreColorClass(criticResult.score);
-  const percentage = (criticResult.score * 100).toFixed(1);
+  const normalizedScore = normalizeScore(criticResult.score);
+  const { filled, empty } = getStarRating(normalizedScore);
+  const colorClass = getScoreColorClass(normalizedScore);
+  const percentage = (normalizedScore * 100).toFixed(1);
   const iterativeRefinementEnabled = getIterativeRefinementEnabled(
     settings?.agent_settings as Record<string, unknown> | null | undefined,
   );
@@ -185,7 +197,10 @@ export function CriticResultDisplay({
         <span className="font-semibold text-neutral-300 text-xs">
           {t(I18nKey.CRITIC$SUCCESS_LIKELIHOOD_LABEL)}
         </span>
-        <span className={`${colorClass} text-xs tracking-wide`}>
+        <span
+          className={`${colorClass} text-xs tracking-wide`}
+          aria-label={`Score: ${percentage}%`}
+        >
           {"★".repeat(filled)}
           {"☆".repeat(empty)}
         </span>
