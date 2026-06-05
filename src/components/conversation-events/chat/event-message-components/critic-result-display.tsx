@@ -47,20 +47,19 @@ function getIssueColorClass(probability: number): string {
   return "text-neutral-400";
 }
 
+function isSettingsRecord(value: unknown): value is Record<string, unknown> {
+  return value != null && typeof value === "object" && !Array.isArray(value);
+}
+
 function getIterativeRefinementEnabled(
   agentSettings: Record<string, unknown> | null | undefined,
 ): boolean | null {
   const verification = agentSettings?.verification;
-  if (
-    verification == null ||
-    typeof verification !== "object" ||
-    Array.isArray(verification)
-  ) {
+  if (!isSettingsRecord(verification)) {
     return null;
   }
 
-  const value = (verification as Record<string, unknown>)
-    .enable_iterative_refinement;
+  const value = verification.enable_iterative_refinement;
   return typeof value === "boolean" ? value : null;
 }
 
