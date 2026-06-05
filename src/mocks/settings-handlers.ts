@@ -439,6 +439,7 @@ const MOCK_MODELS = [
   "anthropic/claude-opus-4-5-20251101",
   "anthropic/claude-opus-4-8",
   "openai/gpt-3.5-turbo",
+  "openai/gpt-5.5",
   "openai/gpt-4o",
   "openai/gpt-4o-mini",
   "openhands/claude-sonnet-4-20250514",
@@ -453,6 +454,7 @@ const MOCK_VERIFIED_MODELS = new Set([
   "anthropic/claude-opus-4-5-20251101",
   "anthropic/claude-opus-4-8",
   "anthropic/claude-sonnet-4-5-20250929",
+  "openai/gpt-5.5",
   "openhands/claude-opus-4-5-20251101",
   "openhands/claude-sonnet-4-5-20250929",
   "openhands/minimax-m2.7",
@@ -961,5 +963,12 @@ export const SETTINGS_HANDLERS = [
     }
 
     return HttpResponse.json(null, { status: 400 });
+  }),
+
+  // POST /api/mcp/test – MCP server connectivity check before install.
+  // Returns ok:true so the install modal can proceed to save and close.
+  http.post("*/api/mcp/test", async () => {
+    await delay();
+    return HttpResponse.json({ ok: true, tools: [] });
   }),
 ];
