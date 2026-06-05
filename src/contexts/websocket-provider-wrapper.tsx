@@ -2,6 +2,7 @@ import React from "react";
 import { ConversationWebSocketProvider } from "#/contexts/conversation-websocket-context";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useSubConversations } from "#/hooks/query/use-sub-conversations";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 
 interface WebSocketProviderWrapperProps {
   children: React.ReactNode;
@@ -12,6 +13,7 @@ export function WebSocketProviderWrapper({
   children,
   conversationId,
 }: WebSocketProviderWrapperProps) {
+  const active = useActiveBackend();
   const { data: conversation } = useActiveConversation();
   const { data: subConversations } = useSubConversations(
     conversation?.sub_conversation_ids ?? [],
@@ -36,6 +38,7 @@ export function WebSocketProviderWrapper({
     <ConversationWebSocketProvider
       conversationId={conversationId}
       conversationUrl={conversationUrl}
+      backendKind={active.backend.kind}
       sessionApiKey={conversation?.session_api_key}
       subConversationIds={conversation?.sub_conversation_ids}
       subConversations={filteredSubConversations}
