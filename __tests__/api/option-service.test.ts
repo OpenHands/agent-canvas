@@ -50,7 +50,7 @@ describe("OptionService", () => {
 
     await expect(OptionService.getConfig()).rejects.toMatchObject({
       name: AgentServerUnavailableError.name,
-      message: expect.stringContaining("Agent server not found"),
+      message: expect.stringContaining("Could not connect to the configured agent server"),
       details: expect.stringContaining("Request failed"),
     });
   });
