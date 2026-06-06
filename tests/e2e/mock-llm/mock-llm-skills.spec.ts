@@ -22,6 +22,7 @@ import { test, expect, type APIRequestContext } from "@playwright/test";
 import {
   BACKEND_URL,
   SESSION_API_KEY,
+  MOCK_LLM_AGENT_URL,
   seedLocalStorage,
   routeSessionApiKey,
   dismissAnalyticsModal,
@@ -32,7 +33,6 @@ import {
   registerTrajectory,
   activateTrajectory,
   resetMockLLM,
-  ensureMockLLMProfile,
   setChatInput,
 } from "./utils/mock-llm-helpers";
 import {
@@ -46,9 +46,48 @@ import {
   userSkillDirExists,
 } from "./utils/skill-test-helpers";
 
-/** Wrapper to work around CI TS6/Node24 type inference issue (TS2345). */
-async function configureMockLLM(request: APIRequestContext, model?: string) {
-  return ensureMockLLMProfile(request, model);
+/**
+ * Configure the mock LLM profile. Inlined from `ensureMockLLMProfile`
+ * to work around a CI-specific TS6/Node24 type inference bug (TS2345)
+ * where importing that function alongside `skill-test-helpers` causes
+ * TypeScript to incorrectly resolve its signature.
+ */
+async function configureMockLLM(
+  request: APIRequestContext,
+  model = "openai/mock-test-model",
+) {
+  const settingsResp = await request.get(`${BACKEND_URL}/api/settings`, {
+    headers: {
+      "X-Session-API-Key": SESSION_API_KEY,
+      "X-Expose-Secrets": "encrypted",
+    },
+  });
+  if (settingsResp.ok()) {
+    const settings = (await settingsResp.json()) as Record<string, unknown>;
+    const llm = (
+      settings?.agent_settings as Record<string, unknown> | undefined
+    )?.llm as Record<string, unknown> | undefined;
+    if (llm?.model === model && llm?.base_url === MOCK_LLM_AGENT_URL) return;
+  }
+  const patchResp = await request.patch(`${BACKEND_URL}/api/settings`, {
+    headers: {
+      "X-Session-API-Key": SESSION_API_KEY,
+      "Content-Type": "application/json",
+    },
+    data: {
+      agent_settings_diff: {
+        llm: {
+          model,
+          api_key: "mock-api-key-for-testing",
+          base_url: MOCK_LLM_AGENT_URL,
+        },
+      },
+    },
+  });
+  expect(
+    patchResp.ok(),
+    `PATCH /api/settings failed: ${patchResp.status()}`,
+  ).toBe(true);
 }
 
 // ── Shared constants ─────────────────────────────────────────────────
