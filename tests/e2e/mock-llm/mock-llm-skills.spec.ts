@@ -18,10 +18,7 @@
  * appears in the conversation events API.
  */
 
-import { test, expect, type APIRequestContext } from "@playwright/test";
-import { resolve, join } from "path";
-import { mkdirSync, writeFileSync, rmSync, existsSync } from "fs";
-import { homedir } from "os";
+import { test, expect } from "@playwright/test";
 import {
   BACKEND_URL,
   SESSION_API_KEY,
@@ -38,222 +35,20 @@ import {
   ensureMockLLMProfile,
   setChatInput,
 } from "./utils/mock-llm-helpers";
+import {
+  WORKSPACE_DIR,
+  writeSkill,
+  writeUserSkill,
+  removeSkill,
+  removeUserSkill,
+  skillExists,
+  userSkillExists,
+  userSkillDirExists,
+} from "./utils/skill-test-helpers";
 
-// ── Paths ────────────────────────────────────────────────────────────
-
-/** STATE_DIR matches playwright.mock-llm.config.ts */
-const STATE_DIR = resolve(".tmp/mock-llm-state");
-
-/**
- * Default workspace path. The frontend sends `working_dir: "workspace/project"`
- * and the agent-server resolves it relative to its CWD (`${STATE_DIR}/workspaces`).
- */
-const WORKSPACE_DIR = join(STATE_DIR, "workspaces", "workspace", "project");
-
-/** User-level skills directory (SDK searches `~/.openhands/skills/`). */
-const USER_SKILLS_DIR = join(homedir(), ".openhands", "skills");
-
-// ── Skill content builders ───────────────────────────────────────────
-
-function makeSkillMd(
-  name: string,
-  trigger: string,
-  description: string,
-): string {
-  return [
-    "---",
-    `name: ${name}`,
-    `description: ${description}`,
-    "triggers:",
-    `- ${trigger}`,
-    "---",
-    "",
-    `This is the ${name} skill content for E2E testing.`,
-    `It should activate when the keyword "${trigger}" appears.`,
-  ].join("\n");
-}
-
-function writeSkill(
-  baseDir: string,
-  name: string,
-  trigger: string,
-  description = "E2E test skill",
-): void {
-  const dir = join(baseDir, ".agents", "skills", name);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, "SKILL.md"), makeSkillMd(name, trigger, description));
-}
-
-function writeUserSkill(
-  name: string,
-  trigger: string,
-  description = "E2E test user skill",
-): void {
-  const dir = join(USER_SKILLS_DIR, name);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, "SKILL.md"), makeSkillMd(name, trigger, description));
-}
-
-function removeSkill(baseDir: string, name: string): void {
-  const dir = join(baseDir, ".agents", "skills", name);
-  rmSync(dir, { recursive: true, force: true });
-}
-
-function removeUserSkill(name: string): void {
-  const dir = join(USER_SKILLS_DIR, name);
-  rmSync(dir, { recursive: true, force: true });
-}
-
-// ── Shared assertion helper ──────────────────────────────────────────
-
-/**
- * Poll the events API until we find an event with `activated_skills`
- * containing the expected skill name. Returns the list of activated skills.
- */
-async function assertSkillActivated(
-  request: APIRequestContext,
-  conversationId: string,
-  expectedSkillName: string,
-): Promise<string[]> {
-  let foundSkills: string[] = [];
-
-  await expect
-    .poll(
-      async () => {
-        const resp = await request.get(
-          `${BACKEND_URL}/api/conversations/${encodeURIComponent(conversationId)}/events/search`,
-          {
-            headers: { "X-Session-API-Key": SESSION_API_KEY },
-            params: { limit: "50" },
-          },
-        );
-        if (!resp.ok()) return `events API: HTTP ${resp.status()}`;
-
-        const body = (await resp.json()) as { items?: unknown[] };
-        const items = body.items ?? [];
-
-        for (const item of items) {
-          const e = item as Record<string, unknown>;
-          const skills =
-            (e.activated_skills as string[] | undefined) ??
-            (e.activated_microagents as string[] | undefined);
-          if (Array.isArray(skills) && skills.length > 0) {
-            foundSkills = skills;
-            if (skills.includes(expectedSkillName)) {
-              return "FOUND";
-            }
-          }
-        }
-
-        return `skill "${expectedSkillName}" not in activated_skills (${items.length} events checked)`;
-      },
-      {
-        message: `expected "${expectedSkillName}" in activated_skills`,
-        intervals: [1_000, 2_000, 3_000, 5_000],
-        timeout: 25_000,
-      },
-    )
-    .toBe("FOUND");
-
-  return foundSkills;
-}
-
-/**
- * Poll the events API and verify NO event has `activated_skills` containing
- * the given skill name. Waits for at least one agent reply event before
- * deciding (so we don't just race the empty state).
- */
-async function assertSkillNotActivated(
-  request: APIRequestContext,
-  conversationId: string,
-  unexpectedSkillName: string,
-): Promise<void> {
-  // Wait for the conversation to have at least one agent reply
-  await expect
-    .poll(
-      async () => {
-        const resp = await request.get(
-          `${BACKEND_URL}/api/conversations/${encodeURIComponent(conversationId)}/events/search`,
-          {
-            headers: { "X-Session-API-Key": SESSION_API_KEY },
-            params: { limit: "50" },
-          },
-        );
-        if (!resp.ok()) return false;
-        const body = (await resp.json()) as { items?: unknown[] };
-        const items = body.items ?? [];
-        // Wait until we see a message_event from the agent (not the user)
-        return items.some((item) => {
-          const e = item as Record<string, unknown>;
-          return e.source === "agent" && e.event_type === "message";
-        });
-      },
-      {
-        message: "waiting for agent reply event",
-        intervals: [1_000, 2_000, 3_000],
-        timeout: 30_000,
-      },
-    )
-    .toBe(true);
-
-  // Now check that the skill was NOT activated
-  const resp = await request.get(
-    `${BACKEND_URL}/api/conversations/${encodeURIComponent(conversationId)}/events/search`,
-    {
-      headers: { "X-Session-API-Key": SESSION_API_KEY },
-      params: { limit: "100" },
-    },
-  );
-  expect(resp.ok()).toBe(true);
-  const body = (await resp.json()) as { items?: unknown[] };
-  const items = body.items ?? [];
-
-  for (const item of items) {
-    const e = item as Record<string, unknown>;
-    const skills =
-      (e.activated_skills as string[] | undefined) ??
-      (e.activated_microagents as string[] | undefined);
-    if (Array.isArray(skills) && skills.includes(unexpectedSkillName)) {
-      throw new Error(
-        `Expected "${unexpectedSkillName}" NOT to be in activated_skills, but found it`,
-      );
-    }
-  }
-}
-
-// ── Trajectory setup ─────────────────────────────────────────────────
+// ── Shared constants ─────────────────────────────────────────────────
 
 const REPLY_TOKEN = "SKILLS_E2E_REPLY_OK";
-
-/**
- * Register a trajectory that handles:
- * - Response 0: padding for internal skill-analysis call
- * - Response 1: the actual agent reply
- */
-async function setupSkillTrajectory(
-  request: APIRequestContext,
-  name: string,
-) {
-  await registerTrajectory(request, name, [
-    { text: "" },
-    { text: `Skill test complete. ${REPLY_TOKEN}` },
-  ]);
-  await activateTrajectory(request, name);
-}
-
-/**
- * Register a trajectory for conversations where NO skill triggers
- * (no padding response needed).
- */
-async function setupNoSkillTrajectory(
-  request: APIRequestContext,
-  name: string,
-) {
-  await registerTrajectory(request, name, [
-    { text: `No skill triggered. ${REPLY_TOKEN}` },
-  ]);
-  await activateTrajectory(request, name);
-}
 
 // ── Tests ─────────────────────────────────────────────────────────────
 
@@ -289,7 +84,6 @@ test.describe("skill loading: project, user, and deletion", () => {
   });
 
   test.afterAll(() => {
-    // Clean up any skill files left behind
     removeSkill(WORKSPACE_DIR, PROJECT_SKILL_NAME);
     removeUserSkill(USER_SKILL_NAME);
   });
@@ -302,29 +96,22 @@ test.describe("skill loading: project, user, and deletion", () => {
   }) => {
     await ensureMockLLMProfile(request);
 
-    // Create the project skill file BEFORE starting the conversation
     await test.step("create project skill file", () => {
       writeSkill(WORKSPACE_DIR, PROJECT_SKILL_NAME, PROJECT_SKILL_TRIGGER);
-      expect(
-        existsSync(
-          join(
-            WORKSPACE_DIR,
-            ".agents",
-            "skills",
-            PROJECT_SKILL_NAME,
-            "SKILL.md",
-          ),
-        ),
-      ).toBe(true);
+      expect(skillExists(WORKSPACE_DIR, PROJECT_SKILL_NAME)).toBe(true);
     });
 
-    await setupSkillTrajectory(request, "project-skill");
+    // Trajectory: padding for skill-analysis + agent reply
+    await registerTrajectory(request, "project-skill", [
+      { text: "" },
+      { text: `Skill test complete. ${REPLY_TOKEN}` },
+    ]);
+    await activateTrajectory(request, "project-skill");
 
     await routeSessionApiKey(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
 
-    // Send a message containing the project skill's trigger keyword
     await test.step("send message with project skill trigger", async () => {
       await setChatInput(
         page,
@@ -342,7 +129,34 @@ test.describe("skill loading: project, user, and deletion", () => {
     });
 
     await test.step("verify project skill activated", async () => {
-      await assertSkillActivated(request, conversationId, PROJECT_SKILL_NAME);
+      await expect
+        .poll(
+          async () => {
+            const resp = await request.get(
+              `${BACKEND_URL}/api/conversations/${encodeURIComponent(conversationId)}/events/search`,
+              {
+                headers: { "X-Session-API-Key": SESSION_API_KEY },
+                params: { limit: "50" },
+              },
+            );
+            if (!resp.ok()) return `HTTP ${resp.status()}`;
+            const body = (await resp.json()) as { items?: unknown[] };
+            for (const item of body.items ?? []) {
+              const e = item as Record<string, unknown>;
+              const skills =
+                (e.activated_skills as string[] | undefined) ??
+                (e.activated_microagents as string[] | undefined);
+              if (skills?.includes(PROJECT_SKILL_NAME)) return "FOUND";
+            }
+            return "NOT_FOUND";
+          },
+          {
+            message: `expected "${PROJECT_SKILL_NAME}" in activated_skills`,
+            intervals: [1_000, 2_000, 3_000, 5_000],
+            timeout: 25_000,
+          },
+        )
+        .toBe("FOUND");
     });
   });
 
@@ -356,12 +170,14 @@ test.describe("skill loading: project, user, and deletion", () => {
 
     await test.step("create user skill file", () => {
       writeUserSkill(USER_SKILL_NAME, USER_SKILL_TRIGGER);
-      expect(
-        existsSync(join(USER_SKILLS_DIR, USER_SKILL_NAME, "SKILL.md")),
-      ).toBe(true);
+      expect(userSkillExists(USER_SKILL_NAME)).toBe(true);
     });
 
-    await setupSkillTrajectory(request, "user-skill");
+    await registerTrajectory(request, "user-skill", [
+      { text: "" },
+      { text: `Skill test complete. ${REPLY_TOKEN}` },
+    ]);
+    await activateTrajectory(request, "user-skill");
 
     await routeSessionApiKey(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
@@ -384,7 +200,34 @@ test.describe("skill loading: project, user, and deletion", () => {
     });
 
     await test.step("verify user skill activated", async () => {
-      await assertSkillActivated(request, conversationId, USER_SKILL_NAME);
+      await expect
+        .poll(
+          async () => {
+            const resp = await request.get(
+              `${BACKEND_URL}/api/conversations/${encodeURIComponent(conversationId)}/events/search`,
+              {
+                headers: { "X-Session-API-Key": SESSION_API_KEY },
+                params: { limit: "50" },
+              },
+            );
+            if (!resp.ok()) return `HTTP ${resp.status()}`;
+            const body = (await resp.json()) as { items?: unknown[] };
+            for (const item of body.items ?? []) {
+              const e = item as Record<string, unknown>;
+              const skills =
+                (e.activated_skills as string[] | undefined) ??
+                (e.activated_microagents as string[] | undefined);
+              if (skills?.includes(USER_SKILL_NAME)) return "FOUND";
+            }
+            return "NOT_FOUND";
+          },
+          {
+            message: `expected "${USER_SKILL_NAME}" in activated_skills`,
+            intervals: [1_000, 2_000, 3_000, 5_000],
+            timeout: 25_000,
+          },
+        )
+        .toBe("FOUND");
     });
   });
 
@@ -396,14 +239,16 @@ test.describe("skill loading: project, user, and deletion", () => {
   }) => {
     await ensureMockLLMProfile(request);
 
-    // Ensure the skill file is gone (it was created by test 2)
     await test.step("delete user skill file", () => {
       removeUserSkill(USER_SKILL_NAME);
-      expect(existsSync(join(USER_SKILLS_DIR, USER_SKILL_NAME))).toBe(false);
+      expect(userSkillDirExists(USER_SKILL_NAME)).toBe(false);
     });
 
-    // Use a trajectory with NO padding (no skill should trigger)
-    await setupNoSkillTrajectory(request, "deleted-skill");
+    // No skill should trigger → no padding response needed
+    await registerTrajectory(request, "deleted-skill", [
+      { text: `No skill triggered. ${REPLY_TOKEN}` },
+    ]);
+    await activateTrajectory(request, "deleted-skill");
 
     await routeSessionApiKey(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
@@ -429,11 +274,52 @@ test.describe("skill loading: project, user, and deletion", () => {
     });
 
     await test.step("verify deleted skill NOT activated", async () => {
-      await assertSkillNotActivated(
-        request,
-        conversationId,
-        USER_SKILL_NAME,
+      // Wait for at least one agent reply event
+      await expect
+        .poll(
+          async () => {
+            const resp = await request.get(
+              `${BACKEND_URL}/api/conversations/${encodeURIComponent(conversationId)}/events/search`,
+              {
+                headers: { "X-Session-API-Key": SESSION_API_KEY },
+                params: { limit: "50" },
+              },
+            );
+            if (!resp.ok()) return false;
+            const body = (await resp.json()) as { items?: unknown[] };
+            return (body.items ?? []).some((item) => {
+              const e = item as Record<string, unknown>;
+              return e.source === "agent" && e.event_type === "message";
+            });
+          },
+          {
+            message: "waiting for agent reply event",
+            intervals: [1_000, 2_000, 3_000],
+            timeout: 30_000,
+          },
+        )
+        .toBe(true);
+
+      // Verify the deleted skill was NOT activated
+      const resp = await request.get(
+        `${BACKEND_URL}/api/conversations/${encodeURIComponent(conversationId)}/events/search`,
+        {
+          headers: { "X-Session-API-Key": SESSION_API_KEY },
+          params: { limit: "100" },
+        },
       );
+      expect(resp.ok()).toBe(true);
+      const body = (await resp.json()) as { items?: unknown[] };
+      for (const item of body.items ?? []) {
+        const e = item as Record<string, unknown>;
+        const skills =
+          (e.activated_skills as string[] | undefined) ??
+          (e.activated_microagents as string[] | undefined);
+        expect(
+          skills?.includes(USER_SKILL_NAME) ?? false,
+          `"${USER_SKILL_NAME}" should NOT be in activated_skills`,
+        ).toBe(false);
+      }
     });
   });
 });
