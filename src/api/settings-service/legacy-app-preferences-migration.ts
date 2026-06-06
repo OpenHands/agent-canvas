@@ -1,7 +1,8 @@
 /**
  * One-shot migration: promote app preferences and disabled_skills from
  * pre-1.27 agent-canvas's localStorage into the agent-server's persisted
- * `app_preferences` block (SDK PR #3539).
+ * `misc_settings.app_preferences` block (introduced via SDK PRs #3539 +
+ * follow-up refactor).
  *
  * Older versions stored these fields under two localStorage keys because
  * the local agent-server had no native home for them:
@@ -10,10 +11,11 @@
  *   git_user_email?, enable_sound_notifications?, user_consents_to_analytics? }
  * - `openhands-agent-server-disabled-skills` — string[]
  *
- * Once the server reports an `app_preferences` block (even an empty one), we
- * check those legacy keys, push any non-empty values up to the server via a
- * single PATCH, and clear the keys. The check is idempotent: on subsequent
- * calls both keys are absent and the function no-ops.
+ * Once the server reports a `misc_settings` block (even one with empty
+ * defaults), we check those legacy keys, push any non-empty values up to
+ * the server via a single PATCH, and clear the keys. The check is
+ * idempotent: on subsequent calls both keys are absent and the function
+ * no-ops.
  *
  * Failures during the PATCH are tolerated — the legacy keys are left in
  * place so a later attempt can retry. This keeps the migration a best-effort
@@ -107,10 +109,10 @@ export const migrateLegacyAppPreferences = async (
   serverResponse: SettingsApiResponse,
   pushDiff: (diff: AppPreferences) => Promise<unknown>,
 ): Promise<boolean> => {
-  // Only run when the server actually returns an `app_preferences` field
-  // (server is new enough to accept the diff). Older servers omit the field
-  // entirely; the migration stays pending until the user upgrades.
-  if (!serverResponse.app_preferences) return false;
+  // Only run when the server actually returns a `misc_settings` block
+  // (server is new enough to accept the diff). Older servers omit the
+  // field entirely; the migration stays pending until the user upgrades.
+  if (!serverResponse.misc_settings) return false;
 
   const storedPrefs = readLegacyAppPreferences();
   const storedSkills = readLegacyDisabledSkills();

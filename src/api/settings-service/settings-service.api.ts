@@ -12,9 +12,10 @@ import { getAgentServerClientOptions } from "../agent-server-client-options";
 import { migrateLegacyAppPreferences } from "./legacy-app-preferences-migration";
 
 /**
- * Fields the agent-server stores under `app_preferences` (see SDK
- * `openhands.sdk.settings.AppPreferences`). Mirrored here as a flat partial of
- * Settings so the rest of the frontend can keep treating them as top-level.
+ * Fields the agent-server stores under `misc_settings.app_preferences` (see
+ * SDK `openhands.sdk.settings.AppPreferences`). Mirrored here as a flat
+ * partial of Settings so the rest of the frontend can keep treating them as
+ * top-level keys (`settings.language`, `settings.disabled_skills`, …).
  */
 export const APP_PREFERENCE_FIELDS = [
   "language",
@@ -30,32 +31,47 @@ export type AppPreferenceField = (typeof APP_PREFERENCE_FIELDS)[number];
 export type AppPreferences = Partial<Pick<Settings, AppPreferenceField>>;
 
 /**
+ * Container for frontend-owned settings the agent doesn't interpret.
+ * Mirrors the SDK `MiscSettings` model introduced in agent-server 1.27.
+ *
+ * Single nested category today (`app_preferences`). Adding a future
+ * category (e.g. `ui_preferences`) is a non-breaking change for the wire
+ * shape — it just adds another optional sibling here.
+ */
+export interface MiscSettings {
+  app_preferences?: AppPreferences;
+}
+
+/**
  * Response from GET /api/settings
- * Mirrors the SettingsResponse model in the agent server
+ * Mirrors the SettingsResponse model in the agent server.
  */
 export interface SettingsApiResponse {
   agent_settings: Record<string, SettingsValue>;
   conversation_settings: Record<string, SettingsValue>;
   llm_api_key_is_set: boolean;
   /**
-   * App-level user preferences persisted on the agent-server. Added in
-   * agent-server 1.27 (SDK PR #3539); earlier servers omit the field
-   * entirely, in which case the frontend falls back to the empty default.
+   * Frontend-owned settings the agent does not interpret (currently just
+   * `app_preferences`). Added in agent-server 1.27; earlier servers omit
+   * the field entirely, in which case the frontend falls back to defaults.
    */
-  app_preferences?: AppPreferences;
+  misc_settings?: MiscSettings;
 }
 
 /**
  * Request payload for PATCH /api/settings.
  *
- * `app_preferences_diff` is a shallow overlay: fields present overwrite,
- * fields absent are left alone. `disabled_skills` lists are replaced
- * wholesale (no merge). See SDK `SettingsUpdateRequest`.
+ * `misc_settings_diff` is deep-merged into the persisted `misc_settings`
+ * block, matching the semantics of `agent_settings_diff` /
+ * `conversation_settings_diff`. A partial diff like
+ * `{ app_preferences: { language: "fr" } }` updates only `language` and
+ * leaves every other `app_preferences` field alone. Lists
+ * (`disabled_skills`) are replaced wholesale rather than merged.
  */
 export interface SettingsUpdateRequest {
   agent_settings_diff?: Record<string, SettingsValue>;
   conversation_settings_diff?: Record<string, SettingsValue>;
-  app_preferences_diff?: AppPreferences;
+  misc_settings_diff?: MiscSettings;
   // Permit additional keys so this stays assignable to the underlying
   // typescript-client SDK type, which uses `[key: string]: unknown` for
   // forward compatibility.
@@ -71,9 +87,9 @@ const isAppPreferenceField = (key: string): key is AppPreferenceField =>
 
 /**
  * Split known app-preference keys out of a save payload so callers can
- * route them through `app_preferences_diff` while the remaining fields
- * flow into the `agent_settings_diff` / `conversation_settings_diff`
- * branches.
+ * route them through `misc_settings_diff.app_preferences` (local) or as
+ * flat top-level keys (cloud), while the remaining fields flow into the
+ * `agent_settings_diff` / `conversation_settings_diff` branches.
  */
 const extractAppPreferences = (
   input: Record<string, unknown>,
@@ -173,13 +189,15 @@ const transformApiResponse = (
     llm_api_key_set: response.llm_api_key_is_set,
   };
 
-  // App-level user preferences come back nested under `app_preferences` from
-  // the local agent-server (added in 1.27 / SDK PR #3539). Hoist them onto
-  // the flat Settings shape the rest of the frontend already speaks. Older
-  // servers omit the field; the migration helper invoked from `getSettings`
-  // promotes any leftover localStorage values to the server on first run, so
-  // the omitted case just falls back to defaults.
-  const prefs = response.app_preferences;
+  // App-level user preferences come back nested under
+  // `misc_settings.app_preferences` from the local agent-server (added in
+  // 1.27, restructured into the `misc_settings` container in the follow-up
+  // refactor). Hoist them onto the flat Settings shape the rest of the
+  // frontend already speaks. Older servers omit the `misc_settings` field
+  // entirely; the migration helper invoked from `getSettings` promotes any
+  // leftover localStorage values to the server on first run, so the omitted
+  // case just falls back to defaults.
+  const prefs = response.misc_settings?.app_preferences;
   if (prefs) {
     for (const key of APP_PREFERENCE_FIELDS) {
       const value = prefs[key];
@@ -320,7 +338,7 @@ class SettingsService {
         response,
         (diff) =>
           new SettingsClient(getAgentServerClientOptions()).updateSettings({
-            app_preferences_diff: diff,
+            misc_settings_diff: { app_preferences: diff },
           }) as Promise<unknown>,
       );
       if (migrated) {
@@ -399,10 +417,10 @@ class SettingsService {
   ): Promise<boolean> {
     // Split app-level user-preference fields (language, git identity, sound
     // notifications, analytics consent, disabled_skills) off and route them
-    // through `app_preferences_diff` (local) or as flat top-level keys
-    // (cloud). The local agent-server stores them under
-    // `PersistedSettings.app_preferences`; the cloud accepts them as flat
-    // keys on `POST /api/v1/settings`.
+    // through `misc_settings_diff.app_preferences` (local) or as flat
+    // top-level keys (cloud). The local agent-server stores them under
+    // `PersistedSettings.misc_settings.app_preferences`; the cloud accepts
+    // them as flat keys on `POST /api/v1/settings`.
     const { extracted: appPreferences, rest } = extractAppPreferences(
       settings as Record<string, unknown>,
     );
@@ -430,7 +448,7 @@ class SettingsService {
     }
 
     if (hasAppPreferences) {
-      payload.app_preferences_diff = appPreferences;
+      payload.misc_settings_diff = { app_preferences: appPreferences };
     }
 
     const isCloud = getActiveBackend().backend.kind === "cloud";
@@ -550,7 +568,7 @@ class SettingsService {
       const hasLocalDiffs =
         !!payload.agent_settings_diff ||
         !!payload.conversation_settings_diff ||
-        !!payload.app_preferences_diff;
+        !!payload.misc_settings_diff;
       if (!hasLocalDiffs) {
         return true;
       }

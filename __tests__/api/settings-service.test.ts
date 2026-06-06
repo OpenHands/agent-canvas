@@ -139,10 +139,11 @@ describe("SettingsService", () => {
     fetchSpy.mockRestore();
   });
 
-  it("sends disabled_skills under app_preferences_diff on a local backend", async () => {
+  it("sends disabled_skills under misc_settings_diff.app_preferences on a local backend", async () => {
     // disabled_skills is one of the AppPreferences fields (along with
     // language, git identity, …) and is persisted server-side under
-    // `PersistedSettings.app_preferences` since agent-server 1.27.
+    // `PersistedSettings.misc_settings.app_preferences` since the
+    // misc_settings container was introduced as a follow-up to PR #3539.
     const patchBodies: Array<Record<string, unknown>> = [];
     server.use(
       http.patch("*/api/settings", async ({ request }) => {
@@ -151,7 +152,9 @@ describe("SettingsService", () => {
           agent_settings: {},
           conversation_settings: {},
           llm_api_key_is_set: false,
-          app_preferences: { disabled_skills: ["SSH Microagent"] },
+          misc_settings: {
+            app_preferences: { disabled_skills: ["SSH Microagent"] },
+          },
         });
       }),
     );
@@ -162,14 +165,19 @@ describe("SettingsService", () => {
 
     expect(result).toBe(true);
     expect(patchBodies).toEqual([
-      { app_preferences_diff: { disabled_skills: ["SSH Microagent"] } },
+      {
+        misc_settings_diff: {
+          app_preferences: { disabled_skills: ["SSH Microagent"] },
+        },
+      },
     ]);
   });
 
-  it("surfaces server-side app_preferences in getSettings on a local backend", async () => {
-    // The local agent-server returns app_preferences on GET /api/settings.
-    // The mock handler echoes whatever was last PATCH'd; seed it through
-    // the real save path so the round-trip matches production.
+  it("surfaces server-side misc_settings.app_preferences in getSettings on a local backend", async () => {
+    // The local agent-server returns app_preferences nested under
+    // `misc_settings` on GET /api/settings. The mock handler echoes whatever
+    // was last PATCH'd; seed it through the real save path so the round-trip
+    // matches production.
     const appPrefs = {
       language: "fr",
       git_user_name: "Alice",
@@ -193,7 +201,7 @@ describe("SettingsService", () => {
     }).toEqual(appPrefs);
   });
 
-  it("routes app-level fields into app_preferences_diff when mixed with agent diffs", async () => {
+  it("routes app-level fields into misc_settings_diff when mixed with agent diffs", async () => {
     const patchBodies: Array<Record<string, unknown>> = [];
     server.use(
       http.patch("*/api/settings", async ({ request }) => {
@@ -202,7 +210,7 @@ describe("SettingsService", () => {
           agent_settings: { agent: "CodeActAgent" },
           conversation_settings: {},
           llm_api_key_is_set: false,
-          app_preferences: { git_user_name: "Alice" },
+          misc_settings: { app_preferences: { git_user_name: "Alice" } },
         });
       }),
     );
@@ -215,7 +223,7 @@ describe("SettingsService", () => {
     expect(patchBodies).toEqual([
       {
         agent_settings_diff: { agent: "CodeActAgent" },
-        app_preferences_diff: { git_user_name: "Alice" },
+        misc_settings_diff: { app_preferences: { git_user_name: "Alice" } },
       },
     ]);
   });
@@ -224,7 +232,7 @@ describe("SettingsService", () => {
     // Simulate an existing user on an older agent-canvas version: app prefs
     // and disabled_skills sit in localStorage and have never been pushed to
     // the new server-side store. The first getSettings call after upgrade
-    // should send them up via app_preferences_diff and clear the keys.
+    // should send them up via misc_settings_diff and clear the keys.
     window.localStorage.setItem(
       LEGACY_MIGRATION_KEYS.LEGACY_APP_PREFERENCES_KEY,
       JSON.stringify({
@@ -238,10 +246,11 @@ describe("SettingsService", () => {
     );
 
     // The migration path is: initial GET → server reports empty
-    // app_preferences (server supports the field) → push localStorage values
-    // up via PATCH → re-fetch GET so the cache sees the migrated values.
-    // The test handlers below simulate that round-trip without leaning on
-    // the default MSW state, which the PATCH override would not update.
+    // misc_settings.app_preferences (server is new enough to support the
+    // field) → push localStorage values up via PATCH → re-fetch GET so the
+    // cache sees the migrated values. The test handlers below simulate that
+    // round-trip without leaning on the default MSW state, which the PATCH
+    // override would not update.
     const patchBodies: Array<Record<string, unknown>> = [];
     let migrated = false;
     server.use(
@@ -250,13 +259,15 @@ describe("SettingsService", () => {
           agent_settings: {},
           conversation_settings: {},
           llm_api_key_is_set: false,
-          app_preferences: migrated
-            ? {
-                language: "fr",
-                git_user_name: "Alice",
-                disabled_skills: ["SSH Microagent"],
-              }
-            : {},
+          misc_settings: {
+            app_preferences: migrated
+              ? {
+                  language: "fr",
+                  git_user_name: "Alice",
+                  disabled_skills: ["SSH Microagent"],
+                }
+              : {},
+          },
         }),
       ),
       http.patch("*/api/settings", async ({ request }) => {
@@ -266,10 +277,12 @@ describe("SettingsService", () => {
           agent_settings: {},
           conversation_settings: {},
           llm_api_key_is_set: false,
-          app_preferences: {
-            language: "fr",
-            git_user_name: "Alice",
-            disabled_skills: ["SSH Microagent"],
+          misc_settings: {
+            app_preferences: {
+              language: "fr",
+              git_user_name: "Alice",
+              disabled_skills: ["SSH Microagent"],
+            },
           },
         });
       }),
@@ -280,10 +293,12 @@ describe("SettingsService", () => {
     // Single migration PATCH carrying every legacy value:
     expect(patchBodies).toEqual([
       {
-        app_preferences_diff: {
-          language: "fr",
-          git_user_name: "Alice",
-          disabled_skills: ["SSH Microagent"],
+        misc_settings_diff: {
+          app_preferences: {
+            language: "fr",
+            git_user_name: "Alice",
+            disabled_skills: ["SSH Microagent"],
+          },
         },
       },
     ]);
@@ -304,9 +319,10 @@ describe("SettingsService", () => {
     expect(settings.disabled_skills).toEqual(["SSH Microagent"]);
   });
 
-  it("skips migration when the server omits app_preferences (pre-1.27)", async () => {
-    // Older agent-servers don't return the field at all. The migration must
-    // no-op so we don't drop user data before the server can accept it.
+  it("skips migration when the server omits misc_settings (pre-1.27)", async () => {
+    // Older agent-servers don't return the misc_settings field at all. The
+    // migration must no-op so we don't drop user data before the server can
+    // accept it.
     window.localStorage.setItem(
       LEGACY_MIGRATION_KEYS.LEGACY_APP_PREFERENCES_KEY,
       JSON.stringify({ language: "fr" }),
@@ -318,7 +334,7 @@ describe("SettingsService", () => {
           agent_settings: {},
           conversation_settings: {},
           llm_api_key_is_set: false,
-          // No app_preferences key — simulates pre-1.27 server.
+          // No misc_settings key — simulates pre-1.27 server.
         }),
       ),
     );

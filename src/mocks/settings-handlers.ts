@@ -794,7 +794,7 @@ export const SETTINGS_HANDLERS = [
         agent_settings: {},
         conversation_settings: {},
         llm_api_key_is_set: false,
-        app_preferences: DEFAULT_APP_PREFERENCES,
+        misc_settings: { app_preferences: DEFAULT_APP_PREFERENCES },
       });
     }
 
@@ -828,21 +828,22 @@ export const SETTINGS_HANDLERS = [
           >
         )?.api_key);
 
-    // Reuse the persisted app_preferences for repeat fetches, but always
-    // fall back to the default-empty block so the GUI sees a deterministic
-    // shape on first read.
+    // Reuse the persisted misc_settings.app_preferences for repeat fetches,
+    // but always fall back to the default-empty block so the GUI sees a
+    // deterministic shape on first read.
+    const storedMisc = (settings as Record<string, unknown>).misc_settings as
+      | { app_preferences?: Record<string, unknown> }
+      | undefined;
     const appPreferences = {
       ...DEFAULT_APP_PREFERENCES,
-      ...((settings as Record<string, unknown>).app_preferences as
-        | Record<string, unknown>
-        | undefined),
+      ...(storedMisc?.app_preferences ?? {}),
     };
 
     return HttpResponse.json({
       agent_settings: agentSettings,
       conversation_settings: settings.conversation_settings ?? {},
       llm_api_key_is_set: llmApiKeySet,
-      app_preferences: appPreferences,
+      misc_settings: { app_preferences: appPreferences },
     });
   }),
 
@@ -852,7 +853,9 @@ export const SETTINGS_HANDLERS = [
     const body = (await request.json()) as {
       agent_settings_diff?: Record<string, unknown>;
       conversation_settings_diff?: Record<string, SettingsValue>;
-      app_preferences_diff?: Record<string, unknown>;
+      misc_settings_diff?: {
+        app_preferences?: Record<string, unknown>;
+      };
     } | null;
 
     if (!body) {
@@ -862,12 +865,12 @@ export const SETTINGS_HANDLERS = [
     if (
       !body.agent_settings_diff &&
       !body.conversation_settings_diff &&
-      !body.app_preferences_diff
+      !body.misc_settings_diff
     ) {
       return HttpResponse.json(
         {
           error:
-            "At least one of agent_settings_diff, conversation_settings_diff, or app_preferences_diff must be provided",
+            "At least one of agent_settings_diff, conversation_settings_diff, or misc_settings_diff must be provided",
         },
         { status: 400 },
       );
@@ -903,16 +906,25 @@ export const SETTINGS_HANDLERS = [
       };
     }
 
-    if (body.app_preferences_diff) {
-      const existing = (current as Record<string, unknown>).app_preferences as
-        | Record<string, unknown>
+    if (body.misc_settings_diff) {
+      const existingMisc = (current as Record<string, unknown>)
+        .misc_settings as
+        | { app_preferences?: Record<string, unknown> }
         | undefined;
-      // Shallow overlay: each field present in the diff replaces the
-      // existing value; `disabled_skills` lists are replaced wholesale.
-      (nextSettings as Record<string, unknown>).app_preferences = {
-        ...(existing ?? {}),
-        ...body.app_preferences_diff,
+      // Deep-merge: nested `app_preferences` overlays field-by-field;
+      // `disabled_skills` lists are replaced wholesale. This mirrors the
+      // SDK's `_deep_merge` behaviour for the two-level shape currently
+      // stored in `misc_settings`.
+      const nextMisc: { app_preferences?: Record<string, unknown> } = {
+        ...(existingMisc ?? {}),
       };
+      if (body.misc_settings_diff.app_preferences) {
+        nextMisc.app_preferences = {
+          ...(existingMisc?.app_preferences ?? {}),
+          ...body.misc_settings_diff.app_preferences,
+        };
+      }
+      (nextSettings as Record<string, unknown>).misc_settings = nextMisc;
     }
 
     MOCK_USER_PREFERENCES.settings = nextSettings;
@@ -922,10 +934,10 @@ export const SETTINGS_HANDLERS = [
       agent_settings: nextSettings.agent_settings ?? {},
       conversation_settings: nextSettings.conversation_settings ?? {},
       llm_api_key_is_set: nextSettings.llm_api_key_set ?? false,
-      app_preferences:
-        ((nextSettings as Record<string, unknown>).app_preferences as
-          | Record<string, unknown>
-          | undefined) ?? {},
+      misc_settings: ((nextSettings as Record<string, unknown>)
+        .misc_settings as
+        | { app_preferences?: Record<string, unknown> }
+        | undefined) ?? { app_preferences: {} },
     });
   }),
 
