@@ -18,7 +18,7 @@
  * appears in the conversation events API.
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type APIRequestContext } from "@playwright/test";
 import { resolve, join } from "node:path";
 import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
@@ -111,7 +111,7 @@ function removeUserSkill(name: string): void {
  * containing the expected skill name. Returns the list of activated skills.
  */
 async function assertSkillActivated(
-  request: import("@playwright/test").APIRequestContext,
+  request: APIRequestContext,
   conversationId: string,
   expectedSkillName: string,
 ): Promise<string[]> {
@@ -164,7 +164,7 @@ async function assertSkillActivated(
  * deciding (so we don't just race the empty state).
  */
 async function assertSkillNotActivated(
-  request: import("@playwright/test").APIRequestContext,
+  request: APIRequestContext,
   conversationId: string,
   unexpectedSkillName: string,
 ): Promise<void> {
@@ -231,7 +231,7 @@ const REPLY_TOKEN = "SKILLS_E2E_REPLY_OK";
  * - Response 1: the actual agent reply
  */
 async function setupSkillTrajectory(
-  request: import("@playwright/test").APIRequestContext,
+  request: APIRequestContext,
   name: string,
 ) {
   await registerTrajectory(request, name, [
@@ -246,7 +246,7 @@ async function setupSkillTrajectory(
  * (no padding response needed).
  */
 async function setupNoSkillTrajectory(
-  request: import("@playwright/test").APIRequestContext,
+  request: APIRequestContext,
   name: string,
 ) {
   await registerTrajectory(request, name, [
@@ -273,7 +273,10 @@ test.describe("skill loading: project, user, and deletion", () => {
     await seedLocalStorage(page);
   });
 
-  test.afterEach(async ({ request }) => {
+  test.afterEach(async ({ page, request }) => {
+    const match = page.url().match(/\/conversations\/([^/?#]+)/);
+    if (match?.[1]) conversationIds.add(decodeURIComponent(match[1]));
+
     for (const id of Array.from(conversationIds)) {
       try {
         await deleteConversation(request, id);
