@@ -36,11 +36,6 @@ RUN npm ci
 COPY . .
 
 # Build the static frontend.
-# VITE_APP_ENV controls the PostHog telemetry key baked into the bundle:
-#   "production" → prod key (set by CI for tagged releases)
-#   anything else → staging key (default for PR / main / local builds)
-ARG VITE_APP_ENV=""
-ENV VITE_APP_ENV=${VITE_APP_ENV}
 RUN npm run build
 
 # ── Stage 1b: Generate shell-sourceable defaults from config/defaults.json ──
