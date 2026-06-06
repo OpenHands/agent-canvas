@@ -19,9 +19,9 @@
  */
 
 import { test, expect, type APIRequestContext } from "@playwright/test";
-import { resolve, join } from "node:path";
-import { mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
-import { homedir } from "node:os";
+import { resolve, join } from "path";
+import { mkdirSync, writeFileSync, rmSync, existsSync } from "fs";
+import { homedir } from "os";
 import {
   BACKEND_URL,
   SESSION_API_KEY,
