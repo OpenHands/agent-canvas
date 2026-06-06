@@ -18,11 +18,8 @@
  * appears in the conversation events API.
  */
 
-import { test, expect } from "@playwright/test";
-import * as helpers from "./utils/mock-llm-helpers";
-import * as skillHelpers from "./utils/skill-test-helpers";
-
-const {
+import { test, expect, type APIRequestContext } from "@playwright/test";
+import {
   BACKEND_URL,
   SESSION_API_KEY,
   seedLocalStorage,
@@ -37,9 +34,8 @@ const {
   resetMockLLM,
   ensureMockLLMProfile,
   setChatInput,
-} = helpers;
-
-const {
+} from "./utils/mock-llm-helpers";
+import {
   WORKSPACE_DIR,
   writeSkill,
   writeUserSkill,
@@ -48,7 +44,12 @@ const {
   skillExists,
   userSkillExists,
   userSkillDirExists,
-} = skillHelpers;
+} from "./utils/skill-test-helpers";
+
+/** Wrapper to work around CI TS6/Node24 type inference issue (TS2345). */
+async function configureMockLLM(request: APIRequestContext, model?: string) {
+  return ensureMockLLMProfile(request, model);
+}
 
 // ── Shared constants ─────────────────────────────────────────────────
 
@@ -98,7 +99,7 @@ test.describe("skill loading: project, user, and deletion", () => {
     page,
     request,
   }) => {
-    await ensureMockLLMProfile(request);
+    await configureMockLLM(request);
 
     await test.step("create project skill file", () => {
       writeSkill(WORKSPACE_DIR, PROJECT_SKILL_NAME, PROJECT_SKILL_TRIGGER);
@@ -170,7 +171,7 @@ test.describe("skill loading: project, user, and deletion", () => {
     page,
     request,
   }) => {
-    await ensureMockLLMProfile(request);
+    await configureMockLLM(request);
 
     await test.step("create user skill file", () => {
       writeUserSkill(USER_SKILL_NAME, USER_SKILL_TRIGGER);
@@ -241,7 +242,7 @@ test.describe("skill loading: project, user, and deletion", () => {
     page,
     request,
   }) => {
-    await ensureMockLLMProfile(request);
+    await configureMockLLM(request);
 
     await test.step("delete user skill file", () => {
       removeUserSkill(USER_SKILL_NAME);
