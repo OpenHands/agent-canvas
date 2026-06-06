@@ -208,10 +208,11 @@ test.describe("mock-LLM automation lifecycle", () => {
   // ── Step 1: Ensure LLM profile + register the automation trajectory ─
 
   test("step 1: setup LLM profile and register automation trajectory", async ({
+    page,
     request,
   }) => {
-    // Ensure the mock LLM profile is configured
-    await ensureMockLLMProfile(request);
+    // Ensure the mock LLM profile is configured via the Settings UI
+    await ensureMockLLMProfile(page);
 
     // Build the terminal commands the mock LLM will return.
     // The curl commands hit the REAL automation backend through the ingress.
