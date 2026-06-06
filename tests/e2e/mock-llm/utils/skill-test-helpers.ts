@@ -18,9 +18,10 @@ export const STATE_DIR = resolve(".tmp/mock-llm-state");
 
 /**
  * Default workspace path. The frontend sends `working_dir: "workspace/project"`
- * and the agent-server resolves it relative to its CWD (`${STATE_DIR}/workspaces`).
+ * (a relative path). The agent-server resolves it relative to its own CWD
+ * (the project root), NOT relative to STATE_DIR/workspaces.
  */
-export const WORKSPACE_DIR = join(STATE_DIR, "workspaces", "workspace", "project");
+export const WORKSPACE_DIR = resolve("workspace/project");
 
 /** User-level skills directory (SDK searches `~/.openhands/skills/`). */
 export const USER_SKILLS_DIR = join(homedir(), ".openhands", "skills");
