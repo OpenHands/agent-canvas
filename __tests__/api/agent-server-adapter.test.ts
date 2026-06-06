@@ -277,7 +277,7 @@ describe("buildStartConversationRequest", () => {
     expect(payload.workspace.working_dir).toBe(workingDir);
   });
 
-  it("always requests a git worktree for new conversations", () => {
+  it("requests a git worktree for new conversations by default", () => {
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
@@ -289,6 +289,25 @@ describe("buildStartConversationRequest", () => {
     }) as { worktree: boolean };
 
     expect(payload.worktree).toBe(true);
+  });
+
+  it("can start a conversation without requesting a git worktree", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          llm: { model: "nested-model" },
+        },
+      },
+      workingDir: "/Users/devin/project-without-git",
+      worktree: false,
+    }) as { worktree: boolean; workspace: { working_dir: string } };
+
+    expect(payload.worktree).toBe(false);
+    expect(payload.workspace.working_dir).toBe(
+      "/Users/devin/project-without-git",
+    );
   });
 
   it("forwards supported conversation runtime fields from nested settings", () => {

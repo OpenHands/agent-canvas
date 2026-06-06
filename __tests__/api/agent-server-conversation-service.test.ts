@@ -267,10 +267,12 @@ describe("AgentServerConversationService", () => {
       const firstPayload = firstCall[1] as {
         conversation_id: string;
         workspace: { working_dir: string };
+        worktree: boolean;
       };
       const secondPayload = secondCall[1] as {
         conversation_id: string;
         workspace: { working_dir: string };
+        worktree: boolean;
       };
 
       expect(firstPayload.conversation_id).toBeTruthy();
@@ -286,6 +288,8 @@ describe("AgentServerConversationService", () => {
       expect(secondPayload.workspace.working_dir).toBe(
         `/state/workspaces/${secondHex}`,
       );
+      expect(firstPayload.worktree).toBe(true);
+      expect(secondPayload.worktree).toBe(true);
     });
 
     // @spec WUP-001 — When the default working_dir is relative, the
@@ -363,8 +367,46 @@ describe("AgentServerConversationService", () => {
       const [payloadCall] = mockHttpPost.mock.calls;
       const payload = payloadCall[1] as {
         workspace: { working_dir: string };
+        worktree: boolean;
       };
       expect(payload.workspace.working_dir).toBe("/Users/jane/projects/foo");
+      expect(payload.worktree).toBe(false);
+    });
+
+    it("honors an explicit new-worktree mode for a selected workspace", async () => {
+      mockGetSettings.mockResolvedValue({
+        agent_settings: { llm: { model: "gpt-4o" } },
+        conversation_settings: {},
+      });
+      mockGetSettingsForConversation.mockResolvedValue({
+        agentSettings: { llm: { model: "gpt-4o" } },
+        conversationSettings: {},
+        secretsEncrypted: true,
+      });
+      mockHttpPost.mockResolvedValue({
+        data: {
+          id: "ignored-server-id",
+          created_at: "2024-01-01",
+          updated_at: "2024-01-01",
+        },
+      });
+
+      await AgentServerConversationService.createConversation(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        "/Users/jane/projects/foo",
+        "new_worktree",
+      );
+
+      const [payloadCall] = mockHttpPost.mock.calls;
+      const payload = payloadCall[1] as {
+        workspace: { working_dir: string };
+        worktree: boolean;
+      };
+      expect(payload.workspace.working_dir).toBe("/Users/jane/projects/foo");
+      expect(payload.worktree).toBe(true);
     });
   });
 
@@ -841,6 +883,7 @@ describe("AgentServerConversationService", () => {
         undefined,
         undefined,
         null,
+        undefined,
         undefined,
         "parent-conv-1",
         "plan",
