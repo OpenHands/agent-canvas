@@ -19,7 +19,10 @@
  */
 
 import { test, expect } from "@playwright/test";
-import {
+import * as helpers from "./utils/mock-llm-helpers";
+import * as skillHelpers from "./utils/skill-test-helpers";
+
+const {
   BACKEND_URL,
   SESSION_API_KEY,
   seedLocalStorage,
@@ -34,8 +37,9 @@ import {
   resetMockLLM,
   ensureMockLLMProfile,
   setChatInput,
-} from "./utils/mock-llm-helpers";
-import {
+} = helpers;
+
+const {
   WORKSPACE_DIR,
   writeSkill,
   writeUserSkill,
@@ -44,7 +48,7 @@ import {
   skillExists,
   userSkillExists,
   userSkillDirExists,
-} from "./utils/skill-test-helpers";
+} = skillHelpers;
 
 // ── Shared constants ─────────────────────────────────────────────────
 
