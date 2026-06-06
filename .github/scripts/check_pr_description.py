@@ -1,3 +1,11 @@
+"""Validate PR description readiness before a PR is reviewed.
+
+Required template fields: Why, Summary, and How to Test.
+
+Local usage example:
+    python .github/scripts/check_pr_description.py --body-file /tmp/pr-body.md
+"""
+
 from __future__ import annotations
 
 import argparse
