@@ -197,11 +197,10 @@ async function navigateToConversation(page: Page, events: unknown[]) {
     });
   });
 
-  // The GUI now hides ChatSuggestions (and shows the "LLM not configured"
-  // banner) unless an active profile with a key exists — see useLlmConfigured.
-  // Seed one so the empty conversation renders normally: it restores the
-  // "Let's start building!" readiness signal below and keeps the banner out of
-  // the captured screenshots (matching the baselines).
+  // The GUI hides ChatSuggestions (and shows the "LLM not configured" banner)
+  // unless an active profile with a key exists — see useLlmConfigured. Seed
+  // one so the empty conversation renders normally and the banner stays out
+  // of the captured screenshots (matching the baselines).
   await page.route(
     (url) => url.pathname.endsWith("/api/profiles"),
     async (route) => {
@@ -229,10 +228,14 @@ async function navigateToConversation(page: Page, events: unknown[]) {
     waitUntil: "domcontentloaded",
   });
   await dismissConsentModal(page);
-  await expect(page.getByText("Let's start building!")).toBeVisible({
-    timeout: 20000,
-  });
 
+  // Don't wait for any home-route text here: we navigated directly to
+  // /conversations/<id>, and "Let's start building!" only renders on the
+  // home route. Relying on a brief home flash was racy and caused the
+  // 20s timeout flake tracked in #1200. `injectEvents` already waits on
+  // window.__OH_EVENT_STORE__, which is a route-stable readiness signal
+  // (the store module is loaded as part of the conversation route), and
+  // the chat-interface testid wait below confirms the route mounted.
   await injectEvents(page, events);
 
   const chatInterface = page.getByTestId("chat-interface");
