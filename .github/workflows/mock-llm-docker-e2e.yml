@@ -260,8 +260,11 @@ jobs:
           npm run test:e2e:mock-llm:docker &
           PW_PID=$!
 
-          # Wait up to 5 min for tests to complete.
-          deadline=$((SECONDS + 300))
+          # Wait for tests to complete. Playwright's globalTimeout is 600s
+          # (10 min) in CI; we add 60s buffer for container startup/teardown.
+          # .results.json is flushed after every single test, so even if we
+          # hit the deadline mid-suite the report script still has data.
+          deadline=$((SECONDS + 660))
           while [ "$SECONDS" -lt "$deadline" ]; do
             if ! kill -0 "$PW_PID" 2>/dev/null; then
               break
@@ -273,12 +276,16 @@ jobs:
             sleep 2
           done
 
-          # If Playwright is still running (teardown hang), give it 5s
-          # grace then force-kill.
+          # If Playwright is still running (teardown hang or deadline hit),
+          # give it 5s grace then force-kill.
           if kill -0 "$PW_PID" 2>/dev/null; then
             sleep 5
             if kill -0 "$PW_PID" 2>/dev/null; then
-              echo "::warning::Killing lingering Playwright process (teardown hung)"
+              if [ -f "$DONE_MARKER" ]; then
+                echo "::warning::Killing lingering Playwright process (teardown hung)"
+              else
+                echo "::warning::Killing Playwright process (deadline reached, tests still running)"
+              fi
               kill "$PW_PID" 2>/dev/null
               sleep 5
               kill -9 "$PW_PID" 2>/dev/null
