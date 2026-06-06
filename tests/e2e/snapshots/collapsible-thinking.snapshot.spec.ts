@@ -229,13 +229,34 @@ async function navigateToConversation(page: Page, events: unknown[]) {
   });
   await dismissConsentModal(page);
 
-  // Don't wait for any home-route text here: we navigated directly to
-  // /conversations/<id>, and "Let's start building!" only renders on the
-  // home route. Relying on a brief home flash was racy and caused the
-  // 20s timeout flake tracked in #1200. `injectEvents` already waits on
-  // window.__OH_EVENT_STORE__, which is a route-stable readiness signal
-  // (the store module is loaded as part of the conversation route), and
-  // the chat-interface testid wait below confirms the route mounted.
+  // Wait for the conversation route to mount before injecting events.
+  // ConversationWebSocketContext runs a useLayoutEffect on mount that
+  // calls clearEventsForConversation(<id>) — if we inject events first,
+  // that effect wipes them and the UI renders the empty state. Use the
+  // store's `loadedConversationId` as a route-stable readiness signal:
+  // it flips from null → CONVERSATION_ID inside that layoutEffect, so
+  // observing it means the clear-and-set has already happened and any
+  // subsequent addEvents will survive.
+  //
+  // We deliberately don't wait on the home route's "Let's start
+  // building!" text here — it only renders on the home route, so relying
+  // on a brief home flash before the conversation hydrates is racy and
+  // caused the 20s timeout flake tracked in #1200.
+  await page.waitForFunction(
+    (expectedId) => {
+      const store = (
+        window as unknown as {
+          __OH_EVENT_STORE__?: {
+            getState: () => { loadedConversationId: string | null };
+          };
+        }
+      ).__OH_EVENT_STORE__;
+      return store?.getState().loadedConversationId === expectedId;
+    },
+    CONVERSATION_ID,
+    { timeout: 20000 },
+  );
+
   await injectEvents(page, events);
 
   const chatInterface = page.getByTestId("chat-interface");
