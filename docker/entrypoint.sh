@@ -128,11 +128,6 @@ export AUTOMATION_AGENT_SERVER_URL="${AUTOMATION_AGENT_SERVER_URL:-http://127.0.
 # OH_EXTRA_PYTHON_PATH: config.canvasToolsDir.
 export OH_EXTRA_PYTHON_PATH="${OH_EXTRA_PYTHON_PATH:-/opt/agent-canvas/tools}"
 
-# Pin the public-skills catalog to the same @openhands/extensions commit that
-# the frontend bundle was built with. The agent-server SDK skips network polling
-# when EXTENSIONS_REF is already present in its local cache.
-export EXTENSIONS_REF="${EXTENSIONS_REF:-${CONFIG_EXTENSIONS_REF:-}}"
-
 # Track child PIDs so we can clean up on exit.
 PIDS=()
 

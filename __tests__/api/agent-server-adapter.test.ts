@@ -116,7 +116,7 @@ describe("buildStartConversationRequest", () => {
       { name: "task_tool_set", params: {} },
     ]);
     expect(payload.agent_settings.agent_context).toEqual({
-      load_public_skills: true,
+      load_public_skills: false,
       load_user_skills: true,
       load_project_skills: true,
     });
@@ -987,7 +987,7 @@ describe("agent_settings runtime services suffix", () => {
       agent_settings: { agent_context: Record<string, unknown> };
     };
     expect(payload.agent_settings.agent_context).toEqual({
-      load_public_skills: true,
+      load_public_skills: false,
       load_user_skills: true,
       load_project_skills: true,
     });
@@ -1013,7 +1013,7 @@ describe("agent_settings runtime services suffix", () => {
       agent_settings: { agent_context: Record<string, unknown> };
     };
     expect(payload.agent_settings.agent_context).toMatchObject({
-      load_public_skills: true,
+      load_public_skills: false,
       load_user_skills: true,
     });
     expect(
@@ -1064,7 +1064,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     expect(payload.agent_settings.condenser).toBeUndefined();
     expect(payload.agent_settings.tools).toBeUndefined();
     expect(payload.agent_settings.agent_context).toEqual({
-      load_public_skills: true,
+      load_public_skills: false,
       load_user_skills: true,
       load_project_skills: true,
     });

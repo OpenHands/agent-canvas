@@ -8,10 +8,7 @@ import {
 } from "#/constants/acp-providers";
 import { getAgentServerClientOptions } from "./agent-server-client-options";
 import { isAgentServerToolAvailable } from "./agent-server-compatibility";
-import {
-  getAgentServerWorkingDir,
-  shouldLoadPublicSkills,
-} from "./agent-server-config";
+import { getAgentServerWorkingDir } from "./agent-server-config";
 import { getEffectiveLocalBackend } from "./backend-registry/active-store";
 import { buildAuthHeaders } from "./backend-registry/auth";
 import {
@@ -531,7 +528,10 @@ function buildAgentContext(agentSettings: SettingsRecord): SettingsRecord {
   const runtimeServicesSuffix = buildRuntimeServicesSystemSuffix();
   return {
     ...toRecord(agentSettings.agent_context),
-    load_public_skills: shouldLoadPublicSkills(),
+    // Public skills are now bundled via the @openhands/extensions npm package
+    // and loaded directly by the frontend. The agent-server no longer needs to
+    // clone the extensions repo at conversation-start time.
+    load_public_skills: false,
     load_user_skills: true,
     load_project_skills: true,
     ...(runtimeServicesSuffix
