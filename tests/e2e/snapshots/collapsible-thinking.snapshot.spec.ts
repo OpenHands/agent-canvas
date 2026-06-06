@@ -201,41 +201,63 @@ async function navigateToConversation(page: Page, events: unknown[]) {
   // unless an active profile with a key exists — see useLlmConfigured. Seed
   // one so the empty conversation renders normally and the banner stays out
   // of the captured screenshots (matching the baselines).
-  await page.route(
-    (url) => url.pathname.endsWith("/api/profiles"),
-    async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          profiles: [
-            {
-              name: "mock",
-              model: "anthropic/claude-sonnet-4-20250514",
-              base_url: null,
-              api_key_set: true,
-            },
-          ],
-          active_profile: "mock",
-        }),
-      });
-    },
-  );
+  //
+  // We override window.fetch via addInitScript instead of using page.route:
+  // the mock dev server registers an MSW Service Worker on app startup, and
+  // SWs intercept fetch *before* Playwright's network layer sees it — so a
+  // page.route for /api/profiles never fires (its handler is dead code).
+  // addInitScript runs in the page context before any app JS, so our wrapped
+  // fetch is installed before MSW's worker.start() and before React mounts,
+  // and any /api/profiles request is served synchronously from the wrapper
+  // without ever reaching MSW or the network. This is what makes the
+  // useLlmConfigured signal deterministic across the full render lifecycle.
+  await page.addInitScript(() => {
+    const mockProfilesResponse = {
+      profiles: [
+        {
+          name: "mock",
+          model: "anthropic/claude-sonnet-4-20250514",
+          base_url: null,
+          api_key_set: true,
+        },
+      ],
+      active_profile: "mock",
+    };
+
+    const isProfilesListUrl = (rawUrl: string): boolean => {
+      try {
+        const pathname = new URL(rawUrl, window.location.origin).pathname;
+        return pathname.endsWith("/api/profiles");
+      } catch {
+        return false;
+      }
+    };
+
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      const requestUrl =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : input.url;
+      const method = (
+        init?.method ?? (input instanceof Request ? input.method : "GET")
+      ).toUpperCase();
+      if (method === "GET" && isProfilesListUrl(requestUrl)) {
+        return new Response(JSON.stringify(mockProfilesResponse), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return originalFetch(input as RequestInfo, init);
+    };
+  });
 
   await stubWebSocket(page);
-
-  // Arm a wait for the mocked /api/profiles response BEFORE navigating, so
-  // we don't miss it if the request races page.goto. The seeded profile is
-  // what flips useLlmConfigured → true; without it the GUI renders the
-  // "Your LLM isn't set up yet" banner, which then ends up in the snapshot
-  // (see the diff that surfaced after the original #1200 flake fix).
-  const profilesResponsePromise = page.waitForResponse(
-    (response) => {
-      const pathname = new URL(response.url()).pathname;
-      return pathname.endsWith("/api/profiles") && response.status() === 200;
-    },
-    { timeout: 20000 },
-  );
 
   await page.goto(`/conversations/${CONVERSATION_ID}`, {
     waitUntil: "domcontentloaded",
@@ -270,20 +292,15 @@ async function navigateToConversation(page: Page, events: unknown[]) {
     { timeout: 20000 },
   );
 
-  // Make sure our mocked /api/profiles response landed before we screenshot,
-  // so the LLM-not-configured banner doesn't flash. Without this the first
-  // test in the serial spec could screenshot before React Query settled with
-  // the mocked profile, leaving the warning banner in the captured image.
-  await profilesResponsePromise;
-
   await injectEvents(page, events);
 
   const chatInterface = page.getByTestId("chat-interface");
   await expect(chatInterface).toBeVisible({ timeout: 20000 });
 
-  // Belt-and-braces: even after the network response landed, React Query
-  // needs a tick to propagate the new state. Assert the banner is gone
-  // before returning so the screenshot always matches the seeded profile.
+  // Sanity-check that the seeded profile took effect — if it didn't, the
+  // LLM-not-configured banner overlays the chat-interface and shifts the
+  // snapshot. Asserting absence here also forces React Query to settle
+  // before the screenshot is captured.
   await expect(page.getByTestId("home-llm-not-configured-banner")).toHaveCount(
     0,
     { timeout: 5000 },
