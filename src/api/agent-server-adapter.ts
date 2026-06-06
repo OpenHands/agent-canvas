@@ -1,4 +1,5 @@
 import { ACP_SETTINGS_KEYS } from "@openhands/typescript-client";
+import { SKILLS_CATALOG } from "@openhands/extensions/skills";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { Settings, SettingsValue } from "#/types/settings";
@@ -524,13 +525,51 @@ function buildInitialMessage(
   };
 }
 
+/**
+ * Convert the bundled `SKILLS_CATALOG` entries into the SDK `Skill` JSON
+ * shape so the agent-server can perform trigger matching, skill activation,
+ * and system-prompt injection without cloning the extensions repo.
+ *
+ * The SDK discriminates triggers via `{ type: "keyword", keywords: [...] }`.
+ * Skills with no triggers get `trigger: null` (always-active / on-demand).
+ */
+function buildBundledSkills(): SettingsRecord[] {
+  return SKILLS_CATALOG.map((entry) => {
+    const trigger =
+      entry.triggers?.length > 0
+        ? { type: "keyword", keywords: entry.triggers }
+        : null;
+
+    return {
+      name: entry.name,
+      content: entry.content,
+      trigger,
+      source: "public",
+      description: entry.description ?? null,
+      is_agentskills_format: true,
+      ...(entry.license ? { license: entry.license } : {}),
+      ...(entry.compatibility ? { compatibility: entry.compatibility } : {}),
+    };
+  });
+}
+
 function buildAgentContext(agentSettings: SettingsRecord): SettingsRecord {
   const runtimeServicesSuffix = buildRuntimeServicesSystemSuffix();
+  const existingContext = toRecord(agentSettings.agent_context);
+
+  // Merge bundled public skills with any skills already present in the
+  // agent context (e.g. user-defined skills set via the settings API).
+  const existingSkills = Array.isArray(existingContext.skills)
+    ? (existingContext.skills as SettingsRecord[])
+    : [];
+  const mergedSkills = [...existingSkills, ...buildBundledSkills()];
+
   return {
-    ...toRecord(agentSettings.agent_context),
-    // Public skills are now bundled via the @openhands/extensions npm package
-    // and loaded directly by the frontend. The agent-server no longer needs to
-    // clone the extensions repo at conversation-start time.
+    ...existingContext,
+    // Public skills are bundled via the @openhands/extensions npm package and
+    // passed directly in agent_context.skills. The agent-server no longer
+    // needs to clone the extensions repo at conversation-start time.
+    skills: mergedSkills,
     load_public_skills: false,
     load_user_skills: true,
     load_project_skills: true,
