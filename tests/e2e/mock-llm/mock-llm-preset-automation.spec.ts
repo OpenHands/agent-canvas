@@ -1,17 +1,17 @@
 /**
- * Mock-LLM E2E test: preset automation card → slash command → skill activation.
+ * Mock-LLM E2E test: preset automation card → slash command → conversation.
  *
- * The `slack-standup-digest` skill ships in the public OpenHands extensions
- * repo with `triggers: ["/standup-digest:setup"]`. The frontend sends
- * `load_public_skills: true` in every conversation's `agent_context`, so
- * the SDK's `AgentContext._load_auto_skills` picks it up automatically.
+ * The `slack-standup-digest` automation ships in the public OpenHands
+ * extensions repo with `triggers: ["/standup-digest:setup"]`. Public skills
+ * are loaded from the `@openhands/extensions` npm package for UI display;
+ * the agent-server does NOT load them at runtime (`load_public_skills: false`).
  *
  * Two tests:
  *   1. **Card flow**: configure a dummy Slack MCP server so the automation
  *      card is launchable, click the card, verify it sends the correct
- *      slash command and triggers skill activation.
+ *      slash command to a conversation.
  *   2. **Direct slash command**: send the slash command from the home page
- *      (no MCP needed), verify skill activation + agent reply.
+ *      (no MCP needed), verify the agent replies.
  */
 
 import { test, expect } from "@playwright/test";
@@ -51,52 +51,6 @@ async function setupTrajectory(
     { text: `I'll help you set up the standup digest. ${REPLY_TOKEN}` },
   ]);
   await activateTrajectory(request, "preset-automation");
-}
-
-/** Poll the events API until we find an event with a non-empty activated_skills. */
-async function assertActivatedSkills(
-  request: import("@playwright/test").APIRequestContext,
-  conversationId: string,
-) {
-  await expect
-    .poll(
-      async () => {
-        const resp = await request.get(
-          `${BACKEND_URL}/api/conversations/${encodeURIComponent(conversationId)}/events/search`,
-          {
-            headers: { "X-Session-API-Key": SESSION_API_KEY },
-            params: { limit: "50" },
-          },
-        );
-        if (!resp.ok()) return `events API: HTTP ${resp.status()}`;
-
-        const body = (await resp.json()) as { items?: unknown[] };
-        const items = body.items ?? [];
-
-        const diag = items.map((item: unknown) => {
-          const e = item as Record<string, unknown>;
-          return `${String(e.source)}:${String(e.event_type)}(skills=${JSON.stringify(e.activated_skills ?? e.activated_microagents ?? [])})`;
-        });
-
-        const found = items.some((item: unknown) => {
-          const e = item as Record<string, unknown>;
-          const skills =
-            (e.activated_skills as string[] | undefined) ??
-            (e.activated_microagents as string[] | undefined);
-          return Array.isArray(skills) && skills.length > 0;
-        });
-
-        return found
-          ? "FOUND"
-          : `${items.length} events: [${diag.join(", ")}]`;
-      },
-      {
-        message: "activated_skills not found in conversation events",
-        intervals: [1_000, 2_000, 3_000, 5_000],
-        timeout: 20_000,
-      },
-    )
-    .toBe("FOUND");
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────
@@ -233,7 +187,7 @@ test.describe("preset automation → slash command conversation", () => {
 
   // ── Test 2: direct slash command (no MCP needed) ──────────────────
 
-  test("direct slash command from home page triggers skill activation", async ({
+  test("direct slash command from home page starts a conversation", async ({
     page,
     request,
   }) => {
@@ -290,10 +244,6 @@ test.describe("preset automation → slash command conversation", () => {
 
     await test.step("verify agent reply", async () => {
       await waitForNonUserMessageText(page, REPLY_TOKEN, 45_000);
-    });
-
-    await test.step("verify activated_skills in events", async () => {
-      await assertActivatedSkills(request, conversationId);
     });
   });
 });
