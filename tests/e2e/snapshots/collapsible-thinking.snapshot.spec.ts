@@ -224,6 +224,19 @@ async function navigateToConversation(page: Page, events: unknown[]) {
 
   await stubWebSocket(page);
 
+  // Arm a wait for the mocked /api/profiles response BEFORE navigating, so
+  // we don't miss it if the request races page.goto. The seeded profile is
+  // what flips useLlmConfigured → true; without it the GUI renders the
+  // "Your LLM isn't set up yet" banner, which then ends up in the snapshot
+  // (see the diff that surfaced after the original #1200 flake fix).
+  const profilesResponsePromise = page.waitForResponse(
+    (response) => {
+      const pathname = new URL(response.url()).pathname;
+      return pathname.endsWith("/api/profiles") && response.status() === 200;
+    },
+    { timeout: 20000 },
+  );
+
   await page.goto(`/conversations/${CONVERSATION_ID}`, {
     waitUntil: "domcontentloaded",
   });
@@ -257,10 +270,24 @@ async function navigateToConversation(page: Page, events: unknown[]) {
     { timeout: 20000 },
   );
 
+  // Make sure our mocked /api/profiles response landed before we screenshot,
+  // so the LLM-not-configured banner doesn't flash. Without this the first
+  // test in the serial spec could screenshot before React Query settled with
+  // the mocked profile, leaving the warning banner in the captured image.
+  await profilesResponsePromise;
+
   await injectEvents(page, events);
 
   const chatInterface = page.getByTestId("chat-interface");
   await expect(chatInterface).toBeVisible({ timeout: 20000 });
+
+  // Belt-and-braces: even after the network response landed, React Query
+  // needs a tick to propagate the new state. Assert the banner is gone
+  // before returning so the screenshot always matches the seeded profile.
+  await expect(
+    page.getByTestId("home-llm-not-configured-banner"),
+  ).toHaveCount(0, { timeout: 5000 });
+
   return chatInterface;
 }
 
