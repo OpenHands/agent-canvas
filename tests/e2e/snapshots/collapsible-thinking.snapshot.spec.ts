@@ -284,9 +284,10 @@ async function navigateToConversation(page: Page, events: unknown[]) {
   // Belt-and-braces: even after the network response landed, React Query
   // needs a tick to propagate the new state. Assert the banner is gone
   // before returning so the screenshot always matches the seeded profile.
-  await expect(
-    page.getByTestId("home-llm-not-configured-banner"),
-  ).toHaveCount(0, { timeout: 5000 });
+  await expect(page.getByTestId("home-llm-not-configured-banner")).toHaveCount(
+    0,
+    { timeout: 5000 },
+  );
 
   return chatInterface;
 }
