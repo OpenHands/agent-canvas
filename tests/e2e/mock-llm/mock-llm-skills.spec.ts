@@ -399,7 +399,9 @@ test.describe("skill loading: project, user, and deletion", () => {
     });
 
     await test.step("verify deleted skill NOT activated", async () => {
-      // Wait for at least one agent reply event
+      // The agent reply already appeared in the UI (verified above), so the
+      // conversation completed. Poll the events API and verify no event
+      // contains the deleted skill in its activated_skills list.
       await expect
         .poll(
           async () => {
@@ -407,44 +409,31 @@ test.describe("skill loading: project, user, and deletion", () => {
               `${BACKEND_URL}/api/conversations/${encodeURIComponent(conversationId)}/events/search`,
               {
                 headers: { "X-Session-API-Key": SESSION_API_KEY },
-                params: { limit: "50" },
+                params: { limit: "100" },
               },
             );
-            if (!resp.ok()) return false;
+            if (!resp.ok()) return `HTTP ${resp.status()}`;
             const body = (await resp.json()) as { items?: unknown[] };
-            return (body.items ?? []).some((item) => {
+            const items = body.items ?? [];
+            if (items.length === 0) return "NO_EVENTS";
+
+            for (const item of items) {
               const e = item as Record<string, unknown>;
-              return e.source === "agent" && e.event_type === "message";
-            });
+              const skills =
+                (e.activated_skills as string[] | undefined) ??
+                (e.activated_microagents as string[] | undefined);
+              if (skills?.includes(USER_SKILL_NAME))
+                return `UNEXPECTEDLY_FOUND`;
+            }
+            return "VERIFIED";
           },
           {
-            message: "waiting for agent reply event",
+            message: `verifying "${USER_SKILL_NAME}" NOT in activated_skills`,
             intervals: [1_000, 2_000, 3_000],
-            timeout: 30_000,
+            timeout: 15_000,
           },
         )
-        .toBe(true);
-
-      // Verify the deleted skill was NOT activated
-      const resp = await request.get(
-        `${BACKEND_URL}/api/conversations/${encodeURIComponent(conversationId)}/events/search`,
-        {
-          headers: { "X-Session-API-Key": SESSION_API_KEY },
-          params: { limit: "100" },
-        },
-      );
-      expect(resp.ok()).toBe(true);
-      const body = (await resp.json()) as { items?: unknown[] };
-      for (const item of body.items ?? []) {
-        const e = item as Record<string, unknown>;
-        const skills =
-          (e.activated_skills as string[] | undefined) ??
-          (e.activated_microagents as string[] | undefined);
-        expect(
-          skills?.includes(USER_SKILL_NAME) ?? false,
-          `"${USER_SKILL_NAME}" should NOT be in activated_skills`,
-        ).toBe(false);
-      }
+        .toBe("VERIFIED");
     });
   });
 });
