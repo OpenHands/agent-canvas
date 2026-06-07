@@ -526,6 +526,23 @@ function buildInitialMessage(
 }
 
 /**
+ * Shape of a bundled skill entry passed to the agent-server SDK via
+ * `agent_context.skills`. Mirrors the SDK's `Skill` model fields that
+ * the server uses for trigger matching, activation, and system-prompt
+ * injection.
+ */
+interface BundledSkill {
+  name: string;
+  content: string;
+  trigger: { type: "keyword"; keywords: string[] } | null;
+  source: "public";
+  description: string | null;
+  is_agentskills_format: true;
+  license?: string;
+  compatibility?: string;
+}
+
+/**
  * Convert the bundled `SKILLS_CATALOG` entries into the SDK `Skill` JSON
  * shape so the agent-server can perform trigger matching, skill activation,
  * and system-prompt injection without cloning the extensions repo.
@@ -533,9 +550,9 @@ function buildInitialMessage(
  * The SDK discriminates triggers via `{ type: "keyword", keywords: [...] }`.
  * Skills with no triggers get `trigger: null` (always-active / on-demand).
  */
-function buildBundledSkills(): SettingsRecord[] {
+function buildBundledSkills(): BundledSkill[] {
   return SKILLS_CATALOG.map((entry) => {
-    const trigger =
+    const trigger: BundledSkill["trigger"] =
       entry.triggers?.length > 0
         ? { type: "keyword", keywords: entry.triggers }
         : null;
@@ -544,9 +561,9 @@ function buildBundledSkills(): SettingsRecord[] {
       name: entry.name,
       content: entry.content,
       trigger,
-      source: "public",
+      source: "public" as const,
       description: entry.description ?? null,
-      is_agentskills_format: true,
+      is_agentskills_format: true as const,
       ...(entry.license ? { license: entry.license } : {}),
       ...(entry.compatibility ? { compatibility: entry.compatibility } : {}),
     };
@@ -566,9 +583,15 @@ function buildAgentContext(agentSettings: SettingsRecord): SettingsRecord {
 
   return {
     ...existingContext,
-    // Public skills are bundled via the @openhands/extensions npm package and
-    // passed directly in agent_context.skills. The agent-server no longer
-    // needs to clone the extensions repo at conversation-start time.
+    // Public skills are bundled at build time from the @openhands/extensions
+    // npm package and passed directly in agent_context.skills. Setting
+    // load_public_skills to false tells the agent-server SDK to skip its own
+    // extensions-repo clone — the frontend is the sole source of public
+    // skills now.
+    //
+    // Migration: the former VITE_LOAD_PUBLIC_SKILLS env var was removed
+    // because bundled skills have no clone latency. Users who previously set
+    // VITE_LOAD_PUBLIC_SKILLS=false to avoid clone delays no longer need it.
     skills: mergedSkills,
     load_public_skills: false,
     load_user_skills: true,

@@ -125,9 +125,26 @@ describe("buildStartConversationRequest", () => {
     expect(
       Array.isArray(payload.agent_settings.agent_context.skills),
     ).toBe(true);
-    expect(
-      (payload.agent_settings.agent_context.skills as unknown[]).length,
-    ).toBeGreaterThan(0);
+    const skills = payload.agent_settings.agent_context.skills as Record<
+      string,
+      unknown
+    >[];
+    expect(skills.length).toBeGreaterThan(0);
+    // Every bundled skill must carry the fields the SDK needs for trigger
+    // matching and system-prompt injection.
+    for (const skill of skills) {
+      expect(skill).toHaveProperty("name");
+      expect(skill).toHaveProperty("content");
+      expect(skill).toHaveProperty("source", "public");
+      expect(skill).toHaveProperty("is_agentskills_format", true);
+      // trigger is either null (always-active) or { type, keywords }
+      if (skill.trigger !== null) {
+        expect(skill.trigger).toMatchObject({
+          type: "keyword",
+          keywords: expect.arrayContaining([expect.any(String)]),
+        });
+      }
+    }
     expect(payload.agent_settings.agent).toBe("CodeActAgent");
     expect(payload.agent_settings.enable_switch_llm_tool).toBe(true);
     expect(payload.workspace.working_dir).toBe(

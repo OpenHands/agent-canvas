@@ -22,7 +22,14 @@ function catalogEntryToSkillInfo(entry: SkillCatalogEntry): SkillInfo {
   };
 }
 
-/** Public skills loaded from the @openhands/extensions npm package. */
+/**
+ * Public skills loaded from the `@openhands/extensions` npm package.
+ *
+ * This is an **immutable build-time snapshot**: the catalog is baked into the
+ * bundle at `npm run build` / `vite build` time and does not change at
+ * runtime. Updating the catalog requires bumping the `@openhands/extensions`
+ * dependency and rebuilding.
+ */
 const PUBLIC_SKILLS: SkillInfo[] = SKILLS_CATALOG.map(catalogEntryToSkillInfo);
 
 class SkillsService {
