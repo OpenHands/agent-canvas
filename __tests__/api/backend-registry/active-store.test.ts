@@ -13,11 +13,13 @@ import type { Backend } from "#/api/backend-registry/types";
 
 beforeEach(() => {
   window.localStorage.clear();
+  window.sessionStorage.clear();
   __resetActiveStoreForTests();
 });
 
 afterEach(() => {
   window.localStorage.clear();
+  window.sessionStorage.clear();
   vi.unstubAllEnvs();
   __resetActiveStoreForTests();
 });
@@ -41,6 +43,7 @@ const localBackend: Backend = {
 describe("active-store", () => {
   it("uses the no-backend sentinel when no backend details are available", () => {
     window.localStorage.clear();
+    window.sessionStorage.clear();
     vi.stubEnv("VITE_SESSION_API_KEY", "");
     __resetActiveStoreForTests();
 

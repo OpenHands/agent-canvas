@@ -2,7 +2,7 @@ name: Mock-LLM E2E Tests
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 concurrency:
@@ -15,11 +15,6 @@ permissions:
 
 jobs:
   mock-llm-e2e:
-    # Run when the PR has the 'e2e-tests' label, or on manual dispatch.
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' &&
-       contains(github.event.pull_request.labels.*.name, 'e2e-tests'))
     runs-on: ubuntu-24.04
     timeout-minutes: 15
 
