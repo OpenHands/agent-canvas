@@ -76,6 +76,9 @@ export function parseArgs(argv = process.argv.slice(2)) {
     sessionApiKey: null,
     authRequired: false,
     runtimeServicesInfo: null,
+    // JSON array of backends to advertise to every browser. May also be
+    // supplied via the AGENT_CANVAS_DEFAULT_BACKENDS env var.
+    defaultBackends: process.env.AGENT_CANVAS_DEFAULT_BACKENDS || null,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -113,6 +116,9 @@ export function parseArgs(argv = process.argv.slice(2)) {
         break;
       case "--runtime-services-info":
         config.runtimeServicesInfo = argv[++i] || null;
+        break;
+      case "--default-backends":
+        config.defaultBackends = argv[++i] || null;
         break;
       case "--auth-required":
         config.authRequired = true;
@@ -177,6 +183,13 @@ OPTIONS:
                                frontend can populate the agent's
                                <RUNTIME_SERVICES> system-prompt block without
                                VITE_RUNTIME_SERVICES_INFO baked in.
+  --default-backends <json>    Inject a JSON array of backends into index.html
+                               (window.__AGENT_CANVAS_DEFAULT_BACKENDS__) so
+                               every browser auto-registers a shared fleet
+                               without each user adding them by hand. Each entry
+                               needs at least {host, apiKey}; name/kind/id are
+                               optional. May also be set via the
+                               AGENT_CANVAS_DEFAULT_BACKENDS env var.
   --reject-prefix <prefix>     Return 503 for requests matching <prefix>
                                instead of SPA-fallbacking to index.html;
                                may be repeated. Useful in --frontend-only
@@ -230,6 +243,7 @@ function makeConfigInjectionScript(
   sessionApiKey,
   authRequired,
   runtimeServicesInfo,
+  defaultBackends,
 ) {
   const parts = [];
 
@@ -267,6 +281,27 @@ function makeConfigInjectionScript(
     );
   }
 
+  if (defaultBackends) {
+    // Validate + re-serialize so we embed a clean JS array literal and never
+    // inject malformed config. parseBackendList() on the client tolerates a
+    // string too, but emitting an array keeps the global self-describing.
+    let parsed = null;
+    try {
+      parsed = JSON.parse(defaultBackends);
+    } catch {
+      console.warn(
+        "WARN: --default-backends value is not valid JSON; ignoring.",
+      );
+    }
+    if (Array.isArray(parsed)) {
+      parts.push(
+        `window.__AGENT_CANVAS_DEFAULT_BACKENDS__=${JSON.stringify(parsed)};`,
+      );
+    } else if (parsed !== null) {
+      console.warn("WARN: --default-backends must be a JSON array; ignoring.");
+    }
+  }
+
   if (parts.length === 0) return "";
 
   return `<script>(function(){${parts.join("")}}());</script>`;
@@ -280,7 +315,7 @@ async function serveInjectedIndexHtml(
   req,
   res,
   indexPath,
-  { sessionApiKey, authRequired, runtimeServicesInfo } = {},
+  { sessionApiKey, authRequired, runtimeServicesInfo, defaultBackends } = {},
 ) {
   let content;
   try {
@@ -293,6 +328,7 @@ async function serveInjectedIndexHtml(
     sessionApiKey,
     authRequired,
     runtimeServicesInfo,
+    defaultBackends,
   );
   // Inject right before </head> so the key is available before any app code runs.
   // replace() targets the first (and only) </head> in well-formed HTML.
@@ -537,7 +573,8 @@ async function handleStatic(
   const needsInjection =
     injectionOpts.sessionApiKey ||
     injectionOpts.authRequired ||
-    injectionOpts.runtimeServicesInfo;
+    injectionOpts.runtimeServicesInfo ||
+    injectionOpts.defaultBackends;
 
   // Serve index.html with runtime config injection when configured.
   if (needsInjection && filePath.endsWith("index.html")) {
@@ -591,6 +628,7 @@ export function startStaticServer(config) {
     sessionApiKey: config.sessionApiKey || null,
     authRequired: config.authRequired || false,
     runtimeServicesInfo: config.runtimeServicesInfo || null,
+    defaultBackends: config.defaultBackends || null,
   };
   const rejectPrefixes = config.rejectPrefixes ?? [];
 
@@ -600,13 +638,15 @@ export function startStaticServer(config) {
       proxyRequest(req, res, backend);
       return;
     }
-    handleStatic(req, res, dirAbs, injectionOpts, rejectPrefixes).catch((err) => {
-      console.error(`Static handler error for ${req.url}:`, err);
-      if (!res.headersSent) {
-        res.writeHead(500);
-        res.end("Internal Server Error");
-      }
-    });
+    handleStatic(req, res, dirAbs, injectionOpts, rejectPrefixes).catch(
+      (err) => {
+        console.error(`Static handler error for ${req.url}:`, err);
+        if (!res.headersSent) {
+          res.writeHead(500);
+          res.end("Internal Server Error");
+        }
+      },
+    );
   });
 
   server.on("upgrade", (req, socket, head) => {

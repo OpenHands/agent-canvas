@@ -3,6 +3,7 @@ import {
   DEFAULT_LOCAL_BACKEND_NAME,
   makeDefaultLocalBackend,
 } from "./default-backend";
+import { getDeploymentDefaultBackends } from "./deployment-backends";
 import type { Backend, BackendKind, BackendSelection } from "./types";
 
 export const BACKENDS_STORAGE_KEY = "openhands-backends";
@@ -71,6 +72,34 @@ function seedBackends(backends: Backend[]): Backend[] {
   writeStoredBackends(backends);
   clearLegacyBackendConfig();
   return backends;
+}
+
+/**
+ * Append any deployment-provided default backends that are not already present
+ * (matched by host) to the supplied list. This is what lets a self-hosted
+ * deployment expose a shared fleet to every browser without each user adding
+ * the backends by hand. User-added backends are never removed or modified;
+ * deployment defaults whose host already exists are skipped so a user can
+ * still rename/edit their local copy.
+ */
+function appendDeploymentDefaults(backends: Backend[]): {
+  backends: Backend[];
+  changed: boolean;
+} {
+  const deploymentDefaults = getDeploymentDefaultBackends();
+  if (deploymentDefaults.length === 0) {
+    return { backends, changed: false };
+  }
+
+  const existingHosts = new Set(backends.map((backend) => backend.host));
+  const additions = deploymentDefaults.filter(
+    (backend) => !existingHosts.has(backend.host),
+  );
+  if (additions.length === 0) {
+    return { backends, changed: false };
+  }
+
+  return { backends: [...backends, ...additions], changed: true };
 }
 
 function isLoopbackUrl(value: string): boolean {
@@ -146,12 +175,17 @@ export function readStoredBackends(): Backend[] {
     // local backend.
     if (raw === null) {
       const legacyBackend = readLegacyBackend();
-      if (legacyBackend) return seedBackends([legacyBackend]);
+      if (legacyBackend) {
+        return seedBackends(appendDeploymentDefaults([legacyBackend]).backends);
+      }
 
       const defaultBackend = makeDefaultLocalBackend();
-      if (!defaultBackend) return [];
+      const seed = appendDeploymentDefaults(
+        defaultBackend ? [defaultBackend] : [],
+      ).backends;
+      if (seed.length === 0) return [];
 
-      return seedBackends([defaultBackend]);
+      return seedBackends(seed);
     }
 
     const parsed = JSON.parse(raw);
@@ -159,17 +193,22 @@ export function readStoredBackends(): Backend[] {
     const valid = parsed.filter(isValidBackend);
 
     // If the stored array is empty (or everything in it failed validation),
-    // only re-seed when the launcher supplied both a host and API key.
+    // re-seed from the launcher default and/or any deployment defaults.
     if (valid.length === 0) {
       const defaultBackend = makeDefaultLocalBackend();
-      if (!defaultBackend) return [];
+      const seed = appendDeploymentDefaults(
+        defaultBackend ? [defaultBackend] : [],
+      ).backends;
+      if (seed.length === 0) return [];
 
-      return seedBackends([defaultBackend]);
+      return seedBackends(seed);
     }
 
     const synced = syncLauncherDefaultLocalBackend(valid);
+    const { backends: merged, changed } = appendDeploymentDefaults(synced);
+    if (changed) writeStoredBackends(merged);
     clearLegacyBackendConfig();
-    return synced;
+    return merged;
   } catch {
     return [];
   }
