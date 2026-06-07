@@ -28,7 +28,7 @@ import { HomeHeaderTitle } from "./home-header/home-header-title";
 import { OpenLauncherButton } from "./open-launcher-button";
 import { OpenWorkspaceDialog } from "./open-workspace-dialog";
 import { OpenRepositoryDialog } from "./open-repository-dialog";
-import { OpenLocalRepositoryDialog } from "./open-local-repository-dialog";
+import { OpenLocalRepositoryCard } from "./open-local-repository-card";
 import { HomeGitControlBarPreview } from "./home-git-control-bar-preview";
 
 export function HomeChatLauncher() {
@@ -38,7 +38,6 @@ export function HomeChatLauncher() {
   const isLocal = backend.kind === "local";
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isLocalRepoDialogOpen, setIsLocalRepoDialogOpen] = useState(false);
   const [pendingWorkspace, setPendingWorkspace] =
     useState<LocalWorkspace | null>(null);
   const [pendingRepository, setPendingRepository] =
@@ -212,8 +211,8 @@ export function HomeChatLauncher() {
         />
       </div>
 
-      <div className="flex justify-start gap-2">
-        {hasSelection ? (
+      {hasSelection ? (
+        <div className="flex justify-start gap-2">
           <HomeGitControlBarPreview
             workspace={pendingWorkspace}
             repository={pendingRepository}
@@ -221,52 +220,47 @@ export function HomeChatLauncher() {
             provider={pendingProvider}
             onRepoClick={() => setIsDialogOpen(true)}
           />
-        ) : (
-          <>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <div className="flex justify-start gap-2">
             <OpenLauncherButton
               kind={isLocal ? "local" : "cloud"}
               onClick={() => setIsDialogOpen(true)}
               disabled={isCreating || Boolean(workspacesUnsupportedMessage)}
               disabledTooltip={workspacesUnsupportedMessage}
             />
-            {/* Local backends can't browse a Git provider's repos (that API is
-                cloud-only), so offer a dedicated "Open a Repository" entry that
-                clones a repo into the workspace (#976). Cloud already has repo
-                selection via the primary button above. */}
-            {isLocal && (
-              <OpenLauncherButton
-                kind="cloud"
-                onClick={() => setIsLocalRepoDialogOpen(true)}
-                disabled={isCreating}
-              />
-            )}
-          </>
-        )}
-      </div>
+          </div>
+          {/* Local/self-hosted backends can't browse a Git provider's repos
+              (that search API is cloud-only), so offer a dedicated, themed
+              "Open a Repository" card that clones a repo into the workspace
+              (#976). Cloud has provider-driven repo selection via the button
+              above. */}
+          {isLocal && (
+            <OpenLocalRepositoryCard
+              disabled={isCreating}
+              onConfirm={(workspace) => {
+                setPendingWorkspace(workspace);
+                setPendingRepository(null);
+                setPendingBranch(null);
+                setPendingProvider(null);
+              }}
+            />
+          )}
+        </div>
+      )}
 
       {isLocal ? (
-        <>
-          <OpenWorkspaceDialog
-            isOpen={isDialogOpen}
-            onClose={() => setIsDialogOpen(false)}
-            onConfirm={(workspace) => {
-              setPendingWorkspace(workspace);
-              setPendingRepository(null);
-              setPendingBranch(null);
-              setPendingProvider(null);
-            }}
-          />
-          <OpenLocalRepositoryDialog
-            isOpen={isLocalRepoDialogOpen}
-            onClose={() => setIsLocalRepoDialogOpen(false)}
-            onConfirm={(workspace) => {
-              setPendingWorkspace(workspace);
-              setPendingRepository(null);
-              setPendingBranch(null);
-              setPendingProvider(null);
-            }}
-          />
-        </>
+        <OpenWorkspaceDialog
+          isOpen={isDialogOpen}
+          onClose={() => setIsDialogOpen(false)}
+          onConfirm={(workspace) => {
+            setPendingWorkspace(workspace);
+            setPendingRepository(null);
+            setPendingBranch(null);
+            setPendingProvider(null);
+          }}
+        />
       ) : (
         <OpenRepositoryDialog
           isOpen={isDialogOpen}
