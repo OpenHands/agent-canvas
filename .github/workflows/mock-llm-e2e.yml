@@ -188,6 +188,22 @@ jobs:
             playwright-report-mock-llm/
             test-results-mock-llm/
 
+      - name: Detect newly added spec files
+        if: always() && github.event.pull_request.number
+        id: new_specs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          # Find mock-LLM spec files added (not just modified) in this PR
+          # Uses the GitHub API instead of git diff to avoid shallow-clone issues
+          NEW_FILES=$(gh api \
+            "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --paginate \
+            --jq '[.[] | select(.status == "added") | .filename
+                   | select(test("tests/e2e/mock-llm/.*\\.spec\\.ts$"))]
+                   | join(",")')
+          echo "files=$NEW_FILES" >> "$GITHUB_OUTPUT"
+
       - name: Render test report
         if: always()
         run: |
@@ -196,7 +212,8 @@ jobs:
             --output "$MOCK_LLM_REPORT_PATH" \
             --workflow-url "$MOCK_LLM_WORKFLOW_URL" \
             --commit "${{ github.event.pull_request.head.sha || github.sha }}" \
-            --artifact-url "${{ steps.upload_artifacts.outputs.artifact-url || '' }}"
+            --artifact-url "${{ steps.upload_artifacts.outputs.artifact-url || '' }}" \
+            --new-files "${{ steps.new_specs.outputs.files || '' }}"
           cat "$MOCK_LLM_REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Save PR number for comment workflow

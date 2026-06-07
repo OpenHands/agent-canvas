@@ -9,7 +9,8 @@
  *     --output  mock-llm-report.md \
  *     [--workflow-url <url>] \
  *     [--commit <sha>] \
- *     [--artifact-url <url>]
+ *     [--artifact-url <url>] \
+ *     [--new-files <comma-separated spec paths added in this PR>]
  */
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -51,10 +52,12 @@ function loadResults(path) {
   }
 }
 
-function collectTests(suites, parents = []) {
+function collectTests(suites, parents = [], parentFile = "") {
   const tests = [];
   for (const suite of suites ?? []) {
     const titles = [...parents, suite.title].filter(Boolean);
+    // Playwright's JSON reporter sets `file` on each suite/spec
+    const suiteFile = suite.file || parentFile;
     for (const spec of suite.specs ?? []) {
       for (const test of spec.tests ?? []) {
         const results = test.results ?? [];
@@ -65,6 +68,7 @@ function collectTests(suites, parents = []) {
         );
         tests.push({
           title: [...titles, spec.title].filter(Boolean).join(" › "),
+          file: spec.file || suiteFile,
           status: lastResult?.status ?? (spec.ok ? "passed" : "unknown"),
           durationMs: duration,
           retryCount: Math.max(0, results.length - 1),
@@ -72,7 +76,7 @@ function collectTests(suites, parents = []) {
         });
       }
     }
-    tests.push(...collectTests(suite.suites, titles));
+    tests.push(...collectTests(suite.suites, titles, suiteFile));
   }
   return tests;
 }
@@ -141,7 +145,14 @@ function overallIcon(status) {
 
 // ── Report rendering ───────────────────────────────────────────────────
 
-function renderReport({ tests, workflowUrl, commit, artifactUrl, title }) {
+function renderReport({
+  tests,
+  workflowUrl,
+  commit,
+  artifactUrl,
+  title,
+  newFiles,
+}) {
   const status = overallStatus(tests);
   const icon = overallIcon(status);
   const passed = tests.filter((t) => t.status === "passed").length;
@@ -150,6 +161,16 @@ function renderReport({ tests, workflowUrl, commit, artifactUrl, title }) {
   ).length;
   const skipped = tests.filter((t) => t.status === "skipped").length;
   const total = tests.length;
+
+  // Determine which tests are new (from newly added spec files)
+  const newFileSet = new Set(newFiles ?? []);
+  const isNewTest = (t) =>
+    newFileSet.size > 0 &&
+    t.file &&
+    [...newFileSet].some(
+      (nf) => t.file === nf || t.file.endsWith(`/${nf}`),
+    );
+  const newCount = tests.filter(isNewTest).length;
 
   const lines = [];
 
@@ -161,6 +182,7 @@ function renderReport({ tests, workflowUrl, commit, artifactUrl, title }) {
   const parts = [`**${passed}/${total} passed**`];
   if (failed) parts.push(`**${failed} failed**`);
   if (skipped) parts.push(`${skipped} skipped`);
+  if (newCount) parts.push(`🆕 ${newCount} new`);
   lines.push(parts.join(" · "));
   lines.push("");
 
@@ -179,8 +201,9 @@ function renderReport({ tests, workflowUrl, commit, artifactUrl, title }) {
   lines.push("|:------:|------|----------|");
   for (const t of tests) {
     const retryNote = t.retryCount > 0 ? ` (${t.retryCount} retries)` : "";
+    const newBadge = isNewTest(t) ? " 🆕" : "";
     lines.push(
-      `| ${statusIcon(t.status)} | ${t.title}${retryNote} | ${formatDuration(t.durationMs)} |`,
+      `| ${statusIcon(t.status)} | ${t.title}${newBadge}${retryNote} | ${formatDuration(t.durationMs)} |`,
     );
   }
   lines.push("");
@@ -269,12 +292,21 @@ if (!data || tests.length === 0) {
   }
 }
 
+// Parse --new-files: comma-separated list of spec file paths added in this PR
+const newFiles = args.new_files
+  ? args.new_files
+      .split(",")
+      .map((f) => f.trim())
+      .filter(Boolean)
+  : [];
+
 const report = renderReport({
   tests,
   workflowUrl: args.workflow_url || "",
   commit: args.commit || "",
   artifactUrl: args.artifact_url || "",
   title: args.title || "",
+  newFiles,
 });
 
 writeFileSync(outputPath, report);
