@@ -93,56 +93,39 @@ async function configureMockLLM(
 }
 
 /**
- * Create a conversation via the agent-server API with a specific working_dir.
- *
- * This bypasses the frontend's per-conversation hex-suffixed directory so the
- * conversation workspace points directly at the git repo created by
- * `createProjectSkillRepo`. The agent-server creates a worktree from the repo,
- * and `load_project_skills` discovers the committed skill files.
+ * Register a workspace on the agent-server so it appears in the UI dropdown.
  */
-async function createConversationWithWorkingDir(
+async function addWorkspaceToServer(
   request: APIRequestContext,
-  workingDir: string,
-): Promise<string> {
-  // Fetch current settings with encrypted secrets so we can round-trip them
-  const settingsResp = await request.get(`${BACKEND_URL}/api/settings`, {
-    headers: {
-      "X-Session-API-Key": SESSION_API_KEY,
-      "X-Expose-Secrets": "encrypted",
-    },
-  });
-  expect(settingsResp.ok()).toBe(true);
-  const settings = (await settingsResp.json()) as Record<string, unknown>;
-  const agentSettings = settings.agent_settings as Record<string, unknown>;
-
-  const resp = await request.post(`${BACKEND_URL}/api/conversations`, {
+  name: string,
+  path: string,
+): Promise<void> {
+  const resp = await request.post(`${BACKEND_URL}/api/workspaces`, {
     headers: {
       "X-Session-API-Key": SESSION_API_KEY,
       "Content-Type": "application/json",
     },
     data: {
-      agent_settings: {
-        ...agentSettings,
-        agent_context: {
-          load_public_skills: false,
-          load_user_skills: true,
-          load_project_skills: true,
-        },
-      },
-      // Settings contain cipher-encrypted secrets from X-Expose-Secrets
-      secrets_encrypted: true,
-      workspace: { kind: "LocalWorkspace", working_dir: workingDir },
-      worktree: true,
-      max_iterations: 10,
-      stuck_detection: true,
+      workspaces: [{ id: `e2e-${name}`, name, path }],
     },
   });
   expect(
     resp.ok(),
-    `POST /api/conversations: ${resp.status()} ${await resp.text()}`,
+    `POST /api/workspaces failed: ${resp.status()} ${await resp.text()}`,
   ).toBe(true);
-  const body = (await resp.json()) as Record<string, unknown>;
-  return String(body.conversation_id);
+}
+
+/**
+ * Remove a workspace from the agent-server.
+ */
+async function removeWorkspaceFromServer(
+  request: APIRequestContext,
+  path: string,
+): Promise<void> {
+  await request.delete(`${BACKEND_URL}/api/workspaces`, {
+    headers: { "X-Session-API-Key": SESSION_API_KEY },
+    params: { path },
+  });
 }
 
 // ── Shared constants ─────────────────────────────────────────────────
@@ -182,17 +165,26 @@ test.describe("skill loading: project, user, and deletion", () => {
     await resetMockLLM(request).catch(() => {});
   });
 
-  test.afterAll(() => {
+  // Track the workspace repo path for cleanup
+  let projectSkillRepoDir = "";
+
+  test.afterAll(async ({ request }) => {
     removeProjectSkillRepo(PROJECT_SKILL_NAME);
     removeUserSkill(USER_SKILL_NAME);
+    if (projectSkillRepoDir) {
+      await removeWorkspaceFromServer(request, projectSkillRepoDir).catch(
+        () => {},
+      );
+    }
   });
 
   // ── Test 1: Project skill loaded from workspace ──────────────────
   //
-  // Creates a standalone git repo with the skill committed, then creates
-  // the conversation via API with that repo as the working_dir. The
-  // agent-server creates a worktree from the repo, and the committed
-  // skill file is present in it for `load_project_skills` to discover.
+  // Creates a standalone git repo with the skill committed, registers it
+  // as a workspace on the agent-server, then uses the UI to select that
+  // workspace and send a message. The agent-server creates a worktree
+  // from the repo, and the committed skill file is present in it for
+  // `load_project_skills` to discover.
 
   test("project skill in workspace/.agents/skills/ triggers on matching keyword", async ({
     page,
@@ -210,6 +202,12 @@ test.describe("skill loading: project, user, and deletion", () => {
         );
       },
     );
+    projectSkillRepoDir = repoDir;
+
+    // Register the workspace on the server so the UI dropdown shows it
+    await test.step("register workspace on server", async () => {
+      await addWorkspaceToServer(request, "skill-test-repo", repoDir);
+    });
 
     // Trajectory: padding for skill-analysis + agent reply
     await registerTrajectory(request, "project-skill", [
@@ -218,21 +216,24 @@ test.describe("skill loading: project, user, and deletion", () => {
     ]);
     await activateTrajectory(request, "project-skill");
 
-    // Create conversation via API pointing at the git repo
-    const conversationId = await test.step(
-      "create conversation with skill repo workspace",
-      async () => {
-        return createConversationWithWorkingDir(request, repoDir);
-      },
-    );
-    conversationIds.add(conversationId);
-
-    // Navigate to the conversation in the browser and send the message
     await routeSessionApiKey(page);
-    await page.goto(`/conversations/${conversationId}`, {
-      waitUntil: "domcontentloaded",
-    });
+    await page.goto("/", { waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
+
+    // Select the workspace through the UI
+    await test.step("select workspace from UI", async () => {
+      // Click "Open workspace" to open the dialog
+      await page.getByTestId("open-workspace-button").click();
+
+      // Click the workspace dropdown and select our workspace
+      const dropdown = page.getByTestId("workspace-dropdown");
+      await dropdown.click();
+      // The workspace name is "skill-test-repo" — click the matching option
+      await page.getByText("skill-test-repo").click();
+
+      // Click the Confirm button to set the workspace
+      await page.getByTestId("workspace-launch-button").click();
+    });
 
     await test.step("send message with project skill trigger", async () => {
       await setChatInput(
@@ -240,7 +241,11 @@ test.describe("skill loading: project, user, and deletion", () => {
         `Please help me with ${PROJECT_SKILL_TRIGGER} setup`,
       );
       await page.getByTestId("submit-button").click();
+      await waitForPath(page, /\/conversations\/.+/, 30_000);
     });
+
+    const conversationId = getConversationIdFromURL(page);
+    conversationIds.add(conversationId);
 
     await test.step("verify agent reply", async () => {
       await waitForNonUserMessageText(page, REPLY_TOKEN, 45_000);
