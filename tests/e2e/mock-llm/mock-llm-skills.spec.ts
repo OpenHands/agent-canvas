@@ -165,14 +165,15 @@ test.describe("skill loading: project, user, and deletion", () => {
     await resetMockLLM(request).catch(() => {});
   });
 
-  // Track the workspace repo path for cleanup
-  let projectSkillRepoDir = "";
+  // Track the agent-side workspace path for cleanup (may differ from
+  // the host path in Docker mode where volumes are mounted)
+  let projectSkillAgentDir = "";
 
   test.afterAll(async ({ request }) => {
     removeProjectSkillRepo(PROJECT_SKILL_NAME);
     removeUserSkill(USER_SKILL_NAME);
-    if (projectSkillRepoDir) {
-      await removeWorkspaceFromServer(request, projectSkillRepoDir).catch(
+    if (projectSkillAgentDir) {
+      await removeWorkspaceFromServer(request, projectSkillAgentDir).catch(
         () => {},
       );
     }
@@ -193,7 +194,7 @@ test.describe("skill loading: project, user, and deletion", () => {
     await configureMockLLM(request);
 
     // Create a git repo with the skill committed
-    const repoDir = await test.step(
+    const { agentDir } = await test.step(
       "create git repo with project skill",
       () => {
         return createProjectSkillRepo(
@@ -202,11 +203,12 @@ test.describe("skill loading: project, user, and deletion", () => {
         );
       },
     );
-    projectSkillRepoDir = repoDir;
+    projectSkillAgentDir = agentDir;
 
-    // Register the workspace on the server so the UI dropdown shows it
+    // Register the workspace on the server using the agent-side path
+    // (same as hostDir in npm mode, container mount path in Docker mode)
     await test.step("register workspace on server", async () => {
-      await addWorkspaceToServer(request, "skill-test-repo", repoDir);
+      await addWorkspaceToServer(request, "skill-test-repo", agentDir);
     });
 
     // Trajectory: padding for skill-analysis + agent reply

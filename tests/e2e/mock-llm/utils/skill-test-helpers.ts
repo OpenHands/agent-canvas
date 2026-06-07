@@ -5,6 +5,11 @@
  * assertions (verify activated_skills on events) are separated here
  * to avoid type-resolution conflicts between node built-in imports
  * and @playwright/test types in the same file (TypeScript 6 / Node 24).
+ *
+ * Docker support: When running against a Docker container, the agent-server
+ * filesystem is isolated from the host. The Playwright config sets env vars
+ * for the container-side paths so the test can register the correct paths
+ * with the agent-server while creating files on the host (volume-mounted).
  */
 
 import { resolve, join } from "path";
@@ -18,15 +23,29 @@ import { homedir } from "os";
 export const STATE_DIR = resolve(".tmp/mock-llm-state");
 
 /**
- * Root directory for skill-test workspace git repos.
+ * Root directory for skill-test workspace git repos (HOST-side).
  * Each call to `createProjectSkillRepo` creates a self-contained git repo
  * here with the skill file already committed, so the agent-server's
  * worktree machinery picks it up (worktrees only contain committed content).
  */
 export const SKILL_REPOS_DIR = resolve(".tmp/mock-llm-skill-repos");
 
-/** User-level skills directory (SDK searches `~/.openhands/skills/`). */
-export const USER_SKILLS_DIR = join(homedir(), ".openhands", "skills");
+/**
+ * The path the agent-server sees for skill repos.
+ * In npm mode this is the same as SKILL_REPOS_DIR (same filesystem).
+ * In Docker mode this is the container-side mount point set by the config.
+ */
+export const SKILL_REPOS_AGENT_DIR =
+  process.env.MOCK_LLM_SKILL_REPOS_CONTAINER_DIR ?? SKILL_REPOS_DIR;
+
+/**
+ * User-level skills directory — HOST-side (for file creation/removal).
+ * In Docker mode, we use a local temp dir that is volume-mounted into the
+ * container at the agent-server's expected `~/.openhands/skills/` path.
+ */
+export const USER_SKILLS_DIR = process.env.MOCK_LLM_USER_SKILLS_HOST_DIR
+  ? resolve(process.env.MOCK_LLM_USER_SKILLS_HOST_DIR)
+  : join(homedir(), ".openhands", "skills");
 
 // ── Skill content builders ───────────────────────────────────────────
 
@@ -55,13 +74,15 @@ function makeSkillMd(
  * source workspace. Only committed files appear in worktrees, so the skill
  * must be committed to the repo for `load_project_skills` to find it.
  *
- * @returns Absolute path to the git repo root (use as `working_dir`).
+ * @returns Object with `hostDir` (absolute host path for file ops) and
+ *          `agentDir` (path the agent-server sees — same in npm mode,
+ *          container-side mount in Docker mode).
  */
 export function createProjectSkillRepo(
   name: string,
   trigger: string,
   description = "E2E test skill",
-): string {
+): { hostDir: string; agentDir: string } {
   const repoDir = join(SKILL_REPOS_DIR, `${name}-repo`);
   // Start fresh each time
   rmSync(repoDir, { recursive: true, force: true });
@@ -83,7 +104,9 @@ export function createProjectSkillRepo(
   execSync("git add -A", opts);
   execSync('git commit -m "Add project skill"', opts);
 
-  return resolve(repoDir);
+  const hostDir = resolve(repoDir);
+  const agentDir = join(SKILL_REPOS_AGENT_DIR, `${name}-repo`);
+  return { hostDir, agentDir };
 }
 
 /** Remove a project skill repo created by `createProjectSkillRepo`. */
