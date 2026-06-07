@@ -212,14 +212,32 @@ function renderReport({
     lines.push("");
   }
 
+  // New-tests callout (prominent, above the table)
+  if (newCount > 0) {
+    const newTests = tests.filter(isNewTest);
+    // Group new tests by spec file
+    const byFile = new Map();
+    for (const t of newTests) {
+      const key = t.file || "unknown";
+      if (!byFile.has(key)) byFile.set(key, []);
+      byFile.get(key).push(t);
+    }
+    lines.push(`> **🟢 ${newCount} new test${newCount === 1 ? "" : "s"} added in this PR**`);
+    for (const [file, fileTests] of byFile) {
+      for (const t of fileTests) {
+        lines.push(`> - ${statusIcon(t.status)} \`${file}\` › ${t.title.replace(/^.*› /, "")}`);
+      }
+    }
+    lines.push("");
+  }
+
   // Test results table
   lines.push("| Status | Test | Duration |");
   lines.push("|:------:|------|----------|");
   for (const t of tests) {
     const retryNote = t.retryCount > 0 ? ` (${t.retryCount} retries)` : "";
-    const newBadge = isNewTest(t) ? " 🆕" : "";
     lines.push(
-      `| ${statusIcon(t.status)} | ${t.title}${newBadge}${retryNote} | ${formatDuration(t.durationMs)} |`,
+      `| ${statusIcon(t.status)} | ${t.title}${retryNote} | ${formatDuration(t.durationMs)} |`,
     );
   }
   lines.push("");
