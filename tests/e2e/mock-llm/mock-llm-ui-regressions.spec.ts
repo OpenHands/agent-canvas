@@ -137,6 +137,11 @@ async function routePaginationConversation(page: Page) {
   );
 
   // Stub the event search endpoint with the synthetic paginated events.
+  // Older-events requests (those with timestamp__lt) are delayed slightly so
+  // the loading indicator has time to render before the response arrives.
+  // Without this, React can batch the isLoading true→false transition into a
+  // single commit and the DOM element never materialises — making the
+  // "loading-older-events" assertion flaky.
   await page.route(
     `**/api/conversations/${PAGINATION_CONVERSATION_ID}/events/search**`,
     async (route, req) => {
@@ -145,7 +150,11 @@ async function routePaginationConversation(page: Page) {
         return;
       }
       const url = new URL(req.url());
+      const isOlderPage = url.searchParams.has("timestamp__lt");
       const result = searchPaginationEvents(allEvents, url.searchParams);
+      if (isOlderPage) {
+        await new Promise((r) => setTimeout(r, 300));
+      }
       await route.fulfill({
         status: 200,
         contentType: "application/json",

@@ -2,9 +2,11 @@
  * Mock-LLM E2E test: preset automation card → slash command → skill activation.
  *
  * The `slack-standup-digest` skill ships in the public OpenHands extensions
- * repo with `triggers: ["/standup-digest:setup"]`. The frontend sends
- * `load_public_skills: true` in every conversation's `agent_context`, so
- * the SDK's `AgentContext._load_auto_skills` picks it up automatically.
+ * repo with `triggers: ["/standup-digest:setup"]`. The frontend bundles
+ * public skills from the `@openhands/extensions` npm package and passes
+ * them directly in `agent_context.skills` at conversation-start, so the
+ * SDK's trigger matching activates them without the agent-server needing
+ * to clone the extensions repo (`load_public_skills: false`).
  *
  * Two tests:
  *   1. **Card flow**: configure a dummy Slack MCP server so the automation
