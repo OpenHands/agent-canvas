@@ -141,7 +141,7 @@ function overallIcon(status) {
 
 // ── Report rendering ───────────────────────────────────────────────────
 
-function renderReport({ tests, workflowUrl, commit, artifactUrl, title }) {
+function renderReport({ tests, workflowUrl, commit, artifactUrl, title, markerMeta }) {
   const status = overallStatus(tests);
   const icon = overallIcon(status);
   const passed = tests.filter((t) => t.status === "passed").length;
@@ -150,17 +150,24 @@ function renderReport({ tests, workflowUrl, commit, artifactUrl, title }) {
   ).length;
   const skipped = tests.filter((t) => t.status === "skipped").length;
   const total = tests.length;
+  const wasKilledMidSuite =
+    markerMeta?.status === "in_progress" && markerMeta.total > markerMeta.completed;
 
   const lines = [];
 
-  // Header
-  lines.push(`## ${icon} ${title || "Mock-LLM E2E Tests"}`);
+  // Header — use 🛑 when killed mid-suite so it's visually distinct
+  const headerIcon = wasKilledMidSuite ? "🛑" : icon;
+  lines.push(`## ${headerIcon} ${title || "Mock-LLM E2E Tests"}`);
   lines.push("");
 
   // Summary line
   const parts = [`**${passed}/${total} passed**`];
   if (failed) parts.push(`**${failed} failed**`);
   if (skipped) parts.push(`${skipped} skipped`);
+  if (wasKilledMidSuite) {
+    const notRun = markerMeta.total - markerMeta.completed;
+    parts.push(`⚠️ **${notRun} not run** (process killed at ${markerMeta.completed}/${markerMeta.total})`);
+  }
   lines.push(parts.join(" · "));
   lines.push("");
 
@@ -223,16 +230,19 @@ const outputPath = args.output || "mock-llm-report.md";
 const data = loadResults(resultsPath);
 let tests = data ? collectTests(data.suites) : [];
 
-// When Playwright is killed during webServer teardown, the JSON reporter
-// never flushes results.json. Fall back to .results.json written by
-// DoneMarkerReporter (onTestEnd) which fires before teardown.
+// When Playwright is killed during webServer teardown (or mid-suite),
+// the JSON reporter never flushes results.json. Fall back to .results.json
+// written incrementally by DoneMarkerReporter after every onTestEnd().
+let markerMeta = null;
 if (!data || tests.length === 0) {
   const markerDir = args.marker_dir || ".mock-llm-markers";
   const markerResultsPath = `${markerDir}/.results.json`;
   const donePath = `${markerDir}/.tests-done`;
 
   if (existsSync(markerResultsPath)) {
-    // Rich results from DoneMarkerReporter — has per-test timing & errors
+    // Rich results from DoneMarkerReporter — has per-test timing & errors.
+    // May be partial (status: "in_progress") if the process was killed
+    // before all tests finished.
     const markerData = JSON.parse(readFileSync(markerResultsPath, "utf8"));
     tests = (markerData.tests ?? []).map((t) => ({
       title: t.title,
@@ -241,8 +251,13 @@ if (!data || tests.length === 0) {
       retryCount: 0,
       error: t.error ?? "",
     }));
+    markerMeta = {
+      status: markerData.status,
+      completed: markerData.completed ?? tests.length,
+      total: markerData.total ?? tests.length,
+    };
     console.log(
-      `No results.json; using marker results (${tests.length} tests, ${markerData.status})`,
+      `No results.json; using marker results (${tests.length} tests run, ${markerMeta.completed}/${markerMeta.total} completed, status: ${markerData.status})`,
     );
   } else if (existsSync(donePath)) {
     // Minimal fallback — just pass/fail status, no timing
@@ -275,6 +290,7 @@ const report = renderReport({
   commit: args.commit || "",
   artifactUrl: args.artifact_url || "",
   title: args.title || "",
+  markerMeta,
 });
 
 writeFileSync(outputPath, report);

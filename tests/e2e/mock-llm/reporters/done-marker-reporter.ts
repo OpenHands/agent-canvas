@@ -1,17 +1,16 @@
 /**
- * Custom Playwright reporter that writes a marker file when all tests
- * complete — before webServer teardown starts.
+ * Custom Playwright reporter that writes marker files for CI coordination.
  *
- * This lets the CI wrapper detect test completion and kill the hanging
- * teardown process immediately, instead of waiting for a timeout.
- *
- * Marker files are written to a `.mock-llm-markers/` directory at the
- * project root — intentionally outside Playwright's `outputDir`
- * (`test-results-mock-llm/`) to avoid being cleaned up.
+ * Marker files are written to `.mock-llm-markers/` at the project root —
+ * intentionally outside Playwright's `outputDir` (`test-results-mock-llm/`)
+ * to avoid being cleaned up.
  *
  * Written markers:
- *   .tests-done  — always written; content is "passed" or "failed"
- *   .all-passed  — written only when all tests passed
+ *   .results.json — written after EVERY test; always has the latest results
+ *                   so that even a mid-suite kill leaves usable data
+ *   .tests-done   — written only when all tests complete; content is
+ *                   "passed" or "failed"
+ *   .all-passed   — written only when all tests passed
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -34,25 +33,22 @@ interface TestRecord {
 }
 
 /**
- * Tracks test results and writes markers at the earliest possible moment.
+ * Tracks test results and writes them incrementally.
  *
- * Playwright lifecycle: onBegin → tests → onTestEnd (each) → onEnd → cleanup.
- * The webServer teardown happens during "cleanup", which can hang indefinitely.
- * `onEnd()` fires AFTER teardown, so it's too late.
+ * `.results.json` is flushed after every `onTestEnd()` so the CI report
+ * script always has data — even when the process is killed mid-suite
+ * (e.g. the CI polling deadline expires before all tests finish).
  *
- * Instead, we write the `.tests-done` marker in `onTestEnd()` after the LAST
- * test completes. For a single-test suite this fires immediately after the
- * test finishes, before any webServer teardown begins.
- *
- * Also writes `.results.json` with per-test timing/error data so the report
- * script can render accurate durations (Playwright's own results.json only
- * flushes on clean exit, which never happens when teardown hangs).
+ * `.tests-done` / `.all-passed` are written only when the full suite
+ * completes, letting the CI wrapper distinguish "still running" from
+ * "done".
  */
 class DoneMarkerReporter implements Reporter {
   private totalTests = 0;
   private completedTests = 0;
   private allPassed = true;
   private tests: TestRecord[] = [];
+  private markerDirCreated = false;
 
   onBegin(_config: unknown, suite: { allTests(): TestCase[] }) {
     this.totalTests = suite.allTests().length;
@@ -76,37 +72,67 @@ class DoneMarkerReporter implements Reporter {
         .slice(0, 1500),
     });
 
-    // Write markers after the last test completes.
+    // Always flush results so a mid-suite kill still leaves usable data.
+    this.writeResults();
+
+    // Write completion markers only after the last test.
     if (this.completedTests >= this.totalTests) {
-      this.writeMarkers();
+      this.writeCompletionMarkers();
     }
   }
 
   onEnd(_result: FullResult) {
-    // Fallback: write markers here too in case onTestEnd didn't fire
-    // (e.g., if Playwright exits before running any tests).
-    // If zero tests ran (webServer timeout, config error, etc.), treat
-    // that as a failure — "0 tests passed" is not a meaningful pass.
+    // Fallback: if onTestEnd never fired (webServer timeout, config
+    // error, etc.), treat that as a failure and write what we have.
     if (this.totalTests === 0 || this.completedTests === 0) {
       this.allPassed = false;
     }
-    this.writeMarkers();
+    this.writeResults();
+    this.writeCompletionMarkers();
   }
 
-  private writeMarkers() {
+  /** Flush per-test timing/error data — called after every test. */
+  private writeResults() {
+    const done = this.completedTests >= this.totalTests;
+    const status = done
+      ? this.allPassed
+        ? "passed"
+        : "failed"
+      : "in_progress";
+    try {
+      this.ensureMarkerDir();
+      writeFileSync(
+        join(MARKER_DIR, ".results.json"),
+        JSON.stringify({
+          status,
+          completed: this.completedTests,
+          total: this.totalTests,
+          tests: this.tests,
+        }),
+      );
+    } catch {
+      // Don't crash Playwright if marker write fails
+    }
+  }
+
+  /** Write .tests-done and .all-passed — only when the suite is complete. */
+  private writeCompletionMarkers() {
     const status = this.allPassed ? "passed" : "failed";
     try {
-      mkdirSync(MARKER_DIR, { recursive: true });
+      this.ensureMarkerDir();
       writeFileSync(join(MARKER_DIR, ".tests-done"), status);
       if (this.allPassed) {
         writeFileSync(join(MARKER_DIR, ".all-passed"), "1");
       }
-      writeFileSync(
-        join(MARKER_DIR, ".results.json"),
-        JSON.stringify({ status, tests: this.tests }),
-      );
     } catch {
       // Don't crash Playwright if marker write fails
+    }
+  }
+
+  private ensureMarkerDir() {
+    if (!this.markerDirCreated) {
+      mkdirSync(MARKER_DIR, { recursive: true });
+      this.markerDirCreated = true;
     }
   }
 }
