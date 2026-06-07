@@ -367,8 +367,10 @@ test.describe("skill loading: project, user, and deletion", () => {
       expect(userSkillDirExists(USER_SKILL_NAME)).toBe(false);
     });
 
-    // No skill should trigger → no padding response needed
+    // Padding for skill-analysis (public skills are still loaded from the npm
+    // package, so the agent-server still makes a skill-analysis LLM call)
     await registerTrajectory(request, "deleted-skill", [
+      { text: "" },
       { text: `No skill triggered. ${REPLY_TOKEN}` },
     ]);
     await activateTrajectory(request, "deleted-skill");
