@@ -104,7 +104,7 @@ async function createConversationWithWorkingDir(
   request: APIRequestContext,
   workingDir: string,
 ): Promise<string> {
-  // Fetch current settings so we send the same agent config the UI would
+  // Fetch current settings with encrypted secrets so we can round-trip them
   const settingsResp = await request.get(`${BACKEND_URL}/api/settings`, {
     headers: {
       "X-Session-API-Key": SESSION_API_KEY,
@@ -129,13 +129,18 @@ async function createConversationWithWorkingDir(
           load_project_skills: true,
         },
       },
+      // Settings contain cipher-encrypted secrets from X-Expose-Secrets
+      secrets_encrypted: true,
       workspace: { kind: "LocalWorkspace", working_dir: workingDir },
       worktree: true,
       max_iterations: 10,
       stuck_detection: true,
     },
   });
-  expect(resp.ok(), `POST /api/conversations: ${resp.status()}`).toBe(true);
+  expect(
+    resp.ok(),
+    `POST /api/conversations: ${resp.status()} ${await resp.text()}`,
+  ).toBe(true);
   const body = (await resp.json()) as Record<string, unknown>;
   return String(body.conversation_id);
 }
