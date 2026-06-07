@@ -152,6 +152,12 @@ async function openManageModal(page: Page) {
 }
 
 const SNAP_OPTS = { animations: "disabled" as const, maxDiffPixelRatio: 0.01 };
+const SIDEBAR_TIMESTAMP_SNAP_OPTS = {
+  ...SNAP_OPTS,
+  // The sidebar includes a seconds-relative timestamp for the newest mock
+  // conversation; keep this snapshot focused on the backend dropdown UI.
+  maxDiffPixels: 2_500,
+};
 
 // ── Test Suite ─────────────────────────────────────────────────────────────
 
@@ -377,7 +383,7 @@ test.describe("Backend Management — Extended Flow Snapshots", () => {
     ).toBeVisible();
     await expect(rootLayout).toHaveScreenshot(
       "backend-dropdown-two-backends.png",
-      SNAP_OPTS,
+      SIDEBAR_TIMESTAMP_SNAP_OPTS,
     );
 
     // Click Production option — triggers the environment-switch overlay.
