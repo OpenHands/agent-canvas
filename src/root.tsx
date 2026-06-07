@@ -13,6 +13,7 @@ import React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "react-hot-toast";
 import {
+  clearCachedAgentServerInfo,
   isAgentServerUnavailableError,
   isAgentServerAuthError,
 } from "#/api/agent-server-compatibility";
@@ -95,14 +96,14 @@ function AgentServerBootstrapLoading() {
 function MissingAgentServerScreen() {
   const queryClient = useQueryClient();
 
-  // The modal is the no-backend gate. Closing it must re-run the
-  // /server_info probe once a usable local backend has been registered,
-  // otherwise the app stays stuck behind a "Done" button that closes a
-  // modal with nothing rendered behind it (the probe never re-fires on its
-  // own). Re-fetch only when a backend now exists; otherwise keep the modal.
+  // The modal is the no-backend gate. Selecting or adding a reachable
+  // backend must re-run the /server_info probe; otherwise the app stays
+  // behind the recovery screen because the failed bootstrap query will not
+  // re-fire on its own. Re-fetch only when a backend now exists.
   const handleClose = React.useCallback(() => {
     if (getEffectiveLocalBackend()) {
-      queryClient.invalidateQueries({
+      clearCachedAgentServerInfo();
+      void queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.WEB_CLIENT_CONFIG,
       });
     }
@@ -114,7 +115,7 @@ function MissingAgentServerScreen() {
       className="min-h-screen bg-base"
     >
       <React.Suspense fallback={null}>
-        <ManageBackendsModal onClose={handleClose} />
+        <ManageBackendsModal onClose={handleClose} recoveryMode />
       </React.Suspense>
     </main>
   );

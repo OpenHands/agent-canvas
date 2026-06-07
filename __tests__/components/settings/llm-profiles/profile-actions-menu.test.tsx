@@ -11,7 +11,6 @@ vi.mock("react-i18next", () => ({
         "BUTTON$RENAME": "Rename",
         "SETTINGS$PROFILE_SET_ACTIVE": "Set as active",
         "BUTTON$DELETE": "Delete",
-        "SETTINGS$PROFILE_CANNOT_DELETE_ACTIVE": "Cannot delete the active profile",
       };
       return translations[key] || key;
     },
@@ -109,10 +108,12 @@ describe("ProfileActionsMenu", () => {
     expect(setActiveButton).toBeDisabled();
   });
 
-  it("disables Delete button when isActive is true", () => {
+  it("keeps Delete enabled even when isActive is true", () => {
+    // The active profile is deletable; useEnsureActiveProfile promotes another
+    // profile to active afterwards so one is always active in local mode.
     render(<ProfileActionsMenu {...defaultProps} isActive />);
 
-    expect(screen.getByTestId("profile-delete")).toBeDisabled();
+    expect(screen.getByTestId("profile-delete")).not.toBeDisabled();
   });
 
   it("enables Delete button when isActive is false", () => {

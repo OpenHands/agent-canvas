@@ -151,7 +151,7 @@ test.describe("preset automation → slash command conversation", () => {
     page,
     request,
   }) => {
-    await ensureMockLLMProfile(request);
+    await ensureMockLLMProfile(page);
 
     // Configure a dummy Slack MCP server so the card is launchable
     await test.step("configure dummy Slack MCP", async () => {
@@ -239,7 +239,7 @@ test.describe("preset automation → slash command conversation", () => {
     page,
     request,
   }) => {
-    await ensureMockLLMProfile(request);
+    await ensureMockLLMProfile(page);
 
     // Explicitly clear the MCP config left by test 1.
     // Setting mcp_config to null removes it entirely (an empty {} or
