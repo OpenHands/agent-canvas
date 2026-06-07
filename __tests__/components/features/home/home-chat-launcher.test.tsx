@@ -14,6 +14,7 @@ const sendMessageWithAttachments = vi.fn();
 const mockClearAllFiles = vi.fn();
 const enqueueHomeTaskPendingMessage = vi.fn();
 const mockDisplayErrorToast = vi.fn();
+const mockUseLlmConfigured = vi.fn();
 
 let mockImages: File[] = [];
 let mockFiles: File[] = [];
@@ -61,6 +62,10 @@ vi.mock("#/context/navigation-context", () => ({
 
 vi.mock("#/contexts/active-backend-context", () => ({
   useActiveBackend: () => mockUseActiveBackend(),
+}));
+
+vi.mock("#/hooks/use-llm-configured", () => ({
+  useLlmConfigured: () => mockUseLlmConfigured(),
 }));
 
 vi.mock("#/hooks/use-is-creating-conversation", () => ({
@@ -238,6 +243,10 @@ describe("HomeChatLauncher", () => {
     mockImages = [];
     mockFiles = [];
     mockUseActiveBackend.mockReturnValue(localBackend);
+    mockUseLlmConfigured.mockReturnValue({
+      isConfigured: true,
+      isLoading: false,
+    });
     enqueueHomeTaskPendingMessage.mockResolvedValue(undefined);
     sendMessageWithAttachments.mockResolvedValue({
       text: "hello world",
@@ -279,6 +288,22 @@ describe("HomeChatLauncher", () => {
     await waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith("/conversations/conv-abc"),
     );
+  });
+
+  it("disables the chat input and won't create a conversation when no LLM is configured", async () => {
+    mockUseLlmConfigured.mockReturnValue({
+      isConfigured: false,
+      isLoading: false,
+    });
+    const createSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue(makeConversationResponse());
+
+    renderLauncher();
+
+    // The send is disabled, so the agent can't be handed a request it can't run.
+    expect(screen.getByTestId("stub-chat-submit")).toBeDisabled();
+    expect(createSpy).not.toHaveBeenCalled();
   });
 
   it("passes the picked workspace path as working_dir on a local backend", async () => {
