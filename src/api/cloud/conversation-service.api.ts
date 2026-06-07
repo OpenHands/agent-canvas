@@ -221,6 +221,28 @@ export async function resumeCloudSandbox(sandboxId: string): Promise<void> {
 }
 
 /**
+ * Wake a conversation whose sandbox was recycled (STOPPED/MISSING, not just
+ * PAUSED). Unlike `resumeCloudSandbox`, a recycled sandbox no longer exists, so
+ * a fresh one must be provisioned by re-issuing the conversation-start with the
+ * SAME `conversation_id`. The backend rebuilds the conversation keyed on that
+ * id and, for ACP, restores the CLI session subtree + feeds
+ * `acp_resume_session_id` so the agent continues natively via `session/load`
+ * rather than starting over (#1126). Returns a WORKING task the caller polls
+ * to READY (same lifecycle as a fresh create).
+ */
+export async function wakeRecycledCloudConversation(
+  conversationId: string,
+): Promise<AppConversationStartTask> {
+  const backend = getActiveCloudBackend();
+  return callCloudProxy<AppConversationStartTask>({
+    backend,
+    method: "POST",
+    path: "/api/v1/app-conversations",
+    body: { conversation_id: conversationId },
+  });
+}
+
+/**
  * Read a file from a cloud conversation's sandbox workspace. Mirrors
  * OpenHands' `AgentServerConversationService.readConversationFile` — hits
  * `GET /api/v1/app-conversations/{id}/file?file_path=...` on the cloud backend

@@ -362,10 +362,11 @@ describe("SetupAcpSecretsStep", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("does not count a file blob toward the gate on a backend that can't materialise it (cloud)", async () => {
-    // Cloud can't materialise file-content credentials yet (agent-canvas#1016)
-    // — the save flow warns the blob is orphaned, so it must not be what
-    // satisfies a required step. An env-var credential (API key) still counts.
+  it("counts a Codex file blob toward the gate on cloud now that it materialises (agent-canvas#1126)", async () => {
+    // Cloud now materialises file-content credentials (Codex auth.json, Gemini
+    // Vertex SA) from the encrypted secret store via agent_context.secrets at
+    // conversation start (#1016/#1126), so a pasted blob satisfies a required
+    // step exactly like an env-var credential does.
     setRegisteredBackends([
       {
         id: "cloud-1",
@@ -378,20 +379,13 @@ describe("SetupAcpSecretsStep", () => {
     setActiveSelection({ backendId: "cloud-1", orgId: null });
     const { user } = renderStep("codex");
 
+    // Required on cloud, so initially blocked until a credential is supplied.
+    expect(screen.getByTestId("onboarding-acp-secrets-next")).toBeDisabled();
+
     await user.click(
       screen.getByTestId("onboarding-acp-secret-CODEX_AUTH_JSON"),
     );
     await user.paste('{"tokens":{}}');
-
-    expect(
-      screen.getByTestId("onboarding-acp-secrets-blocked"),
-    ).toBeInTheDocument();
-    expect(screen.getByTestId("onboarding-acp-secrets-next")).toBeDisabled();
-
-    await user.type(
-      screen.getByTestId("onboarding-acp-secret-OPENAI_API_KEY"),
-      "sk-openai",
-    );
 
     expect(
       screen.queryByTestId("onboarding-acp-secrets-blocked"),

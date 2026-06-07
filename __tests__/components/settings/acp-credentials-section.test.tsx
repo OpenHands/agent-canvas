@@ -134,9 +134,10 @@ describe("AcpCredentialsSection", () => {
     ).toBeInTheDocument();
   });
 
-  it("toasts a warning (not success) when a file credential is saved on a cloud backend", async () => {
-    // Cloud can't materialise file-content credentials yet (agent-canvas#1016)
-    // — same orphaned-credential warning the onboarding step shows.
+  it("toasts success when a file credential is saved on a cloud backend (now materialised)", async () => {
+    // Cloud now materialises file-content credentials from the encrypted secret
+    // store via agent_context.secrets at conversation start (#1016/#1126), so a
+    // saved blob is consumable — no orphaned-credential warning.
     useCloudBackend();
     const { user } = renderSection("codex");
 
@@ -150,8 +151,8 @@ describe("AcpCredentialsSection", () => {
         '{"tokens":{}}',
         undefined,
       );
-      expect(toastMocks.warning).toHaveBeenCalledTimes(1);
+      expect(toastMocks.success).toHaveBeenCalled();
     });
-    expect(toastMocks.success).not.toHaveBeenCalled();
+    expect(toastMocks.warning).not.toHaveBeenCalled();
   });
 });

@@ -39,6 +39,7 @@ import { useTaskPolling } from "#/hooks/query/use-task-polling";
 import { matchesPendingConversationId } from "#/utils/pending-task-message-link";
 import { useConversationWebSocket } from "#/contexts/conversation-websocket-context";
 import ChatStatusIndicator from "./chat-status-indicator";
+import { AcpResumeArchivedButton } from "./acp-resume-archived-button";
 import { getStatusColor, getStatusText } from "#/utils/utils";
 import { useNewConversationCommand } from "#/hooks/mutation/use-new-conversation-command";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
@@ -107,6 +108,11 @@ export function ChatInterface() {
   const sandboxStatus = activeConversation?.sandbox_status ?? null;
   const isArchivedConversation =
     sandboxStatus === "MISSING" || sandboxStatus === "ERROR";
+  // A recycled (MISSING) sandbox for an ACP conversation can be resumed
+  // natively (#1126): re-provisioning restores the CLI session via
+  // session/load. ERROR is a genuine failure, so it stays read-only.
+  const isRecycledAcpConversation =
+    sandboxStatus === "MISSING" && activeConversation?.agent_kind === "acp";
 
   // Block sending in a resumed conversation that has no usable LLM, and show
   // the same setup banner as the home screen so the dead end is explained.
@@ -561,11 +567,21 @@ export function ChatInterface() {
                   ? t(I18nKey.CHAT_INTERFACE$ERROR_SANDBOX_TITLE)
                   : t(I18nKey.CHAT_INTERFACE$ARCHIVED_SANDBOX_TITLE)}
               </p>
-              <p className="text-xs text-[var(--oh-muted)] mt-0.5">
-                {sandboxStatus === "ERROR"
-                  ? t(I18nKey.CHAT_INTERFACE$ERROR_SANDBOX_DESCRIPTION)
-                  : t(I18nKey.CHAT_INTERFACE$ARCHIVED_SANDBOX_DESCRIPTION)}
-              </p>
+              {isRecycledAcpConversation && activeConversation?.id ? (
+                // ACP conversations resume natively from a recycled sandbox
+                // (#1126): offer to re-provision instead of dead-ending.
+                <div className="mt-2">
+                  <AcpResumeArchivedButton
+                    conversationId={activeConversation.id}
+                  />
+                </div>
+              ) : (
+                <p className="text-xs text-[var(--oh-muted)] mt-0.5">
+                  {sandboxStatus === "ERROR"
+                    ? t(I18nKey.CHAT_INTERFACE$ERROR_SANDBOX_DESCRIPTION)
+                    : t(I18nKey.CHAT_INTERFACE$ARCHIVED_SANDBOX_DESCRIPTION)}
+                </p>
+              )}
             </div>
           ) : (
             <div className="relative">

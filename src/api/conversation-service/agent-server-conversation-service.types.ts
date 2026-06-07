@@ -60,6 +60,11 @@ export interface SendMessageRequest {
 }
 
 export interface AppConversationStartRequest {
+  // Re-provision an EXISTING conversation (waking a recycled sandbox) instead
+  // of minting a new one. The backend keys the rebuilt conversation on this id
+  // and, for ACP, restores the CLI session for native session/load resume
+  // (#1126). Omit/null to create a fresh conversation.
+  conversation_id?: string | null;
   initial_message?: SendMessageRequest | null;
   processors?: unknown[]; // EventCallbackProcessor - keeping as unknown for now
   llm_model?: string | null;

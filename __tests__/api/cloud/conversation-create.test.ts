@@ -117,4 +117,36 @@ describe("AgentServerConversationService cloud branch", () => {
     expect(result?.status).toBe("READY");
     expect(result?.app_conversation_id).toBe("conv-456");
   });
+
+  it("wakeRecycledCloudConversation re-provisions under the same conversation id", async () => {
+    const { wakeRecycledCloudConversation } =
+      await import("#/api/cloud/conversation-service.api");
+    vi.mocked(axios.request).mockResolvedValue({
+      data: {
+        id: "task-wake",
+        created_by_user_id: null,
+        status: "WORKING",
+        detail: null,
+        app_conversation_id: null,
+        agent_server_url: null,
+        request: {},
+        created_at: "2026-06-07T00:00:00Z",
+        updated_at: "2026-06-07T00:00:00Z",
+      },
+    });
+
+    const result = await wakeRecycledCloudConversation("conv-existing");
+
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(config).toMatchObject({
+      url: `${cloudBackend.host}/api/v1/app-conversations`,
+      method: "POST",
+    });
+    const body = (config as { data: Record<string, unknown> }).data;
+    // The same conversation id is carried so the backend rebuilds (and, for
+    // ACP, natively resumes) the existing conversation rather than minting one.
+    expect(body.conversation_id).toBe("conv-existing");
+    expect(result.id).toBe("task-wake");
+    expect(result.status).toBe("WORKING");
+  });
 });
