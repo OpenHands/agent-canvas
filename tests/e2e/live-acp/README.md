@@ -44,30 +44,29 @@ credential knob there, not per script.
 
 ## Last validated result (agent-server `1.25.0-python`, unified LookupSecret path)
 
-Re-validated 2026-06-05 against `ghcr.io/openhands/agent-server:1.25.0-python`
-(the first release with software-agent-sdk#3510). Each credential rides as a
-loopback `LookupSecret`; the logs confirm the agent-server resolved it
-(`GET /api/settings/secrets/<name>` 200) during ACP cold-start — **no deadlock,
-no "Failed to start ACP server: timed out"**, which is exactly what #3510 fixes.
+Re-validated 2026-06-07 against `ghcr.io/openhands/agent-server:1.25.0-python`
+(the first release with software-agent-sdk#3510), on a **fresh volume** — every
+credential seeded from the secret store, no leftover state. Each credential
+rides as a loopback `LookupSecret`; the logs confirm the agent-server resolved
+it (`GET /api/settings/secrets/<name>` 200) during ACP cold-start — **no
+deadlock, no "Failed to start ACP server: timed out"**, which is exactly what
+#3510 fixes. Codex and Claude also passed the app-orchestrator script
+(`acp-docker-app-e2e.mts`).
 
 | Provider | Result | Evidence (agent-server logs) |
 |---|---|---|
-| **Codex** | ✅ real reply `ACPOK-CODEX` | `Materialised ACP file-secret 'CODEX_AUTH_JSON' -> …/acp/codex/auth.json`; codex-acp 0.15.0; `Authenticating with ACP method: chatgpt` |
-| **Claude Code** | ✅ real reply `ACPOK-CLAUDE` | claude-agent-acp 0.30.0; `CLAUDE_CODE_OAUTH_TOKEN` env path (no `ANTHROPIC_BASE_URL`) |
-| **Gemini CLI** | ⚠️ credential path proven; blocked downstream on model selection¹ | `Materialised ACP file-secret 'GOOGLE_APPLICATION_CREDENTIALS_JSON' -> …/acp/gemini-cli/gcloud-credentials.json`; gemini-cli 0.45.1; `Authenticating with ACP method: vertex-ai` ✅ → `Publisher Model …/gemini-3-flash was not found` |
+| **Codex** | ✅ real reply `ACPOK-CODEX` (both scripts) | `Materialised ACP file-secret 'CODEX_AUTH_JSON' -> …/acp/codex/auth.json`; codex-acp 0.15.0; `Authenticating with ACP method: chatgpt` |
+| **Claude Code** | ✅ real reply `ACPOK-CLAUDE` (both scripts) | claude-agent-acp 0.30.0; `CLAUDE_CODE_OAUTH_TOKEN` env path (no `ANTHROPIC_BASE_URL`) |
+| **Gemini CLI** | ✅ real reply `ACPOK-GEMINI`¹ | `Materialised ACP file-secret 'GOOGLE_APPLICATION_CREDENTIALS_JSON' -> …/acp/gemini-cli/gcloud-credentials.json`; gemini-cli 0.45.1; `Authenticating with ACP method: vertex-ai` → real Vertex inference on `gemini-2.5-pro` |
 
-¹ **Gemini caveat (credential path proven; model selection was the blocker).**
-The credential **delivery is fully validated**: the LookupSecret resolves, the
-ADC blob materialises to disk, and gemini-cli authenticates via `vertex-ai`.
-With a **fresh** host ADC (`gcloud auth application-default login`) the earlier
-`invalid_rapt` is gone and the turn reaches real Vertex inference. That run then
-failed because it requested `acp_model=gemini-2.5-flash` and gemini-cli 0.45.x
-**re-resolves any `*-flash` id at generation time to its current default flash**
-(`gemini-3-flash`, not served by the test project —
-software-agent-sdk#3532). Only a non-flash id sticks, so the e2e (and Canvas's
-preselected default) now uses **`gemini-2.5-pro`**. Run with
-`ACP_E2E_GEMINI_SESSION_MODE=default` to also clear the separate gemini-cli
-≥0.43 `set_session_mode("yolo")` headless-init blocker.
+¹ **Gemini prerequisites.** The full turn passes with: a **fresh** host ADC
+(`gcloud auth application-default login` — a stale one fails as `invalid_rapt`,
+a credential problem, not a Canvas one), the **non-flash** `gemini-2.5-pro`
+model (gemini-cli 0.45.x re-resolves any `*-flash` id at generation time to its
+current default flash, which 404s on projects that don't serve it —
+software-agent-sdk#3532; this is why Canvas preselects `gemini-2.5-pro`), and
+`ACP_E2E_GEMINI_SESSION_MODE=default` to clear the separate gemini-cli ≥0.43
+`set_session_mode("yolo")` headless-init blocker.
 
 ## Knobs
 
