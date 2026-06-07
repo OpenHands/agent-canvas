@@ -165,13 +165,21 @@ function renderReport({
   const wasKilledMidSuite =
     markerMeta?.status === "in_progress" && markerMeta.total > markerMeta.completed;
 
-  // Determine which tests are new (from newly added spec files)
+  // Determine which tests are new (from newly added spec files).
+  // Playwright's JSON file paths are relative to testDir (e.g. "mock-llm-skills.spec.ts")
+  // while --new-files paths are repo-relative (e.g. "tests/e2e/mock-llm/mock-llm-skills.spec.ts").
+  // Match by basename or suffix in either direction.
   const newFileSet = new Set(newFiles ?? []);
+  const basename = (p) => p.split("/").pop();
   const isNewTest = (t) =>
     newFileSet.size > 0 &&
     t.file &&
     [...newFileSet].some(
-      (nf) => t.file === nf || t.file.endsWith(`/${nf}`),
+      (nf) =>
+        t.file === nf ||
+        basename(t.file) === basename(nf) ||
+        nf.endsWith(`/${t.file}`) ||
+        t.file.endsWith(`/${nf}`),
     );
   const newCount = tests.filter(isNewTest).length;
 
