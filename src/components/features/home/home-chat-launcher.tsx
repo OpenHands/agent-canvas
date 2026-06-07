@@ -28,6 +28,7 @@ import { HomeHeaderTitle } from "./home-header/home-header-title";
 import { OpenLauncherButton } from "./open-launcher-button";
 import { OpenWorkspaceDialog } from "./open-workspace-dialog";
 import { OpenRepositoryDialog } from "./open-repository-dialog";
+import { OpenLocalRepositoryDialog } from "./open-local-repository-dialog";
 import { HomeGitControlBarPreview } from "./home-git-control-bar-preview";
 
 export function HomeChatLauncher() {
@@ -37,6 +38,7 @@ export function HomeChatLauncher() {
   const isLocal = backend.kind === "local";
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isLocalRepoDialogOpen, setIsLocalRepoDialogOpen] = useState(false);
   const [pendingWorkspace, setPendingWorkspace] =
     useState<LocalWorkspace | null>(null);
   const [pendingRepository, setPendingRepository] =
@@ -210,7 +212,7 @@ export function HomeChatLauncher() {
         />
       </div>
 
-      <div className="flex justify-start">
+      <div className="flex justify-start gap-2">
         {hasSelection ? (
           <HomeGitControlBarPreview
             workspace={pendingWorkspace}
@@ -220,26 +222,51 @@ export function HomeChatLauncher() {
             onRepoClick={() => setIsDialogOpen(true)}
           />
         ) : (
-          <OpenLauncherButton
-            kind={isLocal ? "local" : "cloud"}
-            onClick={() => setIsDialogOpen(true)}
-            disabled={isCreating || Boolean(workspacesUnsupportedMessage)}
-            disabledTooltip={workspacesUnsupportedMessage}
-          />
+          <>
+            <OpenLauncherButton
+              kind={isLocal ? "local" : "cloud"}
+              onClick={() => setIsDialogOpen(true)}
+              disabled={isCreating || Boolean(workspacesUnsupportedMessage)}
+              disabledTooltip={workspacesUnsupportedMessage}
+            />
+            {/* Local backends can't browse a Git provider's repos (that API is
+                cloud-only), so offer a dedicated "Open a Repository" entry that
+                clones a repo into the workspace (#976). Cloud already has repo
+                selection via the primary button above. */}
+            {isLocal && (
+              <OpenLauncherButton
+                kind="cloud"
+                onClick={() => setIsLocalRepoDialogOpen(true)}
+                disabled={isCreating}
+              />
+            )}
+          </>
         )}
       </div>
 
       {isLocal ? (
-        <OpenWorkspaceDialog
-          isOpen={isDialogOpen}
-          onClose={() => setIsDialogOpen(false)}
-          onConfirm={(workspace) => {
-            setPendingWorkspace(workspace);
-            setPendingRepository(null);
-            setPendingBranch(null);
-            setPendingProvider(null);
-          }}
-        />
+        <>
+          <OpenWorkspaceDialog
+            isOpen={isDialogOpen}
+            onClose={() => setIsDialogOpen(false)}
+            onConfirm={(workspace) => {
+              setPendingWorkspace(workspace);
+              setPendingRepository(null);
+              setPendingBranch(null);
+              setPendingProvider(null);
+            }}
+          />
+          <OpenLocalRepositoryDialog
+            isOpen={isLocalRepoDialogOpen}
+            onClose={() => setIsLocalRepoDialogOpen(false)}
+            onConfirm={(workspace) => {
+              setPendingWorkspace(workspace);
+              setPendingRepository(null);
+              setPendingBranch(null);
+              setPendingProvider(null);
+            }}
+          />
+        </>
       ) : (
         <OpenRepositoryDialog
           isOpen={isDialogOpen}
