@@ -25,8 +25,8 @@
     "@monaco-editor/react": "4.7.0",
     "@openhands/extensions": "github:OpenHands/extensions#8a6690071e0e9229ae70b30ff0352aff9e6fca21",
     "@openhands/typescript-client": "1.24.3",
-    "@react-router/node": "7.14.2",
-    "@react-router/serve": "7.14.2",
+    "@react-router/node": "7.17.0",
+    "@react-router/serve": "7.17.0",
     "@tailwindcss/vite": "4.2.4",
     "@tanstack/react-query": "5.100.9",
     "@types/shell-quote": "^1.7.5",
@@ -51,7 +51,7 @@
     "react-i18next": "17.0.6",
     "react-icons": "5.6.0",
     "react-markdown": "10.1.0",
-    "react-router": "7.14.2",
+    "react-router": "7.17.0",
     "react-syntax-highlighter": "16.1.1",
     "rehype-raw": "7.0.0",
     "rehype-sanitize": "6.0.0",
@@ -118,7 +118,7 @@
     "@eslint/js": "9.39.4",
     "@mswjs/socket.io-binding": "0.2.0",
     "@playwright/test": "1.59.1",
-    "@react-router/dev": "7.14.2",
+    "@react-router/dev": "7.17.0",
     "@tailwindcss/typography": "0.5.19",
     "@tanstack/eslint-plugin-query": "5.100.9",
     "@testing-library/dom": "10.4.1",
@@ -167,7 +167,10 @@
     ]
   },
   "overrides": {
-    "dompurify": "3.3.2"
+    "@vercel/static-config": {
+      "ajv": "8.20.0"
+    },
+    "dompurify": "3.4.7"
   },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -226,6 +229,6 @@
   "peerDependencies": {
     "react": "19.2.5",
     "react-dom": "19.2.5",
-    "react-router": "7.14.2"
+    "react-router": "7.17.0"
   }
 }
