@@ -94,6 +94,13 @@ export async function cloneLocalRepository(
   // conversation's working directory.
   const command = [
     "set -e",
+    // When a GITHUB_TOKEN is present in the backend environment, wire it into
+    // git's credential helper so private github.com clones authenticate. This
+    // uses the token on demand (no credentials persisted in the remote URL) and
+    // is a no-op for non-github hosts. Failures are non-fatal (public clones
+    // still work, and `gh` may be absent on some runtimes).
+    'if [ -n "$GITHUB_TOKEN" ] && command -v gh >/dev/null 2>&1; then ' +
+      "gh auth setup-git >/dev/null 2>&1 || true; fi",
     `mkdir -p ${MANAGED_WORKSPACE_BASE}`,
     `cd ${MANAGED_WORKSPACE_BASE}`,
     `if [ -d ${shellQuote(name)}/.git ]; then ` +

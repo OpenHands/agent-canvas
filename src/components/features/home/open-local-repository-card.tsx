@@ -1,18 +1,18 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { cloneLocalRepository } from "#/api/git-service/clone-local-repository";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
-import { cn } from "#/utils/utils";
 import {
-  formControlBorderClassName,
-  formControlSurfaceClassName,
-  formControlTransitionClassName,
-} from "#/utils/form-control-classes";
+  useLocalRepositories,
+  useLocalRepoBranches,
+} from "#/hooks/query/use-local-repositories";
 import { I18nKey } from "#/i18n/declaration";
 import { LocalWorkspace } from "#/types/workspace";
 import { Card } from "#/ui/card";
 import { CardTitle } from "#/ui/card-title";
 import { Typography } from "#/ui/typography";
+import { Dropdown } from "#/ui/dropdown/dropdown";
+import { DropdownOption } from "#/ui/dropdown/types";
 import RepoForkedIcon from "#/icons/repo-forked.svg?react";
 import { BrandButton } from "../settings/brand-button";
 
@@ -22,43 +22,62 @@ interface OpenLocalRepositoryCardProps {
   disabled?: boolean;
 }
 
-const inputClassName = cn(
-  "w-full rounded-lg px-3 py-2 text-sm text-white outline-none placeholder:text-tertiary",
-  formControlBorderClassName,
-  formControlSurfaceClassName,
-  formControlTransitionClassName,
-);
-
 /**
  * Inline, themed "Open Repository" card for Local backend mode (which also
  * covers self-hosted *remote* backends — anything that isn't OpenHands Cloud).
  *
- * Such backends can't browse a Git provider's repositories (that search API is
- * cloud-only), so instead of the provider-driven dropdown the cloud card uses,
- * the user pastes a repo reference (owner/repo or a clone URL) and we clone it
- * into a managed workspace directory via the runtime's bash endpoint, then open
- * a conversation scoped to the clone. Mirrors the cloud "Open Repository" card
- * layout so the home screen stays consistent across backends (#976).
+ * The agent-server exposes no cloud provider-search API, so we replicate the
+ * OpenHands app's "pick, don't type" UX a different way: when the backend has a
+ * `GITHUB_TOKEN`, the runtime's `gh` CLI lists the user's repositories and the
+ * selected repo's branches (see `local-repo-listing.ts`). The chosen repo/branch
+ * is then cloned into a managed workspace directory and opened as a conversation.
+ * Mirrors the cloud "Open Repository" card layout so the home screen stays
+ * consistent across backends (#976).
  */
 export function OpenLocalRepositoryCard({
   onConfirm,
   disabled = false,
 }: OpenLocalRepositoryCardProps) {
   const { t } = useTranslation("openhands");
-  const [repo, setRepo] = useState("");
-  const [branch, setBranch] = useState("");
+  const [repo, setRepo] = useState<string | null>(null);
+  const [branch, setBranch] = useState<string | null>(null);
   const [isCloning, setIsCloning] = useState(false);
 
-  const canSubmit = repo.trim().length > 0 && !isCloning && !disabled;
+  const {
+    data: repositories = [],
+    isLoading: isLoadingRepos,
+    isError: reposError,
+  } = useLocalRepositories(!disabled);
+  const { data: branches = [], isLoading: isLoadingBranches } =
+    useLocalRepoBranches(repo);
+
+  const repoOptions = useMemo<DropdownOption[]>(
+    () => repositories.map((r) => ({ value: r.full_name, label: r.full_name })),
+    [repositories],
+  );
+  const branchOptions = useMemo<DropdownOption[]>(
+    () => branches.map((b) => ({ value: b, label: b })),
+    [branches],
+  );
+  const defaultBranch = useMemo(
+    () =>
+      repositories.find((r) => r.full_name === repo)?.default_branch ?? null,
+    [repositories, repo],
+  );
+
+  const canSubmit = !!repo && !isCloning && !disabled;
 
   const handleClone = async () => {
-    if (!canSubmit) return;
+    if (!repo || isCloning || disabled) return;
     setIsCloning(true);
     try {
-      const { path, name } = await cloneLocalRepository(repo, branch);
+      const { path, name } = await cloneLocalRepository(
+        repo,
+        branch ?? defaultBranch ?? undefined,
+      );
       onConfirm({ id: path, name, path });
-      setRepo("");
-      setBranch("");
+      setRepo(null);
+      setBranch(null);
     } catch (error) {
       displayErrorToast(
         error instanceof Error ? error.message : t(I18nKey.HOME$CLONE_FAILED),
@@ -78,30 +97,33 @@ export function OpenLocalRepositoryCard({
       </CardTitle>
       <Typography.Text>{t(I18nKey.HOME$SELECT_OR_INSERT_URL)}</Typography.Text>
 
-      <input
-        data-testid="local-repo-input"
-        type="text"
-        value={repo}
-        onChange={(e) => setRepo(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") handleClone();
-        }}
+      <Dropdown
+        testId="local-repo-dropdown"
+        options={repoOptions}
+        loading={isLoadingRepos}
+        disabled={disabled || isCloning}
+        clearable
         placeholder={t(I18nKey.HOME$REPO_URL_PLACEHOLDER)}
-        disabled={isCloning || disabled}
-        className={inputClassName}
+        emptyMessage={
+          reposError
+            ? "Couldn't load repositories — set GITHUB_TOKEN on this backend."
+            : "No repositories found"
+        }
+        onChange={(option) => {
+          setRepo(option?.value ?? null);
+          setBranch(null);
+        }}
       />
 
-      <input
-        data-testid="local-repo-branch-input"
-        type="text"
-        value={branch}
-        onChange={(e) => setBranch(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") handleClone();
-        }}
+      <Dropdown
+        testId="local-branch-dropdown"
+        options={branchOptions}
+        loading={isLoadingBranches}
+        disabled={!repo || disabled || isCloning}
+        clearable
         placeholder={t(I18nKey.HOME$REPO_BRANCH_PLACEHOLDER)}
-        disabled={isCloning || disabled}
-        className={inputClassName}
+        emptyMessage="No branches found"
+        onChange={(option) => setBranch(option?.value ?? null)}
       />
 
       <BrandButton
