@@ -85,7 +85,7 @@ test.describe("mock-LLM ACP agent conversation", () => {
     await seedLocalStorage(page);
   });
 
-  test.afterAll(async ({ request }) => {
+  test.afterAll(async ({ request, browser }) => {
     // Clean up the conversation
     if (conversationId) {
       try {
@@ -103,10 +103,14 @@ test.describe("mock-LLM ACP agent conversation", () => {
     } catch {
       // best-effort
     }
+    const page = await browser.newPage();
     try {
-      await ensureMockLLMProfile(request);
+      await seedLocalStorage(page);
+      await ensureMockLLMProfile(page);
     } catch {
       // best-effort
+    } finally {
+      await page.close();
     }
     try {
       await resetMockLLM(request);
@@ -123,8 +127,8 @@ test.describe("mock-LLM ACP agent conversation", () => {
   }) => {
     // The agent-server may make internal LLM calls (condenser) even for
     // ACP conversations. Ensure a mock LLM profile exists so those calls
-    // don't fail. This API call is not what we're testing — the ACP UI is.
-    await ensureMockLLMProfile(request);
+    // don't fail. This UI flow is not what we're testing — the ACP UI is.
+    await ensureMockLLMProfile(page);
 
     await routeSessionApiKey(page);
     await page.goto("/settings/agent", { waitUntil: "domcontentloaded" });
