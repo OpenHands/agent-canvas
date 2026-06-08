@@ -14,7 +14,7 @@ const GIT_REPO_ERROR_PATTERN = /not a git repository/i;
 
 function StatusMessage({ children }: React.PropsWithChildren) {
   return (
-    <div className="w-full h-full flex flex-col items-center text-center justify-center text-2xl text-tertiary-light">
+    <div className="w-full h-full flex flex-col items-center text-center justify-center text-2xl text-foreground">
       {children}
     </div>
   );
