@@ -1,10 +1,15 @@
 import React from "react";
 import { useQueries } from "@tanstack/react-query";
 import { SettingsClient } from "@openhands/typescript-client/clients";
+import axios from "axios";
 import { getCurrentCloudApiKey } from "#/api/cloud/organization-service.api";
 import { isSdkHttpStatusError } from "#/api/agent-server-compatibility";
 import type { Backend } from "#/api/backend-registry/types";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
+import {
+  isCorsOrNetworkError,
+  isCorsOrNetworkErrorMessage,
+} from "#/utils/user-facing-error";
 import {
   getHealthSnapshot,
   recordBackendFailure,
@@ -16,11 +21,26 @@ import { MAX_CONSECUTIVE_FAILURES } from "#/api/backend-registry/health-storage"
 const REFRESH_INTERVAL_MS = 10000;
 const PROBE_TIMEOUT_MS = 4000;
 export const INVALID_BACKEND_API_KEY_ERROR = "Invalid API key";
+export const MISSING_BACKEND_API_KEY_ERROR = "API key required";
+export const CLOUD_BACKEND_API_KEY_OR_NETWORK_ERROR =
+  "Cloud API key or network issue";
 
 export function isInvalidBackendApiKeyHealthError(
   error: string | null | undefined,
 ): boolean {
   return error === INVALID_BACKEND_API_KEY_ERROR;
+}
+
+export function isMissingBackendApiKeyHealthError(
+  error: string | null | undefined,
+): boolean {
+  return error === MISSING_BACKEND_API_KEY_ERROR;
+}
+
+export function isCloudBackendApiKeyOrNetworkHealthError(
+  error: string | null | undefined,
+): boolean {
+  return error === CLOUD_BACKEND_API_KEY_OR_NETWORK_ERROR;
 }
 
 /**
@@ -29,19 +49,33 @@ export function isInvalidBackendApiKeyHealthError(
  *
  *  - Local agent-server: GET `/api/settings` via the typescript-client.
  *    Unlike `/server_info`, this validates the configured session API key.
- *  - Cloud: GET `/api/keys/current` via the bundled local
- *    agent-server's `/api/cloud-proxy`. That endpoint is lightweight,
- *    requires auth, and `getCurrentCloudApiKey` already absorbs the
- *    legacy-key 400 fallback so we treat that as "connected" too.
- *    Any other failure (network, 401, 5xx, …) means the backend is
- *    not reachable / not usable from the GUI.
+ *  - Cloud: GET `/api/keys/current` directly against the cloud host.
+ *    That endpoint is lightweight, requires auth, and
+ *    `getCurrentCloudApiKey` already absorbs the legacy-key 400 fallback
+ *    so we treat that as "connected" too. Missing / rejected keys are
+ *    reported explicitly instead of falling through to the browser's
+ *    opaque CORS/network error shape.
  *
  * Throws on failure so React Query marks the query as errored — the
  * dropdown reads `isSuccess` to flip the indicator green.
  */
 async function probeBackend(backend: Backend): Promise<true> {
   if (backend.kind === "cloud") {
-    await getCurrentCloudApiKey(backend);
+    if (!backend.apiKey?.trim()) {
+      throw new Error(MISSING_BACKEND_API_KEY_ERROR);
+    }
+
+    try {
+      await getCurrentCloudApiKey(backend);
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        throw new Error(INVALID_BACKEND_API_KEY_ERROR);
+      }
+      if (isCorsOrNetworkError(error)) {
+        throw new Error(CLOUD_BACKEND_API_KEY_OR_NETWORK_ERROR);
+      }
+      throw error;
+    }
     return true;
   }
 
@@ -115,8 +149,18 @@ export function useBackendsHealth(
 
   const results = useQueries({
     queries: backends.map((b) => {
-      const isDisabled = healthMap[b.id]?.disabled === true;
-      const shouldProbe = !isDisabled || probeDisabledOnce;
+      const entry = healthMap[b.id];
+      const hasMissingCloudApiKey = b.kind === "cloud" && !b.apiKey.trim();
+      const isDisabled = entry?.disabled === true;
+      const shouldReprobeStaleCloudNetworkError =
+        isDisabled &&
+        b.kind === "cloud" &&
+        isCorsOrNetworkErrorMessage(entry?.lastError);
+      const shouldProbe =
+        !hasMissingCloudApiKey &&
+        (!isDisabled ||
+          probeDisabledOnce ||
+          shouldReprobeStaleCloudNetworkError);
       return {
         queryKey: [
           "backend-health",
@@ -136,11 +180,14 @@ export function useBackendsHealth(
           }
         },
         enabled: shouldProbe,
-        refetchInterval: isDisabled ? (false as const) : REFRESH_INTERVAL_MS,
+        refetchInterval:
+          isDisabled || hasMissingCloudApiKey
+            ? (false as const)
+            : REFRESH_INTERVAL_MS,
         refetchIntervalInBackground: false,
         refetchOnMount: isDisabled && probeDisabledOnce ? "always" : true,
-        refetchOnReconnect: !isDisabled,
-        refetchOnWindowFocus: !isDisabled,
+        refetchOnReconnect: !isDisabled && !hasMissingCloudApiKey,
+        refetchOnWindowFocus: !isDisabled && !hasMissingCloudApiKey,
         retry: false,
         // Keep the previous verdict visible while the next probe is in
         // flight so the indicator doesn't flicker on routine polling.
@@ -154,12 +201,19 @@ export function useBackendsHealth(
   backends.forEach((b, i) => {
     const r = results[i];
     const entry = healthMap[b.id];
-    const disabled = entry?.disabled === true;
-    const consecutiveFailures = entry?.consecutiveFailures ?? 0;
-    const lastError = entry?.lastError ?? null;
+    const hasMissingCloudApiKey = b.kind === "cloud" && !b.apiKey.trim();
+    const disabled = hasMissingCloudApiKey ? false : entry?.disabled === true;
+    const consecutiveFailures = hasMissingCloudApiKey
+      ? 0
+      : (entry?.consecutiveFailures ?? 0);
+    const lastError = hasMissingCloudApiKey
+      ? MISSING_BACKEND_API_KEY_ERROR
+      : (entry?.lastError ?? null);
 
     let isConnected: boolean | null;
-    if (disabled) {
+    if (hasMissingCloudApiKey) {
+      isConnected = false;
+    } else if (disabled) {
       // Polling stopped after hitting the cap — treat as disconnected
       // so existing consumers (dot, badge) render red without needing
       // to know about the new fields.

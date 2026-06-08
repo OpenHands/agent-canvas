@@ -18,11 +18,13 @@ import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend, BackendKind } from "#/api/backend-registry/types";
+import { getUserFacingConnectionErrorMessage } from "#/utils/user-facing-error";
 import { cn } from "#/utils/utils";
 import {
   modalTitleLgClassName,
   modalTitleLgMediumClassName,
 } from "#/utils/modal-classes";
+import { getBackendStatusLabel } from "./backend-status-label";
 import { BackendStatusDot } from "./backend-status-dot";
 import { DeviceFlowAuth } from "./device-flow-auth";
 
@@ -129,9 +131,7 @@ function getConnectionTestFailedTitle(
 }
 
 function getConnectionErrorDetail(error: unknown): string | null {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return null;
+  return getUserFacingConnectionErrorMessage(error);
 }
 
 function getConnectionTestFailedMessage(title: string, error: unknown): string {
@@ -192,14 +192,7 @@ function BackendStatusBadge({
     enabled: backend.kind === "local" && !disabled,
   });
 
-  let statusLabel: string;
-  if (isConnected === true) {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_CONNECTED);
-  } else if (isConnected === false) {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_DISCONNECTED);
-  } else {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_CHECKING);
-  }
+  const statusLabel = getBackendStatusLabel(t, backend, health);
 
   const kindLabel =
     backend.kind === "cloud"

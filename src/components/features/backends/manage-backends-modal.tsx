@@ -16,7 +16,6 @@ import {
 import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import {
-  isInvalidBackendApiKeyHealthError,
   useBackendsHealth,
   type BackendHealth,
 } from "#/hooks/query/use-backends-health";
@@ -24,6 +23,7 @@ import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import { modalTitleLgClassName } from "#/utils/modal-classes";
 import { BackendFormModal } from "./backend-form-modal";
+import { getBackendStatusLabel } from "./backend-status-label";
 import { BackendStatusDot } from "./backend-status-dot";
 
 const ROW_ACTION_BUTTON_CLASS =
@@ -90,24 +90,15 @@ function BackendRow({
   onRemove,
 }: BackendRowProps) {
   const { t } = useTranslation("openhands");
-  const isInvalidApiKey = isInvalidBackendApiKeyHealthError(health?.lastError);
-  let statusLabel: string;
-  let statusClassName = "text-[var(--oh-muted)]";
-
-  if (isInvalidApiKey) {
-    statusLabel = t(I18nKey.AUTH$INVALID_KEY);
-    statusClassName = "text-red-300";
-  } else if (health?.isConnected === true) {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_CONNECTED);
-    statusClassName = "text-green-300";
-  } else if (health?.isConnected === false) {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_DISCONNECTED);
-    statusClassName = "text-red-300";
-  } else {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_CHECKING);
-  }
-  const dotStatus = isInvalidApiKey ? false : (health?.isConnected ?? null);
-  const canSelect = health?.isConnected === true && !isInvalidApiKey;
+  const statusLabel = getBackendStatusLabel(t, backend, health);
+  const statusClassName =
+    health?.isConnected === true
+      ? "text-green-300"
+      : health?.isConnected === false
+        ? "text-red-300"
+        : "text-[var(--oh-muted)]";
+  const dotStatus = health?.isConnected ?? null;
+  const canSelect = health?.isConnected === true;
 
   return (
     <li
