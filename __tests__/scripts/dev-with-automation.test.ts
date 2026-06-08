@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it, afterEach } from "vitest";
 import {
   buildAgentServerAutomationEnv,
+  buildAutomationBackendEnv,
   buildAutomationCommand,
   buildConfig,
   buildRouteArgs,
@@ -134,6 +135,23 @@ describe("buildAgentServerAutomationEnv", () => {
     ).toEqual({
       OPENHANDS_AUTOMATION_API_KEY: "shared-session-key",
     });
+  });
+});
+
+describe("buildAutomationBackendEnv", () => {
+  it("pins automation temp files under the launcher state dir", () => {
+    const env = buildAutomationBackendEnv({
+      stateDir: "/tmp/agent-canvas-state",
+      agentServerPort: 18000,
+      ingressPort: 8000,
+      sessionApiKey: "shared-session-key",
+    });
+
+    expect(env.TMPDIR).toBe("/tmp/agent-canvas-state/tmp");
+    expect(env.TMP).toBe("/tmp/agent-canvas-state/tmp");
+    expect(env.TEMP).toBe("/tmp/agent-canvas-state/tmp");
+    expect(env.AUTOMATION_AGENT_SERVER_URL).toBe("http://localhost:18000");
+    expect(env.AUTOMATION_LOCAL_API_KEY).toBe("shared-session-key");
   });
 });
 

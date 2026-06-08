@@ -30,6 +30,34 @@ function getConfiguredBaseUrl(): string | null {
   return normalizeBaseUrl(import.meta.env.VITE_BACKEND_BASE_URL);
 }
 
+function isLoopbackHostname(hostname: string): boolean {
+  return (
+    hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1"
+  );
+}
+
+function normalizeLoopbackOrigin(configuredUrl: string): string {
+  if (typeof window === "undefined") return configuredUrl;
+
+  try {
+    const configured = new URL(configuredUrl);
+    const current = new URL(window.location.origin);
+
+    if (
+      isLoopbackHostname(configured.hostname) &&
+      isLoopbackHostname(current.hostname) &&
+      configured.protocol === current.protocol &&
+      configured.port === current.port
+    ) {
+      return current.origin;
+    }
+  } catch {
+    // Fall back to the configured URL if parsing fails.
+  }
+
+  return configuredUrl;
+}
+
 /**
  * Return the session API key supplied by the deployment host.
  *
@@ -71,7 +99,9 @@ export function getAgentServerFormDefaults(): AgentServerFormDefaults {
 
 export function getAgentServerBaseUrl(): string | null {
   const configuredUrl = getConfiguredBaseUrl();
-  if (configuredUrl) return configuredUrl;
+  if (configuredUrl) {
+    return normalizeLoopbackOrigin(configuredUrl);
+  }
 
   if (typeof window !== "undefined") {
     return window.location.origin;

@@ -43,7 +43,7 @@
  */
 
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, existsSync, readFileSync } from "node:fs";
+import { mkdirSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { homedir } from "node:os";
@@ -82,6 +82,9 @@ const DEFAULT_AUTOMATION_REPO = "https://github.com/OpenHands/automation";
 const DEFAULT_AUTOMATION_PACKAGE = SHARED_DEFAULTS.packages.automation;
 const DEFAULT_AUTOMATION_VERSION = SHARED_DEFAULTS.versions.automation;
 const AUTOMATION_EXTRA_PACKAGES = ["tzdata"];
+const WINDOWS_PUBLIC_SKILLS_REPO =
+  "https://github.com/jamiechicago312/extensions.git";
+const WINDOWS_PUBLIC_SKILLS_REF = "fix/230-colon-filename-windows";
 // SDK version used by DEFAULT_AUTOMATION_VERSION. This can intentionally lag
 // the agent-server version while automation releases catch up.
 const DEFAULT_AUTOMATION_SDK_VERSION = SHARED_DEFAULTS.versions.automationSdk;
@@ -462,6 +465,82 @@ function commandExists(cmd) {
   return result.status === 0;
 }
 
+function getSharedTempDir(config) {
+  return join(config.stateDir, "tmp");
+}
+
+function getPublicSkillsCacheRepoPath(config) {
+  return join(dirname(config.stateDir), "cache", "skills", "public-skills");
+}
+
+function ensureWindowsPublicSkillsCache(config, env = process.env) {
+  if (process.platform !== "win32" || !config.launchAgentServer) {
+    return true;
+  }
+
+  const repoUrl =
+    env.OH_WINDOWS_PUBLIC_SKILLS_REPO || WINDOWS_PUBLIC_SKILLS_REPO;
+  const ref = env.EXTENSIONS_REF || WINDOWS_PUBLIC_SKILLS_REF;
+  const cacheRepoPath = getPublicSkillsCacheRepoPath(config);
+  const sentinel = join(
+    cacheRepoPath,
+    "skills",
+    "openhands-automation",
+    "commands",
+    "automation-create.md",
+  );
+
+  if (
+    existsSync(sentinel) &&
+    env.OH_WINDOWS_PUBLIC_SKILLS_CACHE_REFRESH !== "1"
+  ) {
+    logService(
+      "skills-cache",
+      `Using cached Windows-safe public skills (${ref})`,
+      c.dim,
+    );
+    return true;
+  }
+
+  logService(
+    "skills-cache",
+    `Seeding Windows-safe public skills cache from ${repoUrl}#${ref}...`,
+    c.dim,
+  );
+
+  try {
+    rmSync(cacheRepoPath, { recursive: true, force: true });
+    mkdirSync(dirname(cacheRepoPath), { recursive: true });
+
+    const clone = spawnSync(
+      "git",
+      ["clone", "--depth", "1", "--branch", ref, repoUrl, cacheRepoPath],
+      { stdio: "pipe", encoding: "utf-8" },
+    );
+
+    if (clone.status !== 0) {
+      const stderr =
+        clone.stderr?.trim() || clone.stdout?.trim() || "unknown error";
+      throw new Error(stderr);
+    }
+
+    logService(
+      "skills-cache",
+      "Windows-safe public skills cache ready",
+      c.green,
+    );
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logService(
+      "skills-cache",
+      `Warning: failed to seed Windows-safe public skills cache: ${message}`,
+      c.yellow,
+    );
+    return false;
+  }
+}
+
 function checkPrerequisites({
   checkUvx = true,
   checkNpm = true,
@@ -501,6 +580,7 @@ function checkPrerequisites({
 function ensureDirectories(config) {
   const dirs = [
     config.stateDir,
+    ...(!config.frontendOnly ? [getSharedTempDir(config)] : []),
     // Both agent-server and automation use storage; create it unconditionally
     // whenever either backend service runs (i.e. not frontend-only).
     ...(!config.frontendOnly ? [join(config.stateDir, "storage")] : []),
@@ -707,7 +787,11 @@ function buildViteBackendEnv(config, env = process.env) {
   };
 }
 
-function buildAgentServerAutomationEnv(config) {
+function buildAgentServerAutomationEnv(config, env = process.env) {
+  const extensionsRef =
+    env.EXTENSIONS_REF ||
+    (process.platform === "win32" ? WINDOWS_PUBLIC_SKILLS_REF : null);
+
   return {
     // Make the session API key available to terminal commands spawned by the
     // agent-server as OPENHANDS_AUTOMATION_API_KEY. The launcher also seeds
@@ -716,6 +800,81 @@ function buildAgentServerAutomationEnv(config) {
     // exposing it here keeps that path working even before/without
     // secret-registry env expansion.
     OPENHANDS_AUTOMATION_API_KEY: config.sessionApiKey,
+    ...(extensionsRef ? { EXTENSIONS_REF: extensionsRef } : {}),
+  };
+}
+
+function buildAutomationBackendEnv(config, env = process.env) {
+  const tempDir = getSharedTempDir(config);
+
+  return {
+    // Force UTF-8 for all Python file I/O (same reason as agent-server;
+    // see buildAgentServerEnv in dev-safe.mjs).
+    PYTHONUTF8: "1",
+    // Keep automation tarballs and other temp files under the launcher state
+    // directory so the path is writable and valid for both Windows and POSIX
+    // agent-server file APIs. Relying on shell-provided /tmp can break on
+    // native Windows where the agent-server rejects Unix-style absolute paths.
+    TMPDIR: tempDir,
+    TMP: tempDir,
+    TEMP: tempDir,
+    // The URL the automation backend itself uses to call the
+    // agent-server's REST API (tarball upload + bash dispatch).
+    //
+    // Priority:
+    //   1. AUTOMATION_AGENT_SERVER_URL explicitly set in the user's env
+    //   2. `localhost:<agentServerPort>`
+    AUTOMATION_AGENT_SERVER_URL:
+      env.AUTOMATION_AGENT_SERVER_URL ||
+      `http://localhost:${config.agentServerPort}`,
+    // The URL exported into the in-sandbox bash chain as
+    // `AGENT_SERVER_URL` (read by main.py / setup.sh to call back into
+    // the agent-server).
+    //
+    // Priority:
+    //   1. AUTOMATION_SANDBOX_AGENT_SERVER_URL explicitly set in env
+    //   2. launcher-provided value
+    //   3. unset — backend falls back to AUTOMATION_AGENT_SERVER_URL
+    ...(env.AUTOMATION_SANDBOX_AGENT_SERVER_URL || config.sandboxAgentServerUrl
+      ? {
+          AUTOMATION_SANDBOX_AGENT_SERVER_URL:
+            env.AUTOMATION_SANDBOX_AGENT_SERVER_URL ||
+            config.sandboxAgentServerUrl,
+        }
+      : {}),
+    AUTOMATION_AGENT_SERVER_API_KEY: config.sessionApiKey,
+    // ~/.openhands/automation/automations.db — matches docker/entrypoint.sh.
+    AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(dirname(config.stateDir), SHARED_DEFAULTS.paths.automationDb)}`,
+    // The automation backend uses this as its publicly-reachable base
+    // URL: it's appended to callback URLs and injected into each
+    // sandbox as `AUTOMATION_API_URL` (consumed by setup.sh for
+    // /sdk-version and by the SDK for run completion).
+    // Priority:
+    //   1. AUTOMATION_BASE_URL explicitly set in the user's env
+    //   2. launcher-provided host
+    //   3. `localhost`
+    AUTOMATION_BASE_URL:
+      env.AUTOMATION_BASE_URL ||
+      `http://${config.automationApiHost ?? "localhost"}:${config.ingressPort}`,
+    // The dispatcher resolves this path and embeds it into a
+    // `mkdir -p ...` shell command executed by the agent-server.
+    // Priority:
+    //   1. AUTOMATION_WORKSPACE_BASE explicitly set in the user's env
+    //   2. `automationWorkspaceBase` option passed by the launcher
+    //   3. host-side default under config.stateDir
+    AUTOMATION_WORKSPACE_BASE:
+      env.AUTOMATION_WORKSPACE_BASE ||
+      config.automationWorkspaceBase ||
+      join(config.stateDir, "workspaces"),
+    // Session API key for self-hosted auth — shared with agent-server via X-Session-API-Key header
+    AUTOMATION_LOCAL_API_KEY: config.sessionApiKey,
+    // CORS: allow localhost origins for dev, unless explicitly overridden.
+    AUTOMATION_CORS_ORIGINS:
+      env.AUTOMATION_CORS_ORIGINS ||
+      `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
+    FILE_STORE: "local",
+    LOCAL_STORAGE_PATH: join(config.stateDir, "storage"),
+    OPENHANDS_SUPPRESS_BANNER: "1",
   };
 }
 
@@ -791,69 +950,7 @@ function startAutomationBackend(config) {
     ],
     {
       cwd: config.stateDir,
-      env: {
-        // Force UTF-8 for all Python file I/O (same reason as agent-server;
-        // see buildAgentServerEnv in dev-safe.mjs).
-        PYTHONUTF8: "1",
-        // The URL the automation backend itself uses to call the
-        // agent-server's REST API (tarball upload + bash dispatch).
-        //
-        // Priority:
-        //   1. AUTOMATION_AGENT_SERVER_URL explicitly set in the user's env
-        //   2. `localhost:<agentServerPort>`
-        AUTOMATION_AGENT_SERVER_URL:
-          process.env.AUTOMATION_AGENT_SERVER_URL ||
-          `http://localhost:${config.agentServerPort}`,
-        // The URL exported into the in-sandbox bash chain as
-        // `AGENT_SERVER_URL` (read by main.py / setup.sh to call back into
-        // the agent-server).
-        //
-        // Priority:
-        //   1. AUTOMATION_SANDBOX_AGENT_SERVER_URL explicitly set in env
-        //   2. launcher-provided value
-        //   3. unset — backend falls back to AUTOMATION_AGENT_SERVER_URL
-        ...(process.env.AUTOMATION_SANDBOX_AGENT_SERVER_URL ||
-        config.sandboxAgentServerUrl
-          ? {
-              AUTOMATION_SANDBOX_AGENT_SERVER_URL:
-                process.env.AUTOMATION_SANDBOX_AGENT_SERVER_URL ||
-                config.sandboxAgentServerUrl,
-            }
-          : {}),
-        AUTOMATION_AGENT_SERVER_API_KEY: config.sessionApiKey,
-        // ~/.openhands/automation/automations.db — matches docker/entrypoint.sh.
-        AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(dirname(config.stateDir), SHARED_DEFAULTS.paths.automationDb)}`,
-        // The automation backend uses this as its publicly-reachable base
-        // URL: it's appended to callback URLs and injected into each
-        // sandbox as `AUTOMATION_API_URL` (consumed by setup.sh for
-        // /sdk-version and by the SDK for run completion).
-        // Priority:
-        //   1. AUTOMATION_BASE_URL explicitly set in the user's env
-        //   2. launcher-provided host
-        //   3. `localhost`
-        AUTOMATION_BASE_URL:
-          process.env.AUTOMATION_BASE_URL ||
-          `http://${config.automationApiHost ?? "localhost"}:${config.ingressPort}`,
-        // The dispatcher resolves this path and embeds it into a
-        // `mkdir -p ...` shell command executed by the agent-server.
-        // Priority:
-        //   1. AUTOMATION_WORKSPACE_BASE explicitly set in the user's env
-        //   2. `automationWorkspaceBase` option passed by the launcher
-        //   3. host-side default under config.stateDir
-        AUTOMATION_WORKSPACE_BASE:
-          process.env.AUTOMATION_WORKSPACE_BASE ||
-          config.automationWorkspaceBase ||
-          join(config.stateDir, "workspaces"),
-        // Session API key for self-hosted auth — shared with agent-server via X-Session-API-Key header
-        AUTOMATION_LOCAL_API_KEY: config.sessionApiKey,
-        // CORS: allow localhost origins for dev, unless explicitly overridden.
-        AUTOMATION_CORS_ORIGINS:
-          process.env.AUTOMATION_CORS_ORIGINS ||
-          `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
-        FILE_STORE: "local",
-        LOCAL_STORAGE_PATH: join(config.stateDir, "storage"),
-        OPENHANDS_SUPPRESS_BANNER: "1",
-      },
+      env: buildAutomationBackendEnv(config),
       color: c.green,
     },
   );
@@ -1259,6 +1356,7 @@ async function main(options = {}) {
   config.agentHostAlias = agentHostAlias;
   config.frontendKind = useStaticMode ? "static" : "vite";
   ensureDirectories(config);
+  ensureWindowsPublicSkillsCache(config);
   if (typeof extraPrereqs === "function") {
     extraPrereqs(config);
   }
@@ -1388,12 +1486,16 @@ function startStaticFrontend(config, staticDir) {
 
 export {
   buildAgentServerAutomationEnv,
+  buildAutomationBackendEnv,
   buildAutomationCommand,
   buildConfig,
   buildRouteArgs,
   buildViteBackendEnv,
+  ensureWindowsPublicSkillsCache,
   getFrontendBackend,
   getLocalServiceRoutes,
+  getPublicSkillsCacheRepoPath,
+  getSharedTempDir,
   main,
   registerShutdownHook,
   spawnService,

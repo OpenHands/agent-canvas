@@ -51,6 +51,13 @@ describe("agent server config", () => {
     expect(getAgentServerBaseUrl()).toBe("http://127.0.0.1:8000");
   });
 
+  it("normalizes loopback backend URLs to the current local origin", () => {
+    mockWindowLocation("http://localhost:8000/settings");
+    vi.stubEnv("VITE_BACKEND_BASE_URL", "http://127.0.0.1:8000");
+
+    expect(getAgentServerBaseUrl()).toBe("http://localhost:8000");
+  });
+
   it("prefills the settings form from environment defaults", () => {
     vi.stubEnv("VITE_BACKEND_BASE_URL", "https://env-agent.example.com/");
     vi.stubEnv("VITE_SESSION_API_KEY", "env-session-key");
@@ -73,7 +80,6 @@ describe("agent server config", () => {
       buildConversationWorkingDir("4a8dca37-3bf0-48de-a0af-949d711c3d48"),
     ).toBe("/srv/workspaces/4a8dca373bf048dea0af949d711c3d48");
   });
-
 });
 
 describe("isAuthRequired", () => {
