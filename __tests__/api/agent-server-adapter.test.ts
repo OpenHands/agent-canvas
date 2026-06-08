@@ -116,11 +116,36 @@ describe("buildStartConversationRequest", () => {
       { name: "browser_tool_set", params: {} },
       { name: "task_tool_set", params: {} },
     ]);
-    expect(payload.agent_settings.agent_context).toEqual({
-      load_public_skills: true,
+    expect(payload.agent_settings.agent_context).toMatchObject({
+      load_public_skills: false,
       load_user_skills: true,
       load_project_skills: true,
     });
+    // Bundled public skills are injected into agent_context.skills so the
+    // SDK can perform trigger matching without cloning the extensions repo.
+    expect(
+      Array.isArray(payload.agent_settings.agent_context.skills),
+    ).toBe(true);
+    const skills = payload.agent_settings.agent_context.skills as Record<
+      string,
+      unknown
+    >[];
+    expect(skills.length).toBeGreaterThan(0);
+    // Every bundled skill must carry the fields the SDK needs for trigger
+    // matching and system-prompt injection.
+    for (const skill of skills) {
+      expect(skill).toHaveProperty("name");
+      expect(skill).toHaveProperty("content");
+      expect(skill).toHaveProperty("source", "public");
+      expect(skill).toHaveProperty("is_agentskills_format", true);
+      // trigger is either null (always-active) or { type, keywords }
+      if (skill.trigger !== null) {
+        expect(skill.trigger).toMatchObject({
+          type: "keyword",
+          keywords: expect.arrayContaining([expect.any(String)]),
+        });
+      }
+    }
     expect(payload.agent_settings.agent).toBe("CodeActAgent");
     expect(payload.agent_settings.enable_switch_llm_tool).toBe(true);
     expect(payload.workspace.working_dir).toBe(
@@ -1037,11 +1062,14 @@ describe("agent_settings runtime services suffix", () => {
     }) as {
       agent_settings: { agent_context: Record<string, unknown> };
     };
-    expect(payload.agent_settings.agent_context).toEqual({
-      load_public_skills: true,
+    expect(payload.agent_settings.agent_context).toMatchObject({
+      load_public_skills: false,
       load_user_skills: true,
       load_project_skills: true,
     });
+    expect(
+      Array.isArray(payload.agent_settings.agent_context.skills),
+    ).toBe(true);
   });
 
   it("sets system_message_suffix when runtime info is provided", () => {
@@ -1064,7 +1092,7 @@ describe("agent_settings runtime services suffix", () => {
       agent_settings: { agent_context: Record<string, unknown> };
     };
     expect(payload.agent_settings.agent_context).toMatchObject({
-      load_public_skills: true,
+      load_public_skills: false,
       load_user_skills: true,
     });
     expect(
@@ -1114,11 +1142,16 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     expect(payload.agent_settings.llm).toBeUndefined();
     expect(payload.agent_settings.condenser).toBeUndefined();
     expect(payload.agent_settings.tools).toBeUndefined();
-    expect(payload.agent_settings.agent_context).toEqual({
-      load_public_skills: true,
+    const acpAgentContext = payload.agent_settings.agent_context as Record<
+      string,
+      unknown
+    >;
+    expect(acpAgentContext).toMatchObject({
+      load_public_skills: false,
       load_user_skills: true,
       load_project_skills: true,
     });
+    expect(Array.isArray(acpAgentContext.skills)).toBe(true);
     expect(payload.tags).toEqual({ [ACP_SERVER_TAG_KEY]: "claude-code" });
   });
 

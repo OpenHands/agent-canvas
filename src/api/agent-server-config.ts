@@ -112,10 +112,6 @@ export function getAgentServerHeaders(): Record<string, string> {
   return sessionApiKey ? { "X-Session-API-Key": sessionApiKey } : {};
 }
 
-export function shouldLoadPublicSkills(): boolean {
-  return import.meta.env.VITE_LOAD_PUBLIC_SKILLS !== "false";
-}
-
 export function isAuthRequired(): boolean {
   return (
     import.meta.env.VITE_AUTH_REQUIRED === "true" ||
