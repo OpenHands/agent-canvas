@@ -47,16 +47,16 @@ const WORKSPACE_DIR_NAME = "e2e-folder-workspace-test";
 const HOST_DIR_BASE =
   process.env.MOCK_LLM_FOLDER_WORKSPACE_HOST_DIR ??
   path.join(os.tmpdir(), WORKSPACE_DIR_NAME);
-/** Container-side path the agent-server sees. In npm mode this equals
- *  HOST_DIR_BASE; in Docker mode it is set by the Playwright config. */
+/** Container-side path the agent-server sees (always POSIX). In npm mode
+ *  this equals HOST_DIR_BASE; in Docker mode it is set by the config. */
 const CONTAINER_DIR_BASE =
   process.env.MOCK_LLM_FOLDER_WORKSPACE_CONTAINER_DIR ??
-  path.join(os.tmpdir(), WORKSPACE_DIR_NAME);
+  path.posix.join(os.tmpdir(), WORKSPACE_DIR_NAME);
 const TEST_DIR_NAME = "my-test-project";
 /** Host-side path where we create the directory via fs.mkdirSync. */
 const HOST_DIR = path.join(HOST_DIR_BASE, TEST_DIR_NAME);
-/** Container-side path the folder browser UI navigates to. */
-const TEST_DIR = path.join(CONTAINER_DIR_BASE, TEST_DIR_NAME);
+/** Container-side path the folder browser UI navigates to (POSIX). */
+const TEST_DIR = path.posix.join(CONTAINER_DIR_BASE, TEST_DIR_NAME);
 
 const METADATA_STORAGE_KEY = "openhands-agent-server-conversation-metadata";
 
@@ -160,13 +160,12 @@ test.describe("mock-LLM folder browser → workspace → conversation", () => {
       const upBtn = page.getByTestId("folder-browser-up");
       const currentPathEl = page.getByTestId("folder-browser-current-path");
 
-      // Keep clicking up until disabled (at root)
-      for (let i = 0; i < 10; i++) {
-        if (await upBtn.isDisabled()) break;
+      // Keep clicking up until the button becomes disabled (at root).
+      while (!(await upBtn.isDisabled())) {
         await upBtn.click();
-        // Small wait for the listing to load
         await page.waitForTimeout(300);
       }
+      await expect(currentPathEl).toHaveText("/", { timeout: 5_000 });
 
       // Navigate down through each segment of the test directory path.
       // e.g. /tmp/e2e-folder-workspace-test/my-test-project → ["tmp", "e2e-...", "my-test-project"]
