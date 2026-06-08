@@ -16,7 +16,7 @@ export function WaitingForRuntimeMessage({
     <div
       data-testid={testId}
       className={cn(
-        "w-full h-full flex items-center text-center justify-center text-2xl text-tertiary-light",
+        "w-full h-full flex items-center text-center justify-center text-2xl text-foreground",
         className,
       )}
     >
