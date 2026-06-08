@@ -115,11 +115,36 @@ describe("buildStartConversationRequest", () => {
       { name: "browser_tool_set", params: {} },
       { name: "task_tool_set", params: {} },
     ]);
-    expect(payload.agent_settings.agent_context).toEqual({
-      load_public_skills: true,
+    expect(payload.agent_settings.agent_context).toMatchObject({
+      load_public_skills: false,
       load_user_skills: true,
       load_project_skills: true,
     });
+    // Bundled public skills are injected into agent_context.skills so the
+    // SDK can perform trigger matching without cloning the extensions repo.
+    expect(
+      Array.isArray(payload.agent_settings.agent_context.skills),
+    ).toBe(true);
+    const skills = payload.agent_settings.agent_context.skills as Record<
+      string,
+      unknown
+    >[];
+    expect(skills.length).toBeGreaterThan(0);
+    // Every bundled skill must carry the fields the SDK needs for trigger
+    // matching and system-prompt injection.
+    for (const skill of skills) {
+      expect(skill).toHaveProperty("name");
+      expect(skill).toHaveProperty("content");
+      expect(skill).toHaveProperty("source", "public");
+      expect(skill).toHaveProperty("is_agentskills_format", true);
+      // trigger is either null (always-active) or { type, keywords }
+      if (skill.trigger !== null) {
+        expect(skill.trigger).toMatchObject({
+          type: "keyword",
+          keywords: expect.arrayContaining([expect.any(String)]),
+        });
+      }
+    }
     expect(payload.agent_settings.agent).toBe("CodeActAgent");
     expect(payload.agent_settings.enable_switch_llm_tool).toBe(true);
     expect(payload.workspace.working_dir).toBe(
@@ -480,7 +505,9 @@ describe("buildStartConversationRequest", () => {
   // @spec LLD-001 — Frontend always sends its chosen default model
   describe("llm.model fallback — frontend always sends its chosen default", () => {
     type ModelPayload = {
-      agent_settings: Record<string, unknown> & { llm: Record<string, unknown> };
+      agent_settings: Record<string, unknown> & {
+        llm: Record<string, unknown>;
+      };
     };
 
     function getModelFrom(
@@ -510,10 +537,19 @@ describe("buildStartConversationRequest", () => {
     // SettingsValue includes scalars so inline literals are type-safe here.
     it.each([
       ["undefined", { ...DEFAULT_SETTINGS.agent_settings, llm: {} }],
-      ["an empty string", { ...DEFAULT_SETTINGS.agent_settings, llm: { model: "" } }],
-      ["whitespace only", { ...DEFAULT_SETTINGS.agent_settings, llm: { model: "   " } }],
+      [
+        "an empty string",
+        { ...DEFAULT_SETTINGS.agent_settings, llm: { model: "" } },
+      ],
+      [
+        "whitespace only",
+        { ...DEFAULT_SETTINGS.agent_settings, llm: { model: "   " } },
+      ],
       // No llm key at all — SettingsValue accepts plain scalars.
-      ["absent (no llm block)", { schema_version: 1, agent_kind: "openhands", agent: "CodeActAgent" }],
+      [
+        "absent (no llm block)",
+        { schema_version: 1, agent_kind: "openhands", agent: "CodeActAgent" },
+      ],
       // Mirrors a fresh user who skipped onboarding: server returns {}.
       ["entirely empty", {}],
     ])(
@@ -608,6 +644,27 @@ describe("toAppConversation", () => {
         workspace: { working_dir: "/workspace/agent-server-gui/wt-abc" },
       });
       expect(result.selected_workspace).toBe("/workspace/agent-server-gui");
+    } finally {
+      removeStoredConversationMetadata(baseInfo.id);
+    }
+  });
+
+  it("hydrates active_profile from stored metadata so the switcher shows the exact profile (#1082)", () => {
+    setStoredConversationMetadata(baseInfo.id, {
+      selected_repository: null,
+      selected_branch: null,
+      git_provider: null,
+      active_profile: "claude-sonnet-4.6",
+    });
+    try {
+      const result = toAppConversation({
+        ...baseInfo,
+        agent: {
+          kind: "Agent",
+          llm: { model: "litellm_proxy/claude-sonnet-4-6" },
+        },
+      });
+      expect(result.active_profile).toBe("claude-sonnet-4.6");
     } finally {
       removeStoredConversationMetadata(baseInfo.id);
     }
@@ -750,6 +807,8 @@ describe("toAppConversation", () => {
 describe("buildRuntimeServicesSystemSuffix", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_RUNTIME_SERVICES_INFO__;
   });
 
   it("returns undefined when VITE_RUNTIME_SERVICES_INFO is unset", () => {
@@ -795,7 +854,9 @@ describe("buildRuntimeServicesSystemSuffix", () => {
     expect(suffix).toContain("http://localhost:18000");
     expect(suffix).toContain("http://localhost:18001");
     expect(suffix).toContain("http://localhost:18001/api/automation/docs");
-    expect(suffix).toContain("X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY");
+    expect(suffix).toContain(
+      "X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY",
+    );
     expect(suffix).not.toContain("X-API-Key: $OPENHANDS_AUTOMATION_API_KEY");
     expect(suffix).toContain("</RUNTIME_SERVICES>");
     // The "don't guess" line should reference the actual agent-server URL
@@ -884,6 +945,58 @@ describe("buildRuntimeServicesSystemSuffix", () => {
     expect(suffix).toBeDefined();
     expect(suffix).toContain("Automation backend: not running");
   });
+
+  it("falls back to window.__AGENT_CANVAS_RUNTIME_SERVICES_INFO__ when the env var is unset (static builds)", () => {
+    // Static builds (Docker image / published binary) have no
+    // VITE_RUNTIME_SERVICES_INFO baked in; scripts/static-server.mjs injects
+    // the JSON onto window at serve time instead.
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_RUNTIME_SERVICES_INFO__ = JSON.stringify({
+      mode: "docker",
+      services: {
+        agent_server: { url_from_agent: "http://127.0.0.1:18000" },
+        automation: {
+          url_from_agent: "http://127.0.0.1:8000",
+          api_prefix: "/api/automation",
+          auth_env_var: "OPENHANDS_AUTOMATION_API_KEY",
+        },
+      },
+    });
+    const suffix = buildRuntimeServicesSystemSuffix();
+    expect(suffix).toBeDefined();
+    expect(suffix).toContain("<RUNTIME_SERVICES>");
+    expect(suffix).toContain("docker");
+    expect(suffix).toContain("http://127.0.0.1:18000");
+    expect(suffix).toContain("http://127.0.0.1:8000");
+    expect(suffix).toContain(
+      "X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY",
+    );
+  });
+
+  it("prefers VITE_RUNTIME_SERVICES_INFO over the window fallback", () => {
+    vi.stubEnv(
+      "VITE_RUNTIME_SERVICES_INFO",
+      JSON.stringify({
+        mode: "dev:env",
+        services: {
+          agent_server: { url_from_agent: "http://localhost:18000" },
+        },
+      }),
+    );
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_RUNTIME_SERVICES_INFO__ = JSON.stringify({
+      mode: "docker:window",
+      services: {
+        agent_server: { url_from_agent: "http://127.0.0.1:99999" },
+      },
+    });
+    const suffix = buildRuntimeServicesSystemSuffix();
+    expect(suffix).toContain("dev:env");
+    expect(suffix).not.toContain("docker:window");
+    expect(suffix).not.toContain("99999");
+  });
 });
 
 describe("agent_settings runtime services suffix", () => {
@@ -898,11 +1011,14 @@ describe("agent_settings runtime services suffix", () => {
     }) as {
       agent_settings: { agent_context: Record<string, unknown> };
     };
-    expect(payload.agent_settings.agent_context).toEqual({
-      load_public_skills: true,
+    expect(payload.agent_settings.agent_context).toMatchObject({
+      load_public_skills: false,
       load_user_skills: true,
       load_project_skills: true,
     });
+    expect(
+      Array.isArray(payload.agent_settings.agent_context.skills),
+    ).toBe(true);
   });
 
   it("sets system_message_suffix when runtime info is provided", () => {
@@ -925,7 +1041,7 @@ describe("agent_settings runtime services suffix", () => {
       agent_settings: { agent_context: Record<string, unknown> };
     };
     expect(payload.agent_settings.agent_context).toMatchObject({
-      load_public_skills: true,
+      load_public_skills: false,
       load_user_skills: true,
     });
     expect(
@@ -946,12 +1062,11 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
           acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
           acp_model: "claude-opus-4-5",
           // These fields are LLM-only and must NOT leak into ACP settings.
+          // (mcp_config is handled separately — it IS forwarded for ACP; see
+          // the dedicated tests below.)
           agent: "CodeActAgent",
           llm: { model: "gpt-4", api_key: "should-not-appear" },
           condenser: { enabled: true, max_size: 240 },
-          mcp_config: {
-            mcpServers: { fake: { command: "x", args: [] } },
-          },
         },
       },
     }) as {
@@ -976,12 +1091,61 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     expect(payload.agent_settings.llm).toBeUndefined();
     expect(payload.agent_settings.condenser).toBeUndefined();
     expect(payload.agent_settings.tools).toBeUndefined();
-    expect(payload.agent_settings.agent_context).toEqual({
-      load_public_skills: true,
+    const acpAgentContext = payload.agent_settings.agent_context as Record<
+      string,
+      unknown
+    >;
+    expect(acpAgentContext).toMatchObject({
+      load_public_skills: false,
       load_user_skills: true,
       load_project_skills: true,
     });
+    expect(Array.isArray(acpAgentContext.skills)).toBe(true);
     expect(payload.tags).toEqual({ [ACP_SERVER_TAG_KEY]: "claude-code" });
+  });
+
+  it("forwards mcp_config to the ACP subprocess when servers are configured", () => {
+    // mcp_config is a shared field: the SDK's ACPAgent forwards these servers
+    // to the ACP subprocess at session creation, so the start payload must
+    // carry it (it is intentionally NOT one of the stripped ACP-only fields).
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "claude-code",
+          acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+          mcp_config: {
+            mcpServers: {
+              fetch: { command: "uvx", args: ["mcp-server-fetch"] },
+            },
+          },
+        },
+      },
+    }) as { agent_settings: { mcp_config?: unknown } };
+
+    expect(payload.agent_settings.mcp_config).toEqual({
+      mcpServers: { fetch: { command: "uvx", args: ["mcp-server-fetch"] } },
+    });
+  });
+
+  it("omits mcp_config from the ACP payload when it carries no servers", () => {
+    // An empty / serverless mcp_config must not be sent as ``mcp_config: {}``.
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "claude-code",
+          acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+          mcp_config: {},
+        },
+      },
+    }) as { agent_settings: { mcp_config?: unknown } };
+
+    expect(payload.agent_settings.mcp_config).toBeUndefined();
   });
 
   it("does not include ACP-only fields in OpenHands agent settings", () => {
@@ -1170,6 +1334,9 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
         agent_kind: "acp",
         acp_server: "claude-code",
         acp_command: [],
+        // Legacy persisted value: provider creds no longer ride acp_env —
+        // they flow through the Secrets panel (request.secrets). A stale
+        // acp_env left on saved settings must be dropped, not forwarded.
         acp_env: { ANTHROPIC_API_KEY: "user-set-via-api" },
         acp_model: "claude-opus-4-5",
         agent: "CodeActAgent",
@@ -1218,9 +1385,9 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
       "@agentclientprotocol/claude-agent-acp",
     ]);
     expect(acpPayload.agent_settings.acp_model).toBe("claude-opus-4-5");
-    expect(acpPayload.agent_settings.acp_env).toEqual({
-      ANTHROPIC_API_KEY: "user-set-via-api",
-    });
+    // acp_env is no longer a forwarded ACP setting — a stale value on saved
+    // settings is dropped rather than leaked into the conversation request.
+    expect(acpPayload.agent_settings.acp_env).toBeUndefined();
     expect(acpPayload.agent_settings.llm).toBeUndefined();
     expect(acpPayload.agent_settings.condenser).toBeUndefined();
   });

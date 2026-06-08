@@ -108,8 +108,8 @@ describe("parseCommand", () => {
     // the persisted ``acp_command`` — that would leak a host env var
     // into settings on every save. The tokenizer reads ``$NAME`` as
     // a literal substring of the token, so the user's typed text
-    // survives verbatim. Users who actually want env vars in the
-    // subprocess should set ``acp_env`` instead of inlining them.
+    // survives verbatim. Provider credentials belong in the Secrets
+    // panel (request.secrets), never inlined into the command.
     const result = parseCommand("npx $ANTHROPIC_API_KEY");
     expect(result).toEqual(["npx", "$ANTHROPIC_API_KEY"]);
     // Pin the no-leak contract: no ``sk-…`` token sneaks through

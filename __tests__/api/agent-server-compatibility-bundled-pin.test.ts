@@ -6,7 +6,10 @@ import {
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
-import { loadAgentServerInfo } from "#/api/agent-server-compatibility";
+import {
+  AgentServerUnavailableError,
+  loadAgentServerInfo,
+} from "#/api/agent-server-compatibility";
 
 const { getServerInfoMock } = vi.hoisted(() => ({
   getServerInfoMock: vi.fn(),
@@ -28,6 +31,14 @@ const cloudBackend: Backend = {
   kind: "cloud",
 };
 
+const localBackend: Backend = {
+  id: "local",
+  name: "Local",
+  host: "http://localhost:9000",
+  apiKey: "local-key",
+  kind: "local",
+};
+
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
@@ -42,22 +53,23 @@ afterEach(() => {
 });
 
 describe("loadAgentServerInfo", () => {
-  it("targets the bundled local backend even when the active backend is cloud", async () => {
-    setRegisteredBackends([cloudBackend]);
+  it("does not borrow a registered local backend when the active backend is cloud", async () => {
+    setRegisteredBackends([localBackend, cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
 
-    await loadAgentServerInfo();
+    const result = await loadAgentServerInfo();
 
-    expect(ServerClient).toHaveBeenCalledOnce();
-    const callArgs = vi.mocked(ServerClient).mock.calls[0] as unknown as [
-      { host?: string; apiKey?: string | null },
-    ];
-    const overrides = callArgs[0];
+    expect(result).toBeNull();
+    expect(ServerClient).not.toHaveBeenCalled();
+  });
 
-    // Must NOT use the cloud host — that endpoint doesn't exist on cloud
-    // and would fail with a CORS preflight error.
-    expect(overrides.host).toBeDefined();
-    expect(overrides.host).not.toBe(cloudBackend.host);
-    expect(overrides.host).not.toContain("all-hands.dev");
+  it("throws AgentServerUnavailableError when the registry is empty", async () => {
+    // Empty registry — no backends at all (frontend-only with no config).
+    setRegisteredBackends([]);
+
+    await expect(loadAgentServerInfo()).rejects.toThrow(
+      AgentServerUnavailableError,
+    );
+    expect(ServerClient).not.toHaveBeenCalled();
   });
 });

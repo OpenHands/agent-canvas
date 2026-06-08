@@ -6,6 +6,8 @@ import { KebabMenu } from "./kebab-menu";
 import { useHasPermission } from "#/hooks/use-has-permission";
 import { useNavigation } from "#/context/navigation-context";
 import PlayIcon from "#/icons/play.svg?react";
+import ClockIcon from "#/icons/clock.svg?react";
+import GlobeIcon from "#/icons/globe.svg?react";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import { SkillCardPillRow } from "#/components/features/skills/skill-card-pill-row";
 import { cn } from "#/utils/utils";
@@ -79,6 +81,11 @@ export function AutomationListRow({
     >
       <td className={automationListCellClassName}>
         <div className="flex min-w-0 items-center gap-1.5">
+          {automation.trigger.type === "event" ? (
+            <GlobeIcon className="size-4 shrink-0 text-muted" />
+          ) : (
+            <ClockIcon className="size-4 shrink-0 text-muted" />
+          )}
           <span
             className="max-w-[40%] shrink-0 truncate text-sm font-medium text-white"
             title={automation.name}

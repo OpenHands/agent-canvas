@@ -22,6 +22,10 @@ import {
   type SettingsView,
 } from "#/utils/sdk-settings-schema";
 import { DEFAULT_SETTINGS } from "#/services/settings";
+import {
+  OPENHANDS_LLM_PROXY_BASE_URL,
+  isOpenHandsProxyModel,
+} from "#/utils/openhands-llm";
 
 const LLM_EXCLUDED_KEYS = new Set(["llm.model", "llm.api_key", "llm.base_url"]);
 
@@ -41,11 +45,11 @@ const getSchemaFieldDefaultValue = (
 const KNOWN_PROVIDER_DEFAULT_BASE_URLS: Partial<Record<string, Set<string>>> = {
   openai: new Set(["https://api.openai.com", "https://api.openai.com/v1"]),
   openhands: new Set([
-    "https://llm-proxy.app.all-hands.dev",
+    OPENHANDS_LLM_PROXY_BASE_URL,
     "https://llm-proxy.app.all-hands.dev/v1",
   ]),
   litellm_proxy: new Set([
-    "https://llm-proxy.app.all-hands.dev",
+    OPENHANDS_LLM_PROXY_BASE_URL,
     "https://llm-proxy.app.all-hands.dev/v1",
   ]),
 };
@@ -100,6 +104,7 @@ export function LlmSettingsScreen({
   initialValueOverrides,
   embedded,
   hideSaveButton,
+  suppressSuccessToast,
   onSaveControlChange,
 }: {
   scope?: SettingsScope;
@@ -111,6 +116,8 @@ export function LlmSettingsScreen({
   embedded?: boolean;
   /** Forwarded to {@link SdkSectionPage}. */
   hideSaveButton?: boolean;
+  /** Forwarded to {@link SdkSectionPage}. */
+  suppressSuccessToast?: boolean;
   /** Forwarded to {@link SdkSectionPage}. */
   onSaveControlChange?: (control: SdkSectionSaveControl) => void;
 }) {
@@ -278,7 +285,11 @@ export function LlmSettingsScreen({
       const llm = (agentSettings.llm ?? {}) as Record<string, unknown>;
 
       if (context.view === "basic") {
-        llm.base_url = getSchemaFieldDefaultValue(schema, "llm.base_url");
+        const model = llm.model ?? context.values["llm.model"];
+        const baseUrl = llm.base_url ?? context.values["llm.base_url"];
+        llm.base_url = isOpenHandsProxyModel(model, baseUrl)
+          ? OPENHANDS_LLM_PROXY_BASE_URL
+          : getSchemaFieldDefaultValue(schema, "llm.base_url");
         agentSettings.llm = llm;
       }
 
@@ -301,6 +312,7 @@ export function LlmSettingsScreen({
       initialValueOverrides={initialValueOverrides}
       embedded={embedded}
       hideSaveButton={hideSaveButton}
+      suppressSuccessToast={suppressSuccessToast}
       onSaveControlChange={onSaveControlChange}
       testId="llm-settings-screen"
     />

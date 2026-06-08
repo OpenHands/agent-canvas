@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import net from "node:net";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
@@ -21,6 +21,11 @@ import {
   isProcessRunning,
   signalProcessTree,
 } from "./dev-process-utils.mjs";
+// buildRuntimeServicesInfo moved to its own dependency-free module so the
+// Docker entrypoint can run it as a CLI. Re-exported below for back-compat
+// (dev-with-automation.mjs and tests still import it from here).
+import { buildRuntimeServicesInfo } from "./runtime-services-info.mjs";
+import { fileLog, stripAnsi } from "./logger.mjs";
 
 // ── Centralized config (single source of truth for versions, ports, etc.) ───
 const __dev_safe_dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -389,7 +394,7 @@ export function validateFrontendDependencies(
  *   edits are picked up without a manual reinstall. The agent-server itself
  *   is rebuilt from local source on each invocation (--reinstall).
  * - OH_AGENT_SERVER_GIT_REF: Git commit SHA or branch name
- * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.24.0")
+ * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.26.0")
  *
  * If none are set, defaults to the released version specified by
  * DEFAULT_AGENT_SERVER_VERSION. Set OH_AGENT_SERVER_GIT_REF to use a
@@ -426,13 +431,22 @@ export function buildAgentServerCommand(env = process.env) {
     );
     source = `local (${localPath})`;
   } else if (gitRef) {
-    // Use git ref with subdirectory syntax for uv workspace monorepo
+    // Use git ref with subdirectory syntax for uv workspace monorepo.
     // The software-agent-sdk repo has packages in subdirectories:
-    // openhands-agent-server/, openhands-tools/, openhands-workspace/
+    // openhands-agent-server/, openhands-sdk/, openhands-tools/, openhands-workspace/
+    // All four must come from the same ref so inter-package APIs stay in sync.
+    //
+    // --reinstall is required because the git branch may carry the same version
+    // string as the current PyPI release (e.g. both "1.26.0"). Without it, uv
+    // silently reuses the cached PyPI wheels and the git ref is never actually
+    // used, even though it was explicitly requested.
     const baseGitUrl = `git+${AGENT_SERVER_GIT_REPO}@${gitRef}`;
     uvxArgs.push(
+      "--reinstall",
       "--from",
       `${baseGitUrl}#subdirectory=openhands-agent-server`,
+      "--with",
+      `${baseGitUrl}#subdirectory=openhands-sdk`,
       "--with",
       `${baseGitUrl}#subdirectory=openhands-tools`,
       "--with",
@@ -622,7 +636,23 @@ function buildConfigFromPorts(ports, cwd, env) {
     backendPort,
     vscodePort,
     stateDir,
-    tmuxTmpDir: path.join(tmpdir(), "openhands-agent-canvas-tmux"),
+    // tmux socket directory. Defaults to <stateDir>/tmux (under
+    // ~/.openhands/agent-canvas), matching where the rest of dev state lives
+    // and persisting across restarts.
+    //
+    // Do NOT use os.tmpdir() here: on macOS it resolves to the per-user
+    // $TMPDIR (/var/folders/.../T), which the OS periodically reaps
+    // (com.apple.bsd.dirhelper deletes entries untouched for a few days).
+    // Reaping deletes the live tmux socket while the server process keeps
+    // running, orphaning it — every later new-window then fails with
+    // "error connecting to .../openhands (No such file or directory)".
+    //
+    // The only hosts where <stateDir>/tmux can't hold the socket are those
+    // whose $HOME is a network/overlay mount without Unix-domain-socket
+    // support (some devcontainers, NFS/CIFS homes). Those rare cases can point
+    // tmux at a local, socket-capable path with the standard TMUX_TMPDIR env
+    // var (e.g. TMUX_TMPDIR=/tmp), which we honor and pass through below.
+    tmuxTmpDir: env.TMUX_TMPDIR || path.join(stateDir, "tmux"),
     conversationsPath,
     workspacesPath,
     bashEventsDir: path.join(stateDir, "bash_events"),
@@ -684,121 +714,10 @@ export function buildAgentServerEnv(config) {
   };
 }
 
-/**
- * Build a structured description of the dev-stack services that are
- * reachable from inside the agent's sandbox. The frontend forwards this
- * (verbatim, as a JSON string in `VITE_RUNTIME_SERVICES_INFO`) and renders
- * it into the system prompt via `AgentContext.system_message_suffix`, so
- * the agent sees a `<RUNTIME_SERVICES>` block listing what's available
- * without having to probe.
- *
- * URLs are written from the *agent's* point of view. The agent-server
- * runs on the host, so the host alias is "localhost".
- *
- * @param {object} options
- * @param {string} [options.mode] - Human-readable dev mode label (e.g. "dev:safe").
- * @param {string} [options.agentHostAlias="localhost"] - Hostname the agent
- *   uses to reach services running on the host machine.
- * @param {number} [options.agentServerPort] - Port the agent-server listens on.
- *   Required at runtime; the function throws if missing because the resulting
- *   URL would otherwise bake `undefined` into the agent's system prompt.
- *   Typed as optional only so TypeScript callers can negative-test the guard.
- * @param {number} [options.ingressPort] - Ingress port (omit if no ingress).
- * @param {number} [options.frontendPort] - Frontend port (Vite dev server
- *   or static-file server). Omit if no frontend is exposed.
- * @param {number} [options.vitePort] - Deprecated alias for `frontendPort`,
- *   accepted for backward compat with older launchers. Remove after one release.
- * @param {"vite"|"static"} [options.frontendKind="vite"] - Whether the
- *   frontend port hosts Vite or a static build. Only affects the
- *   description shown to the agent.
- * @param {object} [options.automation] - Automation backend info. Skipped
- *   entirely if `.port` is missing, so passing `{}` is safe.
- * @param {number} [options.automation.port] - Automation backend port.
- * @param {string} [options.automation.apiPrefix="/api/automation"] - Path
- *   prefix all automation routes are mounted under.
- * @param {string} [options.automation.authEnvVar="OPENHANDS_AUTOMATION_API_KEY"]
- *   - Env var holding the API key.
- * @returns {object} A JSON-serializable runtime services info object.
- */
-export function buildRuntimeServicesInfo(options) {
-  const {
-    mode,
-    agentHostAlias = "localhost",
-    agentServerPort,
-    ingressPort,
-    // Accept legacy `vitePort` for one release so external callers keep working.
-    vitePort,
-    frontendPort = vitePort,
-    frontendKind = "vite",
-    automation,
-  } = options;
-
-  if (agentServerPort === undefined || agentServerPort === null) {
-    // Without this the URL becomes `http://localhost:undefined` and ends up
-    // verbatim in the agent's system prompt, which is worse than failing fast.
-    throw new Error(
-      "buildRuntimeServicesInfo: agentServerPort is required " +
-        "(otherwise the agent_server URL would be `http://localhost:undefined`).",
-    );
-  }
-
-  const services = {
-    agent_server: {
-      description:
-        "The OpenHands Agent Server this agent is running inside. " +
-        "Tool calls (terminal, file_editor, browser, etc.) execute here.",
-      // From the agent's POV, the agent-server it's *inside* is on
-      // localhost, regardless of where the host is.
-      url_from_agent: `http://localhost:${agentServerPort}`,
-    },
-  };
-
-  if (ingressPort !== undefined) {
-    services.ingress = {
-      description:
-        "Unified entry point. Routes /api/automation/* to the automation " +
-        "backend, /api/* and /sockets to the agent-server, and /* to the " +
-        "frontend.",
-      url_from_agent: `http://${agentHostAlias}:${ingressPort}`,
-    };
-  }
-
-  if (frontendPort !== undefined) {
-    services.frontend = {
-      kind: frontendKind,
-      description:
-        frontendKind === "static"
-          ? "Static-file server hosting the agent-canvas production build."
-          : "Vite dev server hosting the agent-canvas frontend.",
-      url_from_agent: `http://${agentHostAlias}:${frontendPort}`,
-    };
-  }
-
-  // Require an explicit port so we don't bake `:undefined` into the
-  // automation URL when the caller passes `automation: {}`.
-  if (automation?.port !== undefined && automation.port !== null) {
-    const apiPrefix = automation.apiPrefix ?? "/api/automation";
-    const authEnvVar = automation.authEnvVar ?? "OPENHANDS_AUTOMATION_API_KEY";
-    const baseUrl = `http://${agentHostAlias}:${automation.port}`;
-    services.automation = {
-      description:
-        "OpenHands Automations service. All routes are mounted under " +
-        `'${apiPrefix}'. Authenticate with header ` +
-        `'X-Session-API-Key: $${authEnvVar}'.`,
-      url_from_agent: baseUrl,
-      api_prefix: apiPrefix,
-      docs_url: `${baseUrl}${apiPrefix}/docs`,
-      openapi_url: `${baseUrl}${apiPrefix}/openapi.json`,
-      auth_env_var: authEnvVar,
-    };
-  }
-
-  return {
-    mode,
-    agent_host_alias: agentHostAlias,
-    services,
-  };
-}
+// Re-export so existing importers (dev-with-automation.mjs, tests) keep
+// resolving `buildRuntimeServicesInfo` from this module. The implementation
+// now lives in ./runtime-services-info.mjs (imported at the top of this file).
+export { buildRuntimeServicesInfo };
 
 export function buildNpmScriptCommand(
   scriptName,
@@ -883,13 +802,16 @@ function spawnProcess(command, args, options = {}) {
 
   child.once("error", (error) => {
     if (isEnoentError(error) && command === "uvx") {
-      console.error(formatMissingUvxGuidance(options?.cwd));
+      const msg = formatMissingUvxGuidance(options?.cwd);
+      console.error(msg);
+      fileLog("error", stripAnsi(msg));
     } else if (isEnoentError(error)) {
-      console.error(
-        `Failed to start ${command}. Make sure it is installed and on your PATH.`,
-      );
+      const msg = `Failed to start ${command}. Make sure it is installed and on your PATH.`;
+      console.error(msg);
+      fileLog("error", msg);
     } else {
       console.error(`Failed to start ${command}:`, error);
+      fileLog("error", `Failed to start ${command}: ${error.message}`);
     }
   });
 
@@ -898,9 +820,12 @@ function spawnProcess(command, args, options = {}) {
 
 async function main() {
   console.log("Starting isolated agent-server + frontend dev stack...");
+  fileLog("info", "Starting isolated agent-server + frontend dev stack...");
   validateFrontendDependencies();
   console.log("Frontend dependencies found.");
+  fileLog("info", "Frontend dependencies found.");
   console.log("Allocating ports...");
+  fileLog("info", "Allocating ports...");
 
   // Use async config builder with dynamic port allocation
   const config = await buildSafeDevConfigAsync();
@@ -939,6 +864,16 @@ async function main() {
   console.log(`- secret key: ${secretKeySource}`);
   console.log(`- session API key: ${sessionKeySource}`);
   console.log("");
+  fileLog(
+    "info",
+    [
+      "Agent-server stack config:",
+      `  agent-server: ${agentServerCmd.source}`,
+      `  backend:      ${config.backendBaseUrl}`,
+      `  working dir:  ${config.workingDir}`,
+      `  state dir:    ${config.stateDir}`,
+    ].join("\n"),
+  );
 
   const backend = spawnProcess(
     agentServerCmd.command,
@@ -1039,7 +974,9 @@ async function main() {
 
   backend.once("exit", (code) => {
     if (!shuttingDown) {
-      console.error(`agent-server exited unexpectedly with code ${code ?? 0}`);
+      const msg = `agent-server exited unexpectedly with code ${code ?? 0}`;
+      console.error(msg);
+      fileLog("error", msg);
       shutdown();
       process.exitCode = code ?? 1;
     }
@@ -1126,7 +1063,12 @@ if (
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   main().catch((error) => {
-    console.error(error instanceof Error ? error.message : error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(msg);
+    fileLog("error", `Fatal error: ${msg}`);
+    if (error instanceof Error && error.stack) {
+      fileLog("error", error.stack);
+    }
     process.exit(1);
   });
 }
