@@ -8,6 +8,7 @@ import {
 } from "#/hooks/query/use-conversation-history";
 import { isTaskConversationId } from "#/utils/conversation-local-storage";
 import type { OpenHandsEvent } from "#/types/agent-server/core";
+import { stripHeavyEventPayloadsFromList } from "#/utils/sanitize-conversation-event";
 
 const getEventTimestamp = (event: OpenHandsEvent): string | undefined =>
   "timestamp" in event ? event.timestamp : undefined;
@@ -138,7 +139,7 @@ export const useLoadOlderEvents = (
         );
       }
 
-      const older = [...page.items].reverse();
+      const older = stripHeavyEventPayloadsFromList([...page.items].reverse());
       if (older.length > 0) {
         addEvents(older);
       }

@@ -7,8 +7,13 @@ import { useEventStore } from "#/stores/use-event-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { useBrowserStore } from "#/stores/browser-store";
 import { useUserConversation } from "#/hooks/query/use-user-conversation";
+import { useWebSocket } from "#/hooks/use-websocket";
 import EventService from "#/api/event-service/event-service.api";
-import type { MessageEvent } from "#/types/agent-server/core";
+import type {
+  MessageEvent,
+  ObservationEvent,
+} from "#/types/agent-server/core";
+import type { BrowserObservation } from "#/types/agent-server/core/base/observation";
 
 // Keep the units under test real (the provider, `useConversationHistory`, the
 // event store). Only the network is stubbed: the WebSocket transport and the
@@ -150,6 +155,68 @@ describe("ConversationWebSocketProvider — conversation-scoped event store", ()
     // ...and the re-seed deduped against the existing user message rather than
     // appending a second copy — exactly two events, no double-insertion.
     expect(eventIds()).toHaveLength(2);
+  });
+
+  it("feeds the live Browser tab from the raw event while retaining a stripped history copy", async () => {
+    // Render with a real conversation URL so the main socket gets a non-empty
+    // URL — that lets us pick its onMessage handler out of the captured calls.
+    const conversationUrl = "http://localhost/api";
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ConversationWebSocketProvider
+          conversationId="conv-a"
+          conversationUrl={conversationUrl}
+        >
+          <div />
+        </ConversationWebSocketProvider>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(eventIds()).toEqual(["user-msg-conv-a"]));
+
+    // The main connection is the useWebSocket call with a non-empty URL (the
+    // planning connection is passed ""). Grab its message handler.
+    const mainOnMessage = vi
+      .mocked(useWebSocket)
+      .mock.calls.filter((call) => call[0] !== "")
+      .at(-1)?.[1]?.onMessage;
+    expect(mainOnMessage).toBeDefined();
+    const dispatch = mainOnMessage as unknown as (e: { data: string }) => void;
+
+    const browserObservation: ObservationEvent<BrowserObservation> = {
+      id: "obs-browser-1",
+      timestamp: new Date(Date.now() + 1000).toISOString(),
+      source: "environment",
+      tool_name: "browser",
+      tool_call_id: "call_browser_1",
+      action_id: "act-browser-1",
+      observation: {
+        kind: "BrowserObservation",
+        output: "navigated",
+        error: null,
+        screenshot_data: "SHOT",
+      },
+    };
+
+    // Simulate the browser observation arriving over the WebSocket.
+    act(() => {
+      dispatch({ data: JSON.stringify(browserObservation) });
+    });
+
+    // The live Browser tab is populated from the raw event...
+    await waitFor(() =>
+      expect(useBrowserStore.getState().screenshotSrc).toBe(
+        "data:image/png;base64,SHOT",
+      ),
+    );
+
+    // ...but the copy retained in the event store has the heavy payload stripped.
+    const retained = useEventStore
+      .getState()
+      .events.find((event) => event.id === "obs-browser-1") as
+      | ObservationEvent<BrowserObservation>
+      | undefined;
+    expect(retained).toBeDefined();
+    expect(retained?.observation.screenshot_data).toBeNull();
   });
 
   it("consumes the optimistic pending bubble when the echoed user message arrives via REST preload", async () => {

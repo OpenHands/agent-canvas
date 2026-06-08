@@ -4,7 +4,11 @@ import {
   isObservationEvent,
   isPlanningFileEditorObservationEvent,
 } from "#/types/agent-server/type-guards";
-import { getThoughtSourceAction } from "./event-thought-helpers";
+import {
+  ActionById,
+  buildActionById,
+  getThoughtSourceAction,
+} from "./event-thought-helpers";
 
 /** Minimum run-length before consecutive actions get folded into a single
  *  collapsible group. Even pairs are folded so the chat scroll stays compact
@@ -59,17 +63,22 @@ export type RenderedItem =
  * the event itself. This keeps reasoning text in the main message stream
  * instead of buried inside a collapsed action group.
  *
- * `allEvents` should be the full event history so observations can find
- * their matching action; if omitted, it defaults to `events`.
+ * `actionLookupOrEvents` should be an action lookup built from the full event
+ * history so observations can find their matching action in O(1). Passing the
+ * full event list is still accepted for direct tests/callers.
  */
 export const groupEvents = (
   events: OpenHandsEvent[],
   minSize: number = EVENT_GROUP_MIN_SIZE,
-  allEvents: OpenHandsEvent[] = events,
+  actionLookupOrEvents?: ActionById | OpenHandsEvent[],
 ): RenderedItem[] => {
   if (minSize < 1) {
     throw new Error("minSize must be at least 1");
   }
+
+  const actionById = Array.isArray(actionLookupOrEvents)
+    ? buildActionById(actionLookupOrEvents)
+    : (actionLookupOrEvents ?? buildActionById(events));
 
   const items: RenderedItem[] = [];
   const emittedThoughtActionIds = new Set<string>();
@@ -93,7 +102,7 @@ export const groupEvents = (
 
   events.forEach((event, index) => {
     if (isGroupableEvent(event)) {
-      const thoughtAction = getThoughtSourceAction(event, allEvents);
+      const thoughtAction = getThoughtSourceAction(event, actionById);
       if (thoughtAction && !emittedThoughtActionIds.has(thoughtAction.id)) {
         flushRun();
         emittedThoughtActionIds.add(thoughtAction.id);

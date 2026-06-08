@@ -61,11 +61,14 @@ function UserMessageBody({
   const contentRef = React.useRef<HTMLDivElement>(null);
   const [isTruncatable, setIsTruncatable] = React.useState(false);
 
+  React.useEffect(() => {
+    onTruncatableChange(isTruncatable);
+  }, [isTruncatable, onTruncatableChange]);
+
   React.useLayoutEffect(() => {
     const content = contentRef.current;
     if (!content || isExpanded) {
       setIsTruncatable(false);
-      onTruncatableChange(false);
       return undefined;
     }
 
@@ -85,12 +88,7 @@ function UserMessageBody({
         newlineCount >= USER_MESSAGE_MAX_LINES ||
         message.trim().length > 220;
 
-      setIsTruncatable((previous) => {
-        if (previous !== truncatable) {
-          onTruncatableChange(truncatable);
-        }
-        return truncatable;
-      });
+      setIsTruncatable(truncatable);
     };
 
     measure();
@@ -99,7 +97,7 @@ function UserMessageBody({
     observer.observe(content);
 
     return () => observer.disconnect();
-  }, [message, isExpanded, onTruncatableChange]);
+  }, [message, isExpanded]);
 
   const isCollapsed = isTruncatable && !isExpanded;
 

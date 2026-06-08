@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { useEventStore } from "#/stores/use-event-store";
 import {
   ActionEvent,
@@ -7,6 +7,30 @@ import {
   ObservationEvent,
   SecurityRisk,
 } from "#/types/agent-server/core";
+import type { BrowserObservation } from "#/types/agent-server/core/base/observation";
+
+const makeBrowserObservation = (): ObservationEvent<BrowserObservation> => ({
+  id: "obs-browser-1",
+  timestamp: "2024-01-01T00:00:05Z",
+  source: "environment",
+  tool_name: "browser",
+  tool_call_id: "call_browser_1",
+  action_id: "act-browser-1",
+  observation: {
+    kind: "BrowserObservation",
+    output: "navigated to https://example.com",
+    error: null,
+    screenshot_data: "BASE64_SCREENSHOT_BLOB",
+  },
+});
+
+const storedScreenshot = (eventId: string): string | null | undefined => {
+  const event = useEventStore
+    .getState()
+    .events.find((e) => (e as { id?: string }).id === eventId);
+  return (event as ObservationEvent<BrowserObservation> | undefined)
+    ?.observation.screenshot_data;
+};
 
 const mockUserMessageEvent: MessageEvent = {
   id: "test-event-1",
@@ -75,6 +99,15 @@ const mockObservationEvent: ObservationEvent = {
 };
 
 describe("useEventStore", () => {
+  beforeEach(() => {
+    useEventStore.setState({
+      events: [],
+      eventIds: new Set(),
+      uiEvents: [],
+      loadedConversationId: null,
+    });
+  });
+
   it("should render initial state correctly", () => {
     const { result } = renderHook(() => useEventStore());
     expect(result.current.events).toEqual([]);
@@ -187,5 +220,50 @@ describe("useEventStore", () => {
     // Verify events were cleared
     expect(result.current.events).toEqual([]);
     expect(result.current.uiEvents).toEqual([]);
+  });
+
+  it("strips browser screenshot payloads from the retained copy on addEvent", () => {
+    const { result } = renderHook(() => useEventStore());
+
+    act(() => {
+      result.current.addEvent(makeBrowserObservation());
+    });
+
+    expect(storedScreenshot("obs-browser-1")).toBeNull();
+  });
+
+  it("strips browser screenshot payloads on bulk addEvents", () => {
+    const { result } = renderHook(() => useEventStore());
+
+    act(() => {
+      result.current.addEvents([makeBrowserObservation()]);
+    });
+
+    expect(storedScreenshot("obs-browser-1")).toBeNull();
+  });
+
+  it("does not mutate the caller's event when stripping", () => {
+    // The WebSocket handler reads screenshot_data off the same object after
+    // handing it to the store (to populate the live Browser tab), so the store
+    // must strip a copy, never mutate the incoming event.
+    const { result } = renderHook(() => useEventStore());
+    const incoming = makeBrowserObservation();
+
+    act(() => {
+      result.current.addEvent(incoming);
+    });
+
+    expect(incoming.observation.screenshot_data).toBe("BASE64_SCREENSHOT_BLOB");
+  });
+
+  it("still de-duplicates browser observations by id after stripping", () => {
+    const { result } = renderHook(() => useEventStore());
+
+    act(() => {
+      result.current.addEvent(makeBrowserObservation());
+      result.current.addEvents([makeBrowserObservation()]);
+    });
+
+    expect(result.current.events).toHaveLength(1);
   });
 });
