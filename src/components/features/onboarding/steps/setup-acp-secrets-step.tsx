@@ -1,24 +1,15 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { useQueryClient } from "@tanstack/react-query";
-import { AxiosError } from "axios";
 import { Check, Loader2 } from "lucide-react";
 import { BrandButton } from "#/components/features/settings/brand-button";
-import { SettingsInput } from "#/components/features/settings/settings-input";
+import { AcpConflictWarnings } from "#/components/features/settings/acp-conflict-warnings";
+import { AcpSecretField } from "#/components/features/settings/acp-secret-field";
 import { I18nKey } from "#/i18n/declaration";
-import { useCreateSecret } from "#/hooks/mutation/use-create-secret";
-import { useSearchSecrets } from "#/hooks/query/use-get-secrets";
 import { useAcpAuthStatus } from "#/hooks/query/use-acp-auth-status";
-import {
-  getAcpProviderDisplayName,
-  getAcpProviderSecrets,
-} from "#/constants/acp-providers";
+import { useAcpCredentialForm } from "#/hooks/use-acp-credential-form";
+import { useActiveBackend } from "#/contexts/active-backend-context";
+import { getAcpProviderDisplayName } from "#/constants/acp-providers";
 import { type OnboardingAgentId } from "./choose-agent-step";
-import {
-  displayErrorToast,
-  displaySuccessToast,
-} from "#/utils/custom-toast-handlers";
-import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 
 interface SetupAcpSecretsStepProps {
   /** ACP provider whose credentials we're collecting (e.g. ``"claude-code"``).
@@ -39,18 +30,24 @@ interface SetupAcpSecretsStepProps {
 }
 
 /**
- * Onboarding credentials step for ACP providers that expose an env-var API key
- * (Claude Code, Codex, Gemini CLI). The fields are derived from
- * {@link getAcpProviderSecrets}; each one maps 1:1 to a **global secret**
- * whose name equals the env var the agent-server exports into the provider
- * subprocess. Saving here is therefore the same as adding the secret under
- * Settings → Secrets — it shows up there afterwards.
+ * Onboarding credentials step for ACP providers (Claude Code, Codex, Gemini
+ * CLI). The fields are derived from {@link getAcpProviderSecrets}: the API key
+ * + optional base URL (from the SDK registry) plus the per-provider
+ * credentials a *containerized* agent-server needs (Codex ``auth.json``, the
+ * Claude OAuth token, the Gemini Vertex service-account JSON + project/location).
+ * Each field maps 1:1 to a **global secret** whose name equals the env var the
+ * agent-server exports into the provider subprocess, so saving here is the same
+ * as adding the secret under Settings → Secrets.
  *
- * The step is intentionally skippable: a user may authenticate via a
- * subscription / OAuth login (a Claude login, or Gemini's Google login), or
- * already have the env var set on the backend, so we never block "Next" on a
- * value — and the login probe shows a "you're already signed in" banner when it
- * detects one. Empty fields are simply not written; a field whose secret
+ * The step is **optional on a backend that can fall back to a host login** (a
+ * native agent-server where the user has already run ``claude``/``codex``/
+ * ``gcloud`` login) and **required otherwise** — a fresh Docker container or a
+ * cloud backend has no host login, so the agent can't authenticate without
+ * credentials. Required-ness is capability-driven (see {@link backendRequiresAcpCredentials}):
+ * we never block "Next" when the login probe detects an existing session, and
+ * we never block a native dev whose host login we just can't classify.
+ *
+ * Empty fields are never written (a deliberate skip), and a field whose secret
  * already exists shows an "already saved" placeholder and is left untouched
  * unless the user types a replacement.
  */
@@ -61,9 +58,7 @@ export function SetupAcpSecretsStep({
   onNext,
 }: SetupAcpSecretsStepProps) {
   const { t } = useTranslation("openhands");
-  const queryClient = useQueryClient();
-  const { mutateAsync: createSecret } = useCreateSecret();
-  const { data: existingSecrets } = useSearchSecrets();
+  const activeBackend = useActiveBackend();
   // Login detection via AcpService (provider status commands run through the
   // agent-server bash endpoint) — see issue #964.
   const { status: authStatus, isChecking: isCheckingAuth } = useAcpAuthStatus(
@@ -71,51 +66,53 @@ export function SetupAcpSecretsStep({
     { enabled: isActive },
   );
 
-  const fields = React.useMemo(
-    () => getAcpProviderSecrets(providerKey),
-    [providerKey],
-  );
-  const [values, setValues] = React.useState<Record<string, string>>({});
-  const [isSaving, setIsSaving] = React.useState(false);
+  const {
+    fields,
+    values,
+    setValue,
+    secretExists,
+    hasValueFor,
+    conflicts,
+    consumesFileCredentials,
+    save,
+    isSaving,
+  } = useAcpCredentialForm(providerKey);
 
   const providerName = getAcpProviderDisplayName(providerKey) ?? providerKey;
 
-  const secretExists = React.useCallback(
-    (name: string) =>
-      (existingSecrets ?? []).some((secret) => secret.name === name),
-    [existingSecrets],
+  const isAuthenticated = authStatus === "authenticated";
+  // Required when the backend can't fall back to a host login (see component
+  // docstring). Cloud never has one; a local backend that probes as logged-out
+  // is a fresh container — require credentials there, but stay permissive when
+  // the probe resolves "unknown" so a native dev is never blocked.
+  const required = backendRequiresAcpCredentials(
+    activeBackend.backend.kind,
+    authStatus,
   );
+  // Satisfied once the user has an actual credential for the provider — a
+  // masked ``secret`` field (blob, OAuth token, or API key), typed now or
+  // previously saved. A base URL or GCP project/location alone can't
+  // authenticate anything, so it doesn't count — and neither does a file blob
+  // on a backend that can't materialise it (cloud, agent-canvas#1016): the
+  // save flow warns it's orphaned, so it can't be what satisfies the gate.
+  // An existing login also satisfies it.
+  const satisfied =
+    isAuthenticated ||
+    fields.some(
+      (field) =>
+        field.secret &&
+        (!field.multiline || consumesFileCredentials) &&
+        hasValueFor(field.name),
+    );
+  const blockNext = required && !satisfied;
+  // While the probe is still classifying a local backend, hold Next: the gate
+  // may be about to come up "unauthenticated", and the checking banner is
+  // already showing. A probe that *completes* as "unknown" stays permissive.
+  const nextDisabled = isSaving || blockNext || (isCheckingAuth && !satisfied);
 
   const handleNext = async () => {
-    // Only persist fields the user actually filled in — empty inputs are a
-    // deliberate skip, not a request to clear an existing secret.
-    const toSave = fields
-      .map((field) => ({ name: field.name, value: values[field.name]?.trim() }))
-      .filter((entry): entry is { name: string; value: string } =>
-        Boolean(entry.value),
-      );
-
-    if (toSave.length === 0) {
+    if (await save()) {
       onNext();
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      // Sequential so a mid-list failure leaves the earlier secrets saved and
-      // surfaces a single, specific error rather than a race of toasts.
-      for (const { name, value } of toSave) {
-        await createSecret({ name, value });
-      }
-      await queryClient.invalidateQueries({ queryKey: ["secrets-search"] });
-      await queryClient.invalidateQueries({ queryKey: ["secrets"] });
-      displaySuccessToast(t(I18nKey.SETTINGS$SAVED));
-      onNext();
-    } catch (error) {
-      const message = retrieveAxiosErrorMessage(error as AxiosError);
-      displayErrorToast(message || t(I18nKey.ERROR$GENERIC));
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -133,12 +130,23 @@ export function SetupAcpSecretsStep({
             provider: providerName,
           })}
         </p>
-        {authStatus !== "authenticated" && (
-          // When already signed in, the success banner below already says to
-          // leave the fields blank, so this general reminder would be redundant.
-          <p className="text-sm text-[var(--oh-muted)]">
-            {t(I18nKey.ONBOARDING$ACP_SECRETS_SUBSCRIPTION_NOTE)}
+        {required && !isAuthenticated ? (
+          <p
+            data-testid="onboarding-acp-secrets-required-note"
+            className="text-sm text-[var(--oh-muted)]"
+          >
+            {t(I18nKey.ONBOARDING$ACP_SECRETS_REQUIRED_NOTE, {
+              provider: providerName,
+            })}
           </p>
+        ) : (
+          authStatus !== "authenticated" && (
+            // When already signed in, the success banner below already says to
+            // leave the fields blank, so this general reminder would be redundant.
+            <p className="text-sm text-[var(--oh-muted)]">
+              {t(I18nKey.ONBOARDING$ACP_SECRETS_SUBSCRIPTION_NOTE)}
+            </p>
+          )
         )}
       </header>
 
@@ -174,35 +182,29 @@ export function SetupAcpSecretsStep({
       ) : null}
 
       <div className="flex flex-col gap-5">
-        {fields.map((field) => {
-          const alreadySet = secretExists(field.name);
-          return (
-            <div key={field.name} className="flex flex-col gap-1.5">
-              <SettingsInput
-                testId={`onboarding-acp-secret-${field.name}`}
-                name={field.name}
-                // The env-var name is the canonical label here; rendering it
-                // monospace makes clear it's a literal key, not prose.
-                label={field.name}
-                labelClassName="font-mono"
-                type={field.secret ? "password" : "text"}
-                value={values[field.name] ?? ""}
-                onChange={(value) =>
-                  setValues((prev) => ({ ...prev, [field.name]: value }))
-                }
-                // Every field is optional — the whole step is skippable.
-                showOptionalTag
-                placeholder={
-                  alreadySet ? t(I18nKey.ONBOARDING$ACP_SECRET_ALREADY_SET) : ""
-                }
-              />
-              <span className="text-xs text-[var(--oh-muted)]">
-                {t(field.hint_key)}
-              </span>
-            </div>
-          );
-        })}
+        {fields.map((field) => (
+          <AcpSecretField
+            key={field.name}
+            field={field}
+            value={values[field.name] ?? ""}
+            onChange={(value) => setValue(field.name, value)}
+            alreadySet={secretExists(field.name)}
+            testId={`onboarding-acp-secret-${field.name}`}
+            showOptionalTag
+          />
+        ))}
       </div>
+
+      <AcpConflictWarnings conflicts={conflicts} />
+
+      {blockNext ? (
+        <p
+          data-testid="onboarding-acp-secrets-blocked"
+          className="text-sm text-amber-300"
+        >
+          {t(I18nKey.ONBOARDING$ACP_SECRETS_REQUIRED_BLOCKED)}
+        </p>
+      ) : null}
 
       <div className="sticky bottom-0 flex items-center justify-between gap-2 bg-base-secondary pt-4 pb-7">
         <BrandButton
@@ -218,7 +220,7 @@ export function SetupAcpSecretsStep({
           testId="onboarding-acp-secrets-next"
           type="button"
           variant="primary"
-          isDisabled={isSaving}
+          isDisabled={nextDisabled}
           onClick={handleNext}
         >
           {isSaving ? t(I18nKey.SETTINGS$SAVING) : t(I18nKey.ONBOARDING$NEXT)}
@@ -226,4 +228,27 @@ export function SetupAcpSecretsStep({
       </div>
     </div>
   );
+}
+
+/**
+ * Whether the credential step must be satisfied before advancing, given the
+ * active backend kind and the ACP login-probe result.
+ *
+ * - **cloud** → always required: a remote backend has no host CLI login to fall
+ *   back on.
+ * - **local + ``"unauthenticated"``** → required: the probe ran and found no
+ *   login, i.e. a fresh containerized agent-server.
+ * - **local + ``"authenticated"`` / ``"unknown"``** → optional: either a login
+ *   exists, or the probe couldn't classify it (CLI missing, odd output) — in
+ *   which case we stay permissive rather than block a working native dev.
+ *
+ * Exported for unit testing the matrix without rendering the modal.
+ */
+export function backendRequiresAcpCredentials(
+  backendKind: "local" | "cloud",
+  authStatus: "authenticated" | "unauthenticated" | "unknown",
+): boolean {
+  if (authStatus === "authenticated") return false;
+  if (backendKind === "cloud") return true;
+  return authStatus === "unauthenticated";
 }

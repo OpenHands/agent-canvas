@@ -107,3 +107,18 @@ export const displaySuccessToast = (message: string) => {
     { ...TOAST_OPTIONS, duration },
   );
 };
+
+/**
+ * Neutral, non-success notice — used when an action completed but the outcome
+ * is qualified (e.g. a secret was saved but the active backend can't consume it
+ * yet). Renders without the success checkmark so it doesn't read as "all good".
+ */
+export const displayWarningToast = (message: string) => {
+  const duration = calculateToastDuration(message, 6000);
+  toast(
+    <span className="[word-break:break-word] [overflow-wrap:anywhere]">
+      {message}
+    </span>,
+    { ...TOAST_OPTIONS, icon: "⚠️", duration },
+  );
+};
