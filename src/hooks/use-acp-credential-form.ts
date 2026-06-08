@@ -1,7 +1,6 @@
 import React from "react";
 import { useSearchSecrets } from "#/hooks/query/use-get-secrets";
 import { useSaveAcpSecrets } from "#/hooks/use-save-acp-secrets";
-import { useActiveBackend } from "#/contexts/active-backend-context";
 import {
   getAcpCredentialConflicts,
   getAcpProviderSecrets,
@@ -43,18 +42,19 @@ export function useAcpCredentialForm(
   providerKey: string | null | undefined,
 ): AcpCredentialForm {
   const { data: existingSecrets } = useSearchSecrets();
-  const activeBackend = useActiveBackend();
   const fields = React.useMemo(
     () => getAcpProviderSecrets(providerKey),
     [providerKey],
   );
   const [values, setValues] = React.useState<Record<string, string>>({});
 
-  // Local agent-servers materialise file-content credentials via the SDK's
-  // acp_file_secrets defaults; cloud doesn't yet (agent-canvas#1016).
-  // TODO(#1016): once cloud materialises file secrets, a kind check can't tell
-  // a new cloud from an old one — replace with a capability/version probe.
-  const consumesFileCredentials = activeBackend.backend.kind === "local";
+  // Both local and cloud agent-servers materialise file-content credentials
+  // (Codex auth.json, Gemini Vertex SA) via the SDK's acp_file_secrets: locally
+  // from the user's machine, on cloud from the per-user encrypted secret store
+  // routed through agent_context.secrets at conversation start (the cloud
+  // backend pins an SDK that materialises reserved file secrets). So a pasted
+  // file blob is consumable on every supported backend.
+  const consumesFileCredentials = true;
   const { saveFilled, isSaving } = useSaveAcpSecrets(
     fields,
     consumesFileCredentials,
