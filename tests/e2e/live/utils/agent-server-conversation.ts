@@ -42,6 +42,12 @@ const llmModel =
     : openAIKey?.trim()
       ? "openai/gpt-5.4-mini"
       : "anthropic/claude-haiku-4-5-20251001");
+const DEFAULT_AGENT_TOOLS = [
+  { name: "terminal", params: {} },
+  { name: "file_editor", params: {} },
+  { name: "task_tracker", params: {} },
+  { name: "canvas_ui", params: {} },
+];
 export const sessionApiKey = firstNonEmpty(
   process.env.LIVE_E2E_SESSION_API_KEY,
   process.env.LOCAL_BACKEND_API_KEY,
@@ -51,6 +57,7 @@ if (!sessionApiKey) {
   throw new Error("LIVE_E2E_SESSION_API_KEY must be set for live E2E.");
 }
 
+const LIVE_LLM_PROFILE_NAME = `live-e2e-${sessionApiKey.slice(0, 8)}`;
 export const hasLiveLLMConfig = Boolean(llmApiKey);
 export const missingLiveLLMConfigMessage =
   "Set LIVE_E2E_LLM_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, or LLM_API_KEY to run live E2E.";
@@ -102,6 +109,8 @@ export async function configureLiveAgentServer(
     throw new Error(missingLiveLLMConfigMessage);
   }
 
+  await ensureLiveLlmProfile(request);
+
   const settingsResponse = await request.patch(`${BACKEND_URL}/api/settings`, {
     headers: {
       "X-Session-API-Key": sessionApiKey,
@@ -124,6 +133,49 @@ export async function configureLiveAgentServer(
     settingsResponse.ok(),
     `PATCH /api/settings failed with ${settingsResponse.status()}; response body omitted because live LLM credentials are configured in this request.`,
   ).toBeTruthy();
+}
+
+async function ensureLiveLlmProfile(request: APIRequestContext) {
+  const profileUrl = `${BACKEND_URL}/api/profiles/${encodeURIComponent(LIVE_LLM_PROFILE_NAME)}`;
+  const headers = {
+    "X-Session-API-Key": sessionApiKey,
+  };
+
+  await deleteLiveLlmProfile(request);
+
+  const saveResponse = await request.post(profileUrl, {
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+    },
+    data: {
+      llm: buildLiveLlmSettings(),
+      include_secrets: true,
+    },
+  });
+  expect(
+    saveResponse.ok(),
+    `POST /api/profiles/${LIVE_LLM_PROFILE_NAME} failed with ${saveResponse.status()}; response body omitted because live LLM credentials are configured in this request.`,
+  ).toBeTruthy();
+
+  const activateResponse = await request.post(`${profileUrl}/activate`, {
+    headers,
+  });
+  expect(
+    activateResponse.ok(),
+    `POST /api/profiles/${LIVE_LLM_PROFILE_NAME}/activate failed with ${activateResponse.status()}; response body omitted because live LLM credentials are configured in this request.`,
+  ).toBeTruthy();
+}
+
+export async function deleteLiveLlmProfile(request: APIRequestContext) {
+  await request.delete(
+    `${BACKEND_URL}/api/profiles/${encodeURIComponent(LIVE_LLM_PROFILE_NAME)}`,
+    {
+      headers: {
+        "X-Session-API-Key": sessionApiKey,
+      },
+    },
+  );
 }
 
 function buildLiveLlmSettings(): Record<string, string | number> {
@@ -195,6 +247,10 @@ export async function createLiveConversation(
           enabled: false,
         },
         verification: buildLiveVerificationSettings(options),
+        tools: DEFAULT_AGENT_TOOLS,
+      },
+      tool_module_qualnames: {
+        canvas_ui: "canvas_ui_tool",
       },
     },
   });

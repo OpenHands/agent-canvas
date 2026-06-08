@@ -3,9 +3,9 @@ import { test, type APIRequestContext } from "@playwright/test";
 import {
   BACKEND_URL,
   clickButtonByTestId,
-  clickButtonByTestIdOrText,
   configureLiveAgentServer,
   createLiveConversation,
+  deleteLiveLlmProfile,
   dismissAnalyticsModal,
   enableLiveE2EFlags,
   EXPECTED_BASH_COMMAND,
@@ -14,12 +14,10 @@ import {
   expandVisibleEventDetails,
   fillChatInput,
   getLiveArtifactMask,
-  getConversationIdFromURL,
   getOptionalConversationIdFromURL,
   guardAgainstPostHogRequests,
   hasLiveLLMConfig,
   missingLiveLLMConfigMessage,
-  openCreatedConversation,
   routeBackendSessionApiKey,
   sessionApiKey,
   waitForAgentReply,
@@ -84,10 +82,12 @@ test.describe("live Agent Server terminal conversation", () => {
     }
 
     await cleanupKnownConversations(request);
+    await deleteLiveLlmProfile(request);
   });
 
   test.afterAll(async ({ request }) => {
     await cleanupKnownConversations(request);
+    await deleteLiveLlmProfile(request);
   });
 
   test("runs a real LLM-backed Agent Server terminal conversation through the UI", async ({
@@ -97,19 +97,15 @@ test.describe("live Agent Server terminal conversation", () => {
     test.skip(!hasLiveLLMConfig, missingLiveLLMConfigMessage);
 
     await configureLiveAgentServer(request);
+    const conversationId = await createLiveConversation(request);
+    createdConversationIds.add(conversationId);
     await routeBackendSessionApiKey(page);
     const postHogGuard = await guardAgainstPostHogRequests(page);
 
-    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await page.goto(`/conversations/${conversationId}`, {
+      waitUntil: "domcontentloaded",
+    });
     await dismissAnalyticsModal(page);
-    await clickButtonByTestIdOrText(
-      page,
-      "launch-new-conversation-button",
-      "New Conversation",
-    );
-    await openCreatedConversation(page);
-    const conversationId = getConversationIdFromURL(page);
-    createdConversationIds.add(conversationId);
     await waitForTestId(page, "app-route");
     await waitForTestId(page, "chat-interface");
     await waitForTestId(page, "interactive-chat-box");
