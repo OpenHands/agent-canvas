@@ -26,7 +26,6 @@ import { test, expect, type APIRequestContext } from "@playwright/test";
 import {
   BACKEND_URL,
   SESSION_API_KEY,
-  MOCK_LLM_AGENT_URL,
   seedLocalStorage,
   routeSessionApiKey,
   dismissAnalyticsModal,
@@ -35,6 +34,7 @@ import {
   registerTrajectory,
   activateTrajectory,
   resetMockLLM,
+  ensureMockLLMProfile,
   setChatInput,
   waitForPath,
   getConversationIdFromURL,
@@ -47,50 +47,6 @@ import {
   userSkillExists,
   userSkillDirExists,
 } from "./utils/skill-test-helpers";
-
-/**
- * Configure the mock LLM profile. Inlined from `ensureMockLLMProfile`
- * to work around a CI-specific TS6/Node24 type inference bug (TS2345)
- * where importing that function alongside `skill-test-helpers` causes
- * TypeScript to incorrectly resolve its signature.
- */
-async function configureMockLLM(
-  request: APIRequestContext,
-  model = "openai/mock-test-model",
-) {
-  const settingsResp = await request.get(`${BACKEND_URL}/api/settings`, {
-    headers: {
-      "X-Session-API-Key": SESSION_API_KEY,
-      "X-Expose-Secrets": "encrypted",
-    },
-  });
-  if (settingsResp.ok()) {
-    const settings = (await settingsResp.json()) as Record<string, unknown>;
-    const llm = (
-      settings?.agent_settings as Record<string, unknown> | undefined
-    )?.llm as Record<string, unknown> | undefined;
-    if (llm?.model === model && llm?.base_url === MOCK_LLM_AGENT_URL) return;
-  }
-  const patchResp = await request.patch(`${BACKEND_URL}/api/settings`, {
-    headers: {
-      "X-Session-API-Key": SESSION_API_KEY,
-      "Content-Type": "application/json",
-    },
-    data: {
-      agent_settings_diff: {
-        llm: {
-          model,
-          api_key: "mock-api-key-for-testing",
-          base_url: MOCK_LLM_AGENT_URL,
-        },
-      },
-    },
-  });
-  expect(
-    patchResp.ok(),
-    `PATCH /api/settings failed: ${patchResp.status()}`,
-  ).toBe(true);
-}
 
 /**
  * Register a workspace on the agent-server so it appears in the UI dropdown.
@@ -191,7 +147,7 @@ test.describe("skill loading: project, user, and deletion", () => {
     page,
     request,
   }) => {
-    await configureMockLLM(request);
+    await ensureMockLLMProfile(page);
 
     // Create a git repo with the skill committed
     const { agentDir } = await test.step(
@@ -291,7 +247,7 @@ test.describe("skill loading: project, user, and deletion", () => {
     page,
     request,
   }) => {
-    await configureMockLLM(request);
+    await ensureMockLLMProfile(page);
 
     await test.step("create user skill file", () => {
       writeUserSkill(USER_SKILL_NAME, USER_SKILL_TRIGGER);
@@ -362,7 +318,7 @@ test.describe("skill loading: project, user, and deletion", () => {
     page,
     request,
   }) => {
-    await configureMockLLM(request);
+    await ensureMockLLMProfile(page);
 
     await test.step("delete user skill file", () => {
       removeUserSkill(USER_SKILL_NAME);
