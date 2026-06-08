@@ -29,10 +29,23 @@ import {
 import * as fs from "fs";
 import * as path from "path";
 
-/** A unique directory that is created before the test and cleaned up after. */
-const TEST_DIR_BASE = "/tmp/e2e-folder-workspace-test";
+/**
+ * The folder-workspace test creates a directory that the agent-server's folder
+ * browser must be able to list. In Docker mode, the Docker config volume-mounts
+ * a host dir into the container at /tmp/e2e-folder-workspace-test, and sets
+ * MOCK_LLM_FOLDER_WORKSPACE_HOST_DIR so we create files there on the host side.
+ * In npm mode the paths are the same (host IS the agent-server).
+ */
+const HOST_DIR_BASE =
+  process.env.MOCK_LLM_FOLDER_WORKSPACE_HOST_DIR ??
+  "/tmp/e2e-folder-workspace-test";
+/** Container-side path the agent-server sees (always /tmp/...). */
+const CONTAINER_DIR_BASE = "/tmp/e2e-folder-workspace-test";
 const TEST_DIR_NAME = "my-test-project";
-const TEST_DIR = path.join(TEST_DIR_BASE, TEST_DIR_NAME);
+/** Host-side path where we create the directory via fs.mkdirSync. */
+const HOST_DIR = path.join(HOST_DIR_BASE, TEST_DIR_NAME);
+/** Container-side path the folder browser UI navigates to. */
+const TEST_DIR = path.join(CONTAINER_DIR_BASE, TEST_DIR_NAME);
 
 const METADATA_STORAGE_KEY = "openhands-agent-server-conversation-metadata";
 
@@ -42,8 +55,8 @@ test.describe("mock-LLM folder browser → workspace → conversation", () => {
   const conversationIds = new Set<string>();
 
   test.beforeAll(async ({ browser }) => {
-    // Create the test directory hierarchy
-    fs.mkdirSync(TEST_DIR, { recursive: true });
+    // Create the test directory hierarchy (host-side path for Docker compat)
+    fs.mkdirSync(HOST_DIR, { recursive: true });
 
     // Ensure the mock LLM profile is configured so conversations can start.
     // beforeAll only has worker-scoped fixtures, so create a temporary page.
@@ -75,9 +88,9 @@ test.describe("mock-LLM folder browser → workspace → conversation", () => {
   });
 
   test.afterAll(async () => {
-    // Remove the test directory
+    // Remove the test directory (host-side path)
     try {
-      fs.rmSync(TEST_DIR_BASE, { recursive: true, force: true });
+      fs.rmSync(HOST_DIR_BASE, { recursive: true, force: true });
     } catch {
       // best-effort
     }
@@ -151,7 +164,7 @@ test.describe("mock-LLM folder browser → workspace → conversation", () => {
       await expect(currentPathEl).toHaveText(/\/tmp/, { timeout: 5_000 });
 
       const baseEntry = page.getByTestId(
-        `folder-browser-entry-${path.basename(TEST_DIR_BASE)}`,
+        `folder-browser-entry-${path.basename(CONTAINER_DIR_BASE)}`,
       );
       await expect(baseEntry).toBeVisible({ timeout: 10_000 });
       await baseEntry.click();
