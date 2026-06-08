@@ -22,10 +22,12 @@ type ActionOnlyType =
   | "BrowserListTabs"
   | "BrowserSwitchTab"
   | "BrowserCloseTab"
-  // Frontend-injected custom tool. Not part of the upstream SDK Action
-  // union but emitted as a regular ActionEvent over the WebSocket. See
-  // tools/canvas_ui_tool.py and src/services/canvas-ui.ts.
-  | "CanvasUI";
+  // Frontend-injected custom tools. Not part of the upstream SDK Action
+  // union but emitted as regular ActionEvents over the WebSocket. See
+  // tools/canvas_ui_tool.py / src/services/canvas-ui.ts and
+  // tools/canvas_conversation_tool.py / src/services/canvas-conversation.ts.
+  | "CanvasUI"
+  | "CanvasConversation";
 
 type ObservationOnlyType = "Browser";
 

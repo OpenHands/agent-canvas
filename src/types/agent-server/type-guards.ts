@@ -10,6 +10,7 @@ import {
   BrowserObservation,
   BrowserNavigateAction,
   SwitchLLMObservation,
+  CanvasConversationAction,
   CanvasUIAction,
 } from "./core";
 import { AgentErrorEvent } from "./core/events/observation-event";
@@ -177,6 +178,14 @@ export const isCanvasUIActionEvent = (
   event: OpenHandsEvent,
 ): event is ActionEvent<CanvasUIAction> =>
   isActionEvent(event) && event.tool_name === "canvas_ui";
+
+/**
+ * Type guard for the canvas_conversation custom tool's ActionEvent.
+ */
+export const isCanvasConversationActionEvent = (
+  event: OpenHandsEvent,
+): event is ActionEvent<CanvasConversationAction> =>
+  isActionEvent(event) && event.tool_name === "canvas_conversation";
 
 /**
  * Type guard function to check if an event is a system prompt event

@@ -299,6 +299,17 @@ export interface CanvasUIAction extends ActionBase<"CanvasUIAction"> {
   tab?: string | null;
 }
 
+/**
+ * Frontend-injected custom tool for creating fresh child conversations.
+ * Emitted over the existing WebSocket as a regular ActionEvent; intercepted
+ * client-side by handleCanvasConversationAction. The Python definition lives
+ * in tools/canvas_conversation_tool.py.
+ */
+export interface CanvasConversationAction extends ActionBase<"CanvasConversationAction"> {
+  command: "create_child_conversation";
+  prompt: string;
+}
+
 export type Action =
   | MCPToolAction
   | FinishAction
@@ -323,4 +334,5 @@ export type Action =
   | GrepAction
   | InvokeSkillAction
   | SwitchLLMAction
-  | CanvasUIAction;
+  | CanvasUIAction
+  | CanvasConversationAction;

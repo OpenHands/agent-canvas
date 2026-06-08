@@ -18,6 +18,8 @@
 - The UI keeps most OpenHands routes/layout intact, but hosted-only behavior (org, account management, integrations) has been removed via the fabricated OSS config because there is no separate app backend.
 - Verification command: `npm run typecheck && npm run build`.
 - GitHub automation now includes `.github/workflows/ci.yml` for `npm ci`, `npm test`, and `npm run build`, plus `.github/dependabot.yml` with weekly npm/github-actions updates gated by a 7-day cooldown.
+- Fresh child conversations inside Agent Canvas should use `/new` semantics, not SDK `fork()` semantics. The frontend-injected `canvas_conversation` tool (`tools/canvas_conversation_tool.py` + `src/services/canvas-conversation.ts`) creates a brand-new conversation from the current one while reusing the current runtime: local backends inherit `parent.workspace.working_dir`, cloud backends inherit `parent.sandbox_id`. Parent context must be explicitly packed into the handoff prompt because history is not copied.
+
 
 ## Tracking / Analytics Architecture
 

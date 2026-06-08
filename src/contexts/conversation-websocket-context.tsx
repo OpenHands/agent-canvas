@@ -36,8 +36,10 @@ import {
   isBrowserObservationEvent,
   isBrowserNavigateActionEvent,
   isSwitchLLMObservationEvent,
+  isCanvasConversationActionEvent,
   isCanvasUIActionEvent,
 } from "#/types/agent-server/type-guards";
+import { handleCanvasConversationAction } from "#/services/canvas-conversation";
 import { handleCanvasUIAction } from "#/services/canvas-ui";
 import { ConversationStateUpdateEventStats } from "#/types/agent-server/core/events/conversation-state-event";
 import type {
@@ -584,12 +586,15 @@ export function ConversationWebSocketProvider({
             invalidateConversationQueries(queryClient, conversationId);
           }
 
-          // Handle canvas_ui custom-tool ActionEvents - drive the frontend
-          // (navigate to a file, switch tabs, show a preview). The tool
-          // executes server-side as a no-op; the actual UI change happens
-          // here on the client.
+          // Handle frontend-injected custom-tool ActionEvents. These tools
+          // execute server-side as no-ops; the actual UI/conversation effects
+          // happen here on the client.
           if (isCanvasUIActionEvent(event)) {
             handleCanvasUIAction(event.action);
+          }
+
+          if (isCanvasConversationActionEvent(event)) {
+            void handleCanvasConversationAction(event.action, conversationId);
           }
         }
       } catch (error) {

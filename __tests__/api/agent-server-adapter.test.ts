@@ -48,6 +48,19 @@ vi.mock("#/api/backend-registry/active-store", () => ({
   getEffectiveLocalBackend: mockGetEffectiveLocalBackend,
 }));
 
+vi.mock("@openhands/extensions/skills", () => ({
+  SKILLS_CATALOG: [
+    {
+      name: "demo-skill",
+      content: "Demo skill content",
+      triggers: ["demo"],
+      description: "Demo skill",
+      license: "MIT",
+      compatibility: ">=1.0.0",
+    },
+  ],
+}));
+
 beforeEach(() => {
   mockIsAgentServerToolAvailable.mockReturnValue(true);
   mockGetEffectiveLocalBackend.mockReturnValue({
@@ -113,6 +126,7 @@ describe("buildStartConversationRequest", () => {
       { name: "file_editor", params: {} },
       { name: "task_tracker", params: {} },
       { name: "canvas_ui", params: {} },
+      { name: "canvas_conversation", params: {} },
       { name: "browser_tool_set", params: {} },
       { name: "task_tool_set", params: {} },
     ]);
@@ -200,6 +214,7 @@ describe("buildStartConversationRequest", () => {
       { name: "file_editor", params: {} },
       { name: "task_tracker", params: {} },
       { name: "canvas_ui", params: {} },
+      { name: "canvas_conversation", params: {} },
     ]);
   });
 
@@ -228,6 +243,7 @@ describe("buildStartConversationRequest", () => {
       { name: "file_editor", params: {} },
       { name: "task_tracker", params: {} },
       { name: "canvas_ui", params: {} },
+      { name: "canvas_conversation", params: {} },
       { name: "task_tool_set", params: {} },
     ]);
   });
@@ -341,11 +357,12 @@ describe("buildStartConversationRequest", () => {
     }) as Record<string, unknown>;
 
     expect(payload.hook_config).toEqual({ on_start: [] });
-    // Canvas-UI tool is auto-injected; user-supplied entries are merged in
-    // alongside it. The dedicated canvas_ui describe block below pins the
-    // exact merge semantics.
+    // Frontend custom tools are auto-injected; user-supplied entries are
+    // merged in alongside them. The dedicated custom-tool describe block below
+    // pins the exact merge semantics.
     expect(payload.tool_module_qualnames).toEqual({
       canvas_ui: "canvas_ui_tool",
+      canvas_conversation: "canvas_conversation_tool",
       demo_tool: "pkg.tools.demo",
     });
     expect(payload.agent_definitions).toEqual([
@@ -524,18 +541,19 @@ describe("buildStartConversationRequest", () => {
     });
   });
 
-  describe("canvas_ui tool injection", () => {
-    it("always registers canvas_ui_tool in tool_module_qualnames, even when no user settings supply qualnames", () => {
+  describe("frontend custom tool injection", () => {
+    it("always registers the frontend tool modules in tool_module_qualnames, even when no user settings supply qualnames", () => {
       const payload = buildStartConversationRequest({
         settings: DEFAULT_SETTINGS,
       }) as { tool_module_qualnames: Record<string, string> };
 
       expect(payload.tool_module_qualnames).toMatchObject({
         canvas_ui: "canvas_ui_tool",
+        canvas_conversation: "canvas_conversation_tool",
       });
     });
 
-    it("merges user-supplied tool_module_qualnames alongside canvas_ui_tool without dropping either side", () => {
+    it("merges user-supplied tool_module_qualnames alongside the frontend tool modules without dropping either side", () => {
       const payload = buildStartConversationRequest({
         settings: {
           ...DEFAULT_SETTINGS,
@@ -548,6 +566,7 @@ describe("buildStartConversationRequest", () => {
 
       expect(payload.tool_module_qualnames).toEqual({
         canvas_ui: "canvas_ui_tool",
+        canvas_conversation: "canvas_conversation_tool",
         my_tool: "my_package.my_tool",
       });
     });

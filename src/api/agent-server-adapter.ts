@@ -71,17 +71,20 @@ export interface DirectConversationInfo {
   tags?: Record<string, string> | null;
 }
 
-// Module qualname for the Canvas-UI tool. The agent-server imports this via
-// tool_module_qualnames; the host directory is exposed via OH_EXTRA_PYTHON_PATH
-// (see scripts/dev-safe.mjs).
+// Module qualnames for frontend-injected tools. The agent-server imports these
+// via tool_module_qualnames; the host directory is exposed via
+// OH_EXTRA_PYTHON_PATH (see scripts/dev-safe.mjs).
 const CANVAS_UI_TOOL_NAME = "canvas_ui";
 const CANVAS_UI_TOOL_MODULE = "canvas_ui_tool";
+const CANVAS_CONVERSATION_TOOL_NAME = "canvas_conversation";
+const CANVAS_CONVERSATION_TOOL_MODULE = "canvas_conversation_tool";
 
 const DEFAULT_TOOL_NAMES = [
   "terminal",
   "file_editor",
   "task_tracker",
   CANVAS_UI_TOOL_NAME,
+  CANVAS_CONVERSATION_TOOL_NAME,
 ];
 const BROWSER_TOOL_SET_NAME = "browser_tool_set";
 const TASK_TOOL_SET_NAME = "task_tool_set";
@@ -900,6 +903,7 @@ export function buildStartConversationRequest(
 
   payload.tool_module_qualnames = {
     [CANVAS_UI_TOOL_NAME]: CANVAS_UI_TOOL_MODULE,
+    [CANVAS_CONVERSATION_TOOL_NAME]: CANVAS_CONVERSATION_TOOL_MODULE,
     ...((conversationSettings.tool_module_qualnames as
       | Record<string, string>
       | undefined) ?? {}),
