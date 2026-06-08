@@ -325,6 +325,21 @@ jobs:
             playwright-report-mock-llm-docker/
             test-results-mock-llm-docker/
 
+      - name: Detect newly added spec files
+        if: always() && github.event.pull_request.number
+        id: new_specs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          # Find mock-LLM spec files added (not just modified) in this PR
+          NEW_FILES=$(gh api \
+            "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --paginate \
+            --jq '[.[] | select(.status == "added") | .filename
+                   | select(test("tests/e2e/mock-llm/.*\\.spec\\.ts$"))]
+                   | join(",")')
+          echo "files=$NEW_FILES" >> "$GITHUB_OUTPUT"
+
       - name: Render test report
         if: always()
         run: |
@@ -334,7 +349,8 @@ jobs:
             --workflow-url "$MOCK_LLM_WORKFLOW_URL" \
             --commit "${{ steps.ctx.outputs.sha }}" \
             --artifact-url "${{ steps.upload_artifacts.outputs.artifact-url || '' }}" \
-            --title "Mock-LLM Docker E2E Test Results"
+            --title "Mock-LLM Docker E2E Test Results" \
+            --new-files "${{ steps.new_specs.outputs.files || '' }}"
           cat "$MOCK_LLM_REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Post PR comment
