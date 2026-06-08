@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { screen } from "@testing-library/react";
-import { fileEditorVisualizer } from "./file-editor";
+import { fileEditorVisualizer } from "#/components/features/chat/tool-visualizers/file-editor/file-editor";
 import {
   renderVisualizer,
   fileEditorAction,

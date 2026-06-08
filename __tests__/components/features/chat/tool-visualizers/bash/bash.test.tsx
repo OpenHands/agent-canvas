@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { screen } from "@testing-library/react";
 import { SecurityRisk } from "#/types/agent-server/core";
-import { bashVisualizer } from "./bash";
+import { bashVisualizer } from "#/components/features/chat/tool-visualizers/bash/bash";
 import {
   renderVisualizer,
   bashAction,

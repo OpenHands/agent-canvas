@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { screen } from "@testing-library/react";
-import { taskVisualizer } from "./task";
+import { taskVisualizer } from "#/components/features/chat/tool-visualizers/task/task";
 import { renderVisualizer, taskAction, taskObservation } from "../test-utils";
 
 const Body = taskVisualizer.Body;

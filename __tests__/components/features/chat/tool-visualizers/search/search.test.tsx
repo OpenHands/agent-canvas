@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { screen } from "@testing-library/react";
-import { searchVisualizer } from "./search";
+import { searchVisualizer } from "#/components/features/chat/tool-visualizers/search/search";
 import {
   renderVisualizer,
   grepAction,

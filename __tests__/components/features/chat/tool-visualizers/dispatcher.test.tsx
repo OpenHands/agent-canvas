@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ActionEvent, SecurityRisk } from "#/types/agent-server/core";
-import { resolveVisualizerBody } from "./dispatcher";
+import { resolveVisualizerBody } from "#/components/features/chat/tool-visualizers/dispatcher";
 import { bashAction, grepObservation, terminalObservation } from "./test-utils";
 
 describe("resolveVisualizerBody", () => {
