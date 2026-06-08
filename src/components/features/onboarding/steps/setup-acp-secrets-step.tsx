@@ -1,8 +1,8 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Check, Loader2 } from "lucide-react";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { AcpConflictWarnings } from "#/components/features/settings/acp-conflict-warnings";
+import { AcpAuthStatusBanner } from "#/components/features/settings/acp-auth-status-banner";
 import { AcpSecretField } from "#/components/features/settings/acp-secret-field";
 import { I18nKey } from "#/i18n/declaration";
 import { useAcpAuthStatus } from "#/hooks/query/use-acp-auth-status";
@@ -150,36 +150,12 @@ export function SetupAcpSecretsStep({
         )}
       </header>
 
-      {authStatus === "authenticated" ? (
-        <div
-          data-testid="onboarding-acp-auth-detected"
-          // Matches the onboarding "backend connected" success banner
-          // (check-backend-step.tsx) for a consistent look.
-          className="flex items-start gap-2 rounded-xl border border-green-500/40 bg-green-500/10 px-4 py-3 text-sm text-green-200"
-        >
-          <Check
-            className="mt-0.5 size-4 shrink-0 text-green-400"
-            aria-hidden
-          />
-          <span>
-            {t(I18nKey.ONBOARDING$ACP_AUTH_DETECTED, {
-              provider: providerName,
-            })}
-          </span>
-        </div>
-      ) : isCheckingAuth ? (
-        <div
-          data-testid="onboarding-acp-auth-checking"
-          className="flex items-center gap-2 text-sm text-[var(--oh-muted)]"
-        >
-          <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden />
-          <span>
-            {t(I18nKey.ONBOARDING$ACP_AUTH_CHECKING, {
-              provider: providerName,
-            })}
-          </span>
-        </div>
-      ) : null}
+      <AcpAuthStatusBanner
+        status={authStatus}
+        isChecking={isCheckingAuth}
+        providerName={providerName}
+        testIdPrefix="onboarding-acp-auth"
+      />
 
       <div className="flex flex-col gap-5">
         {fields.map((field) => (

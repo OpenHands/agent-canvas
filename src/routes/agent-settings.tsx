@@ -8,6 +8,7 @@ import { SettingsDropdownInput } from "#/components/features/settings/settings-d
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { SettingsSwitch } from "#/components/features/settings/settings-switch";
 import { AcpCredentialsSection } from "#/components/features/settings/acp-credentials-section";
+import { useAcpCredentialForm } from "#/hooks/use-acp-credential-form";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
@@ -116,6 +117,19 @@ function AgentSettingsScreen() {
   const [isCustomAcpModel, setIsCustomAcpModel] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
+  // ACP credentials live alongside the agent spec, so the page owns the
+  // credential form and a single Save persists both. Called unconditionally
+  // (no-ops to empty fields for a non-ACP / custom command) to keep hook order
+  // stable across the ``isLoading`` early-return below; ``detectPreset`` is a
+  // cheap pure lookup.
+  const acpPresetForCreds =
+    agentType === "acp" ? detectPreset(commandText, ACP_PROVIDERS) : null;
+  const acpCredentialForm = useAcpCredentialForm(
+    acpPresetForCreds && acpPresetForCreds !== ACP_CUSTOM_PRESET_KEY
+      ? acpPresetForCreds
+      : null,
+  );
+
   const lastInitializedSettingsRef = useRef<unknown>(null);
   const loadedAcpServerRef = useRef<string | null>(null);
   const loadedCommandTextRef = useRef<string>("");
@@ -199,9 +213,29 @@ function AgentSettingsScreen() {
   // Dirty tracking: for OpenHands path, also check sub-agents toggle
   const isOpenHandsDirty =
     !isAcp && subAgentsEnabled !== initialSubAgentsEnabled;
-  const effectiveIsDirty = isDirty || isOpenHandsDirty;
+  const settingsDirty = isDirty || isOpenHandsDirty;
+  // The single Save covers both the agent spec and ACP credentials, so it is
+  // active when either changed, and shows "Saving…" while either is in flight.
+  const credentialsDirty = isAcp && acpCredentialForm.isDirty;
+  const isAnyDirty = settingsDirty || credentialsDirty;
+  const isSavingAny = isSaving || acpCredentialForm.isSaving;
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    // Persist ACP credentials first (if any were typed) so they exist when the
+    // agent spec is applied. When the spec is also changing, save silently so
+    // the settings save below owns the single "Saved" toast (otherwise the user
+    // sees it twice); a credentials-only save shows its own toast. Errors always
+    // toast and abort.
+    if (isAcp && acpCredentialForm.isDirty) {
+      const ok = await acpCredentialForm.save({ silent: settingsDirty });
+      if (!ok) return;
+      acpCredentialForm.reset();
+    }
+
+    // Only write the agent spec when it actually changed — a credentials-only
+    // edit must not re-push unchanged settings (or double-toast).
+    if (!settingsDirty) return;
+
     if (isAcp) {
       const useDefault = !!(selectedProvider && isDefaultProviderCommand);
       const loadedServer = loadedAcpServerRef.current;
@@ -479,7 +513,10 @@ function AgentSettingsScreen() {
       {isAcp && selectedPreset !== ACP_CUSTOM_PRESET_KEY && (
         <>
           <hr className="border-[#3D4046]" />
-          <AcpCredentialsSection providerKey={selectedPreset} />
+          <AcpCredentialsSection
+            form={acpCredentialForm}
+            providerKey={selectedPreset}
+          />
         </>
       )}
 
@@ -488,10 +525,10 @@ function AgentSettingsScreen() {
           testId="agent-save-button"
           type="button"
           variant="primary"
-          isDisabled={isSaving || !effectiveIsDirty || isAcpInvalid}
+          isDisabled={isSavingAny || !isAnyDirty || isAcpInvalid}
           onClick={handleSave}
         >
-          {isSaving
+          {isSavingAny
             ? t(I18nKey.SETTINGS$SAVING)
             : t(I18nKey.SETTINGS$SAVE_CHANGES)}
         </BrandButton>
