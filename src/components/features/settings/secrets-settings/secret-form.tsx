@@ -29,10 +29,19 @@ export function SecretForm({
   const { t } = useTranslation("openhands");
 
   const { data: secrets } = useSearchSecrets();
-  const { mutate: createSecret } = useCreateSecret();
-  const { mutate: updateSecret } = useUpdateSecret();
+  const { mutate: createSecret, isPending: isCreating } = useCreateSecret();
+  const { mutate: updateSecret, isPending: isUpdating } = useUpdateSecret();
 
+  const [name, setName] = React.useState(
+    mode === "edit" && selectedSecret ? selectedSecret : "",
+  );
+  const [value, setValue] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
+
+  const isSubmitDisabled =
+    isCreating ||
+    isUpdating ||
+    (mode === "add" ? !name.trim() || !value.trim() : !name.trim());
 
   const secretDescription =
     (mode === "edit" &&
@@ -82,32 +91,28 @@ export function SecretForm({
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      return;
+    }
+
     const formData = new FormData(event.currentTarget);
-    const name = formData.get("secret-name")?.toString();
-    const value = formData.get("secret-value")?.toString().trim();
     const description = formData.get("secret-description")?.toString();
 
-    if (name) {
-      setError(null);
+    setError(null);
 
-      const isNameAlreadyUsed = secrets?.some(
-        (secret) => secret.name === name && secret.name !== selectedSecret,
-      );
-      if (isNameAlreadyUsed) {
-        setError(t("SECRETS$SECRET_ALREADY_EXISTS"));
-        return;
-      }
+    const isNameAlreadyUsed = secrets?.some(
+      (secret) => secret.name === trimmedName && secret.name !== selectedSecret,
+    );
+    if (isNameAlreadyUsed) {
+      setError(t("SECRETS$SECRET_ALREADY_EXISTS"));
+      return;
+    }
 
-      if (mode === "add") {
-        if (!value) {
-          setError(t("SECRETS$SECRET_VALUE_REQUIRED"));
-          return;
-        }
-
-        handleCreateSecret(name, value, description || undefined);
-      } else if (mode === "edit" && selectedSecret) {
-        handleEditSecret(selectedSecret, name, description || undefined);
-      }
+    if (mode === "add") {
+      handleCreateSecret(trimmedName, value.trim(), description || undefined);
+    } else if (mode === "edit" && selectedSecret) {
+      handleEditSecret(selectedSecret, trimmedName, description || undefined);
     }
   };
 
@@ -126,7 +131,8 @@ export function SecretForm({
         label="Name"
         className="w-full min-w-0"
         required
-        defaultValue={mode === "edit" && selectedSecret ? selectedSecret : ""}
+        value={name}
+        onChange={setName}
         placeholder={t("SECRETS$API_KEY_EXAMPLE")}
         pattern="^[a-zA-Z][a-zA-Z0-9_]{0,63}$"
         title="Must start with a letter, contain only letters/numbers/underscores, and be 1-64 characters"
@@ -140,6 +146,8 @@ export function SecretForm({
             data-testid="value-input"
             name="secret-value"
             required
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
             className={cn(
               "resize-none",
               formControlMultilineFieldClassName,
@@ -176,7 +184,12 @@ export function SecretForm({
         >
           {t(I18nKey.BUTTON$CANCEL)}
         </BrandButton>
-        <BrandButton testId="submit-button" type="submit" variant="primary">
+        <BrandButton
+          testId="submit-button"
+          type="submit"
+          variant="primary"
+          isDisabled={isSubmitDisabled}
+        >
           {mode === "add" && t("SECRETS$ADD_SECRET")}
           {mode === "edit" && t("SECRETS$EDIT_SECRET")}
         </BrandButton>

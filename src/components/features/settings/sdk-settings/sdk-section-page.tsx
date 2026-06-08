@@ -11,7 +11,12 @@ import {
 import { useSettings } from "#/hooks/query/use-settings";
 import { I18nKey } from "#/i18n/declaration";
 import { Typography } from "#/ui/typography";
-import { Settings, SettingsSchema, SettingsScope } from "#/types/settings";
+import {
+  Settings,
+  SettingsFieldSchema,
+  SettingsSchema,
+  SettingsScope,
+} from "#/types/settings";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -26,6 +31,7 @@ import {
   hasMinorSettings,
   inferInitialView,
   isValidSettingsSchema,
+  normalizeComparableValue,
   SettingsDirtyState,
   SettingsFormValues,
   type SettingsValueSource,
@@ -349,10 +355,54 @@ export function SdkSectionPage({
     );
   }, [filteredSchema, values, view, excludeKeys]);
 
+  const initialValuesRef = React.useRef<SettingsFormValues | null>(null);
+  initialValuesRef.current = initialValues;
+
+  const initialValueOverridesRef = React.useRef<SettingsFormValues | undefined>(
+    undefined,
+  );
+  initialValueOverridesRef.current = initialValueOverrides;
+
+  const fieldsByKey = React.useMemo(() => {
+    if (!filteredSchema) return new Map<string, SettingsFieldSchema>();
+    return new Map(
+      filteredSchema.sections
+        .flatMap((section) => section.fields)
+        .map((field) => [field.key, field]),
+    );
+  }, [filteredSchema]);
+
+  const fieldsByKeyRef = React.useRef(fieldsByKey);
+  fieldsByKeyRef.current = fieldsByKey;
+
   const handleFieldChange = React.useCallback(
     (fieldKey: string, nextValue: string | boolean) => {
       setValues((prev) => ({ ...prev, [fieldKey]: nextValue }));
-      setDirty((prev) => ({ ...prev, [fieldKey]: true }));
+      setDirty((prev) => {
+        const initialVal = initialValuesRef.current?.[fieldKey];
+        const isOverride =
+          initialValueOverridesRef.current &&
+          fieldKey in initialValueOverridesRef.current;
+        const field = fieldsByKeyRef.current.get(fieldKey);
+        const valuesMatch = field
+          ? normalizeComparableValue(field, nextValue) ===
+            normalizeComparableValue(field, initialVal)
+          : nextValue === initialVal;
+
+        if (valuesMatch && !isOverride) {
+          if (prev[fieldKey]) {
+            const nextDirty = { ...prev };
+            delete nextDirty[fieldKey];
+            return nextDirty;
+          }
+          return prev;
+        }
+
+        if (!prev[fieldKey]) {
+          return { ...prev, [fieldKey]: true };
+        }
+        return prev;
+      });
     },
     [],
   );
