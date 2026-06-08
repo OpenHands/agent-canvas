@@ -216,7 +216,9 @@ function AgentSettingsScreen() {
   const settingsDirty = isDirty || isOpenHandsDirty;
   // The single Save covers both the agent spec and ACP credentials, so it is
   // active when either changed, and shows "Saving…" while either is in flight.
-  const credentialsDirty = isAcp && acpCredentialForm.isDirty;
+  // ``isDirty`` is already false off the ACP path (no credential fields), so no
+  // ``isAcp`` guard is needed.
+  const credentialsDirty = acpCredentialForm.isDirty;
   const isAnyDirty = settingsDirty || credentialsDirty;
   const isSavingAny = isSaving || acpCredentialForm.isSaving;
 
@@ -226,7 +228,7 @@ function AgentSettingsScreen() {
     // the settings save below owns the single "Saved" toast (otherwise the user
     // sees it twice); a credentials-only save shows its own toast. Errors always
     // toast and abort.
-    if (isAcp && acpCredentialForm.isDirty) {
+    if (acpCredentialForm.isDirty) {
       const ok = await acpCredentialForm.save({ silent: settingsDirty });
       if (!ok) return;
       acpCredentialForm.reset();
