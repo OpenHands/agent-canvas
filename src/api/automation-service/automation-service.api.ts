@@ -164,23 +164,38 @@ class AutomationService {
 
   static async listAutomationRuns(
     id: string,
-    params: { limit?: number; offset?: number } = {},
+    params: {
+      limit?: number;
+      offset?: number;
+      stateType?: string;
+      stateName?: string;
+    } = {},
   ): Promise<AutomationRunsResponse> {
-    const { limit = 50, offset = 0 } = params;
+    const { limit = 50, offset = 0, stateType, stateName } = params;
     const active = getActiveBackend().backend;
     const basePath = `${AUTOMATION_BASE_PATH}/v1/${encodeURIComponent(id)}/runs`;
 
     if (active.kind === "cloud") {
+      const query = new URLSearchParams(buildPaginationQuery(limit, offset));
+      if (stateType) query.set("state_type", stateType);
+      if (stateName) query.set("state_name", stateName);
       return callAutomationCloudProxy<AutomationRunsResponse>({
         backend: active,
         method: "GET",
-        path: `${basePath}?${buildPaginationQuery(limit, offset)}`,
+        path: `${basePath}?${query.toString()}`,
       });
     }
 
     const { data } = await localAutomationAxios.get<AutomationRunsResponse>(
       basePath,
-      { params: { limit, offset } },
+      {
+        params: {
+          limit,
+          offset,
+          ...(stateType ? { state_type: stateType } : null),
+          ...(stateName ? { state_name: stateName } : null),
+        },
+      },
     );
     return data;
   }

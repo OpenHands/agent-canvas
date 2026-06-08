@@ -34,21 +34,36 @@ interface UseAutomationRunsOptions {
   id: string;
   limit?: number;
   offset?: number;
+  stateType?: string;
+  stateName?: string;
   enabled?: boolean;
 }
 
 export function useAutomationRuns(options: UseAutomationRunsOptions) {
-  const { id, limit = 20, offset = 0, enabled = true } = options;
+  const {
+    id,
+    limit = 20,
+    offset = 0,
+    stateType,
+    stateName,
+    enabled = true,
+  } = options;
   const active = useActiveBackend();
   return useQuery({
     queryKey: [
       ...AUTOMATION_RUNS_QUERY_KEY,
       id,
-      { limit, offset },
+      { limit, offset, stateType, stateName },
       active.backend.id,
       active.orgId,
     ],
-    queryFn: () => AutomationService.getAutomationRuns(id, limit, offset),
+    queryFn: () =>
+      AutomationService.listAutomationRuns(id, {
+        limit,
+        offset,
+        stateType,
+        stateName,
+      }),
     staleTime: 60 * 1000,
     enabled: !!id && enabled,
     // Poll while any run is non-terminal so status and conversation_id

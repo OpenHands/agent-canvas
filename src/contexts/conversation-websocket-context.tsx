@@ -107,6 +107,7 @@ export function ConversationWebSocketProvider({
   children,
   conversationId,
   conversationUrl,
+  backendKind,
   sessionApiKey,
   subConversations,
   subConversationIds,
@@ -114,6 +115,7 @@ export function ConversationWebSocketProvider({
   children: React.ReactNode;
   conversationId?: string;
   conversationUrl?: string | null;
+  backendKind?: "local" | "cloud";
   sessionApiKey?: string | null;
   subConversations?: AppConversation[];
   subConversationIds?: string[];
@@ -131,6 +133,9 @@ export function ConversationWebSocketProvider({
 
   const posthog = usePostHog();
   const queryClient = useQueryClient();
+  const [suppressMainWebSocket, setSuppressMainWebSocket] =
+    useState<boolean>(false);
+  const suppressedForUrlRef = useRef<string | null>(null);
   const addEvent = useEventStore((state) => state.addEvent);
   const addEvents = useEventStore((state) => state.addEvents);
   const clearEventsForConversation = useEventStore(
@@ -287,6 +292,16 @@ export function ConversationWebSocketProvider({
     return latest.timestamp;
   }, [preloadedHistory, isPreloadingHistory]);
 
+  useEffect(() => {
+    if (!suppressMainWebSocket) return;
+    const suppressedForUrl = suppressedForUrlRef.current;
+    if (!suppressedForUrl || !conversationUrl) return;
+    if (conversationUrl !== suppressedForUrl) {
+      suppressedForUrlRef.current = null;
+      setSuppressMainWebSocket(false);
+    }
+  }, [conversationUrl, suppressMainWebSocket]);
+
   // Build WebSocket URL from props.
   //
   // We deliberately wait for the initial REST history fetch to settle before
@@ -296,6 +311,9 @@ export function ConversationWebSocketProvider({
   // to `resend_mode='all'`) or miss events that arrived between REST and WS.
   const wsUrl = useMemo(() => {
     if (!conversationId || !conversationUrl) {
+      return null;
+    }
+    if (suppressMainWebSocket) {
       return null;
     }
     // Don't connect while we're still fetching the initial history. If the
@@ -308,6 +326,7 @@ export function ConversationWebSocketProvider({
   }, [
     conversationId,
     conversationUrl,
+    suppressMainWebSocket,
     isPreloadingHistory,
     isPreloadHistoryError,
   ]);
@@ -821,6 +840,29 @@ export function ConversationWebSocketProvider({
         // Only show error message if we've previously connected successfully
         if (hasConnectedRefMain.current) {
           setErrorMessage(SERVER_CONNECTION_ERROR_MESSAGE, "connection");
+          return;
+        }
+
+        if (
+          backendKind === "cloud" &&
+          conversationId &&
+          conversationUrl &&
+          !suppressMainWebSocket
+        ) {
+          suppressedForUrlRef.current = conversationUrl;
+          setSuppressMainWebSocket(true);
+          queryClient.invalidateQueries({
+            predicate: (query) => {
+              const key = query.queryKey;
+              return (
+                Array.isArray(key) &&
+                key.length >= 3 &&
+                key[0] === "user" &&
+                key[1] === "conversation" &&
+                key[2] === conversationId
+              );
+            },
+          });
         }
       },
       onMessage: handleMainMessage,
@@ -831,6 +873,11 @@ export function ConversationWebSocketProvider({
     clearConnectionError,
     sessionApiKey,
     initialAfterTimestamp,
+    backendKind,
+    conversationId,
+    conversationUrl,
+    suppressMainWebSocket,
+    queryClient,
   ]);
 
   // Separate WebSocket options for planning agent connection
