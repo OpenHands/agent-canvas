@@ -25,8 +25,10 @@ export interface AcpCredentialForm {
   consumesFileCredentials: boolean;
   /** At least one field has a non-blank typed value. */
   isDirty: boolean;
-  /** Persist the filled fields; resolves ``true`` when everything saved. */
-  save: () => Promise<boolean>;
+  /** Persist the filled fields; resolves ``true`` when everything saved.
+   * ``silent`` suppresses the success toast so a caller saving credentials
+   * alongside other state can emit a single combined confirmation. */
+  save: (options?: { silent?: boolean }) => Promise<boolean>;
   reset: () => void;
   isSaving: boolean;
 }
@@ -92,7 +94,7 @@ export function useAcpCredentialForm(
     conflicts: getAcpCredentialConflicts(providerKey, hasValueFor),
     consumesFileCredentials,
     isDirty: fields.some((field) => Boolean(values[field.name]?.trim())),
-    save: () => saveFilled(values),
+    save: (options) => saveFilled(values, options),
     reset,
     isSaving,
   };
