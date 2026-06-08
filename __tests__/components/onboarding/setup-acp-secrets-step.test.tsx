@@ -4,9 +4,16 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
+import {
+  __resetActiveStoreForTests,
+  setActiveSelection,
+  setRegisteredBackends,
+} from "#/api/backend-registry/active-store";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
-import { SetupAcpSecretsStep } from "#/components/features/onboarding/steps/setup-acp-secrets-step";
+import {
+  SetupAcpSecretsStep,
+  backendRequiresAcpCredentials,
+} from "#/components/features/onboarding/steps/setup-acp-secrets-step";
 import { type OnboardingAgentId } from "#/components/features/onboarding/steps/choose-agent-step";
 import { SecretsService } from "#/api/secrets-service";
 
@@ -74,6 +81,10 @@ beforeEach(() => {
   vi.spyOn(SecretsService, "createSecret").mockResolvedValue();
 });
 afterEach(() => {
+  // setRegisteredBackends persists to localStorage, which
+  // __resetActiveStoreForTests re-reads — clear it so a test's backend
+  // registration (e.g. the cloud case) can't leak into the next test.
+  localStorage.clear();
   __resetActiveStoreForTests();
 });
 
@@ -264,5 +275,222 @@ describe("SetupAcpSecretsStep", () => {
     expect(
       screen.queryByTestId("onboarding-acp-auth-checking"),
     ).not.toBeInTheDocument();
+  });
+
+  it("renders the Codex subscription blob as a multiline textarea", () => {
+    renderStep("codex");
+
+    const blob = screen.getByTestId("onboarding-acp-secret-CODEX_AUTH_JSON");
+    expect(blob.tagName).toBe("TEXTAREA");
+  });
+
+  it("requires credentials (blocks Next) on a logged-out local backend, then unblocks once one is entered", async () => {
+    // local + "unauthenticated" = a fresh container with no host login → the
+    // step is required until the user provides a credential.
+    acpAuthStatusMock.mockReturnValue({
+      status: "unauthenticated",
+      isChecking: false,
+      isSupported: true,
+    });
+    const { onNext, user } = renderStep("claude-code");
+
+    expect(
+      screen.getByTestId("onboarding-acp-secrets-blocked"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-acp-secrets-next")).toBeDisabled();
+
+    await user.type(
+      screen.getByTestId("onboarding-acp-secret-CLAUDE_CODE_OAUTH_TOKEN"),
+      "oauth-token",
+    );
+
+    expect(
+      screen.queryByTestId("onboarding-acp-secrets-blocked"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("onboarding-acp-secrets-next"),
+    ).not.toBeDisabled();
+
+    await user.click(screen.getByTestId("onboarding-acp-secrets-next"));
+    await waitFor(() => expect(onNext).toHaveBeenCalledTimes(1));
+  });
+
+  it("does not block Next when the login probe is unknown (permissive for native dev)", () => {
+    acpAuthStatusMock.mockReturnValue({
+      status: "unknown",
+      isChecking: false,
+      isSupported: false,
+    });
+    renderStep("claude-code");
+
+    expect(
+      screen.queryByTestId("onboarding-acp-secrets-blocked"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("onboarding-acp-secrets-next"),
+    ).not.toBeDisabled();
+  });
+
+  it("stays blocked when only a non-credential field is filled", async () => {
+    // GOOGLE_CLOUD_LOCATION (or a base URL) alone can't authenticate anything —
+    // only a masked ``secret`` field (blob / token / API key) satisfies a
+    // required credential step.
+    acpAuthStatusMock.mockReturnValue({
+      status: "unauthenticated",
+      isChecking: false,
+      isSupported: true,
+    });
+    const { user } = renderStep("gemini-cli");
+
+    await user.type(
+      screen.getByTestId("onboarding-acp-secret-GOOGLE_CLOUD_LOCATION"),
+      "us-central1",
+    );
+
+    expect(
+      screen.getByTestId("onboarding-acp-secrets-blocked"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-acp-secrets-next")).toBeDisabled();
+
+    await user.type(
+      screen.getByTestId("onboarding-acp-secret-GEMINI_API_KEY"),
+      "AIza-key",
+    );
+
+    expect(
+      screen.queryByTestId("onboarding-acp-secrets-blocked"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("counts a Codex file blob toward the gate on cloud (cloud materialises file secrets)", async () => {
+    // Cloud materialises file-content credentials (Codex auth.json, Gemini
+    // Vertex SA) from the encrypted secret store via agent_context.secrets at
+    // conversation start, so a pasted blob satisfies a required step exactly
+    // like an env-var credential does.
+    setRegisteredBackends([
+      {
+        id: "cloud-1",
+        name: "Cloud",
+        host: "https://app.example.dev",
+        apiKey: "key",
+        kind: "cloud",
+      },
+    ]);
+    setActiveSelection({ backendId: "cloud-1", orgId: null });
+    const { user } = renderStep("codex");
+
+    // Required on cloud, so initially blocked until a credential is supplied.
+    expect(screen.getByTestId("onboarding-acp-secrets-next")).toBeDisabled();
+
+    await user.click(
+      screen.getByTestId("onboarding-acp-secret-CODEX_AUTH_JSON"),
+    );
+    await user.paste('{"tokens":{}}');
+
+    expect(
+      screen.queryByTestId("onboarding-acp-secrets-blocked"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("onboarding-acp-secrets-next"),
+    ).not.toBeDisabled();
+  });
+
+  it("holds Next while the login probe is still in flight, without the blocked note", async () => {
+    // A fast click must not slip past a gate the probe is about to raise; the
+    // "checking login status" banner already explains the wait. A credential
+    // typed meanwhile releases the hold.
+    acpAuthStatusMock.mockReturnValue({
+      status: "unknown",
+      isChecking: true,
+      isSupported: true,
+    });
+    const { user } = renderStep("claude-code");
+
+    expect(screen.getByTestId("onboarding-acp-secrets-next")).toBeDisabled();
+    // Not "blocked" — just pending classification.
+    expect(
+      screen.queryByTestId("onboarding-acp-secrets-blocked"),
+    ).not.toBeInTheDocument();
+
+    await user.type(
+      screen.getByTestId("onboarding-acp-secret-CLAUDE_CODE_OAUTH_TOKEN"),
+      "oauth-token",
+    );
+
+    expect(
+      screen.getByTestId("onboarding-acp-secrets-next"),
+    ).not.toBeDisabled();
+  });
+
+  it("warns when the Claude OAuth token and base URL are both set (bearer-auth conflict)", async () => {
+    const { user } = renderStep("claude-code");
+
+    expect(
+      screen.queryByTestId("acp-credential-conflict-warning"),
+    ).not.toBeInTheDocument();
+
+    await user.type(
+      screen.getByTestId("onboarding-acp-secret-CLAUDE_CODE_OAUTH_TOKEN"),
+      "oauth-token",
+    );
+    await user.type(
+      screen.getByTestId("onboarding-acp-secret-ANTHROPIC_BASE_URL"),
+      "https://proxy.example.com",
+    );
+
+    expect(
+      screen.getByTestId("acp-credential-conflict-warning"),
+    ).toBeInTheDocument();
+  });
+
+  it("counts an already-saved secret toward the conflict warning", async () => {
+    // A previously saved ANTHROPIC_BASE_URL conflicts just the same as a typed
+    // one — the warning must consider the secret store, not just the form.
+    vi.spyOn(SecretsService, "getSecrets").mockResolvedValue([
+      { name: "ANTHROPIC_BASE_URL" },
+    ]);
+    const { user } = renderStep("claude-code");
+    await waitFor(() =>
+      expect(
+        (
+          screen.getByTestId(
+            "onboarding-acp-secret-ANTHROPIC_BASE_URL",
+          ) as HTMLInputElement
+        ).placeholder.length,
+      ).toBeGreaterThan(0),
+    );
+
+    await user.type(
+      screen.getByTestId("onboarding-acp-secret-CLAUDE_CODE_OAUTH_TOKEN"),
+      "oauth-token",
+    );
+
+    expect(
+      screen.getByTestId("acp-credential-conflict-warning"),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("backendRequiresAcpCredentials", () => {
+  it("never requires credentials when a login is already detected", () => {
+    expect(backendRequiresAcpCredentials("local", "authenticated")).toBe(false);
+    expect(backendRequiresAcpCredentials("cloud", "authenticated")).toBe(false);
+  });
+
+  it("always requires credentials on a cloud backend (no host login)", () => {
+    expect(backendRequiresAcpCredentials("cloud", "unauthenticated")).toBe(
+      true,
+    );
+    expect(backendRequiresAcpCredentials("cloud", "unknown")).toBe(true);
+  });
+
+  it("requires credentials on a logged-out local backend (a fresh container)", () => {
+    expect(backendRequiresAcpCredentials("local", "unauthenticated")).toBe(
+      true,
+    );
+  });
+
+  it("stays permissive on a local backend the probe can't classify", () => {
+    expect(backendRequiresAcpCredentials("local", "unknown")).toBe(false);
   });
 });
