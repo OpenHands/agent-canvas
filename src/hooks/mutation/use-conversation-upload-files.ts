@@ -29,9 +29,25 @@ export const useConversationUploadFiles = () =>
       const { conversationUrl, sessionApiKey, workingDir, files } = variables;
 
       const uploadPromises = files.map(async (file) => {
+        // @spec WUP-001 — Resolve once so both the success and failure
+        // branches report the same absolute path.
+        let filePath: string;
+        try {
+          filePath = await buildWorkspaceUploadPath(file.name, workingDir, {
+            conversationUrl,
+            sessionApiKey,
+          });
+        } catch (error) {
+          return {
+            success: false as const,
+            fileName: file.name,
+            filePath: file.name,
+            error: error instanceof Error ? error.message : "Unknown error",
+          };
+        }
+
         try {
           const safeName = getSafeUploadFileName(file.name);
-          const filePath = buildWorkspaceUploadPath(file.name, workingDir);
           await new RemoteWorkspace(
             getAgentServerClientOptions({
               conversationUrl,
@@ -44,7 +60,7 @@ export const useConversationUploadFiles = () =>
           return {
             success: false as const,
             fileName: file.name,
-            filePath: buildWorkspaceUploadPath(file.name, workingDir),
+            filePath,
             error: error instanceof Error ? error.message : "Unknown error",
           };
         }

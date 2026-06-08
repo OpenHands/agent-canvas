@@ -27,7 +27,7 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.post).mockReset();
+  vi.mocked(axios.request).mockReset();
 });
 
 afterEach(() => {
@@ -35,9 +35,9 @@ afterEach(() => {
   __resetActiveStoreForTests();
 });
 
-describe("cloud settings via local proxy", () => {
+describe("cloud settings", () => {
   it("fetchCloudSettings preserves provider_tokens_set so the repo chain can fire", async () => {
-    vi.mocked(axios.post).mockResolvedValue({
+    vi.mocked(axios.request).mockResolvedValue({
       data: {
         llm_model: "anthropic/claude-3-5-sonnet",
         llm_base_url: "https://api.anthropic.com",
@@ -52,13 +52,11 @@ describe("cloud settings via local proxy", () => {
 
     const result = await fetchCloudSettings();
 
-    // Outer hop must be local proxy.
-    const [url, body] = vi.mocked(axios.post).mock.calls[0]!;
-    expect(url).toMatch(/\/api\/cloud-proxy$/);
-    expect(body).toMatchObject({
-      host: cloudBackend.host,
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(config).toMatchObject({
+      url: `${cloudBackend.host}/api/v1/settings`,
       method: "GET",
-      path: "/api/v1/settings",
+      headers: { Authorization: "Bearer bearer-token" },
     });
 
     // provider_tokens_set must round-trip — it's what drives
@@ -82,7 +80,7 @@ describe("cloud settings via local proxy", () => {
   });
 
   it("saveCloudSettings forwards diffs verbatim and omits the legacy keys the cloud rejects", async () => {
-    vi.mocked(axios.post).mockResolvedValue({ data: {} });
+    vi.mocked(axios.request).mockResolvedValue({ data: {} });
 
     const agentDiff = {
       llm: { model: "openai/gpt-4o", base_url: "https://api.openai.com" },
@@ -95,25 +93,24 @@ describe("cloud settings via local proxy", () => {
       conversation_settings_diff: conversationDiff,
     });
 
-    const [url, body] = vi.mocked(axios.post).mock.calls[0]!;
-    expect(url).toMatch(/\/api\/cloud-proxy$/);
-    expect(body).toMatchObject({
-      host: cloudBackend.host,
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(config).toMatchObject({
+      url: `${cloudBackend.host}/api/v1/settings`,
       method: "POST",
-      path: "/api/v1/settings",
+      headers: { Authorization: "Bearer bearer-token" },
     });
-    const proxiedBody = (body as { body: Record<string, unknown> }).body;
-    expect(proxiedBody).toEqual({
+    const requestBody = (config as { data: Record<string, unknown> }).data;
+    expect(requestBody).toEqual({
       agent_settings_diff: agentDiff,
       conversation_settings_diff: conversationDiff,
     });
-    expect(proxiedBody).not.toHaveProperty("agent_settings");
-    expect(proxiedBody).not.toHaveProperty("conversation_settings");
+    expect(requestBody).not.toHaveProperty("agent_settings");
+    expect(requestBody).not.toHaveProperty("conversation_settings");
   });
 
-  it("SettingsService.saveSettings forwards disabled_skills to the cloud proxy when active backend is cloud", async () => {
-    // Arrange: cloud backend already active via beforeEach; mock proxy response.
-    vi.mocked(axios.post).mockResolvedValue({ data: {} });
+  it("SettingsService.saveSettings forwards disabled_skills to cloud when active backend is cloud", async () => {
+    // Arrange: cloud backend already active via beforeEach; mock cloud response.
+    vi.mocked(axios.request).mockResolvedValue({ data: {} });
 
     // Act: save a skills-only update — previously this short-circuited and
     // sent nothing at all, leaving the toggle un-persisted.
@@ -121,21 +118,22 @@ describe("cloud settings via local proxy", () => {
       disabled_skills: ["SSH Microagent"],
     });
 
-    // Assert: a single proxied POST /api/v1/settings reached the wire with
-    // disabled_skills as a top-level field on the upstream body.
-    expect(vi.mocked(axios.post)).toHaveBeenCalledTimes(1);
-    const [, envelope] = vi.mocked(axios.post).mock.calls[0]!;
-    expect(envelope).toMatchObject({
+    // Assert: a single POST /api/v1/settings reached the wire with
+    // disabled_skills as a top-level field.
+    expect(vi.mocked(axios.request)).toHaveBeenCalledTimes(1);
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(config).toMatchObject({
+      url: `${cloudBackend.host}/api/v1/settings`,
       method: "POST",
-      path: "/api/v1/settings",
+      headers: { Authorization: "Bearer bearer-token" },
     });
-    expect((envelope as { body: Record<string, unknown> }).body).toEqual({
+    expect((config as { data: Record<string, unknown> }).data).toEqual({
       disabled_skills: ["SSH Microagent"],
     });
   });
 
   it("saveCloudSettings omits an empty conversation_settings_diff (LLM-only save)", async () => {
-    vi.mocked(axios.post).mockResolvedValue({ data: {} });
+    vi.mocked(axios.request).mockResolvedValue({ data: {} });
 
     await saveCloudSettings({
       agent_settings_diff: {
@@ -144,9 +142,9 @@ describe("cloud settings via local proxy", () => {
       conversation_settings_diff: {},
     });
 
-    const [, body] = vi.mocked(axios.post).mock.calls[0]!;
-    const proxiedBody = (body as { body: Record<string, unknown> }).body;
-    expect(proxiedBody).toEqual({
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    const requestBody = (config as { data: Record<string, unknown> }).data;
+    expect(requestBody).toEqual({
       agent_settings_diff: {
         llm: { model: "anthropic/claude-sonnet-4-20250514" },
       },
@@ -157,7 +155,7 @@ describe("cloud settings via local proxy", () => {
 describe("saveCloudSettings drops agent_context: null (agent-canvas#981)", () => {
   it("strips a null agent_context while preserving sibling agent settings", async () => {
     // Arrange: the cloud rejects agent_context: null against OpenHandsAgentSettings.
-    vi.mocked(axios.post).mockResolvedValue({ data: {} });
+    vi.mocked(axios.request).mockResolvedValue({ data: {} });
 
     // Act
     await saveCloudSettings({
@@ -168,9 +166,9 @@ describe("saveCloudSettings drops agent_context: null (agent-canvas#981)", () =>
     });
 
     // Assert: agent_context never reaches the wire, but the real llm change does.
-    const [, body] = vi.mocked(axios.post).mock.calls[0]!;
-    const proxiedBody = (body as { body: Record<string, unknown> }).body;
-    expect(proxiedBody).toEqual({
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    const requestBody = (config as { data: Record<string, unknown> }).data;
+    expect(requestBody).toEqual({
       agent_settings_diff: {
         llm: { model: "anthropic/claude-sonnet-4-20250514" },
       },
@@ -179,7 +177,7 @@ describe("saveCloudSettings drops agent_context: null (agent-canvas#981)", () =>
 
   it("preserves a null mcp_config so clearing MCP config still round-trips", async () => {
     // Arrange: mcp_config: null is an intentional "clear" signal, not an error.
-    vi.mocked(axios.post).mockResolvedValue({ data: {} });
+    vi.mocked(axios.request).mockResolvedValue({ data: {} });
 
     // Act
     await saveCloudSettings({
@@ -187,14 +185,14 @@ describe("saveCloudSettings drops agent_context: null (agent-canvas#981)", () =>
     });
 
     // Assert: the null mcp_config must survive (don't over-strip nulls).
-    const [, body] = vi.mocked(axios.post).mock.calls[0]!;
-    const proxiedBody = (body as { body: Record<string, unknown> }).body;
-    expect(proxiedBody).toEqual({ agent_settings_diff: { mcp_config: null } });
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    const requestBody = (config as { data: Record<string, unknown> }).data;
+    expect(requestBody).toEqual({ agent_settings_diff: { mcp_config: null } });
   });
 
   it("omits agent_settings_diff when agent_context: null is its only key", async () => {
     // Arrange
-    vi.mocked(axios.post).mockResolvedValue({ data: {} });
+    vi.mocked(axios.request).mockResolvedValue({ data: {} });
 
     // Act
     await saveCloudSettings({
@@ -202,8 +200,8 @@ describe("saveCloudSettings drops agent_context: null (agent-canvas#981)", () =>
     });
 
     // Assert: nothing is left to send, so no agent_settings_diff goes on the wire.
-    const [, body] = vi.mocked(axios.post).mock.calls[0]!;
-    const proxiedBody = (body as { body: Record<string, unknown> }).body;
-    expect(proxiedBody).toEqual({});
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    const requestBody = (config as { data: Record<string, unknown> }).data;
+    expect(requestBody).toEqual({});
   });
 });

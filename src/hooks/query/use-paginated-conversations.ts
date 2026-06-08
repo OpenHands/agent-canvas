@@ -1,12 +1,14 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { useIsAuthed } from "./use-is-authed";
+import { isNoBackend } from "#/api/backend-registry/active-store";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { AppConversationPage } from "#/api/conversation-service/agent-server-conversation-service.types";
 
 export const usePaginatedConversations = (limit: number = 20) => {
   const { data: userIsAuthenticated } = useIsAuthed();
   const active = useActiveBackend();
+  const hasBackend = !isNoBackend(active.backend);
 
   return useInfiniteQuery({
     // Include the active backend identity so each (backend, org) pair
@@ -29,7 +31,7 @@ export const usePaginatedConversations = (limit: number = 20) => {
 
       return result;
     },
-    enabled: !!userIsAuthenticated,
+    enabled: !!userIsAuthenticated && hasBackend,
     getNextPageParam: (lastPage: AppConversationPage) => lastPage.next_page_id,
     initialPageParam: undefined as string | undefined,
     // Poll every 10s so titles, execution status, and timestamps stay fresh

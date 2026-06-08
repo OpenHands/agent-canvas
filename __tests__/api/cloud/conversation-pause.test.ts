@@ -49,7 +49,7 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.post).mockReset();
+  vi.mocked(axios.request).mockReset();
 });
 
 afterEach(() => {
@@ -59,32 +59,31 @@ afterEach(() => {
 });
 
 describe("pauseConversation cloud branch", () => {
-  it("routes through /api/cloud-proxy to POST the cloud sandbox pause endpoint", async () => {
+  it("POSTs directly to the cloud sandbox pause endpoint", async () => {
     vi.spyOn(
       AgentServerConversationService,
       "batchGetAppConversations",
     ).mockResolvedValue([buildConversation({ sandbox_id: "sandbox-xyz" })]);
-    vi.mocked(axios.post).mockResolvedValue({ data: { success: true } });
+    vi.mocked(axios.request).mockResolvedValue({ data: { success: true } });
 
     await pauseConversation("conv-abc");
 
-    expect(axios.post).toHaveBeenCalledOnce();
-    const [url, body] = vi.mocked(axios.post).mock.calls[0]!;
-    expect(url).toMatch(/\/api\/cloud-proxy$/);
-    expect(body).toMatchObject({
-      host: cloudBackend.host,
+    expect(axios.request).toHaveBeenCalledOnce();
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(config).toMatchObject({
+      url: `${cloudBackend.host}/api/v1/sandboxes/sandbox-xyz/pause`,
       method: "POST",
-      path: "/api/v1/sandboxes/sandbox-xyz/pause",
+      headers: { Authorization: "Bearer bearer-token" },
     });
   });
 
-  it("throws and does not call cloud-proxy when the cloud conversation has no sandbox_id", async () => {
+  it("throws and does not call the cloud API when the cloud conversation has no sandbox_id", async () => {
     vi.spyOn(
       AgentServerConversationService,
       "batchGetAppConversations",
     ).mockResolvedValue([buildConversation({ sandbox_id: null })]);
 
     await expect(pauseConversation("conv-abc")).rejects.toThrow(/sandbox_id/);
-    expect(axios.post).not.toHaveBeenCalled();
+    expect(axios.request).not.toHaveBeenCalled();
   });
 });
