@@ -92,8 +92,14 @@ RUN if command -v apt-get >/dev/null 2>&1; then \
 # Shared deps (openhands-sdk, fastapi, uvicorn, pydantic, httpx, …) are
 # already satisfied by the agent-server base image, so only automation-
 # specific packages (asyncpg, sqlalchemy, boto3, gcloud, …) are added.
-RUN uv pip install --system "openhands-automation==${AUTOMATION_VERSION}" 2>/dev/null \
-    || pip install --no-cache-dir "openhands-automation==${AUTOMATION_VERSION}"
+# `tzdata` is installed explicitly because openhands-automation 1.0.0a6 does
+# not declare it, yet the scheduler requires timezone data even for UTC.
+RUN uv pip install --system \
+      "openhands-automation==${AUTOMATION_VERSION}" \
+      "tzdata" 2>/dev/null \
+    || pip install --no-cache-dir \
+      "openhands-automation==${AUTOMATION_VERSION}" \
+      "tzdata"
 
 # Copy the frontend build output.
 # react-router.config.ts unpacks build/client/ into build/ for non-Vercel builds.

@@ -81,6 +81,7 @@ const SHARED_DEFAULTS = JSON.parse(
 const DEFAULT_AUTOMATION_REPO = "https://github.com/OpenHands/automation";
 const DEFAULT_AUTOMATION_PACKAGE = SHARED_DEFAULTS.packages.automation;
 const DEFAULT_AUTOMATION_VERSION = SHARED_DEFAULTS.versions.automation;
+const AUTOMATION_EXTRA_PACKAGES = ["tzdata"];
 // SDK version used by DEFAULT_AUTOMATION_VERSION. This can intentionally lag
 // the agent-server version while automation releases catch up.
 const DEFAULT_AUTOMATION_SDK_VERSION = SHARED_DEFAULTS.versions.automationSdk;
@@ -288,33 +289,26 @@ function buildAutomationCommand(env = process.env) {
   if (gitRef) {
     // Use git ref - refresh to ensure latest commit is fetched
     const gitUrl = `git+${repoUrl}@${gitRef}`;
-    uvxArgs.push(
-      "--refresh",
-      "--from",
-      gitUrl,
-      "uvicorn",
-      "openhands.automation.app:app",
-    );
+    uvxArgs.push("--refresh", "--from", gitUrl);
     source = `git (${gitRef})`;
   } else if (version) {
     // Use specific PyPI version
-    uvxArgs.push(
-      "--from",
-      `${DEFAULT_AUTOMATION_PACKAGE}==${version}`,
-      "uvicorn",
-      "openhands.automation.app:app",
-    );
+    uvxArgs.push("--from", `${DEFAULT_AUTOMATION_PACKAGE}==${version}`);
     source = `PyPI (${version})`;
   } else {
     // Default to released PyPI version
     uvxArgs.push(
       "--from",
       `${DEFAULT_AUTOMATION_PACKAGE}==${DEFAULT_AUTOMATION_VERSION}`,
-      "uvicorn",
-      "openhands.automation.app:app",
     );
     source = `PyPI (${DEFAULT_AUTOMATION_VERSION}, default)`;
   }
+
+  for (const pkg of AUTOMATION_EXTRA_PACKAGES) {
+    uvxArgs.push("--with", pkg);
+  }
+
+  uvxArgs.push("uvicorn", "openhands.automation.app:app");
 
   return {
     command: "uvx",
@@ -569,7 +563,11 @@ function spawnService(name, command, args, options = {}) {
       .filter(Boolean)
       .forEach((line) => {
         const parsed = parseLogLine ? parseLogLine(line.trim()) : null;
-        logService(name, parsed ? parsed.text : line.trim(), parsed ? parsed.color : color);
+        logService(
+          name,
+          parsed ? parsed.text : line.trim(),
+          parsed ? parsed.color : color,
+        );
       });
   });
 
@@ -580,7 +578,11 @@ function spawnService(name, command, args, options = {}) {
       .filter(Boolean)
       .forEach((line) => {
         const parsed = parseLogLine ? parseLogLine(line.trim()) : null;
-        logService(name, parsed ? parsed.text : line.trim(), parsed ? parsed.color : c.yellow);
+        logService(
+          name,
+          parsed ? parsed.text : line.trim(),
+          parsed ? parsed.color : c.yellow,
+        );
       });
   });
 
@@ -1150,7 +1152,9 @@ function printBanner(config) {
       ? [`  Main UI:         http://localhost:${config.ingressPort}/`]
       : []),
     ...(config.launchAutomation
-      ? [`  API Docs:        http://localhost:${config.ingressPort}/api/automation/docs`]
+      ? [
+          `  API Docs:        http://localhost:${config.ingressPort}/api/automation/docs`,
+        ]
       : []),
     `  State directory: ${config.stateDir}`,
   ];

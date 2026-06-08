@@ -49,6 +49,13 @@ describe("buildAutomationCommand", () => {
     expect(cmd.source).toBe(`PyPI (${DEFAULT_AUTOMATION_VERSION}, default)`);
   });
 
+  it("adds tzdata to the automation runtime dependencies", () => {
+    const cmd = buildAutomationCommand({});
+
+    expect(cmd.args).toContain("--with");
+    expect(cmd.args).toContain("tzdata");
+  });
+
   it("uses custom git ref from OH_AUTOMATION_GIT_REF", () => {
     const cmd = buildAutomationCommand({
       OH_AUTOMATION_GIT_REF: "feat/my-feature",
