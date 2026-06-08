@@ -5,6 +5,7 @@ import {
   clickButtonByTestId,
   clickButtonByTestIdOrText,
   configureLiveAgentServer,
+  createLiveConversation,
   dismissAnalyticsModal,
   enableLiveE2EFlags,
   EXPECTED_BASH_COMMAND,
@@ -150,19 +151,17 @@ test.describe("live Agent Server terminal conversation", () => {
     test.setTimeout(240_000);
 
     await configureLiveAgentServer(request, { enableCritic: true });
+    const conversationId = await createLiveConversation(request, {
+      enableCritic: true,
+    });
+    createdConversationIds.add(conversationId);
     await routeBackendSessionApiKey(page);
     const postHogGuard = await guardAgainstPostHogRequests(page);
 
-    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await page.goto(`/conversations/${conversationId}`, {
+      waitUntil: "domcontentloaded",
+    });
     await dismissAnalyticsModal(page);
-    await clickButtonByTestIdOrText(
-      page,
-      "launch-new-conversation-button",
-      "New Conversation",
-    );
-    await openCreatedConversation(page);
-    const conversationId = getConversationIdFromURL(page);
-    createdConversationIds.add(conversationId);
     await waitForTestId(page, "app-route");
     await waitForTestId(page, "chat-interface");
     await waitForTestId(page, "interactive-chat-box");

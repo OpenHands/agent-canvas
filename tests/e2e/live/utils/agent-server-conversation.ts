@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   expect,
   type APIRequestContext,
@@ -101,6 +102,31 @@ export async function configureLiveAgentServer(
     throw new Error(missingLiveLLMConfigMessage);
   }
 
+  const settingsResponse = await request.patch(`${BACKEND_URL}/api/settings`, {
+    headers: {
+      "X-Session-API-Key": sessionApiKey,
+    },
+    data: {
+      agent_settings_diff: {
+        llm: buildLiveLlmSettings(),
+        condenser: {
+          enabled: false,
+        },
+        verification: buildLiveVerificationSettings(options),
+      },
+      conversation_settings_diff: {
+        confirmation_mode: false,
+        max_iterations: 6,
+      },
+    },
+  });
+  expect(
+    settingsResponse.ok(),
+    `PATCH /api/settings failed with ${settingsResponse.status()}; response body omitted because live LLM credentials are configured in this request.`,
+  ).toBeTruthy();
+}
+
+function buildLiveLlmSettings(): Record<string, string | number> {
   const llmSettings: Record<string, string | number> = {
     model: llmModel,
     api_key: llmApiKey,
@@ -111,7 +137,12 @@ export async function configureLiveAgentServer(
   if (llmBaseUrl) {
     llmSettings.base_url = llmBaseUrl;
   }
+  return llmSettings;
+}
 
+function buildLiveVerificationSettings(
+  options: ConfigureLiveAgentServerOptions = {},
+): Record<string, string | number | boolean> {
   const verificationSettings: Record<string, string | number | boolean> =
     options.enableCritic
       ? {
@@ -128,29 +159,57 @@ export async function configureLiveAgentServer(
   if (options.enableCritic && llmBaseUrl) {
     verificationSettings.critic_server_url = llmBaseUrl;
   }
+  return verificationSettings;
+}
 
-  const settingsResponse = await request.patch(`${BACKEND_URL}/api/settings`, {
+export async function createLiveConversation(
+  request: APIRequestContext,
+  options: ConfigureLiveAgentServerOptions = {},
+) {
+  if (!llmApiKey.trim()) {
+    throw new Error(missingLiveLLMConfigMessage);
+  }
+
+  const conversationId = randomUUID();
+  const response = await request.post(`${BACKEND_URL}/api/conversations`, {
     headers: {
       "X-Session-API-Key": sessionApiKey,
     },
     data: {
-      agent_settings_diff: {
-        llm: llmSettings,
+      conversation_id: conversationId,
+      workspace: {
+        kind: "LocalWorkspace",
+        working_dir: `workspace/project/${conversationId}`,
+      },
+      worktree: true,
+      max_iterations: 6,
+      stuck_detection: true,
+      autotitle: true,
+      confirmation_policy: {
+        kind: "NeverConfirm",
+      },
+      agent_settings: {
+        agent_kind: "openhands",
+        llm: buildLiveLlmSettings(),
         condenser: {
           enabled: false,
         },
-        verification: verificationSettings,
-      },
-      conversation_settings_diff: {
-        confirmation_mode: false,
-        max_iterations: 6,
+        verification: buildLiveVerificationSettings(options),
       },
     },
   });
+
   expect(
-    settingsResponse.ok(),
-    `PATCH /api/settings failed with ${settingsResponse.status()}; response body omitted because live LLM credentials are configured in this request.`,
+    response.ok(),
+    `POST /api/conversations failed with ${response.status()}; response body omitted because live LLM credentials are configured in this request.`,
   ).toBeTruthy();
+
+  const body = (await response.json()) as { id?: unknown };
+  expect(
+    typeof body.id === "string" && body.id.length > 0,
+    "POST /api/conversations did not return a conversation id.",
+  ).toBe(true);
+  return body.id as string;
 }
 
 export async function enableLiveE2EFlags(page: Page) {
