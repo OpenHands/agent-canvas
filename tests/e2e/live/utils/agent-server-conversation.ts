@@ -54,6 +54,10 @@ export const hasLiveLLMConfig = Boolean(llmApiKey);
 export const missingLiveLLMConfigMessage =
   "Set LIVE_E2E_LLM_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, or LLM_API_KEY to run live E2E.";
 
+interface ConfigureLiveAgentServerOptions {
+  enableCritic?: boolean;
+}
+
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -89,7 +93,10 @@ export function getLiveArtifactMask(page: Page): Locator[] {
   ];
 }
 
-export async function configureLiveAgentServer(request: APIRequestContext) {
+export async function configureLiveAgentServer(
+  request: APIRequestContext,
+  options: ConfigureLiveAgentServerOptions = {},
+) {
   if (!llmApiKey.trim()) {
     throw new Error(missingLiveLLMConfigMessage);
   }
@@ -105,6 +112,23 @@ export async function configureLiveAgentServer(request: APIRequestContext) {
     llmSettings.base_url = llmBaseUrl;
   }
 
+  const verificationSettings: Record<string, string | number | boolean> =
+    options.enableCritic
+      ? {
+          critic_enabled: true,
+          critic_mode: "finish_and_message",
+          enable_iterative_refinement: false,
+          critic_api_key: llmApiKey,
+          critic_model_name: llmModel,
+        }
+      : {
+          critic_enabled: false,
+          enable_iterative_refinement: false,
+        };
+  if (options.enableCritic && llmBaseUrl) {
+    verificationSettings.critic_server_url = llmBaseUrl;
+  }
+
   const settingsResponse = await request.patch(`${BACKEND_URL}/api/settings`, {
     headers: {
       "X-Session-API-Key": sessionApiKey,
@@ -115,6 +139,7 @@ export async function configureLiveAgentServer(request: APIRequestContext) {
         condenser: {
           enabled: false,
         },
+        verification: verificationSettings,
       },
       conversation_settings_diff: {
         confirmation_mode: false,
@@ -458,6 +483,20 @@ function isSuccessfulBashObservation(event: unknown) {
   );
 }
 
+function hasCriticResult(event: unknown) {
+  if (!event || typeof event !== "object") {
+    return false;
+  }
+
+  const criticResult = (event as { critic_result?: unknown }).critic_result;
+  if (!criticResult || typeof criticResult !== "object") {
+    return false;
+  }
+
+  const score = (criticResult as { score?: unknown }).score;
+  return typeof score === "number" && Number.isFinite(score);
+}
+
 export async function waitForSuccessfulBashObservation(
   request: APIRequestContext,
   conversationId: string,
@@ -485,6 +524,54 @@ export async function waitForSuccessfulBashObservation(
         const body = (await response.json()) as { items?: unknown[] };
         return body.items?.some(isSuccessfulBashObservation) ?? false;
       },
+      { timeout: 120_000 },
+    )
+    .toBe(true);
+}
+
+export async function waitForCriticResultEvent(
+  request: APIRequestContext,
+  conversationId: string,
+) {
+  await expect
+    .poll(
+      async () => {
+        const response = await request.get(
+          `${BACKEND_URL}/api/conversations/${encodeURIComponent(conversationId)}/events/search`,
+          {
+            headers: {
+              "X-Session-API-Key": sessionApiKey,
+            },
+            params: {
+              limit: "100",
+              sort_order: "TIMESTAMP_DESC",
+            },
+          },
+        );
+
+        if (!response.ok()) {
+          return false;
+        }
+
+        const body = (await response.json()) as { items?: unknown[] };
+        return body.items?.some(hasCriticResult) ?? false;
+      },
+      { timeout: 180_000 },
+    )
+    .toBe(true);
+}
+
+export async function waitForCriticResultDisplay(page: Page) {
+  await expect
+    .poll(
+      async () =>
+        page
+          .evaluate(() =>
+            document.body.textContent?.includes(
+              "Critic: agent success likelihood",
+            ),
+          )
+          .catch(() => false),
       { timeout: 120_000 },
     )
     .toBe(true);
