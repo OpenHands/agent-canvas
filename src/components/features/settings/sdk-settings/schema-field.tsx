@@ -4,6 +4,7 @@ import { OptionalTag } from "#/components/features/settings/optional-tag";
 import { SettingsDropdownInput } from "#/components/features/settings/settings-dropdown-input";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { SettingsSwitch } from "#/components/features/settings/settings-switch";
+import { I18nKey } from "#/i18n/declaration";
 import { SettingsFieldSchema } from "#/types/settings";
 import { HelpLink } from "#/ui/help-link";
 import { Typography } from "#/ui/typography";
@@ -12,6 +13,7 @@ import {
   resolveSchemaChoiceLabel,
   resolveSchemaFieldDescription,
   resolveSchemaFieldLabel,
+  type SettingsFieldConstraints,
 } from "#/utils/sdk-settings-field-metadata";
 import { cn } from "#/utils/utils";
 import {
@@ -80,6 +82,49 @@ function isUrlField(field: SettingsFieldSchema): boolean {
   return field.key.endsWith("url") || field.key.endsWith("_url");
 }
 
+function isNumericField(field: SettingsFieldSchema): boolean {
+  return field.value_type === "integer" || field.value_type === "number";
+}
+
+/**
+ * Live validation message for numeric inputs: returns an I18nKey (with optional
+ * interpolation values) for the field's value, or null when it is valid/empty.
+ * Mirrors the native min/step constraints so users get immediate red feedback
+ * instead of an unclear error only when they try to save.
+ *
+ * `hasBadInput` reflects the native `<input type="number">` bad-input state:
+ * browsers report unparseable entries (e.g. typed letters) as an empty value,
+ * so this flag is the only signal that the user typed something non-numeric.
+ */
+export function getNumericFieldError(
+  field: SettingsFieldSchema,
+  value: string | boolean,
+  constraints: SettingsFieldConstraints | undefined,
+  hasBadInput = false,
+): { key: I18nKey; options?: Record<string, unknown> } | null {
+  if (!isNumericField(field) || typeof value !== "string") {
+    return null;
+  }
+  if (field.value_type === "integer" && hasBadInput) {
+    return { key: I18nKey.SCHEMA$ERROR$WHOLE_NUMBER };
+  }
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return null;
+  }
+  const parsed = Number(trimmed);
+  if (field.value_type === "integer" && !Number.isInteger(parsed)) {
+    return { key: I18nKey.SCHEMA$ERROR$WHOLE_NUMBER };
+  }
+  if (constraints?.min !== undefined && parsed < constraints.min) {
+    return {
+      key: I18nKey.SCHEMA$ERROR$MIN_VALUE,
+      options: { min: constraints.min },
+    };
+  }
+  return null;
+}
+
 function getInputType(
   field: SettingsFieldSchema,
 ): React.HTMLInputTypeAttribute {
@@ -107,8 +152,32 @@ export function SchemaField({
   onChange: (value: string | boolean) => void;
 }) {
   const { t } = useTranslation("openhands");
+  const numericInputRef = React.useRef<HTMLInputElement>(null);
+  const [hasBadNumericInput, setHasBadNumericInput] = React.useState(false);
   const label = resolveSchemaFieldLabel(t, field.key, field.label);
   const constraints = getSettingsFieldConstraints(field.key);
+  const numeric = isNumericField(field);
+  const numericError = getNumericFieldError(
+    field,
+    value,
+    constraints,
+    hasBadNumericInput,
+  );
+
+  // Track the native bad-input state of number inputs. We listen to the raw
+  // `input` event rather than React's `onChange` because React skips onChange
+  // when `node.value` is unchanged — and a number input reports an empty value
+  // for unparseable entries (e.g. a typed letter), so onChange never fires when
+  // a letter is typed into an empty field.
+  React.useEffect(() => {
+    const input = numericInputRef.current;
+    if (!numeric || !input) {
+      return undefined;
+    }
+    const syncBadInput = () => setHasBadNumericInput(input.validity.badInput);
+    input.addEventListener("input", syncBadInput);
+    return () => input.removeEventListener("input", syncBadInput);
+  }, [numeric]);
 
   if (isBooleanField(field)) {
     return (
@@ -186,6 +255,7 @@ export function SchemaField({
   return (
     <div className="flex flex-col gap-1.5">
       <SettingsInput
+        ref={numeric ? numericInputRef : undefined}
         testId={`sdk-settings-${field.key}`}
         name={field.key}
         label={label}
@@ -199,6 +269,9 @@ export function SchemaField({
         min={constraints?.min}
         max={constraints?.max}
         step={constraints?.step}
+        error={
+          numericError ? t(numericError.key, numericError.options) : undefined
+        }
       />
       <FieldHelp field={field} />
     </div>

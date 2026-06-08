@@ -52,6 +52,15 @@ const FIELD_METADATA: Record<string, SettingsFieldMetadata> = {
       step: 0.1,
     },
   },
+  // Backend enforces `CondenserSettings.max_size` with `ge=20` (no upper
+  // bound); values below 20 fail validation on save. Keep this floor in sync
+  // with the agent-server SDK constraint.
+  "condenser.max_size": {
+    constraints: {
+      min: 20,
+      step: 1,
+    },
+  },
 };
 
 export function getSettingsFieldConstraints(fieldKey: string) {

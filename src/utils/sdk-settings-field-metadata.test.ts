@@ -246,6 +246,14 @@ describe("getSettingsFieldConstraints", () => {
     });
   });
 
+  it("clamps condenser.max_size at the backend minimum of 20", () => {
+    const constraints = getSettingsFieldConstraints("condenser.max_size");
+    expect(constraints).toEqual({
+      min: 20,
+      step: 1,
+    });
+  });
+
   it("returns undefined for unknown fields", () => {
     const constraints = getSettingsFieldConstraints("unknown.field");
     expect(constraints).toBeUndefined();
