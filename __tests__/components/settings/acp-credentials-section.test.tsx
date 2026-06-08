@@ -1,30 +1,32 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  __resetActiveStoreForTests,
-  setActiveSelection,
-  setRegisteredBackends,
-} from "#/api/backend-registry/active-store";
+import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import { AcpCredentialsSection } from "#/components/features/settings/acp-credentials-section";
+import { useAcpCredentialForm } from "#/hooks/use-acp-credential-form";
 import { SecretsService } from "#/api/secrets-service";
 
-// Observe the save outcome (success vs orphaned-credential warning) without
-// rendering real toasts.
-const toastMocks = vi.hoisted(() => ({
-  success: vi.fn(),
-  warning: vi.fn(),
-  error: vi.fn(),
+// The login-detection probe is exercised in its own hook test; here we stub it
+// so rendering the section doesn't spin a subprocess and we can drive the auth
+// banner states directly.
+const acpAuthStatusMock = vi.hoisted(() => vi.fn());
+vi.mock("#/hooks/query/use-acp-auth-status", () => ({
+  useAcpAuthStatus: (...args: unknown[]) => acpAuthStatusMock(...args),
 }));
-vi.mock("#/utils/custom-toast-handlers", () => ({
-  displaySuccessToast: toastMocks.success,
-  displayWarningToast: toastMocks.warning,
-  displayErrorToast: toastMocks.error,
-}));
+
+// The section is presentational: the form lives in the parent (Settings →
+// Agent) so a single Save persists the agent spec + credentials together. These
+// tests drive the section through the real form hook to cover field rendering,
+// conflict warnings, and the auth banner; the save flow is covered in
+// __tests__/routes/agent-settings.test.tsx.
+function Harness({ providerKey }: { providerKey: string }) {
+  const form = useAcpCredentialForm(providerKey);
+  return <AcpCredentialsSection form={form} providerKey={providerKey} />;
+}
 
 function renderSection(providerKey: string) {
   const user = userEvent.setup();
@@ -35,34 +37,22 @@ function renderSection(providerKey: string) {
       }
     >
       <ActiveBackendProvider>
-        <AcpCredentialsSection providerKey={providerKey} />
+        <Harness providerKey={providerKey} />
       </ActiveBackendProvider>
     </QueryClientProvider>,
   );
   return { user };
 }
 
-function useCloudBackend() {
-  setRegisteredBackends([
-    {
-      id: "cloud-1",
-      name: "Cloud",
-      host: "https://app.example.dev",
-      apiKey: "key",
-      kind: "cloud",
-    },
-  ]);
-  setActiveSelection({ backendId: "cloud-1", orgId: null });
-}
-
 beforeEach(() => {
   vi.restoreAllMocks();
-  toastMocks.success.mockClear();
-  toastMocks.warning.mockClear();
-  toastMocks.error.mockClear();
   __resetActiveStoreForTests();
+  acpAuthStatusMock.mockReturnValue({
+    status: "unknown",
+    isChecking: false,
+    isSupported: true,
+  });
   vi.spyOn(SecretsService, "getSecrets").mockResolvedValue([]);
-  vi.spyOn(SecretsService, "createSecret").mockResolvedValue();
 });
 afterEach(() => {
   __resetActiveStoreForTests();
@@ -72,46 +62,19 @@ describe("AcpCredentialsSection", () => {
   it("renders the provider's credential fields (blob as textarea, key as password)", () => {
     renderSection("codex");
 
-    const blob = screen.getByTestId("settings-acp-secret-CODEX_AUTH_JSON");
-    expect(blob.tagName).toBe("TEXTAREA");
+    expect(
+      screen.getByTestId("settings-acp-secret-CODEX_AUTH_JSON").tagName,
+    ).toBe("TEXTAREA");
     expect(
       screen.getByTestId("settings-acp-secret-OPENAI_API_KEY"),
     ).toHaveAttribute("type", "password");
-    // Pristine form — nothing to save yet.
-    expect(screen.getByTestId("acp-credentials-save-button")).toBeDisabled();
   });
 
   it("renders nothing for a provider without credential fields", () => {
     renderSection("custom");
     expect(
-      screen.queryByTestId("acp-credentials-save-button"),
+      screen.queryByTestId("settings-acp-secret-CODEX_AUTH_JSON"),
     ).not.toBeInTheDocument();
-  });
-
-  it("saves the filled fields as secrets and resets the form", async () => {
-    const { user } = renderSection("claude-code");
-
-    await user.type(
-      screen.getByTestId("settings-acp-secret-ANTHROPIC_API_KEY"),
-      "sk-ant-123",
-    );
-    await user.click(screen.getByTestId("acp-credentials-save-button"));
-
-    await waitFor(() => {
-      expect(SecretsService.createSecret).toHaveBeenCalledWith(
-        "ANTHROPIC_API_KEY",
-        "sk-ant-123",
-        undefined,
-      );
-      expect(toastMocks.success).toHaveBeenCalledTimes(1);
-    });
-    expect(
-      (
-        screen.getByTestId(
-          "settings-acp-secret-ANTHROPIC_API_KEY",
-        ) as HTMLInputElement
-      ).value,
-    ).toBe("");
   });
 
   it("warns when the Claude OAuth token and base URL are both set", async () => {
@@ -134,25 +97,48 @@ describe("AcpCredentialsSection", () => {
     ).toBeInTheDocument();
   });
 
-  it("toasts success when a file credential is saved on a cloud backend (cloud materialises file secrets)", async () => {
-    // Cloud materialises file-content credentials from the encrypted secret
-    // store via agent_context.secrets at conversation start, so a saved blob is
-    // consumable — no orphaned-credential warning.
-    useCloudBackend();
-    const { user } = renderSection("codex");
-
-    await user.click(screen.getByTestId("settings-acp-secret-CODEX_AUTH_JSON"));
-    await user.paste('{"tokens":{}}');
-    await user.click(screen.getByTestId("acp-credentials-save-button"));
-
-    await waitFor(() => {
-      expect(SecretsService.createSecret).toHaveBeenCalledWith(
-        "CODEX_AUTH_JSON",
-        '{"tokens":{}}',
-        undefined,
-      );
-      expect(toastMocks.success).toHaveBeenCalled();
+  it("shows the 'already signed in' banner when the login probe detects a session", () => {
+    acpAuthStatusMock.mockReturnValue({
+      status: "authenticated",
+      isChecking: false,
+      isSupported: true,
     });
-    expect(toastMocks.warning).not.toHaveBeenCalled();
+    renderSection("claude-code");
+    expect(
+      screen.getByTestId("settings-acp-auth-detected"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("settings-acp-auth-checking"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the checking spinner while the login probe is in flight", () => {
+    acpAuthStatusMock.mockReturnValue({
+      status: "unknown",
+      isChecking: true,
+      isSupported: true,
+    });
+    renderSection("claude-code");
+    expect(
+      screen.getByTestId("settings-acp-auth-checking"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("settings-acp-auth-detected"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows no auth banner when there is no detected session", () => {
+    acpAuthStatusMock.mockReturnValue({
+      status: "unauthenticated",
+      isChecking: false,
+      isSupported: true,
+    });
+    renderSection("claude-code");
+    expect(
+      screen.queryByTestId("settings-acp-auth-detected"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("settings-acp-auth-checking"),
+    ).not.toBeInTheDocument();
   });
 });

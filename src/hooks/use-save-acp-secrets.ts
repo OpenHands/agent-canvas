@@ -39,7 +39,14 @@ export function useSaveAcpSecrets(
   const { mutateAsync: createSecret } = useCreateSecret();
   const [isSaving, setIsSaving] = React.useState(false);
 
-  const saveFilled = async (values: Record<string, string>) => {
+  // ``silent`` suppresses the success/warning toast (not errors) so a caller
+  // that persists credentials alongside something else — the Settings → Agent
+  // single Save, which also writes the agent spec — can emit one combined
+  // "Saved" instead of two. The standalone onboarding caller leaves it off.
+  const saveFilled = async (
+    values: Record<string, string>,
+    { silent = false }: { silent?: boolean } = {},
+  ) => {
     const toSave = fields
       .map((field) => ({ field, value: values[field.name]?.trim() }))
       .filter(
@@ -62,7 +69,7 @@ export function useSaveAcpSecrets(
         !consumesFileCredentials && toSave.some(({ field }) => field.multiline);
       if (savedOrphanedFileCredential) {
         displayWarningToast(t(I18nKey.ONBOARDING$ACP_SECRETS_ORPHANED_WARNING));
-      } else {
+      } else if (!silent) {
         displaySuccessToast(t(I18nKey.SETTINGS$SAVED));
       }
       return true;
