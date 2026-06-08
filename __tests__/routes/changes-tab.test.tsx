@@ -113,7 +113,7 @@ describe("Changes Tab", () => {
 
   it("should show the loading message while git changes are loading", () => {
     vi.mocked(useUnifiedGetGitChanges).mockReturnValue({
-      data: undefined,
+      data: [],
       isLoading: true,
       isFetching: true,
       isSuccess: false,
