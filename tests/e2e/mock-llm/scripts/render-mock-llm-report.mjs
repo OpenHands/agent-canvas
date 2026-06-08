@@ -9,7 +9,8 @@
  *     --output  mock-llm-report.md \
  *     [--workflow-url <url>] \
  *     [--commit <sha>] \
- *     [--artifact-url <url>]
+ *     [--artifact-url <url>] \
+ *     [--new-files <comma-separated spec paths added in this PR>]
  */
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -51,10 +52,12 @@ function loadResults(path) {
   }
 }
 
-function collectTests(suites, parents = []) {
+function collectTests(suites, parents = [], parentFile = "") {
   const tests = [];
   for (const suite of suites ?? []) {
     const titles = [...parents, suite.title].filter(Boolean);
+    // Playwright's JSON reporter sets `file` on each suite/spec
+    const suiteFile = suite.file || parentFile;
     for (const spec of suite.specs ?? []) {
       for (const test of spec.tests ?? []) {
         const results = test.results ?? [];
@@ -65,6 +68,7 @@ function collectTests(suites, parents = []) {
         );
         tests.push({
           title: [...titles, spec.title].filter(Boolean).join(" › "),
+          file: spec.file || suiteFile,
           status: lastResult?.status ?? (spec.ok ? "passed" : "unknown"),
           durationMs: duration,
           retryCount: Math.max(0, results.length - 1),
@@ -72,7 +76,7 @@ function collectTests(suites, parents = []) {
         });
       }
     }
-    tests.push(...collectTests(suite.suites, titles));
+    tests.push(...collectTests(suite.suites, titles, suiteFile));
   }
   return tests;
 }
@@ -141,7 +145,15 @@ function overallIcon(status) {
 
 // ── Report rendering ───────────────────────────────────────────────────
 
-function renderReport({ tests, workflowUrl, commit, artifactUrl, title, markerMeta }) {
+function renderReport({
+  tests,
+  workflowUrl,
+  commit,
+  artifactUrl,
+  title,
+  newFiles,
+  markerMeta,
+}) {
   const status = overallStatus(tests);
   const icon = overallIcon(status);
   const passed = tests.filter((t) => t.status === "passed").length;
@@ -152,6 +164,24 @@ function renderReport({ tests, workflowUrl, commit, artifactUrl, title, markerMe
   const total = tests.length;
   const wasKilledMidSuite =
     markerMeta?.status === "in_progress" && markerMeta.total > markerMeta.completed;
+
+  // Determine which tests are new (from newly added spec files).
+  // Playwright's JSON file paths are relative to testDir (e.g. "mock-llm-skills.spec.ts")
+  // while --new-files paths are repo-relative (e.g. "tests/e2e/mock-llm/mock-llm-skills.spec.ts").
+  // Match by basename or suffix in either direction.
+  const newFileSet = new Set(newFiles ?? []);
+  const basename = (p) => p.split("/").pop();
+  const isNewTest = (t) =>
+    newFileSet.size > 0 &&
+    t.file &&
+    [...newFileSet].some(
+      (nf) =>
+        t.file === nf ||
+        basename(t.file) === basename(nf) ||
+        nf.endsWith(`/${t.file}`) ||
+        t.file.endsWith(`/${nf}`),
+    );
+  const newCount = tests.filter(isNewTest).length;
 
   const lines = [];
 
@@ -164,6 +194,7 @@ function renderReport({ tests, workflowUrl, commit, artifactUrl, title, markerMe
   const parts = [`**${passed}/${total} passed**`];
   if (failed) parts.push(`**${failed} failed**`);
   if (skipped) parts.push(`${skipped} skipped`);
+  if (newCount) parts.push(`🆕 ${newCount} new`);
   if (wasKilledMidSuite) {
     const notRun = markerMeta.total - markerMeta.completed;
     parts.push(`⚠️ **${notRun} not run** (process killed at ${markerMeta.completed}/${markerMeta.total})`);
@@ -178,6 +209,25 @@ function renderReport({ tests, workflowUrl, commit, artifactUrl, title, markerMe
   if (artifactUrl) meta.push(`[Test artifacts](${artifactUrl})`);
   if (meta.length) {
     lines.push(meta.join(" · "));
+    lines.push("");
+  }
+
+  // New-tests callout (prominent, above the table)
+  if (newCount > 0) {
+    const newTests = tests.filter(isNewTest);
+    // Group new tests by spec file
+    const byFile = new Map();
+    for (const t of newTests) {
+      const key = t.file || "unknown";
+      if (!byFile.has(key)) byFile.set(key, []);
+      byFile.get(key).push(t);
+    }
+    lines.push(`> **🟢 ${newCount} new test${newCount === 1 ? "" : "s"} added in this PR**`);
+    for (const [file, fileTests] of byFile) {
+      for (const t of fileTests) {
+        lines.push(`> - ${statusIcon(t.status)} \`${file}\` › ${t.title.replace(/^.*› /, "")}`);
+      }
+    }
     lines.push("");
   }
 
@@ -284,12 +334,21 @@ if (!data || tests.length === 0) {
   }
 }
 
+// Parse --new-files: comma-separated list of spec file paths added in this PR
+const newFiles = args.new_files
+  ? args.new_files
+      .split(",")
+      .map((f) => f.trim())
+      .filter(Boolean)
+  : [];
+
 const report = renderReport({
   tests,
   workflowUrl: args.workflow_url || "",
   commit: args.commit || "",
   artifactUrl: args.artifact_url || "",
   title: args.title || "",
+  newFiles,
   markerMeta,
 });
 

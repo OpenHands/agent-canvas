@@ -91,8 +91,8 @@ test.describe("mock-LLM image upload", () => {
     //    called and the conversation completed successfully.
     //
     //    ⚠️  Padding note (mirrors the automation test's pattern):
-    //    When public skills are loaded (VITE_LOAD_PUBLIC_SKILLS !== "false"),
-    //    the agent-server may make one internal LLM call for skill-analysis
+    //    Public skills are bundled from @openhands/extensions at build time.
+    //    The agent-server may make one internal LLM call for skill-analysis
     //    before the agent loop starts, consuming one trajectory slot.
     //    Turn 0 is a throwaway empty response that absorbs this internal call.
     //    Turn 1 is the agent's actual reply (IMAGE_REPLY_TOKEN).

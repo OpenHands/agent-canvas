@@ -29,6 +29,7 @@
 
 import { defineConfig, devices } from "@playwright/test";
 import { randomBytes } from "node:crypto";
+import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 // ── Docker image ────────────────────────────────────────────────────────
@@ -85,6 +86,23 @@ process.env.VITE_SESSION_API_KEY = sessionApiKey;
 if (!process.env.MOCK_LLM_AGENT_URL) {
   process.env.MOCK_LLM_AGENT_URL = MOCK_LLM_URL;
 }
+
+// ── Skill test support ────────────────────────────────────────────────
+// The skill tests create git repos and user skill files on the host.
+// We volume-mount these into the container so the agent-server can see them.
+
+// Project skills: host creates repos here, container sees them at a fixed path.
+const SKILL_REPOS_HOST_DIR = resolve(".tmp/mock-llm-skill-repos");
+const SKILL_REPOS_CONTAINER_DIR = "/tmp/mock-llm-skill-repos";
+mkdirSync(SKILL_REPOS_HOST_DIR, { recursive: true });
+process.env.MOCK_LLM_SKILL_REPOS_CONTAINER_DIR = SKILL_REPOS_CONTAINER_DIR;
+
+// User skills: host creates skill files here, container mounts them at
+// the agent-server's expected ~/.openhands/skills/ path.
+const USER_SKILLS_HOST_DIR = resolve(".tmp/mock-llm-user-skills");
+const USER_SKILLS_CONTAINER_DIR = "/home/openhands/.openhands/skills";
+mkdirSync(USER_SKILLS_HOST_DIR, { recursive: true });
+process.env.MOCK_LLM_USER_SKILLS_HOST_DIR = USER_SKILLS_HOST_DIR;
 
 // ── ACP test support ──────────────────────────────────────────────────
 // The mock ACP server script lives on the host. We volume-mount it into
@@ -169,6 +187,10 @@ export default defineConfig({
         // Mount the mock ACP server script so the agent-server inside
         // Docker can spawn it as an ACP subprocess.
         `-v ${MOCK_ACP_HOST_PATH}:${MOCK_ACP_CONTAINER_PATH}:ro`,
+        // Mount skill test directories so the agent-server can access
+        // repos and user skills created by the host-side test code.
+        `-v ${SKILL_REPOS_HOST_DIR}:${SKILL_REPOS_CONTAINER_DIR}`,
+        `-v ${USER_SKILLS_HOST_DIR}:${USER_SKILLS_CONTAINER_DIR}`,
         `-e PORT=${INGRESS_PORT}`,
         `-e SESSION_API_KEY=${sessionApiKey}`,
         `-e OH_SESSION_API_KEYS_0=${sessionApiKey}`,

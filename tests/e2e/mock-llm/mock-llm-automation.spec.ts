@@ -254,8 +254,8 @@ test.describe("mock-LLM automation lifecycle", () => {
     ].join(" ");
 
     // ⚠️  Padding response (index 0):
-    // When public skills are loaded (VITE_LOAD_PUBLIC_SKILLS !== "false"),
-    // the agent-server's skill-activation pipeline makes one internal LLM
+    // Public skills are bundled from @openhands/extensions at build time.
+    // The agent-server's skill-activation pipeline makes one internal LLM
     // call to decide which skills to inject before the agent loop starts.
     // Our user message mentions "automation", which matches the
     // openhands-automation skill, triggering this internal call.
