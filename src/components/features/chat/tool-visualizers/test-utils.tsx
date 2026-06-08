@@ -9,6 +9,7 @@ import {
   ExecuteBashAction,
   FileEditorAction,
   GrepAction,
+  TaskAction,
 } from "#/types/agent-server/core/base/action";
 import {
   ExecuteBashObservation,
@@ -16,6 +17,7 @@ import {
   GrepObservation,
   GlobObservation,
   TerminalObservation,
+  TaskObservation,
 } from "#/types/agent-server/core/base/observation";
 
 /** Renders a visualizer body with the standard chat providers. */
@@ -182,6 +184,34 @@ export const globObservation = (
     files: [],
     search_path: "/workspace",
     truncated: false,
+    ...observation,
+  },
+});
+
+export const taskAction = (
+  action: Partial<TaskAction> & Pick<TaskAction, "prompt">,
+): ActionEvent<TaskAction> => ({
+  ...actionEnvelope("task", "task"),
+  action: {
+    kind: "TaskAction",
+    subagent_type: "code-explorer",
+    description: null,
+    resume: null,
+    ...action,
+  },
+});
+
+export const taskObservation = (
+  observation: Partial<TaskObservation> = {},
+): ObservationEvent<TaskObservation> => ({
+  ...observationEnvelope("task", "task"),
+  observation: {
+    kind: "TaskObservation",
+    content: [{ type: "text", text: "## Summary\n\nAll done." }],
+    is_error: false,
+    task_id: "task_00000001",
+    subagent: "code-explorer",
+    status: "completed",
     ...observation,
   },
 });

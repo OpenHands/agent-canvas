@@ -15,6 +15,7 @@ import {
   GlobObservation,
   GrepObservation,
   InvokeSkillObservation,
+  CanvasUIObservation,
   SwitchLLMObservation,
 } from "#/types/agent-server/core/base/observation";
 
@@ -171,6 +172,15 @@ const getInvokeSkillObservationContent = (
   }
   return content;
 };
+
+// Canvas UI observations — just surface the acknowledgement text.
+const getCanvasUIObservationContent = (
+  event: ObservationEvent<CanvasUIObservation>,
+): string =>
+  event.observation.content
+    .filter((c) => c.type === "text")
+    .map((c) => c.text)
+    .join("\n");
 
 const getSwitchLLMObservationContent = (
   event: ObservationEvent<SwitchLLMObservation>,
@@ -399,6 +409,11 @@ export const getObservationContent = (event: ObservationEvent): string => {
     case "InvokeSkillObservation":
       return getInvokeSkillObservationContent(
         event as ObservationEvent<InvokeSkillObservation>,
+      );
+
+    case "CanvasUIObservation":
+      return getCanvasUIObservationContent(
+        event as ObservationEvent<CanvasUIObservation>,
       );
 
     case "SwitchLLMObservation":

@@ -5,100 +5,84 @@ exports[`bashVisualizer > matches snapshot 1`] = `
   class="flex flex-col gap-2"
 >
   <div
-    class="flex items-start gap-1.5"
+    class="relative"
   >
-    <svg
-      aria-hidden="true"
-      class="mt-1 h-3.5 w-3.5 flex-shrink-0 text-muted"
-      fill="none"
-      viewBox="0 0 18 18"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        clip-rule="evenodd"
-        d="M2.25 1.125L1.125 2.25V15.75L2.25 16.875H15.75L16.875 15.75V2.25L15.75 1.125H2.25ZM2.25 15.75V2.25H15.75V15.75H2.25ZM6.492 12.7425L7.2705 13.5382L11.2155 9.606V8.922L7.2705 4.977L6.49425 5.772L9.93675 9.2985L6.492 12.7425Z"
-        fill="currentColor"
-        fill-rule="evenodd"
-      />
-    </svg>
     <div
-      class="min-w-0 flex-1"
+      class="absolute top-2 right-2 z-10"
     >
-      <div
-        class="relative"
+      <button
+        aria-label="BUTTON$COPY"
+        class="button-base p-1 cursor-pointer"
+        data-testid="copy-to-clipboard"
+        hidden=""
+        type="button"
       >
-        <div
-          class="absolute top-2 right-2 z-10"
+        <svg
+          fill="none"
+          height="15"
+          viewBox="0 0 15 15"
+          width="15"
+          xmlns="http://www.w3.org/2000/svg"
         >
-          <button
-            aria-label="BUTTON$COPY"
-            class="button-base p-1 cursor-pointer"
-            data-testid="copy-to-clipboard"
-            hidden=""
-            type="button"
-          >
-            <svg
-              fill="none"
-              height="15"
-              viewBox="0 0 15 15"
-              width="15"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M1.25 2.5C1.25 1.80964 1.80964 1.25 2.5 1.25H8.75C9.44036 1.25 10 1.80964 10 2.5V5H12.5C13.1904 5 13.75 5.55964 13.75 6.25V12.5C13.75 13.1904 13.1904 13.75 12.5 13.75H6.25C5.55964 13.75 5 13.1904 5 12.5V10H2.5C1.80964 10 1.25 9.44036 1.25 8.75V2.5ZM6.25 10V12.5H12.5V6.25H10V8.75C10 9.44036 9.44036 10 8.75 10H6.25ZM8.75 8.75V2.5L2.5 2.5V8.75H8.75Z"
-                fill="currentColor"
-              />
-            </svg>
-          </button>
-        </div>
-        <div
-          class="rounded-lg text-xs"
-          style="color: rgb(212, 212, 212); font-size: 13px; text-shadow: none; font-family: Menlo, Monaco, Consolas, "Andale Mono", "Ubuntu Mono", "Courier New", monospace; direction: ltr; text-align: left; white-space: pre; word-spacing: normal; word-break: normal; line-height: 1.5; tab-size: 4; hyphens: none; padding: 1em; margin: 0.5em 0px; overflow: auto; background: rgb(30, 30, 30);"
+          <path
+            d="M1.25 2.5C1.25 1.80964 1.80964 1.25 2.5 1.25H8.75C9.44036 1.25 10 1.80964 10 2.5V5H12.5C13.1904 5 13.75 5.55964 13.75 6.25V12.5C13.75 13.1904 13.1904 13.75 12.5 13.75H6.25C5.55964 13.75 5 13.1904 5 12.5V10H2.5C1.80964 10 1.25 9.44036 1.25 8.75V2.5ZM6.25 10V12.5H12.5V6.25H10V8.75C10 9.44036 9.44036 10 8.75 10H6.25ZM8.75 8.75V2.5L2.5 2.5V8.75H8.75Z"
+            fill="currentColor"
+          />
+        </svg>
+      </button>
+    </div>
+    <div
+      class="rounded-lg text-xs"
+      style="color: rgb(212, 212, 212); font-size: 13px; text-shadow: none; font-family: Menlo, Monaco, Consolas, "Andale Mono", "Ubuntu Mono", "Courier New", monospace; direction: ltr; text-align: left; white-space: pre; word-spacing: normal; word-break: normal; line-height: 1.5; tab-size: 4; hyphens: none; padding: 1em; margin: 0.5em 0px; overflow: auto; background: rgb(30, 30, 30);"
+    >
+      <code
+        class="language-bash"
+        style="white-space: pre; color: rgb(212, 212, 212); font-size: 13px; text-shadow: none; font-family: Menlo, Monaco, Consolas, "Andale Mono", "Ubuntu Mono", "Courier New", monospace; direction: ltr; text-align: left; word-spacing: normal; word-break: normal; line-height: 1.5; tab-size: 4; hyphens: none;"
+      >
+        <span
+          class="token"
+          style="color: rgb(220, 220, 170);"
         >
-          <code
-            class="language-bash"
-            style="white-space: pre; color: rgb(212, 212, 212); font-size: 13px; text-shadow: none; font-family: Menlo, Monaco, Consolas, "Andale Mono", "Ubuntu Mono", "Courier New", monospace; direction: ltr; text-align: left; word-spacing: normal; word-break: normal; line-height: 1.5; tab-size: 4; hyphens: none;"
-          >
-            <span
-              class="token"
-              style="color: rgb(220, 220, 170);"
-            >
-              ls
-            </span>
-          </code>
-        </div>
-      </div>
+          ls
+        </span>
+      </code>
     </div>
   </div>
   <div
-    class="flex items-start gap-1.5"
+    class="flex flex-col gap-1"
   >
-    <svg
-      aria-hidden="true"
-      class="mt-1 h-3.5 w-3.5 flex-shrink-0 text-muted"
-      fill="none"
-      height="17"
-      viewBox="0 0 17 17"
-      width="17"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path
-        d="M14.2541 0.99075C15.0629 0.811957 15.8642 1.32275 16.0432 2.13138C16.222 2.94015 15.7113 3.74145 14.9026 3.92044C10.5163 4.8902 8.31751 8.22203 8.09593 11.8745L10.343 9.62942C10.863 9.10947 11.7057 9.10867 12.2258 9.62845C12.7459 10.1486 12.7459 10.9921 12.2258 11.5122L7.52073 16.2173C7.03316 16.7049 6.26163 16.7357 5.73851 16.3091L5.63694 16.2173L0.93089 11.5122C0.411068 10.9922 0.411047 10.1485 0.93089 9.62845C1.45095 9.10851 2.29457 9.10859 2.81468 9.62845L5.09691 11.9107C5.32362 7.06867 8.20704 2.32786 14.2541 0.99075Z"
-        fill="currentColor"
-      />
-    </svg>
     <div
-      class="min-w-0 flex-1"
+      class="relative"
     >
       <div
-        class="flex flex-col gap-1"
+        class="absolute top-2 right-2 z-10"
       >
-        <pre
-          class="overflow-auto whitespace-pre-wrap rounded border border-surface-raised bg-surface-raised p-2 text-xs text-foreground"
+        <button
+          aria-label="BUTTON$COPY"
+          class="button-base p-1 cursor-pointer"
+          data-testid="copy-to-clipboard"
+          hidden=""
+          type="button"
         >
-          ok
-        </pre>
+          <svg
+            fill="none"
+            height="15"
+            viewBox="0 0 15 15"
+            width="15"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M1.25 2.5C1.25 1.80964 1.80964 1.25 2.5 1.25H8.75C9.44036 1.25 10 1.80964 10 2.5V5H12.5C13.1904 5 13.75 5.55964 13.75 6.25V12.5C13.75 13.1904 13.1904 13.75 12.5 13.75H6.25C5.55964 13.75 5 13.1904 5 12.5V10H2.5C1.80964 10 1.25 9.44036 1.25 8.75V2.5ZM6.25 10V12.5H12.5V6.25H10V8.75C10 9.44036 9.44036 10 8.75 10H6.25ZM8.75 8.75V2.5L2.5 2.5V8.75H8.75Z"
+              fill="currentColor"
+            />
+          </svg>
+        </button>
       </div>
+      <pre
+        class="overflow-auto whitespace-pre-wrap rounded border border-surface-raised bg-surface-raised p-2 text-xs text-foreground"
+      >
+        ok
+      </pre>
     </div>
   </div>
 </div>

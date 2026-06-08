@@ -122,6 +122,12 @@ const getActionEventTitle = (event: OpenHandsEvent): React.ReactNode => {
         name: event.action.name,
       };
       break;
+    case "TaskAction":
+      actionKey = "ACTION_MESSAGE$TASK";
+      actionValues = {
+        name: event.action.subagent_type,
+      };
+      break;
     case "ThinkAction":
       actionKey = "ACTION_MESSAGE$THINK";
       break;
@@ -226,6 +232,15 @@ const getObservationEventTitle = (
       observationValues = {
         name: event.observation.skill_name,
       };
+      break;
+    case "TaskObservation":
+      observationKey = "OBSERVATION_MESSAGE$TASK";
+      observationValues = {
+        name: event.observation.subagent,
+      };
+      break;
+    case "CanvasUIObservation":
+      observationKey = "OBSERVATION_MESSAGE$CANVAS_UI";
       break;
     case "SwitchLLMObservation":
       observationKey = event.observation.is_error

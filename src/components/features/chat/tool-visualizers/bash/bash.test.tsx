@@ -49,6 +49,22 @@ describe("bashVisualizer", () => {
     ).toBeInTheDocument();
   });
 
+  it("exposes a copy button for the command and the output", () => {
+    renderVisualizer(
+      <Body
+        observation={bashObservation("hello world", 0, "echo hello world")}
+      />,
+    );
+    // One for the command code block, one for the output pane.
+    expect(screen.getAllByTestId("copy-to-clipboard")).toHaveLength(2);
+  });
+
+  it("has no copy button when there is no output to copy", () => {
+    renderVisualizer(<Body observation={bashObservation("", 0, "true")} />);
+    // Only the command's copy button remains.
+    expect(screen.getAllByTestId("copy-to-clipboard")).toHaveLength(1);
+  });
+
   it("renders command and output for the terminal tool", () => {
     const { container } = renderVisualizer(
       <Body observation={terminalObservation("362 index.html", 0, "wc -l")} />,

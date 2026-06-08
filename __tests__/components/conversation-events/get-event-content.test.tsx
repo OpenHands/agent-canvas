@@ -245,4 +245,85 @@ describe("getEventContent", () => {
     expect(details).toContain("worktree-switch");
     expect(details).toContain("# Skill content");
   });
+
+  it("titles a TaskAction with the subagent and shows the query", () => {
+    const taskAction: ActionEvent = {
+      id: "act-task",
+      timestamp: new Date().toISOString(),
+      source: "agent",
+      thought: [],
+      thinking_blocks: [],
+      tool_name: "task",
+      tool_call_id: "tool-task",
+      action: {
+        kind: "TaskAction",
+        prompt: "Summarize the README",
+        subagent_type: "code-explorer",
+      },
+    } as unknown as ActionEvent;
+
+    const { title } = getEventContent(taskAction);
+
+    render(<span>{title}</span>);
+    expect(screen.getByText("ACTION_MESSAGE$TASK")).toBeInTheDocument();
+    expect(screen.queryByText("TASK")).not.toBeInTheDocument();
+  });
+
+  it("titles a TaskObservation with the subagent", () => {
+    const taskObservation: ObservationEvent = {
+      id: "obs-task",
+      timestamp: new Date().toISOString(),
+      source: "environment",
+      tool_name: "task",
+      tool_call_id: "tool-task",
+      action_id: "act-task",
+      observation: {
+        kind: "TaskObservation",
+        content: [{ type: "text", text: "All done." }],
+        is_error: false,
+        task_id: "task_00000001",
+        subagent: "code-explorer",
+        status: "completed",
+      },
+    };
+
+    const { title } = getEventContent(taskObservation);
+
+    render(<span>{title}</span>);
+    expect(screen.getByText("OBSERVATION_MESSAGE$TASK")).toBeInTheDocument();
+    // The body is rendered by the task visualizer (covered in task.test.tsx),
+    // so only the title is asserted here.
+  });
+
+  it("renders CanvasUIObservation as just its acknowledgement text", () => {
+    const canvasUIObservation: ObservationEvent = {
+      id: "obs-canvas",
+      timestamp: new Date().toISOString(),
+      source: "environment",
+      tool_name: "canvas_ui",
+      tool_call_id: "tool-canvas",
+      action_id: "action-canvas",
+      observation: {
+        kind: "CanvasUIObservation",
+        content: [
+          {
+            type: "text",
+            text: "UI command 'open_tab' dispatched to the Agent Canvas frontend.",
+          },
+        ],
+        is_error: false,
+      },
+    };
+
+    const { title, details } = getEventContent(canvasUIObservation);
+
+    render(<span>{title}</span>);
+    expect(
+      screen.getByText("OBSERVATION_MESSAGE$CANVAS_UI"),
+    ).toBeInTheDocument();
+    // The body is exactly the acknowledgement text, not a JSON dump.
+    expect(details).toBe(
+      "UI command 'open_tab' dispatched to the Agent Canvas frontend.",
+    );
+  });
 });

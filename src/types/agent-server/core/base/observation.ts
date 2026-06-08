@@ -302,6 +302,40 @@ export interface InvokeSkillObservation extends ObservationBase<"InvokeSkillObse
   is_error?: boolean;
 }
 
+export interface TaskObservation extends ObservationBase<"TaskObservation"> {
+  /**
+   * Rendered result the spawned subagent returned to the parent agent.
+   */
+  content: Array<TextContent | ImageContent>;
+  /**
+   * Whether the delegated task resulted in an error.
+   */
+  is_error?: boolean;
+  /**
+   * Identifier of the delegated task.
+   */
+  task_id: string;
+  /**
+   * Name of the subagent that handled the task.
+   */
+  subagent: string;
+  /**
+   * Lifecycle status of the task (e.g. "completed").
+   */
+  status: string;
+}
+
+export interface CanvasUIObservation extends ObservationBase<"CanvasUIObservation"> {
+  /**
+   * Acknowledgement text returned after the canvas UI command is dispatched.
+   */
+  content: Array<TextContent | ImageContent>;
+  /**
+   * Whether dispatching the canvas UI command resulted in an error.
+   */
+  is_error?: boolean;
+}
+
 export interface SwitchLLMObservation extends ObservationBase<"SwitchLLMObservation"> {
   /**
    * Content returned from the switch LLM tool.
@@ -339,4 +373,6 @@ export type Observation =
   | GlobObservation
   | GrepObservation
   | InvokeSkillObservation
+  | TaskObservation
+  | CanvasUIObservation
   | SwitchLLMObservation;
