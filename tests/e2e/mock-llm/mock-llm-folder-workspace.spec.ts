@@ -27,20 +27,31 @@ import {
   deleteConversation,
 } from "./utils/mock-llm-helpers";
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 
 /**
  * The folder-workspace test creates a directory that the agent-server's folder
- * browser must be able to list. In Docker mode, the Docker config volume-mounts
- * a host dir into the container at /tmp/e2e-folder-workspace-test, and sets
- * MOCK_LLM_FOLDER_WORKSPACE_HOST_DIR so we create files there on the host side.
- * In npm mode the paths are the same (host IS the agent-server).
+ * browser must be able to list.
+ *
+ * **Docker mode**: The Docker config volume-mounts a host dir into the
+ * container at /tmp/e2e-folder-workspace-test, and sets two env vars:
+ *   - MOCK_LLM_FOLDER_WORKSPACE_HOST_DIR — host-side path for fs.mkdirSync
+ *   - MOCK_LLM_FOLDER_WORKSPACE_CONTAINER_DIR — container-side path the
+ *     folder browser navigates to
+ *
+ * **npm mode**: Host IS the agent-server, so both paths resolve identically
+ * via os.tmpdir().
  */
+const WORKSPACE_DIR_NAME = "e2e-folder-workspace-test";
 const HOST_DIR_BASE =
   process.env.MOCK_LLM_FOLDER_WORKSPACE_HOST_DIR ??
-  "/tmp/e2e-folder-workspace-test";
-/** Container-side path the agent-server sees (always /tmp/...). */
-const CONTAINER_DIR_BASE = "/tmp/e2e-folder-workspace-test";
+  path.join(os.tmpdir(), WORKSPACE_DIR_NAME);
+/** Container-side path the agent-server sees. In npm mode this equals
+ *  HOST_DIR_BASE; in Docker mode it is set by the Playwright config. */
+const CONTAINER_DIR_BASE =
+  process.env.MOCK_LLM_FOLDER_WORKSPACE_CONTAINER_DIR ??
+  path.join(os.tmpdir(), WORKSPACE_DIR_NAME);
 const TEST_DIR_NAME = "my-test-project";
 /** Host-side path where we create the directory via fs.mkdirSync. */
 const HOST_DIR = path.join(HOST_DIR_BASE, TEST_DIR_NAME);
@@ -157,23 +168,14 @@ test.describe("mock-LLM folder browser → workspace → conversation", () => {
         await page.waitForTimeout(300);
       }
 
-      // Now navigate down: / → tmp → e2e-folder-workspace-test → my-test-project
-      const tmpEntry = page.getByTestId("folder-browser-entry-tmp");
-      await expect(tmpEntry).toBeVisible({ timeout: 10_000 });
-      await tmpEntry.click();
-      await expect(currentPathEl).toHaveText(/\/tmp/, { timeout: 5_000 });
-
-      const baseEntry = page.getByTestId(
-        `folder-browser-entry-${path.basename(CONTAINER_DIR_BASE)}`,
-      );
-      await expect(baseEntry).toBeVisible({ timeout: 10_000 });
-      await baseEntry.click();
-
-      const projectEntry = page.getByTestId(
-        `folder-browser-entry-${TEST_DIR_NAME}`,
-      );
-      await expect(projectEntry).toBeVisible({ timeout: 10_000 });
-      await projectEntry.click();
+      // Navigate down through each segment of the test directory path.
+      // e.g. /tmp/e2e-folder-workspace-test/my-test-project → ["tmp", "e2e-...", "my-test-project"]
+      const segments = TEST_DIR.split(path.posix.sep).filter(Boolean);
+      for (const segment of segments) {
+        const entry = page.getByTestId(`folder-browser-entry-${segment}`);
+        await expect(entry).toBeVisible({ timeout: 10_000 });
+        await entry.click();
+      }
 
       // Verify we're at the correct path
       await expect(currentPathEl).toHaveText(TEST_DIR, { timeout: 5_000 });

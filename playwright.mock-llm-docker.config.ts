@@ -112,6 +112,8 @@ const FOLDER_WORKSPACE_HOST_DIR = resolve(".tmp/e2e-folder-workspace-test");
 const FOLDER_WORKSPACE_CONTAINER_DIR = "/tmp/e2e-folder-workspace-test";
 mkdirSync(FOLDER_WORKSPACE_HOST_DIR, { recursive: true });
 process.env.MOCK_LLM_FOLDER_WORKSPACE_HOST_DIR = FOLDER_WORKSPACE_HOST_DIR;
+process.env.MOCK_LLM_FOLDER_WORKSPACE_CONTAINER_DIR =
+  FOLDER_WORKSPACE_CONTAINER_DIR;
 
 // ── ACP test support ──────────────────────────────────────────────────
 // The mock ACP server script lives on the host. We volume-mount it into
