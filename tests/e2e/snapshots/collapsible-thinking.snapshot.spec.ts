@@ -197,15 +197,65 @@ async function navigateToConversation(page: Page, events: unknown[]) {
     });
   });
 
+  // The GUI hides ChatSuggestions (and shows the "LLM not configured" banner)
+  // unless an active profile with a key exists — see useLlmConfigured. Seed
+  // one so the empty conversation renders normally and the banner stays out
+  // of the captured screenshots (matching the baselines).
+  await page.route(
+    (url) => url.pathname.endsWith("/api/profiles"),
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          profiles: [
+            {
+              name: "mock",
+              model: "anthropic/claude-sonnet-4-20250514",
+              base_url: null,
+              api_key_set: true,
+            },
+          ],
+          active_profile: "mock",
+        }),
+      });
+    },
+  );
+
   await stubWebSocket(page);
 
   await page.goto(`/conversations/${CONVERSATION_ID}`, {
     waitUntil: "domcontentloaded",
   });
   await dismissConsentModal(page);
-  await expect(page.getByText("Let's start building!")).toBeVisible({
-    timeout: 20000,
-  });
+
+  // Wait for the conversation route to mount before injecting events.
+  // ConversationWebSocketContext runs a useLayoutEffect on mount that
+  // calls clearEventsForConversation(<id>) — if we inject events first,
+  // that effect wipes them and the UI renders the empty state. Use the
+  // store's `loadedConversationId` as a route-stable readiness signal:
+  // it flips from null → CONVERSATION_ID inside that layoutEffect, so
+  // observing it means the clear-and-set has already happened and any
+  // subsequent addEvents will survive.
+  //
+  // We deliberately don't wait on the home route's "Let's start
+  // building!" text here — it only renders on the home route, so relying
+  // on a brief home flash before the conversation hydrates is racy and
+  // caused the 20s timeout flake tracked in #1200.
+  await page.waitForFunction(
+    (expectedId) => {
+      const store = (
+        window as unknown as {
+          __OH_EVENT_STORE__?: {
+            getState: () => { loadedConversationId: string | null };
+          };
+        }
+      ).__OH_EVENT_STORE__;
+      return store?.getState().loadedConversationId === expectedId;
+    },
+    CONVERSATION_ID,
+    { timeout: 20000 },
+  );
 
   await injectEvents(page, events);
 

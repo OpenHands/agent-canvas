@@ -27,6 +27,8 @@ import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { SERVER_CONNECTION_ERROR_MESSAGE } from "#/constants/server-connection-error";
 import { ErrorMessageBanner } from "./error-message-banner";
+import { LlmNotConfiguredBanner } from "#/components/features/home/llm-not-configured-banner";
+import { useLlmConfigured } from "#/hooks/use-llm-configured";
 import { Messages } from "#/components/conversation-events/chat/messages";
 import { PendingUserMessages } from "./pending-user-messages";
 import { useUnifiedUploadFiles } from "#/hooks/mutation/use-unified-upload-files";
@@ -105,6 +107,12 @@ export function ChatInterface() {
   const sandboxStatus = activeConversation?.sandbox_status ?? null;
   const isArchivedConversation =
     sandboxStatus === "MISSING" || sandboxStatus === "ERROR";
+
+  // Block sending in a resumed conversation that has no usable LLM, and show
+  // the same setup banner as the home screen so the dead end is explained.
+  const { isConfigured: isLlmConfigured, isLoading: isLlmConfigLoading } =
+    useLlmConfigured();
+  const llmBlocked = !isLlmConfigLoading && !isLlmConfigured;
 
   // Disable Build button while agent is running (streaming)
   const isAgentRunning =
@@ -450,7 +458,12 @@ export function ChatInterface() {
           !isChatLoading &&
           !isProvisioningTask &&
           totalEvents === 0 &&
-          !isArchivedConversation && (
+          !isArchivedConversation &&
+          // With no usable LLM the suggestions can't be acted on (the input is
+          // disabled). They're also a `pointer-events-auto` overlay that would
+          // sit over the LlmNotConfiguredBanner below and swallow clicks on its
+          // setup button — so hide them and let the banner be the lone CTA.
+          !llmBlocked && (
             <ChatSuggestions
               onSuggestionsClick={(message) => setMessageToSend(message)}
             />
@@ -534,6 +547,8 @@ export function ChatInterface() {
             />
           )}
 
+          {llmBlocked && !isArchivedConversation && <LlmNotConfiguredBanner />}
+
           {isArchivedConversation ? (
             // Archived / sandbox-error: show a read-only notice in place of
             // the chat input. The conversation history above is still visible.
@@ -582,7 +597,7 @@ export function ChatInterface() {
 
               <InteractiveChatBox
                 onSubmit={handleSendMessage}
-                disabled={isNewConversationPending}
+                disabled={isNewConversationPending || llmBlocked}
               />
             </div>
           )}

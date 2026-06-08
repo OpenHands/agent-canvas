@@ -284,6 +284,26 @@ When reviewing server endpoints that create conversations or persistent artifact
 2. Check that subsequent operations are wrapped in try/except with cleanup.
 3. For client-supplied IDs, verify there's a duplicate check before creating state (return 409 Conflict if taken).
 
+## E2E Test Label Triage
+
+The `e2e-tests` label triggers the mock-LLM E2E and Docker E2E test suites on a
+PR. When reviewing, use your judgement to decide whether the changes could
+benefit from full end-to-end testing. If the PR doesn't already have the label
+and you think it should, add it:
+
+```bash
+gh pr edit <PR_NUMBER> --add-label "e2e-tests" --repo OpenHands/agent-canvas
+```
+
+Mention in your review body that you added the label (one sentence is enough).
+When in doubt, add it — running the tests is cheap, missing a regression is not.
+Skip it for obviously safe changes like docs-only, pure styling, or CI config
+tweaks.
+
+If the PR touches an area that lacks mock-LLM E2E coverage and would benefit
+from it, suggest adding a test in `tests/e2e/mock-llm/` as part of the PR or a
+follow-up.
+
 ## What NOT to Comment On
 
 Do not leave comments for:

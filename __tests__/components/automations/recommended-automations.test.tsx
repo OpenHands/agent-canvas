@@ -340,7 +340,7 @@ describe("recommended automations", () => {
     expect(mockCreateConversationMutate).not.toHaveBeenCalled();
   });
 
-  it("launches directly with local automation API instructions when the required MCP is already installed", () => {
+  it("launches directly with the catalog prompt when the required MCP is already installed", () => {
     mockUseSettings.mockReturnValue({
       data: settingsWithGithubMcp(),
     });
@@ -358,10 +358,7 @@ describe("recommended automations", () => {
     options.onSuccess({ conversation_id: "conversation-1" });
 
     const draft = getConversationState("conversation-1").draftMessage;
-    expect(draft).toContain("local");
-    expect(draft).toContain("$OPENHANDS_AUTOMATION_API_KEY");
-    expect(draft).not.toContain("app.all-hands.dev");
-    expect(draft).not.toContain("$OPENHANDS_API_KEY");
+    expect(draft).toBeTruthy();
   });
 
   it("ignores repeated card clicks while a recommendation launch is in flight", () => {
@@ -417,48 +414,12 @@ describe("recommended automations", () => {
 });
 
 describe("buildAutomationPrompt", () => {
-  const basePrompt = "Create an automation that does something useful.";
-
-  it("appends local API instructions for local backends without cloud endpoints", () => {
-    const result = buildAutomationPrompt(basePrompt, "local");
-    expect(result).toContain(basePrompt);
-    expect(result).toContain("local");
-    expect(result).toContain("<RUNTIME_SERVICES>");
-    expect(result).toContain("$OPENHANDS_AUTOMATION_API_KEY");
-    expect(result).toContain("/api/automation/v1/preset/prompt");
-    expect(result).not.toContain("app.all-hands.dev");
-    expect(result).not.toContain("$OPENHANDS_API_KEY");
-    expect(result).toContain(
-      "instead of using any remote/cloud automation API",
+  it("passes the prompt through verbatim", () => {
+    expect(buildAutomationPrompt("Do something useful")).toBe(
+      "Do something useful",
     );
-  });
-
-  it("appends cloud API instructions for the active cloud backend", () => {
-    const result = buildAutomationPrompt(
-      basePrompt,
-      "cloud",
-      "https://staging.all-hands.dev/",
+    expect(buildAutomationPrompt("/slack-monitor:poll")).toBe(
+      "/slack-monitor:poll",
     );
-    expect(result).toContain(basePrompt);
-    expect(result).toContain(
-      "https://staging.all-hands.dev/api/automation/v1/preset/prompt",
-    );
-    expect(result).not.toContain("https://staging.all-hands.dev//api");
-    expect(result).not.toContain("app.all-hands.dev");
-    expect(result).toContain("$OPENHANDS_API_KEY");
-    expect(result).toContain("/api/automation/v1/preset/prompt");
-    expect(result).not.toContain("<RUNTIME_SERVICES>");
-    expect(result).not.toContain("$OPENHANDS_AUTOMATION_API_KEY");
-  });
-
-  it("keeps the original prompt text verbatim at the start", () => {
-    const localResult = buildAutomationPrompt(basePrompt, "local");
-    const cloudResult = buildAutomationPrompt(
-      basePrompt,
-      "cloud",
-      "https://staging.all-hands.dev",
-    );
-    expect(localResult.startsWith(basePrompt)).toBe(true);
-    expect(cloudResult.startsWith(basePrompt)).toBe(true);
   });
 });
