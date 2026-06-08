@@ -2,6 +2,7 @@ import { ObservationEvent } from "#/types/agent-server/core";
 import { getObservationResult } from "./get-observation-result";
 import { getDefaultEventContent, MAX_CONTENT_LENGTH } from "./shared";
 import i18n from "#/i18n";
+import { I18nKey } from "#/i18n/declaration";
 import {
   MCPToolObservation,
   FinishObservation,
@@ -84,7 +85,7 @@ const getTerminalObservationContent = (
   }
 
   // Display the output
-  output += `Output:\n\`\`\`sh\n${content.trim() || i18n.t("OBSERVATION$COMMAND_NO_OUTPUT")}\n\`\`\``;
+  output += `Output:\n\`\`\`sh\n${content.trim() || i18n.t(I18nKey.OBSERVATION$COMMAND_NO_OUTPUT)}\n\`\`\``;
 
   return output;
 };

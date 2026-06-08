@@ -29493,5 +29493,22 @@
     "uk": "No Backend Available",
     "zh-CN": "No Backend Available",
     "zh-TW": "No Backend Available"
+  },
+  "SETTINGS$UPGRADE_BUTTON": {
+    "en": "Upgrade",
+    "ja": "Upgrade",
+    "zh-CN": "Upgrade",
+    "zh-TW": "Upgrade",
+    "ko-KR": "Upgrade",
+    "no": "Upgrade",
+    "it": "Upgrade",
+    "pt": "Upgrade",
+    "es": "Upgrade",
+    "ar": "Upgrade",
+    "fr": "Upgrade",
+    "tr": "Upgrade",
+    "de": "Upgrade",
+    "uk": "Upgrade",
+    "ca": "Upgrade"
   }
 }
