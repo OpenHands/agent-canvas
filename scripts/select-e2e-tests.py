@@ -2,10 +2,10 @@
 """Select which mock-LLM E2E test specs to run based on changed files.
 
 Spins up an OpenHands SDK Agent with terminal + file_editor tools,
-pointed at the checked-out repository, so it can read source files
-and test specs to make an informed decision.  The agent's events are
-streamed to stderr for CI visibility; the final JSON result goes to
-stdout.
+pointed at the checked-out repository.  The agent reads source files
+and test specs as needed, then writes its selection to a JSON file.
+Agent events are streamed to stderr for CI visibility; the final
+JSON result is printed to stdout.
 
 Usage:
     # From the repo root, pipe changed file paths:
@@ -13,9 +13,6 @@ Usage:
 
     # Or pass as arguments:
     python scripts/select-e2e-tests.py src/routes/automations.tsx ...
-
-    # Specify a workspace (defaults to cwd):
-    WORKSPACE=/path/to/repo python scripts/select-e2e-tests.py < files.txt
 
 Environment variables:
     LLM_API_KEY   – required
@@ -34,8 +31,8 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 import sys
+import tempfile
 
 from pydantic import SecretStr
 
@@ -111,8 +108,6 @@ SPEC_CATALOG: dict[str, str] = {
     ),
 }
 
-OUTPUT_TAG = "TEST_SELECTION"
-
 
 # ---------------------------------------------------------------------------
 # Visualizer — streams every agent event to stderr for CI visibility
@@ -127,20 +122,9 @@ class CIVisualizer(ConversationVisualizerBase):
 
 
 # ---------------------------------------------------------------------------
-# Conversation callback — collects all event dumps for parsing
-# ---------------------------------------------------------------------------
-collected_dumps: list[str] = []
-
-
-def capture_event(event: Event) -> None:
-    """Capture every event for post-run parsing."""
-    collected_dumps.append(event.model_dump_json())
-
-
-# ---------------------------------------------------------------------------
 # Build the user prompt
 # ---------------------------------------------------------------------------
-def build_prompt(changed_files: list[str]) -> str:
+def build_prompt(changed_files: list[str], output_path: str) -> str:
     catalog_text = "\n".join(
         f"  - {name}: {desc}" for name, desc in sorted(SPEC_CATALOG.items())
     )
@@ -152,7 +136,7 @@ Your task: decide which E2E test specs should be run for this pull request.
 
 You can use the terminal and file_editor tools to read any source files or
 test specs if you need to understand what the changed code does.  Do NOT
-modify any files.
+modify any repository files.
 
 Available test specs (in tests/e2e/mock-llm/) and what they cover:
 {catalog_text}
@@ -169,59 +153,13 @@ Rules:
   root layout, core shared utilities) and could affect anything, return
   ALL spec filenames.
 
-When you are done, call the `finish` tool with a message that contains
-exactly this block:
+When you have decided, write your result as a JSON file to:
+  {output_path}
 
-<{OUTPUT_TAG}>
-{{"specs": ["spec-filename.spec.ts"], "reason": "one sentence explanation"}}
-</{OUTPUT_TAG}>"""
+The JSON must have exactly these keys:
+  {{"specs": ["spec-filename.spec.ts", ...], "reason": "one sentence explanation"}}
 
-
-# ---------------------------------------------------------------------------
-# Extract text from event dumps
-# ---------------------------------------------------------------------------
-def _collect_text(obj: object, out: list[str]) -> None:
-    """Recursively collect every string value named 'text' or 'message'."""
-    if isinstance(obj, dict):
-        for key, val in obj.items():
-            if key in ("text", "message") and isinstance(val, str) and val.strip():
-                out.append(val)
-            else:
-                _collect_text(val, out)
-    elif isinstance(obj, list):
-        for item in obj:
-            _collect_text(item, out)
-
-
-def extract_all_text(dumps: list[str]) -> str:
-    """Walk every collected event JSON and pull out all text fragments."""
-    fragments: list[str] = []
-    for raw in dumps:
-        try:
-            obj = json.loads(raw)
-        except json.JSONDecodeError:
-            continue
-        _collect_text(obj, fragments)
-    return "\n".join(fragments)
-
-
-# ---------------------------------------------------------------------------
-# Parse the structured output from the agent's response
-# ---------------------------------------------------------------------------
-def parse_selection(text: str) -> dict:
-    pattern = rf"<{OUTPUT_TAG}>\s*(.*?)\s*</{OUTPUT_TAG}>"
-    matches = re.findall(pattern, text, re.DOTALL)
-    if not matches:
-        raise ValueError(
-            f"Agent response missing <{OUTPUT_TAG}> block.\n"
-            f"Full extracted text ({len(text)} chars):\n{text[:2000]}"
-        )
-    # Take the LAST match — earlier ones may be the prompt template.
-    raw = matches[-1].strip()
-    result = json.loads(raw)
-    specs = [s for s in result.get("specs", []) if s in SPEC_CATALOG]
-    reason = result.get("reason", "LLM selection")
-    return {"specs": specs, "reason": reason}
+Then call the `finish` tool."""
 
 
 # ---------------------------------------------------------------------------
@@ -245,6 +183,13 @@ def main() -> None:
     model = os.environ.get("LLM_MODEL", "openhands/gpt-5.1")
     workspace = os.environ.get("WORKSPACE", os.getcwd())
 
+    # The agent writes its selection here; we read it after the run.
+    output_file = tempfile.NamedTemporaryFile(
+        prefix="e2e-selection-", suffix=".json", delete=False
+    )
+    output_path = output_file.name
+    output_file.close()
+
     llm = LLM(
         model=model,
         api_key=SecretStr(api_key),
@@ -263,20 +208,30 @@ def main() -> None:
         agent=agent,
         workspace=workspace,
         visualizer=CIVisualizer(),
-        callbacks=[capture_event],
         max_iteration_per_run=30,
     )
 
-    prompt = build_prompt(changed_files)
+    prompt = build_prompt(changed_files, output_path)
     conversation.send_message(prompt)
     conversation.run()
 
-    # Extract text from all events and parse the structured output.
-    all_text = extract_all_text(collected_dumps)
-    result = parse_selection(all_text)
-    result["mode"] = "llm"
+    # Read the agent's output file.
+    try:
+        with open(output_path) as f:
+            result = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        raise RuntimeError(
+            f"Agent did not write valid JSON to {output_path}: {e}"
+        ) from e
+    finally:
+        if os.path.exists(output_path):
+            os.unlink(output_path)
 
-    print(json.dumps(result, indent=2))
+    # Validate specs against the catalog.
+    specs = [s for s in result.get("specs", []) if s in SPEC_CATALOG]
+    reason = result.get("reason", "LLM selection")
+
+    print(json.dumps({"specs": specs, "reason": reason, "mode": "llm"}, indent=2))
 
     cost = llm.metrics.accumulated_cost
     print(f"LLM cost: ${cost:.4f}", file=sys.stderr)
