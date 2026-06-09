@@ -38,7 +38,9 @@ export const fileEditorVisualizer = defineVisualizer({
             {obs.error}
           </span>
         );
-      } else if (obs.old_content && obs.new_content) {
+      } else if (obs.old_content != null && obs.new_content != null) {
+        // Nullish, not truthy: an empty string is a valid side of the diff —
+        // clearing a file or inserting into an empty file must still render it.
         body = <DiffView oldText={obs.old_content} newText={obs.new_content} />;
       } else {
         // `view` returns the snippet the agent saw in `content` (the `cat -n`
@@ -67,10 +69,12 @@ export const fileEditorVisualizer = defineVisualizer({
         body = <CodeBlock code={act.file_text} language={language} />;
       } else if (
         (act.command === "str_replace" || act.command === "insert") &&
-        act.old_str != null &&
         act.new_str != null
       ) {
-        body = <DiffView oldText={act.old_str} newText={act.new_str} />;
+        // `insert` carries only `new_str`, no `old_str`. Key on `new_str` and
+        // default `old_str` to "" so an in-flight insert shows an addition diff
+        // instead of nothing.
+        body = <DiffView oldText={act.old_str ?? ""} newText={act.new_str} />;
       }
       return (
         <div className="flex flex-col gap-2">
