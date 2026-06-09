@@ -1,4 +1,8 @@
-import axios from "axios";
+import {
+  capturedUpstreamRequest,
+  mockUpstreamResponse,
+  resetCloudProxyMock,
+} from "./_proxy-test-helpers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -27,7 +31,7 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.request).mockReset();
+  resetCloudProxyMock();
 });
 
 afterEach(() => {
@@ -38,7 +42,7 @@ afterEach(() => {
 describe("getCloudRepositoryBranches", () => {
   it("includes an empty query parameter when listing all branches so the upstream schema is satisfied", async () => {
     // Arrange
-    vi.mocked(axios.request).mockResolvedValueOnce(emptyBranchPage);
+    mockUpstreamResponse(emptyBranchPage.data);
 
     // Act
     await getCloudRepositoryBranches({
@@ -47,14 +51,14 @@ describe("getCloudRepositoryBranches", () => {
     });
 
     // Assert
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    const config = capturedUpstreamRequest(0);
     const url = (config as { url: string }).url;
     expect(url).toMatch(/[?&]query=(&|$)/);
   });
 
   it("forwards a non-empty query parameter when searching branches", async () => {
     // Arrange
-    vi.mocked(axios.request).mockResolvedValueOnce(emptyBranchPage);
+    mockUpstreamResponse(emptyBranchPage.data);
 
     // Act
     await getCloudRepositoryBranches({
@@ -64,7 +68,7 @@ describe("getCloudRepositoryBranches", () => {
     });
 
     // Assert
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    const config = capturedUpstreamRequest(0);
     const url = (config as { url: string }).url;
     expect(url).toContain("query=feature%2Flogin");
   });

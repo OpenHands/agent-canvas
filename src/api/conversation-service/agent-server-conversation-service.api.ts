@@ -66,6 +66,19 @@ import type {
 } from "./agent-server-conversation-service.types";
 
 const DEFAULT_CONVERSATION_TIMESTAMP = "1970-01-01T00:00:00.000Z";
+
+// `POST /api/conversations` is by far the slowest non-streaming agent-server
+// call: on a fresh install (especially the bundled desktop binary on first
+// run) it triggers `uvx`-installed Python packages to import for the first
+// time, the workspace to be initialised, the public skills bundle to be
+// cloned from OpenHands/extensions if `load_public_skills` is true, and an
+// initial LLM call for skill analysis. The SDK's default 60s easily expires
+// here and surfaces in the UI as either "Request timeout after 60000ms" or
+// "Request failed: signal timed out" (the SDK's catch routes
+// AbortSignal.timeout()'s `TimeoutError` to the latter path, even though the
+// underlying cause is identical). Five minutes covers a slow first-run cold
+// boot without making genuine hangs feel infinite.
+const CREATE_CONVERSATION_TIMEOUT_MS = 5 * 60 * 1000;
 const INVALID_CONVERSATION_RESPONSE_MESSAGE =
   "Unable to load conversations because the selected agent server returned " +
   "data this UI does not understand. Check the backend URL/session key and " +
@@ -397,7 +410,9 @@ class AgentServerConversationService {
     });
 
     const data = await new ConversationClient(
-      getAgentServerClientOptions(),
+      getAgentServerClientOptions({
+        timeout: CREATE_CONVERSATION_TIMEOUT_MS,
+      }),
     ).createConversation<DirectConversationInfo>(payload);
     const localBackend = getEffectiveLocalBackend();
     if (!localBackend) throw new NoBackendAvailableError();

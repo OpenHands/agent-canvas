@@ -1,19 +1,21 @@
 /**
  * Shared file logger for agent-canvas dev scripts.
  *
- * Writes log output to a daily-rotating file under <project-root>/logs/
- * alongside the existing console output (which is unchanged).
+ * Writes log output to a daily-rotating file under
+ * <state-dir>/logs/agent-canvas.YYYY-MM-DD.log (7-day retention) alongside
+ * the existing console output (which is unchanged).
  *
- * File naming:  logs/agent-canvas.YYYY-MM-DD.log
- * Retention:    7 days (files older than 7 days are automatically deleted)
+ * winston is loaded dynamically and treated as optional: when it isn't
+ * resolvable — most importantly inside the packaged Electron desktop app,
+ * whose `afterPack` hook strips `Resources/app/node_modules/` — `fileLog`
+ * becomes a no-op and console logging continues to work unchanged. See
+ * AGENTS.md "Electron desktop packaging" for the strip-hook details.
  */
 
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import process from "node:process";
-import { createLogger, format } from "winston";
-import DailyRotateFile from "winston-daily-rotate-file";
 
 // Mirror the state-directory logic from dev-safe.mjs so log files live
 // alongside all other agent-canvas runtime state (e.g. ~/.openhands/agent-canvas).
@@ -22,9 +24,6 @@ const stateDir =
   process.env.OH_CANVAS_SAFE_STATE_DIR ||
   join(homedir(), ".openhands", "agent-canvas");
 const logDir = join(stateDir, "logs");
-
-// Ensure the logs directory exists before the transport tries to open a file.
-mkdirSync(logDir, { recursive: true });
 
 // Matches any ANSI CSI escape sequence (colors, cursor movement, etc.).
 const ANSI_RE = /\x1b\[[0-9;]*m/g;
@@ -38,40 +37,70 @@ export function stripAnsi(str) {
   return typeof str === "string" ? str.replace(ANSI_RE, "") : String(str);
 }
 
-const fileTransport = new DailyRotateFile({
-  dirname: logDir,
-  filename: "agent-canvas.%DATE%.log",
-  datePattern: "YYYY-MM-DD",
-  maxFiles: "7d",
-  // Audit file tracks which rotated files exist; kept alongside log files.
-  auditFile: join(logDir, ".log-audit.json"),
-  createSymlink: false,
-});
+/**
+ * Attempt to construct a winston-backed file logger. Returns `null` if
+ * winston isn't installed (packaged desktop app) or any setup step fails;
+ * `fileLog` then degrades to a no-op.
+ *
+ * @returns {Promise<import("winston").Logger | null>}
+ */
+async function createFileLogger() {
+  let winston;
+  let DailyRotateFileMod;
+  try {
+    winston = await import("winston");
+    DailyRotateFileMod = await import("winston-daily-rotate-file");
+  } catch {
+    return null;
+  }
 
-const fileLogger = createLogger({
-  level: "debug",
-  format: format.combine(
-    format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
-    format.printf(
-      ({ timestamp, level, message }) =>
-        `${timestamp} [${level.toUpperCase().padEnd(5)}] ${message}`,
-    ),
-  ),
-  transports: [fileTransport],
-});
+  try {
+    mkdirSync(logDir, { recursive: true });
 
-// Swallow any transport-level errors (e.g. disk full) so a logging failure
-// never crashes the dev server.
-fileLogger.on("error", () => {});
-fileTransport.on("error", () => {});
+    const DailyRotateFile =
+      DailyRotateFileMod.default ?? DailyRotateFileMod;
+    const fileTransport = new DailyRotateFile({
+      dirname: logDir,
+      filename: "agent-canvas.%DATE%.log",
+      datePattern: "YYYY-MM-DD",
+      maxFiles: "7d",
+      auditFile: join(logDir, ".log-audit.json"),
+      createSymlink: false,
+    });
+
+    const logger = winston.createLogger({
+      level: "debug",
+      format: winston.format.combine(
+        winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
+        winston.format.printf(
+          ({ timestamp, level, message }) =>
+            `${timestamp} [${level.toUpperCase().padEnd(5)}] ${message}`,
+        ),
+      ),
+      transports: [fileTransport],
+    });
+
+    // Swallow any transport-level errors (e.g. disk full) so a logging
+    // failure never crashes the dev server.
+    logger.on("error", () => {});
+    fileTransport.on("error", () => {});
+    return logger;
+  } catch {
+    return null;
+  }
+}
+
+const fileLogger = await createFileLogger();
 
 /**
- * Write a message to the rotating log file.
- * ANSI escape codes are stripped automatically; console output is unaffected.
+ * Write a message to the rotating log file. No-ops when winston isn't
+ * available (e.g. the packaged desktop app). ANSI escape codes are
+ * stripped automatically; console output is unaffected.
  *
  * @param {'info' | 'warn' | 'error' | 'debug'} level
  * @param {string} message
  */
 export function fileLog(level, message) {
+  if (!fileLogger) return;
   fileLogger.log(level, stripAnsi(message));
 }

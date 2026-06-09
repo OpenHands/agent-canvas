@@ -1,4 +1,8 @@
 import axios from "axios";
+import {
+  capturedUpstreamRequest,
+  resetCloudProxyMock,
+} from "./_proxy-test-helpers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -23,7 +27,7 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.request).mockReset();
+  resetCloudProxyMock();
 });
 
 afterEach(() => {
@@ -33,7 +37,7 @@ afterEach(() => {
 
 describe("SkillsService.getSkills against cloud backend", () => {
   it("paginates /api/v1/skills/search directly and returns the merged list", async () => {
-    vi.mocked(axios.request)
+    vi.mocked(axios.post)
       .mockResolvedValueOnce({
         data: {
           items: [
@@ -57,9 +61,9 @@ describe("SkillsService.getSkills against cloud backend", () => {
 
     const skills = await SkillsService.getSkills();
 
-    expect(vi.mocked(axios.request)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(axios.post)).toHaveBeenCalledTimes(2);
 
-    const [firstConfig] = vi.mocked(axios.request).mock.calls[0]!;
+    const firstConfig = capturedUpstreamRequest(0);
     expect(firstConfig).toMatchObject({
       method: "GET",
       headers: { Authorization: "Bearer bearer-token" },
@@ -69,7 +73,7 @@ describe("SkillsService.getSkills against cloud backend", () => {
     );
     expect((firstConfig as { url: string }).url).not.toContain("page_id=");
 
-    const [secondConfig] = vi.mocked(axios.request).mock.calls[1]!;
+    const secondConfig = capturedUpstreamRequest(1);
     expect((secondConfig as { url: string }).url).toContain("page_id=beta");
 
     expect(skills.map((s) => s.name)).toEqual(["alpha", "beta", "gamma"]);

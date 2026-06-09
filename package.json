@@ -99,7 +99,12 @@
     "check-translation-completeness": "node scripts/check-translation-completeness.cjs",
     "build:app": "npm run make-i18n && react-router build",
     "build:lib": "npm run make-i18n && react-router typegen && cross-env BUILD_LIB=true VITE_APP_ENV=production vite build && tsc -p tsconfig.lib.json",
-    "build:docker": "node scripts/docker-build.mjs"
+    "build:docker": "node scripts/docker-build.mjs",
+    "desktop": "npm run build:app && electron electron/main.mjs",
+    "build:desktop": "npm run build:app && node scripts/download-uv.mjs && node scripts/download-node.mjs && electron-builder --config electron-builder.config.mjs",
+    "build:desktop:universal": "npm run build:app && node scripts/download-uv.mjs && node scripts/download-node.mjs && cross-env ELECTRON_ARCH=universal electron-builder --config electron-builder.config.mjs",
+    "download-uv": "node scripts/download-uv.mjs",
+    "download-node": "node scripts/download-node.mjs"
   },
   "lint-staged": {
     "src/**/*.{ts,tsx,js}": [
@@ -135,6 +140,8 @@
     "@vercel/react-router": "1.3.0",
     "@vitest/coverage-v8": "4.1.5",
     "cross-env": "10.1.0",
+    "electron": "42.3.2",
+    "electron-builder": "26.8.1",
     "eslint": "9.39.4",
     "eslint-config-prettier": "10.1.8",
     "eslint-import-resolver-typescript": "4.4.4",

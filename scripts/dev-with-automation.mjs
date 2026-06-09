@@ -543,6 +543,26 @@ const shutdownHooks = createShutdownHookRegistry((err) => {
   logService("cleanup", `Cleanup hook failed: ${err.message}`, c.yellow);
 });
 
+// Optional external listener for every service log line. Set by `main()` from
+// its `onServiceLog` option so embedded launchers (e.g. the Electron desktop
+// app) can stream uvx download / install progress to their loading window
+// without touching the terminal logging path. Receives `(name, line, level)`
+// where `level` is one of "stdout" | "stderr" | "info" | "warn" | "error".
+let serviceLogListener = null;
+
+export function setServiceLogListener(listener) {
+  serviceLogListener = typeof listener === "function" ? listener : null;
+}
+
+function emitServiceLog(name, line, level) {
+  if (!serviceLogListener) return;
+  try {
+    serviceLogListener(name, line, level);
+  } catch {
+    // Never let a listener bug crash the dev stack.
+  }
+}
+
 function registerShutdownHook(hook) {
   return shutdownHooks.add(hook);
 }
@@ -568,8 +588,10 @@ function spawnService(name, command, args, options = {}) {
       .split("\n")
       .filter(Boolean)
       .forEach((line) => {
-        const parsed = parseLogLine ? parseLogLine(line.trim()) : null;
-        logService(name, parsed ? parsed.text : line.trim(), parsed ? parsed.color : color);
+        const trimmed = line.trim();
+        const parsed = parseLogLine ? parseLogLine(trimmed) : null;
+        logService(name, parsed ? parsed.text : trimmed, parsed ? parsed.color : color);
+        emitServiceLog(name, trimmed, "stdout");
       });
   });
 
@@ -579,18 +601,22 @@ function spawnService(name, command, args, options = {}) {
       .split("\n")
       .filter(Boolean)
       .forEach((line) => {
-        const parsed = parseLogLine ? parseLogLine(line.trim()) : null;
-        logService(name, parsed ? parsed.text : line.trim(), parsed ? parsed.color : c.yellow);
+        const trimmed = line.trim();
+        const parsed = parseLogLine ? parseLogLine(trimmed) : null;
+        logService(name, parsed ? parsed.text : trimmed, parsed ? parsed.color : c.yellow);
+        emitServiceLog(name, trimmed, "stderr");
       });
   });
 
   proc.on("error", (error) => {
     logError(`${name} failed to start: ${error.message}`);
+    emitServiceLog(name, `failed to start: ${error.message}`, "error");
   });
 
   proc.on("exit", (code, signal) => {
     if (code !== 0 && code !== null && !shuttingDown) {
       logService(name, `Exited with code ${code}`, c.red);
+      emitServiceLog(name, `exited with code ${code}`, "error");
     }
     processes.delete(name);
   });
@@ -1186,7 +1212,27 @@ async function main(options = {}) {
     // When true, enable public mode (require LOCAL_BACKEND_API_KEY,
     // don't bake session key into frontend).
     isPublic: isPublicOverride,
+    // When true, skip the npm prerequisite check. Used by the Electron desktop
+    // launcher where npm is not needed at runtime in static mode.
+    skipNpmCheck = false,
+    // How long to wait for the agent-server's `/server_info` to return 200
+    // before continuing. Defaults to 60 s, which is fine for warm-cache dev
+    // workflows. The Electron desktop launcher bumps this to several minutes
+    // because first-launch on a fresh machine runs `uvx` to download Python
+    // and install `openhands-agent-server` from PyPI, which can take much
+    // longer than 60 s on a slow network.
+    agentServerReadyTimeoutMs = 60_000,
+    // Optional `(name, line, level)` callback that receives every service log
+    // line (stdout, stderr, and lifecycle events) emitted by any spawned
+    // backend process. Used by the Electron loading screen to surface uvx
+    // download / install progress to the user. `level` is one of
+    // "stdout" | "stderr" | "info" | "warn" | "error".
+    onServiceLog,
   } = options;
+
+  // Install the listener early so log lines emitted before the first
+  // `spawnService` call (e.g. by future setup steps) are also captured.
+  setServiceLogListener(onServiceLog);
 
   const args = parseArgs();
 
@@ -1215,9 +1261,13 @@ async function main(options = {}) {
     checkUvx: !args.frontendOnly,
     // Static-mode + backend-only has no frontend to build, so npm is not
     // required — unless the caller provides a custom buildStaticFrontend hook.
+    // The Electron desktop launcher passes `skipNpmCheck: true` because the
+    // packaged binary serves a pre-built static frontend and never invokes
+    // npm at runtime, so we suppress the check unconditionally there.
     checkNpm:
-      (!useStaticMode && !args.backendOnly) ||
-      typeof buildStaticFrontend === "function",
+      !skipNpmCheck &&
+      ((!useStaticMode && !args.backendOnly) ||
+        typeof buildStaticFrontend === "function"),
     checkFrontendDependencies:
       (!useStaticMode && !args.backendOnly) ||
       typeof buildStaticFrontend === "function",
@@ -1279,16 +1329,23 @@ async function main(options = {}) {
 
   let agentServerReady = false;
 
-  // 1. Start agent-server first (automation depends on it)
+  // 1. Start agent-server first (automation depends on it).
+  //
+  // Readiness timeout defaults to 60 s, which is fine for `npm run dev` against
+  // a warm uvx cache. The Electron desktop launcher overrides this via the
+  // `agentServerReadyTimeoutMs` option because first-launch on a fresh machine
+  // runs `uvx` to download Python + install `openhands-agent-server` from PyPI,
+  // which can take several minutes. Dropping the user into a half-booted UI
+  // before that completes triggers axios "Request timeout" popups on the first
+  // SPA fetch that hits an unbound port 18000.
   if (config.launchAgentServer) {
     const agentServerStarter = startAgentServerOverride ?? startAgentServer;
     agentServerStarter(config);
 
-    // Wait for agent-server to be ready (60s timeout for slow systems)
     agentServerReady = await waitForService(
       "agent-server",
       `http://localhost:${config.agentServerPort}/server_info`,
-      60000, // 60 second timeout for initial startup
+      agentServerReadyTimeoutMs,
     );
   }
 
@@ -1329,6 +1386,11 @@ async function main(options = {}) {
   await delay(1000);
 
   printBanner(config);
+
+  // Return the resolved config + readiness signal so embedded launchers can
+  // (a) build URLs from the actual allocated ports and (b) decide whether to
+  // show an error to the user when the agent-server never came up.
+  return { config, agentServerReady };
 }
 
 function startStaticFrontend(config, staticDir) {

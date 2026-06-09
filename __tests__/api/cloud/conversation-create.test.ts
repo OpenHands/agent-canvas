@@ -1,4 +1,8 @@
 import axios from "axios";
+import {
+  capturedUpstreamRequest,
+  resetCloudProxyMock,
+} from "./_proxy-test-helpers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -23,7 +27,7 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.request).mockReset();
+  resetCloudProxyMock();
 });
 
 afterEach(() => {
@@ -33,7 +37,7 @@ afterEach(() => {
 
 describe("AgentServerConversationService cloud branch", () => {
   it("createConversation POSTs the cloud payload directly and returns a WORKING task", async () => {
-    vi.mocked(axios.request).mockResolvedValue({
+    vi.mocked(axios.post).mockResolvedValue({
       data: {
         id: "task-123",
         created_by_user_id: null,
@@ -59,8 +63,8 @@ describe("AgentServerConversationService cloud branch", () => {
       },
     );
 
-    expect(axios.request).toHaveBeenCalledOnce();
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(axios.post).toHaveBeenCalledOnce();
+    const config = capturedUpstreamRequest(0);
 
     expect(config).toMatchObject({
       url: `${cloudBackend.host}/api/v1/app-conversations`,
@@ -89,7 +93,7 @@ describe("AgentServerConversationService cloud branch", () => {
   });
 
   it("getStartTask polls /api/v1/app-conversations/start-tasks?ids= directly", async () => {
-    vi.mocked(axios.request).mockResolvedValue({
+    vi.mocked(axios.post).mockResolvedValue({
       data: [
         {
           id: "task-123",
@@ -108,7 +112,7 @@ describe("AgentServerConversationService cloud branch", () => {
     const result =
       await AgentServerConversationService.getStartTask("task-123");
 
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    const config = capturedUpstreamRequest(0);
     expect(config).toMatchObject({
       url: `${cloudBackend.host}/api/v1/app-conversations/start-tasks?ids=task-123`,
       method: "GET",

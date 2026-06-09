@@ -1,4 +1,9 @@
 import axios from "axios";
+import {
+  capturedUpstreamRequest,
+  mockUpstreamResponse,
+  resetCloudProxyMock,
+} from "./_proxy-test-helpers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -23,7 +28,7 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.request).mockReset();
+  resetCloudProxyMock();
 });
 
 afterEach(() => {
@@ -33,7 +38,7 @@ afterEach(() => {
 
 describe("SecretsService against cloud backend", () => {
   it("paginates getSecrets directly and returns the merged list", async () => {
-    vi.mocked(axios.request)
+    vi.mocked(axios.post)
       .mockResolvedValueOnce({
         data: {
           items: [
@@ -52,9 +57,9 @@ describe("SecretsService against cloud backend", () => {
 
     const secrets = await SecretsService.getSecrets();
 
-    expect(vi.mocked(axios.request)).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(axios.post)).toHaveBeenCalledTimes(2);
 
-    const [firstConfig] = vi.mocked(axios.request).mock.calls[0]!;
+    const firstConfig = capturedUpstreamRequest(0);
     expect(firstConfig).toMatchObject({
       method: "GET",
       headers: { Authorization: "Bearer bearer-token" },
@@ -64,14 +69,14 @@ describe("SecretsService against cloud backend", () => {
     );
     expect((firstConfig as { url: string }).url).not.toContain("page_id=");
 
-    const [secondConfig] = vi.mocked(axios.request).mock.calls[1]!;
+    const secondConfig = capturedUpstreamRequest(1);
     expect((secondConfig as { url: string }).url).toContain("page_id=BETA");
 
     expect(secrets.map((s) => s.name)).toEqual(["ALPHA", "BETA", "GAMMA"]);
   });
 
   it("creates a secret via direct POST /api/v1/secrets", async () => {
-    vi.mocked(axios.request).mockResolvedValueOnce({ data: {} });
+    mockUpstreamResponse({});
 
     await SecretsService.createSecret(
       "OPENAI_API_KEY",
@@ -79,7 +84,7 @@ describe("SecretsService against cloud backend", () => {
       "OpenAI key",
     );
 
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    const config = capturedUpstreamRequest(0);
     expect(config).toMatchObject({
       url: `${cloudBackend.host}/api/v1/secrets`,
       method: "POST",
@@ -93,12 +98,12 @@ describe("SecretsService against cloud backend", () => {
   });
 
   it("updates a secret via PUT /api/v1/secrets/{id} with name + description only", async () => {
-    vi.mocked(axios.request).mockResolvedValueOnce({ data: {} });
+    mockUpstreamResponse({});
 
     // The form/hook calls updateSecret(secretToEdit, newName, description).
     await SecretsService.updateSecret("OLD_NAME", "NEW_NAME", "renamed");
 
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    const config = capturedUpstreamRequest(0);
     expect(config).toMatchObject({
       url: `${cloudBackend.host}/api/v1/secrets/OLD_NAME`,
       method: "PUT",
@@ -108,11 +113,11 @@ describe("SecretsService against cloud backend", () => {
   });
 
   it("deletes a secret via direct DELETE /api/v1/secrets/{id}", async () => {
-    vi.mocked(axios.request).mockResolvedValueOnce({ data: {} });
+    mockUpstreamResponse({});
 
     await SecretsService.deleteSecret("token with space");
 
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    const config = capturedUpstreamRequest(0);
     expect(config).toMatchObject({
       url: `${cloudBackend.host}/api/v1/secrets/token%20with%20space`,
       method: "DELETE",

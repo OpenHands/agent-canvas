@@ -1,4 +1,9 @@
 import axios from "axios";
+import {
+  capturedUpstreamRequest,
+  mockUpstreamFailure,
+  resetCloudProxyMock,
+} from "./_proxy-test-helpers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -24,18 +29,18 @@ beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
   setRegisteredBackends([]);
-  vi.mocked(axios.request).mockReset();
+  resetCloudProxyMock();
 });
 
 afterEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
-  vi.mocked(axios.request).mockReset();
+  resetCloudProxyMock();
 });
 
 describe("cloud organization-service", () => {
   it("getCloudOrganizations calls the cloud API directly and returns normalized data", async () => {
-    vi.mocked(axios.request).mockResolvedValue({
+    vi.mocked(axios.post).mockResolvedValue({
       data: {
         items: [{ id: "org-1", name: "Personal" }],
         current_org_id: "org-1",
@@ -44,8 +49,8 @@ describe("cloud organization-service", () => {
 
     const result = await getCloudOrganizations(cloudBackend);
 
-    expect(axios.request).toHaveBeenCalledOnce();
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(axios.post).toHaveBeenCalledOnce();
+    const config = capturedUpstreamRequest(0);
 
     expect(config).toMatchObject({
       url: `${cloudBackend.host}/api/organizations`,
@@ -60,7 +65,7 @@ describe("cloud organization-service", () => {
   });
 
   it("getCurrentCloudApiKey hits /api/keys/current and returns the bound orgId", async () => {
-    vi.mocked(axios.request).mockResolvedValue({
+    vi.mocked(axios.post).mockResolvedValue({
       data: {
         id: "key-1",
         name: "k",
@@ -72,7 +77,7 @@ describe("cloud organization-service", () => {
 
     const result = await getCurrentCloudApiKey(cloudBackend);
 
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    const config = capturedUpstreamRequest(0);
     expect(config).toMatchObject({
       url: `${cloudBackend.host}/api/keys/current`,
       method: "GET",
@@ -86,7 +91,7 @@ describe("cloud organization-service", () => {
       response: { status: 400 },
     });
     vi.mocked(axios.isAxiosError).mockReturnValueOnce(true);
-    vi.mocked(axios.request).mockRejectedValueOnce(error);
+    mockUpstreamFailure(error);
 
     const result = await getCurrentCloudApiKey(cloudBackend);
 
@@ -98,7 +103,7 @@ describe("cloud organization-service", () => {
       response: { status: 401 },
     });
     vi.mocked(axios.isAxiosError).mockReturnValueOnce(true);
-    vi.mocked(axios.request).mockRejectedValueOnce(error);
+    mockUpstreamFailure(error);
 
     await expect(getCurrentCloudApiKey(cloudBackend)).rejects.toBe(error);
   });

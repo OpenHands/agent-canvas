@@ -1,4 +1,8 @@
 import axios from "axios";
+import {
+  capturedUpstreamRequest,
+  resetCloudProxyMock,
+} from "./_proxy-test-helpers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -21,7 +25,7 @@ const cloudBackend: Backend = {
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
-  vi.mocked(axios.request).mockReset();
+  resetCloudProxyMock();
 });
 
 afterEach(() => {
@@ -33,7 +37,7 @@ describe("AgentServerConversationService.updateConversationPublicFlag", () => {
   it("PATCHes /api/v1/app-conversations/{id} directly on a cloud backend", async () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
-    vi.mocked(axios.request).mockResolvedValue({
+    vi.mocked(axios.post).mockResolvedValue({
       data: { id: "conv-abc", public: true },
     });
 
@@ -42,8 +46,8 @@ describe("AgentServerConversationService.updateConversationPublicFlag", () => {
       true,
     );
 
-    expect(axios.request).toHaveBeenCalledOnce();
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(axios.post).toHaveBeenCalledOnce();
+    const config = capturedUpstreamRequest(0);
     expect(config).toMatchObject({
       url: `${cloudBackend.host}/api/v1/app-conversations/conv-abc`,
       method: "PATCH",
@@ -60,6 +64,6 @@ describe("AgentServerConversationService.updateConversationPublicFlag", () => {
         true,
       ),
     ).rejects.toThrow(/cloud backend/);
-    expect(axios.request).not.toHaveBeenCalled();
+    expect(axios.post).not.toHaveBeenCalled();
   });
 });
