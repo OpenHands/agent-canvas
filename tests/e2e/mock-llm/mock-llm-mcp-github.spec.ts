@@ -7,9 +7,14 @@
  * intercepted to return a mock success response so the test doesn't need a
  * real `github-mcp-server` binary or Docker daemon.
  *
+ * Runs in both npm (`mock-llm.config.ts`) and Docker (`mock-llm-docker.config.ts`)
+ * paths. In Docker mode, asserts that `patchGitHubEntry` rewrote the command to
+ * the pre-installed native binary (`github-mcp-server stdio`); in npm mode,
+ * asserts the original `docker run …` transport is shown.
+ *
  * Verifies:
  *   1. The MCP page renders with the GitHub marketplace card visible
- *   2. Clicking the card opens the install modal with the correct fields
+ *   2. Clicking the card opens the install modal with the correct command
  *   3. Filling in the PAT and submitting succeeds (with mocked test endpoint)
  *   4. After install the GitHub server appears in the installed list
  *   5. The installed server can be deleted via the UI
@@ -27,6 +32,19 @@ import {
 } from "./utils/mock-llm-helpers";
 
 const FAKE_PAT = "github_pat_test_1234567890abcdef";
+
+/**
+ * When running inside the Docker image (`--mode docker` in runtime services
+ * info), `patchGitHubEntry` rewrites the catalog command from `docker run …`
+ * to the pre-installed native binary. The Docker Playwright config sets
+ * `MOCK_LLM_DOCKER_IMAGE`, so we can use its presence to know which command
+ * value to expect.
+ */
+const IS_DOCKER_E2E = !!process.env.MOCK_LLM_DOCKER_IMAGE;
+/** Pattern to match inside the read-only command field value. */
+const EXPECTED_COMMAND_PATTERN = IS_DOCKER_E2E
+  ? /github-mcp-server\s+stdio/
+  : /docker/;
 
 test.describe.configure({ mode: "serial" });
 
@@ -87,13 +105,13 @@ test.describe("MCP GitHub server install flow", () => {
     await expect(modal).toHaveAttribute("data-marketplace-id", "github");
 
     // The modal should show the command field (read-only).
-    // In the mock-LLM test environment (non-Docker), the command is the
-    // original catalog entry: `docker run ...`. In Docker deployments the
-    // patchGitHubEntry rewrites it to `github-mcp-server stdio`.
+    // In Docker mode the field shows the patched native binary command;
+    // in the npm path it shows the original `docker run …` transport.
     const commandField = page.getByTestId(
       "mcp-install-field-command-readonly",
     );
     await expect(commandField).toBeVisible();
+    await expect(commandField).toHaveValue(EXPECTED_COMMAND_PATTERN);
 
     // The PAT field should be present and empty
     const patField = page.getByTestId(
