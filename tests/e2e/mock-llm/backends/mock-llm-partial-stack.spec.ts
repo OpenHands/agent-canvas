@@ -32,7 +32,7 @@ import {
 // ── Paths ──────────────────────────────────────────────────────────────
 const PROJECT_ROOT = resolve(
   dirname(fileURLToPath(import.meta.url)),
-  "../../..",
+  "../../../..",
 );
 const BIN = join(PROJECT_ROOT, "bin/agent-canvas.mjs");
 
