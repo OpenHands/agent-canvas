@@ -45,11 +45,11 @@ describe("agent server config", () => {
     expect(getAgentServerBaseUrl()).toBe("https://work-1.example.dev");
   });
 
-  it("does not rewrite localhost backend URLs to the browser origin", () => {
+  it("canonicalizes 127.0.0.1 loopback backend URLs to localhost", () => {
     mockWindowLocation("https://work-1.example.dev/settings");
     vi.stubEnv("VITE_BACKEND_BASE_URL", "http://127.0.0.1:8000");
 
-    expect(getAgentServerBaseUrl()).toBe("http://127.0.0.1:8000");
+    expect(getAgentServerBaseUrl()).toBe("http://localhost:8000");
   });
 
   it("prefills the settings form from environment defaults", () => {

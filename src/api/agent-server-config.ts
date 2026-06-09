@@ -16,14 +16,36 @@ function normalizeBaseUrl(value?: string | null): string | null {
   if (!trimmed) return null;
 
   if (/^https?:\/\//i.test(trimmed)) {
-    return trimmed;
+    return canonicalizeLoopbackBackendUrl(trimmed);
   }
 
   if (typeof window !== "undefined") {
-    return `${window.location.protocol}//${trimmed}`;
+    return canonicalizeLoopbackBackendUrl(
+      `${window.location.protocol}//${trimmed}`,
+    );
   }
 
-  return `http://${trimmed}`;
+  return canonicalizeLoopbackBackendUrl(`http://${trimmed}`);
+}
+
+/**
+ * On macOS dual-stack dev stacks, Vite's HMR websocket binds IPv4
+ * 127.0.0.1:ingress while the ingress proxy listens on localhost/::1.
+ * API probes to 127.0.0.1:8000 hit Vite (426 Upgrade Required) instead
+ * of the agent-server — canonicalize to localhost so requests reach ingress.
+ */
+export function canonicalizeLoopbackBackendUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === "127.0.0.1") {
+      parsed.hostname = "localhost";
+      return parsed.href.replace(/\/$/, "");
+    }
+  } catch {
+    /* ignore malformed URLs */
+  }
+
+  return url.replace(/\/$/, "");
 }
 
 function getConfiguredBaseUrl(): string | null {

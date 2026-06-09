@@ -3,6 +3,7 @@ import {
   DEFAULT_LOCAL_BACKEND_NAME,
   makeDefaultLocalBackend,
 } from "./default-backend";
+import { resetBackendHealth } from "./health-store";
 import type { Backend, BackendKind, BackendSelection } from "./types";
 
 export const BACKENDS_STORAGE_KEY = "openhands-backends";
@@ -111,12 +112,19 @@ function syncLauncherDefaultLocalBackend(backends: Backend[]): Backend[] {
       return backend;
     }
 
-    if (backend.apiKey === defaultBackend.apiKey) return backend;
+    if (
+      backend.apiKey === defaultBackend.apiKey &&
+      backend.host === defaultBackend.host
+    ) {
+      return backend;
+    }
 
     didSync = true;
+    resetBackendHealth(backend.id);
     return {
       ...backend,
       apiKey: defaultBackend.apiKey,
+      host: defaultBackend.host,
     };
   });
 

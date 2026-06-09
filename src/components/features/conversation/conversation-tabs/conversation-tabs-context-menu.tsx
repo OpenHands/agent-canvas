@@ -20,6 +20,8 @@ import DoubleCheckIcon from "#/icons/double-check.svg?react";
 import { useTaskList } from "#/hooks/use-task-list";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useSelectConversationTab } from "#/hooks/use-select-conversation-tab";
+import { useIsArchivedConversation } from "#/hooks/use-is-archived-conversation";
+import { ArchivedDisabledTooltip } from "../../context-menu/archived-disabled-tooltip";
 import { cn } from "#/utils/utils";
 import {
   dropdownInstantColorClassName,
@@ -55,6 +57,7 @@ export function ConversationTabsContextMenu({
 
   const { hasTaskList } = useTaskList();
   const { backend } = useActiveBackend();
+  const isArchivedConversation = useIsArchivedConversation();
 
   const tabConfig = [
     {
@@ -84,11 +87,19 @@ export function ConversationTabsContextMenu({
   if (!isOpen) return null;
 
   const handleOpenTab = (tab: string) => {
+    if (isArchivedConversation) {
+      return;
+    }
     navigateToTab(tab as ConversationTab);
     onClose();
   };
 
   const handlePinToggle = (tab: string, e: React.MouseEvent) => {
+    if (isArchivedConversation) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     e.preventDefault();
     e.stopPropagation();
     if (state.unpinnedTabs.includes(tab)) {
@@ -122,63 +133,75 @@ export function ConversationTabsContextMenu({
         const pinned = !state.unpinnedTabs.includes(tab);
         return (
           <li key={tab} className="list-none">
-            <div
-              className={cn(
-                "group flex h-[30px] w-full min-w-0 items-stretch rounded",
-                "hover:bg-[var(--oh-interactive-hover)]",
-              )}
-            >
-              <button
-                type="button"
-                data-testid={`conversation-tabs-menu-open-${tab}`}
+            <ArchivedDisabledTooltip isDisabled={isArchivedConversation}>
+              <div
                 className={cn(
-                  "flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-l p-2 text-start text-white",
-                  dropdownInstantColorClassName,
+                  "group flex h-[30px] w-full min-w-0 items-stretch rounded",
+                  !isArchivedConversation &&
+                    "hover:bg-[var(--oh-interactive-hover)]",
+                  isArchivedConversation && "opacity-50",
                 )}
-                onClick={() => handleOpenTab(tab)}
               >
-                <span
-                  className={dropdownMenuRowIconWrapperClassName}
-                  aria-hidden
+                <button
+                  type="button"
+                  data-testid={`conversation-tabs-menu-open-${tab}`}
+                  disabled={isArchivedConversation}
+                  className={cn(
+                    "flex min-w-0 flex-1 items-center gap-2 rounded-l p-2 text-start text-white",
+                    dropdownInstantColorClassName,
+                    isArchivedConversation
+                      ? "cursor-not-allowed"
+                      : "cursor-pointer",
+                  )}
+                  onClick={() => handleOpenTab(tab)}
                 >
-                  <Icon className="h-4 w-4" />
-                </span>
-                <span className="text-sm">{t(i18nKey)}</span>
-              </button>
-              <button
-                type="button"
-                data-testid={`conversation-tabs-menu-pin-${tab}`}
-                className={cn(
-                  "flex shrink-0 cursor-pointer items-center justify-center rounded-r px-2 text-white hover:bg-white/10",
-                  dropdownInstantColorClassName,
-                )}
-                aria-pressed={pinned}
-                aria-label={pinned ? "Unpin tab from bar" : "Pin tab to bar"}
-                onClick={(e) => handlePinToggle(tab, e)}
-              >
-                {pinned ? (
                   <span
-                    className={cn(
-                      "-mr-[5px] ml-auto",
-                      dropdownMenuRowIconWrapperClassName,
-                    )}
+                    className={dropdownMenuRowIconWrapperClassName}
                     aria-hidden
                   >
-                    <PillFillIcon className="h-7 w-7" />
+                    <Icon className="h-4 w-4" />
                   </span>
-                ) : (
-                  <span
-                    className={cn(
-                      "ml-auto",
-                      dropdownMenuRowIconWrapperClassName,
-                    )}
-                    aria-hidden
-                  >
-                    <PillIcon className="h-4.5 w-4.5" />
-                  </span>
-                )}
-              </button>
-            </div>
+                  <span className="text-sm">{t(i18nKey)}</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid={`conversation-tabs-menu-pin-${tab}`}
+                  disabled={isArchivedConversation}
+                  className={cn(
+                    "flex shrink-0 items-center justify-center rounded-r px-2 text-white",
+                    dropdownInstantColorClassName,
+                    isArchivedConversation
+                      ? "cursor-not-allowed"
+                      : "cursor-pointer hover:bg-white/10",
+                  )}
+                  aria-pressed={pinned}
+                  aria-label={pinned ? "Unpin tab from bar" : "Pin tab to bar"}
+                  onClick={(e) => handlePinToggle(tab, e)}
+                >
+                  {pinned ? (
+                    <span
+                      className={cn(
+                        "-mr-[5px] ml-auto",
+                        dropdownMenuRowIconWrapperClassName,
+                      )}
+                      aria-hidden
+                    >
+                      <PillFillIcon className="h-7 w-7" />
+                    </span>
+                  ) : (
+                    <span
+                      className={cn(
+                        "ml-auto",
+                        dropdownMenuRowIconWrapperClassName,
+                      )}
+                      aria-hidden
+                    >
+                      <PillIcon className="h-4.5 w-4.5" />
+                    </span>
+                  )}
+                </button>
+              </div>
+            </ArchivedDisabledTooltip>
           </li>
         );
       })}

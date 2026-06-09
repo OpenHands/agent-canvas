@@ -1172,6 +1172,23 @@
     "uk": "Ви впевнені, що хочете видалити цей ключ?",
     "ca": "Esteu segur que voleu eliminar aquesta clau?"
   },
+  "SECRETS$EMPTY": {
+    "en": "No secrets saved yet.",
+    "ja": "まだシークレットが保存されていません。",
+    "zh-CN": "尚未保存任何密钥。",
+    "zh-TW": "尚未儲存任何密鑰。",
+    "ko-KR": "아직 저장된 시크릿이 없습니다.",
+    "no": "Ingen hemmeligheter lagret ennå.",
+    "it": "Nessun segreto salvato.",
+    "pt": "Nenhum segredo salvo ainda.",
+    "es": "Aún no hay secretos guardados.",
+    "ar": "لم يتم حفظ أي أسرار بعد.",
+    "fr": "Aucun secret enregistré pour le moment.",
+    "tr": "Henüz kaydedilmiş gizli anahtar yok.",
+    "de": "Noch keine Geheimnisse gespeichert.",
+    "uk": "Ще немає збережених секретів.",
+    "ca": "Encara no hi ha secrets desats."
+  },
   "SETTINGS$MCP_TITLE": {
     "en": "Model Context Protocol (MCP)",
     "ja": "モデルコンテキストプロトコル (MCP)",
@@ -23696,6 +23713,23 @@
     "tr": "Kullanılabilir yetenekleri göster",
     "uk": "Показати доступні навички",
     "ca": "Mostra les habilitats disponibles"
+  },
+  "CONVERSATION$UNAVAILABLE_FOR_ARCHIVES": {
+    "en": "Unavailable for Archives",
+    "ja": "アーカイブでは利用できません",
+    "zh-CN": "归档对话不可用",
+    "zh-TW": "封存對話不可用",
+    "ko-KR": "보관된 대화에서는 사용할 수 없습니다",
+    "no": "Utilgjengelig for arkiver",
+    "ar": "غير متاح للمحادثات المؤرشفة",
+    "de": "Für Archive nicht verfügbar",
+    "fr": "Indisponible pour les archives",
+    "it": "Non disponibile per le conversazioni archiviate",
+    "pt": "Indisponível para arquivos",
+    "es": "No disponible para archivos",
+    "tr": "Arşivler için kullanılamaz",
+    "uk": "Недоступно для архівів",
+    "ca": "No disponible per a arxius"
   },
   "SKILLS_MODAL$TITLE": {
     "en": "Available Skills",

@@ -17,6 +17,7 @@ import { ScrollProvider } from "#/context/scroll-context";
 import { useInitialQueryStore } from "#/stores/initial-query-store";
 import { useSendMessage } from "#/hooks/use-send-message";
 import { useAgentState } from "#/hooks/use-agent-state";
+import { useIsArchivedConversation } from "#/hooks/use-is-archived-conversation";
 import { useHandleBuildPlanClick } from "#/hooks/use-handle-build-plan-click";
 
 import { ScrollToBottomButton } from "#/components/shared/buttons/scroll-to-bottom-button";
@@ -103,8 +104,7 @@ export function ChatInterface() {
   // always null, so this is effectively a no-op for non-cloud use.
   const { data: activeConversation } = useActiveConversation();
   const sandboxStatus = activeConversation?.sandbox_status ?? null;
-  const isArchivedConversation =
-    sandboxStatus === "MISSING" || sandboxStatus === "ERROR";
+  const isArchivedConversation = useIsArchivedConversation();
 
   // Disable Build button while agent is running (streaming)
   const isAgentRunning =
