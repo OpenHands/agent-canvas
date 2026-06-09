@@ -33,12 +33,10 @@ const WORKSPACE_PATH = "/tmp/e2e-test-project/my-app";
 
 /**
  * Seed `selected_workspace` into the conversation metadata localStorage key.
- * Each Playwright test gets a fresh browser context, so this must be called
- * in every test that needs the workspace attachment signal — not just once.
  *
- * Uses `addInitScript` (like `seedLocalStorage`) so the script fires on the
- * real app origin when the first `page.goto()` triggers a document load.
- * A plain `page.evaluate` on `about:blank` would write to the wrong origin.
+ * Uses `addInitScript` so the write happens on the real app origin when the
+ * first `page.goto()` triggers a document load — `page.evaluate` on
+ * `about:blank` would write to the wrong origin.
  */
 async function seedWorkspaceMetadata(
   page: import("@playwright/test").Page,
@@ -99,11 +97,8 @@ test.describe("files tab, git control bar, and browser tab", () => {
   test("step 1: ensure mock LLM profile is configured", async ({ request }) => {
     await ensureMockLLMProfileViaAPI(request);
 
-    // Register a trajectory that ensures the workspace is a git repo WITH
-    // a remote. The git control bar only shows Pull/Push when it can parse
-    // a provider+repository from `git remote get-url origin`. In the npm
-    // path the agent-server worktree already inherits the host repo; in the
-    // Docker path we must create one from scratch.
+    // Register a trajectory that ensures the workspace has a git remote.
+    // The npm path inherits the host repo; the Docker path bootstraps one.
     const gitBootstrap = [
       // Skip if already in a repo with an origin remote (npm worktree path)
       "git remote get-url origin >/dev/null 2>&1",
@@ -169,10 +164,6 @@ test.describe("files tab, git control bar, and browser tab", () => {
     // initialized (WebSocket connected, runtime ready).
     await waitForNonUserMessageText(page, REPLY_TOKEN, 60_000);
 
-    // Seed `selected_workspace` in the conversation metadata store.
-    // This simulates a user who picked a local folder before starting the
-    // conversation — the metadata store is what `useHasAttachedSource`
-    // and the git control bar read from.
     await seedWorkspaceMetadata(page, conversationId, WORKSPACE_PATH);
 
     // Reload so hooks re-read from localStorage
@@ -191,10 +182,7 @@ test.describe("files tab, git control bar, and browser tab", () => {
     test.skip(!attachedConversationId, "step 2 must complete first");
     test.setTimeout(60_000);
 
-    // Seed workspace metadata so the git control bar can infer the
-    // workspace name even if the detected git remote differs.
     await seedWorkspaceMetadata(page, attachedConversationId!, WORKSPACE_PATH);
-
     await routeSessionApiKey(page);
     await page.goto(`/conversations/${attachedConversationId}`, {
       waitUntil: "domcontentloaded",
@@ -240,9 +228,7 @@ test.describe("files tab, git control bar, and browser tab", () => {
     test.skip(!attachedConversationId, "step 2 must complete first");
     test.setTimeout(60_000);
 
-    // Re-seed workspace metadata — each test gets a fresh browser context.
     await seedWorkspaceMetadata(page, attachedConversationId!, WORKSPACE_PATH);
-
     await routeSessionApiKey(page);
     await page.goto(`/conversations/${attachedConversationId}`, {
       waitUntil: "domcontentloaded",

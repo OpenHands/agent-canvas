@@ -321,14 +321,9 @@ export async function deleteConversation(
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// Retry helper for transient agent-server failures
-// ═══════════════════════════════════════════════════════════════════════
-
 /**
  * Retry an HTTP request on transient failures (socket hang up, ECONNRESET,
- * 502, 503). The agent-server may briefly drop connections between test
- * suites while processing cleanup from the previous spec's afterAll.
+ * 502, 503).
  */
 async function retryOnTransient(
   request: APIRequestContext,
@@ -338,6 +333,7 @@ async function retryOnTransient(
   retries = 5,
   delayMs = 1_000,
 ): Promise<import("@playwright/test").APIResponse> {
+  let lastError: unknown;
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const resp =
@@ -345,14 +341,13 @@ async function retryOnTransient(
         method === "PATCH" ? await request.patch(url, options) :
         method === "POST" ? await request.post(url, options) :
         await request.delete(url, options);
-      // Retry on gateway errors (ingress can't reach backend yet)
       if ((resp.status() === 502 || resp.status() === 503) && attempt < retries) {
         await new Promise((r) => setTimeout(r, delayMs));
         continue;
       }
       return resp;
     } catch (err: unknown) {
-      // Retry on socket-level failures (hang up, reset, refused)
+      lastError = err;
       const msg = err instanceof Error ? err.message : String(err);
       const isTransient = /socket hang up|ECONNRESET|ECONNREFUSED/i.test(msg);
       if (isTransient && attempt < retries) {
@@ -362,13 +357,8 @@ async function retryOnTransient(
       throw err;
     }
   }
-  // Unreachable, but satisfies TS
-  throw new Error(`retryOnTransient: exhausted ${retries} attempts for ${method} ${url}`);
+  throw (lastError ?? new Error(`retryOnTransient: exhausted ${retries} attempts for ${method} ${url}`));
 }
-
-// ═══════════════════════════════════════════════════════════════════════
-// LLM profile setup via API (for tests that can't depend on UI setup)
-// ═══════════════════════════════════════════════════════════════════════
 
 /**
  * Ensure the currently-active LLM profile is configured to point at the mock
