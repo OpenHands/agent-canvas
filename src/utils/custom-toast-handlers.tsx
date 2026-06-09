@@ -5,6 +5,7 @@ import { OH_STATUS_ERROR_COLOR } from "#/constants/status-colors";
 import { calculateToastDuration } from "./toast-duration";
 import { cn } from "#/utils/utils";
 import i18n from "#/i18n";
+import { I18nKey } from "#/i18n/declaration";
 
 // react-hot-toast accepts only CSSProperties via the style option — cannot use className
 const TOAST_STYLE: CSSProperties = {
@@ -89,7 +90,7 @@ export const ERROR_TOAST_OPTIONS: ToastOptions = {
 };
 
 export const displayErrorToast = (error: string | null | undefined) => {
-  const errorMessage = error || i18n.t("STATUS$ERROR");
+  const errorMessage = error || i18n.t(I18nKey.STATUS$ERROR);
   const duration = calculateToastDuration(errorMessage, 4000);
   toast(<ErrorToastContent message={errorMessage} />, {
     ...ERROR_TOAST_OPTIONS,

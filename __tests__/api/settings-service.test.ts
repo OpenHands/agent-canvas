@@ -1,10 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 
-import SettingsService, {
-  DISABLED_SKILLS_STORAGE_KEY,
-} from "#/api/settings-service/settings-service.api";
-import { APP_PREFERENCES_STORAGE_KEY } from "#/api/app-preferences-store";
+import SettingsService from "#/api/settings-service/settings-service.api";
+import { __TEST_ONLY as LEGACY_MIGRATION_KEYS } from "#/api/settings-service/legacy-app-preferences-migration";
 import {
   __resetActiveStoreForTests,
   setActiveSelection,
@@ -141,87 +139,11 @@ describe("SettingsService", () => {
     fetchSpy.mockRestore();
   });
 
-  it("persists disabled_skills to localStorage and skips PATCH on a local backend", async () => {
-    // The local agent-server has no endpoint for disabled_skills, so we store
-    // them in localStorage instead and never send them in the PATCH body.
-    const fetchSpy = vi.spyOn(SettingsService, "fetchSettingsFromApi");
-
-    const result = await SettingsService.saveSettings({
-      disabled_skills: ["SSH Microagent"],
-    });
-
-    expect(result).toBe(true);
-    // The PATCH must not be called — disabled_skills is not a server field.
-    expect(fetchSpy).not.toHaveBeenCalled();
-    // The value must be written to localStorage so getSettings can read it back.
-    const raw = window.localStorage.getItem(DISABLED_SKILLS_STORAGE_KEY);
-    expect(raw && JSON.parse(raw)).toEqual(["SSH Microagent"]);
-
-    fetchSpy.mockRestore();
-  });
-
-  it("surfaces stored disabled_skills in getSettings on a local backend", async () => {
-    // Pre-seed localStorage as if a previous save had persisted them.
-    window.localStorage.setItem(
-      DISABLED_SKILLS_STORAGE_KEY,
-      JSON.stringify(["SSH Microagent"]),
-    );
-
-    const settings = await SettingsService.getSettings();
-
-    expect(settings.disabled_skills).toEqual(["SSH Microagent"]);
-  });
-
-  it("persists app-level preferences to localStorage when saving on a local backend", async () => {
-    // Arrange: no diffs, only the 5 app-level preference fields.
-    const appPrefs = {
-      language: "fr",
-      git_user_name: "Alice",
-      git_user_email: "alice@example.com",
-      enable_sound_notifications: true,
-      user_consents_to_analytics: true,
-    };
-
-    // Act
-    await SettingsService.saveSettings(appPrefs);
-
-    // Assert: localStorage holds the saved fields under the dedicated key.
-    const raw = window.localStorage.getItem(APP_PREFERENCES_STORAGE_KEY);
-    expect(raw && JSON.parse(raw)).toEqual(appPrefs);
-  });
-
-  it("surfaces stored app-level preferences in getSettings on a local backend", async () => {
-    // Arrange: pre-seed localStorage as if a previous save had persisted them.
-    const appPrefs = {
-      language: "fr",
-      git_user_name: "Alice",
-      git_user_email: "alice@example.com",
-      enable_sound_notifications: true,
-      user_consents_to_analytics: true,
-    };
-    window.localStorage.setItem(
-      APP_PREFERENCES_STORAGE_KEY,
-      JSON.stringify(appPrefs),
-    );
-
-    // Act
-    const settings = await SettingsService.getSettings();
-
-    // Assert: each stored field is reflected on the returned Settings.
-    expect({
-      language: settings.language,
-      git_user_name: settings.git_user_name,
-      git_user_email: settings.git_user_email,
-      enable_sound_notifications: settings.enable_sound_notifications,
-      user_consents_to_analytics: settings.user_consents_to_analytics,
-    }).toEqual(appPrefs);
-  });
-
-  it("excludes app-level fields from the local PATCH body when mixed with diffs", async () => {
-    // Arrange: capture the PATCH body the local agent-server would receive.
-    // The handler must echo a valid response so saveSettings does not throw.
-    // Use "*" prefix to match both relative paths and absolute URLs (e.g.,
-    // http://127.0.0.1:8000/api/...) when VITE_BACKEND_BASE_URL is configured.
+  it("sends disabled_skills under misc_settings_diff.app_preferences on a local backend", async () => {
+    // disabled_skills is one of the AppPreferences fields (along with
+    // language, git identity, …) and is persisted server-side under
+    // `PersistedSettings.misc_settings.app_preferences` since the
+    // misc_settings container was introduced as a follow-up to PR #3539.
     const patchBodies: Array<Record<string, unknown>> = [];
     server.use(
       http.patch("*/api/settings", async ({ request }) => {
@@ -230,26 +152,202 @@ describe("SettingsService", () => {
           agent_settings: {},
           conversation_settings: {},
           llm_api_key_is_set: false,
+          misc_settings: {
+            app_preferences: { disabled_skills: ["SSH Microagent"] },
+          },
         });
       }),
     );
 
-    // Act: send both an agent diff and an app-level field in the same save.
+    const result = await SettingsService.saveSettings({
+      disabled_skills: ["SSH Microagent"],
+    });
+
+    expect(result).toBe(true);
+    expect(patchBodies).toEqual([
+      {
+        misc_settings_diff: {
+          app_preferences: { disabled_skills: ["SSH Microagent"] },
+        },
+      },
+    ]);
+  });
+
+  it("surfaces server-side misc_settings.app_preferences in getSettings on a local backend", async () => {
+    // The local agent-server returns app_preferences nested under
+    // `misc_settings` on GET /api/settings. The mock handler echoes whatever
+    // was last PATCH'd; seed it through the real save path so the round-trip
+    // matches production.
+    const appPrefs = {
+      language: "fr",
+      git_user_name: "Alice",
+      git_user_email: "alice@example.com",
+      enable_sound_notifications: true,
+      user_consents_to_analytics: true,
+      disabled_skills: ["SSH Microagent"],
+    };
+    await SettingsService.saveSettings(appPrefs);
+    SettingsService.invalidateCache();
+
+    const settings = await SettingsService.getSettings();
+
+    expect({
+      language: settings.language,
+      git_user_name: settings.git_user_name,
+      git_user_email: settings.git_user_email,
+      enable_sound_notifications: settings.enable_sound_notifications,
+      user_consents_to_analytics: settings.user_consents_to_analytics,
+      disabled_skills: settings.disabled_skills,
+    }).toEqual(appPrefs);
+  });
+
+  it("routes app-level fields into misc_settings_diff when mixed with agent diffs", async () => {
+    const patchBodies: Array<Record<string, unknown>> = [];
+    server.use(
+      http.patch("*/api/settings", async ({ request }) => {
+        patchBodies.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json({
+          agent_settings: { agent: "CodeActAgent" },
+          conversation_settings: {},
+          llm_api_key_is_set: false,
+          misc_settings: { app_preferences: { git_user_name: "Alice" } },
+        });
+      }),
+    );
+
     await SettingsService.saveSettings({
       git_user_name: "Alice",
       agent_settings_diff: { agent: "CodeActAgent" },
     });
 
-    // Assert: the local backend only sees the diff; the app field is
-    // confined to localStorage.
     expect(patchBodies).toEqual([
-      { agent_settings_diff: { agent: "CodeActAgent" } },
+      {
+        agent_settings_diff: { agent: "CodeActAgent" },
+        misc_settings_diff: { app_preferences: { git_user_name: "Alice" } },
+      },
     ]);
-    expect(
-      JSON.parse(
-        window.localStorage.getItem(APP_PREFERENCES_STORAGE_KEY) ?? "{}",
+  });
+
+  it("migrates legacy localStorage app preferences to the server on first read", async () => {
+    // Simulate an existing user on an older agent-canvas version: app prefs
+    // and disabled_skills sit in localStorage and have never been pushed to
+    // the new server-side store. The first getSettings call after upgrade
+    // should send them up via misc_settings_diff and clear the keys.
+    window.localStorage.setItem(
+      LEGACY_MIGRATION_KEYS.LEGACY_APP_PREFERENCES_KEY,
+      JSON.stringify({
+        language: "fr",
+        git_user_name: "Alice",
+      }),
+    );
+    window.localStorage.setItem(
+      LEGACY_MIGRATION_KEYS.LEGACY_DISABLED_SKILLS_KEY,
+      JSON.stringify(["SSH Microagent"]),
+    );
+
+    // The migration path is: initial GET → server reports empty
+    // misc_settings.app_preferences (server is new enough to support the
+    // field) → push localStorage values up via PATCH → re-fetch GET so the
+    // cache sees the migrated values. The test handlers below simulate that
+    // round-trip without leaning on the default MSW state, which the PATCH
+    // override would not update.
+    const patchBodies: Array<Record<string, unknown>> = [];
+    let migrated = false;
+    server.use(
+      http.get("*/api/settings", async () =>
+        HttpResponse.json({
+          agent_settings: {},
+          conversation_settings: {},
+          llm_api_key_is_set: false,
+          misc_settings: {
+            app_preferences: migrated
+              ? {
+                  language: "fr",
+                  git_user_name: "Alice",
+                  disabled_skills: ["SSH Microagent"],
+                }
+              : {},
+          },
+        }),
       ),
-    ).toEqual({ git_user_name: "Alice" });
+      http.patch("*/api/settings", async ({ request }) => {
+        patchBodies.push((await request.json()) as Record<string, unknown>);
+        migrated = true;
+        return HttpResponse.json({
+          agent_settings: {},
+          conversation_settings: {},
+          llm_api_key_is_set: false,
+          misc_settings: {
+            app_preferences: {
+              language: "fr",
+              git_user_name: "Alice",
+              disabled_skills: ["SSH Microagent"],
+            },
+          },
+        });
+      }),
+    );
+
+    const settings = await SettingsService.getSettings();
+
+    // Single migration PATCH carrying every legacy value:
+    expect(patchBodies).toEqual([
+      {
+        misc_settings_diff: {
+          app_preferences: {
+            language: "fr",
+            git_user_name: "Alice",
+            disabled_skills: ["SSH Microagent"],
+          },
+        },
+      },
+    ]);
+    // Legacy keys are cleared:
+    expect(
+      window.localStorage.getItem(
+        LEGACY_MIGRATION_KEYS.LEGACY_APP_PREFERENCES_KEY,
+      ),
+    ).toBeNull();
+    expect(
+      window.localStorage.getItem(
+        LEGACY_MIGRATION_KEYS.LEGACY_DISABLED_SKILLS_KEY,
+      ),
+    ).toBeNull();
+    // …and the returned Settings reflect the migrated values:
+    expect(settings.language).toBe("fr");
+    expect(settings.git_user_name).toBe("Alice");
+    expect(settings.disabled_skills).toEqual(["SSH Microagent"]);
+  });
+
+  it("skips migration when the server omits misc_settings (pre-1.27)", async () => {
+    // Older agent-servers don't return the misc_settings field at all. The
+    // migration must no-op so we don't drop user data before the server can
+    // accept it.
+    window.localStorage.setItem(
+      LEGACY_MIGRATION_KEYS.LEGACY_APP_PREFERENCES_KEY,
+      JSON.stringify({ language: "fr" }),
+    );
+
+    server.use(
+      http.get("*/api/settings", async () =>
+        HttpResponse.json({
+          agent_settings: {},
+          conversation_settings: {},
+          llm_api_key_is_set: false,
+          // No misc_settings key — simulates pre-1.27 server.
+        }),
+      ),
+    );
+
+    await SettingsService.getSettings();
+
+    // Legacy key still present, ready for a later retry once the user
+    // upgrades the server.
+    expect(
+      window.localStorage.getItem(
+        LEGACY_MIGRATION_KEYS.LEGACY_APP_PREFERENCES_KEY,
+      ),
+    ).not.toBeNull();
   });
 
   it("forwards app-level preferences as flat top-level fields to the cloud save", async () => {
@@ -571,23 +669,18 @@ describe("SettingsService", () => {
     }
   });
 
-  it("lets the cloud response override locally-stored app preferences", async () => {
-    // Arrange: localStorage holds a stale "fr" while the cloud is the
-    // authoritative source and returns "ja".
+  it("surfaces cloud app preferences on getSettings", async () => {
+    // The cloud returns app-preference fields flat at the top level
+    // (language, git identity, …) — they should land on the returned
+    // Settings unchanged.
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
-    window.localStorage.setItem(
-      APP_PREFERENCES_STORAGE_KEY,
-      JSON.stringify({ language: "fr" }),
-    );
     mockFetchCloudSettings.mockResolvedValue({
       language: "ja",
     } as Partial<Settings>);
 
-    // Act
     const settings = await SettingsService.getSettings();
 
-    // Assert: the server wins.
     expect(settings.language).toBe("ja");
   });
 });

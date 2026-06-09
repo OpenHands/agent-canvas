@@ -321,6 +321,92 @@ export async function deleteConversation(
   }
 }
 
+/**
+ * Retry an HTTP request on transient failures (socket hang up, ECONNRESET,
+ * 502, 503).
+ */
+async function retryOnTransient(
+  request: APIRequestContext,
+  method: "GET" | "PATCH" | "POST" | "DELETE",
+  url: string,
+  options: Parameters<APIRequestContext["get"]>[1],
+  retries = 5,
+  delayMs = 1_000,
+): Promise<import("@playwright/test").APIResponse> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const resp =
+        method === "GET" ? await request.get(url, options) :
+        method === "PATCH" ? await request.patch(url, options) :
+        method === "POST" ? await request.post(url, options) :
+        await request.delete(url, options);
+      if ((resp.status() === 502 || resp.status() === 503) && attempt < retries) {
+        await new Promise((r) => setTimeout(r, delayMs));
+        continue;
+      }
+      return resp;
+    } catch (err: unknown) {
+      lastError = err;
+      const msg = err instanceof Error ? err.message : String(err);
+      const isTransient = /socket hang up|ECONNRESET|ECONNREFUSED/i.test(msg);
+      if (isTransient && attempt < retries) {
+        await new Promise((r) => setTimeout(r, delayMs));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw (lastError ?? new Error(`retryOnTransient: exhausted ${retries} attempts for ${method} ${url}`));
+}
+
+/**
+ * Ensure the currently-active LLM profile is configured to point at the mock
+ * LLM server, using direct API calls instead of the Settings UI.
+ *
+ * Useful for tests that receive only `request` (no `page`) or need to
+ * avoid the overhead of navigating the settings UI.
+ */
+export async function ensureMockLLMProfileViaAPI(
+  request: APIRequestContext,
+  model = "openai/mock-test-model",
+) {
+  const settingsResp = await retryOnTransient(request, "GET", `${BACKEND_URL}/api/settings`, {
+    headers: {
+      "X-Session-API-Key": SESSION_API_KEY,
+      "X-Expose-Secrets": "encrypted",
+    },
+  });
+
+  if (settingsResp.ok()) {
+    const settings = await settingsResp.json();
+    const llm = settings?.agent_settings?.llm;
+    if (llm?.model === model && llm?.base_url === MOCK_LLM_AGENT_URL) {
+      return; // Already configured
+    }
+  }
+
+  const patchResp = await retryOnTransient(request, "PATCH", `${BACKEND_URL}/api/settings`, {
+    headers: {
+      "X-Session-API-Key": SESSION_API_KEY,
+      "Content-Type": "application/json",
+    },
+    data: {
+      agent_settings_diff: {
+        llm: {
+          model,
+          api_key: "mock-api-key-for-testing",
+          base_url: MOCK_LLM_AGENT_URL,
+        },
+      },
+    },
+  });
+  expect(
+    patchResp.ok(),
+    `PATCH /api/settings failed: ${patchResp.status()}`,
+  ).toBe(true);
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // LLM profile setup via the Settings UI
 // ═══════════════════════════════════════════════════════════════════════
