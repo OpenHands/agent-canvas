@@ -22933,13 +22933,55 @@
     "uk": "Пісочницю цієї розмови видалено. Наведена вище історія доступна лише для читання."
   },
   "CHAT_INTERFACE$ACP_RESUME_SANDBOX_DESCRIPTION": {
-    "en": "This conversation's sandbox was recycled. Resume to continue where you left off."
+    "en": "This conversation's sandbox was recycled. Resume to continue where you left off.",
+    "ja": "この会話のサンドボックスは再利用されました。再開して続きから進めてください。",
+    "zh-CN": "此对话的沙盒已被回收。点击继续以从上次中断处恢复。",
+    "zh-TW": "此對話的沙盒已被回收。點擊繼續以從上次中斷處恢復。",
+    "ko-KR": "이 대화의 샌드박스가 재활용되었습니다. 재개하여 중단한 지점부터 계속하세요.",
+    "no": "Sandkassen for denne samtalen ble resirkulert. Gjenoppta for å fortsette der du slapp.",
+    "ar": "تمت إعادة استخدام بيئة الاختبار لهذه المحادثة. استأنف للمتابعة من حيث توقفت.",
+    "de": "Die Sandbox dieser Unterhaltung wurde recycelt. Setze fort, um dort weiterzumachen, wo du aufgehört hast.",
+    "fr": "Le sandbox de cette conversation a été recyclé. Reprenez pour continuer là où vous vous êtes arrêté.",
+    "it": "La sandbox di questa conversazione è stata riciclata. Riprendi per continuare da dove avevi interrotto.",
+    "pt": "A sandbox desta conversa foi reciclada. Retome para continuar de onde parou.",
+    "es": "El sandbox de esta conversación se recicló. Reanuda para continuar donde lo dejaste.",
+    "ca": "El sandbox d'aquesta conversa s'ha reciclat. Reprèn per continuar on ho vas deixar.",
+    "tr": "Bu konuşmanın sandbox'ı geri dönüştürüldü. Kaldığın yerden devam etmek için sürdür.",
+    "uk": "Пісочницю цієї розмови було перероблено. Відновіть, щоб продовжити з місця, де зупинилися."
   },
   "CHAT_INTERFACE$ACP_RESUME_BUTTON": {
-    "en": "Resume conversation"
+    "en": "Resume conversation",
+    "ja": "会話を再開",
+    "zh-CN": "继续对话",
+    "zh-TW": "繼續對話",
+    "ko-KR": "대화 재개",
+    "no": "Gjenoppta samtale",
+    "ar": "استئناف المحادثة",
+    "de": "Unterhaltung fortsetzen",
+    "fr": "Reprendre la conversation",
+    "it": "Riprendi conversazione",
+    "pt": "Retomar conversa",
+    "es": "Reanudar conversación",
+    "ca": "Reprendre la conversa",
+    "tr": "Konuşmayı sürdür",
+    "uk": "Відновити розмову"
   },
   "CHAT_INTERFACE$ACP_RESUME_STARTING": {
-    "en": "Resuming…"
+    "en": "Resuming…",
+    "ja": "再開中…",
+    "zh-CN": "正在继续…",
+    "zh-TW": "正在繼續…",
+    "ko-KR": "재개 중…",
+    "no": "Gjenopptar…",
+    "ar": "جارٍ الاستئناف…",
+    "de": "Wird fortgesetzt…",
+    "fr": "Reprise…",
+    "it": "Ripresa…",
+    "pt": "Retomando…",
+    "es": "Reanudando…",
+    "ca": "Reprenent…",
+    "tr": "Sürdürülüyor…",
+    "uk": "Відновлення…"
   },
   "CHAT_INTERFACE$ERROR_SANDBOX_TITLE": {
     "en": "Sandbox error",

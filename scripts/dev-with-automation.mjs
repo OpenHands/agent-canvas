@@ -82,9 +82,13 @@ const DEFAULT_AUTOMATION_REPO = "https://github.com/OpenHands/automation";
 const DEFAULT_AUTOMATION_PACKAGE = SHARED_DEFAULTS.packages.automation;
 const DEFAULT_AUTOMATION_VERSION = SHARED_DEFAULTS.versions.automation;
 const AUTOMATION_EXTRA_PACKAGES = ["tzdata"];
-const WINDOWS_PUBLIC_SKILLS_REPO =
-  "https://github.com/jamiechicago312/extensions.git";
-const WINDOWS_PUBLIC_SKILLS_REF = "fix/230-colon-filename-windows";
+// On Windows we can optionally pre-seed the agent-server's public-skills cache.
+// This is mainly to avoid Git checkout failures on Windows when the extensions
+// repository contains filenames that are invalid on NTFS (e.g., `:`).
+//
+// Once OpenHands/extensions#317 is merged, `main` becomes Windows-safe.
+const WINDOWS_PUBLIC_SKILLS_REPO = "https://github.com/OpenHands/extensions.git";
+const WINDOWS_PUBLIC_SKILLS_REF = "main";
 // SDK version used by DEFAULT_AUTOMATION_VERSION. This can intentionally lag
 // the agent-server version while automation releases catch up.
 const DEFAULT_AUTOMATION_SDK_VERSION = SHARED_DEFAULTS.versions.automationSdk;
