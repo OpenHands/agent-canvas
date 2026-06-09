@@ -38,7 +38,7 @@ import {
   setChatInput,
   waitForPath,
   getConversationIdFromURL,
-} from "./utils/mock-llm-helpers";
+} from "../utils/mock-llm-helpers";
 import {
   createProjectSkillRepo,
   removeProjectSkillRepo,
@@ -46,7 +46,7 @@ import {
   removeUserSkill,
   userSkillExists,
   userSkillDirExists,
-} from "./utils/skill-test-helpers";
+} from "../utils/skill-test-helpers";
 
 /**
  * Register a workspace on the agent-server so it appears in the UI dropdown.

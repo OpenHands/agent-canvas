@@ -44,7 +44,7 @@ import {
   createProfileViaUI,
   deleteProfileIfExists,
   activateProfileViaUI,
-} from "./utils/mock-llm-helpers";
+} from "../utils/mock-llm-helpers";
 
 const MOCK_MODEL = "openai/mock-test-model";
 

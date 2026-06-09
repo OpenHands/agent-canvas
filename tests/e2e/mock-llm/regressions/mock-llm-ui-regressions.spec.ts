@@ -15,7 +15,7 @@ import type { ActionEvent, MessageEvent } from "#/types/agent-server/core";
 import { SecurityRisk } from "#/types/agent-server/core";
 import type { FinishAction } from "#/types/agent-server/core/base/action";
 import type { CriticResult } from "#/types/agent-server/core/base/critic";
-import { seedLocalStorage, routeSessionApiKey } from "./utils/mock-llm-helpers";
+import { seedLocalStorage, routeSessionApiKey } from "../utils/mock-llm-helpers";
 
 test.describe.configure({ mode: "serial" });
 

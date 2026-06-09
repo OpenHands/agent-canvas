@@ -35,7 +35,7 @@ import {
   routeSessionApiKey,
   dismissAnalyticsModal,
   waitForTestId,
-} from "./utils/mock-llm-helpers";
+} from "../utils/mock-llm-helpers";
 
 test.describe.configure({ mode: "serial" });
 

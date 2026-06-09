@@ -41,7 +41,7 @@ import {
   activateTrajectory,
   ensureMockLLMProfile,
   setChatInput,
-} from "./utils/mock-llm-helpers";
+} from "../utils/mock-llm-helpers";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 

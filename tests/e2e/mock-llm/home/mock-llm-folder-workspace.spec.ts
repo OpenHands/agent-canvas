@@ -25,7 +25,7 @@ import {
   ensureMockLLMProfile,
   resetMockLLM,
   deleteConversation,
-} from "./utils/mock-llm-helpers";
+} from "../utils/mock-llm-helpers";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
