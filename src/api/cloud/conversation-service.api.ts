@@ -52,9 +52,8 @@ function getActiveCloudBackend(): Backend {
 
 /**
  * Search the cloud app-conversations list. Mirrors the local
- * `AgentServerConversationService.searchConversations` interface but routes
- * through the bundled agent-server's cloud proxy and hits the cloud
- * endpoint `/api/v1/app-conversations/search`.
+ * `AgentServerConversationService.searchConversations` interface but calls
+ * the cloud endpoint `/api/v1/app-conversations/search`.
  */
 export async function searchCloudConversations(
   limit: number = 20,
@@ -114,7 +113,7 @@ export async function batchGetCloudConversations(
  *
  * This path does NOT use encrypted-settings round-tripping. Secrets stay
  * server-side on the cloud backend — the only auth carried is the cloud bearer
- * token (via the proxy's headers), and the conversation runtime is
+ * token, and the conversation runtime is
  * provisioned with its own ephemeral session_api_key returned in the
  * task.
  */
@@ -134,7 +133,7 @@ export async function createCloudAppConversation(
 /**
  * Download a v1 app-conversation as a ZIP from the cloud backend. Mirrors
  * the local `AgentServerConversationService.downloadConversation` interface but
- * routes through the bundled agent-server's cloud proxy and hits
+ * calls
  * `GET /api/v1/app-conversations/{id}/download`, which returns
  * `application/zip` with `Content-Disposition` set by the cloud backend.
  */
@@ -152,8 +151,7 @@ export async function downloadCloudConversation(
 
 /**
  * Delete a v1 app-conversation on the cloud backend. Mirrors the local
- * `AgentServerConversationService.deleteConversation` interface but routes
- * through the bundled agent-server's cloud proxy and hits
+ * `AgentServerConversationService.deleteConversation` interface but calls
  * `DELETE /api/v1/app-conversations/{id}`, which returns a JSON
  * `Success` envelope (discarded here — the caller only needs to know
  * the request didn't error).
@@ -171,8 +169,7 @@ export async function deleteCloudConversation(
 
 /**
  * Toggle the public-sharing flag on a cloud v1 app-conversation. Mirrors
- * OpenHands' `AgentServerConversationService.updateConversationPublicFlag` —
- * routes through the bundled agent-server's cloud proxy and hits
+ * OpenHands' `AgentServerConversationService.updateConversationPublicFlag`:
  * `PATCH /api/v1/app-conversations/{id}` with `{ public }`, returning
  * the updated conversation.
  */
@@ -192,8 +189,7 @@ export async function updateCloudConversationPublicFlag(
 
 /**
  * Pause the cloud sandbox backing a v1 app-conversation. Mirrors
- * OpenHands' `SandboxService.pauseSandbox` — routes through the
- * bundled agent-server's cloud proxy and hits
+ * OpenHands' `SandboxService.pauseSandbox`:
  * `POST /api/v1/sandboxes/{sandboxId}/pause` on the cloud backend, which stops
  * the runtime owning the conversation.
  */
@@ -208,8 +204,7 @@ export async function pauseCloudSandbox(sandboxId: string): Promise<void> {
 
 /**
  * Resume a paused cloud sandbox. Mirrors OpenHands' `SandboxService.resumeSandbox`
- * — routes through the bundled agent-server's cloud proxy and hits
- * `POST /api/v1/sandboxes/{sandboxId}/resume` on the SaaS.
+ * by calling `POST /api/v1/sandboxes/{sandboxId}/resume` on the SaaS.
  *
  * This is the correct endpoint for waking a PAUSED sandbox. It is a
  * lightweight unpause — NOT the same as creating a new start task via
@@ -222,6 +217,43 @@ export async function resumeCloudSandbox(sandboxId: string): Promise<void> {
     backend,
     method: "POST",
     path: `/api/v1/sandboxes/${sandboxId}/resume`,
+  });
+}
+
+/**
+ * Wake a conversation whose sandbox was recycled (STOPPED/MISSING, not just
+ * PAUSED). Unlike `resumeCloudSandbox`, a recycled sandbox no longer exists, so
+ * a fresh one must be provisioned by re-issuing the conversation-start with the
+ * SAME `conversation_id`. The backend rebuilds the conversation keyed on that
+ * id and, for ACP, resumes it from the durable event store via a bootstrap
+ * prompt (OpenHands#14640) so the agent continues with prior context rather
+ * than starting over. Returns a WORKING task the caller polls to READY (same
+ * lifecycle as a fresh create).
+ *
+ * The repo selection is carried so the rebuilt sandbox's working dir matches
+ * the original conversation's cwd — an ACP resume keys off cwd, so a repo-backed
+ * conversation woken without it would resolve a different project dir.
+ */
+export async function wakeRecycledCloudConversation(
+  conversationId: string,
+  repoSelection?: {
+    selected_repository?: string | null;
+    selected_branch?: string | null;
+    git_provider?: AppConversationStartRequest["git_provider"];
+  },
+): Promise<AppConversationStartTask> {
+  const backend = getActiveCloudBackend();
+  const body: AppConversationStartRequest = {
+    conversation_id: conversationId,
+    selected_repository: repoSelection?.selected_repository ?? null,
+    selected_branch: repoSelection?.selected_branch ?? null,
+    git_provider: repoSelection?.git_provider ?? null,
+  };
+  return callCloudProxy<AppConversationStartTask>({
+    backend,
+    method: "POST",
+    path: "/api/v1/app-conversations",
+    body: body as unknown as Record<string, unknown>,
   });
 }
 

@@ -8,6 +8,8 @@ import { sanitizeQuery } from "#/utils/sanitize-query";
 import { PRODUCT_URL } from "#/utils/constants";
 import { AgentState } from "#/types/agent-state";
 import { I18nKey } from "#/i18n/declaration";
+import { getTaskStatusI18nKey } from "#/utils/status";
+import type { AppConversationStartTaskStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
 import {
   OH_STATUS_ERROR_COLOR,
   OH_STATUS_SUCCESS_COLOR,
@@ -778,7 +780,7 @@ export const getStatusColor = (options: {
 interface GetStatusTextArgs {
   isPausing: boolean;
   isTask: boolean;
-  taskStatus?: string | null;
+  taskStatus?: AppConversationStartTaskStatus | null;
   taskDetail?: string | null;
   isStartingStatus: boolean;
   isStopStatus: boolean;
@@ -838,13 +840,7 @@ export function getStatusText({
       return t(I18nKey.CONVERSATION$READY);
     }
 
-    return (
-      taskDetail ||
-      taskStatus
-        .toLowerCase()
-        .replace(/_/g, " ")
-        .replace(/^\w/, (c) => c.toUpperCase())
-    );
+    return taskDetail || t(getTaskStatusI18nKey(taskStatus));
   }
 
   if (isStartingStatus) {

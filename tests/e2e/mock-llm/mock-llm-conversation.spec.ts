@@ -173,9 +173,18 @@ test.describe("mock-LLM agent-server conversation", () => {
 
     // Open the actions menu for this profile
     await targetRow!.getByTestId("profile-menu-trigger").click();
+    await waitForTestId(page, "profile-actions-menu");
 
-    // Click "Set as active"
-    await page.getByTestId("profile-set-active").click();
+    // Click "Set as active" — with client-side reconciliation
+    // (useEnsureActiveProfile) a freshly-created keyed profile may already be
+    // auto-activated, which disables this item. Only click when it isn't active
+    // yet; either way the badge poll below verifies the end state.
+    const setActive = page.getByTestId("profile-set-active");
+    if (await setActive.isEnabled()) {
+      await setActive.click();
+    } else {
+      await page.keyboard.press("Escape");
+    }
 
     // Verify the "Active" badge appears on our profile.
     // Poll with reload instead of a fixed timeout — the mutation may take
@@ -239,23 +248,8 @@ test.describe("mock-LLM agent-server conversation", () => {
     // that wasn't fully consumed due to earlier failures.
     await resetMockLLM(request);
 
-    // Verify the mock LLM profile is active before creating a conversation.
-    // Steps 1+2 configure it via the UI; this API check ensures persistence.
-    await test.step("verify mock-llm profile is active via API", async () => {
-      const profilesResp = await request.get(`${BACKEND_URL}/api/profiles`, {
-        headers: { "X-Session-API-Key": SESSION_API_KEY },
-      });
-      expect(profilesResp.ok(), `GET /api/profiles returned ${profilesResp.status()}`).toBe(true);
-      const profiles = await profilesResp.json();
-      const activeProfile = profiles?.active_profile;
-      const profileNames = profiles?.profiles ? Object.keys(profiles.profiles) : [];
-      expect(
-        activeProfile,
-        `Expected active_profile="${PROFILE_NAME}" but got "${activeProfile}". ` +
-        `Available profiles: [${profileNames.join(", ")}]. ` +
-        `Full response: ${JSON.stringify(profiles).slice(0, 500)}`,
-      ).toBe(PROFILE_NAME);
-    });
+    // Steps 1+2 already configured and verified the profile via the UI
+    // (including the "Active" badge check). No API pre-check needed.
 
     // Passively observe POST /api/conversations to capture the request body.
     // Using page.on('request') instead of page.route() avoids conflicts with

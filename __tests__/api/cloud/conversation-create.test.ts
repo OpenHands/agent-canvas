@@ -23,7 +23,7 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.post).mockReset();
+  vi.mocked(axios.request).mockReset();
 });
 
 afterEach(() => {
@@ -32,8 +32,8 @@ afterEach(() => {
 });
 
 describe("AgentServerConversationService cloud branch", () => {
-  it("createConversation POSTs the cloud payload through the proxy and returns a WORKING task", async () => {
-    vi.mocked(axios.post).mockResolvedValue({
+  it("createConversation POSTs the cloud payload directly and returns a WORKING task", async () => {
+    vi.mocked(axios.request).mockResolvedValue({
       data: {
         id: "task-123",
         created_by_user_id: null,
@@ -59,31 +59,28 @@ describe("AgentServerConversationService cloud branch", () => {
       },
     );
 
-    expect(axios.post).toHaveBeenCalledOnce();
-    const [url, body] = vi.mocked(axios.post).mock.calls[0]!;
+    expect(axios.request).toHaveBeenCalledOnce();
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
 
-    // Must go through the local cloud-proxy (not directly to cloud).
-    expect(url).toMatch(/\/api\/cloud-proxy$/);
-    expect(body).toMatchObject({
-      host: cloudBackend.host,
+    expect(config).toMatchObject({
+      url: `${cloudBackend.host}/api/v1/app-conversations`,
       method: "POST",
-      path: "/api/v1/app-conversations",
       headers: { Authorization: "Bearer bearer-token" },
     });
-    const proxiedBody = (body as { body: Record<string, unknown> }).body;
+    const requestBody = (config as { data: Record<string, unknown> }).data;
 
     // cloud payload shape — flat fields, NO encrypted-settings round-trip.
-    expect(proxiedBody.selected_repository).toBe("user/repo");
-    expect(proxiedBody.selected_branch).toBe("main");
-    expect(proxiedBody.git_provider).toBe("github");
-    expect(proxiedBody.title).toBe("Optional title");
-    expect(proxiedBody.initial_message).toEqual({
+    expect(requestBody.selected_repository).toBe("user/repo");
+    expect(requestBody.selected_branch).toBe("main");
+    expect(requestBody.git_provider).toBe("github");
+    expect(requestBody.title).toBe("Optional title");
+    expect(requestBody.initial_message).toEqual({
       role: "user",
       content: [{ type: "text", text: "fix the bug" }],
     });
     // The local-only encrypted-settings keys must NOT be present.
-    expect(proxiedBody).not.toHaveProperty("agent_settings_encrypted");
-    expect(proxiedBody).not.toHaveProperty("conversation_settings_encrypted");
+    expect(requestBody).not.toHaveProperty("agent_settings_encrypted");
+    expect(requestBody).not.toHaveProperty("conversation_settings_encrypted");
 
     // The returned task is the upstream task — WORKING, no app_conversation_id yet.
     expect(result.id).toBe("task-123");
@@ -91,8 +88,8 @@ describe("AgentServerConversationService cloud branch", () => {
     expect(result.app_conversation_id).toBeNull();
   });
 
-  it("getStartTask polls /api/v1/app-conversations/start-tasks?ids= through the proxy", async () => {
-    vi.mocked(axios.post).mockResolvedValue({
+  it("getStartTask polls /api/v1/app-conversations/start-tasks?ids= directly", async () => {
+    vi.mocked(axios.request).mockResolvedValue({
       data: [
         {
           id: "task-123",
@@ -108,16 +105,58 @@ describe("AgentServerConversationService cloud branch", () => {
       ],
     });
 
-    const result = await AgentServerConversationService.getStartTask("task-123");
+    const result =
+      await AgentServerConversationService.getStartTask("task-123");
 
-    const [url, body] = vi.mocked(axios.post).mock.calls[0]!;
-    expect(url).toMatch(/\/api\/cloud-proxy$/);
-    expect(body).toMatchObject({
-      host: cloudBackend.host,
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(config).toMatchObject({
+      url: `${cloudBackend.host}/api/v1/app-conversations/start-tasks?ids=task-123`,
       method: "GET",
-      path: "/api/v1/app-conversations/start-tasks?ids=task-123",
+      headers: { Authorization: "Bearer bearer-token" },
     });
     expect(result?.status).toBe("READY");
     expect(result?.app_conversation_id).toBe("conv-456");
+  });
+
+  it("wakeRecycledCloudConversation re-provisions under the same conversation id (bootstrap resume)", async () => {
+    const { wakeRecycledCloudConversation } =
+      await import("#/api/cloud/conversation-service.api");
+    vi.mocked(axios.request).mockResolvedValue({
+      data: {
+        id: "task-wake",
+        created_by_user_id: null,
+        status: "WORKING",
+        detail: null,
+        app_conversation_id: null,
+        agent_server_url: null,
+        request: {},
+        created_at: "2026-06-08T00:00:00Z",
+        updated_at: "2026-06-08T00:00:00Z",
+      },
+    });
+
+    const result = await wakeRecycledCloudConversation("conv-existing", {
+      selected_repository: "user/repo",
+      selected_branch: "main",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      git_provider: "github" as any,
+    });
+
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(config).toMatchObject({
+      url: `${cloudBackend.host}/api/v1/app-conversations`,
+      method: "POST",
+    });
+    const body = (config as { data: Record<string, unknown> }).data;
+    // The same conversation id is carried so the backend rebuilds (and, for
+    // ACP, bootstrap-resumes) the existing conversation rather than minting one.
+    expect(body.conversation_id).toBe("conv-existing");
+    // The repo selection rides along so the rebuilt working dir matches the
+    // original cwd — otherwise an ACP resume can't key off the same project dir.
+    expect(body.selected_repository).toBe("user/repo");
+    expect(body.selected_branch).toBe("main");
+    expect(body.git_provider).toBe("github");
+    expect(result.id).toBe("task-wake");
+    expect(result.status).toBe("WORKING");
   });
 });

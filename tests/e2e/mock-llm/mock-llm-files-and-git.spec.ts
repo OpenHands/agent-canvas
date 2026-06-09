@@ -22,7 +22,7 @@ import {
   getConversationIdFromURL,
   waitForNonUserMessageText,
   deleteConversation,
-  ensureMockLLMProfile,
+  ensureMockLLMProfileViaAPI,
   registerTrajectory,
   activateTrajectory,
   resetMockLLM,
@@ -97,7 +97,7 @@ test.describe("files tab, git control bar, and browser tab", () => {
   // ── Step 1: Setup LLM profile ──────────────────────────────────────
 
   test("step 1: ensure mock LLM profile is configured", async ({ request }) => {
-    await ensureMockLLMProfile(request);
+    await ensureMockLLMProfileViaAPI(request);
 
     // Register a trajectory that ensures the workspace is a git repo WITH
     // a remote. The git control bar only shows Pull/Push when it can parse

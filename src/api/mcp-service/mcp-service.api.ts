@@ -4,6 +4,7 @@ import type {
   MCPTestResponse,
 } from "@openhands/typescript-client";
 import { getAgentServerClientOptions } from "../agent-server-client-options";
+import { getActiveBackend } from "../backend-registry/active-store";
 import type { MCPServerConfig } from "#/types/mcp-server";
 
 function toMcpServerSpec(server: MCPServerConfig): MCPServerSpec {
@@ -25,6 +26,19 @@ function toMcpServerSpec(server: MCPServerConfig): MCPServerSpec {
 
 class McpService {
   static async testServer(server: MCPServerConfig): Promise<MCPTestResponse> {
+    // The MCP connectivity-test endpoint lives on the local agent-server. It
+    // spawns the configured stdio command / opens an SSE-or-SHTTP connection
+    // from that process's environment. Cloud backends don't expose this
+    // endpoint to the frontend — the MCP server would actually run inside the
+    // cloud sandbox, which isn't reachable from the browser before the user
+    // starts a conversation. Calling `getAgentServerClientOptions()` here for
+    // a cloud-active session would throw `NoBackendAvailableError("No backend
+    // is configured.")` and block the install flow entirely. Short-circuit
+    // with a synthetic success so saving proceeds; any real connection
+    // failure surfaces inside the conversation runtime instead.
+    if (getActiveBackend().backend.kind === "cloud") {
+      return { ok: true, tools: [] };
+    }
     const { host, apiKey } = getAgentServerClientOptions();
     const client = new MCPClient({ host, ...(apiKey ? { apiKey } : {}) });
     try {

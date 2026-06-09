@@ -46,7 +46,7 @@ RUN npm run build
 # ── Stage 1b: Generate shell-sourceable defaults from config/defaults.json ──
 # This avoids needing jq/python at container runtime to parse the JSON.
 FROM node:24-slim AS config-gen
-COPY config/defaults.json /tmp/defaults.json
+COPY config/defaults.json /tmp/
 RUN node -e " \
   const c = JSON.parse(require('fs').readFileSync('/tmp/defaults.json','utf-8')); \
   const lines = [ \
@@ -101,6 +101,10 @@ COPY --from=frontend-build /build/build /opt/agent-canvas/frontend
 
 # Copy the static-server script (serves frontend + proxies to backends)
 COPY scripts/static-server.mjs /opt/agent-canvas/static-server.mjs
+
+# Copy the runtime-services-info builder (entrypoint.sh runs it as a CLI to
+# emit the agent's <RUNTIME_SERVICES> block; same builder the dev stack uses).
+COPY scripts/runtime-services-info.mjs /opt/agent-canvas/runtime-services-info.mjs
 
 # Copy custom tools (e.g. canvas_ui_tool.py) so the agent-server can import
 # them via tool_module_qualnames. OH_EXTRA_PYTHON_PATH is set in entrypoint.sh.

@@ -15,12 +15,16 @@ interface SetupLlmStepProps {
 }
 
 /**
- * Pre-fills the LLM form with the OpenHands provider's default Claude
- * Opus model. Keeping this as an explicit override marks the model
- * dirty so the Next button persists the suggested default immediately.
+ * Pre-fills the LLM form with the OpenAI GPT-5.5 model. The SDK's
+ * bare default model is `gpt-5.5`; Canvas stores provider-qualified
+ * LiteLLM model ids, so the onboarding override uses this OpenAI-prefixed
+ * model id. Keeping this as an explicit override marks the model dirty so
+ * the Next button persists the suggested default immediately.
  */
+export const ONBOARDING_DEFAULT_LLM_MODEL = "openai/gpt-5.5";
+
 const ONBOARDING_LLM_OVERRIDES = {
-  "llm.model": "openhands/claude-opus-4-5-20251101",
+  "llm.model": ONBOARDING_DEFAULT_LLM_MODEL,
 } as const;
 
 /**
@@ -120,13 +124,14 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
         <LlmSettingsScreen
           embedded
           hideSaveButton
+          suppressSuccessToast
           initialValueOverrides={ONBOARDING_LLM_OVERRIDES}
           onSaveSuccess={handleSaveSuccess}
           onSaveControlChange={setSaveControl}
         />
       </div>
 
-      <div className="sticky bottom-0 flex items-center justify-end gap-2 bg-base-secondary pt-4 pb-7">
+      <div className="sticky bottom-0 flex items-center justify-between gap-2 bg-base-secondary pt-4 pb-7">
         <BrandButton
           testId="onboarding-llm-back"
           type="button"

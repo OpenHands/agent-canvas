@@ -23,7 +23,7 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.post).mockReset();
+  vi.mocked(axios.request).mockReset();
 });
 
 afterEach(() => {
@@ -32,19 +32,18 @@ afterEach(() => {
 });
 
 describe("AgentServerConversationService.deleteConversation cloud branch", () => {
-  it("routes through /api/cloud-proxy to the cloud DELETE app-conversations endpoint", async () => {
-    vi.mocked(axios.post).mockResolvedValue({ data: { success: true } });
+  it("calls the cloud DELETE app-conversations endpoint directly", async () => {
+    vi.mocked(axios.request).mockResolvedValue({ data: { success: true } });
 
     await AgentServerConversationService.deleteConversation("conv-abc");
 
-    expect(axios.post).toHaveBeenCalledOnce();
-    const [url, body] = vi.mocked(axios.post).mock.calls[0]!;
+    expect(axios.request).toHaveBeenCalledOnce();
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
 
-    expect(url).toMatch(/\/api\/cloud-proxy$/);
-    expect(body).toMatchObject({
-      host: cloudBackend.host,
+    expect(config).toMatchObject({
+      url: `${cloudBackend.host}/api/v1/app-conversations/conv-abc`,
       method: "DELETE",
-      path: "/api/v1/app-conversations/conv-abc",
+      headers: { Authorization: "Bearer bearer-token" },
     });
   });
 });

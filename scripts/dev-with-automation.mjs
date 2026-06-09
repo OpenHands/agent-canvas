@@ -68,6 +68,7 @@ import {
   isProcessRunning,
   signalProcessTree,
 } from "./dev-process-utils.mjs";
+import { fileLog, stripAnsi } from "./logger.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -105,18 +106,54 @@ const c = {
 function logService(name, message, color = c.reset) {
   const ts = new Date().toISOString().split("T")[1].split(".")[0];
   console.log(`${c.dim}${ts}${c.reset} ${color}[${name}]${c.reset} ${message}`);
+  fileLog("info", `[${name}] ${stripAnsi(message)}`);
 }
 
 function logStep(step, message) {
   console.log(`${c.cyan}[${step}]${c.reset} ${message}`);
+  fileLog("info", `[${step}] ${message}`);
 }
 
 function logSuccess(message) {
   console.log(`${c.green}✓${c.reset} ${message}`);
+  fileLog("info", `✓ ${message}`);
 }
 
 function logError(message) {
   console.error(`${c.red}✗${c.reset} ${message}`);
+  fileLog("error", `✗ ${stripAnsi(message)}`);
+}
+
+/**
+ * Parse one JSON log line produced by the SDK's JsonFormatter and return a
+ * single-line human-readable string + an appropriate ANSI color.
+ *
+ * Returns null for non-JSON lines so callers can fall back to the raw text.
+ *
+ * @param {string} rawLine
+ * @returns {{ text: string; color: string } | null}
+ */
+function parseAgentServerLogLine(rawLine) {
+  try {
+    const obj = JSON.parse(rawLine);
+    if (!obj.levelname || obj.message === undefined) return null;
+    const level = obj.levelname.padEnd(8);
+    const location =
+      obj.filename && obj.lineno ? `  ${obj.filename}:${obj.lineno}` : "";
+    const text = `${level} ${obj.message}${location}`;
+    const lvl = obj.levelname;
+    const color =
+      lvl === "DEBUG"
+        ? c.dim
+        : lvl === "WARNING"
+          ? c.yellow
+          : lvl === "ERROR" || lvl === "CRITICAL"
+            ? c.red
+            : c.blue;
+    return { text, color };
+  } catch {
+    return null;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -135,6 +172,8 @@ function parseArgs() {
     staticDir: null,
     skipBuild: false,
     public: false,
+    frontendOnly: false,
+    backendOnly: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -168,6 +207,12 @@ function parseArgs() {
       case "--public":
         config.public = true;
         break;
+      case "--frontend-only":
+        config.frontendOnly = true;
+        break;
+      case "--backend-only":
+        config.backendOnly = true;
+        break;
       case "-h":
       case "--help":
         showHelp();
@@ -196,6 +241,8 @@ OPTIONS:
   --static-dir <dir>          Static build directory (default: build/)
   --skip-build                Reuse build/ when the launcher builds static assets
   --dynamic                   Force Vite dev server when a wrapper defaults static
+  --frontend-only             Start only the frontend behind ingress
+  --backend-only              Start only agent-server + automation behind ingress
   -v, --verbose               Show detailed output
   -h, --help                  Show this help
 
@@ -285,7 +332,22 @@ async function buildConfig(args, env = process.env) {
     env.OH_AUTOMATION_REPO = args.automationRepo;
   }
 
+  const frontendOnly = Boolean(args.frontendOnly);
+  const backendOnly = Boolean(args.backendOnly);
+  if (frontendOnly && backendOnly) {
+    throw new Error(
+      "--frontend-only and --backend-only cannot be used together",
+    );
+  }
+
+  const launchFrontend = !backendOnly;
+  const launchAgentServer = !frontendOnly;
+  const launchAutomation = !frontendOnly;
   const isPublic = args.public;
+
+  if (isPublic && frontendOnly) {
+    throw new Error("--public cannot be used with --frontend-only");
+  }
 
   // In public mode, LOCAL_BACKEND_API_KEY is required — without it the
   // auth screen has nothing to validate against.
@@ -308,14 +370,20 @@ async function buildConfig(args, env = process.env) {
     parseInt(env.OH_CANVAS_SAFE_AUTOMATION_PORT, 10) || DEFAULT_AUTOMATION_PORT;
   const preferredVitePort = parseInt(env.OH_CANVAS_SAFE_VITE_PORT, 10) || 3001;
 
-  // Fail fast if any preferred port is already in use.
+  // Fail fast if any preferred port for a service in this mode is already in use.
+  const requiredPorts = [{ name: "ingress", port: preferredIngressPort }];
+  if (launchAgentServer) {
+    requiredPorts.push({ name: "agent-server", port: preferredBackendPort });
+  }
+  if (launchAutomation) {
+    requiredPorts.push({ name: "automation", port: preferredAutomationPort });
+  }
+  if (launchFrontend) {
+    requiredPorts.push({ name: "frontend", port: preferredVitePort });
+  }
+
   logStep("ports", "Checking ports...");
-  await assertPortsFree([
-    { name: "ingress", port: preferredIngressPort },
-    { name: "agent-server", port: preferredBackendPort },
-    { name: "automation", port: preferredAutomationPort },
-    { name: "vite", port: preferredVitePort },
-  ]);
+  await assertPortsFree(requiredPorts);
 
   const vscodePort = preferredBackendPort + 1000;
 
@@ -363,12 +431,25 @@ async function buildConfig(args, env = process.env) {
 
     // Data directories (same as dev-safe.mjs)
     stateDir,
+    // Only bake the host-side workspace path when this launcher also starts
+    // the agent-server that can read it. In frontend-only mode the backend may
+    // be a tunnel/remote service, so leave VITE_WORKING_DIR unset unless the
+    // user explicitly supplied a backend-relative value.
+    viteWorkingDir: launchAgentServer
+      ? safeConfig.workingDir
+      : env.VITE_WORKING_DIR,
 
     // Auth — single key for both backends
     sessionApiKey,
 
     // Public mode — the session key should NOT be baked into the frontend
     isPublic,
+
+    frontendOnly,
+    backendOnly,
+    launchFrontend,
+    launchAgentServer,
+    launchAutomation,
 
     verbose: args.verbose,
   };
@@ -387,20 +468,30 @@ function commandExists(cmd) {
   return result.status === 0;
 }
 
-function checkPrerequisites({ checkFrontendDependencies = true } = {}) {
+function checkPrerequisites({
+  checkUvx = true,
+  checkNpm = true,
+  checkFrontendDependencies = true,
+} = {}) {
   logStep("1/2", "Checking prerequisites...");
 
-  if (!commandExists("uvx")) {
-    console.error(formatMissingUvxGuidance(projectRoot));
-    process.exit(1);
+  if (checkUvx) {
+    if (!commandExists("uvx")) {
+      const uvxGuidance = formatMissingUvxGuidance(projectRoot);
+      console.error(uvxGuidance);
+      fileLog("error", stripAnsi(uvxGuidance));
+      process.exit(1);
+    }
+    logSuccess("uvx found");
   }
-  logSuccess("uvx found");
 
-  if (!commandExists("npm")) {
-    logError("npm is required but not found");
-    process.exit(1);
+  if (checkNpm) {
+    if (!commandExists("npm")) {
+      logError("npm is required but not found");
+      process.exit(1);
+    }
+    logSuccess("npm found");
   }
-  logSuccess("npm found");
 
   if (checkFrontendDependencies) {
     try {
@@ -416,13 +507,27 @@ function checkPrerequisites({ checkFrontendDependencies = true } = {}) {
 function ensureDirectories(config) {
   const dirs = [
     config.stateDir,
-    join(config.stateDir, "dev_conversations"),
-    join(config.stateDir, "workspaces"),
-    join(config.stateDir, "bash_events"),
-    join(config.stateDir, "storage"),
-    // Automation DB directory — matches docker/entrypoint.sh mkdir -p behaviour.
-    dirname(join(dirname(config.stateDir), SHARED_DEFAULTS.paths.automationDb)),
+    // Both agent-server and automation use storage; create it unconditionally
+    // whenever either backend service runs (i.e. not frontend-only).
+    ...(!config.frontendOnly ? [join(config.stateDir, "storage")] : []),
   ];
+
+  if (config.launchAgentServer) {
+    dirs.push(
+      join(config.stateDir, "dev_conversations"),
+      join(config.stateDir, "workspaces"),
+      join(config.stateDir, "bash_events"),
+    );
+  }
+
+  if (config.launchAutomation) {
+    dirs.push(
+      // Automation DB directory — matches docker/entrypoint.sh mkdir -p behaviour.
+      dirname(
+        join(dirname(config.stateDir), SHARED_DEFAULTS.paths.automationDb),
+      ),
+    );
+  }
 
   for (const dir of dirs) {
     mkdirSync(dir, { recursive: true });
@@ -455,6 +560,7 @@ function spawnService(name, command, args, options = {}) {
   );
 
   const color = options.color || c.reset;
+  const parseLogLine = options.parseLogLine;
 
   proc.stdout.on("data", (data) => {
     data
@@ -462,7 +568,8 @@ function spawnService(name, command, args, options = {}) {
       .split("\n")
       .filter(Boolean)
       .forEach((line) => {
-        logService(name, line.trim(), color);
+        const parsed = parseLogLine ? parseLogLine(line.trim()) : null;
+        logService(name, parsed ? parsed.text : line.trim(), parsed ? parsed.color : color);
       });
   });
 
@@ -472,7 +579,8 @@ function spawnService(name, command, args, options = {}) {
       .split("\n")
       .filter(Boolean)
       .forEach((line) => {
-        logService(name, line.trim(), c.yellow);
+        const parsed = parseLogLine ? parseLogLine(line.trim()) : null;
+        logService(name, parsed ? parsed.text : line.trim(), parsed ? parsed.color : c.yellow);
       });
   });
 
@@ -521,6 +629,82 @@ async function waitForService(name, url, timeoutMs = 30000) {
 // Service Starters
 // ═══════════════════════════════════════════════════════════════════════════
 
+const AUTOMATION_ROUTE_PREFIX = "/api/automation";
+const AGENT_SERVER_ROUTE_PREFIXES = [
+  "/api",
+  "/sockets",
+  "/server_info",
+  "/health",
+  "/ready",
+  "/alive",
+  "/docs",
+  "/redoc",
+  "/openapi.json",
+];
+
+function getLocalServiceRoutes(config) {
+  const routes = [];
+
+  if (config.launchAutomation) {
+    routes.push([
+      AUTOMATION_ROUTE_PREFIX,
+      `http://localhost:${config.autoBackendPort}`,
+    ]);
+  }
+
+  if (config.launchAgentServer) {
+    for (const prefix of AGENT_SERVER_ROUTE_PREFIXES) {
+      routes.push([prefix, `http://localhost:${config.agentServerPort}`]);
+    }
+  }
+
+  return routes;
+}
+
+function buildRouteArgs(routes) {
+  return routes.flatMap(([prefix, url]) => ["--route", `${prefix}=${url}`]);
+}
+
+/**
+ * Build --reject-prefix args for the static server.
+ * In frontend-only mode, API paths that have no backend should return 503
+ * instead of being SPA-fallbacked to index.html.
+ */
+function getRejectPrefixes(config) {
+  const prefixes = [];
+  if (!config.launchAutomation) {
+    prefixes.push(AUTOMATION_ROUTE_PREFIX);
+  }
+  if (!config.launchAgentServer) {
+    for (const prefix of AGENT_SERVER_ROUTE_PREFIXES) {
+      prefixes.push(prefix);
+    }
+  }
+  return prefixes;
+}
+
+function buildRejectPrefixArgs(prefixes) {
+  return prefixes.flatMap((prefix) => ["--reject-prefix", prefix]);
+}
+
+function getFrontendBackend(config) {
+  return config.launchFrontend ? `http://localhost:${config.vitePort}` : null;
+}
+
+function buildViteBackendEnv(config, env = process.env) {
+  const backendBaseUrl = config.launchAgentServer
+    ? `http://127.0.0.1:${config.ingressPort}`
+    : (env.VITE_BACKEND_BASE_URL ?? "http://127.0.0.1:8000");
+  const backendHost = config.launchAgentServer
+    ? `127.0.0.1:${config.ingressPort}`
+    : (env.VITE_BACKEND_HOST ?? new URL(backendBaseUrl).host);
+
+  return {
+    VITE_BACKEND_HOST: backendHost,
+    VITE_BACKEND_BASE_URL: backendBaseUrl,
+  };
+}
+
 function buildAgentServerAutomationEnv(config) {
   return {
     // Make the session API key available to terminal commands spawned by the
@@ -557,6 +741,11 @@ function startAgentServer(config) {
     // Ensure the agent-server uses the resolved key from config. This is
     // LOCAL_BACKEND_API_KEY when set, or the auto-generated persisted key.
     OH_SESSION_API_KEYS_0: config.sessionApiKey,
+    // Emit structured JSON log lines instead of Rich-formatted output.
+    // Rich wraps long messages across multiple lines and prepends its own
+    // timestamp; LOG_JSON=true produces one JSON object per record which
+    // parseAgentServerLogLine re-formats into a clean single-line entry.
+    LOG_JSON: "true",
   };
 
   spawnService(
@@ -573,6 +762,7 @@ function startAgentServer(config) {
       cwd: safeConfig.workspacesPath,
       env: agentServerEnv,
       color: c.blue,
+      parseLogLine: parseAgentServerLogLine,
     },
   );
 }
@@ -654,8 +844,10 @@ function startAutomationBackend(config) {
           join(config.stateDir, "workspaces"),
         // Session API key for self-hosted auth — shared with agent-server via X-Session-API-Key header
         AUTOMATION_LOCAL_API_KEY: config.sessionApiKey,
-        // CORS: allow localhost origins for dev
-        AUTOMATION_CORS_ORIGINS: `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
+        // CORS: allow localhost origins for dev, unless explicitly overridden.
+        AUTOMATION_CORS_ORIGINS:
+          process.env.AUTOMATION_CORS_ORIGINS ||
+          `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
         FILE_STORE: "local",
         LOCAL_STORAGE_PATH: join(config.stateDir, "storage"),
         OPENHANDS_SUPPRESS_BANNER: "1",
@@ -677,6 +869,7 @@ function shutdown() {
 
   console.log("");
   console.log(`${c.yellow}Shutting down...${c.reset}`);
+  fileLog("info", "Shutting down...");
 
   for (const [name, proc] of processes) {
     logService(name, "Stopping...", c.dim);
@@ -702,6 +895,7 @@ function startIngress(config) {
   logService("ingress", `Starting on port ${config.ingressPort}...`, c.yellow);
 
   const ingressScript = join(projectRoot, "scripts", "ingress.mjs");
+  const frontendBackend = getFrontendBackend(config);
 
   spawnService(
     "ingress",
@@ -710,28 +904,8 @@ function startIngress(config) {
       ingressScript,
       "--port",
       config.ingressPort.toString(),
-      "--route",
-      `/api/automation=http://localhost:${config.autoBackendPort}`,
-      "--route",
-      `/api=http://localhost:${config.agentServerPort}`,
-      "--route",
-      `/sockets=http://localhost:${config.agentServerPort}`,
-      "--route",
-      `/server_info=http://localhost:${config.agentServerPort}`,
-      "--route",
-      `/health=http://localhost:${config.agentServerPort}`,
-      "--route",
-      `/ready=http://localhost:${config.agentServerPort}`,
-      "--route",
-      `/alive=http://localhost:${config.agentServerPort}`,
-      "--route",
-      `/docs=http://localhost:${config.agentServerPort}`,
-      "--route",
-      `/redoc=http://localhost:${config.agentServerPort}`,
-      "--route",
-      `/openapi.json=http://localhost:${config.agentServerPort}`,
-      "--default",
-      `http://localhost:${config.vitePort}`,
+      ...buildRouteArgs(getLocalServiceRoutes(config)),
+      ...(frontendBackend ? ["--default", frontendBackend] : []),
     ],
     {
       cwd: projectRoot,
@@ -752,12 +926,14 @@ export function buildAutomationRuntimeServicesInfo(config) {
     agentHostAlias: config.agentHostAlias ?? "localhost",
     agentServerPort: config.agentServerPort,
     ingressPort: config.ingressPort,
-    frontendPort: config.vitePort,
+    frontendPort: config.launchFrontend ? config.vitePort : undefined,
     // The same port hosts Vite in dynamic mode and a static-file server
     // in static mode. The launcher records this on the config so the
     // description shown to the agent matches reality.
     frontendKind: config.frontendKind ?? "vite",
-    automation: { port: config.autoBackendPort },
+    automation: config.launchAutomation
+      ? { port: config.autoBackendPort }
+      : undefined,
   });
 }
 
@@ -765,27 +941,33 @@ function startVite(config) {
   logService("vite", `Starting on port ${config.vitePort}...`, c.magenta);
 
   const frontendCommand = buildNpmScriptCommand("dev:frontend");
-  const runtimeServicesInfo = buildAutomationRuntimeServicesInfo(config);
+  const runtimeServicesInfo = config.launchAgentServer
+    ? buildAutomationRuntimeServicesInfo(config)
+    : null;
 
   const viteEnv = {
-    // Point Vite at the ingress (so client-side fetches work)
-    VITE_BACKEND_HOST: `127.0.0.1:${config.ingressPort}`,
-    VITE_BACKEND_BASE_URL: `http://127.0.0.1:${config.ingressPort}`,
-    VITE_WORKING_DIR:
-      config.viteWorkingDir ?? join(config.stateDir, "workspaces"),
+    // Full-stack mode points Vite at this launcher's ingress. Frontend-only
+    // mode uses the separately running backend ingress instead.
+    ...buildViteBackendEnv(config),
     VITE_FRONTEND_PORT: config.vitePort.toString(),
+  };
+  if (config.viteWorkingDir) {
+    viteEnv.VITE_WORKING_DIR = config.viteWorkingDir;
+  }
+
+  if (runtimeServicesInfo) {
     // Inform the frontend (and downstream, the agent's system prompt) about
     // which services are available in this dev stack.
-    VITE_RUNTIME_SERVICES_INFO: JSON.stringify(runtimeServicesInfo),
-  };
+    viteEnv.VITE_RUNTIME_SERVICES_INFO = JSON.stringify(runtimeServicesInfo);
+  }
 
   // In local mode, bake the session key into the frontend so the user
   // never has to paste it. In public mode, omit the key and set
   // VITE_AUTH_REQUIRED so the frontend shows the API key entry screen
   // immediately (no network round-trip needed).
-  if (config.isPublic) {
+  if (config.launchAgentServer && config.isPublic) {
     viteEnv.VITE_AUTH_REQUIRED = "true";
-  } else {
+  } else if (config.launchAgentServer) {
     viteEnv.VITE_SESSION_API_KEY = config.sessionApiKey;
   }
 
@@ -894,12 +1076,32 @@ async function seedAutomationSecret(config, options = {}) {
 }
 
 function printBanner(config) {
+  const stackName = config.frontendOnly
+    ? "Agent Canvas Frontend Stack"
+    : config.backendOnly
+      ? "Agent Canvas Backend Stack"
+      : "Agent Canvas + Automation Stack";
+
+  // padEnd counts invisible ANSI escape bytes as visible characters, so we
+  // compute the visible length separately and pad with spaces accordingly.
+  const ansiRe = /\x1b\[[0-9;]*m/g;
+  const ansiPadEnd = (str, targetVisible) => {
+    const visible = str.replace(ansiRe, "").length;
+    return str + " ".repeat(Math.max(0, targetVisible - visible));
+  };
+  // The box has 62-char inner width; each content line needs 63 visible chars
+  // before the trailing border (1 leading ║ + 62 inner).
+  const BOX_INNER = 63;
+
   console.log("");
   console.log(
     `${c.green}${c.bold}╔══════════════════════════════════════════════════════════════╗${c.reset}`,
   );
   console.log(
-    `${c.green}${c.bold}║${c.reset}  ${c.bold}Agent Canvas + Automation Stack${c.reset}                            ${c.green}${c.bold}║${c.reset}`,
+    ansiPadEnd(
+      `${c.green}${c.bold}║${c.reset}  ${c.bold}${stackName}${c.reset}`,
+      BOX_INNER,
+    ) + `${c.green}${c.bold}║${c.reset}`,
   );
   console.log(
     `${c.green}${c.bold}╠══════════════════════════════════════════════════════════════╣${c.reset}`,
@@ -908,15 +1110,27 @@ function printBanner(config) {
     `${c.green}${c.bold}║${c.reset}                                                              ${c.green}${c.bold}║${c.reset}`,
   );
   console.log(
-    `${c.green}${c.bold}║${c.reset}  Main UI:      ${c.cyan}http://localhost:${config.ingressPort}/${c.reset}`.padEnd(
-      75,
+    ansiPadEnd(
+      `${c.green}${c.bold}║${c.reset}  Ingress:      ${c.cyan}http://localhost:${config.ingressPort}/${c.reset}`,
+      BOX_INNER,
     ) + `${c.green}${c.bold}║${c.reset}`,
   );
-  console.log(
-    `${c.green}${c.bold}║${c.reset}  API Docs:     ${c.cyan}http://localhost:${config.ingressPort}/api/automation/docs${c.reset}`.padEnd(
-      75,
-    ) + `${c.green}${c.bold}║${c.reset}`,
-  );
+  if (config.launchFrontend) {
+    console.log(
+      ansiPadEnd(
+        `${c.green}${c.bold}║${c.reset}  Main UI:      ${c.cyan}http://localhost:${config.ingressPort}/${c.reset}`,
+        BOX_INNER,
+      ) + `${c.green}${c.bold}║${c.reset}`,
+    );
+  }
+  if (config.launchAutomation) {
+    console.log(
+      ansiPadEnd(
+        `${c.green}${c.bold}║${c.reset}  API Docs:     ${c.cyan}http://localhost:${config.ingressPort}/api/automation/docs${c.reset}`,
+        BOX_INNER,
+      ) + `${c.green}${c.bold}║${c.reset}`,
+    );
+  }
   console.log(
     `${c.green}${c.bold}║${c.reset}                                                              ${c.green}${c.bold}║${c.reset}`,
   );
@@ -927,6 +1141,20 @@ function printBanner(config) {
   console.log(`${c.dim}State directory: ${config.stateDir}${c.reset}`);
   console.log(`${c.dim}Press Ctrl+C to stop${c.reset}`);
   console.log("");
+
+  // Write a compact plain-text summary to the log file.
+  const summary = [
+    `${stackName} — started`,
+    `  Ingress:         http://localhost:${config.ingressPort}/`,
+    ...(config.launchFrontend
+      ? [`  Main UI:         http://localhost:${config.ingressPort}/`]
+      : []),
+    ...(config.launchAutomation
+      ? [`  API Docs:        http://localhost:${config.ingressPort}/api/automation/docs`]
+      : []),
+    `  State directory: ${config.stateDir}`,
+  ];
+  fileLog("info", summary.join("\n"));
 }
 
 async function main(options = {}) {
@@ -974,24 +1202,32 @@ async function main(options = {}) {
   const staticDir =
     staticDirOverride ?? args.staticDir ?? join(projectRoot, "build");
 
-  const modeLabel = useStaticMode ? "(Static)" : "";
+  const modeLabel = useStaticMode && !args.backendOnly ? "(Static)" : "";
   const titleWithMode = modeLabel ? `${bannerTitle} ${modeLabel}` : bannerTitle;
 
   console.log("");
   console.log(`${c.cyan}${c.bold}${titleWithMode}${c.reset}`);
   console.log("");
+  fileLog("info", titleWithMode);
 
   // Setup phase
   checkPrerequisites({
+    checkUvx: !args.frontendOnly,
+    // Static-mode + backend-only has no frontend to build, so npm is not
+    // required — unless the caller provides a custom buildStaticFrontend hook.
+    checkNpm:
+      (!useStaticMode && !args.backendOnly) ||
+      typeof buildStaticFrontend === "function",
     checkFrontendDependencies:
-      !useStaticMode || typeof buildStaticFrontend === "function",
+      (!useStaticMode && !args.backendOnly) ||
+      typeof buildStaticFrontend === "function",
   });
 
   // Fail fast on an obviously bad OH_AGENT_SERVER_LOCAL_PATH so we don't waste
   // time allocating ports / generating keys / launching uvx with a path that
   // would only produce a cryptic build error. Mirrors dev-safe.mjs and
   // dev-extra-backend.mjs.
-  if (process.env.OH_AGENT_SERVER_LOCAL_PATH) {
+  if (!args.frontendOnly && process.env.OH_AGENT_SERVER_LOCAL_PATH) {
     try {
       validateLocalAgentServerPath(process.env.OH_AGENT_SERVER_LOCAL_PATH);
     } catch (error) {
@@ -1023,12 +1259,16 @@ async function main(options = {}) {
     extraPrereqs(config);
   }
 
-  if (useStaticMode && typeof buildStaticFrontend === "function") {
+  if (
+    config.launchFrontend &&
+    useStaticMode &&
+    typeof buildStaticFrontend === "function"
+  ) {
     buildStaticFrontend(config, args);
   }
 
   // In static mode, verify build exists after any launcher-managed build.
-  if (useStaticMode && !existsSync(staticDir)) {
+  if (config.launchFrontend && useStaticMode && !existsSync(staticDir)) {
     logError(`Static directory not found: ${staticDir}`);
     logError(`Run 'npm run build' first to create the static files.`);
     process.exit(1);
@@ -1037,23 +1277,27 @@ async function main(options = {}) {
   // Start services phase
   logStep("2/2", "Starting services...");
 
-  // 1. Start agent-server first (other services depend on it)
-  const agentServerStarter = startAgentServerOverride ?? startAgentServer;
-  agentServerStarter(config);
+  let agentServerReady = false;
 
-  // Wait for agent-server to be ready (60s timeout for slow systems)
-  const agentServerReady = await waitForService(
-    "agent-server",
-    `http://localhost:${config.agentServerPort}/server_info`,
-    60000, // 60 second timeout for initial startup
-  );
+  // 1. Start agent-server first (automation depends on it)
+  if (config.launchAgentServer) {
+    const agentServerStarter = startAgentServerOverride ?? startAgentServer;
+    agentServerStarter(config);
+
+    // Wait for agent-server to be ready (60s timeout for slow systems)
+    agentServerReady = await waitForService(
+      "agent-server",
+      `http://localhost:${config.agentServerPort}/server_info`,
+      60000, // 60 second timeout for initial startup
+    );
+  }
 
   // 2. Seed automation API key into agent-server secrets
   // This makes the key available to agents during conversations
   // Note: seedAutomationSecret has its own retry logic if server is still warming up
-  if (agentServerReady) {
+  if (config.launchAutomation && agentServerReady) {
     await seedAutomationSecret(config);
-  } else {
+  } else if (config.launchAutomation) {
     logService(
       "secrets",
       "Skipping secret seeding - agent-server not ready",
@@ -1062,19 +1306,23 @@ async function main(options = {}) {
   }
 
   // 3. Start automation backend
-  startAutomationBackend(config);
+  if (config.launchAutomation) {
+    startAutomationBackend(config);
+  }
 
   // 4. Start frontend server (Vite dev server OR static server)
-  if (useStaticMode) {
-    startStaticFrontend(config, staticDir);
-  } else {
-    startVite(config);
+  if (config.launchFrontend) {
+    if (useStaticMode) {
+      startStaticFrontend(config, staticDir);
+    } else {
+      startVite(config);
+    }
   }
 
   // 5. Wait for services to be ready
   await delay(2000);
 
-  // 6. Start ingress proxy (routes traffic to all backends)
+  // 6. Start ingress proxy (routes traffic only to running services)
   startIngress(config);
 
   // Wait for ingress to start
@@ -1087,6 +1335,13 @@ function startStaticFrontend(config, staticDir) {
   logService("static", `Starting on port ${config.vitePort}...`, c.magenta);
   logService("static", `Serving from: ${staticDir}`, c.dim);
 
+  // Build the runtime-services info JSON so the pre-built frontend can
+  // populate the agent's <RUNTIME_SERVICES> system-prompt block without
+  // VITE_RUNTIME_SERVICES_INFO baked in at build time.
+  const runtimeServicesInfo = config.launchAgentServer
+    ? JSON.stringify(buildAutomationRuntimeServicesInfo(config))
+    : null;
+
   const staticServerScript = join(projectRoot, "scripts", "static-server.mjs");
   spawnService(
     "static",
@@ -1095,38 +1350,26 @@ function startStaticFrontend(config, staticDir) {
       staticServerScript,
       "--dir",
       staticDir,
-      "--host",
-      "0.0.0.0",
       "--port",
       String(config.vitePort),
       // In local mode, inject the API key so the pre-built frontend can
       // authenticate transparently. In public mode, pass --auth-required
       // so the frontend shows the API key entry screen instead.
-      ...(!config.isPublic && config.sessionApiKey
+      ...(config.launchAgentServer && !config.isPublic && config.sessionApiKey
         ? ["--session-api-key", config.sessionApiKey]
         : []),
-      ...(config.isPublic ? ["--auth-required"] : []),
-      // Proxy routes to backends (same as ingress but for direct access to vitePort)
-      "--route",
-      `/api/automation=http://localhost:${config.autoBackendPort}`,
-      "--route",
-      `/api=http://localhost:${config.agentServerPort}`,
-      "--route",
-      `/sockets=http://localhost:${config.agentServerPort}`,
-      "--route",
-      `/server_info=http://localhost:${config.agentServerPort}`,
-      "--route",
-      `/health=http://localhost:${config.agentServerPort}`,
-      "--route",
-      `/ready=http://localhost:${config.agentServerPort}`,
-      "--route",
-      `/alive=http://localhost:${config.agentServerPort}`,
-      "--route",
-      `/docs=http://localhost:${config.agentServerPort}`,
-      "--route",
-      `/redoc=http://localhost:${config.agentServerPort}`,
-      "--route",
-      `/openapi.json=http://localhost:${config.agentServerPort}`,
+      ...(config.launchAgentServer && config.isPublic
+        ? ["--auth-required"]
+        : []),
+      // Inject runtime-services info so the agent knows what's reachable.
+      ...(runtimeServicesInfo
+        ? ["--runtime-services-info", runtimeServicesInfo]
+        : []),
+      // Proxy routes only to services that this launch mode started.
+      ...buildRouteArgs(getLocalServiceRoutes(config)),
+      // Reject known API prefixes that have no backend — returns 503
+      // instead of SPA-fallbacking to index.html.
+      ...buildRejectPrefixArgs(getRejectPrefixes(config)),
     ],
     {
       cwd: config.canvasPath,
@@ -1143,6 +1386,10 @@ export {
   buildAgentServerAutomationEnv,
   buildAutomationCommand,
   buildConfig,
+  buildRouteArgs,
+  buildViteBackendEnv,
+  getFrontendBackend,
+  getLocalServiceRoutes,
   main,
   registerShutdownHook,
   spawnService,
@@ -1173,6 +1420,7 @@ if (isMainModule) {
     logError(`Fatal error: ${err.message}`);
     if (err.stack) {
       console.error(c.dim + err.stack + c.reset);
+      fileLog("error", err.stack);
     }
     process.exit(1);
   });

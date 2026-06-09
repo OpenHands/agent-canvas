@@ -58,6 +58,13 @@ npm install -g @openhands/agent-canvas
 agent-canvas
 ```
 
+The `agent-canvas` command starts the full local stack by default. You can also split it when you want to run pieces separately:
+
+```sh
+agent-canvas --frontend-only  # static frontend + ingress only
+agent-canvas --backend-only   # agent server + automation backend + ingress only
+```
+
 ### Option 2: With a Docker Sandbox
 
 **Prerequisites**:
@@ -67,8 +74,6 @@ agent-canvas
 
 **macOS / Linux:**
 ```sh
-docker pull ghcr.io/openhands/agent-canvas:1.0.0-alpha.10
-
 export PROJECTS_PATH="$HOME/projects"  # directory containing your project folders
 mkdir -p "$PROJECTS_PATH" "$HOME/.openhands"
 
@@ -76,7 +81,7 @@ docker run -it --rm \
   -p 8000:8000 \
   -v "$HOME/.openhands:/home/openhands/.openhands" \
   -v "${PROJECTS_PATH}:/projects" \
-  ghcr.io/openhands/agent-canvas:1.0.0-alpha.10
+  ghcr.io/openhands/agent-canvas:1.0.0-rc.3
 ```
 
 **Windows (PowerShell / Windows Terminal):** See [README.windows.md](./README.windows.md) for the equivalent commands.

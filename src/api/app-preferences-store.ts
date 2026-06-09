@@ -4,14 +4,18 @@ import { Settings } from "#/types/settings";
  * The local agent-server's PATCH /api/settings only persists
  * `agent_settings_diff` and `conversation_settings_diff`. App-level user
  * preferences (language, sound notifications, analytics consent, git
- * identity) have no native home there, so we persist them in localStorage
- * — the same approach `secrets-service.ts` uses for git provider tokens.
+ * identity) have no native home in that schema, so we persist them in
+ * localStorage as a workaround. This is the same fallback pattern used
+ * by `DISABLED_SKILLS_STORAGE_KEY` in `settings-service.api.ts`.
  *
  * In cloud mode the cloud backend accepts these fields as flat top-level
  * keys at POST /api/v1/settings, and the cloud fetch returns them. We
  * still write through to localStorage so the values survive momentary
  * fetch failures and so the merge logic in `syncDerivedSettings` has a
  * single source for both modes.
+ *
+ * Long-term goal: extend the local agent-server settings schema to cover
+ * these fields and delete this module entirely.
  */
 export const APP_PREFERENCES_STORAGE_KEY =
   "openhands-agent-server-app-preferences";
