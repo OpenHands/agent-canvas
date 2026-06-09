@@ -4,6 +4,7 @@ import type {
   IntegrationConnectionOption,
   IntegrationTransport,
 } from "@openhands/extensions/integrations";
+import { getDeploymentMode } from "#/api/agent-server-adapter";
 
 export type { MarketplaceEntry };
 
@@ -103,11 +104,45 @@ function patchLinearEntry(entry: MarketplaceEntry): MarketplaceEntry {
   };
 }
 
+/**
+ * The upstream catalog ships the GitHub MCP server with `command: "docker"`
+ * (`docker run … ghcr.io/github/github-mcp-server`). This requires Docker-
+ * in-Docker when agent-canvas itself runs inside the Docker image, which
+ * isn't available. The Docker image pre-installs the native Go binary at
+ * `/usr/local/bin/github-mcp-server`, so we rewrite the transport to use
+ * it directly.
+ *
+ * Only applied when `getDeploymentMode()` returns `"docker"`.
+ */
+function patchGitHubEntry(entry: MarketplaceEntry): MarketplaceEntry {
+  if (entry.id !== "github") return entry;
+  if (getDeploymentMode() !== "docker") return entry;
+  return {
+    ...entry,
+    installHint:
+      "Requires a GitHub Personal Access Token (classic or fine-grained).",
+    connectionOptions: entry.connectionOptions.map((option) =>
+      option.transport?.kind === "stdio" &&
+      option.transport.command === "docker"
+        ? {
+            ...option,
+            transport: {
+              ...option.transport,
+              command: "github-mcp-server",
+              args: ["stdio"],
+            },
+          }
+        : option,
+    ),
+  };
+}
+
 export function getMcpMarketplaceCatalog(
   catalog: MarketplaceEntry[],
 ): MarketplaceEntry[] {
   return catalog
     .map(patchLinearEntry)
+    .map(patchGitHubEntry)
     .filter((entry) => !!getDefaultMcpConnectionOption(entry));
 }
 
