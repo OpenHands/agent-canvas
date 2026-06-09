@@ -5,7 +5,8 @@
     "agentServer": "1.26.0",
     "agentCanvas": "1.0.0-rc.3",
     "automation": "1.0.0a6",
-    "automationSdk": "1.22.1"
+    "automationSdk": "1.22.1",
+    "githubMcpServer": "1.2.0"
   },
 
   "images": {

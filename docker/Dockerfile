@@ -70,7 +70,7 @@ RUN node -e " \
 FROM node:24-slim AS github-mcp-download
 
 ARG TARGETARCH
-ARG GITHUB_MCP_SERVER_VERSION=1.2.0
+ARG GITHUB_MCP_SERVER_VERSION
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
 
