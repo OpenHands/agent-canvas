@@ -123,13 +123,39 @@ def _patch_automation_tarball_path() -> None:
             work_dir_shell = _as_shell_path(Path(work_dir))
             work_dir_q = execution._shell_quote(work_dir_shell)
 
-            entrypoint_shell = entrypoint
-            if entrypoint_shell.strip().startswith("python3 "):
-                payload = entrypoint_shell.strip()[len("python3 ") :]
-                entrypoint_shell = (
+            def _python_fallback(payload: str) -> str:
+                return (
                     f"(command -v python3 >/dev/null 2>&1 && python3 {payload})"
                     f" || (command -v python >/dev/null 2>&1 && python {payload})"
                     f" || (command -v py >/dev/null 2>&1 && py -3 {payload})"
+                )
+
+            entrypoint_shell = entrypoint
+            stripped_entrypoint = entrypoint_shell.strip()
+
+            # Handle Windows shells that don't provide `python3`.
+            if stripped_entrypoint.startswith("python3 "):
+                payload = stripped_entrypoint[len("python3 ") :]
+                entrypoint_shell = _python_fallback(payload)
+
+            # Handle upstream automation entrypoints that assume a Unix venv
+            # path (`.venv/bin/python ...`). On native Windows venvs live under
+            # `.venv/Scripts/python.exe`.
+            elif stripped_entrypoint.startswith(".venv/bin/python "):
+                payload = stripped_entrypoint[len(".venv/bin/python ") :]
+                entrypoint_shell = (
+                    f"([ -f .venv/Scripts/python.exe ] && .venv/Scripts/python.exe {payload})"
+                    f" || ([ -f .venv/bin/python ] && .venv/bin/python {payload})"
+                    f" || {_python_fallback(payload)}"
+                )
+
+            # If the upstream string uses backslashes (Windows style), normalize
+            # it for MSYS bash.
+            elif stripped_entrypoint.startswith(".venv\\\\Scripts\\\\python.exe "):
+                payload = stripped_entrypoint[len(".venv\\\\Scripts\\\\python.exe ") :]
+                entrypoint_shell = (
+                    f"([ -f .venv/Scripts/python.exe ] && .venv/Scripts/python.exe {payload})"
+                    f" || {_python_fallback(payload)}"
                 )
 
             cmd = (
