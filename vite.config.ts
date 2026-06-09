@@ -46,6 +46,7 @@ export default defineConfig(({ mode }) => {
     VITE_USE_TLS = "false",
     VITE_FRONTEND_PORT = "3001",
     VITE_INSECURE_SKIP_VERIFY = "false",
+    VITE_DEV_ORIGIN = "",
   } = loadEnv(mode, process.cwd());
 
   const isLibraryBuild = process.env.BUILD_LIB === "true";
@@ -57,6 +58,26 @@ export default defineConfig(({ mode }) => {
   const API_URL = `${PROTOCOL}://${VITE_BACKEND_HOST}/`;
   const WS_URL = `${WS_PROTOCOL}://${VITE_BACKEND_HOST}/`;
   const FE_PORT = Number.parseInt(VITE_FRONTEND_PORT, 10);
+  const devOrigin = VITE_DEV_ORIGIN.trim();
+  const ingressProxyServerConfig =
+    devOrigin.length > 0
+      ? (() => {
+          const originUrl = new URL(devOrigin);
+          const hmrPort =
+            Number.parseInt(originUrl.port, 10) ||
+            (originUrl.protocol === "https:" ? 443 : 80);
+
+          return {
+            origin: devOrigin,
+            hmr: {
+              host: originUrl.hostname,
+              port: hmrPort,
+              clientPort: hmrPort,
+              protocol: originUrl.protocol === "https:" ? "wss" : "ws",
+            },
+          };
+        })()
+      : {};
 
   return {
     plugins: [
@@ -280,6 +301,7 @@ export default defineConfig(({ mode }) => {
       strictPort: true, // Fail if port is busy (dynamic allocation handles fallback)
       host: true,
       allowedHosts: true,
+      ...ingressProxyServerConfig,
       proxy: {
         "/api": {
           target: API_URL,

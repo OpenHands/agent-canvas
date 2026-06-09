@@ -520,7 +520,7 @@ export function ChatInterface() {
           <PendingUserMessages />
         </div>
 
-        <div className="flex shrink-0 flex-col gap-[6px]">
+        <div className="flex shrink-0 flex-col gap-[6px] pb-4">
           <BtwMessages conversationId={conversationId} />
           {errorMessage && (
             <ErrorMessageBanner

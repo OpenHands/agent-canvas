@@ -900,6 +900,15 @@ function startVite(config) {
     ...buildViteBackendEnv(config),
     VITE_FRONTEND_PORT: config.vitePort.toString(),
   };
+  if (
+    config.launchAgentServer &&
+    config.launchFrontend &&
+    config.ingressPort !== config.vitePort
+  ) {
+    // Browsers open the ingress URL (:8000), but Vite listens on :3001. Without
+    // this, React Router dynamic imports point at :3001 and fail cross-origin.
+    viteEnv.VITE_DEV_ORIGIN = `http://127.0.0.1:${config.ingressPort}`;
+  }
   if (config.viteWorkingDir) {
     viteEnv.VITE_WORKING_DIR = config.viteWorkingDir;
   }
