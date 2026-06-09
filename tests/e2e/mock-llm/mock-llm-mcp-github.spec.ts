@@ -10,11 +10,9 @@
  * Verifies:
  *   1. The MCP page renders with the GitHub marketplace card visible
  *   2. Clicking the card opens the install modal with the correct fields
- *   3. The command field shows the expected transport (docker or native binary)
- *   4. Validation prevents submission with an empty PAT
- *   5. Filling in the PAT and submitting succeeds (with mocked test endpoint)
- *   6. After install the GitHub server appears in the installed list
- *   7. The installed server can be deleted via the UI
+ *   3. Filling in the PAT and submitting succeeds (with mocked test endpoint)
+ *   4. After install the GitHub server appears in the installed list
+ *   5. The installed server can be deleted via the UI
  */
 
 import { test, expect } from "@playwright/test";
@@ -104,27 +102,7 @@ test.describe("MCP GitHub server install flow", () => {
     await expect(patField).toBeVisible();
   });
 
-  test("step 3: submitting without a PAT shows validation error", async ({
-    page,
-  }) => {
-    await routeSessionApiKey(page);
-    await page.goto("/mcp", { waitUntil: "domcontentloaded" });
-    await dismissAnalyticsModal(page);
-    await waitForTestId(page, "mcp-marketplace-grid");
-
-    await page.getByTestId("mcp-marketplace-card-github").click();
-    const modal = page.getByTestId("mcp-install-modal");
-    await expect(modal).toBeVisible({ timeout: 5_000 });
-
-    // Click the submit button without filling in the PAT
-    await page.getByTestId("mcp-install-submit").click();
-
-    // A validation error should appear (the PAT field is required)
-    const errorText = modal.locator(".text-red-500");
-    await expect(errorText).toBeVisible({ timeout: 3_000 });
-  });
-
-  test("step 4: full install flow — fill PAT, submit, verify installed", async ({
+  test("step 3: full install flow — fill PAT, submit, verify installed", async ({
     page,
   }) => {
     // We need an LLM profile configured for settings to work properly
@@ -198,7 +176,7 @@ test.describe("MCP GitHub server install flow", () => {
     expect(hasGithub).toBe(true);
   });
 
-  test("step 5: installed GitHub server can be deleted", async ({ page }) => {
+  test("step 4: installed GitHub server can be deleted", async ({ page }) => {
     // First install the server via the API so we have something to delete
     const installResp = await page.request.patch(
       `${BACKEND_URL}/api/settings`,

@@ -76,7 +76,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 
 # Map Docker TARGETARCH (amd64/arm64) to GitHub release naming (x86_64/arm64)
 RUN ARCH_SUFFIX=$(case "${TARGETARCH}" in amd64) echo "x86_64";; arm64) echo "arm64";; *) echo "x86_64";; esac) && \
-    curl -fsSL "https://github.com/github/github-mcp-server/releases/download/v${GITHUB_MCP_SERVER_VERSION}/github-mcp-server_${GITHUB_MCP_SERVER_VERSION}_Linux_${ARCH_SUFFIX}.tar.gz" \
+    curl -fsSL "https://github.com/github/github-mcp-server/releases/download/v${GITHUB_MCP_SERVER_VERSION}/github-mcp-server_Linux_${ARCH_SUFFIX}.tar.gz" \
       | tar -xz -C /usr/local/bin github-mcp-server && \
     chmod +x /usr/local/bin/github-mcp-server
 
