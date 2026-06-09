@@ -18,10 +18,10 @@ export function ConversationLoading({ className }: ConversationLoadingProps) {
       )}
     >
       <LoaderCircle
-        className="h-8 w-8 shrink-0 animate-spin text-[var(--oh-text-secondary)]"
+        className="h-8 w-8 shrink-0 animate-spin text-foreground"
         aria-hidden
       />
-      <span className="text-base font-normal leading-5 text-[var(--oh-text-secondary)]">
+      <span className="text-base font-normal leading-5 text-foreground">
         {t(I18nKey.HOME$LOADING)}
       </span>
     </div>
