@@ -381,7 +381,11 @@ test.describe("files tab, git control bar, and browser tab", () => {
     });
 
     await test.step("verify diff toggle defaults to off (files view)", async () => {
-      await waitForTestId(page, "files-tab", 15_000);
+      // Wait for the diff toggle radio group inside the files tab content.
+      // The parent `files-tab` container can report "hidden" while the
+      // right-panel drawer animation runs, so target the toggle directly.
+      const diffToggle = page.getByTestId("files-tab-diff-toggle");
+      await expect(diffToggle).toBeVisible({ timeout: 15_000 });
 
       // Without an attached workspace, the "off" (Files) option should be active
       const diffOffOption = page.getByTestId("files-tab-diff-toggle-option-off");
