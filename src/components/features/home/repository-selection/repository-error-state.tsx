@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { cn } from "#/utils/utils";
 import { formControlFieldClassName } from "#/utils/form-control-classes";
+import { I18nKey } from "#/i18n/declaration";
 
 export interface RepositoryErrorStateProps {
   wrapperClassName?: string;
@@ -19,7 +20,9 @@ export function RepositoryErrorState({
         wrapperClassName,
       )}
     >
-      <span className="text-sm">{t("HOME$FAILED_TO_LOAD_REPOSITORIES")}</span>
+      <span className="text-sm">
+        {t(I18nKey.HOME$FAILED_TO_LOAD_REPOSITORIES)}
+      </span>
     </div>
   );
 }
