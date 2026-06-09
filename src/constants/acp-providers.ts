@@ -269,13 +269,21 @@ const ACP_RESERVED_CREDENTIALS: Record<string, ACPProviderSecretField[]> = {
 };
 
 /**
- * Credential pairs that break each other at runtime, keyed by provider.
- * Claude's OAuth token authenticates against Anthropic directly; an
- * ``ANTHROPIC_BASE_URL`` set alongside it silently routes requests elsewhere
- * and breaks the token's bearer auth (see docs/ACP_AGENTS.md).
+ * Credential pairs that break each other at runtime, keyed by provider —
+ * mirrors the SDK's ``_ENV_CONFLICT_MAP`` (software-agent-sdk#3588). Claude's
+ * OAuth token (``CLAUDE_CODE_OAUTH_TOKEN``) authenticates against Anthropic
+ * directly, so when it is set the SDK strips:
+ *   - ``ANTHROPIC_API_KEY``  — otherwise it takes precedence and silently
+ *     bypasses the subscription;
+ *   - ``ANTHROPIC_BASE_URL`` — otherwise it proxies the bearer to an endpoint
+ *     that rejects it (see docs/ACP_AGENTS.md).
+ * Either one set alongside the token is silently ignored at runtime, so warn.
  */
 const ACP_CREDENTIAL_CONFLICTS: Record<string, Array<[string, string]>> = {
-  "claude-code": [["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_BASE_URL"]],
+  "claude-code": [
+    ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"],
+    ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_BASE_URL"],
+  ],
 };
 
 /**
