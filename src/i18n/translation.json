@@ -23000,15 +23000,6 @@
     "tr": "Bu konuşmanın sandbox'ı kaldırıldı. Yukarıdaki geçmiş salt okunur modundadır.",
     "uk": "Пісочницю цієї розмови видалено. Наведена вище історія доступна лише для читання."
   },
-  "CHAT_INTERFACE$ACP_RESUME_SANDBOX_DESCRIPTION": {
-    "en": "This conversation's sandbox was recycled. Resume to continue where you left off."
-  },
-  "CHAT_INTERFACE$ACP_RESUME_BUTTON": {
-    "en": "Resume conversation"
-  },
-  "CHAT_INTERFACE$ACP_RESUME_STARTING": {
-    "en": "Resuming…"
-  },
   "CHAT_INTERFACE$ERROR_SANDBOX_TITLE": {
     "en": "Sandbox error",
     "ja": "サンドボックスエラー",
