@@ -123,13 +123,22 @@ def _patch_automation_tarball_path() -> None:
             work_dir_shell = _as_shell_path(Path(work_dir))
             work_dir_q = execution._shell_quote(work_dir_shell)
 
+            entrypoint_shell = entrypoint
+            if entrypoint_shell.strip().startswith("python3 "):
+                payload = entrypoint_shell.strip()[len("python3 ") :]
+                entrypoint_shell = (
+                    f"(command -v python3 >/dev/null 2>&1 && python3 {payload})"
+                    f" || (command -v python >/dev/null 2>&1 && python {payload})"
+                    f" || (command -v py >/dev/null 2>&1 && py -3 {payload})"
+                )
+
             cmd = (
                 f"mkdir -p {work_dir_q}"
                 f" && tar xzf {tarball_q} -C {work_dir_q}"
                 f" && rm -f {tarball_q}"
                 f" && cd {work_dir_q}"
                 f" && {exports}([ ! -f setup.sh ] || bash setup.sh)"
-                f" && {entrypoint}"
+                f" && {entrypoint_shell}"
             )
 
             execution.logger.info("Starting entrypoint: %s", entrypoint, extra=_log_ctx())
