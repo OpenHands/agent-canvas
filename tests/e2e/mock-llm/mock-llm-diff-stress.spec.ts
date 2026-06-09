@@ -200,11 +200,12 @@ test.describe("diff view stress test", () => {
     await seedLocalStorage(page);
   });
 
-  test.afterEach(async ({ request }) => {
+  // Use afterAll (not afterEach) — steps 3–4 resume the conversation
+  // created in step 2, so we can't delete it between steps.
+  test.afterAll(async ({ request }) => {
     for (const id of Array.from(conversationIds)) {
       try {
         await deleteConversation(request, id);
-        conversationIds.delete(id);
       } catch {
         /* best-effort */
       }
