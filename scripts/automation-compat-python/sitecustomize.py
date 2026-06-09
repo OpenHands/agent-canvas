@@ -115,6 +115,39 @@ def _shell_path(path: str) -> str:
     return path
 
 
+def _python_fallback(payload: str) -> str:
+    return (
+        f"(command -v python3 >/dev/null 2>&1 && python3 {payload})"
+        f" || (command -v python >/dev/null 2>&1 && python {payload})"
+        f" || (command -v py >/dev/null 2>&1 && py -3 {payload})"
+    )
+
+
+def _build_entrypoint_shell(entrypoint: str) -> str:
+    stripped_entrypoint = entrypoint.strip()
+
+    if stripped_entrypoint.startswith("python3 "):
+        payload = stripped_entrypoint[len("python3 ") :]
+        return _python_fallback(payload)
+
+    if stripped_entrypoint.startswith(".venv/bin/python "):
+        payload = stripped_entrypoint[len(".venv/bin/python ") :]
+        return (
+            f"([ -f .venv/Scripts/python.exe ] && .venv/Scripts/python.exe {payload})"
+            f" || ([ -f .venv/bin/python ] && .venv/bin/python {payload})"
+            f" || {_python_fallback(payload)}"
+        )
+
+    if stripped_entrypoint.startswith(".venv\\Scripts\\python.exe "):
+        payload = stripped_entrypoint[len(".venv\\Scripts\\python.exe ") :]
+        return (
+            f"([ -f .venv/Scripts/python.exe ] && .venv/Scripts/python.exe {payload})"
+            f" || {_python_fallback(payload)}"
+        )
+
+    return entrypoint
+
+
 def _member_key(name: str) -> str:
     if name.startswith("./"):
         return name[2:]
@@ -316,13 +349,14 @@ def _patch_automation_execution() -> None:
             cleanup = (
                 f" && rm -f {tarball_arg}" if _is_local_agent_url(agent_url) else ""
             )
+            entrypoint_shell = _build_entrypoint_shell(entrypoint)
             command = (
                 f"mkdir -p {work_dir_arg}"
                 f" && tar xzf {tarball_arg} -C {work_dir_arg}"
                 f"{cleanup}"
                 f" && cd {work_dir_arg}"
                 f" && {exports}([ ! -f setup.sh ] || bash setup.sh)"
-                f" && {entrypoint}"
+                f" && {entrypoint_shell}"
             )
 
             execution.logger.info(

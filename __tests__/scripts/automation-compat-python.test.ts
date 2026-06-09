@@ -225,6 +225,42 @@ async def main():
     )
     command = execution.last_command
 
+    python3_client = Client([200])
+    await execution.execute_in_context(
+        client=python3_client,
+        agent_url="http://localhost:18000",
+        session_key="session-key",
+        entrypoint="python3 automation.py",
+        tarball_source=b"data",
+        work_dir=r"C:\Users\me\workspace path",
+        run_id="run-1b",
+    )
+    python3_command = execution.last_command
+
+    venv_client = Client([200])
+    await execution.execute_in_context(
+        client=venv_client,
+        agent_url="http://localhost:18000",
+        session_key="session-key",
+        entrypoint=".venv/bin/python main.py",
+        tarball_source=b"data",
+        work_dir=r"C:\Users\me\workspace path",
+        run_id="run-1c",
+    )
+    venv_command = execution.last_command
+
+    windows_venv_client = Client([200])
+    await execution.execute_in_context(
+        client=windows_venv_client,
+        agent_url="http://localhost:18000",
+        session_key="session-key",
+        entrypoint=r".venv\Scripts\python.exe main.py",
+        tarball_source=b"data",
+        work_dir=r"C:\Users\me\workspace path",
+        run_id="run-1d",
+    )
+    windows_venv_command = execution.last_command
+
     prompt_client = Client([200])
     await execution.execute_in_context(
         client=prompt_client,
@@ -242,6 +278,9 @@ async def main():
         "query_urls": query_client.urls,
         "fallback_urls": fallback_client.urls,
         "command": command,
+        "python3_command": python3_command,
+        "venv_command": venv_command,
+        "windows_venv_command": windows_venv_command,
         "prompt_command": execution.last_command,
         "patched_main": patched_prompt_entries["main.py"],
         "patched_prompt": patched_prompt_entries["prompt.txt"],
@@ -270,6 +309,9 @@ asyncio.run(main())
         query_urls: string[];
         fallback_urls: string[];
         command: string;
+        python3_command: string;
+        venv_command: string;
+        windows_venv_command: string;
         prompt_command: string;
         patched_main: string;
         patched_prompt: string;
@@ -287,6 +329,24 @@ asyncio.run(main())
       );
       expect(output.command).toContain("rm -f 'C:/Temp/automation.tar.gz'");
       expect(output.command).toContain("cd 'C:/Users/me/workspace path'");
+      expect(output.python3_command).toContain(
+        "(command -v python3 >/dev/null 2>&1 && python3 automation.py)",
+      );
+      expect(output.python3_command).toContain(
+        "|| (command -v py >/dev/null 2>&1 && py -3 automation.py)",
+      );
+      expect(output.venv_command).toContain(
+        "([ -f .venv/Scripts/python.exe ] && .venv/Scripts/python.exe main.py)",
+      );
+      expect(output.venv_command).toContain(
+        "|| ([ -f .venv/bin/python ] && .venv/bin/python main.py)",
+      );
+      expect(output.windows_venv_command).toContain(
+        "([ -f .venv/Scripts/python.exe ] && .venv/Scripts/python.exe main.py)",
+      );
+      expect(output.windows_venv_command).toContain(
+        "|| (command -v py >/dev/null 2>&1 && py -3 main.py)",
+      );
       expect(output.prompt_command).toContain(
         "export AUTOMATION_RUN_TIMEOUT_SECONDS='120'",
       );
