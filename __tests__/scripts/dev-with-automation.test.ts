@@ -152,6 +152,9 @@ describe("buildAutomationBackendEnv", () => {
     expect(env.TEMP).toBe("/tmp/agent-canvas-state/tmp");
     expect(env.AUTOMATION_AGENT_SERVER_URL).toBe("http://localhost:18000");
     expect(env.AUTOMATION_LOCAL_API_KEY).toBe("shared-session-key");
+
+    // In CI we don't run on Windows, so the dev-time patch isn't enabled here.
+    expect(env.PYTHONPATH).toBeUndefined();
   });
 });
 

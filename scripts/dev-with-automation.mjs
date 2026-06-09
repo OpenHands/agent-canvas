@@ -807,10 +807,20 @@ function buildAgentServerAutomationEnv(config, env = process.env) {
 function buildAutomationBackendEnv(config, env = process.env) {
   const tempDir = getSharedTempDir(config);
 
+  const patchDir = join(projectRoot, "tools", "automation-sitecustomize");
+  const pythonPathDelimiter = process.platform === "win32" ? ";" : ":";
+  const patchedPythonPath = env.PYTHONPATH
+    ? `${patchDir}${pythonPathDelimiter}${env.PYTHONPATH}`
+    : patchDir;
+  const shouldPatchWindowsTarballPath =
+    process.platform === "win32" &&
+    env.OH_DISABLE_AUTOMATION_TARBALL_PATCH !== "1";
+
   return {
     // Force UTF-8 for all Python file I/O (same reason as agent-server;
     // see buildAgentServerEnv in dev-safe.mjs).
     PYTHONUTF8: "1",
+    ...(shouldPatchWindowsTarballPath ? { PYTHONPATH: patchedPythonPath } : {}),
     // Keep automation tarballs and other temp files under the launcher state
     // directory so the path is writable and valid for both Windows and POSIX
     // agent-server file APIs. Relying on shell-provided /tmp can break on
