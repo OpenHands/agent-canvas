@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   findCatalogEntryForServer,
   findInstalledMatch,
@@ -9,7 +9,14 @@ import {
   isMarketplaceEntryAvailable,
   marketplaceEntryMatchesQuery,
 } from "#/utils/mcp-marketplace-utils";
+import * as agentServerAdapter from "#/api/agent-server-adapter";
 import { INTEGRATION_CATALOG as MCP_MARKETPLACE } from "@openhands/extensions/integrations";
+
+vi.mock("#/api/agent-server-adapter", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("#/api/agent-server-adapter")>();
+  return { ...actual, getDeploymentMode: vi.fn(() => null) };
+});
 
 const mcpMarketplace = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
 const slackEntry = mcpMarketplace.find((e) => e.id === "slack")!;
@@ -252,5 +259,53 @@ describe("findCatalogEntryForServer", () => {
       mcpMarketplace,
     );
     expect(match?.id).toBe("linear");
+  });
+});
+
+describe("patchGitHubEntry (via getMcpMarketplaceCatalog)", () => {
+  const mockedGetDeploymentMode = vi.mocked(
+    agentServerAdapter.getDeploymentMode,
+  );
+
+  function getGitHubStdioTransport(catalog: ReturnType<typeof getMcpMarketplaceCatalog>) {
+    const github = catalog.find((e) => e.id === "github");
+    expect(github).toBeDefined();
+    const option = github!.connectionOptions.find(
+      (o) => o.transport?.kind === "stdio",
+    );
+    expect(option?.transport?.kind).toBe("stdio");
+    const transport = option!.transport!;
+    if (transport.kind !== "stdio") throw new Error("expected stdio");
+    return transport;
+  }
+
+  it("leaves the GitHub entry unchanged when not in docker mode", () => {
+    mockedGetDeploymentMode.mockReturnValue(null);
+    const transport = getGitHubStdioTransport(
+      getMcpMarketplaceCatalog(MCP_MARKETPLACE),
+    );
+    expect(transport.command).toBe("docker");
+    expect(transport.args[0]).toBe("run");
+  });
+
+  it("rewrites the GitHub command to native binary in docker mode", () => {
+    mockedGetDeploymentMode.mockReturnValue("docker");
+    const transport = getGitHubStdioTransport(
+      getMcpMarketplaceCatalog(MCP_MARKETPLACE),
+    );
+    expect(transport.command).toBe("github-mcp-server");
+    expect(transport.args).toEqual(["stdio"]);
+  });
+
+  it("does not affect other entries in docker mode", () => {
+    mockedGetDeploymentMode.mockReturnValue("docker");
+    const catalog = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
+    const tavily = catalog.find((e) => e.id === "tavily");
+    const stdioOption = tavily?.connectionOptions.find(
+      (o) => o.transport?.kind === "stdio",
+    );
+    expect(stdioOption?.transport?.kind).toBe("stdio");
+    if (stdioOption?.transport?.kind !== "stdio") throw new Error("expected stdio");
+    expect(stdioOption.transport.command).not.toBe("github-mcp-server");
   });
 });
