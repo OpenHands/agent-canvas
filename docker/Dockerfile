@@ -74,7 +74,10 @@ ARG GITHUB_MCP_SERVER_VERSION
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
 
-# Map Docker TARGETARCH (amd64/arm64) to GitHub release naming (x86_64/arm64)
+# Map Docker TARGETARCH (amd64/arm64) to GitHub release naming (x86_64/arm64).
+# The *) fallback defaults to x86_64 for any unrecognised architecture so the
+# build doesn't silently produce an image without the binary. If a new arch is
+# added to the Docker build matrix, add an explicit case here.
 RUN ARCH_SUFFIX=$(case "${TARGETARCH}" in amd64) echo "x86_64";; arm64) echo "arm64";; *) echo "x86_64";; esac) && \
     curl -fsSL "https://github.com/github/github-mcp-server/releases/download/v${GITHUB_MCP_SERVER_VERSION}/github-mcp-server_Linux_${ARCH_SUFFIX}.tar.gz" \
       | tar -xz -C /usr/local/bin github-mcp-server && \

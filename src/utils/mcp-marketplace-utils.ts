@@ -121,6 +121,13 @@ function patchGitHubEntry(entry: MarketplaceEntry): MarketplaceEntry {
     ...entry,
     installHint:
       "Requires a GitHub Personal Access Token (classic or fine-grained).",
+    // The upstream @openhands/extensions catalog defines the GitHub entry
+    // with `command: "docker"` (i.e. `docker run …`). We match on that
+    // exact value to replace it with the pre-installed native binary.
+    // If the upstream ever changes the command string, this patch becomes
+    // a no-op and the original transport is preserved — the worst case is
+    // the user falls back to the Docker-based transport (which still works
+    // outside the Docker image).
     connectionOptions: entry.connectionOptions.map((option) =>
       option.transport?.kind === "stdio" &&
       option.transport.command === "docker"
