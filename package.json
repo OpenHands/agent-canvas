@@ -224,6 +224,11 @@
       "import": "./dist/i18n/index.js",
       "require": "./dist/i18n/index.cjs"
     },
+    "./visualizers": {
+      "types": "./dist/visualizers/index.d.ts",
+      "import": "./dist/visualizers/index.js",
+      "require": "./dist/visualizers/index.cjs"
+    },
     "./package.json": "./package.json"
   },
   "peerDependencies": {

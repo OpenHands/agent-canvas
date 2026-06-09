@@ -18,6 +18,7 @@
 - The UI keeps most OpenHands routes/layout intact, but hosted-only behavior (org, account management, integrations) has been removed via the fabricated OSS config because there is no separate app backend.
 - Verification command: `npm run typecheck && npm run build`.
 - GitHub automation now includes `.github/workflows/ci.yml` for `npm ci`, `npm test`, and `npm run build`, plus `.github/dependabot.yml` with weekly npm/github-actions updates gated by a 7-day cooldown.
+- Addon / extension source directories should use the shared OpenHands home layout `~/.openhands/addons/<addon-id>/`, not `~/.openhands/agent-canvas/addons/<addon-id>`.
 
 ## Tracking / Analytics Architecture
 

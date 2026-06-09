@@ -10,6 +10,8 @@
     "src/query-client-config.ts",
     "src/i18n/**/*.ts",
     "src/i18n/**/*.tsx",
+    "src/visualizers/**/*.ts",
+    "src/visualizers/**/*.tsx",
     "src/routes/conversation.tsx",
     "src/routes/app-settings.tsx",
     "src/routes/git-settings.tsx",

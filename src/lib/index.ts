@@ -4,6 +4,7 @@ export * from "../components/files";
 export * from "../components/settings";
 export * from "../components/sidebar";
 export * from "../components/terminal";
+export * from "../visualizers";
 export {
   AgentServerUIProviders,
   AgentServerUIRoot,

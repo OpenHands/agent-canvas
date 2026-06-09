@@ -19,10 +19,15 @@ import {
   getACPToolCallTitleKey,
   stripRedundantTitlePrefix,
 } from "./get-acp-tool-call-content";
-import { TaskTrackingObservationContent } from "../task-tracking/task-tracking-observation-content";
-import { TaskTrackerObservation } from "#/types/agent-server/core/base/observation";
 import { SkillReadyEvent, isSkillReadyEvent } from "./create-skill-ready-event";
 import i18n from "#/i18n";
+import {
+  getMatchingToolVisualizers,
+  ToolVisualizerRenderer,
+  type ToolVisualizerContext,
+} from "#/visualizers";
+import { MarkdownRenderer } from "#/components/features/markdown/markdown-renderer";
+import { BUILT_IN_TOOL_VISUALIZERS } from "./built-in-tool-visualizers";
 
 const trimText = (text: string, maxLength: number): string => {
   if (!text) return "";
@@ -278,6 +283,60 @@ const getObservationEventTitle = (
   return observationType;
 };
 
+const renderToolVisualizerFallback = (
+  fallback: string | React.ReactNode,
+): React.ReactNode => {
+  if (typeof fallback === "string") {
+    return <MarkdownRenderer>{fallback}</MarkdownRenderer>;
+  }
+
+  return fallback;
+};
+
+const getVisualizedDetails = (
+  context: ToolVisualizerContext,
+  fallback: string | React.ReactNode,
+): string | React.ReactNode => {
+  const visualizers = getMatchingToolVisualizers(
+    context,
+    BUILT_IN_TOOL_VISUALIZERS,
+  );
+
+  if (visualizers.length === 0) {
+    return fallback;
+  }
+
+  return (
+    <ToolVisualizerRenderer
+      context={context}
+      visualizers={visualizers}
+      fallback={renderToolVisualizerFallback(fallback)}
+    />
+  );
+};
+
+const getActionDetails = (event: ActionEvent): string | React.ReactNode =>
+  getVisualizedDetails(
+    {
+      event,
+      action: event,
+    },
+    getActionContent(event),
+  );
+
+const getObservationDetails = (
+  event: ObservationEvent,
+  correspondingAction?: ActionEvent,
+): string | React.ReactNode =>
+  getVisualizedDetails(
+    {
+      event,
+      action: correspondingAction,
+      observation: event,
+    },
+    getObservationContent(event),
+  );
+
 export const getEventContent = (
   event: OpenHandsEvent | SkillReadyEvent,
   correspondingAction?: ActionEvent,
@@ -297,20 +356,10 @@ export const getEventContent = (
     details = event._skillReadyContent;
   } else if (isActionEvent(event)) {
     title = getActionEventTitle(event);
-    details = getActionContent(event);
+    details = getActionDetails(event);
   } else if (isObservationEvent(event)) {
     title = getObservationEventTitle(event, correspondingAction);
-
-    // For TaskTrackerObservation, use React component instead of markdown
-    if (event.observation.kind === "TaskTrackerObservation") {
-      details = (
-        <TaskTrackingObservationContent
-          event={event as ObservationEvent<TaskTrackerObservation>}
-        />
-      );
-    } else {
-      details = getObservationContent(event);
-    }
+    details = getObservationDetails(event, correspondingAction);
   } else if (isACPToolCallEvent(event)) {
     // ACP sub-agent tool calls reuse the same card shape as observations:
     // title is "Running/Editing/Reading …" via a translation key that

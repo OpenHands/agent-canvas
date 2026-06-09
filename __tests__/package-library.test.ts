@@ -48,6 +48,11 @@ describe("package library metadata", () => {
         import: "./dist/i18n/index.js",
         require: "./dist/i18n/index.cjs",
       },
+      "./visualizers": {
+        types: "./dist/visualizers/index.d.ts",
+        import: "./dist/visualizers/index.js",
+        require: "./dist/visualizers/index.cjs",
+      },
     });
   });
 
@@ -56,7 +61,8 @@ describe("package library metadata", () => {
   // referenced from a registry; only @openhands/extensions is allowed as a git
   // dep until it is published to npm.
   it("does not use git dependencies (except @openhands/extensions)", () => {
-    const GIT_DEP_PATTERN = /^(git[+:]|github:|bitbucket:|gitlab:|[a-zA-Z0-9_-]+\/)/;
+    const GIT_DEP_PATTERN =
+      /^(git[+:]|github:|bitbucket:|gitlab:|[a-zA-Z0-9_-]+\/)/;
     const ALLOWED_GIT_DEPS = new Set(["@openhands/extensions"]);
 
     const allDeps = {
