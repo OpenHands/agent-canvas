@@ -48,6 +48,15 @@ const initializeI18n = (instance: I18nInstance) => {
         backend: {
           loadPath: "/locales/{{lng}}/{{ns}}.json",
         },
+        // React escapes interpolated values at render time; leaving i18next's
+        // default escaping on double-escapes them, turning paths like
+        // "~/.codex/auth.json" into "~&#x2F;.codex&#x2F;auth.json".
+        // Safe to disable globally: every translation renders through React
+        // (no dangerouslySetInnerHTML on translated strings), which is the
+        // standard react-i18next setup.
+        interpolation: {
+          escapeValue: false,
+        },
       });
 
     initializationPromises.set(instance, initPromise);

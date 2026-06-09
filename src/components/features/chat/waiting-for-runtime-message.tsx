@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { cn } from "#/utils/utils";
+import { I18nKey } from "#/i18n/declaration";
 
 interface WaitingForRuntimeMessageProps {
   className?: string;
@@ -16,11 +17,11 @@ export function WaitingForRuntimeMessage({
     <div
       data-testid={testId}
       className={cn(
-        "w-full h-full flex items-center text-center justify-center text-2xl text-tertiary-light",
+        "w-full h-full flex items-center text-center justify-center text-2xl text-foreground",
         className,
       )}
     >
-      {t("DIFF_VIEWER$WAITING_FOR_RUNTIME")}
+      {t(I18nKey.DIFF_VIEWER$WAITING_FOR_RUNTIME)}
     </div>
   );
 }

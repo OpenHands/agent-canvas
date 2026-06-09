@@ -4,6 +4,7 @@ import { useSettings } from "#/hooks/query/use-settings";
 import { useAcpModelContext } from "#/hooks/use-acp-model-context";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import {
+  getAcpPreferredDefaultModel,
   getAcpProvider,
   labelForAcpModel,
   resolveEffectiveAcpModel,
@@ -52,7 +53,9 @@ export function useChatInputModelState(): ChatInputModelState {
         typeof settings?.agent_settings?.acp_model === "string"
           ? settings.agent_settings.acp_model
           : null,
-      providerDefault: acpProvider?.default_model,
+      // Preferred default (Vertex-safe for Gemini) — must match what the
+      // start request would substitute for an unconfigured model.
+      providerDefault: getAcpPreferredDefaultModel(acpServerKey),
     });
   } else {
     currentModelId = conversation?.llm_model ?? settings?.llm_model ?? null;
