@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Spinner } from "@heroui/react";
 import { cn } from "#/utils/utils";
 import { formControlFieldClassName } from "#/utils/form-control-classes";
+import { I18nKey } from "#/i18n/declaration";
 
 interface BranchLoadingStateProps {
   wrapperClassName?: string;
@@ -21,7 +22,7 @@ export function BranchLoadingState({
       )}
     >
       <Spinner size="sm" />
-      <span className="text-sm">{t("HOME$LOADING_BRANCHES")}</span>
+      <span className="text-sm">{t(I18nKey.HOME$LOADING_BRANCHES)}</span>
     </div>
   );
 }

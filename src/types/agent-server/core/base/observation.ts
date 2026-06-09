@@ -110,6 +110,12 @@ export interface TerminalObservation extends ObservationBase<"TerminalObservatio
 
 export interface FileEditorObservation extends ObservationBase<"FileEditorObservation"> {
   /**
+   * Content returned from the tool as TextContent/ImageContent. For `view`
+   * commands this carries the `cat -n` snippet the agent saw; `output`,
+   * `old_content`, and `new_content` are not populated for views.
+   */
+  content?: Array<TextContent | ImageContent>;
+  /**
    * The commands to run. Allowed options are: `view`, `create`, `str_replace`, `insert`, `undo_edit`.
    */
   command: "view" | "create" | "str_replace" | "insert" | "undo_edit";
@@ -141,6 +147,12 @@ export interface FileEditorObservation extends ObservationBase<"FileEditorObserv
 
 // Keep StrReplaceEditorObservation as a separate interface for backward compatibility
 export interface StrReplaceEditorObservation extends ObservationBase<"StrReplaceEditorObservation"> {
+  /**
+   * Content returned from the tool as TextContent/ImageContent. For `view`
+   * commands this carries the `cat -n` snippet the agent saw; `output`,
+   * `old_content`, and `new_content` are not populated for views.
+   */
+  content?: Array<TextContent | ImageContent>;
   /**
    * The commands to run. Allowed options are: `view`, `create`, `str_replace`, `insert`, `undo_edit`.
    */
@@ -290,6 +302,40 @@ export interface InvokeSkillObservation extends ObservationBase<"InvokeSkillObse
   is_error?: boolean;
 }
 
+export interface TaskObservation extends ObservationBase<"TaskObservation"> {
+  /**
+   * Rendered result the spawned subagent returned to the parent agent.
+   */
+  content: Array<TextContent | ImageContent>;
+  /**
+   * Whether the delegated task resulted in an error.
+   */
+  is_error?: boolean;
+  /**
+   * Identifier of the delegated task.
+   */
+  task_id: string;
+  /**
+   * Name of the subagent that handled the task.
+   */
+  subagent: string;
+  /**
+   * Lifecycle status of the task (e.g. "completed").
+   */
+  status: string;
+}
+
+export interface CanvasUIObservation extends ObservationBase<"CanvasUIObservation"> {
+  /**
+   * Acknowledgement text returned after the canvas UI command is dispatched.
+   */
+  content: Array<TextContent | ImageContent>;
+  /**
+   * Whether dispatching the canvas UI command resulted in an error.
+   */
+  is_error?: boolean;
+}
+
 export interface SwitchLLMObservation extends ObservationBase<"SwitchLLMObservation"> {
   /**
    * Content returned from the switch LLM tool.
@@ -327,4 +373,6 @@ export type Observation =
   | GlobObservation
   | GrepObservation
   | InvokeSkillObservation
+  | TaskObservation
+  | CanvasUIObservation
   | SwitchLLMObservation;
