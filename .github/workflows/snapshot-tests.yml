@@ -3,9 +3,42 @@ name: Snapshot Tests
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
+    # Only run when UI-affecting files change. Docs-only, script-only,
+    # or mock-LLM-test-only PRs skip this workflow.
+    # Use workflow_dispatch to force a full run when needed.
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'tests/e2e/snapshots/**'
+      - 'tests/e2e/support/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+      - 'react-router.config.ts'
+      - 'playwright.config.ts'
+      - 'tailwind.config.js'
+      - 'hero.ts'
+      - '.github/workflows/snapshot-tests.yml'
   push:
     branches:
       - main
+    # Same filter for baseline regeneration — if only docs changed,
+    # baselines won't differ so regeneration is unnecessary.
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'tests/e2e/snapshots/**'
+      - 'tests/e2e/support/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+      - 'react-router.config.ts'
+      - 'playwright.config.ts'
+      - 'tailwind.config.js'
+      - 'hero.ts'
+      - '.github/workflows/snapshot-tests.yml'
   workflow_dispatch:
     inputs:
       force_update:

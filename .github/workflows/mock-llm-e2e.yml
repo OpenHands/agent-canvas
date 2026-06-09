@@ -3,6 +3,26 @@ name: Mock-LLM E2E Tests
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    # Only run when files that affect the full stack are changed.
+    # Docs-only, spec-only, or snapshot-test-only PRs skip this workflow.
+    # Use workflow_dispatch to force a full run when needed.
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'scripts/**'
+      - 'bin/**'
+      - 'config/**'
+      - 'tests/e2e/mock-llm/**'
+      - 'tests/e2e/support/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+      - 'react-router.config.ts'
+      - 'playwright.mock-llm.config.ts'
+      - 'tailwind.config.js'
+      - 'hero.ts'
+      - '.github/workflows/mock-llm-e2e.yml'
   workflow_dispatch:
 
 concurrency:

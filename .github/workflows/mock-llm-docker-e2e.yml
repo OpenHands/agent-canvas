@@ -19,6 +19,28 @@ on:
     types: [completed]
   pull_request:
     types: [opened, synchronize, reopened]
+    # Only run when files that affect the Docker image or full stack change.
+    # Docs-only or snapshot-test-only PRs skip this workflow.
+    # workflow_run (post-Docker-build on main) and workflow_dispatch always run.
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'scripts/**'
+      - 'bin/**'
+      - 'config/**'
+      - 'docker/**'
+      - 'tests/e2e/mock-llm/**'
+      - 'tests/e2e/support/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - 'tsconfig.json'
+      - 'react-router.config.ts'
+      - 'playwright.mock-llm.config.ts'
+      - 'playwright.mock-llm-docker.config.ts'
+      - 'tailwind.config.js'
+      - 'hero.ts'
+      - '.github/workflows/mock-llm-docker-e2e.yml'
   workflow_dispatch:
     inputs:
       docker_image:
