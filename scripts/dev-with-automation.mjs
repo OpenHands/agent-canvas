@@ -86,9 +86,11 @@ const AUTOMATION_EXTRA_PACKAGES = ["tzdata"];
 // This is mainly to avoid Git checkout failures on Windows when the extensions
 // repository contains filenames that are invalid on NTFS (e.g., `:`).
 //
-// Once OpenHands/extensions#317 is merged, `main` becomes Windows-safe.
-const WINDOWS_PUBLIC_SKILLS_REPO = "https://github.com/OpenHands/extensions.git";
-const WINDOWS_PUBLIC_SKILLS_REF = "main";
+// Until OpenHands/extensions#317 merges, use the fork + commit that renames
+// Windows-invalid command filenames (e.g. automation:create.md →
+// automation-create.md) so native Windows cache seeding succeeds.
+const WINDOWS_PUBLIC_SKILLS_REPO = "https://github.com/jamiechicago312/extensions.git";
+const WINDOWS_PUBLIC_SKILLS_REF = "84a2f6c34eb86bc189415b556274196a1b3236bb";
 // SDK version used by DEFAULT_AUTOMATION_VERSION. This can intentionally lag
 // the agent-server version while automation releases catch up.
 const DEFAULT_AUTOMATION_SDK_VERSION = SHARED_DEFAULTS.versions.automationSdk;
