@@ -105,7 +105,11 @@ const TOTAL_FILES = FILE_SPECS.length;
 // ── Build trajectory ───────────────────────────────────────────────────
 
 const STRESS_REPLY_TOKEN = "MOCK_DIFF_STRESS_COMPLETE";
+const COMMIT_REPLY_TOKEN = "MOCK_DIFF_COMMIT_DONE";
+const POST_COMMIT_REPLY_TOKEN = "MOCK_DIFF_POST_COMMIT_OK";
 const TRAJECTORY_NAME = "diff-stress-test";
+const COMMIT_TRAJECTORY_NAME = "diff-stress-commit";
+const POST_COMMIT_TRAJECTORY_NAME = "diff-stress-post-commit";
 
 function buildStressTrajectory() {
   const turns: Array<
@@ -137,6 +141,33 @@ function buildStressTrajectory() {
 
 const STRESS_TRAJECTORY = buildStressTrajectory();
 
+// Trajectory that commits all changes
+const COMMIT_TRAJECTORY = [
+  {
+    tool_call: {
+      name: "terminal",
+      arguments: {
+        command: "git add -A && git commit -m 'Commit all test files'",
+      },
+    },
+  },
+  { text: COMMIT_REPLY_TOKEN },
+];
+
+// Trajectory that creates a new file after a commit (fresh diff)
+const POST_COMMIT_TRAJECTORY = [
+  {
+    tool_call: {
+      name: "terminal",
+      arguments: {
+        command:
+          "cat > post_commit.py << 'FILEEOF'\n# Created after commit\nprint(\"post-commit change\")\nFILEEOF",
+      },
+    },
+  },
+  { text: POST_COMMIT_REPLY_TOKEN },
+];
+
 // ── Timing thresholds (ms) ─────────────────────────────────────────────
 // Generous to avoid flakiness in CI; the goal is catching regressions,
 // not micro-benchmarking. These are wall-clock times including network
@@ -161,6 +192,9 @@ test.describe.configure({ mode: "serial" });
 
 test.describe("diff view stress test", () => {
   const conversationIds = new Set<string>();
+  /** Stored from step 2 so steps 3–4 can resume the same conversation. */
+  let stressConversationId = "";
+  let stressConversationPath = "";
 
   test.beforeEach(async ({ page }) => {
     await seedLocalStorage(page);
@@ -212,6 +246,8 @@ test.describe("diff view stress test", () => {
 
     const conversationId = getConversationIdFromURL(page);
     conversationIds.add(conversationId);
+    stressConversationId = conversationId;
+    stressConversationPath = new URL(page.url()).pathname;
 
     // Wait for the agent to finish — 12 tool calls can take a while
     await waitForNonUserMessageText(page, STRESS_REPLY_TOKEN, 120_000);
@@ -509,5 +545,183 @@ test.describe("diff view stress test", () => {
         `   Files created: ${TOTAL_FILES} (${FILE_SPECS.map((s) => `${s.name}:${s.lines}L`).join(", ")})\n` +
         `   Total lines: ${FILE_SPECS.reduce((sum, s) => sum + s.lines, 0)}\n`,
     );
+  });
+
+  // ── Post-commit lifecycle: commit clears diffs ───────────────────────
+
+  test("step 3: commit all changes and verify diff view shows empty state", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+    expect(
+      stressConversationId,
+      "step 2 must run first to set the conversation ID",
+    ).toBeTruthy();
+
+    // Register and activate the commit trajectory
+    await resetMockLLM(request);
+    await registerTrajectory(
+      request,
+      COMMIT_TRAJECTORY_NAME,
+      COMMIT_TRAJECTORY,
+    );
+    await activateTrajectory(request, COMMIT_TRAJECTORY_NAME);
+
+    // Navigate to the existing conversation
+    await routeSessionApiKey(page);
+    await page.goto(stressConversationPath, { waitUntil: "domcontentloaded" });
+    await dismissAnalyticsModal(page);
+
+    // Wait for the conversation to load (existing messages should appear)
+    await waitForNonUserMessageText(page, STRESS_REPLY_TOKEN, 30_000);
+
+    // Send a second message in the same conversation to trigger the commit
+    await setChatInput(page, "Now commit all the files.");
+    await page.getByTestId("submit-button").click();
+
+    // Wait for the commit to complete
+    await waitForNonUserMessageText(page, COMMIT_REPLY_TOKEN, 60_000);
+
+    // ── Open right panel, switch to diff view, refresh ──
+
+    await test.step("open panel and switch to diff view", async () => {
+      const toggle = page.getByTestId("right-panel-toggle");
+      await expect(toggle).toBeVisible({ timeout: 10_000 });
+      await toggle.click();
+      await expect(page.getByTestId("files-tab")).toBeVisible({
+        timeout: 10_000,
+      });
+
+      const diffToggle = page.getByTestId("files-tab-diff-toggle-option-on");
+      await expect(diffToggle).toBeVisible({ timeout: 5_000 });
+      await diffToggle.click();
+    });
+
+    // ── Refresh and verify empty state ──
+
+    await test.step("refresh and verify diffs are empty after commit", async () => {
+      const refreshBtn = page.getByTestId("files-tab-refresh");
+      await expect(refreshBtn).toBeVisible();
+      await refreshBtn.click();
+
+      // Poll until all file-diff-viewer-outer entries disappear
+      await expect
+        .poll(
+          async () => page.getByTestId("file-diff-viewer-outer").count(),
+          {
+            message:
+              "All diffs should disappear after commit (expected 0 diff viewers)",
+            timeout: 30_000,
+            intervals: [1_000, 2_000, 3_000],
+          },
+        )
+        .toBe(0);
+
+      // Verify the empty state message renders
+      await expect(
+        page.getByText("hasn't made any changes yet"),
+      ).toBeVisible({ timeout: 10_000 });
+
+      // eslint-disable-next-line no-console
+      console.log("📊 Post-commit: diff view correctly shows empty state");
+    });
+  });
+
+  // ── Post-commit lifecycle: new edits produce fresh diffs ─────────────
+
+  test("step 4: new edits after commit produce fresh diffs", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+    expect(
+      stressConversationId,
+      "step 2 must run first to set the conversation ID",
+    ).toBeTruthy();
+
+    // Register and activate the post-commit trajectory
+    await resetMockLLM(request);
+    await registerTrajectory(
+      request,
+      POST_COMMIT_TRAJECTORY_NAME,
+      POST_COMMIT_TRAJECTORY,
+    );
+    await activateTrajectory(request, POST_COMMIT_TRAJECTORY_NAME);
+
+    // Navigate to the existing conversation
+    await routeSessionApiKey(page);
+    await page.goto(stressConversationPath, { waitUntil: "domcontentloaded" });
+    await dismissAnalyticsModal(page);
+
+    // Wait for the conversation to load (should see prior messages)
+    await waitForNonUserMessageText(page, COMMIT_REPLY_TOKEN, 30_000);
+
+    // Send a third message to create a new file after the commit
+    await setChatInput(page, "Create one more file.");
+    await page.getByTestId("submit-button").click();
+
+    // Wait for the new file creation to complete
+    await waitForNonUserMessageText(page, POST_COMMIT_REPLY_TOKEN, 60_000);
+
+    // ── Open right panel, switch to diff view, refresh ──
+
+    await test.step("open panel and switch to diff view", async () => {
+      const toggle = page.getByTestId("right-panel-toggle");
+      await expect(toggle).toBeVisible({ timeout: 10_000 });
+      await toggle.click();
+      await expect(page.getByTestId("files-tab")).toBeVisible({
+        timeout: 10_000,
+      });
+
+      const diffToggle = page.getByTestId("files-tab-diff-toggle-option-on");
+      await expect(diffToggle).toBeVisible({ timeout: 5_000 });
+      await diffToggle.click();
+    });
+
+    // ── Refresh and verify new diff appears ──
+
+    await test.step("refresh and verify fresh diff appears after new edit", async () => {
+      const refreshBtn = page.getByTestId("files-tab-refresh");
+      await expect(refreshBtn).toBeVisible();
+      await refreshBtn.click();
+
+      // Poll until at least 1 diff viewer appears
+      await expect
+        .poll(
+          async () => page.getByTestId("file-diff-viewer-outer").count(),
+          {
+            message:
+              "New diff should appear after post-commit file creation",
+            timeout: 30_000,
+            intervals: [1_000, 2_000, 3_000],
+          },
+        )
+        .toBeGreaterThanOrEqual(1);
+
+      // Verify the new file name is present
+      const allText = await page
+        .getByTestId("file-diff-viewer-outer")
+        .allTextContents();
+      const joined = allText.join(" ");
+      expect(
+        joined,
+        "post_commit.py should appear in the diff list after commit + new edit",
+      ).toContain("post_commit.py");
+
+      // Expand and verify content
+      const newDiff = page
+        .getByTestId("file-diff-viewer-outer")
+        .filter({ hasText: "post_commit.py" });
+      await newDiff.click();
+      await expect(newDiff).toContainText("post-commit change", {
+        timeout: 15_000,
+      });
+
+      // eslint-disable-next-line no-console
+      console.log(
+        "📊 Post-commit new edit: diff view correctly shows fresh changes",
+      );
+    });
   });
 });
