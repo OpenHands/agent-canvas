@@ -29,30 +29,34 @@ def _find_bash() -> str | None:
         if p.exists():
             return str(p)
 
-    # Try PATH.
-    on_path = shutil.which("bash")
-    if on_path:
-        return on_path
-
-    # Common Git for Windows installs.
+    # Prefer Git for Windows' bash explicitly. This avoids accidentally picking
+    # WSL's `C:\Windows\System32\bash.exe` (which does not provide `/c/...`
+    # mounts and breaks path handling).
     program_files = [
         os.environ.get("ProgramFiles"),
         os.environ.get("ProgramFiles(x86)"),
         os.environ.get("LOCALAPPDATA"),
     ]
-    candidates: list[Path] = []
+    git_candidates: list[Path] = []
     for root in filter(None, program_files):
         r = Path(root)
-        candidates.extend(
+        git_candidates.extend(
             [
                 r / "Git" / "bin" / "bash.exe",
                 r / "Git" / "usr" / "bin" / "bash.exe",
             ]
         )
 
-    for c in candidates:
+    for c in git_candidates:
         if c.exists():
             return str(c)
+
+    # Fall back to PATH, but skip WSL's bash launcher.
+    on_path = shutil.which("bash")
+    if on_path:
+        lower = on_path.lower().replace("/", "\\")
+        if "\\windows\\system32\\bash.exe" not in lower and "\\system32\\bash.exe" not in lower:
+            return on_path
 
     return None
 
