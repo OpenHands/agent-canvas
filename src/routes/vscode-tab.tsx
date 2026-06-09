@@ -31,7 +31,7 @@ function VSCodeTab() {
         );
       } catch (e) {
         // Silently handle URL parsing errors
-        setIframeError(t("VSCODE$URL_PARSE_ERROR"));
+        setIframeError(t(I18nKey.VSCODE$URL_PARSE_ERROR));
       }
     }
   }, [data?.url]);
@@ -77,11 +77,11 @@ function VSCodeTab() {
             onClick={handleOpenInNewTab}
             className="min-w-40 justify-center px-6"
           >
-            {t("VSCODE$OPEN_IN_NEW_TAB")}
+            {t(I18nKey.VSCODE$OPEN_IN_NEW_TAB)}
           </BrandButton>
         }
       >
-        {t("VSCODE$CROSS_ORIGIN_WARNING")}
+        {t(I18nKey.VSCODE$CROSS_ORIGIN_WARNING)}
       </ConversationTabEmptyState>
     );
   }

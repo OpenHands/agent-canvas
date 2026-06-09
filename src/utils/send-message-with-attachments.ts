@@ -9,6 +9,7 @@ import { convertImageToBase64 } from "#/utils/convert-image-to-base-64";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { partitionImagesForUpload } from "#/components/features/chat/utils/chat-input.utils";
 import { validateFiles } from "#/utils/file-validation";
+import { I18nKey } from "#/i18n/declaration";
 
 export interface SendMessageWithAttachmentsResult {
   text: string;
@@ -59,7 +60,7 @@ export async function sendMessageWithAttachments(options: {
 
   skippedFiles.forEach((file) => displayErrorToast(file.reason));
 
-  const filePrompt = `${t("CHAT_INTERFACE$AUGMENTED_PROMPT_FILES_TITLE")}: ${uploadedFiles.join("\n\n")}`;
+  const filePrompt = `${t(I18nKey.CHAT_INTERFACE$AUGMENTED_PROMPT_FILES_TITLE)}: ${uploadedFiles.join("\n\n")}`;
   const prompt =
     uploadedFiles.length > 0 ? `${content}\n\n${filePrompt}` : content;
 

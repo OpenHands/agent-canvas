@@ -23,6 +23,7 @@ import { TaskTrackingObservationContent } from "../task-tracking/task-tracking-o
 import { TaskTrackerObservation } from "#/types/agent-server/core/base/observation";
 import { SkillReadyEvent, isSkillReadyEvent } from "./create-skill-ready-event";
 import i18n from "#/i18n";
+import { I18nKey } from "#/i18n/declaration";
 
 const trimText = (text: string, maxLength: number): string => {
   if (!text) return "";
@@ -340,7 +341,7 @@ export const getEventContent = (
   }
 
   return {
-    title: title || i18n.t("EVENT$UNKNOWN_EVENT"),
+    title: title || i18n.t(I18nKey.EVENT$UNKNOWN_EVENT),
     details,
   };
 };

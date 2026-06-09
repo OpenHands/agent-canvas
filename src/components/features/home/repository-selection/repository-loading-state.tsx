@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Spinner } from "@heroui/react";
 import { cn } from "#/utils/utils";
 import { formControlFieldClassName } from "#/utils/form-control-classes";
+import { I18nKey } from "#/i18n/declaration";
 
 export interface RepositoryLoadingStateProps {
   wrapperClassName?: string;
@@ -21,7 +22,7 @@ export function RepositoryLoadingState({
       )}
     >
       <Spinner size="sm" />
-      <span className="text-sm">{t("HOME$LOADING_REPOSITORIES")}</span>
+      <span className="text-sm">{t(I18nKey.HOME$LOADING_REPOSITORIES)}</span>
     </div>
   );
 }

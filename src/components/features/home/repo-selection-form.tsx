@@ -246,7 +246,7 @@ export function RepositorySelectionForm({
           ? t(I18nKey.BUTTON$CONFIRM)
           : !isCreatingConversation
             ? "Launch"
-            : t("HOME$LOADING")}
+            : t(I18nKey.HOME$LOADING)}
       </BrandButton>
     </div>
   );
