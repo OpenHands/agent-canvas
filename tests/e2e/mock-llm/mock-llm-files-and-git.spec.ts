@@ -267,16 +267,13 @@ test.describe("files tab, git control bar, and browser tab", () => {
       const filesTab = page.getByTestId("conversation-tab-files");
       await filesTab.click();
 
-      // The diff toggle lives inside the files-tab content. Wait for it
-      // to become visible rather than the files-tab container (which may
-      // report "hidden" while the CSS transition runs).
+      // Wait for the diff toggle radio group to be visible (both option
+      // buttons render together, so target the parent container rather than
+      // using .or() which hits Playwright strict-mode when both resolve).
+      const diffToggle = page.getByTestId("files-tab-diff-toggle");
+      await expect(diffToggle).toBeVisible({ timeout: 15_000 });
+
       const diffOnOption = page.getByTestId("files-tab-diff-toggle-option-on");
-      const diffOffOption = page.getByTestId(
-        "files-tab-diff-toggle-option-off",
-      );
-      await expect(
-        diffOnOption.or(diffOffOption),
-      ).toBeVisible({ timeout: 15_000 });
 
       // Verify the toggle is interactive: click "on" with force to bypass
       // any residual animation overlay, and confirm it becomes checked.
