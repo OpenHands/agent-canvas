@@ -167,6 +167,14 @@ function parseRuntimeServicesInfo(): RuntimeServicesInfo | null {
 }
 
 /**
+ * Return the deployment mode from the runtime services info, e.g. "docker",
+ * "dev:automation", etc. Returns `null` when no runtime info is configured.
+ */
+export function getDeploymentMode(): string | null {
+  return parseRuntimeServicesInfo()?.mode ?? null;
+}
+
+/**
  * Render the runtime services info into a markdown block suitable for
  * appending to the system prompt via `AgentContext.system_message_suffix`.
  *

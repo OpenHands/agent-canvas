@@ -160,6 +160,14 @@ test.describe("mock-LLM folder browser → workspace → conversation", () => {
       const upBtn = page.getByTestId("folder-browser-up");
       const currentPathEl = page.getByTestId("folder-browser-current-path");
 
+      // Wait for the modal to finish initializing. `currentPath` starts as
+      // null (rendering an empty path and a disabled up button) until
+      // useHomeDirectory resolves and seeds the home path via useEffect.
+      // Without this wait the while-loop below can see the briefly-disabled
+      // up button and exit immediately, leaving us stuck at home instead of
+      // navigating to root.
+      await expect(currentPathEl).not.toHaveText("", { timeout: 10_000 });
+
       // Keep clicking up until the button becomes disabled (at root).
       while (!(await upBtn.isDisabled())) {
         await upBtn.click();
