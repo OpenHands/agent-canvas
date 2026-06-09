@@ -19,11 +19,18 @@ from typing import Any
 
 
 def _as_shell_path(p: Path) -> str:
-    # Use forward slashes so the path is:
-    # - accepted by pathlib.Path() on Windows (still absolute)
-    # - safe to embed in bash commands
-    # - avoids backslash escaping issues
-    return p.resolve().as_posix()
+    # Prefer MSYS/Git-Bash style paths on Windows so tools like `tar`
+    # don't interpret drive letters (e.g. `C:/...`) as remote archives
+    # (`host:file`).
+    resolved = p.resolve().as_posix()
+
+    if os.name == "nt":
+        # Convert `C:/Users/...` -> `/c/Users/...`
+        if len(resolved) >= 3 and resolved[1] == ":" and resolved[2] == "/":
+            drive = resolved[0].lower()
+            return f"/{drive}{resolved[2:]}"
+
+    return resolved
 
 
 def _patch_automation_tarball_path() -> None:
@@ -67,27 +74,42 @@ def _patch_automation_tarball_path() -> None:
         def _log_ctx() -> dict[str, Any]:
             return execution.log_extra(run_id=run_id, sandbox_id=sandbox_id)
 
+        def _as_upload_path(p: Path) -> str:
+            # Must be Windows-absolute (drive-qualified) for agent-server's
+            # /api/file/upload validation.
+            return p.resolve().as_posix()
+
         if run_id and "/" not in run_id:
-            tarball_path = _as_shell_path(
+            tarball_upload_path = _as_upload_path(
                 Path(tempfile.gettempdir()) / f"automation-{run_id}.tar.gz"
             )
         else:
             # Keep protocol default for sandbox extraction, but map it to a
             # Windows absolute path for the host agent-server.
-            tarball_path = _as_shell_path(
+            tarball_upload_path = _as_upload_path(
                 Path(tempfile.gettempdir()) / Path(TARBALL_PATH).name
             )
+
+        tarball_shell_path = _as_shell_path(Path(tarball_upload_path))
 
         try:
             if isinstance(tarball_source, bytes):
                 execution.logger.info("Uploading tarball", extra=_log_ctx())
                 await execution._upload(
-                    client, agent_url, session_key, tarball_source, tarball_path
+                    client,
+                    agent_url,
+                    session_key,
+                    tarball_source,
+                    tarball_upload_path,
                 )
             else:
                 execution.logger.info("Downloading tarball from URL", extra=_log_ctx())
                 await execution._download_in_sandbox(
-                    client, agent_url, session_key, tarball_source, tarball_path
+                    client,
+                    agent_url,
+                    session_key,
+                    tarball_source,
+                    tarball_upload_path,
                 )
 
             exports = ""
@@ -97,7 +119,7 @@ def _patch_automation_tarball_path() -> None:
                 ]
                 exports = " && ".join(parts) + " && "
 
-            tarball_q = execution._shell_quote(tarball_path)
+            tarball_q = execution._shell_quote(tarball_shell_path)
             work_dir_shell = _as_shell_path(Path(work_dir))
             work_dir_q = execution._shell_quote(work_dir_shell)
 
