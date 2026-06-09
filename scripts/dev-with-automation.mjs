@@ -906,9 +906,25 @@ function startAgentServer(config) {
     OH_CANVAS_SAFE_VSCODE_PORT: config.vscodePort.toString(),
   });
 
+  const agentServerPatchDir = join(
+    projectRoot,
+    "tools",
+    "agent-server-sitecustomize",
+  );
+  const pythonPathDelimiter = process.platform === "win32" ? ";" : ":";
+  const patchedAgentServerPythonPath = process.env.PYTHONPATH
+    ? `${agentServerPatchDir}${pythonPathDelimiter}${process.env.PYTHONPATH}`
+    : agentServerPatchDir;
+  const shouldPatchWindowsBash =
+    process.platform === "win32" &&
+    process.env.OH_DISABLE_AGENT_SERVER_BASH_PATCH !== "1";
+
   const agentServerEnv = {
     ...buildAgentServerEnv(safeConfig),
     ...buildAgentServerAutomationEnv(config),
+    ...(shouldPatchWindowsBash
+      ? { PYTHONPATH: patchedAgentServerPythonPath }
+      : {}),
     // Ensure the agent-server uses the resolved key from config. This is
     // LOCAL_BACKEND_API_KEY when set, or the auto-generated persisted key.
     OH_SESSION_API_KEYS_0: config.sessionApiKey,

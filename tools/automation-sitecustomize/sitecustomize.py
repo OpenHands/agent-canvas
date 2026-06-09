@@ -98,7 +98,8 @@ def _patch_automation_tarball_path() -> None:
                 exports = " && ".join(parts) + " && "
 
             tarball_q = execution._shell_quote(tarball_path)
-            work_dir_q = execution._shell_quote(work_dir)
+            work_dir_shell = _as_shell_path(Path(work_dir))
+            work_dir_q = execution._shell_quote(work_dir_shell)
 
             cmd = (
                 f"mkdir -p {work_dir_q}"
