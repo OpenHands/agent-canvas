@@ -232,32 +232,20 @@ test.describe("mock-LLM diff view", () => {
 
     // ── Expand a diff and verify editor renders ──
     await test.step("expand diff and verify editor content", async () => {
-      // Click on the hello.py diff entry to expand it (default is collapsed)
+      // Click on the hello.py diff entry to expand it (default is collapsed).
+      // Click the header row specifically (not the whole wrapper) to toggle.
       const helloDiff = page
         .getByTestId("file-diff-viewer-outer")
         .filter({ hasText: "hello.py" });
       await helloDiff.click();
 
-      // The Monaco diff editor should render inside the expanded entry.
-      // Monaco renders its content inside elements with class "view-lines".
-      // Wait for the editor to mount and render content.
-      await expect
-        .poll(
-          async () => {
-            // Check for Monaco editor lines within the hello.py diff viewer
-            const editorLines = helloDiff.locator(".view-lines");
-            const count = await editorLines.count();
-            if (count === 0) return "";
-            return editorLines.first().textContent();
-          },
-          {
-            message:
-              "Monaco diff editor should render with file content for hello.py",
-            timeout: 15_000,
-            intervals: [1_000, 2_000],
-          },
-        )
-        .toBeTruthy();
+      // The Monaco diff editor renders file content as text nodes inside
+      // the expanded entry. Assert on actual content text rather than
+      // Monaco-internal CSS classes — `.view-lines` elements can return
+      // empty textContent because Monaco uses layered rendering.
+      await expect(helloDiff).toContainText('print("Hello, Mock LLM!")', {
+        timeout: 15_000,
+      });
     });
   });
 
@@ -348,23 +336,10 @@ test.describe("mock-LLM diff view", () => {
         .filter({ hasText: "config.json" });
       await configDiff.click();
 
-      // Wait for Monaco to render
-      await expect
-        .poll(
-          async () => {
-            const editorLines = configDiff.locator(".view-lines");
-            const count = await editorLines.count();
-            if (count === 0) return "";
-            return editorLines.first().textContent();
-          },
-          {
-            message:
-              "Monaco editor should render with content for config.json",
-            timeout: 15_000,
-            intervals: [1_000, 2_000],
-          },
-        )
-        .toBeTruthy();
+      // Assert on actual file content text inside the expanded diff viewer.
+      await expect(configDiff).toContainText("version", {
+        timeout: 15_000,
+      });
     });
   });
 
