@@ -8,9 +8,18 @@ import { SkillItemExpanded } from "./skill-item-expanded";
 
 interface SkillReadyContentListProps {
   items: SkillReadyItem[];
+  /**
+   * Translation key for the list header. Defaults to the "Triggered Skill
+   * Knowledge:" label used by Skill Ready events; invoke-skill observations
+   * pass "Invoked Skill Knowledge:" instead.
+   */
+  titleKey?: I18nKey;
 }
 
-export function SkillReadyContentList({ items }: SkillReadyContentListProps) {
+export function SkillReadyContentList({
+  items,
+  titleKey = I18nKey.SKILLS$TRIGGERED_SKILL_KNOWLEDGE,
+}: SkillReadyContentListProps) {
   const { t } = useTranslation("openhands");
   const [expandedSkills, setExpandedSkills] = React.useState<
     Record<string, boolean>
@@ -23,7 +32,7 @@ export function SkillReadyContentList({ items }: SkillReadyContentListProps) {
   return (
     <div className="flex flex-col gap-1 mt-1">
       <Typography.Text className="font-bold text-[var(--oh-foreground)] text-sm px-2 py-1">
-        {t(I18nKey.SKILLS$TRIGGERED_SKILL_KNOWLEDGE)}
+        {t(titleKey)}
       </Typography.Text>
       {items.map((item) => {
         const isExpanded = expandedSkills[item.name] || false;

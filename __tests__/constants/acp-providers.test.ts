@@ -208,6 +208,33 @@ describe("getAcpCredentialConflicts", () => {
     ).toEqual([["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_BASE_URL"]]);
   });
 
+  it("flags the Claude OAuth token + API key pair when both are set", () => {
+    // The SDK strips ANTHROPIC_API_KEY when the OAuth token is active
+    // (software-agent-sdk#3588), so the key would be silently ignored.
+    expect(
+      getAcpCredentialConflicts(
+        "claude-code",
+        has("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"),
+      ),
+    ).toEqual([["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"]]);
+  });
+
+  it("flags both pairs when the token, API key, and base URL are all set", () => {
+    expect(
+      getAcpCredentialConflicts(
+        "claude-code",
+        has(
+          "CLAUDE_CODE_OAUTH_TOKEN",
+          "ANTHROPIC_API_KEY",
+          "ANTHROPIC_BASE_URL",
+        ),
+      ),
+    ).toEqual([
+      ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"],
+      ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_BASE_URL"],
+    ]);
+  });
+
   it("stays quiet when only one side is set", () => {
     expect(
       getAcpCredentialConflicts("claude-code", has("CLAUDE_CODE_OAUTH_TOKEN")),

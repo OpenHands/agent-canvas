@@ -413,6 +413,17 @@ function proxyWebSocket(req, socket, head, backendUrl) {
     if (proxyHead.length > 0) {
       socket.write(proxyHead);
     }
+    // Handle errors on both sockets so an abrupt disconnect (ECONNRESET,
+    // EPIPE) during test cleanup doesn't crash the process with an
+    // uncaught 'error' event.
+    proxySocket.on("error", (err) => {
+      console.error(`WebSocket proxy backend socket error (${req.url}):`, err.message);
+      socket.destroy();
+    });
+    socket.on("error", (err) => {
+      console.error(`WebSocket proxy client socket error (${req.url}):`, err.message);
+      proxySocket.destroy();
+    });
     proxySocket.pipe(socket, { end: true });
     socket.pipe(proxySocket, { end: true });
   });

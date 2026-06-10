@@ -25,6 +25,7 @@ const config = JSON.parse(
 
 const agentServerImage = `${config.images.agentServer}:${config.versions.agentServer}-python`;
 const automationVersion = config.versions.automation;
+const githubMcpServerVersion = config.versions.githubMcpServer;
 
 // Parse CLI: --tag <name> and everything after -- is passed to docker build
 let tag = "agent-canvas:local";
@@ -50,15 +51,18 @@ const cmd = [
   `AGENT_SERVER_IMAGE=${agentServerImage}`,
   "--build-arg",
   `AUTOMATION_VERSION=${automationVersion}`,
+  "--build-arg",
+  `GITHUB_MCP_SERVER_VERSION=${githubMcpServerVersion}`,
   "-t",
   tag,
   ...extraArgs,
   ".",
 ];
 
-console.log(`Agent Server image : ${agentServerImage}`);
-console.log(`Automation version : ${automationVersion}`);
-console.log(`Tag                : ${tag}`);
+console.log(`Agent Server image      : ${agentServerImage}`);
+console.log(`Automation version      : ${automationVersion}`);
+console.log(`GitHub MCP Server       : ${githubMcpServerVersion}`);
+console.log(`Tag                     : ${tag}`);
 console.log(`\n$ ${cmd.join(" ")}\n`);
 
 try {
