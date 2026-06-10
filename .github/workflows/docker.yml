@@ -105,6 +105,8 @@ jobs:
           DEFAULT_AGENT_SERVER_IMAGE: ${{ steps.config.outputs.default_agent_server_image }}
           AUTOMATION_VERSION_INPUT: ${{ inputs.automation_version }}
           DEFAULT_AUTOMATION_VERSION: ${{ steps.config.outputs.default_automation_version }}
+          POSTHOG_STAGING_KEY: ${{ vars.POSTHOG_STAGING_KEY }}
+          POSTHOG_PROD_KEY: ${{ vars.POSTHOG_PROD_KEY }}
         run: |
           SHORT_SHA=$(echo "$RELEVANT_SHA" | cut -c1-7)
           echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
@@ -169,11 +171,15 @@ jobs:
 
           echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
 
-          # Use production PostHog key only for tagged releases
+          # Use the production PostHog config only for tagged releases;
+          # everything else (PR / main / local) uses staging. Both keys are
+          # public, client-side keys — not secrets — so they live in repo vars.
           if [[ "$RELEVANT_REF" == refs/tags/v* ]]; then
             echo "vite_app_env=production" >> "$GITHUB_OUTPUT"
+            echo "posthog_client_key=$POSTHOG_PROD_KEY" >> "$GITHUB_OUTPUT"
           else
             echo "vite_app_env=" >> "$GITHUB_OUTPUT"
+            echo "posthog_client_key=$POSTHOG_STAGING_KEY" >> "$GITHUB_OUTPUT"
           fi
 
           echo "=== Build outputs ==="
@@ -198,6 +204,7 @@ jobs:
             OPENHANDS_BUILD_GIT_SHA=${{ env.RELEVANT_SHA }}
             OPENHANDS_BUILD_GIT_REF=${{ env.RELEVANT_REF }}
             VITE_APP_ENV=${{ steps.prep.outputs.vite_app_env }}
+            VITE_POSTHOG_CLIENT_KEY=${{ steps.prep.outputs.posthog_client_key }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: true
