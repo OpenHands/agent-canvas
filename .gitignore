@@ -8,6 +8,7 @@ build/
 logs/
 /.tmp/live-e2e-state/
 /.tmp/mock-llm-state/
+/.tmp/mock-llm-skill-repos/
 dist/
 __pycache__
 

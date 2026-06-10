@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
-import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
+import { ListTodo } from "lucide-react";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { ConversationTabEmptyState } from "#/components/features/conversation/conversation-tab-empty-state";
 import { useConversationStore } from "#/stores/conversation-store";
@@ -47,7 +47,7 @@ function PlannerTab() {
 
   return (
     <ConversationTabEmptyState
-      icon={<LessonPlanIcon />}
+      icon={<ListTodo aria-hidden strokeWidth={2} className="size-full" />}
       action={
         <BrandButton
           type="button"

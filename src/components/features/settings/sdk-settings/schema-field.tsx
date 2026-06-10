@@ -25,14 +25,42 @@ import {
 // ---------------------------------------------------------------------------
 export const FIELD_HELP_LINKS: Record<
   string,
-  { textKey: string; linkTextKey: string; href: string }
+  {
+    textKey: string;
+    linkTextKey: string;
+    href: string;
+    /** Skip rendering the schema description separately when the help text already includes it. */
+    hideDescription?: boolean;
+    /** Optional trailing copy rendered after the link (e.g. " tab of OpenHands Cloud."). */
+    suffixKey?: string;
+  }
 > = {
   "llm.api_key": {
     textKey: "SCHEMA$LLM$API_KEY$HELP_TEXT",
     linkTextKey: "SCHEMA$LLM$API_KEY$HELP_LINK_TEXT",
     href: "https://docs.openhands.dev/usage/local-setup#getting-an-api-key",
   },
+  // Mirror the hint shown under the LLM provider's API key field when
+  // OpenHands is selected as the active provider; the SDK reuses that active
+  // LLM key when the critic key is empty.
+  "verification.critic_api_key": {
+    textKey: "SCHEMA$VERIFICATION$CRITIC_API_KEY$HELP_TEXT",
+    linkTextKey: "SETTINGS$NAV_API_KEYS",
+    suffixKey: "SCHEMA$VERIFICATION$CRITIC_API_KEY$HELP_SUFFIX",
+    href: "https://app.all-hands.dev/settings/api-keys",
+    hideDescription: true,
+  },
 };
+
+/**
+ * Field keys that should span the full settings grid (both columns on xl
+ * screens) instead of sharing a row with the next field. Used for inputs
+ * whose label + value + help link need horizontal room so they don't
+ * sit awkwardly opposite a single toggle.
+ */
+export const FIELD_FULL_WIDTH_KEYS: ReadonlySet<string> = new Set([
+  "verification.critic_api_key",
+]);
 
 function FieldHelp({ field }: { field: SettingsFieldSchema }) {
   const { t } = useTranslation("openhands");
@@ -45,7 +73,7 @@ function FieldHelp({ field }: { field: SettingsFieldSchema }) {
 
   return (
     <>
-      {description ? (
+      {description && !helpLink?.hideDescription ? (
         <Typography.Paragraph className="text-tertiary-alt text-xs leading-5">
           {description}
         </Typography.Paragraph>
@@ -56,6 +84,7 @@ function FieldHelp({ field }: { field: SettingsFieldSchema }) {
           text={t(helpLink.textKey)}
           linkText={t(helpLink.linkTextKey)}
           href={helpLink.href}
+          suffix={helpLink.suffixKey ? ` ${t(helpLink.suffixKey)}` : undefined}
           size="settings"
           linkColor="white"
         />
