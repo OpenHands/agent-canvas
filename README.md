@@ -75,8 +75,6 @@ agent-canvas --backend-only   # agent server + automation backend + ingress only
 **macOS / Linux:**
 
 ```sh
-docker pull ghcr.io/openhands/agent-canvas:1.0.0-beta.9
-
 export PROJECTS_PATH="$HOME/projects"  # directory containing your project folders
 mkdir -p "$PROJECTS_PATH" "$HOME/.openhands"
 
