@@ -30,7 +30,10 @@ function TabReadyNotifier({
 }
 
 function SuspensePendingFallback({ onPending }: { onPending: () => void }) {
-  onPending();
+  useLayoutEffect(() => {
+    onPending();
+  }, [onPending]);
+
   return <ConversationLoading />;
 }
 

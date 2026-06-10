@@ -101,11 +101,7 @@ function GitChanges() {
               <EmptyChangesMessage />
             )}
           </div>
-          {!isError && isSuccess && gitChanges.length === 0 && (
-            <div className="w-full text-m bg-tertiary p-4 text-left">
-              <RandomTip />
-            </div>
-          )}
+          {!isError && isSuccess && gitChanges.length === 0 && <RandomTip />}
         </div>
       ) : (
         <div className="h-full overflow-y-auto flex flex-col items-stretch custom-scrollbar-always">

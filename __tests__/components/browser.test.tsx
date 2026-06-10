@@ -55,7 +55,7 @@ describe("Browser", () => {
     );
   });
 
-  it("keeps the chrome bar height and shows inactive controls when empty", () => {
+  it("keeps the chrome bar height and disables open-in-new-tab when empty", () => {
     useBrowserStore.setState({
       url: "",
       screenshotSrc: "",
@@ -68,8 +68,8 @@ describe("Browser", () => {
       "BROWSER$URL_PLACEHOLDER",
     );
     expect(
-      screen.getByRole("button", { name: "BUTTON$BACK" }),
-    ).toBeDisabled();
+      screen.queryByRole("button", { name: "BUTTON$BACK" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "BUTTON$OPEN_IN_NEW_TAB" }),
     ).toBeDisabled();
