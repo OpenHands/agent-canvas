@@ -1,8 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import McpService from "#/api/mcp-service/mcp-service.api";
+import { I18nKey } from "#/i18n/declaration";
 import { getConversationState } from "#/utils/conversation-local-storage";
 import {
   __resetActiveStoreForTests,
@@ -126,34 +133,69 @@ describe("recommended automations", () => {
     __resetActiveStoreForTests();
   });
 
-  it("shows recommended automations in popularity order", () => {
-    const onSelect = vi.fn();
-
+  it("renders the proven automations before the beta ones, each in popularity order", () => {
     render(
       <RecommendedAutomationsSection
         backendKind="local"
         installedServers={[]}
-        onSelect={onSelect}
+        onSelect={vi.fn()}
       />,
     );
 
-    const cards = screen.getAllByTestId(/^recommended-automation-card-/);
-    expect(cards[0]).toHaveAttribute(
-      "data-testid",
-      "recommended-automation-card-github-pr-reviewer",
+    const cardIds = screen
+      .getAllByTestId(/^recommended-automation-card-/)
+      .map((card) =>
+        card
+          .getAttribute("data-testid")
+          ?.replace("recommended-automation-card-", ""),
+      );
+
+    expect(cardIds).toEqual([
+      "github-pr-reviewer",
+      "github-repo-monitor",
+      "slack-channel-monitor",
+      "slack-standup-digest",
+      "linear-triage-assistant",
+      "research-brief-writer",
+      "incident-retrospective-drafter",
+    ]);
+  });
+
+  it("groups the non-proven automations under a labeled Beta section", () => {
+    render(
+      <RecommendedAutomationsSection
+        backendKind="local"
+        installedServers={[]}
+        onSelect={vi.fn()}
+      />,
     );
-    expect(cards[1]).toHaveAttribute(
-      "data-testid",
-      "recommended-automation-card-github-repo-monitor",
+
+    const provenHeading = screen.getByText(
+      I18nKey.RECOMMENDED_AUTOMATIONS$SECTION_TITLE,
+    ).parentElement!;
+    expect(within(provenHeading).getByText("3")).toBeInTheDocument();
+
+    const betaHeading = screen.getByTestId(
+      "recommended-automations-beta-heading",
     );
-    expect(cards[2]).toHaveAttribute(
-      "data-testid",
-      "recommended-automation-card-slack-standup-digest",
+    expect(betaHeading).toHaveTextContent(
+      I18nKey.RECOMMENDED_AUTOMATIONS$BETA_LABEL,
     );
-    expect(cards[3]).toHaveAttribute(
-      "data-testid",
-      "recommended-automation-card-slack-channel-monitor",
+    expect(within(betaHeading).getByText("4")).toBeInTheDocument();
+
+    const betaSection = screen.getByTestId(
+      "recommended-automations-beta-section",
     );
+    expect(
+      within(betaSection).getByTestId(
+        "recommended-automation-card-slack-standup-digest",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(betaSection).queryByTestId(
+        "recommended-automation-card-github-pr-reviewer",
+      ),
+    ).not.toBeInTheDocument();
   });
 
   it("sorts recommendation popularity deterministically when ranks are missing or tied", () => {

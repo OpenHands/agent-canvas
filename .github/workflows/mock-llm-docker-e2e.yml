@@ -350,6 +350,7 @@ jobs:
             --commit "${{ steps.ctx.outputs.sha }}" \
             --artifact-url "${{ steps.upload_artifacts.outputs.artifact-url || '' }}" \
             --title "Mock-LLM Docker E2E Test Results" \
+            --exit-code "${{ steps.run_tests.outputs.exit_code }}" \
             --new-files "${{ steps.new_specs.outputs.files || '' }}"
           cat "$MOCK_LLM_REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
 

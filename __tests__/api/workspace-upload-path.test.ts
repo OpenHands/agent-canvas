@@ -4,7 +4,6 @@ import {
   getSafeUploadFileName,
   resolveAbsoluteWorkspacePath,
   resolveConversationUploadWorkingDir,
-  toAbsoluteWorkspacePath,
 } from "#/api/workspace-upload-path";
 import { clearAgentServerHomeDirCache } from "#/api/agent-server-home";
 
@@ -42,16 +41,6 @@ beforeEach(() => {
 });
 
 describe("workspace-upload-path", () => {
-  // @spec WUP-001 — legacy helper kept for cosmetic uses only.
-  it("toAbsoluteWorkspacePath is a naive `/`-prefix and stays sync", () => {
-    expect(toAbsoluteWorkspacePath("workspace/project")).toBe(
-      "/workspace/project",
-    );
-    expect(toAbsoluteWorkspacePath("/already/absolute")).toBe(
-      "/already/absolute",
-    );
-  });
-
   // @spec WUP-001 — resolver anchors relative paths against /api/file/home.
   it("resolveAbsoluteWorkspacePath joins relative dirs to the agent-server home", async () => {
     const resolved = await resolveAbsoluteWorkspacePath("workspace/project");

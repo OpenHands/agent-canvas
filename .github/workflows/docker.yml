@@ -90,10 +90,12 @@ jobs:
           AGENT_SERVER_VERSION=$(node -p "require('./config/defaults.json').versions.agentServer")
           AGENT_SERVER_IMAGE_BASE=$(node -p "require('./config/defaults.json').images.agentServer")
           AUTOMATION_VERSION=$(node -p "require('./config/defaults.json').versions.automation")
+          GITHUB_MCP_SERVER_VERSION=$(node -p "require('./config/defaults.json').versions.githubMcpServer")
           AGENT_CANVAS_VERSION=$(node -p "require('./package.json').version")
           echo "agent_server_version=$AGENT_SERVER_VERSION" >> "$GITHUB_OUTPUT"
           echo "default_agent_server_image=${AGENT_SERVER_IMAGE_BASE}:${AGENT_SERVER_VERSION}-python" >> "$GITHUB_OUTPUT"
           echo "default_automation_version=$AUTOMATION_VERSION" >> "$GITHUB_OUTPUT"
+          echo "github_mcp_server_version=$GITHUB_MCP_SERVER_VERSION" >> "$GITHUB_OUTPUT"
           echo "agent_canvas_version=$AGENT_CANVAS_VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Compute metadata and tags
@@ -191,6 +193,7 @@ jobs:
           build-args: |
             AGENT_SERVER_IMAGE=${{ steps.prep.outputs.agent_server_image }}
             AUTOMATION_VERSION=${{ steps.prep.outputs.automation_version }}
+            GITHUB_MCP_SERVER_VERSION=${{ steps.config.outputs.github_mcp_server_version }}
             AGENT_CANVAS_VERSION=${{ steps.config.outputs.agent_canvas_version }}
             OPENHANDS_BUILD_GIT_SHA=${{ env.RELEVANT_SHA }}
             OPENHANDS_BUILD_GIT_REF=${{ env.RELEVANT_REF }}
