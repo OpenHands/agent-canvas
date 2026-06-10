@@ -16,7 +16,7 @@
  * round-trip without any real LLM.
  */
 
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import {
   ACP_REPLY_TOKEN,
   MOCK_ACP_COMMAND_PYTHON,
@@ -29,9 +29,10 @@ import {
   getConversationIdFromURL,
   waitForNonUserMessageText,
   deleteConversation,
-  resetToOpenHandsAgent,
+  resetToOpenHandsAgentViaUI,
   resetMockLLM,
   ensureMockLLMProfile,
+  selectDropdownOption,
   setChatInput,
   BACKEND_URL,
   SESSION_API_KEY,
@@ -47,34 +48,6 @@ const USER_MESSAGE = "Hello ACP agent, please reply.";
  * Docker Playwright config; in the npm path we use host-local paths.
  */
 const ACP_COMMAND_TEXT = `${MOCK_ACP_COMMAND_PYTHON} ${MOCK_ACP_COMMAND_SCRIPT}`;
-
-// ── UI interaction helpers for HeroUI Autocomplete dropdowns ──────────
-
-/**
- * Select an option from a HeroUI Autocomplete dropdown (SettingsDropdownInput).
- *
- * HeroUI Autocomplete does NOT forward `data-testid` to the underlying
- * `<input>`, so we locate the combobox by its `aria-label` (which the
- * component sets to the label prop or the name prop). We then click to
- * open the listbox and click the matching option.
- */
-async function selectDropdownOption(
-  page: Page,
-  /** aria-label of the combobox (= the SettingsDropdownInput label text) */
-  comboboxLabel: string | RegExp,
-  /** Visible text of the option to click */
-  optionText: string | RegExp,
-) {
-  const combobox = page.getByRole("combobox", { name: comboboxLabel });
-  await expect(combobox).toBeVisible({ timeout: 10_000 });
-  // Clear any existing text (so all options show) and open
-  await combobox.click();
-  await combobox.fill("");
-  // Wait for the option to appear and click it
-  const option = page.getByRole("option", { name: optionText });
-  await expect(option).toBeVisible({ timeout: 5_000 });
-  await option.click();
-}
 
 test.describe.configure({ mode: "serial" });
 
@@ -95,17 +68,13 @@ test.describe("mock-LLM ACP agent conversation", () => {
       }
     }
 
-    // Reset agent-server back to OpenHands + restore mock LLM profile
-    // so subsequent test suites (which expect agent_kind=openhands) are
-    // not affected by our ACP configuration.
-    try {
-      await resetToOpenHandsAgent(request);
-    } catch {
-      // best-effort
-    }
+    // Reset agent-server back to OpenHands via the Settings → Agent UI
+    // + restore mock LLM profile so subsequent test suites (which expect
+    // agent_kind=openhands) are not affected by our ACP configuration.
     const page = await browser.newPage();
     try {
       await seedLocalStorage(page);
+      await resetToOpenHandsAgentViaUI(page);
       await ensureMockLLMProfile(page);
     } catch {
       // best-effort

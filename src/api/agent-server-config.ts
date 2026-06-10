@@ -97,16 +97,6 @@ export function buildConversationWorkingDir(conversationId: string): string {
   return `${base}/${hex}`;
 }
 
-export function getConfiguredWorkerUrls(): string[] {
-  const raw = import.meta.env.VITE_WORKER_URLS?.trim();
-  if (!raw) return [];
-
-  return raw
-    .split(",")
-    .map((url: string) => normalizeBaseUrl(url))
-    .filter((url: string | null): url is string => Boolean(url));
-}
-
 export function getAgentServerHeaders(): Record<string, string> {
   const sessionApiKey = getAgentServerSessionApiKey();
   return sessionApiKey ? { "X-Session-API-Key": sessionApiKey } : {};

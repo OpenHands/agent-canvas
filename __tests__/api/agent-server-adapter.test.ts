@@ -12,6 +12,7 @@ import {
   removeStoredConversationMetadata,
   setStoredConversationMetadata,
 } from "#/api/conversation-metadata-store";
+import { ACP_VERTEX_SAFE_MODEL } from "#/constants/acp-providers";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 
 const {
@@ -34,7 +35,6 @@ vi.mock("#/api/agent-server-config", () => ({
   getAgentServerBaseUrl: vi.fn(() => "http://127.0.0.1:8000"),
   getAgentServerSessionApiKey: vi.fn(() => null),
   getAgentServerWorkingDir: mockGetAgentServerWorkingDir,
-  getConfiguredWorkerUrls: vi.fn(() => []),
   shouldLoadPublicSkills: vi.fn(() => true),
   syncBakedSessionApiKey: vi.fn(),
 }));
@@ -401,16 +401,12 @@ describe("buildStartConversationRequest", () => {
     });
   });
 
-  it("mirrors conversation secrets onto agent_settings.agent_context.secrets for ACP", () => {
-    // Until canvas pins to an agent-server build that includes
-    // software-agent-sdk PR #3299, the bare ``payload.secrets`` channel
-    // only reaches ``secret_registry`` server-side — ``ACPAgent``'s
-    // spawn-time env loop reads from ``agent_context.secrets``, not
-    // from the registry, so a Settings → Secrets entry like
-    // ``ANTHROPIC_API_KEY`` would silently fail to land in the ACP
-    // CLI's environment. Mirror the same LookupSecret map onto
-    // ``agent_settings.agent_context.secrets`` so the existing SDK loop picks
-    // it up. Mirrors OpenHands' app-server bridging.
+  it("does NOT mirror conversation secrets onto agent_context for ACP — request.secrets is the sole channel", () => {
+    // The pinned minimum agent-server (1.25.0) injects the ACP spawn env from
+    // ``secret_registry``, which is seeded from ``request.secrets``
+    // (sdk#3299/#3464; the agent_context drain is gone entirely in sdk#3528).
+    // Mirroring the map onto ``agent_context.secrets`` would keep a second,
+    // dead credential channel alive (agent-canvas#1039 wants exactly one).
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
@@ -427,19 +423,13 @@ describe("buildStartConversationRequest", () => {
       secrets: Record<string, unknown>;
     };
 
-    // Same LookupSecret object lands in both places — the bare-secrets
-    // channel (for any non-ACP consumer / for SDK #3299 once it lands)
-    // and the agent_context bridge (for current ACPAgent spawns).
     expect(payload.secrets.ANTHROPIC_API_KEY).toBeDefined();
-    expect(
-      payload.agent_settings.agent_context?.secrets?.ANTHROPIC_API_KEY,
-    ).toEqual(payload.secrets.ANTHROPIC_API_KEY);
+    expect(payload.agent_settings.agent_context?.secrets).toBeUndefined();
   });
 
   it("does not synthesize agent_context.secrets for ACP when no custom secrets are set", () => {
     // Empty/absent customSecrets must not introduce an empty
-    // ``agent_context.secrets`` map on the ACPAgent payload — the
-    // bridge only fires when there's something to bridge.
+    // ``agent_context.secrets`` map on the ACPAgent payload.
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
@@ -471,6 +461,66 @@ describe("buildStartConversationRequest", () => {
     };
 
     expect(payload.agent_settings.agent_context?.secrets).toBeUndefined();
+  });
+
+  describe("ACP secret delivery", () => {
+    // Settings factory for a containerized ACP conversation.
+    const acpSettings = (overrides: Record<string, unknown> = {}) => ({
+      ...DEFAULT_SETTINGS,
+      agent_settings: {
+        ...DEFAULT_SETTINGS.agent_settings,
+        agent_kind: "acp",
+        acp_server: "codex",
+        acp_command: ["npx", "-y", "@zed-industries/codex-acp"],
+        acp_model: "gpt-5.5/medium",
+        ...overrides,
+      },
+    });
+
+    it("delivers provider credentials and user secrets uniformly as LookupSecrets in request.secrets only", () => {
+      // Provider credentials (e.g. a saved CODEX_AUTH_JSON) are no longer special
+      // on the wire — they ride as LookupSecrets like any custom secret. The SDK
+      // resolves them off the event loop at spawn, so the loopback fetch is safe
+      // (software-agent-sdk#3510). "Reserved" is now only an onboarding concept.
+      const payload = buildStartConversationRequest({
+        settings: acpSettings(),
+        customSecrets: [{ name: "CODEX_AUTH_JSON" }, { name: "MY_TOKEN" }],
+      }) as {
+        agent_settings: {
+          acp_model?: string;
+          agent_context?: { secrets?: Record<string, { kind: string }> };
+        };
+        secrets: Record<string, { kind: string }>;
+      };
+
+      expect(payload.secrets.CODEX_AUTH_JSON?.kind).toBe("LookupSecret");
+      expect(payload.secrets.MY_TOKEN?.kind).toBe("LookupSecret");
+      // ``request.secrets`` is the sole channel — no agent_context mirror
+      // (the ≥1.25.0 agent-server injects the spawn env from secret_registry).
+      expect(payload.agent_settings.agent_context?.secrets).toBeUndefined();
+      // The configured model rides along unchanged.
+      expect(payload.agent_settings.acp_model).toBe("gpt-5.5/medium");
+    });
+
+    it("does NOT set secrets_encrypted for ACP — there is no encrypted payload to decrypt", () => {
+      // An ACP request carries no encrypted secret (no LLM api_key; credentials
+      // are LookupSecrets resolved at runtime). Flagging it encrypted hard-fails
+      // ("cipher not configured") on a fresh ACP container without OH_SECRET_KEY.
+      const payload = buildStartConversationRequest({
+        settings: acpSettings(),
+        secretsEncrypted: true,
+        customSecrets: [{ name: "CODEX_AUTH_JSON" }],
+      }) as { secrets_encrypted?: boolean };
+      expect(payload.secrets_encrypted).toBeUndefined();
+    });
+
+    it("still sets secrets_encrypted for a non-ACP conversation (encrypted LLM key)", () => {
+      const payload = buildStartConversationRequest({
+        settings: DEFAULT_SETTINGS,
+        secretsEncrypted: true,
+      }) as { secrets_encrypted?: boolean };
+      expect(payload.secrets_encrypted).toBe(true);
+    });
   });
 
   describe("canvas_ui tool injection", () => {
@@ -1192,6 +1242,26 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
 
     expect(payload.agent_settings.agent_kind).toBe("acp");
     expect(payload.agent_settings.acp_model).toBeUndefined();
+  });
+
+  it("falls back to the preferred (Vertex-safe) default for a null Gemini acp_model", () => {
+    // The start-request fallback is the third default-model surface (after
+    // onboarding and Settings → Agent) — all three must substitute the same
+    // Vertex-safe model, or a saved ``null`` would silently run gemini-cli's
+    // 404-prone default on Vertex (software-agent-sdk#3532).
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          schema_version: 1,
+          agent_kind: "acp",
+          acp_server: "gemini-cli",
+          acp_model: null,
+        },
+      },
+    }) as { agent_settings: Record<string, unknown> };
+
+    expect(payload.agent_settings.acp_model).toBe(ACP_VERTEX_SAFE_MODEL);
   });
 
   it("resolves an empty acp_command from the registry by acp_server", () => {
