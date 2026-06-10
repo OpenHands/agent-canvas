@@ -1,4 +1,3 @@
-import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useAcpModelContext } from "#/hooks/use-acp-model-context";
@@ -25,7 +24,6 @@ export interface ChatInputModelState {
 export function useChatInputModelState(): ChatInputModelState {
   const { data: conversation } = useActiveConversation();
   const { data: settings } = useSettings();
-  const { backend } = useActiveBackend();
   const { conversationId } = useOptionalConversationId();
   const {
     isActiveAcpConversation,
@@ -76,15 +74,7 @@ export function useChatInputModelState(): ChatInputModelState {
       ? (labelForAcpModel(acpServerKey, currentModelId) ?? currentModelId)
       : currentModelId;
   const availableAcpModels = acpProvider?.available_models ?? [];
-  // Show the picker when:
-  // - Local backend (can switch mid-conversation via the agent-server endpoint)
-  // - OR home screen on any backend (switching updates settings, no agent-server call needed)
-  // Cloud mid-conversation switching is blocked: the cloud backend doesn't
-  // expose /switch_acp_model, so we fall back to display-only + Settings link.
-  const showAcpPicker =
-    isAcpContext &&
-    availableAcpModels.length > 0 &&
-    (backend.kind !== "cloud" || isHomeAcp);
+  const showAcpPicker = isAcpContext && availableAcpModels.length > 0;
   const switchConversationId = isActiveAcpConversation
     ? (conversationId ?? null)
     : null;
