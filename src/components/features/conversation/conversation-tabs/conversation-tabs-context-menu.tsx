@@ -1,4 +1,5 @@
-import React from "react";
+import React, { useLayoutEffect, useState } from "react";
+import ReactDOM from "react-dom";
 import { useTranslation } from "react-i18next";
 import { ContextMenu } from "#/ui/context-menu";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
@@ -29,17 +30,49 @@ interface ConversationTabsContextMenuProps {
   isOpen: boolean;
   onClose: () => void;
   ignoreOutsideClickRef?: React.RefObject<HTMLElement | null>;
+  /** Portal anchor so the menu is not clipped by drawer overflow. */
+  anchorRef?: React.RefObject<HTMLElement | null>;
 }
 
 export function ConversationTabsContextMenu({
   isOpen,
   onClose,
   ignoreOutsideClickRef,
+  anchorRef,
 }: ConversationTabsContextMenuProps) {
   const ref = useClickOutsideElement<HTMLUListElement>(
     onClose,
     ignoreOutsideClickRef,
   );
+  const [portalStyle, setPortalStyle] = useState<React.CSSProperties>();
+
+  useLayoutEffect(() => {
+    if (!isOpen || !anchorRef?.current) {
+      setPortalStyle(undefined);
+      return undefined;
+    }
+
+    const updatePosition = () => {
+      const rect = anchorRef.current?.getBoundingClientRect();
+      if (!rect) return;
+
+      const gap = 8;
+      setPortalStyle({
+        position: "fixed",
+        zIndex: 9999,
+        top: rect.bottom + gap,
+        left: rect.left,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [isOpen, anchorRef]);
   const { t } = useTranslation("openhands");
   const { conversationId } = useConversationId();
   const {
@@ -83,8 +116,6 @@ export function ConversationTabsContextMenu({
     ({ tab }) => tab !== "planner" || backend.kind === "cloud",
   );
 
-  if (!isOpen) return null;
-
   const handleOpenTab = (tab: string) => {
     if (isArchivedConversation) {
       return;
@@ -121,12 +152,18 @@ export function ConversationTabsContextMenu({
     }
   };
 
-  return (
+  if (!isOpen) return null;
+
+  const isPortaled = Boolean(anchorRef?.current && portalStyle);
+
+  const menu = (
     <ContextMenu
       ref={ref}
-      alignment="right"
-      position="bottom"
-      className="z-[9999] mt-2 w-fit"
+      theme={isPortaled ? "popover" : "default"}
+      position={isPortaled ? "none" : "bottom"}
+      alignment={isPortaled ? "none" : "left"}
+      spacing={isPortaled ? "none" : "default"}
+      className={cn("z-[9999] w-fit", isPortaled ? "mt-0" : "mt-2")}
     >
       {visibleTabConfig.map(({ tab, icon: Icon, i18nKey }) => {
         const pinned = !state.unpinnedTabs.includes(tab);
@@ -206,4 +243,13 @@ export function ConversationTabsContextMenu({
       })}
     </ContextMenu>
   );
+
+  if (isPortaled && portalStyle && typeof document !== "undefined") {
+    return ReactDOM.createPortal(
+      <div style={portalStyle}>{menu}</div>,
+      document.body,
+    );
+  }
+
+  return menu;
 }

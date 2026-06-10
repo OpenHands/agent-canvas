@@ -54,6 +54,14 @@ vi.mock("#/hooks/use-agent-state", () => ({
   useAgentState: () => ({ curAgentState: mockCurAgentState }),
 }));
 
+vi.mock("#/hooks/query/use-unified-vscode-url", () => ({
+  useUnifiedVSCodeUrl: () => ({
+    data: { url: "http://localhost:8001", error: null },
+    isLoading: false,
+    refetch: vi.fn().mockResolvedValue({ data: { url: "http://localhost:8001" } }),
+  }),
+}));
+
 const createWrapper = (conversationId: string) =>
   function ({ children }: { children: React.ReactNode }) {
     return (

@@ -18,6 +18,8 @@ type ConversationTabNavProps = {
   className?: string;
   /** Omit test id (e.g. offscreen width measurement clones). */
   measureOnly?: boolean;
+  /** Disable layout-driven shifts while the drawer width is being dragged. */
+  suppressLayoutAnimation?: boolean;
 };
 
 export function ConversationTabNav({
@@ -28,10 +30,12 @@ export function ConversationTabNav({
   label,
   className,
   measureOnly,
+  suppressLayoutAnimation = false,
 }: ConversationTabNavProps) {
   const reduceMotion = useReducedMotion();
   const disableAnimation =
     measureOnly || reduceMotion || import.meta.env.MODE === "test";
+  const enableLayoutAnimation = !disableAnimation && !suppressLayoutAnimation;
 
   const buttonClassName = cn(
     "flex items-center rounded-md cursor-pointer",
@@ -89,7 +93,7 @@ export function ConversationTabNav({
 
   return (
     <motion.button
-      layout
+      layout={enableLayoutAnimation ? "position" : false}
       type="button"
       onClick={onClick}
       {...(measureOnly
@@ -97,7 +101,9 @@ export function ConversationTabNav({
         : { "data-testid": `conversation-tab-${tabValue}` as const })}
       data-tab-measure={measureOnly ? "true" : undefined}
       className={buttonClassName}
-      transition={{ layout: tabLabelTransition }}
+      transition={
+        enableLayoutAnimation ? { layout: tabLabelTransition } : undefined
+      }
     >
       {iconElement}
       {animatedLabelElement}

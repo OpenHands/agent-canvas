@@ -8,6 +8,7 @@ import { EllipsisButton } from "#/components/features/conversation-panel/ellipsi
 import { cn } from "#/utils/utils";
 import { useConversationLocalStorageState } from "#/utils/conversation-local-storage";
 import { ConversationTabNav } from "./conversation-tab-nav";
+import { DrawerVSCodeLink } from "./drawer-vscode-link";
 import { ChatActionTooltip } from "../../chat/chat-action-tooltip";
 import { I18nKey } from "#/i18n/declaration";
 import { useConversationStore } from "#/stores/conversation-store";
@@ -24,8 +25,11 @@ import { mobileTopBarIconClassName } from "#/utils/mobile-top-bar-icon-button-cl
 
 export function ConversationTabs({
   variant = "default",
+  isPanelResizing = false,
 }: {
   variant?: "default" | "compact";
+  /** True while the desktop drawer gripper is being dragged. */
+  isPanelResizing?: boolean;
 }) {
   const { conversationId } = useConversationId();
   const { setSelectedTab, planContent } = useConversationStore();
@@ -158,6 +162,7 @@ export function ConversationTabs({
   const tabsRowInnerRef = useRef<HTMLDivElement>(null);
   const measureRowRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const vscodeButtonRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [inlineTabCount, setInlineTabCount] = useState(visibleTabs.length);
 
@@ -165,7 +170,8 @@ export function ConversationTabs({
     const rowInner = tabsRowInnerRef.current;
     const measureRow = measureRowRef.current;
     const menuEl = menuRef.current;
-    if (!rowInner || !measureRow || !menuEl) return undefined;
+    const vscodeEl = vscodeButtonRef.current;
+    if (!rowInner || !measureRow || !menuEl || !vscodeEl) return undefined;
 
     const measure = () => {
       const measureButtons = measureRow.querySelectorAll<HTMLButtonElement>(
@@ -189,13 +195,14 @@ export function ConversationTabs({
       }
 
       const menuWidth = menuEl.getBoundingClientRect().width;
+      const vscodeWidth = vscodeEl.getBoundingClientRect().width;
       const gapCss =
         getComputedStyle(rowInner).columnGap || getComputedStyle(rowInner).gap;
       const gapPx = parseFloat(gapCss) || 6;
 
       let nextCount = 0;
       for (let k = tabCount; k >= 0; k -= 1) {
-        let total = menuWidth;
+        let total = menuWidth + vscodeWidth;
         for (let i = 0; i < k; i += 1) {
           total += widths[i] ?? 0;
         }
@@ -278,58 +285,67 @@ export function ConversationTabs({
           ref={tabsRowInnerRef}
           className="flex w-full min-w-0 flex-nowrap items-center justify-start"
         >
-          <div className="flex w-fit max-w-full min-w-0 flex-nowrap items-center gap-1.5">
-            <LayoutGroup id="conversation-drawer-tabs">
-              <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-hidden">
-                {visibleTabs
-                  .slice(0, safeInlineTabCount)
-                  .map(
-                    (
-                      {
-                        tabValue,
-                        icon,
-                        onClick,
-                        isActive,
-                        tooltipContent,
-                        tooltipAriaLabel,
-                        label,
-                        className: tabClassName,
-                      },
-                      index,
-                    ) => (
-                      <ChatActionTooltip
-                        key={`${tabValue}-${index}`}
-                        tooltip={tooltipContent}
-                        ariaLabel={tooltipAriaLabel}
-                      >
-                        <ConversationTabNav
-                          tabValue={tabValue}
-                          icon={icon}
-                          onClick={onClick}
-                          isActive={isActive}
-                          label={label}
-                          className={cn(tabClassName, "shrink-0")}
-                        />
-                      </ChatActionTooltip>
-                    ),
-                  )}
+          <div className="flex min-w-0 flex-1 items-center justify-start overflow-hidden">
+            <div className="flex w-fit max-w-full min-w-0 items-center gap-1.5">
+              <LayoutGroup id="conversation-drawer-tabs">
+                <div className="flex w-fit max-w-full min-w-0 flex-nowrap items-center gap-1.5 overflow-x-hidden">
+                  {visibleTabs
+                    .slice(0, safeInlineTabCount)
+                    .map(
+                      (
+                        {
+                          tabValue,
+                          icon,
+                          onClick,
+                          isActive,
+                          tooltipContent,
+                          tooltipAriaLabel,
+                          label,
+                          className: tabClassName,
+                        },
+                        index,
+                      ) => (
+                        <ChatActionTooltip
+                          key={`${tabValue}-${index}`}
+                          tooltip={tooltipContent}
+                          ariaLabel={tooltipAriaLabel}
+                        >
+                          <ConversationTabNav
+                            tabValue={tabValue}
+                            icon={icon}
+                            onClick={onClick}
+                            isActive={isActive}
+                            label={label}
+                            className={cn(tabClassName, "shrink-0")}
+                            suppressLayoutAnimation={isPanelResizing}
+                          />
+                        </ChatActionTooltip>
+                      ),
+                    )}
+                </div>
+              </LayoutGroup>
+              <div ref={menuRef} className="relative shrink-0">
+                <EllipsisButton
+                  ref={anchorRef}
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                  ariaLabel={t(I18nKey.COMMON$MORE_OPTIONS)}
+                  iconClassName={
+                    variant === "compact"
+                      ? mobileTopBarIconClassName
+                      : undefined
+                  }
+                />
+                <ConversationTabsContextMenu
+                  isOpen={isMenuOpen}
+                  onClose={() => setIsMenuOpen(false)}
+                  ignoreOutsideClickRef={anchorRef}
+                  anchorRef={anchorRef}
+                />
               </div>
-            </LayoutGroup>
-            <div ref={menuRef} className="relative shrink-0">
-              <EllipsisButton
-                ref={anchorRef}
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                ariaLabel={t(I18nKey.COMMON$MORE_OPTIONS)}
-                iconClassName={
-                  variant === "compact" ? mobileTopBarIconClassName : undefined
-                }
-              />
-              <ConversationTabsContextMenu
-                isOpen={isMenuOpen}
-                onClose={() => setIsMenuOpen(false)}
-                ignoreOutsideClickRef={anchorRef}
-              />
             </div>
+          </div>
+          <div ref={vscodeButtonRef} className="ml-auto shrink-0 pr-1">
+            <DrawerVSCodeLink />
           </div>
         </div>
       </div>

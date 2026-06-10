@@ -21,7 +21,6 @@ import { sortFilesByPriority } from "#/utils/file-priority";
 import { FileQuickRow } from "#/components/features/files-tab/file-quick-row";
 import { FileTreeView } from "#/components/features/files-tab/file-tree-view";
 import { FileContentViewer } from "#/components/features/files-tab/file-content-viewer";
-import { FilesTabVSCodeLink } from "#/components/features/files-tab/files-tab-vscode-link";
 import { SegmentedToggle } from "#/components/features/files-tab/segmented-toggle";
 import type { ViewMode } from "#/components/features/files-tab/view-mode";
 import RefreshIcon from "#/icons/u-refresh.svg?react";
@@ -138,7 +137,7 @@ function FilesTab() {
           />
         )}
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-1">
           {/* Open the currently-selected file in a new browser tab. Only
               meaningful while we're showing a file (not the diff view) and
               we've resolved its staticUrl from the workspace fileserver. */}
@@ -155,7 +154,6 @@ function FilesTab() {
               <LinkExternalIcon width={14} height={14} />
             </a>
           )}
-          <FilesTabVSCodeLink />
           <button
             type="button"
             onClick={refreshFiles}

@@ -26,6 +26,10 @@ vi.mock("#/hooks/use-task-list", () => ({
   }),
 }));
 
+vi.mock("#/hooks/use-is-archived-conversation", () => ({
+  useIsArchivedConversation: () => false,
+}));
+
 function seedActiveBackend(backend: Backend): void {
   localStorage.setItem(BACKENDS_STORAGE_KEY, JSON.stringify([backend]));
   localStorage.setItem(
