@@ -119,8 +119,7 @@ export type SettingsScope = "personal";
  *   (Claude Code / Codex / Gemini CLI / Custom). The LLM / condenser / MCP
  *   settings are inert; ``acp_command`` / ``acp_args`` / ``acp_model`` /
  *   ``acp_server`` apply instead. Provider credentials are supplied through the
- *   Secrets panel (``request.secrets`` / ``agent_context.secrets``), never
- *   through a per-agent env channel.
+ *   Secrets panel (``request.secrets``), never through a per-agent env channel.
  */
 export type AgentKind = "openhands" | "acp";
 
