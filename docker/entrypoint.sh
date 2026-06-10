@@ -289,31 +289,6 @@ if [ -n "${PUBLIC_MODE_PORT:-}" ]; then
   PIDS+=($!)
 fi
 
-# ── 5. (Optional) Public-mode static server ─────────────────────────────────
-# When PUBLIC_MODE_PORT is set, start a second static-server instance that
-# serves the same frontend WITHOUT injecting the session key into the HTML
-# (--auth-required). This is used by auth-mode E2E tests to verify the
-# ApiKeyEntryScreen gate, key rotation recovery, etc.
-if [ -n "${PUBLIC_MODE_PORT:-}" ]; then
-  log "Starting public-mode frontend on port $PUBLIC_MODE_PORT (--auth-required)..."
-  node /opt/agent-canvas/static-server.mjs \
-    --port "$PUBLIC_MODE_PORT" \
-    --host 0.0.0.0 \
-    --dir /opt/agent-canvas/frontend \
-    --auth-required \
-    --route "/api/automation=http://127.0.0.1:${AUTOMATION_PORT}" \
-    --route "/api=http://127.0.0.1:${AGENT_SERVER_PORT}" \
-    --route "/server_info=http://127.0.0.1:${AGENT_SERVER_PORT}" \
-    --route "/sockets=http://127.0.0.1:${AGENT_SERVER_PORT}" \
-    --route "/alive=http://127.0.0.1:${AGENT_SERVER_PORT}" \
-    --route "/health=http://127.0.0.1:${AGENT_SERVER_PORT}" \
-    --route "/ready=http://127.0.0.1:${AGENT_SERVER_PORT}" \
-    --route "/docs=http://127.0.0.1:${AGENT_SERVER_PORT}" \
-    --route "/redoc=http://127.0.0.1:${AGENT_SERVER_PORT}" \
-    --route "/openapi.json=http://127.0.0.1:${AGENT_SERVER_PORT}" &
-  PIDS+=($!)
-fi
-
 log "All services started. Unified entry point: http://0.0.0.0:${PORT}/"
 
 # Keep the container alive while the static-server (ingress) is running.
