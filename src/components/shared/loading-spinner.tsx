@@ -4,14 +4,12 @@ import { cn } from "#/utils/utils";
 interface LoadingSpinnerProps {
   size: "small" | "large";
   className?: string;
-  innerClassName?: string;
   outerClassName?: string;
 }
 
 export function LoadingSpinner({
   size,
   className,
-  innerClassName,
   outerClassName,
 }: LoadingSpinnerProps) {
   const sizeStyle =
@@ -22,13 +20,6 @@ export function LoadingSpinner({
       data-testid="loading-spinner"
       className={cn("relative", sizeStyle, className)}
     >
-      <div
-        className={cn(
-          "rounded-full border-4 border-[var(--oh-border)] absolute",
-          sizeStyle,
-          innerClassName,
-        )}
-      />
       <LoadingSpinnerOuter
         className={cn("absolute animate-spin", sizeStyle, outerClassName)}
       />

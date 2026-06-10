@@ -105,6 +105,8 @@ export function ChooseAgentStep({
   const { mutate: saveSettings, isPending: isSaving } = useSaveSettings();
 
   const handleNext = () => {
+    // The diff builder seeds the preferred default model (Vertex-safe for
+    // Gemini) when none is passed.
     const diff = buildAcpAgentSettingsDiff(selectedAgentId);
     if (!diff) {
       // Unknown id (shouldn't be reachable through the UI). Advance

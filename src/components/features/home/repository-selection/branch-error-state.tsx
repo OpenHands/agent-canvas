@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { cn } from "#/utils/utils";
 import { formControlFieldClassName } from "#/utils/form-control-classes";
+import { I18nKey } from "#/i18n/declaration";
 
 interface BranchErrorStateProps {
   wrapperClassName?: string;
@@ -17,7 +18,7 @@ export function BranchErrorState({ wrapperClassName }: BranchErrorStateProps) {
         wrapperClassName,
       )}
     >
-      <span className="text-sm">{t("HOME$FAILED_TO_LOAD_BRANCHES")}</span>
+      <span className="text-sm">{t(I18nKey.HOME$FAILED_TO_LOAD_BRANCHES)}</span>
     </div>
   );
 }

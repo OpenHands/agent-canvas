@@ -5,6 +5,7 @@ import { OptionalTag } from "./optional-tag";
 import { cn } from "#/utils/utils";
 import { formControlSettingsFieldClassName } from "#/utils/form-control-classes";
 import { heroUiAutocompleteSelectorButtonClassName } from "#/ui/combobox-caret";
+import { I18nKey } from "#/i18n/declaration";
 
 interface SettingsDropdownInputProps {
   testId: string;
@@ -75,7 +76,7 @@ export function SettingsDropdownInput({
         isClearable={isClearable}
         isDisabled={isDisabled || isLoading}
         isLoading={isLoading}
-        placeholder={isLoading ? t("HOME$LOADING") : placeholder}
+        placeholder={isLoading ? t(I18nKey.HOME$LOADING) : placeholder}
         allowsCustomValue={allowsCustomValue}
         isRequired={required}
         className="w-full"

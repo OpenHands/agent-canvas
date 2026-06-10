@@ -328,9 +328,31 @@ if (!data || tests.length === 0) {
       },
     ];
   } else {
-    console.warn(
-      `Warning: no results file at ${resultsPath} and no marker files`,
-    );
+    // No results file AND no marker files — Playwright was likely killed
+    // before the DoneMarkerReporter could run. Check the exit code to
+    // distinguish a genuine timeout from other failures.
+    const exitCode = args.exit_code || "";
+    if (exitCode === "124") {
+      console.warn(
+        `Warning: test suite timed out (exit code 124) — no results were collected`,
+      );
+      tests = [
+        {
+          title: "(test suite timed out before completing)",
+          status: "timedOut",
+          durationMs: 0,
+          retryCount: 0,
+          error:
+            "The CI wrapper killed the Playwright process after the 5-minute deadline. " +
+            "No test results were collected. Check the workflow logs for details.",
+        },
+      ];
+    } else {
+      console.warn(
+        `Warning: no results file at ${resultsPath} and no marker files` +
+          (exitCode ? ` (exit code: ${exitCode})` : ""),
+      );
+    }
   }
 }
 

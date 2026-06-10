@@ -7,6 +7,7 @@ import {
   useConversationHistory,
 } from "#/hooks/query/use-conversation-history";
 import { isTaskConversationId } from "#/utils/conversation-local-storage";
+import { seedModelSwitchesFromHistory } from "#/hooks/chat/record-model-switch-message";
 import type { OpenHandsEvent } from "#/types/agent-server/core";
 
 const getEventTimestamp = (event: OpenHandsEvent): string | undefined =>
@@ -141,6 +142,13 @@ export const useLoadOlderEvents = (
       const older = [...page.items].reverse();
       if (older.length > 0) {
         addEvents(older);
+        // The initial preload only seeds switches from the tail page; a switch
+        // in an older page is hidden as a card but never seeded — silently lost.
+        // Reseed over the merged `uiEvents` (idempotent) so it still surfaces.
+        seedModelSwitchesFromHistory(
+          conversationId,
+          useEventStore.getState().uiEvents,
+        );
       }
       // Stop once the server signals there are no more pages, OR — for
       // servers that don't fill in `next_page_id` for filtered queries —

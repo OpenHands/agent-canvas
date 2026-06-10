@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   expect,
   type APIRequestContext,
@@ -41,6 +42,12 @@ const llmModel =
     : openAIKey?.trim()
       ? "openai/gpt-5.4-mini"
       : "anthropic/claude-haiku-4-5-20251001");
+const DEFAULT_AGENT_TOOLS = [
+  { name: "terminal", params: {} },
+  { name: "file_editor", params: {} },
+  { name: "task_tracker", params: {} },
+  { name: "canvas_ui", params: {} },
+];
 export const sessionApiKey = firstNonEmpty(
   process.env.LIVE_E2E_SESSION_API_KEY,
   process.env.LOCAL_BACKEND_API_KEY,
@@ -50,9 +57,14 @@ if (!sessionApiKey) {
   throw new Error("LIVE_E2E_SESSION_API_KEY must be set for live E2E.");
 }
 
+const LIVE_LLM_PROFILE_NAME = `live-e2e-${sessionApiKey.slice(0, 8)}`;
 export const hasLiveLLMConfig = Boolean(llmApiKey);
 export const missingLiveLLMConfigMessage =
   "Set LIVE_E2E_LLM_API_KEY, OPENAI_API_KEY, ANTHROPIC_API_KEY, or LLM_API_KEY to run live E2E.";
+
+interface ConfigureLiveAgentServerOptions {
+  enableCritic?: boolean;
+}
 
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -89,21 +101,15 @@ export function getLiveArtifactMask(page: Page): Locator[] {
   ];
 }
 
-export async function configureLiveAgentServer(request: APIRequestContext) {
+export async function configureLiveAgentServer(
+  request: APIRequestContext,
+  options: ConfigureLiveAgentServerOptions = {},
+) {
   if (!llmApiKey.trim()) {
     throw new Error(missingLiveLLMConfigMessage);
   }
 
-  const llmSettings: Record<string, string | number> = {
-    model: llmModel,
-    api_key: llmApiKey,
-    extended_thinking_budget: 1024,
-    max_output_tokens: 2048,
-    temperature: 0,
-  };
-  if (llmBaseUrl) {
-    llmSettings.base_url = llmBaseUrl;
-  }
+  await ensureLiveLlmProfile(request);
 
   const settingsResponse = await request.patch(`${BACKEND_URL}/api/settings`, {
     headers: {
@@ -111,10 +117,11 @@ export async function configureLiveAgentServer(request: APIRequestContext) {
     },
     data: {
       agent_settings_diff: {
-        llm: llmSettings,
+        llm: buildLiveLlmSettings(),
         condenser: {
           enabled: false,
         },
+        verification: buildLiveVerificationSettings(options),
       },
       conversation_settings_diff: {
         confirmation_mode: false,
@@ -126,6 +133,139 @@ export async function configureLiveAgentServer(request: APIRequestContext) {
     settingsResponse.ok(),
     `PATCH /api/settings failed with ${settingsResponse.status()}; response body omitted because live LLM credentials are configured in this request.`,
   ).toBeTruthy();
+}
+
+async function ensureLiveLlmProfile(request: APIRequestContext) {
+  const profileUrl = `${BACKEND_URL}/api/profiles/${encodeURIComponent(LIVE_LLM_PROFILE_NAME)}`;
+  const headers = {
+    "X-Session-API-Key": sessionApiKey,
+  };
+
+  await deleteLiveLlmProfile(request);
+
+  const saveResponse = await request.post(profileUrl, {
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+    },
+    data: {
+      llm: buildLiveLlmSettings(),
+      include_secrets: true,
+    },
+  });
+  expect(
+    saveResponse.ok(),
+    `POST /api/profiles/${LIVE_LLM_PROFILE_NAME} failed with ${saveResponse.status()}; response body omitted because live LLM credentials are configured in this request.`,
+  ).toBeTruthy();
+
+  const activateResponse = await request.post(`${profileUrl}/activate`, {
+    headers,
+  });
+  expect(
+    activateResponse.ok(),
+    `POST /api/profiles/${LIVE_LLM_PROFILE_NAME}/activate failed with ${activateResponse.status()}; response body omitted because live LLM credentials are configured in this request.`,
+  ).toBeTruthy();
+}
+
+export async function deleteLiveLlmProfile(request: APIRequestContext) {
+  await request.delete(
+    `${BACKEND_URL}/api/profiles/${encodeURIComponent(LIVE_LLM_PROFILE_NAME)}`,
+    {
+      headers: {
+        "X-Session-API-Key": sessionApiKey,
+      },
+    },
+  );
+}
+
+function buildLiveLlmSettings(): Record<string, string | number> {
+  const llmSettings: Record<string, string | number> = {
+    model: llmModel,
+    api_key: llmApiKey,
+    extended_thinking_budget: 1024,
+    max_output_tokens: 2048,
+    temperature: 0,
+  };
+  if (llmBaseUrl) {
+    llmSettings.base_url = llmBaseUrl;
+  }
+  return llmSettings;
+}
+
+function buildLiveVerificationSettings(
+  options: ConfigureLiveAgentServerOptions = {},
+): Record<string, string | number | boolean> {
+  const verificationSettings: Record<string, string | number | boolean> =
+    options.enableCritic
+      ? {
+          critic_enabled: true,
+          critic_mode: "finish_and_message",
+          enable_iterative_refinement: false,
+          critic_api_key: llmApiKey,
+          critic_model_name: llmModel,
+        }
+      : {
+          critic_enabled: false,
+          enable_iterative_refinement: false,
+        };
+  if (options.enableCritic && llmBaseUrl) {
+    verificationSettings.critic_server_url = llmBaseUrl;
+  }
+  return verificationSettings;
+}
+
+export async function createLiveConversation(
+  request: APIRequestContext,
+  options: ConfigureLiveAgentServerOptions = {},
+) {
+  if (!llmApiKey.trim()) {
+    throw new Error(missingLiveLLMConfigMessage);
+  }
+
+  const conversationId = randomUUID();
+  const response = await request.post(`${BACKEND_URL}/api/conversations`, {
+    headers: {
+      "X-Session-API-Key": sessionApiKey,
+    },
+    data: {
+      conversation_id: conversationId,
+      workspace: {
+        kind: "LocalWorkspace",
+        working_dir: `workspace/project/${conversationId}`,
+      },
+      worktree: true,
+      max_iterations: 6,
+      stuck_detection: true,
+      autotitle: true,
+      confirmation_policy: {
+        kind: "NeverConfirm",
+      },
+      agent_settings: {
+        agent_kind: "openhands",
+        llm: buildLiveLlmSettings(),
+        condenser: {
+          enabled: false,
+        },
+        verification: buildLiveVerificationSettings(options),
+        tools: DEFAULT_AGENT_TOOLS,
+      },
+      tool_module_qualnames: {
+        canvas_ui: "canvas_ui_tool",
+      },
+    },
+  });
+
+  expect(
+    response.ok(),
+    `POST /api/conversations failed with ${response.status()}; response body omitted because live LLM credentials are configured in this request.`,
+  ).toBeTruthy();
+
+  const body = (await response.json()) as { id?: unknown };
+  expect(
+    typeof body.id === "string" && body.id.length > 0,
+    "POST /api/conversations did not return a conversation id.",
+  ).toBe(true);
+  return body.id as string;
 }
 
 export async function enableLiveE2EFlags(page: Page) {
@@ -458,6 +598,20 @@ function isSuccessfulBashObservation(event: unknown) {
   );
 }
 
+function hasCriticResult(event: unknown) {
+  if (!event || typeof event !== "object") {
+    return false;
+  }
+
+  const criticResult = (event as { critic_result?: unknown }).critic_result;
+  if (!criticResult || typeof criticResult !== "object") {
+    return false;
+  }
+
+  const score = (criticResult as { score?: unknown }).score;
+  return typeof score === "number" && Number.isFinite(score);
+}
+
 export async function waitForSuccessfulBashObservation(
   request: APIRequestContext,
   conversationId: string,
@@ -485,6 +639,54 @@ export async function waitForSuccessfulBashObservation(
         const body = (await response.json()) as { items?: unknown[] };
         return body.items?.some(isSuccessfulBashObservation) ?? false;
       },
+      { timeout: 120_000 },
+    )
+    .toBe(true);
+}
+
+export async function waitForCriticResultEvent(
+  request: APIRequestContext,
+  conversationId: string,
+) {
+  await expect
+    .poll(
+      async () => {
+        const response = await request.get(
+          `${BACKEND_URL}/api/conversations/${encodeURIComponent(conversationId)}/events/search`,
+          {
+            headers: {
+              "X-Session-API-Key": sessionApiKey,
+            },
+            params: {
+              limit: "100",
+              sort_order: "TIMESTAMP_DESC",
+            },
+          },
+        );
+
+        if (!response.ok()) {
+          return false;
+        }
+
+        const body = (await response.json()) as { items?: unknown[] };
+        return body.items?.some(hasCriticResult) ?? false;
+      },
+      { timeout: 180_000 },
+    )
+    .toBe(true);
+}
+
+export async function waitForCriticResultDisplay(page: Page) {
+  await expect
+    .poll(
+      async () =>
+        page
+          .evaluate(() =>
+            document.body.textContent?.includes(
+              "Critic: agent success likelihood",
+            ),
+          )
+          .catch(() => false),
       { timeout: 120_000 },
     )
     .toBe(true);
