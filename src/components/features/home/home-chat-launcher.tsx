@@ -202,11 +202,23 @@ export function HomeChatLauncher() {
       <div className="flex justify-start">
         {hasSelection ? (
           <HomeGitControlBarPreview
+            isLocal={isLocal}
+            disabled={isCreating}
             workspace={pendingWorkspace}
+            onWorkspaceChange={setPendingWorkspace}
             repository={pendingRepository}
             branch={pendingBranch}
             provider={pendingProvider}
-            onRepoClick={() => setIsDialogOpen(true)}
+            onRepositoryChange={(repository) => {
+              setPendingRepository(repository);
+              setPendingBranch(null);
+            }}
+            onBranchChange={setPendingBranch}
+            onProviderChange={(nextProvider) => {
+              setPendingProvider(nextProvider);
+              setPendingRepository(null);
+              setPendingBranch(null);
+            }}
           />
         ) : (
           <OpenLauncherButton
