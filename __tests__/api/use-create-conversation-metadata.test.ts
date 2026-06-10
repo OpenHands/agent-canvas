@@ -52,7 +52,6 @@ vi.mock("#/api/agent-server-config", () => ({
   buildConversationWorkingDir: vi.fn(
     (id: string) => `/state/workspaces/${id.replace(/-/g, "")}`,
   ),
-  getConfiguredWorkerUrls: vi.fn(() => []),
   shouldLoadPublicSkills: vi.fn(() => true),
   syncBakedSessionApiKey: vi.fn(),
 }));

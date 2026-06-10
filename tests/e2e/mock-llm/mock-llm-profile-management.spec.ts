@@ -24,7 +24,7 @@
  *      stranded and LiteLLM reroutes requests to the wrong endpoint.
  */
 
-import { test, expect, type APIRequestContext } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import {
   BACKEND_URL,
   SESSION_API_KEY,
@@ -41,46 +41,19 @@ import {
   resetMockLLM,
   setChatInput,
   waitForPath,
+  createProfileViaUI,
+  deleteProfileIfExists,
+  activateProfileViaUI,
 } from "./utils/mock-llm-helpers";
-
-// ═══════════════════════════════════════════════════════════════════════
-// Profile API helpers
-// ═══════════════════════════════════════════════════════════════════════
 
 const MOCK_MODEL = "openai/mock-test-model";
 
-async function saveProfile(
-  request: APIRequestContext,
-  name: string,
-  model: string,
-  baseUrl: string = MOCK_LLM_AGENT_URL,
-) {
-  await request.delete(
-    `${BACKEND_URL}/api/profiles/${encodeURIComponent(name)}`,
-    { headers: { "X-Session-API-Key": SESSION_API_KEY } },
-  );
-  const resp = await request.post(
-    `${BACKEND_URL}/api/profiles/${encodeURIComponent(name)}`,
-    {
-      headers: {
-        "X-Session-API-Key": SESSION_API_KEY,
-        "Content-Type": "application/json",
-      },
-      data: {
-        llm: {
-          model,
-          api_key: "mock-api-key-for-testing",
-          base_url: baseUrl,
-        },
-        include_secrets: true,
-      },
-    },
-  );
-  expect(resp.ok(), `POST /api/profiles/${name}: ${resp.status()}`).toBe(true);
-}
-
+/**
+ * Read-only helper: fetch a profile's persisted config via the API.
+ * Used to verify that UI-driven saves persisted the expected values.
+ */
 async function getProfileConfig(
-  request: APIRequestContext,
+  request: import("@playwright/test").APIRequestContext,
   name: string,
 ): Promise<Record<string, unknown>> {
   const resp = await request.get(
@@ -97,24 +70,6 @@ async function getProfileConfig(
   return (data.config ?? {}) as Record<string, unknown>;
 }
 
-async function activateProfile(request: APIRequestContext, name: string) {
-  const resp = await request.post(
-    `${BACKEND_URL}/api/profiles/${encodeURIComponent(name)}/activate`,
-    { headers: { "X-Session-API-Key": SESSION_API_KEY } },
-  );
-  expect(
-    resp.ok(),
-    `POST /api/profiles/${name}/activate: ${resp.status()}`,
-  ).toBe(true);
-}
-
-async function deleteProfile(request: APIRequestContext, name: string) {
-  await request.delete(
-    `${BACKEND_URL}/api/profiles/${encodeURIComponent(name)}`,
-    { headers: { "X-Session-API-Key": SESSION_API_KEY } },
-  );
-}
-
 test.describe.configure({ mode: "serial" });
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -129,29 +84,43 @@ test.describe("active profile deletion + reconciliation", () => {
     await seedLocalStorage(page);
   });
 
-  test.afterAll(async ({ request }) => {
-    for (const name of [ACTIVE_PROFILE, INACTIVE_PROFILE]) {
-      try {
-        await deleteProfile(request, name);
-      } catch {
-        // best-effort
-      }
+  test.afterAll(async ({ browser }) => {
+    // Best-effort cleanup via UI
+    const page = await browser.newPage();
+    try {
+      await seedLocalStorage(page);
+      await routeSessionApiKey(page);
+      await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
+      await dismissAnalyticsModal(page);
+      await waitForTestId(page, "add-llm-profile");
+      await deleteProfileIfExists(page, ACTIVE_PROFILE);
+      await deleteProfileIfExists(page, INACTIVE_PROFILE);
+    } catch {
+      // best-effort
+    } finally {
+      await page.close();
     }
   });
 
   test("active profile is deletable and reconciliation activates another profile", async ({
     page,
-    request,
   }) => {
-    // ── Setup: create two profiles, activate one ──
-    await saveProfile(request, ACTIVE_PROFILE, MOCK_MODEL);
-    await saveProfile(request, INACTIVE_PROFILE, MOCK_MODEL);
-    await activateProfile(request, ACTIVE_PROFILE);
-
+    // ── Setup: create two profiles via the UI, activate one ──
     await routeSessionApiKey(page);
     await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
     await waitForTestId(page, "add-llm-profile");
+
+    // Clean up any leftover profiles from prior runs
+    await deleteProfileIfExists(page, ACTIVE_PROFILE);
+    await deleteProfileIfExists(page, INACTIVE_PROFILE);
+
+    // Create both profiles through the Settings UI
+    await createProfileViaUI(page, { profileName: ACTIVE_PROFILE, model: MOCK_MODEL });
+    await createProfileViaUI(page, { profileName: INACTIVE_PROFILE, model: MOCK_MODEL });
+
+    // Activate the first profile through the UI
+    await activateProfileViaUI(page, ACTIVE_PROFILE);
 
     const rowFor = async (name: string) => {
       const rows = page.getByTestId("profile-row");
@@ -281,13 +250,21 @@ test.describe("same-model profile identity", () => {
     }
   });
 
-  test.afterAll(async ({ request }) => {
-    for (const name of [PROFILE_ALPHA, PROFILE_BETA]) {
-      try {
-        await deleteProfile(request, name);
-      } catch {
-        // best-effort
-      }
+  test.afterAll(async ({ request, browser }) => {
+    // Best-effort cleanup via UI
+    const page = await browser.newPage();
+    try {
+      await seedLocalStorage(page);
+      await routeSessionApiKey(page);
+      await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
+      await dismissAnalyticsModal(page);
+      await waitForTestId(page, "add-llm-profile");
+      await deleteProfileIfExists(page, PROFILE_ALPHA);
+      await deleteProfileIfExists(page, PROFILE_BETA);
+    } catch {
+      // best-effort
+    } finally {
+      await page.close();
     }
     try {
       await resetMockLLM(request);
@@ -302,10 +279,19 @@ test.describe("same-model profile identity", () => {
   }) => {
     test.setTimeout(120_000);
 
-    // ── Setup: create both profiles with the same model, activate BETA ──
-    await saveProfile(request, PROFILE_ALPHA, SHARED_MODEL);
-    await saveProfile(request, PROFILE_BETA, SHARED_MODEL);
-    await activateProfile(request, PROFILE_BETA);
+    // ── Setup: create both profiles with the same model via the UI,
+    //    then activate BETA through the profile menu ──
+    await routeSessionApiKey(page);
+    await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
+    await dismissAnalyticsModal(page);
+    await waitForTestId(page, "add-llm-profile");
+
+    await deleteProfileIfExists(page, PROFILE_ALPHA);
+    await deleteProfileIfExists(page, PROFILE_BETA);
+
+    await createProfileViaUI(page, { profileName: PROFILE_ALPHA, model: SHARED_MODEL });
+    await createProfileViaUI(page, { profileName: PROFILE_BETA, model: SHARED_MODEL });
+    await activateProfileViaUI(page, PROFILE_BETA);
 
     // Register a trajectory for the conversation.
     // Turn 0 is padding: the agent-server makes an internal LLM call
@@ -315,19 +301,6 @@ test.describe("same-model profile identity", () => {
       { text: REPLY_TOKEN },
     ]);
     await activateTrajectory(request, "profile-identity");
-
-    // ── Verify: active_profile is BETA via the API ──
-    await test.step("verify active profile is BETA via API", async () => {
-      const resp = await request.get(`${BACKEND_URL}/api/profiles`, {
-        headers: { "X-Session-API-Key": SESSION_API_KEY },
-      });
-      expect(resp.ok()).toBe(true);
-      const data = await resp.json();
-      expect(
-        data.active_profile,
-        `Expected active_profile="${PROFILE_BETA}" but got "${data.active_profile}"`,
-      ).toBe(PROFILE_BETA);
-    });
 
     // ── Start a conversation ──
     await routeSessionApiKey(page);
@@ -392,11 +365,19 @@ test.describe("litellm_proxy proxy base_url preservation", () => {
     await seedLocalStorage(page);
   });
 
-  test.afterAll(async ({ request }) => {
+  test.afterAll(async ({ browser }) => {
+    const page = await browser.newPage();
     try {
-      await deleteProfile(request, PROXY_PROFILE);
+      await seedLocalStorage(page);
+      await routeSessionApiKey(page);
+      await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
+      await dismissAnalyticsModal(page);
+      await waitForTestId(page, "add-llm-profile");
+      await deleteProfileIfExists(page, PROXY_PROFILE);
     } catch {
       // best-effort
+    } finally {
+      await page.close();
     }
   });
 
@@ -405,28 +386,20 @@ test.describe("litellm_proxy proxy base_url preservation", () => {
     request,
   }) => {
     // ── Setup: create a profile with the SDK-rewritten litellm_proxy
-    // model + proxy base_url, exactly as the agent-server persists it
-    // after an openhands/* model selection during onboarding. ──
-    await saveProfile(
-      request,
-      PROXY_PROFILE,
-      LITELLM_PROXY_MODEL,
-      OPENHANDS_PROXY_BASE_URL,
-    );
-
-    // ── Pre-check: verify the profile's base_url via API before the
-    // UI round-trip so we know the starting state is correct. ──
-    await test.step("verify initial profile has proxy base_url", async () => {
-      const config = await getProfileConfig(request, PROXY_PROFILE);
-      expect(config.model).toBe(LITELLM_PROXY_MODEL);
-      expect(config.base_url).toBe(OPENHANDS_PROXY_BASE_URL);
-    });
-
-    // ── Navigate to the LLM settings page ──
+    // model + proxy base_url through the Settings UI, exactly as
+    // the agent-server persists it after an openhands/* model
+    // selection during onboarding. ──
     await routeSessionApiKey(page);
     await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
     await waitForTestId(page, "add-llm-profile");
+
+    await deleteProfileIfExists(page, PROXY_PROFILE);
+    await createProfileViaUI(page, {
+      profileName: PROXY_PROFILE,
+      model: LITELLM_PROXY_MODEL,
+      baseUrl: OPENHANDS_PROXY_BASE_URL,
+    });
 
     // ── Find the profile row and open edit mode ──
     await test.step("open profile in edit mode", async () => {

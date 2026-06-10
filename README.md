@@ -73,6 +73,7 @@ agent-canvas --backend-only   # agent server + automation backend + ingress only
 - A host directory for `PROJECTS_PATH` containing the project folders you want the agent to access. Create it before starting the container.
 
 **macOS / Linux:**
+
 ```sh
 export PROJECTS_PATH="$HOME/projects"  # directory containing your project folders
 mkdir -p "$PROJECTS_PATH" "$HOME/.openhands"
