@@ -183,11 +183,10 @@ export function readStoredBackends(): Backend[] {
   }
 }
 
-export function readStoredActiveBackend(): BackendSelection | null {
-  if (typeof window === "undefined") return null;
+function parseBackendSelection(raw: string | null): BackendSelection | null {
+  if (!raw) return null;
+
   try {
-    const raw = window.localStorage.getItem(ACTIVE_BACKEND_STORAGE_KEY);
-    if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (
       typeof parsed !== "object" ||
@@ -207,23 +206,74 @@ export function readStoredActiveBackend(): BackendSelection | null {
   }
 }
 
+function readStorageItem(
+  storage: Storage | undefined,
+  key: string,
+): string | null {
+  try {
+    return storage?.getItem(key) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStorageItem(
+  storage: Storage | undefined,
+  key: string,
+  value: string,
+): void {
+  try {
+    storage?.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+}
+
+function removeStorageItem(storage: Storage | undefined, key: string): void {
+  try {
+    storage?.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function readStoredActiveBackend(): BackendSelection | null {
+  if (typeof window === "undefined") return null;
+
+  // Active backend is tab-scoped so reloading tab A does not adopt tab B's
+  // backend. localStorage remains a last-used fallback for fresh tabs and old
+  // persisted state.
+  const sessionSelection = parseBackendSelection(
+    readStorageItem(window.sessionStorage, ACTIVE_BACKEND_STORAGE_KEY),
+  );
+  if (sessionSelection) return sessionSelection;
+
+  return parseBackendSelection(
+    readStorageItem(window.localStorage, ACTIVE_BACKEND_STORAGE_KEY),
+  );
+}
+
 export function writeStoredActiveBackend(
   selection: BackendSelection | null,
 ): void {
   if (typeof window === "undefined") return;
-  try {
-    if (!selection) {
-      window.localStorage.removeItem(ACTIVE_BACKEND_STORAGE_KEY);
-      return;
-    }
-    window.localStorage.setItem(
-      ACTIVE_BACKEND_STORAGE_KEY,
-      JSON.stringify({
-        backendId: selection.backendId,
-        orgId: selection.orgId ?? null,
-      }),
-    );
-  } catch {
-    /* ignore */
+
+  if (!selection) {
+    removeStorageItem(window.sessionStorage, ACTIVE_BACKEND_STORAGE_KEY);
+    removeStorageItem(window.localStorage, ACTIVE_BACKEND_STORAGE_KEY);
+    return;
   }
+
+  const serialized = JSON.stringify({
+    backendId: selection.backendId,
+    orgId: selection.orgId ?? null,
+  });
+  // Mirror to localStorage only as the default for new tabs/backward
+  // compatibility; reads in existing tabs prefer sessionStorage.
+  writeStorageItem(
+    window.sessionStorage,
+    ACTIVE_BACKEND_STORAGE_KEY,
+    serialized,
+  );
+  writeStorageItem(window.localStorage, ACTIVE_BACKEND_STORAGE_KEY, serialized);
 }

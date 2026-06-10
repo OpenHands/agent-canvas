@@ -60,6 +60,11 @@ export interface SendMessageRequest {
 }
 
 export interface AppConversationStartRequest {
+  // Re-provision an EXISTING conversation (waking a recycled sandbox) instead
+  // of minting a new one. The backend keys the rebuilt conversation on this id
+  // and, for ACP, resumes it from the durable event store with a bootstrap
+  // prompt (OpenHands#14640). Omit/null to create a fresh conversation.
+  conversation_id?: string | null;
   initial_message?: SendMessageRequest | null;
   processors?: unknown[]; // EventCallbackProcessor - keeping as unknown for now
   llm_model?: string | null;
@@ -166,6 +171,15 @@ export interface AppConversation {
    * the runtime actually operates in).
    */
   selected_workspace?: string | null;
+  /**
+   * The LLM profile this conversation was created with / last switched to.
+   * Hydrated from client-side metadata (see
+   * `ConversationMetadata.active_profile`). Preferred over matching
+   * `llm_model` against the profile list, which is ambiguous when several
+   * profiles share a model (#1082). Null when unknown (e.g. created by an
+   * older client) — consumers fall back to model-matching.
+   */
+  active_profile?: string | null;
   public?: boolean;
   sub_conversation_ids: string[];
 }

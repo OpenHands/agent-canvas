@@ -4,7 +4,7 @@ import {
   type Settings,
   type SettingsValue,
 } from "#/types/settings";
-import { type StoredAppPreferences } from "../app-preferences-store";
+import { type AppPreferences } from "../settings-service/settings-service.api";
 import { getActiveBackend } from "../backend-registry/active-store";
 import type { Backend } from "../backend-registry/types";
 import { callCloudProxy } from "./proxy";
@@ -149,8 +149,18 @@ export async function fetchCloudSettings(): Promise<Partial<Settings>> {
 export async function saveCloudSettings(diff: {
   agent_settings_diff?: Record<string, SettingsValue>;
   conversation_settings_diff?: Record<string, SettingsValue>;
-  disabled_skills?: string[];
-  app_preferences?: StoredAppPreferences;
+  /**
+   * App-level user preferences (language, sound notifications, disabled
+   * skills, …). The cloud `POST /api/v1/settings` consumes these as flat
+   * top-level fields, so this helper iterates the object and assigns each
+   * key onto the request body.
+   *
+   * Note: `app_preferences.disabled_skills` is the canonical source for the
+   * skill list since `AppPreferences` was unified in agent-server 1.27.
+   * Callers that still pass `disabled_skills` separately should migrate to
+   * setting it under `app_preferences` instead.
+   */
+  app_preferences?: AppPreferences;
 }): Promise<void> {
   const backend = getActiveCloudBackend();
   const body: Record<string, unknown> = {};
@@ -176,17 +186,18 @@ export async function saveCloudSettings(diff: {
   ) {
     body.conversation_settings_diff = diff.conversation_settings_diff;
   }
-  // Use !== undefined so re-enabling every skill (empty array) round-trips.
-  if (diff.disabled_skills !== undefined) {
-    body.disabled_skills = diff.disabled_skills;
-  }
-  // Flat top-level app-preference fields (language, git_user_name, …).
-  // The cloud POST /api/v1/settings stores these directly; see
-  // `CloudSettingsResponse` and the MSW handler in
-  // `src/mocks/settings-handlers.ts` for the accepted shape.
+  // Flat top-level app-preference fields (language, git_user_name,
+  // disabled_skills, …). The cloud POST /api/v1/settings stores these
+  // directly; see `CloudSettingsResponse` and the MSW handler in
+  // `src/mocks/settings-handlers.ts` for the accepted shape. `undefined`
+  // values are skipped so the cloud server keeps the prior value; `null`
+  // and empty arrays (e.g. re-enabling every skill) round-trip as
+  // explicit clears.
   if (diff.app_preferences) {
     for (const [key, value] of Object.entries(diff.app_preferences)) {
-      body[key] = value;
+      if (value !== undefined) {
+        body[key] = value;
+      }
     }
   }
   await callCloudProxy<unknown>({

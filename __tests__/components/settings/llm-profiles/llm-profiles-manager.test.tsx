@@ -225,15 +225,16 @@ describe("LlmProfilesManager", () => {
 
     renderManager();
 
-    await screen.findByText("gpt-4-profile");
+    await screen.findByText("claude-profile");
 
+    // Use the second profile (claude-profile) — the active profile's Delete is disabled
     const menuTriggers = screen.getAllByTestId("profile-menu-trigger");
-    await user.click(menuTriggers[0]);
+    await user.click(menuTriggers[1]);
     await user.click(screen.getByText("Delete"));
 
     // Delete modal should appear with confirmation message
     expect(
-      screen.getByText('Are you sure you want to delete "gpt-4-profile"?'),
+      screen.getByText('Are you sure you want to delete "claude-profile"?'),
     ).toBeInTheDocument();
   });
 
@@ -269,15 +270,15 @@ describe("LlmProfilesManager", () => {
 
     renderManager();
 
-    await screen.findByText("gpt-4-profile");
+    await screen.findByText("claude-profile");
 
-    // Open delete modal
+    // Open delete modal — use the second profile (claude-profile); active profile's Delete is disabled
     const menuTriggers = screen.getAllByTestId("profile-menu-trigger");
-    await user.click(menuTriggers[0]);
+    await user.click(menuTriggers[1]);
     await user.click(screen.getByText("Delete"));
 
     expect(
-      screen.getByText('Are you sure you want to delete "gpt-4-profile"?'),
+      screen.getByText('Are you sure you want to delete "claude-profile"?'),
     ).toBeInTheDocument();
 
     // Click Cancel
@@ -285,7 +286,7 @@ describe("LlmProfilesManager", () => {
 
     // Modal should be closed
     expect(
-      screen.queryByText('Are you sure you want to delete "gpt-4-profile"?'),
+      screen.queryByText('Are you sure you want to delete "claude-profile"?'),
     ).not.toBeInTheDocument();
   });
 });

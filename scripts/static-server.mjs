@@ -75,6 +75,7 @@ export function parseArgs(argv = process.argv.slice(2)) {
     rejectPrefixes: [],
     sessionApiKey: null,
     authRequired: false,
+    runtimeServicesInfo: null,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -109,6 +110,9 @@ export function parseArgs(argv = process.argv.slice(2)) {
       }
       case "--session-api-key":
         config.sessionApiKey = argv[++i] || null;
+        break;
+      case "--runtime-services-info":
+        config.runtimeServicesInfo = argv[++i] || null;
         break;
       case "--auth-required":
         config.authRequired = true;
@@ -167,6 +171,12 @@ OPTIONS:
   --auth-required              Inject authRequired flag into index.html so the
                                pre-built frontend shows the API key entry screen
                                (public mode) without VITE_AUTH_REQUIRED baked in.
+  --runtime-services-info <json>
+                               Inject a JSON description of the local runtime
+                               services into index.html so the pre-built
+                               frontend can populate the agent's
+                               <RUNTIME_SERVICES> system-prompt block without
+                               VITE_RUNTIME_SERVICES_INFO baked in.
   --reject-prefix <prefix>     Return 503 for requests matching <prefix>
                                instead of SPA-fallbacking to index.html;
                                may be repeated. Useful in --frontend-only
@@ -208,8 +218,19 @@ ROUTING:
  * - `authRequired`: sets `window.__AGENT_CANVAS_AUTH_REQUIRED__ = true` so the
  *   pre-built frontend shows the API key entry screen (public mode) without
  *   VITE_AUTH_REQUIRED baked in.
+ *
+ * - `runtimeServicesInfo`: a JSON string describing the local services
+ *   (agent-server, automation, …), exposed as
+ *   `window.__AGENT_CANVAS_RUNTIME_SERVICES_INFO__`. Read by
+ *   `parseRuntimeServicesInfo()` in `agent-server-adapter.ts` as a fallback
+ *   when `VITE_RUNTIME_SERVICES_INFO` is empty, so static builds (Docker /
+ *   published binary) still populate the agent's `<RUNTIME_SERVICES>` block.
  */
-function makeConfigInjectionScript(sessionApiKey, authRequired) {
+function makeConfigInjectionScript(
+  sessionApiKey,
+  authRequired,
+  runtimeServicesInfo,
+) {
   const parts = [];
 
   if (sessionApiKey) {
@@ -236,6 +257,16 @@ function makeConfigInjectionScript(sessionApiKey, authRequired) {
     parts.push(`window.__AGENT_CANVAS_AUTH_REQUIRED__=true;`);
   }
 
+  if (runtimeServicesInfo) {
+    // Stored as the raw JSON string so the browser-side parser
+    // (parseRuntimeServicesInfo) can JSON.parse it exactly like the
+    // VITE_RUNTIME_SERVICES_INFO env var. JSON.stringify produces a safe JS
+    // string literal for the inline <script>.
+    parts.push(
+      `window.__AGENT_CANVAS_RUNTIME_SERVICES_INFO__=${JSON.stringify(runtimeServicesInfo)};`,
+    );
+  }
+
   if (parts.length === 0) return "";
 
   return `<script>(function(){${parts.join("")}}());</script>`;
@@ -249,7 +280,7 @@ async function serveInjectedIndexHtml(
   req,
   res,
   indexPath,
-  { sessionApiKey, authRequired } = {},
+  { sessionApiKey, authRequired, runtimeServicesInfo } = {},
 ) {
   let content;
   try {
@@ -258,7 +289,11 @@ async function serveInjectedIndexHtml(
     return false;
   }
 
-  const script = makeConfigInjectionScript(sessionApiKey, authRequired);
+  const script = makeConfigInjectionScript(
+    sessionApiKey,
+    authRequired,
+    runtimeServicesInfo,
+  );
   // Inject right before </head> so the key is available before any app code runs.
   // replace() targets the first (and only) </head> in well-formed HTML.
   const injected = content.includes("</head>")
@@ -378,6 +413,17 @@ function proxyWebSocket(req, socket, head, backendUrl) {
     if (proxyHead.length > 0) {
       socket.write(proxyHead);
     }
+    // Handle errors on both sockets so an abrupt disconnect (ECONNRESET,
+    // EPIPE) during test cleanup doesn't crash the process with an
+    // uncaught 'error' event.
+    proxySocket.on("error", (err) => {
+      console.error(`WebSocket proxy backend socket error (${req.url}):`, err.message);
+      socket.destroy();
+    });
+    socket.on("error", (err) => {
+      console.error(`WebSocket proxy client socket error (${req.url}):`, err.message);
+      proxySocket.destroy();
+    });
     proxySocket.pipe(socket, { end: true });
     socket.pipe(proxySocket, { end: true });
   });
@@ -500,7 +546,9 @@ async function handleStatic(
   }
 
   const needsInjection =
-    injectionOpts.sessionApiKey || injectionOpts.authRequired;
+    injectionOpts.sessionApiKey ||
+    injectionOpts.authRequired ||
+    injectionOpts.runtimeServicesInfo;
 
   // Serve index.html with runtime config injection when configured.
   if (needsInjection && filePath.endsWith("index.html")) {
@@ -553,6 +601,7 @@ export function startStaticServer(config) {
   const injectionOpts = {
     sessionApiKey: config.sessionApiKey || null,
     authRequired: config.authRequired || false,
+    runtimeServicesInfo: config.runtimeServicesInfo || null,
   };
   const rejectPrefixes = config.rejectPrefixes ?? [];
 

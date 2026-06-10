@@ -46,7 +46,7 @@ RUN npm run build
 # ── Stage 1b: Generate shell-sourceable defaults from config/defaults.json ──
 # This avoids needing jq/python at container runtime to parse the JSON.
 FROM node:24-slim AS config-gen
-COPY config/defaults.json /tmp/defaults.json
+COPY config/defaults.json /tmp/
 RUN node -e " \
   const c = JSON.parse(require('fs').readFileSync('/tmp/defaults.json','utf-8')); \
   const lines = [ \
@@ -60,6 +60,28 @@ RUN node -e " \
   ]; \
   require('fs').writeFileSync('/tmp/defaults.env', lines.join('\n') + '\n'); \
 "
+
+# ── Stage 1c: Download github-mcp-server binary ─────────────────────────────
+# The upstream GitHub MCP server is a Go binary distributed via GitHub Releases.
+# The @openhands/extensions catalog entry uses `docker run` as the default
+# transport, which fails inside the agent-canvas Docker container (no Docker
+# daemon). Pre-installing the binary lets the frontend patch the catalog entry
+# to use the native binary instead.
+FROM node:24-slim AS github-mcp-download
+
+ARG TARGETARCH
+ARG GITHUB_MCP_SERVER_VERSION
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
+
+# Map Docker TARGETARCH (amd64/arm64) to GitHub release naming (x86_64/arm64).
+# The *) fallback defaults to x86_64 for any unrecognised architecture so the
+# build doesn't silently produce an image without the binary. If a new arch is
+# added to the Docker build matrix, add an explicit case here.
+RUN ARCH_SUFFIX=$(case "${TARGETARCH}" in amd64) echo "x86_64";; arm64) echo "arm64";; *) echo "x86_64";; esac) && \
+    curl -fsSL "https://github.com/github/github-mcp-server/releases/download/v${GITHUB_MCP_SERVER_VERSION}/github-mcp-server_Linux_${ARCH_SUFFIX}.tar.gz" \
+      | tar -xz -C /usr/local/bin github-mcp-server && \
+    chmod +x /usr/local/bin/github-mcp-server
 
 # ── Stage 2: Combined image ──────────────────────────────────────────────────
 FROM ${AGENT_SERVER_IMAGE} AS final
@@ -95,12 +117,21 @@ RUN if command -v apt-get >/dev/null 2>&1; then \
 RUN uv pip install --system "openhands-automation==${AUTOMATION_VERSION}" 2>/dev/null \
     || pip install --no-cache-dir "openhands-automation==${AUTOMATION_VERSION}"
 
+# Install pre-built github-mcp-server binary so the GitHub MCP integration
+# works without Docker-in-Docker (the catalog entry is patched at runtime to
+# use this binary instead of `docker run`).
+COPY --from=github-mcp-download /usr/local/bin/github-mcp-server /usr/local/bin/github-mcp-server
+
 # Copy the frontend build output.
 # react-router.config.ts unpacks build/client/ into build/ for non-Vercel builds.
 COPY --from=frontend-build /build/build /opt/agent-canvas/frontend
 
 # Copy the static-server script (serves frontend + proxies to backends)
 COPY scripts/static-server.mjs /opt/agent-canvas/static-server.mjs
+
+# Copy the runtime-services-info builder (entrypoint.sh runs it as a CLI to
+# emit the agent's <RUNTIME_SERVICES> block; same builder the dev stack uses).
+COPY scripts/runtime-services-info.mjs /opt/agent-canvas/runtime-services-info.mjs
 
 # Copy custom tools (e.g. canvas_ui_tool.py) so the agent-server can import
 # them via tool_module_qualnames. OH_EXTRA_PYTHON_PATH is set in entrypoint.sh.

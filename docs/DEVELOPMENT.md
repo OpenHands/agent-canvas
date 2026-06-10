@@ -27,9 +27,12 @@ The dev stack uses `uvx` to run a temporary `agent-server`
 installation on `127.0.0.1:18000` and points the frontend at it. It isolates
 conversation persistence by setting separate `OH_CONVERSATIONS_PATH`,
 `OH_BASH_EVENTS_DIR`, and `OH_VSCODE_PORT` values under `.openhands-dev/`, and
-places tmux sockets under `/tmp` (via `TMUX_TMPDIR`) to avoid filesystem-support
-issues, so it does not collide with other local or cloud-backed OpenHands
-sessions.
+keeps its tmux sockets under `~/.openhands/agent-canvas/tmux` (via
+`TMUX_TMPDIR`), so it does not collide with other local or cloud-backed
+OpenHands sessions. If `$HOME` is on a filesystem that does not support Unix
+domain sockets (some devcontainers, NFS/CIFS homes), set the standard
+`TMUX_TMPDIR` env var to a local path such as `/tmp` and the dev stack will use
+it instead.
 
 ### Environment Variables
 

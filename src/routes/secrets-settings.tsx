@@ -120,7 +120,7 @@ export function SecretsSettingsScreen() {
             onClick={() => setView("add-secret-form")}
             isDisabled={isLoadingSecrets}
           >
-            {t("SECRETS$ADD_NEW_SECRET")}
+            {t(I18nKey.SECRETS$ADD_NEW_SECRET)}
           </BrandButton>
         </div>
       ) : null}
@@ -221,7 +221,7 @@ export function SecretsSettingsScreen() {
 
       {confirmationModalIsVisible && (
         <ConfirmationModal
-          text={t("SECRETS$CONFIRM_DELETE_KEY")}
+          text={t(I18nKey.SECRETS$CONFIRM_DELETE_KEY)}
           onConfirm={onConfirmDeleteSecret}
           onCancel={onCancelDeleteSecret}
         />

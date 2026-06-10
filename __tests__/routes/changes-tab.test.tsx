@@ -110,4 +110,23 @@ describe("Changes Tab", () => {
       screen.getByText("DIFF_VIEWER$NOT_A_GIT_REPO"),
     ).toBeInTheDocument();
   });
+
+  it("should show the loading message while git changes are loading", () => {
+    vi.mocked(useUnifiedGetGitChanges).mockReturnValue({
+      data: [],
+      isLoading: true,
+      isFetching: true,
+      isSuccess: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    vi.mocked(useAgentState).mockReturnValue({
+      curAgentState: AgentState.RUNNING,
+    });
+
+    render(<GitChanges />, { wrapper });
+
+    expect(screen.getByText("DIFF_VIEWER$LOADING")).toBeInTheDocument();
+  });
 });

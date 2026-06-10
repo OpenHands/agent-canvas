@@ -50,7 +50,7 @@ describe("OptionService", () => {
 
     await expect(OptionService.getConfig()).rejects.toMatchObject({
       name: AgentServerUnavailableError.name,
-      message: expect.stringContaining("Agent server not found"),
+      message: expect.stringContaining("Could not connect to the configured agent server"),
       details: expect.stringContaining("Request failed"),
     });
   });
@@ -94,8 +94,14 @@ describe("OptionService", () => {
     const models = await OptionService.getModels();
 
     expect(models.models).toContain("openhands/claude-opus-4-5-20251101");
+    expect(models.models).toContain("openai/gpt-5.5");
     expect(models.verified_models).toContain("claude-opus-4-5-20251101");
-    expect(models.verified_providers).toEqual(["anthropic", "openhands"]);
+    expect(models.verified_models).toContain("gpt-5.5");
+    expect(models.verified_providers).toEqual([
+      "anthropic",
+      "openai",
+      "openhands",
+    ]);
     expect(models.default_model).toBeTruthy();
   });
 
