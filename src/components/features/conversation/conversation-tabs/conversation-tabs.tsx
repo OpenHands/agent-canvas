@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { LayoutGroup } from "framer-motion";
 import { Globe, ListTodo, SquareChevronRight } from "lucide-react";
 import DocumentIcon from "#/icons/document.svg?react";
 import DoubleCheckIcon from "#/icons/double-check.svg?react";
@@ -278,40 +279,42 @@ export function ConversationTabs({
           className="flex w-full min-w-0 flex-nowrap items-center justify-start"
         >
           <div className="flex w-fit max-w-full min-w-0 flex-nowrap items-center gap-1.5">
-            <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-hidden">
-              {visibleTabs
-                .slice(0, safeInlineTabCount)
-                .map(
-                  (
-                    {
-                      tabValue,
-                      icon,
-                      onClick,
-                      isActive,
-                      tooltipContent,
-                      tooltipAriaLabel,
-                      label,
-                      className: tabClassName,
-                    },
-                    index,
-                  ) => (
-                    <ChatActionTooltip
-                      key={`${tabValue}-${index}`}
-                      tooltip={tooltipContent}
-                      ariaLabel={tooltipAriaLabel}
-                    >
-                      <ConversationTabNav
-                        tabValue={tabValue}
-                        icon={icon}
-                        onClick={onClick}
-                        isActive={isActive}
-                        label={label}
-                        className={cn(tabClassName, "shrink-0")}
-                      />
-                    </ChatActionTooltip>
-                  ),
-                )}
-            </div>
+            <LayoutGroup id="conversation-drawer-tabs">
+              <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-hidden">
+                {visibleTabs
+                  .slice(0, safeInlineTabCount)
+                  .map(
+                    (
+                      {
+                        tabValue,
+                        icon,
+                        onClick,
+                        isActive,
+                        tooltipContent,
+                        tooltipAriaLabel,
+                        label,
+                        className: tabClassName,
+                      },
+                      index,
+                    ) => (
+                      <ChatActionTooltip
+                        key={`${tabValue}-${index}`}
+                        tooltip={tooltipContent}
+                        ariaLabel={tooltipAriaLabel}
+                      >
+                        <ConversationTabNav
+                          tabValue={tabValue}
+                          icon={icon}
+                          onClick={onClick}
+                          isActive={isActive}
+                          label={label}
+                          className={cn(tabClassName, "shrink-0")}
+                        />
+                      </ChatActionTooltip>
+                    ),
+                  )}
+              </div>
+            </LayoutGroup>
             <div ref={menuRef} className="relative shrink-0">
               <EllipsisButton
                 ref={anchorRef}

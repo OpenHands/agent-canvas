@@ -1,5 +1,13 @@
 import { ComponentType } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "#/utils/utils";
+
+const TAB_LABEL_MAX_WIDTH_PX = 160;
+
+const tabLabelTransition = {
+  duration: 0.22,
+  ease: [0.4, 0, 0.2, 1] as const,
+};
 
 type ConversationTabNavProps = {
   tabValue: string;
@@ -21,34 +29,78 @@ export function ConversationTabNav({
   className,
   measureOnly,
 }: ConversationTabNavProps) {
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        onClick();
+  const reduceMotion = useReducedMotion();
+  const disableAnimation =
+    measureOnly || reduceMotion || import.meta.env.MODE === "test";
+
+  const buttonClassName = cn(
+    "flex items-center rounded-md cursor-pointer",
+    "pl-1.5 pr-2 py-1 lg:py-1.5",
+    "text-[var(--oh-muted)] bg-transparent",
+    isActive && "bg-[var(--oh-interactive-active)] text-white",
+    isActive
+      ? "hover:text-white hover:bg-[var(--oh-interactive-hover)]"
+      : "hover:text-white hover:bg-white/5",
+    isActive
+      ? "focus-within:text-white"
+      : "focus-within:text-[var(--oh-muted)]",
+    className,
+  );
+
+  const iconElement = <Icon className={cn("h-5 w-5 shrink-0 text-inherit")} />;
+
+  const labelElement =
+    label && isActive ? (
+      <span className="whitespace-nowrap text-sm font-normal">{label}</span>
+    ) : null;
+
+  const animatedLabelElement = label ? (
+    <motion.span
+      initial={false}
+      animate={{
+        maxWidth: isActive ? TAB_LABEL_MAX_WIDTH_PX : 0,
+        opacity: isActive ? 1 : 0,
+        marginLeft: isActive ? 8 : 0,
       }}
+      transition={tabLabelTransition}
+      className="block overflow-hidden whitespace-nowrap text-sm font-normal"
+      aria-hidden={!isActive}
+    >
+      {label}
+    </motion.span>
+  ) : null;
+
+  if (disableAnimation) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        {...(measureOnly
+          ? {}
+          : { "data-testid": `conversation-tab-${tabValue}` as const })}
+        data-tab-measure={measureOnly ? "true" : undefined}
+        className={cn(buttonClassName, "gap-2")}
+      >
+        {iconElement}
+        {labelElement}
+      </button>
+    );
+  }
+
+  return (
+    <motion.button
+      layout
+      type="button"
+      onClick={onClick}
       {...(measureOnly
         ? {}
         : { "data-testid": `conversation-tab-${tabValue}` as const })}
       data-tab-measure={measureOnly ? "true" : undefined}
-      className={cn(
-        "flex items-center gap-2 rounded-md cursor-pointer",
-        "pl-1.5 pr-2 py-1 lg:py-1.5",
-        "text-[var(--oh-muted)] bg-transparent",
-        isActive && "bg-[var(--oh-interactive-active)] text-white",
-        isActive
-          ? "hover:text-white hover:bg-[var(--oh-interactive-hover)]"
-          : "hover:text-white hover:bg-white/5",
-        isActive
-          ? "focus-within:text-white"
-          : "focus-within:text-[var(--oh-muted)]",
-        className,
-      )}
+      className={buttonClassName}
+      transition={{ layout: tabLabelTransition }}
     >
-      <Icon className={cn("w-5 h-5 text-inherit flex-shrink-0")} />
-      {isActive && label && (
-        <span className="text-sm font-normal whitespace-nowrap">{label}</span>
-      )}
-    </button>
+      {iconElement}
+      {animatedLabelElement}
+    </motion.button>
   );
 }
