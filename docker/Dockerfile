@@ -40,7 +40,8 @@ COPY . .
 #   "production" → prod key (set by CI for tagged releases)
 #   anything else → staging key (default for PR / main / local builds)
 # VITE_POSTHOG_CLIENT_KEY is the PostHog project key exposed via the web client
-# config (option-service). Not a secret — it's a public, client-side key.
+# config (option-service). Not a secret — it's a public, client-side key. CI
+# passes the prod key for tagged releases and the staging key otherwise.
 ARG VITE_APP_ENV=""
 ARG VITE_POSTHOG_CLIENT_KEY=""
 ENV VITE_APP_ENV=${VITE_APP_ENV}
