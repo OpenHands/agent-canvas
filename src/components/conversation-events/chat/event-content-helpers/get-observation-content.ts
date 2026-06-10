@@ -2,6 +2,7 @@ import { ObservationEvent } from "#/types/agent-server/core";
 import { getObservationResult } from "./get-observation-result";
 import { getDefaultEventContent, MAX_CONTENT_LENGTH } from "./shared";
 import i18n from "#/i18n";
+import { I18nKey } from "#/i18n/declaration";
 import {
   MCPToolObservation,
   FinishObservation,
@@ -15,6 +16,7 @@ import {
   GlobObservation,
   GrepObservation,
   InvokeSkillObservation,
+  CanvasUIObservation,
   SwitchLLMObservation,
 } from "#/types/agent-server/core/base/observation";
 
@@ -84,7 +86,7 @@ const getTerminalObservationContent = (
   }
 
   // Display the output
-  output += `Output:\n\`\`\`sh\n${content.trim() || i18n.t("OBSERVATION$COMMAND_NO_OUTPUT")}\n\`\`\``;
+  output += `Output:\n\`\`\`sh\n${content.trim() || i18n.t(I18nKey.OBSERVATION$COMMAND_NO_OUTPUT)}\n\`\`\``;
 
   return output;
 };
@@ -171,6 +173,15 @@ const getInvokeSkillObservationContent = (
   }
   return content;
 };
+
+// Canvas UI observations — just surface the acknowledgement text.
+const getCanvasUIObservationContent = (
+  event: ObservationEvent<CanvasUIObservation>,
+): string =>
+  event.observation.content
+    .filter((c) => c.type === "text")
+    .map((c) => c.text)
+    .join("\n");
 
 const getSwitchLLMObservationContent = (
   event: ObservationEvent<SwitchLLMObservation>,
@@ -399,6 +410,11 @@ export const getObservationContent = (event: ObservationEvent): string => {
     case "InvokeSkillObservation":
       return getInvokeSkillObservationContent(
         event as ObservationEvent<InvokeSkillObservation>,
+      );
+
+    case "CanvasUIObservation":
+      return getCanvasUIObservationContent(
+        event as ObservationEvent<CanvasUIObservation>,
       );
 
     case "SwitchLLMObservation":

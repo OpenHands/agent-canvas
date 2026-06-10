@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { cn } from "#/utils/utils";
+import { I18nKey } from "#/i18n/declaration";
 
 interface UpgradeButtonProps {
   onClick?: () => void;
@@ -24,7 +25,7 @@ export function UpgradeButton({
         className,
       )}
     >
-      {t("SETTINGS$UPGRADE_BUTTON")}
+      {t(I18nKey.SETTINGS$UPGRADE_BUTTON)}
     </button>
   );
 }

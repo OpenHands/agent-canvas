@@ -1,6 +1,5 @@
 import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import { mapAnyGitStatusToClientStatus } from "#/utils/git-status-mapper";
-import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import type { GitChange, GitChangeDiff } from "../open-hands.types";
 import { getActiveBackend } from "../backend-registry/active-store";
 import { callCloudProxy } from "../cloud/proxy";
@@ -18,9 +17,11 @@ interface AgentServerGitChange {
  * (it's `127.0.0.1:18000`); the SDK's `RemoteWorkspace` calls land
  * fine. In **cloud** mode the runtime is at
  * `*.prod-runtime.all-hands.dev`, which doesn't allow CORS from
- * `localhost`. So cloud-mode calls go through `callCloudProxy` with the
- * runtime URL as `hostOverride` and the conversation's
- * `session_api_key` as the auth header — server-side hop, no CORS.
+ * `localhost`. So cloud-mode calls hit the cloud API's
+ * `GET /api/v1/app-conversations/{id}/git/{changes,diff}` proxy
+ * endpoints instead — the server resolves the conversation's runtime
+ * and makes the hop itself with the sandbox's session API key, and the
+ * cloud API's CORS is permissive for bearer-token requests.
  */
 
 /**
@@ -37,22 +38,20 @@ function toAbsoluteRuntimePath(path: string): string {
 
 class AgentServerGitService {
   static async getGitChanges(
+    conversationId: string,
     conversationUrl: string | null | undefined,
     sessionApiKey: string | null | undefined,
     path: string,
   ): Promise<GitChange[]> {
     const active = getActiveBackend().backend;
 
-    if (active.kind === "cloud" && conversationUrl) {
+    if (active.kind === "cloud" && conversationId) {
       const params = new URLSearchParams();
       params.set("path", toAbsoluteRuntimePath(path));
       const data = await callCloudProxy<AgentServerGitChange[]>({
         backend: active,
         method: "GET",
-        hostOverride: buildHttpBaseUrl(conversationUrl),
-        path: `/api/git/changes?${params.toString()}`,
-        authMode: "session-api-key",
-        sessionApiKey,
+        path: `/api/v1/app-conversations/${conversationId}/git/changes?${params.toString()}`,
       });
       if (!Array.isArray(data)) {
         throw new Error(
@@ -90,22 +89,20 @@ class AgentServerGitService {
   }
 
   static async getGitChangeDiff(
+    conversationId: string,
     conversationUrl: string | null | undefined,
     sessionApiKey: string | null | undefined,
     path: string,
   ): Promise<GitChangeDiff> {
     const active = getActiveBackend().backend;
 
-    if (active.kind === "cloud" && conversationUrl) {
+    if (active.kind === "cloud" && conversationId) {
       const params = new URLSearchParams();
       params.set("path", toAbsoluteRuntimePath(path));
       const diff = await callCloudProxy<GitChangeDiff & { diff?: string }>({
         backend: active,
         method: "GET",
-        hostOverride: buildHttpBaseUrl(conversationUrl),
-        path: `/api/git/diff?${params.toString()}`,
-        authMode: "session-api-key",
-        sessionApiKey,
+        path: `/api/v1/app-conversations/${conversationId}/git/diff?${params.toString()}`,
       });
       return {
         modified: diff?.modified ?? "",
