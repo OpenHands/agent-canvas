@@ -51,7 +51,7 @@ export function ConversationTabNav({
     className,
   );
 
-  const iconElement = <Icon className={cn("h-5 w-5 shrink-0 text-inherit")} />;
+  const iconElement = <Icon className={cn("h-4 w-4 shrink-0 text-inherit")} />;
 
   const labelElement =
     label && isActive ? (
