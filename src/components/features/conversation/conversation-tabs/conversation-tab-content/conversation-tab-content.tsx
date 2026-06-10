@@ -1,8 +1,8 @@
-import { lazy, useMemo, Suspense } from "react";
-import { ConversationLoading } from "../../conversation-loading";
+import { lazy, useMemo } from "react";
 import { TabWrapper } from "./tab-wrapper";
 import { TabContainer } from "./tab-container";
 import { TabContentArea } from "./tab-content-area";
+import { ConversationTabContentCrossfade } from "./conversation-tab-content-crossfade";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useConversationId } from "#/hooks/use-conversation-id";
 
@@ -37,26 +37,23 @@ export function ConversationTabContent() {
 
   const ActiveComponent = activeTab.component;
 
-  if (shouldShownAgentLoading) {
-    return <ConversationLoading />;
-  }
+  const tabWrapperKey =
+    selectedTab === "terminal"
+      ? `${selectedTab}-${conversationId}`
+      : (selectedTab ?? "files");
 
   return (
     <TabContainer>
-      <Suspense fallback={<ConversationLoading />}>
-        <TabContentArea>
-          <TabWrapper
-            // Force Terminal remount to reset XTerm buffer/state
-            key={
-              selectedTab === "terminal"
-                ? `${selectedTab}-${conversationId}`
-                : selectedTab
-            }
-          >
+      <TabContentArea>
+        <ConversationTabContentCrossfade
+          showAgentLoading={shouldShownAgentLoading}
+          tabKey={tabWrapperKey}
+        >
+          <TabWrapper key={tabWrapperKey}>
             <ActiveComponent />
           </TabWrapper>
-        </TabContentArea>
-      </Suspense>
+        </ConversationTabContentCrossfade>
+      </TabContentArea>
     </TabContainer>
   );
 }
