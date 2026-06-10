@@ -3,6 +3,7 @@ import { BrandButton } from "../../settings/brand-button";
 import { useNavigation } from "#/context/navigation-context";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
+import { I18nKey } from "#/i18n/declaration";
 
 export function CreateConversationButton() {
   const { t } = useTranslation("openhands");
@@ -38,8 +39,8 @@ export function CreateConversationButton() {
       isDisabled={isCreatingConversation}
       className="w-auto absolute bottom-5 left-5 right-5"
     >
-      {!isCreatingConversation && t("COMMON$NEW_CONVERSATION")}
-      {isCreatingConversation && t("HOME$LOADING")}
+      {!isCreatingConversation && t(I18nKey.COMMON$NEW_CONVERSATION)}
+      {isCreatingConversation && t(I18nKey.HOME$LOADING)}
     </BrandButton>
   );
 }
