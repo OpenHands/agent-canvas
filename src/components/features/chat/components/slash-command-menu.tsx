@@ -7,6 +7,7 @@ import {
 } from "#/utils/dropdown-classes";
 import { Text } from "#/ui/typography";
 import { SlashCommandItem } from "#/hooks/chat/use-slash-command";
+import { I18nKey } from "#/i18n/declaration";
 
 /**
  * Strip common inline Markdown syntax so descriptions render as plain text.
@@ -157,12 +158,12 @@ export function SlashCommandMenu({
   return (
     <div
       role="listbox"
-      aria-label={t("CHAT_INTERFACE$COMMANDS")}
+      aria-label={t(I18nKey.CHAT_INTERFACE$COMMANDS)}
       className="absolute bottom-full left-0 w-full mb-1 bg-[var(--oh-surface)] border border-[var(--oh-border-subtle)] rounded-lg shadow-lg max-h-[300px] overflow-y-auto custom-scrollbar z-50"
       data-testid="slash-command-menu"
     >
       <div className="px-3 py-2 text-xs text-[var(--oh-muted)] border-b border-[var(--oh-border-subtle)]">
-        {t("CHAT_INTERFACE$COMMANDS")}
+        {t(I18nKey.CHAT_INTERFACE$COMMANDS)}
       </div>
       <div className={dropdownMenuListClassName}>
         {items.map((item, index) => (

@@ -17,6 +17,7 @@ import { ScrollProvider } from "#/context/scroll-context";
 import { useInitialQueryStore } from "#/stores/initial-query-store";
 import { useSendMessage } from "#/hooks/use-send-message";
 import { useAgentState } from "#/hooks/use-agent-state";
+import { useIsArchivedConversation } from "#/hooks/use-is-archived-conversation";
 import { useHandleBuildPlanClick } from "#/hooks/use-handle-build-plan-click";
 
 import { ScrollToBottomButton } from "#/components/shared/buttons/scroll-to-bottom-button";
@@ -39,7 +40,6 @@ import { useTaskPolling } from "#/hooks/query/use-task-polling";
 import { matchesPendingConversationId } from "#/utils/pending-task-message-link";
 import { useConversationWebSocket } from "#/contexts/conversation-websocket-context";
 import ChatStatusIndicator from "./chat-status-indicator";
-import { AcpResumeArchivedButton } from "./acp-resume-archived-button";
 import { getStatusColor, getStatusText } from "#/utils/utils";
 import { useNewConversationCommand } from "#/hooks/mutation/use-new-conversation-command";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
@@ -106,13 +106,7 @@ export function ChatInterface() {
   // always null, so this is effectively a no-op for non-cloud use.
   const { data: activeConversation } = useActiveConversation();
   const sandboxStatus = activeConversation?.sandbox_status ?? null;
-  const isArchivedConversation =
-    sandboxStatus === "MISSING" || sandboxStatus === "ERROR";
-  // A recycled (MISSING) sandbox for an ACP conversation can be re-provisioned:
-  // the backend resumes it from the durable event store with a bootstrap prompt
-  // (OpenHands#14640). ERROR is a genuine failure, so it stays read-only.
-  const isRecycledAcpConversation =
-    sandboxStatus === "MISSING" && activeConversation?.agent_kind === "acp";
+  const isArchivedConversation = useIsArchivedConversation();
 
   // Block sending in a resumed conversation that has no usable LLM, and show
   // the same setup banner as the home screen so the dead end is explained.
@@ -329,7 +323,7 @@ export function ChatInterface() {
 
     skippedFiles.forEach((f) => displayErrorToast(f.reason));
 
-    const filePrompt = `${t("CHAT_INTERFACE$AUGMENTED_PROMPT_FILES_TITLE")}: ${uploadedFiles.join("\n\n")}`;
+    const filePrompt = `${t(I18nKey.CHAT_INTERFACE$AUGMENTED_PROMPT_FILES_TITLE)}: ${uploadedFiles.join("\n\n")}`;
     const prompt =
       uploadedFiles.length > 0 ? `${content}\n\n${filePrompt}` : content;
 
@@ -539,7 +533,7 @@ export function ChatInterface() {
           <PendingUserMessages />
         </div>
 
-        <div className="flex shrink-0 flex-col gap-[6px]">
+        <div className="flex shrink-0 flex-col gap-[6px] pb-4">
           <BtwMessages conversationId={conversationId} />
           {errorMessage && (
             <ErrorMessageBanner
@@ -567,20 +561,11 @@ export function ChatInterface() {
                   ? t(I18nKey.CHAT_INTERFACE$ERROR_SANDBOX_TITLE)
                   : t(I18nKey.CHAT_INTERFACE$ARCHIVED_SANDBOX_TITLE)}
               </p>
-              {isRecycledAcpConversation && activeConversation ? (
-                // ACP conversations resume from a recycled sandbox via a
-                // bootstrap prompt (OpenHands#14640): offer to re-provision
-                // instead of dead-ending.
-                <div className="mt-2">
-                  <AcpResumeArchivedButton conversation={activeConversation} />
-                </div>
-              ) : (
-                <p className="text-xs text-[var(--oh-muted)] mt-0.5">
-                  {sandboxStatus === "ERROR"
-                    ? t(I18nKey.CHAT_INTERFACE$ERROR_SANDBOX_DESCRIPTION)
-                    : t(I18nKey.CHAT_INTERFACE$ARCHIVED_SANDBOX_DESCRIPTION)}
-                </p>
-              )}
+              <p className="text-xs text-[var(--oh-muted)] mt-0.5">
+                {sandboxStatus === "ERROR"
+                  ? t(I18nKey.CHAT_INTERFACE$ERROR_SANDBOX_DESCRIPTION)
+                  : t(I18nKey.CHAT_INTERFACE$ARCHIVED_SANDBOX_DESCRIPTION)}
+              </p>
             </div>
           ) : (
             <div className="relative">

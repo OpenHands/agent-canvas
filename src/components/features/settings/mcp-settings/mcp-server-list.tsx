@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { MCPServerListItem } from "./mcp-server-list-item";
 import { I18nKey } from "#/i18n/declaration";
+import { extensionModuleEmptyStateClassName } from "#/utils/extension-module-card-classes";
 
 interface MCPServerConfig {
   id: string;
@@ -29,7 +30,7 @@ export function MCPServerList({
 
   if (servers.length === 0) {
     return (
-      <div className="border border-[var(--oh-border)] rounded-md p-8 text-center">
+      <div className={extensionModuleEmptyStateClassName}>
         <p className="text-content-2 text-sm">
           {t(I18nKey.SETTINGS$MCP_NO_SERVERS)}
         </p>

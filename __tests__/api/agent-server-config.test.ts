@@ -73,7 +73,6 @@ describe("agent server config", () => {
       buildConversationWorkingDir("4a8dca37-3bf0-48de-a0af-949d711c3d48"),
     ).toBe("/srv/workspaces/4a8dca373bf048dea0af949d711c3d48");
   });
-
 });
 
 describe("isAuthRequired", () => {

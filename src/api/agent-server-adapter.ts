@@ -167,6 +167,14 @@ function parseRuntimeServicesInfo(): RuntimeServicesInfo | null {
 }
 
 /**
+ * Return the deployment mode from the runtime services info, e.g. "docker",
+ * "dev:automation", etc. Returns `null` when no runtime info is configured.
+ */
+export function getDeploymentMode(): string | null {
+  return parseRuntimeServicesInfo()?.mode ?? null;
+}
+
+/**
  * Render the runtime services info into a markdown block suitable for
  * appending to the system prompt via `AgentContext.system_message_suffix`.
  *
@@ -799,7 +807,7 @@ type StartConversationPayload = Record<string, unknown> & {
   max_iterations: number;
   stuck_detection: true;
   autotitle: true;
-  worktree: true;
+  worktree: boolean;
   secrets_encrypted?: true;
   conversation_id?: string;
   secrets?: Record<string, LookupSecret>;
@@ -814,6 +822,7 @@ export interface StartConversationOptions {
   plugins?: PluginSpec[];
   conversationId?: string;
   workingDir?: string;
+  worktree?: boolean;
   encryptedAgentSettings?: Record<string, SettingsValue>;
   encryptedConversationSettings?: Record<string, SettingsValue>;
   secretsEncrypted?: boolean;
@@ -858,7 +867,7 @@ export function buildStartConversationRequest(
         : 500,
     stuck_detection: true,
     autotitle: true,
-    worktree: true,
+    worktree: options.worktree ?? true,
   };
 
   if (acpServerTag) {
@@ -946,6 +955,7 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   plugins?: PluginSpec[];
   conversationId?: string;
   workingDir?: string;
+  worktree?: boolean;
 }): Promise<Record<string, unknown>> {
   const { SecretsService } = await import("./secrets-service");
 
