@@ -180,6 +180,16 @@ export interface AppConversation {
    * older client) — consumers fall back to model-matching.
    */
   active_profile?: string | null;
+  /**
+   * Raw conversation tags as returned by the agent-server (`ConversationInfo.tags`).
+   * Includes the five agent-canvas metadata tags (see `AGENT_CANVAS_METADATA_TAG_KEYS`)
+   * as well as any other tags the conversation carries — most commonly
+   * `acpserver` for ACP conversations. Surfaced so callers updating a single
+   * tag can merge against the full existing map and `PATCH` it back without
+   * dropping unrelated tags (the agent-server's `update_conversation` replaces
+   * the entire `tags` field when provided).
+   */
+  tags?: Record<string, string> | null;
   public?: boolean;
   sub_conversation_ids: string[];
 }

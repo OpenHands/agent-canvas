@@ -4,6 +4,7 @@ import { useIsAuthed } from "./use-is-authed";
 import { isNoBackend } from "#/api/backend-registry/active-store";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { AppConversationPage } from "#/api/conversation-service/agent-server-conversation-service.types";
+import { migrateLegacyConversationMetadata } from "#/api/conversation-metadata-migration";
 
 export const usePaginatedConversations = (limit: number = 20) => {
   const { data: userIsAuthenticated } = useIsAuthed();
@@ -28,6 +29,13 @@ export const usePaginatedConversations = (limit: number = 20) => {
         limit,
         pageParam,
       );
+
+      // Lazily migrate any legacy `conversation-metadata-store` localStorage
+      // entries for the conversations the user just loaded onto the
+      // agent-server's `tags` field. Best-effort, fire-and-forget — see
+      // `conversation-metadata-migration.ts`. We don't await so a slow
+      // PATCH never delays the list rendering.
+      void migrateLegacyConversationMetadata(result.items);
 
       return result;
     },

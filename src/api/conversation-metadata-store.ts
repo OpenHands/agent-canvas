@@ -1,5 +1,21 @@
 import { Provider } from "#/types/settings";
 
+/**
+ * @deprecated Replaced by agent-server `tags` on each conversation
+ * (see `AGENT_CANVAS_METADATA_TAG_KEYS` in `agent-server-adapter.ts` and
+ * the conversation-tag SDK PR #3621). This module is kept only to:
+ *
+ * 1. Allow `toAppConversation` to read legacy values as a fallback when
+ *    the server has not yet been migrated.
+ * 2. Allow `conversation-metadata-migration.ts` to lazily push legacy
+ *    values onto server tags and then clear the localStorage entry.
+ *
+ * Do NOT add new readers or writers. New per-conversation metadata
+ * belongs in server tags via `mergeMetadataIntoTags`. Once an upgrade
+ * cycle has passed and the localStorage blob is unlikely to still exist
+ * on user machines, this whole module can be deleted along with the
+ * fallback branches in `toAppConversation` and the migration helper.
+ */
 const STORAGE_KEY = "openhands-agent-server-conversation-metadata";
 
 export interface ConversationMetadata {

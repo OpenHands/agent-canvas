@@ -3,10 +3,7 @@ import { useTranslation } from "react-i18next";
 import { getLastRenderableEventId } from "#/hooks/chat/model-command-event-anchor";
 import { recordModelSwitchMessage } from "#/hooks/chat/record-model-switch-message";
 import { useSwitchLlmProfile } from "#/hooks/mutation/use-switch-llm-profile";
-import {
-  getStoredConversationMetadata,
-  setStoredConversationMetadata,
-} from "#/api/conversation-metadata-store";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
 
@@ -36,17 +33,15 @@ export function useSwitchLlmProfileAndLog() {
                 profileName,
                 anchorEventId,
               );
-              // Keep the per-conversation profile identity fresh so the
-              // chat-header switcher shows the right name after a reload
-              // (the agent-server only round-trips the model string). #1082
-              const prev = getStoredConversationMetadata(conversationId);
-              setStoredConversationMetadata(conversationId, {
-                selected_repository: prev?.selected_repository ?? null,
-                selected_branch: prev?.selected_branch ?? null,
-                git_provider: prev?.git_provider ?? null,
-                selected_workspace: prev?.selected_workspace ?? null,
-                active_profile: profileName,
-              });
+              // Persist the profile identity on the conversation's server
+              // tags so the chat-header switcher recovers it after a reload
+              // even when several profiles share a model (#1082). Best-effort
+              // — a failed PATCH only loses the display, the runtime switch
+              // already succeeded.
+              void AgentServerConversationService.updateConversationActiveProfile(
+                conversationId,
+                profileName,
+              ).catch(() => undefined);
             }
           },
           onError: (err: unknown) => {

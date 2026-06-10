@@ -382,6 +382,7 @@ describe("HomeChatLauncher", () => {
         selected_repository: "org/repo",
         selected_branch: "main",
         git_provider: "github",
+        active_profile: null,
       },
       undefined,
       undefined,

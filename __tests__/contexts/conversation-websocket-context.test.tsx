@@ -8,8 +8,24 @@ import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-
 import { useBrowserStore } from "#/stores/browser-store";
 import { useUserConversation } from "#/hooks/query/use-user-conversation";
 import EventService from "#/api/event-service/event-service.api";
-import { getStoredConversationMetadata } from "#/api/conversation-metadata-store";
 import type { MessageEvent } from "#/types/agent-server/core";
+
+// The websocket context now PATCHes the `active_profile` server tag through
+// the conversation service when a model switch arrives over the socket.
+// Mock the static method so this test asserts the call shape without
+// touching the agent-server client. The mock object must be created via
+// `vi.hoisted` because `vi.mock` is hoisted above plain top-level decls.
+const { updateActiveProfileMock } = vi.hoisted(() => ({
+  updateActiveProfileMock: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock(
+  "#/api/conversation-service/agent-server-conversation-service.api",
+  () => ({
+    default: {
+      updateConversationActiveProfile: updateActiveProfileMock,
+    },
+  }),
+);
 
 // Captures the main socket's `onMessage` (`handleMainMessage`) so tests can
 // drive the live message path without a real WebSocket. Only the main socket
@@ -123,7 +139,7 @@ describe("ConversationWebSocketProvider — conversation-scoped event store", ()
     },
   });
 
-  it("stamps active_profile on a successful agent-triggered model switch so it survives reload", async () => {
+  it("PATCHes active_profile on a successful agent-triggered model switch so it survives reload", async () => {
     // Arrange: open a conversation with a real ws url so the main socket's
     // onMessage (handleMainMessage) is wired and captured.
     render(
@@ -145,11 +161,15 @@ describe("ConversationWebSocketProvider — conversation-scoped event store", ()
       });
     });
 
-    // Assert: the profile identity is persisted to stored metadata — the same
-    // field the chat-header switcher reads after a reload (#1082). Without the
-    // stamp this stays null and the header falls back to ambiguous matching.
-    expect(getStoredConversationMetadata("conv-switch")?.active_profile).toBe(
-      "fast-opus",
+    // Assert: the profile identity is PATCHed onto the conversation's
+    // `active_profile` server tag — the same value the chat-header
+    // switcher reads after a reload (#1082). Without this the header
+    // falls back to ambiguous matching on `llm.model`.
+    await waitFor(() =>
+      expect(updateActiveProfileMock).toHaveBeenCalledWith(
+        "conv-switch",
+        "fast-opus",
+      ),
     );
   });
 

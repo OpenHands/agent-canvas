@@ -7,7 +7,25 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
-import { getStoredConversationMetadata } from "#/api/conversation-metadata-store";
+
+/**
+ * The metadata that USED to live in `conversation-metadata-store` localStorage
+ * (and was tested against that store here) now rides on the
+ * `POST /api/conversations` payload's `tags` field. These tests assert that
+ * wire shape directly — the localStorage shim is deprecated, and the
+ * agent-server is the canonical source. See `agent-server-adapter.ts`
+ * (AGENT_CANVAS_METADATA_TAG_KEYS) and SDK PR #3621.
+ */
+const lastCreatePayload = (): Record<string, unknown> => {
+  const calls = mockHttpPost.mock.calls;
+  expect(calls.length).toBeGreaterThan(0);
+  return calls[calls.length - 1][1] as Record<string, unknown>;
+};
+
+const tagsFromLastCreate = (): Record<string, string> | undefined => {
+  const payload = lastCreatePayload();
+  return payload.tags as Record<string, string> | undefined;
+};
 
 const {
   mockHttpPost,
@@ -123,7 +141,7 @@ describe("useCreateConversation persists selected repository metadata", () => {
     window.localStorage.clear();
   });
 
-  it("stores the selected repo/branch/provider in the metadata store after a successful create", async () => {
+  it("sends selected repo/branch/provider tags on POST /api/conversations", async () => {
     const { result } = renderHook(() => useCreateConversation(), { wrapper });
 
     result.current.mutate({
@@ -137,15 +155,14 @@ describe("useCreateConversation persists selected repository metadata", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(getStoredConversationMetadata("conv-new")).toEqual({
+    expect(tagsFromLastCreate()).toEqual({
       selected_repository: "octocat/hello-world",
       selected_branch: "main",
       git_provider: "github",
-      selected_workspace: null,
     });
   });
 
-  it("stores the selected workspace path when only a workspace (no repo) is attached", async () => {
+  it("sends the selected_workspace tag when only a workspace (no repo) is attached", async () => {
     const { result } = renderHook(() => useCreateConversation(), { wrapper });
 
     result.current.mutate({
@@ -155,27 +172,26 @@ describe("useCreateConversation persists selected repository metadata", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    // We persist the workspace path so `useHasAttachedSource` can default
-    // the Files tab to diff view even when no repo was picked.
-    expect(getStoredConversationMetadata("conv-new")).toEqual({
-      selected_repository: null,
-      selected_branch: null,
-      git_provider: null,
+    // `useHasAttachedSource` reads `selected_workspace` from server tags
+    // to default the Files tab to diff view even when no repo was picked.
+    expect(tagsFromLastCreate()).toEqual({
       selected_workspace: "/home/me/code/some-project",
     });
   });
 
-  it("does not write metadata when neither a repository nor a workspace is attached", async () => {
+  it("omits the tags field entirely when neither a repository nor a workspace is attached", async () => {
     const { result } = renderHook(() => useCreateConversation(), { wrapper });
 
     result.current.mutate({ query: "scratch session" });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(getStoredConversationMetadata("conv-new")).toBeNull();
+    // No metadata + no ACP server → buildStartConversationRequest leaves
+    // `tags` off the wire entirely (same shape as the original behaviour).
+    expect(lastCreatePayload().tags).toBeUndefined();
   });
 
-  it("stamps the active LLM profile even when no repo or workspace is attached (#1082)", async () => {
+  it("stamps the active_profile tag even when no repo or workspace is attached (#1082)", async () => {
     mockUseLlmProfiles.mockReturnValue({
       data: { active_profile: "team-default" },
     });
@@ -186,11 +202,7 @@ describe("useCreateConversation persists selected repository metadata", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(getStoredConversationMetadata("conv-new")).toEqual({
-      selected_repository: null,
-      selected_branch: null,
-      git_provider: null,
-      selected_workspace: null,
+    expect(tagsFromLastCreate()).toEqual({
       active_profile: "team-default",
     });
   });

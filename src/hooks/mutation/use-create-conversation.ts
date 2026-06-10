@@ -5,10 +5,6 @@ import { SuggestedTask } from "#/utils/types";
 import { Provider } from "#/types/settings";
 import { useTracking } from "#/hooks/use-tracking";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
-import {
-  getStoredConversationMetadata,
-  setStoredConversationMetadata,
-} from "#/api/conversation-metadata-store";
 
 interface CreateConversationVariables {
   query?: string;
@@ -55,39 +51,35 @@ export const useCreateConversation = () => {
         agentType,
       } = variables;
 
+      // Stamp the active LLM profile onto the new conversation so the chat
+      // switcher shows the exact profile even when several profiles share a
+      // model (#1082). Passed through `metadata.active_profile` so the
+      // conversation service writes it as a server tag in the same request
+      // as the repo/workspace selection — one round-trip, no localStorage.
+      // Keep the metadata arg `null` when there's nothing meaningful to
+      // stamp (no repo, no profile) so the wire-shape matches a pre-tag
+      // create — tests assert call args against `null` in that case.
+      const activeProfile = llmProfiles?.active_profile ?? null;
+      const metadata =
+        repository || activeProfile
+          ? {
+              selected_repository: repository?.name ?? null,
+              selected_branch: repository?.branch ?? null,
+              git_provider: repository?.gitProvider ?? null,
+              active_profile: activeProfile,
+            }
+          : null;
+
       const conversation =
         await AgentServerConversationService.createConversation(
           query,
           conversationInstructions,
           plugins,
-          repository
-            ? {
-                selected_repository: repository.name,
-                selected_branch: repository.branch ?? null,
-                git_provider: repository.gitProvider,
-              }
-            : null,
+          metadata,
           workingDir,
           parentConversationId,
           agentType,
         );
-
-      // Stamp the active LLM profile onto the (local) conversation so the
-      // chat switcher shows the exact profile even when several profiles
-      // share a model (#1082). Cloud conversations don't use local profiles
-      // (app_conversation_id stays null until the sandbox is READY). Merge so
-      // the repo/workspace metadata the service just persisted is preserved.
-      const localConversationId = conversation.app_conversation_id;
-      if (localConversationId && llmProfiles?.active_profile) {
-        const prev = getStoredConversationMetadata(localConversationId);
-        setStoredConversationMetadata(localConversationId, {
-          selected_repository: prev?.selected_repository ?? null,
-          selected_branch: prev?.selected_branch ?? null,
-          git_provider: prev?.git_provider ?? null,
-          selected_workspace: prev?.selected_workspace ?? null,
-          active_profile: llmProfiles.active_profile,
-        });
-      }
 
       // OpenHands cloud pattern: when the start task isn't immediately
       // READY (cloud sandbox is still provisioning),

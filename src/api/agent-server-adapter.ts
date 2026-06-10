@@ -2,7 +2,7 @@ import { ACP_SETTINGS_KEYS } from "@openhands/typescript-client";
 import { SKILLS_CATALOG } from "@openhands/extensions/skills";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
-import { Settings, SettingsValue } from "#/types/settings";
+import { Provider, Settings, SettingsValue } from "#/types/settings";
 import {
   getAcpPreferredDefaultModel,
   getAcpProvider,
@@ -62,11 +62,13 @@ export interface DirectConversationInfo {
   } | null;
   /**
    * Arbitrary string-keyed conversation tags surfaced by the agent-server
-   * (see ``ConversationInfo.tags``). Canvas only consumes one key today —
-   * ``ACP_SERVER_TAG_KEY`` ("acpserver") — but the field is typed as a
-   * generic record so future readers don't need another wire-shape change.
-   * Keys are constrained to ``^[a-z0-9]+$`` by the agent-server validator;
-   * values are opaque strings.
+   * (see ``ConversationInfo.tags``). Canvas writes six keys today:
+   * ``ACP_SERVER_TAG_KEY`` ("acpserver") and the five agent-canvas UI
+   * metadata fields (``selected_repository``, ``selected_branch``,
+   * ``git_provider``, ``selected_workspace``, ``active_profile``) declared
+   * in ``AGENT_CANVAS_METADATA_TAG_KEYS``. Keys are constrained to
+   * ``^[a-z0-9_]+$`` by the agent-server validator (SDK PR #3621);
+   * values are opaque strings up to 256 chars.
    */
   tags?: Record<string, string> | null;
 }
@@ -288,7 +290,16 @@ export function getDefaultConversationTitle(conversationId: string): string {
 export function toAppConversation(
   info: DirectConversationInfo,
 ): AppConversation {
-  const metadata = getStoredConversationMetadata(info.id);
+  // Server tags are the canonical home for per-conversation, UI-only
+  // metadata (`selected_repository`, `selected_branch`, `git_provider`,
+  // `selected_workspace`, `active_profile`) since SDK PR #3621 relaxed the
+  // tag-key validator. Fall back to the legacy `conversation-metadata-store`
+  // localStorage blob for conversations created before this migration —
+  // `conversation-metadata-migration.ts` lazily pushes those into server
+  // tags in the background, after which the legacy entry is cleared and
+  // this branch goes unused.
+  const fromTags = readMetadataFromTags(info.tags);
+  const legacy = getStoredConversationMetadata(info.id);
   // ACPAgent conversations carry a sentinel ``llm`` on older SDKs. Prefer the
   // runtime model fields when available, then the configured ``acp_model`` that
   // Canvas saves for built-in providers. ``agent_kind`` still gates model
@@ -302,11 +313,18 @@ export function toAppConversation(
   return {
     id: info.id,
     created_by_user_id: null,
-    selected_repository: metadata?.selected_repository ?? null,
-    selected_branch: metadata?.selected_branch ?? null,
-    git_provider: metadata?.git_provider ?? null,
-    selected_workspace: metadata?.selected_workspace ?? null,
-    active_profile: metadata?.active_profile ?? null,
+    selected_repository:
+      fromTags.selected_repository ?? legacy?.selected_repository ?? null,
+    selected_branch:
+      fromTags.selected_branch ?? legacy?.selected_branch ?? null,
+    git_provider:
+      (fromTags.git_provider as Provider | null | undefined) ??
+      legacy?.git_provider ??
+      null,
+    selected_workspace:
+      fromTags.selected_workspace ?? legacy?.selected_workspace ?? null,
+    active_profile: fromTags.active_profile ?? legacy?.active_profile ?? null,
+    tags: info.tags ?? null,
     title: info.title?.trim()
       ? info.title
       : getDefaultConversationTitle(info.id),
@@ -405,6 +423,117 @@ type ConversationSettingsPayload = SettingsRecord & {
 };
 
 export const ACP_SERVER_TAG_KEY = "acpserver";
+
+/**
+ * Conversation tag keys agent-canvas uses to round-trip per-conversation,
+ * UI-only metadata through the agent-server's existing `tags` field — see
+ * `software-agent-sdk` PR #3621 which relaxed the key validator from
+ * `^[a-z0-9]+$` to `^[a-z0-9_]+$` so we could use natural snake_case names
+ * here instead of mashed-together strings like `selectedworkspace`.
+ *
+ * Together these five keys deprecate `conversation-metadata-store.ts` (the
+ * old per-conversation localStorage blob). Migration is graceful: when
+ * `toAppConversation` finds an entry in localStorage but no value in
+ * server tags, it surfaces the legacy value while
+ * `conversation-metadata-migration.ts` runs in the background to PATCH the
+ * tags onto the live conversation and clear the localStorage entry on
+ * success.
+ *
+ * NOTE: Keys are kept snake_case to match the wire shape on `AppConversation`
+ * (e.g. `selected_repository`). Do not rename them — the relaxed SDK
+ * validator requires the agent-server to be at least the SDK release that
+ * shipped PR #3621.
+ */
+export const SELECTED_REPOSITORY_TAG_KEY = "selected_repository";
+export const SELECTED_BRANCH_TAG_KEY = "selected_branch";
+export const GIT_PROVIDER_TAG_KEY = "git_provider";
+export const SELECTED_WORKSPACE_TAG_KEY = "selected_workspace";
+export const ACTIVE_PROFILE_TAG_KEY = "active_profile";
+
+/**
+ * The full set of tag keys agent-canvas writes. Used by tag-merge helpers
+ * to scrub the legacy localStorage value off the wire once the server has
+ * a canonical answer, and by tests to assert the wire shape.
+ */
+export const AGENT_CANVAS_METADATA_TAG_KEYS = [
+  SELECTED_REPOSITORY_TAG_KEY,
+  SELECTED_BRANCH_TAG_KEY,
+  GIT_PROVIDER_TAG_KEY,
+  SELECTED_WORKSPACE_TAG_KEY,
+  ACTIVE_PROFILE_TAG_KEY,
+] as const;
+
+/**
+ * Per-conversation, UI-only metadata round-tripped through server tags.
+ * Mirrors the legacy `ConversationMetadata` shape but consumers should treat
+ * it as a generic record; the migration helper handles both shapes.
+ */
+export interface ConversationMetadataTags {
+  selected_repository?: string | null;
+  selected_branch?: string | null;
+  git_provider?: string | null;
+  selected_workspace?: string | null;
+  active_profile?: string | null;
+}
+
+/**
+ * Read the five agent-canvas metadata fields out of a server tag map.
+ * Returns the tags _projected_ onto the metadata shape, dropping any other
+ * tags (e.g. `acpserver`) so callers can treat the result as a typed view.
+ */
+export function readMetadataFromTags(
+  tags: Record<string, string> | null | undefined,
+): ConversationMetadataTags {
+  if (!tags) return {};
+  return {
+    selected_repository: tags[SELECTED_REPOSITORY_TAG_KEY] ?? null,
+    selected_branch: tags[SELECTED_BRANCH_TAG_KEY] ?? null,
+    git_provider: tags[GIT_PROVIDER_TAG_KEY] ?? null,
+    selected_workspace: tags[SELECTED_WORKSPACE_TAG_KEY] ?? null,
+    active_profile: tags[ACTIVE_PROFILE_TAG_KEY] ?? null,
+  };
+}
+
+/**
+ * Build the agent-canvas metadata subset of a server tag map. Empty/null
+ * values are dropped so we never persist `selected_branch: ""` over a valid
+ * `null` — keeps the wire format identical to what a fresh write would
+ * produce.
+ */
+export function metadataToTagPatch(
+  metadata: ConversationMetadataTags,
+): Record<string, string> {
+  const patch: Record<string, string> = {};
+  for (const key of AGENT_CANVAS_METADATA_TAG_KEYS) {
+    const value = metadata[key];
+    if (typeof value === "string" && value.length > 0) {
+      patch[key] = value;
+    }
+  }
+  return patch;
+}
+
+/**
+ * Merge a metadata patch into an existing tag map, preserving any tags
+ * agent-canvas does not own (e.g. `acpserver` for ACP conversations).
+ *
+ * The agent-server's `PATCH /api/conversations/{id}` with `{tags: ...}`
+ * REPLACES the entire tag map (see `software-agent-sdk` `conversation_service.update_conversation`),
+ * so every PATCH must include the tags we want to preserve.
+ */
+export function mergeMetadataIntoTags(
+  existing: Record<string, string> | null | undefined,
+  metadata: ConversationMetadataTags,
+): Record<string, string> {
+  const next: Record<string, string> = { ...(existing ?? {}) };
+  // Drop our own keys first so a metadata value of `null`/`""` clears the
+  // tag rather than leaving the stale one in place.
+  for (const key of AGENT_CANVAS_METADATA_TAG_KEYS) {
+    delete next[key];
+  }
+  Object.assign(next, metadataToTagPatch(metadata));
+  return next;
+}
 
 const CONVERSATION_SETTINGS_METADATA_KEYS = new Set([
   "schema_version",
@@ -826,6 +955,13 @@ export interface StartConversationOptions {
   encryptedConversationSettings?: Record<string, SettingsValue>;
   secretsEncrypted?: boolean;
   customSecrets?: Array<{ name: string; description?: string }>;
+  /**
+   * UI-only per-conversation metadata to stamp onto the new conversation's
+   * server tags at creation time (`selected_repository`, `selected_branch`,
+   * `git_provider`, `selected_workspace`, `active_profile`). Mixed in
+   * alongside the ACP `acpserver` tag — see `mergeMetadataIntoTags`.
+   */
+  metadata?: ConversationMetadataTags;
 }
 
 export function buildStartConversationRequest(
@@ -869,8 +1005,18 @@ export function buildStartConversationRequest(
     worktree: true,
   };
 
+  // Stamp all conversation tags at creation: the ACP server identifier
+  // (if applicable) plus the five agent-canvas UI metadata fields the chat
+  // page reads back via `toAppConversation` / `readMetadataFromTags`.
+  const tags: Record<string, string> = {};
   if (acpServerTag) {
-    payload.tags = { [ACP_SERVER_TAG_KEY]: acpServerTag };
+    tags[ACP_SERVER_TAG_KEY] = acpServerTag;
+  }
+  if (options.metadata) {
+    Object.assign(tags, metadataToTagPatch(options.metadata));
+  }
+  if (Object.keys(tags).length > 0) {
+    payload.tags = tags;
   }
 
   // ``secrets_encrypted`` makes the agent-server run every request secret through
@@ -954,6 +1100,7 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   plugins?: PluginSpec[];
   conversationId?: string;
   workingDir?: string;
+  metadata?: ConversationMetadataTags;
 }): Promise<Record<string, unknown>> {
   const { SecretsService } = await import("./secrets-service");
 

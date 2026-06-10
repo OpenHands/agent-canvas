@@ -66,10 +66,7 @@ import {
   invalidateConversationQueries,
   updateConversationLlmModelInCache,
 } from "#/hooks/mutation/conversation-mutation-utils";
-import {
-  getStoredConversationMetadata,
-  setStoredConversationMetadata,
-} from "#/api/conversation-metadata-store";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 
 export type WebSocketConnectionState =
   | "CONNECTING"
@@ -593,15 +590,13 @@ export function ConversationWebSocketProvider({
 
             // Mirror the user-driven `/model` path: persist the profile so the
             // chat-header switcher shows the right name after a reload, even
-            // when several profiles share a model (#1082).
-            const prevMetadata = getStoredConversationMetadata(conversationId);
-            setStoredConversationMetadata(conversationId, {
-              selected_repository: prevMetadata?.selected_repository ?? null,
-              selected_branch: prevMetadata?.selected_branch ?? null,
-              git_provider: prevMetadata?.git_provider ?? null,
-              selected_workspace: prevMetadata?.selected_workspace ?? null,
-              active_profile: switchLLMObservation.observation.profile_name,
-            });
+            // when several profiles share a model (#1082). Best-effort PATCH
+            // to the conversation's `active_profile` tag; a failed write
+            // only loses the cosmetic profile name on reload.
+            void AgentServerConversationService.updateConversationActiveProfile(
+              conversationId,
+              switchLLMObservation.observation.profile_name,
+            ).catch(() => undefined);
 
             if (switchLLMObservation.observation.active_model) {
               updateConversationLlmModelInCache(

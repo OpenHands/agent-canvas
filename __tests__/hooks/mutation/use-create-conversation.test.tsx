@@ -82,15 +82,19 @@ describe("useCreateConversation", () => {
     });
 
     await waitFor(() => {
+      // The metadata object now also carries `active_profile` (null when
+      // no profile is active) — see `useCreateConversation` and the
+      // deprecation of `conversation-metadata-store`. The mocked
+      // `useLlmProfiles` in this test returns no data, so the field is null.
       expect(createConversationSpy).toHaveBeenCalledWith(
         "Please address the comments",
         "Focus on review comments",
         undefined,
-        {
+        expect.objectContaining({
           selected_repository: "owner/repo",
           selected_branch: "main",
           git_provider: "github",
-        },
+        }),
         undefined,
         undefined,
         undefined,

@@ -9,7 +9,7 @@ import {
   VSCodeClient,
 } from "@openhands/typescript-client/clients";
 import { v4 as uuidv4 } from "uuid";
-import { Provider } from "#/types/settings";
+
 import type { ConversationRuntimeContext } from "#/api/conversation-file-upload.api";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import {
@@ -33,10 +33,13 @@ import {
   updateCloudConversationPublicFlag,
 } from "../cloud/conversation-service.api";
 import {
+  ConversationMetadataTags,
   DirectConversationInfo,
   buildStartConversationRequestWithEncryptedSettings,
   emptyHooksResponse,
   getDefaultConversationTitle,
+  mergeMetadataIntoTags,
+  readMetadataFromTags,
   toAppConversation,
   toConversationPage,
 } from "../agent-server-adapter";
@@ -48,9 +51,7 @@ import {
 import SettingsService from "../settings-service/settings-service.api";
 import {
   ConversationMetadata,
-  getStoredConversationMetadata,
   removeStoredConversationMetadata,
-  setStoredConversationMetadata,
 } from "../conversation-metadata-store";
 import type {
   GetHooksResponse,
@@ -386,6 +387,22 @@ class AgentServerConversationService {
       workingDirOverride ?? buildConversationWorkingDir(conversationId),
     );
 
+    // Build the metadata payload once. Conversations the user did NOT
+    // attach a repo/workspace to send no metadata tags and create an empty
+    // tag map on the server — same on-the-wire shape as before the
+    // localStorage shim. `active_profile` is the LLM-profile snapshot the
+    // caller (e.g. `useCreateConversation`) supplied at creation time;
+    // several saved profiles can share the same model (#1082), so the chat
+    // switcher needs the profile name explicitly rather than recovering it
+    // from `llm.model`.
+    const tagMetadata: ConversationMetadataTags = {
+      selected_repository: metadata?.selected_repository ?? null,
+      selected_branch: metadata?.selected_branch ?? null,
+      git_provider: metadata?.git_provider ?? null,
+      selected_workspace: workingDirOverride ?? null,
+      active_profile: metadata?.active_profile ?? null,
+    };
+
     // Use encrypted settings to avoid exposing secrets in the browser
     const payload = await buildStartConversationRequestWithEncryptedSettings({
       settings,
@@ -394,6 +411,7 @@ class AgentServerConversationService {
       plugins,
       conversationId,
       workingDir,
+      metadata: tagMetadata,
     });
 
     const data = await new ConversationClient(
@@ -401,21 +419,6 @@ class AgentServerConversationService {
     ).createConversation<DirectConversationInfo>(payload);
     const localBackend = getEffectiveLocalBackend();
     if (!localBackend) throw new NoBackendAvailableError();
-
-    if (metadata?.selected_repository || workingDirOverride) {
-      // The agent-server runtime has no concept of selected repo/branch/
-      // workspace, so persist the home-page selection client-side.
-      // `toAppConversation` reads the repo/branch fields back to hydrate
-      // the chat-page badges; `useHasAttachedSource` reads
-      // `selected_workspace` to default the Files tab to Diff mode when
-      // the user explicitly attached a local workspace.
-      setStoredConversationMetadata(data.id, {
-        selected_repository: metadata?.selected_repository ?? null,
-        selected_branch: metadata?.selected_branch ?? null,
-        git_provider: metadata?.git_provider ?? null,
-        selected_workspace: workingDirOverride ?? null,
-      });
-    }
 
     return {
       id: data.id,
@@ -518,17 +521,29 @@ class AgentServerConversationService {
     branch?: string | null,
     gitProvider?: string | null,
   ): Promise<AppConversation> {
-    if (repository) {
-      const existing = getStoredConversationMetadata(conversationId);
-      setStoredConversationMetadata(conversationId, {
-        ...(existing ?? {}),
-        selected_repository: repository,
-        selected_branch: branch ?? null,
-        git_provider: (gitProvider as Provider | null | undefined) ?? null,
-      });
-    } else {
-      removeStoredConversationMetadata(conversationId);
-    }
+    // Round-trip selected_repository / selected_branch / git_provider through
+    // server tags via PATCH /api/conversations/{id} so the values persist
+    // server-side and survive a localStorage wipe. `updateConversation`
+    // replaces the entire `tags` field, so we merge against the current
+    // server tag map to preserve unrelated tags (e.g. `acpserver`).
+    const [current] = await this.batchGetAppConversations([conversationId]);
+    const existing = requireAppConversation(current, conversationId);
+
+    const mergedTags = mergeMetadataIntoTags(existing.tags ?? null, {
+      ...readMetadataFromTags(existing.tags ?? null),
+      selected_repository: repository,
+      selected_branch: branch ?? null,
+      git_provider: gitProvider ?? null,
+    });
+
+    await new ConversationClient(
+      getAgentServerClientOptions(),
+    ).updateConversation(conversationId, { tags: mergedTags });
+
+    // Also clear any legacy localStorage entry — once we've successfully
+    // written to server tags it is the canonical source.
+    removeStoredConversationMetadata(conversationId);
+
     const [conversation] = await this.batchGetAppConversations([
       conversationId,
     ]);
@@ -665,6 +680,40 @@ class AgentServerConversationService {
       conversationId,
     ]);
     return requireAppConversation(conversation, conversationId);
+  }
+
+  /**
+   * Stamp the `active_profile` server tag on a conversation — used by the
+   * chat-header profile switcher to remember which named LLM profile the
+   * user picked. Several saved profiles can share a model (#1082), so this
+   * is the only way to recover the profile name after a reload. Other
+   * agent-canvas tags (selected_repository, …) and unrelated tags
+   * (`acpserver`) are preserved via `mergeMetadataIntoTags`.
+   */
+  static async updateConversationActiveProfile(
+    conversationId: string,
+    profileName: string | null,
+  ): Promise<void> {
+    if (getActiveBackend().backend.kind === "cloud") {
+      // Cloud conversations don't use local profiles — switching is a
+      // settings change rather than a tag patch. No-op here.
+      return;
+    }
+
+    const [current] = await this.batchGetAppConversations([conversationId]);
+    const existing = requireAppConversation(current, conversationId);
+
+    const mergedTags = mergeMetadataIntoTags(existing.tags ?? null, {
+      ...readMetadataFromTags(existing.tags ?? null),
+      active_profile: profileName,
+    });
+
+    await new ConversationClient(
+      getAgentServerClientOptions(),
+    ).updateConversation(conversationId, { tags: mergedTags });
+
+    // Same legacy-cleanup pattern as updateConversationRepository.
+    removeStoredConversationMetadata(conversationId);
   }
 
   /**

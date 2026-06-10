@@ -138,6 +138,7 @@ describe("TaskCard", () => {
           selected_repository: MOCK_TASK_1.repo,
           selected_branch: null,
           git_provider: MOCK_TASK_1.git_provider,
+          active_profile: null,
         },
         undefined,
         undefined,
