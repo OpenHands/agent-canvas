@@ -198,6 +198,7 @@ jobs:
             OPENHANDS_BUILD_GIT_SHA=${{ env.RELEVANT_SHA }}
             OPENHANDS_BUILD_GIT_REF=${{ env.RELEVANT_REF }}
             VITE_APP_ENV=${{ steps.prep.outputs.vite_app_env }}
+            VITE_POSTHOG_CLIENT_KEY=${{ vars.POSTHOG_CLIENT_KEY }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: true
