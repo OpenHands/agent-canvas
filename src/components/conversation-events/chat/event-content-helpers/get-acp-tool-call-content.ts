@@ -1,6 +1,7 @@
 import { ACPToolCallEvent } from "#/types/agent-server/core/events/acp-tool-call-event";
 import i18n from "#/i18n";
 import { MAX_CONTENT_LENGTH } from "./shared";
+import { I18nKey } from "#/i18n/declaration";
 
 /**
  * Pick the translation key used for the ACP tool call title row. Mirrors
@@ -124,7 +125,7 @@ export const getACPToolCallContent = (event: ACPToolCallEvent): string => {
   // Output block — matches the bash observation layout exactly.
   const outputStr = truncate(stringifyPayload(rawOutput).trim());
   const outputLabel = isError ? "**Error:**" : "Output:";
-  const outputBody = outputStr || i18n.t("OBSERVATION$COMMAND_NO_OUTPUT");
+  const outputBody = outputStr || i18n.t(I18nKey.OBSERVATION$COMMAND_NO_OUTPUT);
   output += `${outputLabel}\n\`\`\`\n${outputBody}\n\`\`\``;
 
   return output;

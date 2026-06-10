@@ -10,16 +10,20 @@ import {
 import "./tailwind.css";
 import "./index.css";
 import React from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "react-hot-toast";
 import {
+  clearCachedAgentServerInfo,
   isAgentServerUnavailableError,
   isAgentServerAuthError,
 } from "#/api/agent-server-compatibility";
 import { isAuthRequiredAndMissing } from "#/api/agent-server-config";
+import { getEffectiveLocalBackend } from "#/api/backend-registry/active-store";
 import { TOAST_OPTIONS } from "#/utils/custom-toast-handlers";
 import { TelemetryConsentBanner } from "#/components/features/analytics/telemetry-consent-banner";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useConfig } from "#/hooks/query/use-config";
+import { QUERY_KEYS } from "#/hooks/query/query-keys";
 import { AgentServerUIRoot } from "#/components/providers";
 import {
   applyColorTheme,
@@ -90,7 +94,20 @@ function AgentServerBootstrapLoading() {
  * add, or pick another backend right away.
  */
 function MissingAgentServerScreen() {
-  const noop = React.useCallback(() => {}, []);
+  const queryClient = useQueryClient();
+
+  // The modal is the no-backend gate. Selecting or adding a reachable
+  // backend must re-run the /server_info probe; otherwise the app stays
+  // behind the recovery screen because the failed bootstrap query will not
+  // re-fire on its own. Re-fetch only when a backend now exists.
+  const handleClose = React.useCallback(() => {
+    if (getEffectiveLocalBackend()) {
+      clearCachedAgentServerInfo();
+      void queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.WEB_CLIENT_CONFIG,
+      });
+    }
+  }, [queryClient]);
 
   return (
     <main
@@ -98,7 +115,7 @@ function MissingAgentServerScreen() {
       className="min-h-screen bg-base"
     >
       <React.Suspense fallback={null}>
-        <ManageBackendsModal onClose={noop} />
+        <ManageBackendsModal onClose={handleClose} recoveryMode />
       </React.Suspense>
     </main>
   );
@@ -117,7 +134,17 @@ export default function App() {
   // Flag-based gate: in public mode (VITE_AUTH_REQUIRED=true) with no
   // session key yet, show the auth screen immediately — no network
   // round-trip needed.
-  const authMissing = isAuthRequiredAndMissing();
+  //
+  // `isAuthRequiredAndMissing()` only checks for a *baked-in* session
+  // key (env var / window global). In public mode the baked key is
+  // intentionally absent — the user enters it through the auth screen,
+  // which persists it to the backend registry (localStorage). After a
+  // reload the baked key is still null, but the registry has the key.
+  // So: skip the instant gate when a registered backend already carries
+  // an API key — let the normal /server_info probe validate it instead.
+  const bakedKeyMissing = isAuthRequiredAndMissing();
+  const hasRegisteredKey = Boolean(getEffectiveLocalBackend()?.apiKey);
+  const authMissing = bakedKeyMissing && !hasRegisteredKey;
 
   // Skip the /server_info probe entirely when we already know auth is
   // required and missing — it would just 401 and waste time.

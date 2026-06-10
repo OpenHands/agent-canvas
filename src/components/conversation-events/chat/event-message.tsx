@@ -16,11 +16,13 @@ import {
   isPlanningFileEditorObservationEvent,
   isHookExecutionEvent,
   isACPToolCallEvent,
+  isStreamingDeltaEvent,
 } from "#/types/agent-server/type-guards";
 import { useConfig } from "#/hooks/query/use-config";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
+import { ChatMessage } from "#/components/features/chat/chat-message";
 import { PlanPreview } from "../../features/chat/plan-preview";
 import { ErrorEventMessage } from "./event-message-components/error-event-message";
 import { UserAssistantEventMessage } from "./event-message-components/user-assistant-event-message";
@@ -173,6 +175,23 @@ export function EventMessage({
   if (isACPToolCallEvent(event)) {
     return (
       <GenericEventMessageWrapper event={event} isLastMessage={isLastMessage} />
+    );
+  }
+
+  if (isStreamingDeltaEvent(event)) {
+    const content = event.content ?? "";
+    const reasoningContent = event.reasoning_content ?? "";
+    return (
+      <>
+        {reasoningContent && <CollapsibleThinking content={reasoningContent} />}
+        {content && (
+          <ChatMessage
+            type="agent"
+            message={content}
+            isFromPlanningAgent={isFromPlanningAgent}
+          />
+        )}
+      </>
     );
   }
 

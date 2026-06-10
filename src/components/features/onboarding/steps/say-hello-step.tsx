@@ -1,6 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { Send } from "lucide-react";
+import { ChatSendButton } from "#/components/features/chat/chat-send-button";
 import { RecommendedAutomationsLauncher } from "#/components/features/automations/recommended-automations-launcher";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { useNavigation } from "#/context/navigation-context";
@@ -10,6 +10,8 @@ import { I18nKey } from "#/i18n/declaration";
 
 interface SayHelloStepProps {
   onBack: () => void;
+  /** Dismisses onboarding without launching a conversation. */
+  onClose: () => void;
   /** Called once the conversation has been created — used by the parent
    * modal to mark the onboarding as complete before unmounting. */
   onLaunched: () => void;
@@ -20,7 +22,11 @@ interface SayHelloStepProps {
  * launches a brand-new conversation with no workspace and navigates
  * to it. Completing this step finishes the onboarding flow.
  */
-export function SayHelloStep({ onBack, onLaunched }: SayHelloStepProps) {
+export function SayHelloStep({
+  onBack,
+  onClose,
+  onLaunched,
+}: SayHelloStepProps) {
   const { t } = useTranslation("openhands");
   const { navigate } = useNavigation();
   const defaultMessage = t(I18nKey.ONBOARDING$HELLO_DEFAULT_MESSAGE);
@@ -66,9 +72,9 @@ export function SayHelloStep({ onBack, onLaunched }: SayHelloStepProps) {
   return (
     <div
       data-testid="onboarding-step-say-hello"
-      className="flex flex-col gap-6"
+      className="flex max-h-[calc(90vh-7rem)] flex-col"
     >
-      <header className="flex flex-col gap-2">
+      <header className="flex shrink-0 flex-col gap-2">
         <h2 className="text-2xl font-medium text-white">
           {t(I18nKey.ONBOARDING$HELLO_TITLE)}
         </h2>
@@ -77,24 +83,62 @@ export function SayHelloStep({ onBack, onLaunched }: SayHelloStepProps) {
         </p>
       </header>
 
-      <form onSubmit={handleSubmit} className="contents">
-        <input
-          data-testid="onboarding-hello-input"
-          aria-label={t(I18nKey.ONBOARDING$HELLO_TITLE)}
-          type="text"
-          value={message}
-          onChange={(event) => setMessage(event.target.value)}
-          placeholder={defaultMessage}
-          disabled={isLaunching}
-          className="w-full rounded-xl border border-white/10 bg-base-secondary px-4 py-3 text-base text-white placeholder:text-[var(--oh-text-subtle)] focus:border-primary focus:outline-none disabled:opacity-60"
-        />
+      <form
+        onSubmit={handleSubmit}
+        data-testid="onboarding-hello-input-form"
+        className="mt-6 box-border flex w-full shrink-0 flex-col items-start justify-center rounded-[15px] border border-[var(--oh-border)] bg-surface-raised p-4"
+      >
+        <div className="relative w-full">
+          <div className="box-border flex w-full shrink-0 flex-row items-end justify-between gap-2 p-0 pb-[18px]">
+            <input
+              data-testid="onboarding-hello-input"
+              aria-label={t(I18nKey.ONBOARDING$HELLO_TITLE)}
+              type="text"
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  launchConversation();
+                }
+              }}
+              placeholder={defaultMessage}
+              disabled={isLaunching}
+              className="min-h-[20px] w-full flex-1 bg-transparent text-[16px] font-normal leading-[20px] text-white outline-none placeholder:text-[var(--oh-text-tertiary)] disabled:cursor-not-allowed disabled:opacity-50"
+            />
+          </div>
+        </div>
+        <div className="flex w-full min-w-0 items-center justify-end gap-2">
+          <ChatSendButton
+            buttonClassName=""
+            handleSubmit={launchConversation}
+            disabled={!canSubmit}
+          />
+        </div>
       </form>
 
-      <div data-testid="onboarding-recommended-automations">
-        <RecommendedAutomationsLauncher onLaunched={onLaunched} />
+      <div
+        data-testid="onboarding-hello-or-separator"
+        className="mt-6 flex w-full items-center gap-3"
+      >
+        <div className="h-px flex-1 bg-[var(--oh-border)]" />
+        <span className="text-xs uppercase text-[var(--oh-muted)]">
+          {t(I18nKey.LANDING$OR)}
+        </span>
+        <div className="h-px flex-1 bg-[var(--oh-border)]" />
       </div>
 
-      <div className="sticky bottom-0 flex items-center justify-between gap-2 bg-base-secondary pt-4 pb-7">
+      <div
+        data-testid="onboarding-recommended-automations"
+        className="flex min-h-0 flex-1 flex-col"
+      >
+        <RecommendedAutomationsLauncher
+          onLaunched={onLaunched}
+          scrollableGrid
+        />
+      </div>
+
+      <div className="flex shrink-0 items-center justify-between gap-2 bg-base-secondary pt-7 pb-7">
         <BrandButton
           testId="onboarding-hello-back"
           type="button"
@@ -105,16 +149,13 @@ export function SayHelloStep({ onBack, onLaunched }: SayHelloStepProps) {
           {t(I18nKey.ONBOARDING$BACK)}
         </BrandButton>
         <BrandButton
-          testId="onboarding-hello-launch"
+          testId="onboarding-hello-close"
           type="button"
-          variant="primary"
-          isDisabled={!canSubmit}
-          onClick={launchConversation}
-          startContent={<Send className="size-4" aria-hidden />}
+          variant="secondary"
+          onClick={onClose}
+          isDisabled={isLaunching}
         >
-          {isLaunching
-            ? t(I18nKey.ONBOARDING$HELLO_LAUNCHING)
-            : t(I18nKey.ONBOARDING$HELLO_LAUNCH)}
+          {t(I18nKey.BUTTON$CLOSE)}
         </BrandButton>
       </div>
     </div>

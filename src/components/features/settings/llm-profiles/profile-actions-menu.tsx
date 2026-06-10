@@ -216,6 +216,8 @@ export function ProfileActionsMenu({
         disabled={setActiveDisabled}
         testId="profile-set-active"
       />
+      {/* The active profile can be deleted: useEnsureActiveProfile then promotes
+          another remaining profile so a profile is always active in local mode. */}
       <MenuItem
         index={3}
         icon={<DeleteIcon width={16} height={16} />}

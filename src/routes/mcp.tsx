@@ -9,7 +9,6 @@ import { useSettings } from "#/hooks/query/use-settings";
 import { useDeleteMcpServer } from "#/hooks/mutation/use-delete-mcp-server";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { parseMcpConfig } from "#/utils/mcp-config";
-import { redirectIfAcpActive } from "#/utils/acp-route-guard";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -36,16 +35,11 @@ import {
   type McpSectionFilter,
 } from "#/components/features/mcp-page";
 
-// ACP guard: the ACP sub-agent owns its own MCP server configuration —
-// the SDK explicitly rejects `mcp_config` on ACPAgent init, and
-// `agent-server-adapter` already strips it from start payloads. The
-// Settings → Agent page is where the user configures the ACP server, so
-// bouncing there is consistent with how `/settings` and
-// `/settings/condenser` already behave under ACP.
-//
-// Declared with no parameters (rather than typed as Route.ClientLoaderArgs)
-// so the lib build doesn't pull generated React Router types out of rootDir.
-export const clientLoader = async () => redirectIfAcpActive();
+// No ACP guard here (unlike `/settings` and `/settings/condenser`): MCP
+// servers configured via `agent_settings.mcp_config` are now forwarded to
+// the ACP subprocess at session creation, so this page is meaningful for
+// both OpenHands and ACP agents. The same editor and `mcp_config` storage
+// drive both kinds.
 
 export default function MCPPage() {
   const { t } = useTranslation("openhands");
@@ -121,7 +115,7 @@ export default function MCPPage() {
       >
         <ExtensionsNavigation />
         <div className="flex h-full flex-1 items-center justify-center px-4 md:px-0">
-          <div className="h-8 w-8 rounded-full border-2 border-[var(--oh-border)] border-t-white animate-spin" />
+          <div className="h-8 w-8 rounded-full border-2 border-transparent border-t-white animate-spin" />
         </div>
       </div>
     );
