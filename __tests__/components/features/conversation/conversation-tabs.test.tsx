@@ -505,6 +505,52 @@ describe("ConversationTabs localStorage behavior", () => {
     });
   });
 
+  describe("vscode link visibility by backend kind", () => {
+    beforeEach(() => {
+      mockConversationId = REAL_CONVERSATION_ID;
+    });
+
+    it("should hide the vscode link when the active backend is local", () => {
+      // Arrange
+      seedActiveBackend({
+        id: "local-test",
+        name: "Local Test",
+        host: "http://localhost:8000",
+        apiKey: "",
+        kind: "local",
+      });
+
+      // Act
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      // Assert
+      expect(
+        screen.queryByTestId("drawer-vscode-link"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("should show the vscode link when the active backend is cloud", () => {
+      // Arrange
+      seedActiveBackend({
+        id: "cloud-test",
+        name: "Cloud Test",
+        host: "https://app.example.com",
+        apiKey: "secret",
+        kind: "cloud",
+      });
+
+      // Act
+      render(<ConversationTabs />, {
+        wrapper: createWrapper(REAL_CONVERSATION_ID),
+      });
+
+      // Assert
+      expect(screen.getByTestId("drawer-vscode-link")).toBeInTheDocument();
+    });
+  });
+
   describe("ellipsis context menu", () => {
     beforeEach(() => {
       mockConversationId = REAL_CONVERSATION_ID;

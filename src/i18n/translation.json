@@ -16268,23 +16268,6 @@
     "uk": "Відключено. Будь ласка, оновіть сторінку",
     "ca": "Desconnectat. Actualitzeu la pàgina"
   },
-  "BROWSER$GO_FORWARD": {
-    "en": "Forward",
-    "ja": "進む",
-    "zh-CN": "前进",
-    "zh-TW": "前進",
-    "ko-KR": "앞으로",
-    "no": "Fremover",
-    "it": "Avanti",
-    "pt": "Avançar",
-    "es": "Adelante",
-    "ar": "إلى الأمام",
-    "fr": "Avancer",
-    "tr": "İleri",
-    "de": "Vorwärts",
-    "uk": "Вперед",
-    "ca": "Endavant"
-  },
   "BROWSER$URL_PLACEHOLDER": {
     "en": "No URL loaded",
     "ja": "URLが読み込まれていません",

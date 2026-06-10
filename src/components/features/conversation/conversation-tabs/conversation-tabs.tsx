@@ -77,14 +77,6 @@ export function ConversationTabs({
     handlePanelVisibilityChange();
   }, [isRightPanelShown, selectedTab, onTabChange]);
 
-  // Code editor moved to the Files tab toolbar — migrate any in-session
-  // selection away from the removed drawer tab.
-  useEffect(() => {
-    if (selectedTab === "vscode") {
-      onTabChange("files");
-    }
-  }, [selectedTab, onTabChange]);
-
   const { t, i18n } = useTranslation("openhands");
 
   // `files` is intentionally the leftmost tab — it's the primary entry
@@ -344,8 +336,16 @@ export function ConversationTabs({
               </div>
             </div>
           </div>
-          <div ref={vscodeButtonRef} className="ml-auto shrink-0 pr-1">
-            <DrawerVSCodeLink />
+          {/* Keep the ref'd wrapper mounted on local backends too — the
+              overflow measurement effect above bails if it's missing. */}
+          <div
+            ref={vscodeButtonRef}
+            className={cn(
+              "ml-auto shrink-0",
+              backend.kind === "cloud" && "pr-1",
+            )}
+          >
+            {backend.kind === "cloud" && <DrawerVSCodeLink />}
           </div>
         </div>
       </div>
