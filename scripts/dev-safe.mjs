@@ -25,6 +25,7 @@ import {
 // Docker entrypoint can run it as a CLI. Re-exported below for back-compat
 // (dev-with-automation.mjs and tests still import it from here).
 import { buildRuntimeServicesInfo } from "./runtime-services-info.mjs";
+import { fileLog, stripAnsi } from "./logger.mjs";
 
 // ── Centralized config (single source of truth for versions, ports, etc.) ───
 const __dev_safe_dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -393,7 +394,7 @@ export function validateFrontendDependencies(
  *   edits are picked up without a manual reinstall. The agent-server itself
  *   is rebuilt from local source on each invocation (--reinstall).
  * - OH_AGENT_SERVER_GIT_REF: Git commit SHA or branch name
- * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.24.0")
+ * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.27.0")
  *
  * If none are set, defaults to the released version specified by
  * DEFAULT_AGENT_SERVER_VERSION. Set OH_AGENT_SERVER_GIT_REF to use a
@@ -430,13 +431,22 @@ export function buildAgentServerCommand(env = process.env) {
     );
     source = `local (${localPath})`;
   } else if (gitRef) {
-    // Use git ref with subdirectory syntax for uv workspace monorepo
+    // Use git ref with subdirectory syntax for uv workspace monorepo.
     // The software-agent-sdk repo has packages in subdirectories:
-    // openhands-agent-server/, openhands-tools/, openhands-workspace/
+    // openhands-agent-server/, openhands-sdk/, openhands-tools/, openhands-workspace/
+    // All four must come from the same ref so inter-package APIs stay in sync.
+    //
+    // --reinstall is required because the git branch may carry the same version
+    // string as the current PyPI release (e.g. both "1.26.0"). Without it, uv
+    // silently reuses the cached PyPI wheels and the git ref is never actually
+    // used, even though it was explicitly requested.
     const baseGitUrl = `git+${AGENT_SERVER_GIT_REPO}@${gitRef}`;
     uvxArgs.push(
+      "--reinstall",
       "--from",
       `${baseGitUrl}#subdirectory=openhands-agent-server`,
+      "--with",
+      `${baseGitUrl}#subdirectory=openhands-sdk`,
       "--with",
       `${baseGitUrl}#subdirectory=openhands-tools`,
       "--with",
@@ -792,13 +802,16 @@ function spawnProcess(command, args, options = {}) {
 
   child.once("error", (error) => {
     if (isEnoentError(error) && command === "uvx") {
-      console.error(formatMissingUvxGuidance(options?.cwd));
+      const msg = formatMissingUvxGuidance(options?.cwd);
+      console.error(msg);
+      fileLog("error", stripAnsi(msg));
     } else if (isEnoentError(error)) {
-      console.error(
-        `Failed to start ${command}. Make sure it is installed and on your PATH.`,
-      );
+      const msg = `Failed to start ${command}. Make sure it is installed and on your PATH.`;
+      console.error(msg);
+      fileLog("error", msg);
     } else {
       console.error(`Failed to start ${command}:`, error);
+      fileLog("error", `Failed to start ${command}: ${error.message}`);
     }
   });
 
@@ -807,9 +820,12 @@ function spawnProcess(command, args, options = {}) {
 
 async function main() {
   console.log("Starting isolated agent-server + frontend dev stack...");
+  fileLog("info", "Starting isolated agent-server + frontend dev stack...");
   validateFrontendDependencies();
   console.log("Frontend dependencies found.");
+  fileLog("info", "Frontend dependencies found.");
   console.log("Allocating ports...");
+  fileLog("info", "Allocating ports...");
 
   // Use async config builder with dynamic port allocation
   const config = await buildSafeDevConfigAsync();
@@ -848,6 +864,16 @@ async function main() {
   console.log(`- secret key: ${secretKeySource}`);
   console.log(`- session API key: ${sessionKeySource}`);
   console.log("");
+  fileLog(
+    "info",
+    [
+      "Agent-server stack config:",
+      `  agent-server: ${agentServerCmd.source}`,
+      `  backend:      ${config.backendBaseUrl}`,
+      `  working dir:  ${config.workingDir}`,
+      `  state dir:    ${config.stateDir}`,
+    ].join("\n"),
+  );
 
   const backend = spawnProcess(
     agentServerCmd.command,
@@ -948,7 +974,9 @@ async function main() {
 
   backend.once("exit", (code) => {
     if (!shuttingDown) {
-      console.error(`agent-server exited unexpectedly with code ${code ?? 0}`);
+      const msg = `agent-server exited unexpectedly with code ${code ?? 0}`;
+      console.error(msg);
+      fileLog("error", msg);
       shutdown();
       process.exitCode = code ?? 1;
     }
@@ -1035,7 +1063,12 @@ if (
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   main().catch((error) => {
-    console.error(error instanceof Error ? error.message : error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(msg);
+    fileLog("error", `Fatal error: ${msg}`);
+    if (error instanceof Error && error.stack) {
+      fileLog("error", error.stack);
+    }
     process.exit(1);
   });
 }

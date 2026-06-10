@@ -1,4 +1,5 @@
 import React from "react";
+import { clearCachedAgentServerInfo } from "#/api/agent-server-compatibility";
 import {
   getActiveSelection,
   getRegisteredBackends,
@@ -18,6 +19,8 @@ import {
   type BackendSelection,
   type ResolvedActiveBackend,
 } from "#/api/backend-registry/types";
+import { QUERY_KEYS } from "#/hooks/query/query-keys";
+import { queryClient } from "#/query-client-config";
 
 interface ActiveBackendContextValue {
   backends: Backend[];
@@ -52,6 +55,13 @@ export function ActiveBackendProvider({
     getSnapshot,
   );
 
+  const retryBootstrapProbe = React.useCallback(() => {
+    clearCachedAgentServerInfo();
+    void queryClient.invalidateQueries({
+      queryKey: QUERY_KEYS.WEB_CLIENT_CONFIG,
+    });
+  }, []);
+
   const setActive = React.useCallback(
     (backendId: string, orgId?: string | null) => {
       const prevBackendId = getActiveSelection()?.backendId ?? null;
@@ -62,6 +72,7 @@ export function ActiveBackendProvider({
 
       const next: BackendSelection = { backendId, orgId: nextOrgId };
       setActiveSelection(next);
+      retryBootstrapProbe();
 
       // No blanket `invalidateQueries()` here. Long-lived queries
       // (`useSettings`, `usePaginatedConversations`,
@@ -71,7 +82,7 @@ export function ActiveBackendProvider({
       // treats a backend/org switch as a brand-new query and fetches
       // automatically — once, with no duplicate waves.
     },
-    [],
+    [retryBootstrapProbe],
   );
 
   // @spec BM-001 — Auto-switch to newly connected backend
@@ -81,14 +92,16 @@ export function ActiveBackendProvider({
       const list = [...getRegisteredBackends(), next];
       setRegisteredBackends(list);
       setActiveSelection({ backendId: next.id });
+      retryBootstrapProbe();
       return next;
     },
-    [],
+    [retryBootstrapProbe],
   );
 
   const updateBackend = React.useCallback(
     (id: string, patch: Partial<Omit<Backend, "id">>) => {
       const prev = getRegisteredBackends().find((b) => b.id === id);
+      const activeBeforeUpdate = getActiveSelection()?.backendId ?? null;
       const list = getRegisteredBackends().map((b) =>
         b.id === id ? { ...b, ...patch } : b,
       );
@@ -107,20 +120,27 @@ export function ActiveBackendProvider({
         patch.apiKey !== prev.apiKey;
       if (hostChanged || apiKeyChanged) {
         resetBackendHealth(id);
+        if (activeBeforeUpdate === id) {
+          retryBootstrapProbe();
+        }
       }
     },
-    [],
+    [retryBootstrapProbe],
   );
 
-  const removeBackend = React.useCallback((id: string) => {
-    const list = getRegisteredBackends().filter((b) => b.id !== id);
-    setRegisteredBackends(list);
-    dropBackendHealth(id);
-    // If the active selection pointed at this backend, the active
-    // store falls back to the first remaining local backend (or the
-    // env-derived default if no locals exist); consumer hooks re-key
-    // by the new active backend identity and refetch automatically.
-  }, []);
+  const removeBackend = React.useCallback(
+    (id: string) => {
+      const list = getRegisteredBackends().filter((b) => b.id !== id);
+      setRegisteredBackends(list);
+      dropBackendHealth(id);
+      retryBootstrapProbe();
+      // If the active selection pointed at this backend, the active
+      // store falls back to the first remaining local backend (or the
+      // env-derived default if no locals exist); consumer hooks re-key
+      // by the new active backend identity and refetch automatically.
+    },
+    [retryBootstrapProbe],
+  );
 
   const value = React.useMemo<ActiveBackendContextValue>(
     () => ({

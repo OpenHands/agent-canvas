@@ -277,6 +277,25 @@ export interface InvokeSkillAction extends ActionBase<"InvokeSkillAction"> {
   name: string;
 }
 
+export interface TaskAction extends ActionBase<"TaskAction"> {
+  /**
+   * The task/query the parent agent sends to the spawned subagent.
+   */
+  prompt: string;
+  /**
+   * The type of specialized subagent to handle the task.
+   */
+  subagent_type: string;
+  /**
+   * Short (3-5 word) description of the task.
+   */
+  description?: string | null;
+  /**
+   * Task id to resume from, when continuing an existing subagent task.
+   */
+  resume?: string | null;
+}
+
 export interface SwitchLLMAction extends ActionBase<"SwitchLLMAction"> {
   /**
    * Name of the saved LLM profile to use for future agent steps.
@@ -322,5 +341,6 @@ export type Action =
   | GlobAction
   | GrepAction
   | InvokeSkillAction
+  | TaskAction
   | SwitchLLMAction
   | CanvasUIAction;

@@ -8,7 +8,6 @@ import {
   getAgentServerWorkingDir,
   isAuthRequired,
   isAuthRequiredAndMissing,
-  shouldLoadPublicSkills,
 } from "#/api/agent-server-config";
 
 const ORIGINAL_LOCATION = window.location;
@@ -73,24 +72,6 @@ describe("agent server config", () => {
     expect(
       buildConversationWorkingDir("4a8dca37-3bf0-48de-a0af-949d711c3d48"),
     ).toBe("/srv/workspaces/4a8dca373bf048dea0af949d711c3d48");
-  });
-
-  it("loads public skills by default when VITE_LOAD_PUBLIC_SKILLS is unset", () => {
-    vi.stubEnv("VITE_LOAD_PUBLIC_SKILLS", "");
-
-    expect(shouldLoadPublicSkills()).toBe(true);
-  });
-
-  it("loads public skills when VITE_LOAD_PUBLIC_SKILLS is explicitly 'true'", () => {
-    vi.stubEnv("VITE_LOAD_PUBLIC_SKILLS", "true");
-
-    expect(shouldLoadPublicSkills()).toBe(true);
-  });
-
-  it("does not load public skills only when VITE_LOAD_PUBLIC_SKILLS is explicitly 'false'", () => {
-    vi.stubEnv("VITE_LOAD_PUBLIC_SKILLS", "false");
-
-    expect(shouldLoadPublicSkills()).toBe(false);
   });
 });
 

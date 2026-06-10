@@ -8,6 +8,7 @@ import {
   settingsListContainerClassName,
   settingsListDividerClassName,
 } from "#/utils/settings-list-classes";
+import { extensionModuleEmptyStateClassName } from "#/utils/extension-module-card-classes";
 
 interface ProfilesBodyProps {
   isLoading: boolean;
@@ -44,17 +45,27 @@ export function ProfilesBody({
 
   if (loadError) {
     return (
-      <p className="text-sm text-red-400">
-        {t(I18nKey.SETTINGS$PROFILES_LOAD_ERROR)}
-      </p>
+      <div
+        data-testid="profiles-load-error"
+        className={extensionModuleEmptyStateClassName}
+      >
+        <p className="text-sm text-red-400">
+          {t(I18nKey.SETTINGS$PROFILES_LOAD_ERROR)}
+        </p>
+      </div>
     );
   }
 
   if (profiles.length === 0) {
     return (
-      <p className="text-sm text-[var(--oh-muted)] italic">
-        {t(I18nKey.SETTINGS$PROFILES_EMPTY)}
-      </p>
+      <div
+        data-testid="profiles-empty"
+        className={extensionModuleEmptyStateClassName}
+      >
+        <p className="text-sm text-[var(--oh-muted)]">
+          {t(I18nKey.SETTINGS$PROFILES_EMPTY)}
+        </p>
+      </div>
     );
   }
 
