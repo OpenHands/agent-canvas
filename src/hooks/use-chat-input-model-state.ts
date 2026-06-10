@@ -1,4 +1,3 @@
-import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useAcpModelContext } from "#/hooks/use-acp-model-context";
@@ -25,7 +24,6 @@ export interface ChatInputModelState {
 export function useChatInputModelState(): ChatInputModelState {
   const { data: conversation } = useActiveConversation();
   const { data: settings } = useSettings();
-  const { backend } = useActiveBackend();
   const { conversationId } = useOptionalConversationId();
   const {
     isActiveAcpConversation,
@@ -44,15 +42,25 @@ export function useChatInputModelState(): ChatInputModelState {
       : null;
   const acpProvider = isAcpContext ? getAcpProvider(acpServerKey) : undefined;
 
+  const acpConfiguredModel =
+    typeof settings?.agent_settings?.acp_model === "string"
+      ? settings.agent_settings.acp_model
+      : null;
+
   let currentModelId: string | null = null;
   if (isActiveAcpConversation) {
-    currentModelId = conversation?.llm_model ?? null;
+    // Cloud ACP conversations store llm_model=null (the model lives in the
+    // running ACP subprocess, not in the conversation row). Fall back to the
+    // settings-configured model or provider default so the chip stays visible.
+    currentModelId =
+      conversation?.llm_model ??
+      resolveEffectiveAcpModel({
+        configured: acpConfiguredModel,
+        providerDefault: getAcpPreferredDefaultModel(acpServerKey),
+      });
   } else if (isHomeAcp) {
     currentModelId = resolveEffectiveAcpModel({
-      configured:
-        typeof settings?.agent_settings?.acp_model === "string"
-          ? settings.agent_settings.acp_model
-          : null,
+      configured: acpConfiguredModel,
       // Preferred default (Vertex-safe for Gemini) — must match what the
       // start request would substitute for an unconfigured model.
       providerDefault: getAcpPreferredDefaultModel(acpServerKey),
@@ -66,8 +74,7 @@ export function useChatInputModelState(): ChatInputModelState {
       ? (labelForAcpModel(acpServerKey, currentModelId) ?? currentModelId)
       : currentModelId;
   const availableAcpModels = acpProvider?.available_models ?? [];
-  const showAcpPicker =
-    isAcpContext && backend.kind !== "cloud" && availableAcpModels.length > 0;
+  const showAcpPicker = isAcpContext && availableAcpModels.length > 0;
   const switchConversationId = isActiveAcpConversation
     ? (conversationId ?? null)
     : null;

@@ -733,10 +733,15 @@ class AgentServerConversationService {
     conversationId: string,
     model: string,
   ): Promise<void> {
-    if (getActiveBackend().backend.kind === "cloud") {
-      throw new Error(
-        "ACP model switching is only supported for local agent-server backends.",
-      );
+    const { backend } = getActiveBackend();
+    if (backend.kind === "cloud") {
+      await callCloudProxy({
+        backend,
+        method: "POST",
+        path: `/api/v1/app-conversations/${conversationId}/switch_acp_model`,
+        body: { model },
+      });
+      return;
     }
 
     await new ConversationClient(getAgentServerClientOptions()).switchAcpModel(
