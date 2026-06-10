@@ -569,7 +569,11 @@ function spawnService(name, command, args, options = {}) {
       .filter(Boolean)
       .forEach((line) => {
         const parsed = parseLogLine ? parseLogLine(line.trim()) : null;
-        logService(name, parsed ? parsed.text : line.trim(), parsed ? parsed.color : color);
+        logService(
+          name,
+          parsed ? parsed.text : line.trim(),
+          parsed ? parsed.color : color,
+        );
       });
   });
 
@@ -580,7 +584,11 @@ function spawnService(name, command, args, options = {}) {
       .filter(Boolean)
       .forEach((line) => {
         const parsed = parseLogLine ? parseLogLine(line.trim()) : null;
-        logService(name, parsed ? parsed.text : line.trim(), parsed ? parsed.color : c.yellow);
+        logService(
+          name,
+          parsed ? parsed.text : line.trim(),
+          parsed ? parsed.color : c.yellow,
+        );
       });
   });
 
@@ -951,15 +959,6 @@ function startVite(config) {
     ...buildViteBackendEnv(config),
     VITE_FRONTEND_PORT: config.vitePort.toString(),
   };
-  if (
-    config.launchAgentServer &&
-    config.launchFrontend &&
-    config.ingressPort !== config.vitePort
-  ) {
-    // Browsers open the ingress URL (:8000), but Vite listens on :3001. Without
-    // this, React Router dynamic imports point at :3001 and fail cross-origin.
-    viteEnv.VITE_DEV_ORIGIN = `http://127.0.0.1:${config.ingressPort}`;
-  }
   if (config.viteWorkingDir) {
     viteEnv.VITE_WORKING_DIR = config.viteWorkingDir;
   }
@@ -1159,7 +1158,9 @@ function printBanner(config) {
       ? [`  Main UI:         http://localhost:${config.ingressPort}/`]
       : []),
     ...(config.launchAutomation
-      ? [`  API Docs:        http://localhost:${config.ingressPort}/api/automation/docs`]
+      ? [
+          `  API Docs:        http://localhost:${config.ingressPort}/api/automation/docs`,
+        ]
       : []),
     `  State directory: ${config.stateDir}`,
   ];
