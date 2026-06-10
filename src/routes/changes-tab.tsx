@@ -2,26 +2,51 @@ import { useTranslation } from "react-i18next";
 import React from "react";
 import { FileDiffViewer } from "#/components/features/diff-viewer/file-diff-viewer";
 import { EmptyChangesMessage } from "#/components/features/diff-viewer/empty-changes-message";
+import { DiffDrawerIcon } from "#/components/features/diff-viewer/diff-drawer-icon";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import { useUnifiedGetGitChanges } from "#/hooks/query/use-unified-get-git-changes";
 import { I18nKey } from "#/i18n/declaration";
 import { RUNTIME_INACTIVE_STATES } from "#/types/agent-state";
 import { RandomTip } from "#/components/features/tips/random-tip";
 import { useAgentState } from "#/hooks/use-agent-state";
+import { RuntimeWaitingState } from "#/components/features/conversation-panel/runtime-waiting-state";
+import { ConversationTabEmptyState } from "#/components/features/conversation/conversation-tab-empty-state";
 
 // Error message patterns
 const GIT_REPO_ERROR_PATTERN = /not a git repository/i;
 
-function StatusMessage({ children }: React.PropsWithChildren) {
+const RUNTIME_STATUS_KEYS = new Set<I18nKey>([
+  I18nKey.DIFF_VIEWER$WAITING_FOR_RUNTIME,
+  I18nKey.DIFF_VIEWER$LOADING,
+]);
+
+function ChangesTabStatus({ messages }: { messages: string[] }) {
+  const { t } = useTranslation("openhands");
+
+  if (
+    messages.length === 1 &&
+    RUNTIME_STATUS_KEYS.has(messages[0] as I18nKey)
+  ) {
+    return (
+      <RuntimeWaitingState
+        testId="changes-tab-status"
+        messageKey={messages[0] as I18nKey}
+      />
+    );
+  }
+
   return (
-    <div className="w-full h-full flex flex-col items-center text-center justify-center text-2xl text-tertiary-light">
-      {children}
-    </div>
+    <ConversationTabEmptyState icon={<DiffDrawerIcon />}>
+      {messages.map((msg) => (
+        <span key={msg} className="block">
+          {t(msg)}
+        </span>
+      ))}
+    </ConversationTabEmptyState>
   );
 }
 
 function GitChanges() {
-  const { t } = useTranslation("openhands");
   const {
     data: gitChanges,
     isSuccess,
@@ -71,13 +96,7 @@ function GitChanges() {
       {!isSuccess || !gitChanges.length ? (
         <div className="flex flex-col h-full w-full">
           <div className="flex-1 flex items-center justify-center">
-            {statusMessage && (
-              <StatusMessage>
-                {statusMessage.map((msg) => (
-                  <span key={msg}>{t(msg)}</span>
-                ))}
-              </StatusMessage>
-            )}
+            {statusMessage && <ChangesTabStatus messages={statusMessage} />}
             {!statusMessage && isSuccess && gitChanges.length === 0 && (
               <EmptyChangesMessage />
             )}

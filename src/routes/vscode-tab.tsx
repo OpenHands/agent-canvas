@@ -6,6 +6,7 @@ import { useAgentState } from "#/hooks/use-agent-state";
 import { RUNTIME_STARTING_STATES } from "#/types/agent-state";
 import { VSCODE_IN_NEW_TAB } from "#/utils/feature-flags";
 import { WaitingForRuntimeMessage } from "#/components/features/chat/waiting-for-runtime-message";
+import { RuntimeWaitingState } from "#/components/features/conversation-panel/runtime-waiting-state";
 import { ConversationTabEmptyState } from "#/components/features/conversation/conversation-tab-empty-state";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import VSCodeIcon from "#/icons/vscode.svg?react";
@@ -48,20 +49,21 @@ function VSCodeTab() {
 
   if (isLoading) {
     return (
-      <div className="w-full h-full flex items-center text-center justify-center text-2xl text-tertiary-light">
-        {t(I18nKey.VSCODE$LOADING)}
-      </div>
+      <RuntimeWaitingState
+        testId="vscode-loading"
+        messageKey={I18nKey.VSCODE$LOADING}
+      />
     );
   }
 
   if (error || data?.error || !data?.url || iframeError) {
     return (
-      <div className="w-full h-full flex items-center text-center justify-center text-2xl text-tertiary-light">
+      <ConversationTabEmptyState icon={<VSCodeIcon />}>
         {iframeError ||
           data?.error ||
           String(error) ||
           t(I18nKey.VSCODE$URL_NOT_AVAILABLE)}
-      </div>
+      </ConversationTabEmptyState>
     );
   }
 
