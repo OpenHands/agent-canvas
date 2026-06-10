@@ -1,8 +1,6 @@
+import { ListTree } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-
-import ChevronLeft from "#/icons/chevron-left-small.svg?react";
-import ChevronRight from "#/icons/chevron-right-small.svg?react";
 import { I18nKey } from "#/i18n/declaration";
 import { sortFilesByPriority } from "#/utils/file-priority";
 import { cn } from "#/utils/utils";
@@ -20,8 +18,8 @@ interface FileQuickRowProps {
 /**
  * Horizontal "quick access" row of files at the top of the file viewer.
  * Important entrypoints (index.html, README.md, package.json, …) appear
- * first. A small caret on the leading edge toggles the full file tree on
- * the left — there is no overflow dropdown, so anything that doesn't fit
+ * first. A file-tree toggle on the leading edge shows or hides the full
+ * tree on the left — there is no overflow dropdown, so anything that doesn't fit
  * here is reachable by opening the tree.
  */
 export function FileQuickRow({
@@ -61,11 +59,7 @@ export function FileQuickRow({
           isTreeVisible && "bg-[var(--oh-surface-raised)]",
         )}
       >
-        {isTreeVisible ? (
-          <ChevronLeft className="w-3 h-3" />
-        ) : (
-          <ChevronRight className="w-3 h-3" />
-        )}
+        <ListTree className="w-3 h-3" aria-hidden strokeWidth={2} />
       </button>
 
       {sortedByPriority.length > 0 && (

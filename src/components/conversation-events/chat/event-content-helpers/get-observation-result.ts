@@ -54,6 +54,16 @@ export const getObservationResult = (
     case "SwitchLLMObservation":
       if (observation.is_error) return "error";
       return "success";
+    case "InvokeSkillObservation":
+      if (observation.is_error) return "error";
+      return "success";
+    case "TaskObservation":
+      if (observation.is_error || observation.status === "failed")
+        return "error";
+      return "success";
+    case "CanvasUIObservation":
+      if (observation.is_error) return "error";
+      return "success";
     default:
       return "success";
   }

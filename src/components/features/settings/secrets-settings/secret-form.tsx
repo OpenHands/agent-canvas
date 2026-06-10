@@ -94,13 +94,13 @@ export function SecretForm({
         (secret) => secret.name === name && secret.name !== selectedSecret,
       );
       if (isNameAlreadyUsed) {
-        setError(t("SECRETS$SECRET_ALREADY_EXISTS"));
+        setError(t(I18nKey.SECRETS$SECRET_ALREADY_EXISTS));
         return;
       }
 
       if (mode === "add") {
         if (!value) {
-          setError(t("SECRETS$SECRET_VALUE_REQUIRED"));
+          setError(t(I18nKey.SECRETS$SECRET_VALUE_REQUIRED));
           return;
         }
 
@@ -127,7 +127,7 @@ export function SecretForm({
         className="w-full min-w-0"
         required
         defaultValue={mode === "edit" && selectedSecret ? selectedSecret : ""}
-        placeholder={t("SECRETS$API_KEY_EXAMPLE")}
+        placeholder={t(I18nKey.SECRETS$API_KEY_EXAMPLE)}
         pattern="^[a-zA-Z][a-zA-Z0-9_]{0,63}$"
         title="Must start with a letter, contain only letters/numbers/underscores, and be 1-64 characters"
       />
@@ -177,8 +177,8 @@ export function SecretForm({
           {t(I18nKey.BUTTON$CANCEL)}
         </BrandButton>
         <BrandButton testId="submit-button" type="submit" variant="primary">
-          {mode === "add" && t("SECRETS$ADD_SECRET")}
-          {mode === "edit" && t("SECRETS$EDIT_SECRET")}
+          {mode === "add" && t(I18nKey.SECRETS$ADD_SECRET)}
+          {mode === "edit" && t(I18nKey.SECRETS$EDIT_SECRET)}
         </BrandButton>
       </div>
     </form>
