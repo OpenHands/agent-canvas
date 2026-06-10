@@ -449,52 +449,6 @@ describe("ConversationTabs localStorage behavior", () => {
     });
   });
 
-  describe("vscode tab visibility by backend kind", () => {
-    beforeEach(() => {
-      mockConversationId = REAL_CONVERSATION_ID;
-    });
-
-    it("should hide the vscode tab when the active backend is local", () => {
-      // Arrange
-      seedActiveBackend({
-        id: "local-test",
-        name: "Local Test",
-        host: "http://localhost:8000",
-        apiKey: "",
-        kind: "local",
-      });
-
-      // Act
-      render(<ConversationTabs />, {
-        wrapper: createWrapper(REAL_CONVERSATION_ID),
-      });
-
-      // Assert
-      expect(
-        screen.queryByTestId("conversation-tab-vscode"),
-      ).not.toBeInTheDocument();
-    });
-
-    it("should show the vscode tab when the active backend is cloud", () => {
-      // Arrange
-      seedActiveBackend({
-        id: "cloud-test",
-        name: "Cloud Test",
-        host: "https://app.example.com",
-        apiKey: "secret",
-        kind: "cloud",
-      });
-
-      // Act
-      render(<ConversationTabs />, {
-        wrapper: createWrapper(REAL_CONVERSATION_ID),
-      });
-
-      // Assert
-      expect(screen.getByTestId("conversation-tab-vscode")).toBeInTheDocument();
-    });
-  });
-
   describe("planner tab visibility by backend kind", () => {
     beforeEach(() => {
       mockConversationId = REAL_CONVERSATION_ID;

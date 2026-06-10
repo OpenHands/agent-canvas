@@ -44,6 +44,17 @@ vi.mock("#/routes/changes-tab", () => ({
   default: () => <div data-testid="changes-tab-content">Diff View</div>,
 }));
 
+const useUnifiedVSCodeUrlMock = vi.fn();
+const useAgentStateMock = vi.fn();
+
+vi.mock("#/hooks/query/use-unified-vscode-url", () => ({
+  useUnifiedVSCodeUrl: () => useUnifiedVSCodeUrlMock(),
+}));
+
+vi.mock("#/hooks/use-agent-state", () => ({
+  useAgentState: () => useAgentStateMock(),
+}));
+
 function renderTab() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -72,6 +83,14 @@ describe("FilesTab", () => {
     useWorkspaceFilesMock.mockReset();
     useWorkspaceFileContentMock.mockReset();
     refetchGitChangesMock.mockReset();
+    useUnifiedVSCodeUrlMock.mockReset();
+    useAgentStateMock.mockReset();
+    useAgentStateMock.mockReturnValue({ curAgentState: "running" });
+    useUnifiedVSCodeUrlMock.mockReturnValue({
+      data: { url: "http://localhost:8001", error: null },
+      isLoading: false,
+      refetch: vi.fn().mockResolvedValue({ data: { url: "http://localhost:8001" } }),
+    });
     // Default: pretend the probe has already resolved with at least one
     // commit. Individual tests can override this for "empty repo" cases.
     useHasGitCommitsMock.mockReturnValue({

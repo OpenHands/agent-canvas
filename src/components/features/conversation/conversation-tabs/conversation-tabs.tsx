@@ -1,10 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import TerminalIcon from "#/icons/terminal.svg?react";
-import GlobeIcon from "#/icons/globe.svg?react";
+import { Globe, ListTodo, SquareChevronRight } from "lucide-react";
 import DocumentIcon from "#/icons/document.svg?react";
-import VSCodeIcon from "#/icons/vscode.svg?react";
-import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
 import DoubleCheckIcon from "#/icons/double-check.svg?react";
 import { EllipsisButton } from "#/components/features/conversation-panel/ellipsis-button";
 import { cn } from "#/utils/utils";
@@ -12,7 +9,6 @@ import { useConversationLocalStorageState } from "#/utils/conversation-local-sto
 import { ConversationTabNav } from "./conversation-tab-nav";
 import { ChatActionTooltip } from "../../chat/chat-action-tooltip";
 import { I18nKey } from "#/i18n/declaration";
-import { VSCodeTooltipContent } from "./vscode-tooltip-content";
 import { useConversationStore } from "#/stores/conversation-store";
 import { ConversationTabsContextMenu } from "./conversation-tabs-context-menu";
 import { useConversationId } from "#/hooks/use-conversation-id";
@@ -76,6 +72,14 @@ export function ConversationTabs({
     handlePanelVisibilityChange();
   }, [isRightPanelShown, selectedTab, onTabChange]);
 
+  // Code editor moved to the Files tab toolbar — migrate any in-session
+  // selection away from the removed drawer tab.
+  useEffect(() => {
+    if (selectedTab === "vscode") {
+      onTabChange("files");
+    }
+  }, [selectedTab, onTabChange]);
+
   const { t, i18n } = useTranslation("openhands");
 
   // `files` is intentionally the leftmost tab — it's the primary entry
@@ -93,25 +97,16 @@ export function ConversationTabs({
     {
       tabValue: "planner",
       isActive: isTabActive("planner"),
-      icon: LessonPlanIcon,
+      icon: ListTodo,
       onClick: () => selectTab("planner"),
       tooltipContent: t(I18nKey.COMMON$PLANNER),
       tooltipAriaLabel: t(I18nKey.COMMON$PLANNER),
       label: t(I18nKey.COMMON$PLANNER),
     },
     {
-      tabValue: "vscode",
-      isActive: isTabActive("vscode"),
-      icon: VSCodeIcon,
-      onClick: () => selectTab("vscode"),
-      tooltipContent: <VSCodeTooltipContent />,
-      tooltipAriaLabel: t(I18nKey.COMMON$CODE),
-      label: t(I18nKey.COMMON$CODE),
-    },
-    {
       tabValue: "terminal",
       isActive: isTabActive("terminal"),
-      icon: TerminalIcon,
+      icon: SquareChevronRight,
       onClick: () => selectTab("terminal"),
       tooltipContent: t(I18nKey.COMMON$TERMINAL),
       tooltipAriaLabel: t(I18nKey.COMMON$TERMINAL),
@@ -121,7 +116,7 @@ export function ConversationTabs({
     {
       tabValue: "browser",
       isActive: isTabActive("browser"),
-      icon: GlobeIcon,
+      icon: Globe,
       onClick: () => selectTab("browser"),
       tooltipContent: t(I18nKey.COMMON$BROWSER),
       tooltipAriaLabel: t(I18nKey.COMMON$BROWSER),
@@ -144,10 +139,9 @@ export function ConversationTabs({
 
   // Pinned tabs always show in the bar. Unpinned tabs stay hidden unless the
   // user has that tab selected — then it appears while active so the bar
-  // matches the open panel. Hide VS Code and Planner on local backends —
-  // both are cloud-only (the planning agent isn't supported locally).
+  // matches the open panel. Hide Planner on local backends — the planning
+  // agent isn't supported locally.
   const visibleTabs = tabs.filter((tab) => {
-    if (tab.tabValue === "vscode" && backend.kind !== "cloud") return false;
     if (tab.tabValue === "planner" && backend.kind !== "cloud") return false;
     if (!persistedState.unpinnedTabs.includes(tab.tabValue)) return true;
     return selectedTab === tab.tabValue;

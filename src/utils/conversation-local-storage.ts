@@ -78,6 +78,7 @@ const REMOVED_CONVERSATION_TABS: ReadonlySet<string> = new Set([
   "served",
   "changes",
   "app",
+  "vscode",
 ]);
 
 const VALID_VIEW_MODES: ReadonlySet<ViewMode> = new Set(["rich", "plain"]);

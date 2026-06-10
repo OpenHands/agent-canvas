@@ -21861,6 +21861,23 @@
     "uk": "Відкрити в новому вікні",
     "ca": "Obre en una finestra nova"
   },
+  "FILES$VSCODE": {
+    "en": "VSCode",
+    "ja": "VSCode",
+    "zh-CN": "VSCode",
+    "zh-TW": "VSCode",
+    "ko-KR": "VSCode",
+    "no": "VSCode",
+    "it": "VSCode",
+    "pt": "VSCode",
+    "es": "VSCode",
+    "ar": "VSCode",
+    "fr": "VSCode",
+    "tr": "VSCode",
+    "de": "VSCode",
+    "uk": "VSCode",
+    "ca": "VSCode"
+  },
   "FILES$REFRESH": {
     "en": "Refresh files",
     "ja": "ファイルを更新",
@@ -23033,6 +23050,23 @@
     "de": "Konsole",
     "uk": "Консоль",
     "ca": "Consola"
+  },
+  "TERMINAL$NO_OUTPUT": {
+    "en": "No terminal output yet. Commands run by the agent will appear here.",
+    "ja": "ターミナル出力はまだありません。エージェントが実行したコマンドがここに表示されます。",
+    "zh-CN": "尚无终端输出。智能体运行的命令将显示在此处。",
+    "zh-TW": "尚無終端機輸出。代理執行的指令將顯示於此。",
+    "ko-KR": "아직 터미널 출력이 없습니다. 에이전트가 실행한 명령이 여기에 표시됩니다.",
+    "no": "Ingen terminalutdata ennå. Kommandoer kjørt av agenten vises her.",
+    "it": "Nessun output del terminale. I comandi eseguiti dall'agente appariranno qui.",
+    "pt": "Ainda não há saída no terminal. Os comandos executados pelo agente aparecerão aqui.",
+    "es": "Aún no hay salida en la terminal. Los comandos ejecutados por el agente aparecerán aquí.",
+    "ar": "لا يوجد إخراج في الطرفية بعد. ستظهر الأوامر التي ينفذها الوكيل هنا.",
+    "de": "Noch keine Terminalausgabe. Vom Agenten ausgeführte Befehle erscheinen hier.",
+    "fr": "Aucune sortie terminal pour le moment. Les commandes exécutées par l'agent s'afficheront ici.",
+    "tr": "Henüz terminal çıktısı yok. Ajanın çalıştırdığı komutlar burada görünecek.",
+    "uk": "Виводу термінала ще немає. Команди, які виконує агент, з’являться тут.",
+    "ca": "Encara no hi ha sortida de terminal. Les ordres executades per l'agent apareixeran aquí."
   },
   "MICROAGENT$DEFINITION": {
     "en": "Microagents are specialized prompts that enhance OpenHands with domain-specific knowledge. They provide expert guidance, automate common tasks, and ensure consistent practices across projects.",

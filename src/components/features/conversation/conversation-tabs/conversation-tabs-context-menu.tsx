@@ -9,13 +9,10 @@ import {
   type ConversationTab,
 } from "#/stores/conversation-store";
 import { I18nKey } from "#/i18n/declaration";
-import TerminalIcon from "#/icons/terminal.svg?react";
-import GlobeIcon from "#/icons/globe.svg?react";
+import { Globe, ListTodo, SquareChevronRight } from "lucide-react";
 import DocumentIcon from "#/icons/document.svg?react";
-import VSCodeIcon from "#/icons/vscode.svg?react";
 import PillIcon from "#/icons/pill.svg?react";
 import PillFillIcon from "#/icons/pill-fill.svg?react";
-import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
 import DoubleCheckIcon from "#/icons/double-check.svg?react";
 import { useTaskList } from "#/hooks/use-task-list";
 import { useActiveBackend } from "#/contexts/active-backend-context";
@@ -62,13 +59,16 @@ export function ConversationTabsContextMenu({
   const tabConfig = [
     {
       tab: "planner",
-      icon: LessonPlanIcon,
+      icon: ListTodo,
       i18nKey: I18nKey.COMMON$PLANNER,
     },
     { tab: "files", icon: DocumentIcon, i18nKey: I18nKey.COMMON$FILES },
-    { tab: "vscode", icon: VSCodeIcon, i18nKey: I18nKey.COMMON$CODE },
-    { tab: "terminal", icon: TerminalIcon, i18nKey: I18nKey.COMMON$TERMINAL },
-    { tab: "browser", icon: GlobeIcon, i18nKey: I18nKey.COMMON$BROWSER },
+    {
+      tab: "terminal",
+      icon: SquareChevronRight,
+      i18nKey: I18nKey.COMMON$TERMINAL,
+    },
+    { tab: "browser", icon: Globe, i18nKey: I18nKey.COMMON$BROWSER },
   ];
 
   if (hasTaskList) {
@@ -80,8 +80,7 @@ export function ConversationTabsContextMenu({
   }
 
   const visibleTabConfig = tabConfig.filter(
-    ({ tab }) =>
-      (tab !== "vscode" && tab !== "planner") || backend.kind === "cloud",
+    ({ tab }) => tab !== "planner" || backend.kind === "cloud",
   );
 
   if (!isOpen) return null;
