@@ -380,6 +380,13 @@ test.describe("Backend Management — Extended Flow Snapshots", () => {
       SNAP_OPTS,
     );
 
+    // The dropdown can close after the screenshot capture moves the pointer,
+    // so reopen it before selecting the second backend.
+    await page.getByTestId("backend-selector").hover();
+    await expect(
+      page.getByRole("option", { name: "Production" }),
+    ).toBeVisible({ timeout: 5_000 });
+
     // Click Production option — triggers the environment-switch overlay.
     // The overlay is rendered via createPortal into document.body, so it
     // lives outside the root-layout subtree.  Use a full-page screenshot
