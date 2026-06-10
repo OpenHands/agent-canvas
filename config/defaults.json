@@ -3,7 +3,7 @@
 
   "versions": {
     "agentServer": "1.27.0",
-    "agentCanvas": "1.0.0-rc.3",
+    "agentCanvas": "1.0.0-rc.6",
     "automation": "1.0.0a7",
     "automationSdk": "1.27.0",
     "githubMcpServer": "1.2.0"
