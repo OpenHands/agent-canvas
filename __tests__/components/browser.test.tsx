@@ -49,6 +49,30 @@ describe("Browser", () => {
     render(<BrowserPanel />);
 
     expect(screen.getByText("BROWSER$NO_PAGE_LOADED")).toBeInTheDocument();
+    expect(screen.getByTestId("browser-chrome-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("browser-chrome-url")).toHaveTextContent(
+      "https://example.com",
+    );
+  });
+
+  it("keeps the chrome bar height and disables open-in-new-tab when empty", () => {
+    useBrowserStore.setState({
+      url: "",
+      screenshotSrc: "",
+    });
+
+    render(<BrowserPanel />);
+
+    expect(screen.getByTestId("browser-chrome-bar")).toHaveClass("min-h-[34px]");
+    expect(screen.getByTestId("browser-chrome-url")).toHaveTextContent(
+      "BROWSER$URL_PLACEHOLDER",
+    );
+    expect(
+      screen.queryByRole("button", { name: "BUTTON$BACK" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "BUTTON$OPEN_IN_NEW_TAB" }),
+    ).toBeDisabled();
   });
 
   it("renders the url and a screenshot", () => {
@@ -60,7 +84,9 @@ describe("Browser", () => {
 
     render(<BrowserPanel />);
 
-    expect(screen.getByText("https://example.com")).toBeInTheDocument();
+    expect(screen.getByTestId("browser-chrome-url")).toHaveTextContent(
+      "https://example.com",
+    );
     expect(screen.getByAltText("BROWSER$SCREENSHOT_ALT")).toBeInTheDocument();
   });
 
