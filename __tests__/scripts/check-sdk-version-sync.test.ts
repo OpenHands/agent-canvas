@@ -1,9 +1,31 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
+const repoRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
 
 // Type definitions for the module exports
 type NormalizeVersion = (version: string | null) => string | null;
 type VersionsEqual = (v1: string, v2: string) => boolean;
 type ParseSdkVersions = (requiresDist: string[]) => Record<string, string>;
+
+// Static config consistency: automations SDK version must match agent-canvas's SDK version.
+// When openhands-automation is updated, versions.automationSdk in config/defaults.json must
+// be bumped to match the SDK version that new automation release depends on, which should
+// equal versions.agentServer so both components share the same SDK.
+describe("config/defaults.json SDK version consistency", () => {
+  it("versions.automationSdk matches versions.agentServer", () => {
+    const config = JSON.parse(
+      readFileSync(path.join(repoRoot, "config/defaults.json"), "utf-8"),
+    ) as { versions: { agentServer: string; automationSdk: string } };
+
+    expect(config.versions.automationSdk).toBe(config.versions.agentServer);
+  });
+});
 
 // Import after mocking - need dynamic import since the script has side effects
 describe("check-sdk-version-sync helpers", () => {
