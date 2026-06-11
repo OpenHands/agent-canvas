@@ -22,6 +22,7 @@ import {
 import { TaskTrackingObservationContent } from "../task-tracking/task-tracking-observation-content";
 import { TaskTrackerObservation } from "#/types/agent-server/core/base/observation";
 import { SkillReadyEvent, isSkillReadyEvent } from "./create-skill-ready-event";
+import { resolveVisualizerBody } from "../../../features/chat/tool-visualizers/dispatcher";
 import i18n from "#/i18n";
 import { I18nKey } from "#/i18n/declaration";
 
@@ -120,6 +121,12 @@ const getActionEventTitle = (event: OpenHandsEvent): React.ReactNode => {
       actionKey = "ACTION_MESSAGE$INVOKE_SKILL";
       actionValues = {
         name: event.action.name,
+      };
+      break;
+    case "TaskAction":
+      actionKey = "ACTION_MESSAGE$TASK";
+      actionValues = {
+        name: event.action.subagent_type,
       };
       break;
     case "ThinkAction":
@@ -227,6 +234,15 @@ const getObservationEventTitle = (
         name: event.observation.skill_name,
       };
       break;
+    case "TaskObservation":
+      observationKey = "OBSERVATION_MESSAGE$TASK";
+      observationValues = {
+        name: event.observation.subagent,
+      };
+      break;
+    case "CanvasUIObservation":
+      observationKey = "OBSERVATION_MESSAGE$CANVAS_UI";
+      break;
     case "SwitchLLMObservation":
       observationKey = event.observation.is_error
         ? "MODEL$SWITCH_FAILED"
@@ -298,7 +314,8 @@ export const getEventContent = (
     details = event._skillReadyContent;
   } else if (isActionEvent(event)) {
     title = getActionEventTitle(event);
-    details = getActionContent(event);
+    // Per-tool React visualizer when one is registered; markdown otherwise.
+    details = resolveVisualizerBody(event) ?? getActionContent(event);
   } else if (isObservationEvent(event)) {
     title = getObservationEventTitle(event, correspondingAction);
 
@@ -310,7 +327,9 @@ export const getEventContent = (
         />
       );
     } else {
-      details = getObservationContent(event);
+      details =
+        resolveVisualizerBody(event, correspondingAction) ??
+        getObservationContent(event);
     }
   } else if (isACPToolCallEvent(event)) {
     // ACP sub-agent tool calls reuse the same card shape as observations:

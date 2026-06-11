@@ -8,7 +8,7 @@
 - [x] When the working dir is already absolute (e.g. POSIX `/foo`, Windows `C:\foo`, or the explicit selection from `search_subdirs`), the resolver shall pass it through unchanged.
 - [x] The home-directory lookup shall be cached per backend host so concurrent uploads share a single in-flight `/api/file/home` request, and a cached value is reused for subsequent uploads.
 - [x] A failed lookup shall not be cached so the next call retries fresh.
-- [x] The legacy `toAbsoluteWorkspacePath` helper that naively prepends `/` shall remain only for cosmetic/log use; it shall not be used to construct upload paths.
+- [x] Upload paths shall never be constructed by naively prepending `/`; the legacy `toAbsoluteWorkspacePath` helper that did so was removed once its last callers disappeared (recoverable from git history), and the home-anchored resolver is the only sanctioned mechanism.
 
 ### Why this exists
 - The agent-server's `/api/file/upload` endpoint requires an absolute path and `mkdir -p`s the parent of the destination. Naively prepending `/` to the default `workspace/project/<hex>` produces `/workspace/project/<hex>`. On macOS and on fresh Docker images that mount only `/home/<user>` as writable, the filesystem root is read-only, so the upload fails with `OSError: [Errno 30] Read-only file system: '/workspace'`.
