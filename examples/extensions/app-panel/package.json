@@ -1,0 +1,9 @@
+{
+  "name": "@example/agent-canvas-app-panel",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Adds an 'App' panel to the conversation view beside Files, Browser, and Terminal.",
+  "agentCanvas": { "manifest": "./agent-canvas.extension.json" },
+  "files": ["agent-canvas.extension.json", "dist"]
+}

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://schemas.openhands.dev/agent-canvas/extension.v1.json",
+  "schemaVersion": 1,
+  "id": "example.hello-page",
+  "displayName": "Hello Page",
+  "version": "0.1.0",
+  "description": "Adds a Hello page to the left navigation, rendering placeholder content.",
+  "publisher": { "name": "Agent Canvas Examples" },
+  "license": "MIT",
+  "compatibility": {
+    "agentCanvas": ">=1.0.0-rc.6 <2.0.0",
+    "extensionApi": 1
+  },
+  "permissions": {
+    "ui": ["views", "leftNavigation"]
+  },
+  "browser": {
+    "module": "./dist/index.js"
+  },
+  "contributes": {
+    "views": [
+      {
+        "id": "hello",
+        "title": "Hello",
+        "route": "/hello",
+        "navigation": {
+          "location": "primarySidebar",
+          "slot": "afterAutomations",
+          "order": 300,
+          "icon": "./dist/hello-page.svg"
+        }
+      }
+    ]
+  }
+}

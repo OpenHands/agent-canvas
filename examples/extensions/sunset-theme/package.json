@@ -1,0 +1,9 @@
+{
+  "name": "@example/agent-canvas-sunset-theme",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Theme-only Canvas Extension that adds a 'Sunset' color theme.",
+  "agentCanvas": { "manifest": "./agent-canvas.extension.json" },
+  "files": ["agent-canvas.extension.json"]
+}
