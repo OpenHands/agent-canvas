@@ -135,10 +135,13 @@ describe("buildStartConversationRequest", () => {
     for (const skill of skills) {
       expect(skill).toHaveProperty("name");
       expect(skill).toHaveProperty("content");
-      // source is an absolute path to SKILL.md in node_modules (app builds)
-      // or the fallback string "public" (library builds where path is unknown)
-      expect(typeof skill.source).toBe("string");
-      expect(skill.source).toBeTruthy();
+      // source must be an absolute path to the skill's SKILL.md so the
+      // Python agent-server can resolve bundled resources (scripts/, references/).
+      const source = skill.source as string;
+      expect(source).toMatch(/^\//);
+      expect(source).toMatch(
+        new RegExp(`/${skill.name as string}/SKILL\\.md$`),
+      );
       expect(skill).toHaveProperty("is_agentskills_format", true);
       // trigger is either null (always-active) or { type, keywords }
       if (skill.trigger !== null) {
