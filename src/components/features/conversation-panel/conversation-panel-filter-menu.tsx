@@ -20,6 +20,12 @@ import type { BackendKind } from "#/api/backend-registry/types";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import { Divider } from "#/ui/divider";
 import { cn } from "#/utils/utils";
+import {
+  dropdownMenuRowClassName,
+  dropdownMenuRowIconClassName,
+  dropdownMenuListClassName,
+  dropdownMenuViewportScrollClassName,
+} from "#/utils/dropdown-classes";
 import { formControlTransitionClassName } from "#/utils/form-control-classes";
 import type {
   ConversationSortField,
@@ -108,21 +114,19 @@ function MenuRow({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "group flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-[var(--oh-foreground)]",
-        "hover:bg-[var(--oh-interactive-hover)] disabled:cursor-not-allowed disabled:opacity-50",
+        "group",
+        dropdownMenuRowClassName,
+        "text-[var(--oh-foreground)] disabled:opacity-50",
       )}
     >
       <Icon
-        className={cn(
-          "h-3.5 w-3.5 shrink-0 text-[var(--oh-muted)] group-hover:text-[var(--oh-foreground)] group-focus-visible:text-[var(--oh-foreground)]",
-          formControlTransitionClassName,
-        )}
+        className={cn("h-3.5 w-3.5", dropdownMenuRowIconClassName)}
         aria-hidden
       />
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {selected ? (
         <Check
-          className="ml-auto h-3.5 w-3.5 shrink-0 text-[var(--oh-foreground)]"
+          className="ml-auto h-3.5 w-3.5 shrink-0 text-white"
           aria-hidden
         />
       ) : null}
@@ -272,7 +276,11 @@ export function ConversationPanelFilterMenu({
           tabIndex={-1}
           data-testid="older-conversations-filter-menu"
           onKeyDown={handleMenuKeyDown}
-          className="absolute right-0 top-full z-50 mt-0 w-64 rounded-md border border-[var(--oh-border-subtle)] bg-tertiary px-1 py-1 text-[var(--oh-foreground)] shadow-lg"
+          className={cn(
+            "absolute right-0 top-full z-50 mt-0 w-64 rounded-md border border-[var(--oh-border-subtle)] bg-tertiary px-1 py-1 text-[var(--oh-foreground)] shadow-lg",
+            dropdownMenuListClassName,
+            dropdownMenuViewportScrollClassName,
+          )}
         >
           <MenuHeading>{t(I18nKey.CONVERSATION_PANEL$ORGANIZE)}</MenuHeading>
           <MenuRow

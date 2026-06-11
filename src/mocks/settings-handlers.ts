@@ -150,42 +150,140 @@ const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
       ],
     },
     {
-      key: "critic",
-      label: "Critic",
+      key: "verification",
+      label: "Verification",
       fields: [
         {
+          key: "verification.critic_enabled",
+          label: "Enable Critic",
           description:
             "Enable an additional critic pass to review the agent's work.",
-
-          key: "critic.enabled",
-          label: "Enable critic",
-          section: "critic",
-          section_label: "Critic",
+          section: "verification",
+          section_label: "Verification",
           value_type: "boolean",
           default: false,
           choices: [],
           depends_on: [],
           prominence: "critical",
           secret: false,
-          required: true,
+          required: false,
         },
         {
+          key: "verification.critic_mode",
+          label: "Critic Mode",
           description: "Choose when the critic should review and intervene.",
-
-          key: "critic.mode",
-          label: "Mode",
-          section: "critic",
-          section_label: "Critic",
+          section: "verification",
+          section_label: "Verification",
           value_type: "string",
           default: "finish_and_message",
           choices: [
-            { label: "finish_and_message", value: "finish_and_message" },
+            {
+              label: "finish_and_message",
+              value: "finish_and_message",
+            },
             { label: "all_actions", value: "all_actions" },
           ],
-          depends_on: ["critic.enabled"],
+          depends_on: ["verification.critic_enabled"],
+          prominence: "major",
+          secret: false,
+          required: false,
+        },
+        {
+          key: "verification.enable_iterative_refinement",
+          label: "Enable Iterative Refinement",
+          description:
+            "Let the critic send the agent back to refine its work when issues are found.",
+          section: "verification",
+          section_label: "Verification",
+          value_type: "boolean",
+          default: false,
+          choices: [],
+          depends_on: ["verification.critic_enabled"],
+          prominence: "critical",
+          secret: false,
+          required: false,
+        },
+        // Rendered as a full-width row (see FIELD_FULL_WIDTH_KEYS) below the
+        // two critical-prominence toggles so the input + OpenHands Cloud help
+        // link have room to breathe.
+        {
+          key: "verification.critic_api_key",
+          label: "Critic API Key",
+          description:
+            "If OpenHands is selected as your active LLM provider, leave this empty; the critic reuses the OpenHands Provider LLM Key.",
+          section: "verification",
+          section_label: "Verification",
+          value_type: "string",
+          default: null,
+          choices: [],
+          depends_on: ["verification.critic_enabled"],
+          prominence: "critical",
+          secret: true,
+          required: false,
+        },
+        {
+          key: "verification.critic_threshold",
+          label: "Critic Threshold",
+          description:
+            "Critic success threshold used for iterative refinement.",
+          section: "verification",
+          section_label: "Verification",
+          value_type: "number",
+          default: 0.6,
+          choices: [],
+          depends_on: [
+            "verification.critic_enabled",
+            "verification.enable_iterative_refinement",
+          ],
           prominence: "minor",
           secret: false,
-          required: true,
+          required: false,
+        },
+        {
+          key: "verification.max_refinement_iterations",
+          label: "Max Refinement Iterations",
+          description:
+            "Maximum number of refinement attempts after critic feedback.",
+          section: "verification",
+          section_label: "Verification",
+          value_type: "integer",
+          default: 3,
+          choices: [],
+          depends_on: [
+            "verification.critic_enabled",
+            "verification.enable_iterative_refinement",
+          ],
+          prominence: "minor",
+          secret: false,
+          required: false,
+        },
+        {
+          key: "verification.critic_server_url",
+          label: "Critic Server URL",
+          description: "Override the critic service URL.",
+          section: "verification",
+          section_label: "Verification",
+          value_type: "string",
+          default: null,
+          choices: [],
+          depends_on: ["verification.critic_enabled"],
+          prominence: "minor",
+          secret: false,
+          required: false,
+        },
+        {
+          key: "verification.critic_model_name",
+          label: "Critic Model Name",
+          description: "Override the critic model name.",
+          section: "verification",
+          section_label: "Verification",
+          value_type: "string",
+          default: null,
+          choices: [],
+          depends_on: ["verification.critic_enabled"],
+          prominence: "minor",
+          secret: false,
+          required: false,
         },
       ],
     },
@@ -305,9 +403,9 @@ export const MOCK_DEFAULT_USER_SETTINGS: Settings = {
   agent_settings_schema: MOCK_AGENT_SETTINGS_SCHEMA,
   agent_settings: {
     ...DEFAULT_AGENT_SETTINGS,
-    critic: {
-      mode: "finish_and_message",
-      enabled: false,
+    verification: {
+      critic_enabled: false,
+      enable_iterative_refinement: false,
     },
     llm: {
       ...(llmDefaults ?? {}),
@@ -437,7 +535,9 @@ const MOCK_MODELS = [
   "anthropic/claude-sonnet-4-5-20250929",
   "anthropic/claude-haiku-4-5-20251001",
   "anthropic/claude-opus-4-5-20251101",
+  "anthropic/claude-opus-4-8",
   "openai/gpt-3.5-turbo",
+  "openai/gpt-5.5",
   "openai/gpt-4o",
   "openai/gpt-4o-mini",
   "openhands/claude-sonnet-4-20250514",
@@ -450,7 +550,9 @@ const MOCK_MODELS = [
 
 const MOCK_VERIFIED_MODELS = new Set([
   "anthropic/claude-opus-4-5-20251101",
+  "anthropic/claude-opus-4-8",
   "anthropic/claude-sonnet-4-5-20250929",
+  "openai/gpt-5.5",
   "openhands/claude-opus-4-5-20251101",
   "openhands/claude-sonnet-4-5-20250929",
   "openhands/minimax-m2.7",
@@ -776,11 +878,21 @@ export const SETTINGS_HANDLERS = [
     await delay();
     const { settings } = MOCK_USER_PREFERENCES;
 
+    const DEFAULT_APP_PREFERENCES = {
+      language: null,
+      user_consents_to_analytics: null,
+      enable_sound_notifications: null,
+      git_user_name: null,
+      git_user_email: null,
+      disabled_skills: [],
+    };
+
     if (!settings) {
       return HttpResponse.json({
         agent_settings: {},
         conversation_settings: {},
         llm_api_key_is_set: false,
+        misc_settings: { app_preferences: DEFAULT_APP_PREFERENCES },
       });
     }
 
@@ -814,10 +926,22 @@ export const SETTINGS_HANDLERS = [
           >
         )?.api_key);
 
+    // Reuse the persisted misc_settings.app_preferences for repeat fetches,
+    // but always fall back to the default-empty block so the GUI sees a
+    // deterministic shape on first read.
+    const storedMisc = (settings as Record<string, unknown>).misc_settings as
+      | { app_preferences?: Record<string, unknown> }
+      | undefined;
+    const appPreferences = {
+      ...DEFAULT_APP_PREFERENCES,
+      ...(storedMisc?.app_preferences ?? {}),
+    };
+
     return HttpResponse.json({
       agent_settings: agentSettings,
       conversation_settings: settings.conversation_settings ?? {},
       llm_api_key_is_set: llmApiKeySet,
+      misc_settings: { app_preferences: appPreferences },
     });
   }),
 
@@ -827,17 +951,24 @@ export const SETTINGS_HANDLERS = [
     const body = (await request.json()) as {
       agent_settings_diff?: Record<string, unknown>;
       conversation_settings_diff?: Record<string, SettingsValue>;
+      misc_settings_diff?: {
+        app_preferences?: Record<string, unknown>;
+      };
     } | null;
 
     if (!body) {
       return HttpResponse.json({ error: "Empty body" }, { status: 400 });
     }
 
-    if (!body.agent_settings_diff && !body.conversation_settings_diff) {
+    if (
+      !body.agent_settings_diff &&
+      !body.conversation_settings_diff &&
+      !body.misc_settings_diff
+    ) {
       return HttpResponse.json(
         {
           error:
-            "At least one of agent_settings_diff or conversation_settings_diff must be provided",
+            "At least one of agent_settings_diff, conversation_settings_diff, or misc_settings_diff must be provided",
         },
         { status: 400 },
       );
@@ -873,6 +1004,27 @@ export const SETTINGS_HANDLERS = [
       };
     }
 
+    if (body.misc_settings_diff) {
+      const existingMisc = (current as Record<string, unknown>)
+        .misc_settings as
+        | { app_preferences?: Record<string, unknown> }
+        | undefined;
+      // Deep-merge: nested `app_preferences` overlays field-by-field;
+      // `disabled_skills` lists are replaced wholesale. This mirrors the
+      // SDK's `_deep_merge` behaviour for the two-level shape currently
+      // stored in `misc_settings`.
+      const nextMisc: { app_preferences?: Record<string, unknown> } = {
+        ...(existingMisc ?? {}),
+      };
+      if (body.misc_settings_diff.app_preferences) {
+        nextMisc.app_preferences = {
+          ...(existingMisc?.app_preferences ?? {}),
+          ...body.misc_settings_diff.app_preferences,
+        };
+      }
+      (nextSettings as Record<string, unknown>).misc_settings = nextMisc;
+    }
+
     MOCK_USER_PREFERENCES.settings = nextSettings;
 
     // Return the updated settings (without secrets exposed)
@@ -880,7 +1032,16 @@ export const SETTINGS_HANDLERS = [
       agent_settings: nextSettings.agent_settings ?? {},
       conversation_settings: nextSettings.conversation_settings ?? {},
       llm_api_key_is_set: nextSettings.llm_api_key_set ?? false,
+      misc_settings: ((nextSettings as Record<string, unknown>)
+        .misc_settings as
+        | { app_preferences?: Record<string, unknown> }
+        | undefined) ?? { app_preferences: {} },
     });
+  }),
+
+  http.post("*/api/mcp/test", async () => {
+    await delay();
+    return HttpResponse.json({ ok: true, tools: ["mock_tool"] });
   }),
 
   http.get("*/api/settings/agent-schema", async () => {
@@ -954,5 +1115,12 @@ export const SETTINGS_HANDLERS = [
     }
 
     return HttpResponse.json(null, { status: 400 });
+  }),
+
+  // POST /api/mcp/test – MCP server connectivity check before install.
+  // Returns ok:true so the install modal can proceed to save and close.
+  http.post("*/api/mcp/test", async () => {
+    await delay();
+    return HttpResponse.json({ ok: true, tools: [] });
   }),
 ];

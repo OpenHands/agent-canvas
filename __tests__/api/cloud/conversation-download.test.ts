@@ -23,7 +23,7 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.post).mockReset();
+  vi.mocked(axios.request).mockReset();
 });
 
 afterEach(() => {
@@ -32,22 +32,22 @@ afterEach(() => {
 });
 
 describe("AgentServerConversationService.downloadConversation cloud branch", () => {
-  it("routes through /api/cloud-proxy to the cloud download endpoint with responseType blob and returns the Blob", async () => {
+  it("calls the cloud download endpoint directly with responseType blob and returns the Blob", async () => {
     const zipBlob = new Blob(["zip-bytes"], { type: "application/zip" });
-    vi.mocked(axios.post).mockResolvedValue({ data: zipBlob });
+    vi.mocked(axios.request).mockResolvedValue({ data: zipBlob });
 
-    const result = await AgentServerConversationService.downloadConversation("conv-abc");
+    const result =
+      await AgentServerConversationService.downloadConversation("conv-abc");
 
-    expect(axios.post).toHaveBeenCalledOnce();
-    const [url, body, config] = vi.mocked(axios.post).mock.calls[0]!;
+    expect(axios.request).toHaveBeenCalledOnce();
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
 
-    expect(url).toMatch(/\/api\/cloud-proxy$/);
-    expect(body).toMatchObject({
-      host: cloudBackend.host,
+    expect(config).toMatchObject({
+      url: `${cloudBackend.host}/api/v1/app-conversations/conv-abc/download`,
       method: "GET",
-      path: "/api/v1/app-conversations/conv-abc/download",
+      headers: { Authorization: "Bearer bearer-token" },
+      responseType: "blob",
     });
-    expect(config).toMatchObject({ responseType: "blob" });
     expect(result).toBe(zipBlob);
   });
 });

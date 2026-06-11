@@ -1,5 +1,6 @@
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { SandboxStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
+import { isArchivedSandboxStatus } from "#/utils/conversation-archive-status";
 import { ConversationCardTitle } from "./conversation-card-title";
 import { ConversationStatusDot } from "../conversation-status-dot";
 
@@ -20,7 +21,7 @@ export function ConversationCardHeader({
   sandboxStatus,
   searchQuery,
 }: ConversationCardHeaderProps) {
-  const isArchived = sandboxStatus === "MISSING" || sandboxStatus === "ERROR";
+  const isArchived = isArchivedSandboxStatus(sandboxStatus);
   return (
     <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
       {executionStatus !== undefined && (

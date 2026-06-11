@@ -9,6 +9,7 @@ interface ContextMenuIconTextWithDescriptionProps {
   description: string;
   className?: string;
   iconClassName?: string;
+  isActive?: boolean;
 }
 
 export function ContextMenuIconTextWithDescription({
@@ -17,6 +18,7 @@ export function ContextMenuIconTextWithDescription({
   description,
   className,
   iconClassName,
+  isActive = false,
 }: ContextMenuIconTextWithDescriptionProps) {
   return (
     <div
@@ -30,6 +32,7 @@ export function ContextMenuIconTextWithDescription({
         text={title}
         className="px-0"
         iconClassName={iconClassName}
+        isActive={isActive}
       />
       <Typography.Text className="text-[var(--oh-muted)] text-[10px] font-normal whitespace-pre-wrap break-words">
         {description}

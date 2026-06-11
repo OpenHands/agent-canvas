@@ -58,11 +58,18 @@ import { useReadConversationFile } from "#/hooks/mutation/use-read-conversation-
 import useMetricsStore from "#/stores/metrics-store";
 import { useConversationHistory } from "#/hooks/query/use-conversation-history";
 import { setConversationState } from "#/utils/conversation-local-storage";
-import { recordModelSwitchMessage } from "#/hooks/chat/record-model-switch-message";
+import {
+  recordModelSwitchMessage,
+  seedModelSwitchesFromHistory,
+} from "#/hooks/chat/record-model-switch-message";
 import {
   invalidateConversationQueries,
   updateConversationLlmModelInCache,
 } from "#/hooks/mutation/conversation-mutation-utils";
+import {
+  getStoredConversationMetadata,
+  setStoredConversationMetadata,
+} from "#/api/conversation-metadata-store";
 
 export type WebSocketConnectionState =
   | "CONNECTING"
@@ -133,6 +140,9 @@ export function ConversationWebSocketProvider({
   const queryClient = useQueryClient();
   const addEvent = useEventStore((state) => state.addEvent);
   const addEvents = useEventStore((state) => state.addEvents);
+  const clearEventsForConversation = useEventStore(
+    (state) => state.clearEventsForConversation,
+  );
   const { setErrorMessage, removeErrorMessage, clearConnectionError } =
     useErrorMessageStore();
   const consumeMatchingPendingMessage = useOptimisticUserMessageStore(
@@ -140,6 +150,7 @@ export function ConversationWebSocketProvider({
   );
   const { setExecutionStatus } = useConversationStateStore();
   const { appendInput, appendOutput } = useCommandStore();
+  const resetBrowserStore = useBrowserStore((state) => state.reset);
 
   // History loading state.
   // - Main conversation history is now loaded via REST (`useConversationHistory`),
@@ -219,12 +230,66 @@ export function ConversationWebSocketProvider({
 
   const isLoadingHistoryMain = !!conversationId && isPreloadingHistory;
 
+  // Clear the (global, not conversation-scoped) event store when the active
+  // conversation changes, BEFORE the preloaded-history effect below re-seeds
+  // it. This MUST live here rather than in the route component: a parent's
+  // passive effect runs *after* this child's layout effects, so clearing from
+  // the route would wipe the freshly seeded history. On a conversation switch
+  // the history page is already cached, so `preloadedHistory` is available
+  // synchronously — without ordering the clear first, the user's already-echoed
+  // message gets seeded then immediately wiped, leaving only the `since`
+  // WebSocket resend (the agent's reply). Re-entering the same conversation is
+  // a no-op, so the store survives navigating away to Settings and back.
+  useLayoutEffect(() => {
+    const nextId = conversationId ?? null;
+    if (useEventStore.getState().loadedConversationId === nextId) {
+      return;
+    }
+    // Single atomic action: clears the previous conversation's events and
+    // records the new loaded id in one `set`, so no subscriber can observe a
+    // half-applied state (events gone but the old id still reported).
+    clearEventsForConversation(nextId);
+    resetBrowserStore();
+  }, [conversationId, clearEventsForConversation, resetBrowserStore]);
+
   useLayoutEffect(() => {
     if (!preloadedHistory || preloadedHistory.events.length === 0) {
       return;
     }
     addEvents(preloadedHistory.events);
-  }, [preloadedHistory, addEvents]);
+
+    // The first user message of a cloud start-task conversation is persisted
+    // server-side and reaches us via this REST preload, not over the WebSocket
+    // (which subscribes with resend_mode='since' after the latest preloaded
+    // timestamp). Consume any matching optimistic "Sending…" bubble here too —
+    // mirroring the WS handler — so it doesn't linger as a duplicate of the echo.
+    if (conversationId) {
+      // Rebuild inline "Switched to" messages from the REST-preloaded history.
+      // The live store writers (WS handler / user action) never see preloaded
+      // events, so without this past model switches wouldn't render on reload.
+      // Read the post-`addEvents` `uiEvents` (actions replaced by observations,
+      // Think/Finish observations dropped) — not the raw history — so anchors
+      // match the ids the renderer actually mounts.
+      seedModelSwitchesFromHistory(
+        conversationId,
+        useEventStore.getState().uiEvents,
+      );
+
+      for (const event of preloadedHistory.events) {
+        if (isUserMessageEvent(event)) {
+          consumeMatchingPendingMessage(
+            conversationId,
+            extractMessageEventText(event),
+          );
+        }
+      }
+    }
+  }, [
+    preloadedHistory,
+    addEvents,
+    conversationId,
+    consumeMatchingPendingMessage,
+  ]);
 
   /**
    * Timestamp of the latest event we already have from REST. Used as
@@ -525,6 +590,18 @@ export function ConversationWebSocketProvider({
               conversationId,
               switchLLMObservation.observation.profile_name,
             );
+
+            // Mirror the user-driven `/model` path: persist the profile so the
+            // chat-header switcher shows the right name after a reload, even
+            // when several profiles share a model (#1082).
+            const prevMetadata = getStoredConversationMetadata(conversationId);
+            setStoredConversationMetadata(conversationId, {
+              selected_repository: prevMetadata?.selected_repository ?? null,
+              selected_branch: prevMetadata?.selected_branch ?? null,
+              git_provider: prevMetadata?.git_provider ?? null,
+              selected_workspace: prevMetadata?.selected_workspace ?? null,
+              active_profile: switchLLMObservation.observation.profile_name,
+            });
 
             if (switchLLMObservation.observation.active_model) {
               updateConversationLlmModelInCache(

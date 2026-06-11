@@ -29,14 +29,12 @@ import {
 import { WebSocketProviderWrapper } from "#/contexts/websocket-provider-wrapper";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { I18nKey } from "#/i18n/declaration";
-import { useEventStore } from "#/stores/use-event-store";
 import { resumeCloudSandbox } from "#/api/cloud/conversation-service.api";
 
 function AppContent() {
   const { t } = useTranslation("openhands");
   const { conversationId } = useConversationId();
   const panelViewMatch = useMatch("/conversations/:conversationId/panel");
-  const clearEvents = useEventStore((state) => state.clearEvents);
 
   const { isTask, taskStatus, taskDetail } = useTaskPolling();
 
@@ -70,13 +68,16 @@ function AppContent() {
     (state) => state.removeErrorMessage,
   );
 
+  // Per-conversation UI/runtime resets. The event store is cleared separately,
+  // inside ConversationWebSocketProvider, so the clear is ordered *before* the
+  // preloaded-history re-seed (see the note there) — clearing it here would run
+  // too late and wipe the freshly seeded history on a conversation switch.
   React.useEffect(() => {
     clearTerminal();
     resetConversationState();
     resetConversationRuntimeState();
     setCurrentAgentState(AgentState.LOADING);
     removeErrorMessage();
-    clearEvents();
   }, [
     conversationId,
     clearTerminal,
@@ -84,7 +85,6 @@ function AppContent() {
     resetConversationRuntimeState,
     setCurrentAgentState,
     removeErrorMessage,
-    clearEvents,
   ]);
 
   React.useEffect(() => {
@@ -177,6 +177,20 @@ function AppContent() {
     active.backend.kind,
     t,
   ]);
+
+  // A backend switch is in flight (BackendSelector flips the active backend
+  // and redirects to /conversations on the next tick). The conversationId in
+  // the URL belongs to the *previous* backend, so unmount the whole
+  // conversation subtree now — before any per-conversation query (history,
+  // metrics, sub-conversations, runtime info, …) re-fires against a backend
+  // the id is foreign to. Those foreign fetches fail response validation and
+  // surface "agent server returned data this UI does not understand". This is
+  // deterministic regardless of the navigate-vs-setActive render race: React
+  // re-renders this parent before its children, so returning null removes them
+  // before they can issue the request.
+  if (backendChanged) {
+    return null;
+  }
 
   const content = (
     <EventHandler>

@@ -4,12 +4,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderWithProviders } from "test-utils";
 import { SkillsModal } from "#/components/features/conversation-panel/skills-modal";
 import SkillsService from "#/api/skills-service";
-import { AgentState } from "#/types/agent-state";
-import { useAgentState } from "#/hooks/use-agent-state";
-
-vi.mock("#/hooks/use-agent-state", () => ({
-  useAgentState: vi.fn(),
-}));
 
 describe("SkillsModal", () => {
   const mockOnClose = vi.fn();
@@ -39,10 +33,6 @@ describe("SkillsModal", () => {
     vi.clearAllMocks();
 
     vi.spyOn(SkillsService, "getSkills").mockResolvedValue(mockSkills);
-
-    vi.mocked(useAgentState).mockReturnValue({
-      curAgentState: AgentState.AWAITING_USER_INPUT,
-    });
   });
 
   afterEach(() => {
@@ -94,33 +84,31 @@ describe("SkillsModal", () => {
     });
   });
 
-  describe("Runtime waiting state", () => {
-    it("shows the warning, refresh button, and spinner while the runtime is starting", async () => {
-      vi.mocked(useAgentState).mockReturnValue({
-        curAgentState: AgentState.LOADING,
-      });
-
-      renderWithProviders(<SkillsModal {...defaultProps} />);
-
-      expect(await screen.findByTestId("refresh-skills")).toBeInTheDocument();
-      expect(screen.getByText("SKILLS_MODAL$WARNING")).toBeInTheDocument();
-      expect(screen.getByTestId("skills-runtime-waiting")).toBeInTheDocument();
-      expect(screen.getByTestId("loading-spinner")).toBeInTheDocument();
-      expect(
-        screen.getByText("DIFF_VIEWER$WAITING_FOR_RUNTIME"),
-      ).toBeInTheDocument();
-    });
-  });
-
   describe("Skills Display", () => {
-    it("should display skills correctly", async () => {
+    it("displays the skills catalog when opened with no active conversation (home page)", async () => {
+      // Arrange: the catalog fetch succeeds; no conversation exists in this
+      // render, so no runtime ever starts (the original infinite-spinner bug)
       vi.spyOn(SkillsService, "getSkills").mockResolvedValue(mockSkills);
 
+      // Act
       renderWithProviders(<SkillsModal {...defaultProps} />);
 
-      await screen.findByText("Test Skill 1");
-      expect(screen.getByText("Test Skill 1")).toBeInTheDocument();
+      // Assert: the list renders instead of waiting for a runtime
+      expect(await screen.findByText("Test Skill 1")).toBeInTheDocument();
       expect(screen.getByText("Test Skill 2")).toBeInTheDocument();
+    });
+
+    it("surfaces a fetch error message when the skills catalog cannot be loaded", async () => {
+      // Arrange: the catalog fetch fails (e.g. agent server unreachable)
+      vi.spyOn(SkillsService, "getSkills").mockRejectedValue(
+        new Error("network error"),
+      );
+
+      // Act
+      renderWithProviders(<SkillsModal {...defaultProps} />);
+
+      // Assert: a clear failure message is shown instead of an endless spinner
+      expect(await screen.findByText("COMMON$FETCH_ERROR")).toBeInTheDocument();
     });
   });
 });

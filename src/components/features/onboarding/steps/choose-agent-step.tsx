@@ -91,18 +91,22 @@ function getAgentOptions(): AgentOption[] {
 interface ChooseAgentStepProps {
   selectedAgentId: OnboardingAgentId;
   onSelect: (agentId: OnboardingAgentId) => void;
+  onBack?: () => void;
   onNext: () => void;
 }
 
 export function ChooseAgentStep({
   selectedAgentId,
   onSelect,
+  onBack,
   onNext,
 }: ChooseAgentStepProps) {
   const { t } = useTranslation("openhands");
   const { mutate: saveSettings, isPending: isSaving } = useSaveSettings();
 
   const handleNext = () => {
+    // The diff builder seeds the preferred default model (Vertex-safe for
+    // Gemini) when none is passed.
     const diff = buildAcpAgentSettingsDiff(selectedAgentId);
     if (!diff) {
       // Unknown id (shouldn't be reachable through the UI). Advance
@@ -190,7 +194,23 @@ export function ChooseAgentStep({
         })}
       </div>
 
-      <div className="sticky bottom-0 flex justify-end bg-base-secondary pt-4 pb-7">
+      <div
+        className={cn(
+          "sticky bottom-0 flex items-center gap-2 bg-base-secondary pt-4 pb-7",
+          onBack ? "justify-between" : "justify-end",
+        )}
+      >
+        {onBack ? (
+          <BrandButton
+            testId="onboarding-agent-back"
+            type="button"
+            variant="secondary"
+            onClick={onBack}
+            isDisabled={isSaving}
+          >
+            {t(I18nKey.ONBOARDING$BACK)}
+          </BrandButton>
+        ) : null}
         <BrandButton
           testId="onboarding-agent-next"
           type="button"

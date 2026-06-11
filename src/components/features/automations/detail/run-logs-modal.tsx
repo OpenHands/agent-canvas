@@ -7,6 +7,8 @@ import {
   type SandboxIssue,
 } from "#/hooks/query/use-bash-command-logs";
 import type { BashOutput } from "@openhands/typescript-client";
+import { cn } from "#/utils/utils";
+import { modalTitleLgMediumClassName } from "#/utils/modal-classes";
 
 /**
  * Localized empty-state message key for each `SandboxIssue` reason.
@@ -126,7 +128,7 @@ export function RunLogsModal({
           <XMarkIcon className="size-5" />
         </button>
 
-        <h2 className="pr-8 text-lg font-medium text-white">
+        <h2 className={cn("pr-8", modalTitleLgMediumClassName)}>
           {t(I18nKey.AUTOMATIONS$DETAIL$LOGS_TITLE)}
         </h2>
 

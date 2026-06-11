@@ -18,9 +18,45 @@ interface FileContentViewerProps {
 const HTML_LIKE_EXTS = new Set(["html", "htm", "svg"]);
 const MARKDOWN_EXTS = new Set(["md", "markdown", "mdx"]);
 
+// Office/document formats we can't preview inline. The label doubles as the
+// allow-list (a present entry => Office doc) and feeds a clear, format-named
+// "no preview" message instead of the generic binary fallback.
+const OFFICE_DOCUMENT_LABELS: Record<string, string> = {
+  pptx: "PowerPoint",
+  ppt: "PowerPoint",
+  docx: "Word",
+  doc: "Word",
+  xlsx: "Excel",
+  xls: "Excel",
+};
+
 function getExtension(path: string): string {
   const idx = path.lastIndexOf(".");
   return idx === -1 ? "" : path.slice(idx + 1).toLowerCase();
+}
+
+/**
+ * Fallback shown when a file's bytes aren't previewable. Office documents
+ * (.pptx / .docx / .xlsx …) get a clear, format-named message; every other
+ * binary keeps the generic "binary file" string so the pane is never blank.
+ */
+function UnpreviewableFallback({ path }: { path: string }) {
+  const { t } = useTranslation("openhands");
+  const documentLabel = OFFICE_DOCUMENT_LABELS[getExtension(path)];
+  return (
+    <div
+      className="flex h-full w-full items-center justify-center text-sm text-[var(--oh-muted)]"
+      data-testid={
+        documentLabel
+          ? "file-content-viewer-unsupported-document"
+          : "file-content-viewer-binary-fallback"
+      }
+    >
+      {documentLabel
+        ? t(I18nKey.FILES$UNSUPPORTED_DOCUMENT, { type: documentLabel })
+        : t(I18nKey.FILES$BINARY_FALLBACK)}
+    </div>
+  );
 }
 
 /**
@@ -82,14 +118,7 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
         />
       );
     }
-    return (
-      <div
-        className="flex h-full w-full items-center justify-center text-sm text-[var(--oh-muted)]"
-        data-testid="file-content-viewer-binary-fallback"
-      >
-        {t(I18nKey.FILES$BINARY_FALLBACK)}
-      </div>
-    );
+    return <UnpreviewableFallback path={path} />;
   }
 
   // ----- Rich mode: render HTML, markdown, images, PDFs from staticUrl. ----
@@ -129,14 +158,7 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
   }
 
   if (kind === "binary") {
-    return (
-      <div
-        className="flex h-full w-full items-center justify-center text-sm text-[var(--oh-muted)]"
-        data-testid="file-content-viewer-binary-fallback"
-      >
-        {t(I18nKey.FILES$BINARY_FALLBACK)}
-      </div>
-    );
+    return <UnpreviewableFallback path={path} />;
   }
 
   // Text-like content.
@@ -202,12 +224,5 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
 
   // Truly unknown / empty payload — show a fallback so the pane is never
   // blank.
-  return (
-    <div
-      className="flex h-full w-full items-center justify-center text-sm text-[var(--oh-muted)]"
-      data-testid="file-content-viewer-binary-fallback"
-    >
-      {t(I18nKey.FILES$BINARY_FALLBACK)}
-    </div>
-  );
+  return <UnpreviewableFallback path={path} />;
 }
