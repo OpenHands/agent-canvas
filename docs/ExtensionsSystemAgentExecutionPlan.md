@@ -1,4 +1,4 @@
-# Agent Canvas Extensions PoC Agent Execution Plan
+# Canvas Extensions PoC Agent Execution Plan
 
 Status: executable handoff plan
 Source RFC: [ExtensionsSystemRFC.md](./ExtensionsSystemRFC.md)
@@ -40,8 +40,8 @@ Use gates to coordinate merge order. Tasks inside a gate can be split, but the g
 | G0 | Risk burners and contracts | Mostly serial | Everything else |
 | G1 | Manager, CLI, install store, host routes | Manager/CLI and launcher work can split after shared contracts land | UI, view host, conversation merge |
 | G2 | Example extension and package release path | Can run alongside G1 after contracts land | View host, acceptance demo |
-| G3 | Frontend Packages page and ExtensionService | Can run once Extension Host registry shape is stable | View host UX, dev mode UX |
-| G4 | Browser-module view host, sidebar entries, visualizers, and slots | Can run after registry/assets exist; visualizers can split after shared types land | Acceptance demo |
+| G3 | Frontend Packages page and CanvasExtensionService | Can run once Extension Host registry shape is stable | View host UX, dev mode UX |
+| G4 | Browser-module view host, left navigation, settings panels, right panels, and visualizers | Can run after registry/assets exist; visualizers can split after shared types land | Acceptance demo |
 | G5 | Conversation contribution merge | Can run after launch-contributions endpoint exists | Final proof |
 | G6 | Dev mode watch/remount | Can run after manager, host, and view host exist | Final proof |
 | G7 | Acceptance, release smoke, polish | Serial final pass | PoC complete |
@@ -62,7 +62,7 @@ Avoid these overlapping edits unless one agent owns the integration:
 - [ ] Files likely touched:
   - `examples/extensions/hello-canvas/agent/hello-plugin/.plugin/plugin.json`
   - `examples/extensions/hello-canvas/agent/hello-plugin/**`
-  - optional smoke helper under `scripts/` or `__tests__/extensions/`
+  - optional smoke helper under `scripts/` or `__tests__/canvas-extensions/`
 - [ ] Implement:
   - Create the smallest SDK plugin fixture with a visible skill/context marker.
   - Start a local conversation with top-level `plugins: [{ source: absolutePluginPath }]`.
@@ -82,10 +82,10 @@ Avoid these overlapping edits unless one agent owns the integration:
 - [ ] Depends on: none
 - [ ] Files likely touched:
   - `examples/extensions/hello-canvas/dist/index.js`
-  - `__tests__/extensions/` or a small script fixture
+  - `__tests__/canvas-extensions/` or a small script fixture
 - [ ] Implement:
   - Create a browser-ready ESM fixture exporting `mount({ root, context })`.
-  - Verify static production build can dynamically import it from `/canvas-extensions/...`.
+  - Verify static production build can dynamically import it from `/canvas-extension-assets/...`.
   - Add a negative fixture that uses a bare runtime import such as `react`.
 - [ ] Tests:
   - Validation rejects bare runtime imports with an actionable diagnostic.
@@ -99,22 +99,22 @@ Avoid these overlapping edits unless one agent owns the integration:
 - [ ] Owner:
 - [ ] Depends on: none
 - [ ] Files likely touched:
-  - `src/extensions/types.ts`
-  - `src/extensions/manifest-schema.ts`
-  - `src/extensions/manifest-validation.ts`
-  - `src/extensions/artifact-detection.ts`
-  - `src/extensions/storage-paths.ts`
-  - `__tests__/extensions/manifest-validation.test.ts`
+  - `src/canvas-extensions/types.ts`
+  - `src/canvas-extensions/manifest-schema.ts`
+  - `src/canvas-extensions/manifest-validation.ts`
+  - `src/canvas-extensions/artifact-detection.ts`
+  - `src/canvas-extensions/storage-paths.ts`
+  - `__tests__/canvas-extensions/manifest-validation.test.ts`
   - `package.json`
   - `tsconfig.lib.json` if needed for emitted type paths
-  - keep new public types under `src/extensions/`; do not recreate the old `src/addons/` namespace
+  - keep new public types under `src/canvas-extensions/`; do not recreate the old `src/addons/` namespace
 - [ ] Implement:
   - Manifest v1 types, contribution types, registry entry types, diagnostics, installable artifact kinds.
-  - Contribution types for `toolVisualizers` and `conversationSlots`.
+  - Contribution types for left navigation, `settingsPanels`, `conversationRightPanels`, and `toolVisualizers`.
   - Validation for required fields, ID regex, duplicate/mutually exclusive `browser.module` and `browser.entry`, path containment, reserved `browser.entry`.
-  - Artifact detection order: Agent Canvas extension, SDK plugin, skill, MCP placeholder.
+  - Artifact detection order: Canvas Extension, SDK plugin, skill, MCP placeholder.
   - Storage helpers for `~/.openhands/agent-canvas/installations`.
-  - Public package exports `@openhands/agent-canvas/extensions` and `@openhands/agent-canvas/visualizers` with emitted `dist/extensions/*` and `dist/visualizers/*` outputs.
+  - Public package exports `@openhands/agent-canvas/canvas-extensions` and `@openhands/agent-canvas/canvas-visualizers` with emitted `dist/extensions/*` and `dist/visualizers/*` outputs.
 - [ ] Tests:
   - Valid extension manifest.
   - Missing required fields.
@@ -127,12 +127,12 @@ Avoid these overlapping edits unless one agent owns the integration:
 
 ```sh
 npm run typecheck
-npm test -- __tests__/extensions/manifest-validation.test.ts
+npm test -- __tests__/canvas-extensions/manifest-validation.test.ts
 npm run build:lib
 ```
 
 - [ ] Done when:
-  - Type consumers can import from `@openhands/agent-canvas/extensions` and `@openhands/agent-canvas/visualizers`.
+  - Type consumers can import from `@openhands/agent-canvas/canvas-extensions` and `@openhands/agent-canvas/canvas-visualizers`.
   - No runtime host, CLI store, or UI behavior is introduced in this gate.
 - [ ] Handoff notes:
 
@@ -144,12 +144,12 @@ npm run build:lib
 - [ ] Depends on: G0.3
 - [ ] Files likely touched:
   - `scripts/extension-manager.mjs`
-  - `__tests__/extensions/extension-manager.test.ts`
-  - `__tests__/extensions/fixtures/**`
+  - `__tests__/canvas-extensions/extension-manager.test.ts`
+  - `__tests__/canvas-extensions/fixtures/**`
 - [ ] Implement:
   - Store bootstrap: private `package.json`, `package-lock.json`, `artifacts.json`, `config.json`, `logs/`, `dev/`, `node_modules/`.
   - Read/write registry state with atomic-ish writes where practical.
-  - Install Agent Canvas extension manifests from local paths first; tarball/npm spec can follow in the same gate if scoped.
+  - Install Canvas Extension manifests from local paths first; tarball/npm spec can follow in the same gate if scoped.
   - Run npm installs in the private store with `--ignore-scripts` by default.
   - Enable/disable/remove/update state transitions.
   - Disabled wins over enabled if config is manually inconsistent.
@@ -168,7 +168,7 @@ npm run build:lib
 - [ ] Verification:
 
 ```sh
-npm test -- __tests__/extensions/extension-manager.test.ts
+npm test -- __tests__/canvas-extensions/extension-manager.test.ts
 ```
 
 - [ ] Done when:
@@ -182,7 +182,7 @@ npm test -- __tests__/extensions/extension-manager.test.ts
 - [ ] Files likely touched:
   - `bin/agent-canvas.mjs`
   - optional `scripts/extension-cli.mjs`
-  - `__tests__/extensions/extension-cli.test.ts`
+  - `__tests__/canvas-extensions/extension-cli.test.ts`
 - [ ] Implement:
   - Dispatch `install`, `list`, `enable`, `disable`, `remove`, `update`, `doctor`, and `dev-extension` before stack startup.
   - Dispatch before `--public`, `--frontend-only`, and `--backend-only` stack validation.
@@ -192,16 +192,16 @@ npm test -- __tests__/extensions/extension-manager.test.ts
   - Help text includes management commands and global install happy path.
   - `doctor` reports invalid manifests, unsupported standalone artifacts, missing assets, package/export issues where detectable.
 - [ ] Tests:
-  - `agent-canvas list extensions` works with no `build/`.
+  - `agent-canvas list canvas-extensions` works with no `build/`.
   - `agent-canvas doctor` works with no `build/`.
   - Unknown command produces useful help.
   - `install --install-scripts=deny` is default.
 - [ ] Verification:
 
 ```sh
-node bin/agent-canvas.mjs list extensions
+node bin/agent-canvas.mjs list canvas-extensions
 node bin/agent-canvas.mjs doctor
-npm test -- __tests__/extensions/extension-cli.test.ts
+npm test -- __tests__/canvas-extensions/extension-cli.test.ts
 ```
 
 - [ ] Done when:
@@ -214,17 +214,17 @@ npm test -- __tests__/extensions/extension-cli.test.ts
 - [ ] Depends on: G1.1
 - [ ] Files likely touched:
   - `scripts/extension-host.mjs`
-  - `__tests__/extensions/extension-host.test.ts`
+  - `__tests__/canvas-extensions/extension-host.test.ts`
 - [ ] Implement:
-  - `GET /api/canvas/installations/registry`
-  - `GET /api/canvas/installations/diagnostics`
-  - `POST /api/canvas/installations/install`
-  - `POST /api/canvas/installations/:id/enable`
-  - `POST /api/canvas/installations/:id/disable`
-  - `DELETE /api/canvas/installations/:id`
-  - `PATCH /api/canvas/installations/:id/settings`
-  - `GET /api/canvas/installations/launch-contributions`
-  - `GET /canvas-extensions/:id/*assetPath`
+  - `GET /api/canvas/canvas-extensions/registry`
+  - `GET /api/canvas/canvas-extensions/diagnostics`
+  - `POST /api/canvas/canvas-extensions/install`
+  - `POST /api/canvas/canvas-extensions/:id/enable`
+  - `POST /api/canvas/canvas-extensions/:id/disable`
+  - `DELETE /api/canvas/canvas-extensions/:id`
+  - `PATCH /api/canvas/canvas-extensions/:id/settings`
+  - `GET /api/canvas/canvas-extensions/launch-contributions`
+  - `GET /canvas-extension-assets/:id/*assetPath`
   - Session API key guard for mutating routes.
   - Static asset path containment and content types.
 - [ ] Tests:
@@ -235,7 +235,7 @@ npm test -- __tests__/extensions/extension-cli.test.ts
 - [ ] Verification:
 
 ```sh
-npm test -- __tests__/extensions/extension-host.test.ts
+npm test -- __tests__/canvas-extensions/extension-host.test.ts
 ```
 
 - [ ] Done when:
@@ -255,7 +255,7 @@ npm test -- __tests__/extensions/extension-host.test.ts
   - launcher/proxy tests under `__tests__/`
 - [ ] Implement:
   - Allocate/start Extension Host in `npm run dev`, `dev:minimal`, `dev:static`, and packaged `agent-canvas`.
-  - Route `/api/canvas/installations/*` and `/canvas-extensions/*` before `/api/*` and before SPA fallback.
+  - Route `/api/canvas/canvas-extensions/*` and `/canvas-extension-assets/*` before `/api/*` and before SPA fallback.
   - Add Vite proxy support for direct Vite access.
   - Add static server route support for direct static-port access.
   - Cover `--frontend-only` and `--backend-only`: frontend-only may expose local Packages/browser assets with agent-runtime diagnostics; backend-only should skip browser asset hosting unless a future CLI-only host mode explicitly needs it.
@@ -270,7 +270,7 @@ npm test -- __tests__/extensions/extension-host.test.ts
 
 ```sh
 npm test -- __tests__/vite-config.test.ts
-npm test -- __tests__/extensions
+npm test -- __tests__/canvas-extensions
 ```
 
 - [ ] Done when:
@@ -314,7 +314,7 @@ npm test -- __tests__/extensions
 - [ ] Files likely touched:
   - `package.json`
   - optional `scripts/package-smoke.mjs`
-  - `__tests__/extensions/package-smoke.test.ts` if automated
+  - `__tests__/canvas-extensions/package-smoke.test.ts` if automated
 - [ ] Implement:
   - Ensure `files` includes every runtime script/build artifact needed by the global CLI and Extension Host.
   - Ensure `./extensions` export resolves from packed package.
@@ -329,21 +329,21 @@ npm pack --dry-run
 
 - [ ] Done when:
   - Packed package contains `bin`, `scripts`, `build`, `dist/extensions`, `dist/visualizers`, and any advertised schema files.
-  - `agent-canvas list extensions` and `agent-canvas doctor` work from packed/global install.
+  - `agent-canvas list canvas-extensions` and `agent-canvas doctor` work from packed/global install.
 - [ ] Handoff notes:
 
 ## 6. Gate G3: Frontend Packages Management
 
-### G3.1 ExtensionService API Wrapper
+### G3.1 CanvasExtensionService API Wrapper
 
 - [ ] Owner:
 - [ ] Depends on: G1.3
 - [ ] Files likely touched:
-  - `src/api/extensions-service.ts`
+  - `src/api/canvas-extensions-service.ts`
   - `src/api/no-direct-agent-server-calls.test.ts`
   - `src/hooks/query/use-extensions.ts`
 - [ ] Implement:
-  - Dedicated wrapper for every `/api/canvas/installations/*` call.
+  - Dedicated wrapper for every `/api/canvas/canvas-extensions/*` call.
   - Narrow test exception for this wrapper, including the current `fetch('/api/...')` guard.
   - React Query hooks for registry, diagnostics, install, enable, disable, remove, settings patch, launch contributions.
 - [ ] Tests:
@@ -366,14 +366,16 @@ npm run typecheck
 - [ ] Depends on: G3.1
 - [ ] Files likely touched:
   - `src/routes.ts`
-  - `src/routes/extensions-packages.tsx`
+  - `src/routes/canvas-extensions-packages.tsx`
   - `src/components/features/skills/extensions-navigation.tsx`
+  - `src/routes/extensions-hub.tsx` if the existing Customize hub needs route/link updates
   - `src/i18n/translation.json`
   - generated i18n files via `npm run make-i18n`
   - `tests/e2e/snapshots/**`
 - [ ] Implement:
   - Replace or redirect `/plugins` to Packages while preserving bookmarks.
-  - Packages nav item in the existing Extensions hub (`/customize` primary entry, desktop redirect to `/skills`, mobile `ExtensionsMobileHub`).
+  - Packages nav item in the existing Customize area (`/customize` primary entry, desktop redirect to `/skills`, mobile Customize hub).
+  - Treat legacy "extensions" file/component names as existing Customize implementation details; do not use them as new product vocabulary.
   - Sections for Enabled, Installed/Disabled, Invalid, Dev.
   - Cards show display name, package, version, state, contribution badges, required secrets, diagnostics, source path for dev entries.
   - Actions for install, enable, disable, remove.
@@ -393,7 +395,7 @@ npm test
   - A user can see and manage `hello.canvas` from the UI.
 - [ ] Handoff notes:
 
-## 7. Gate G4: Browser Module View Host And Sidebar
+## 7. Gate G4: Browser Module View Host And UI Surfaces
 
 ### G4.1 Extension Runtime Host
 
@@ -402,10 +404,10 @@ npm test
 - [ ] Files likely touched:
   - `src/routes.ts`
   - `src/routes/extension-view-host.tsx`
-  - `src/extensions/runtime/*`
+  - `src/canvas-extensions/runtime/*`
   - `src/i18n/translation.json`
 - [ ] Implement:
-  - Route `/extensions/:extensionId/:viewId/*`.
+  - Route `/canvas-extensions/:extensionId/:viewId/*`.
   - Fetch registry, resolve enabled view, import `assetBaseUrl + browser.module`.
   - Use `import(/* @vite-ignore */ url)` or equivalent for served extension modules.
   - Add cache-busting version token.
@@ -428,7 +430,7 @@ npm test
   - `hello.canvas` view renders from served browser module.
 - [ ] Handoff notes:
 
-### G4.2 Primary Sidebar Entries
+### G4.2 Left Navigation Entries
 
 - [ ] Owner:
 - [ ] Depends on: G4.1
@@ -466,14 +468,14 @@ npm run test:e2e:snapshots -- --grep "sidebar"
 - [ ] Depends on: G0.3, G1.3, G3.1
 - [ ] Files likely touched:
   - `src/components/features/chat/tool-visualizers/*`
-  - `src/extensions/visualizers/*`
-  - `src/api/extensions-service.ts`
+  - `src/canvas-extensions/visualizers/*`
+  - `src/api/canvas-extensions-service.ts`
   - `package.json`
   - `tsconfig.lib.json`
   - visualizer tests under `__tests__/components/features/chat/tool-visualizers/`
-  - extension tests under `__tests__/extensions/`
+  - extension tests under `__tests__/canvas-extensions/`
 - [ ] Implement:
-  - Public `@openhands/agent-canvas/visualizers` subpath with stable authoring types and primitives.
+  - Public `@openhands/agent-canvas/canvas-visualizers` subpath with stable authoring types and primitives.
   - Extension visualizer registry layer that composes before built-in visualizers and markdown fallback.
   - `priority` plus `matches()` support.
   - Manifest projection for `contributes.toolVisualizers`.
@@ -498,30 +500,34 @@ npm run typecheck
   - A local extension can change how one event/tool renders without forking Agent Canvas.
 - [ ] Handoff notes:
 
-### G4.4 Conversation Slots And Badges
+### G4.4 Settings Panels And Conversation Right Panels
 
 - [ ] Owner:
-- [ ] Depends on: G4.3
+- [ ] Depends on: G4.1
 - [ ] Files likely touched:
-  - conversation header/sidebar/footer/badge components
-  - `src/extensions/slots/*`
+  - settings route/components
+  - conversation right-panel/tab components
+  - `src/canvas-extensions/panels/*`
   - `src/i18n/translation.json`
-  - tests under `__tests__/extensions/`
-  - focused component tests near each slot host
+  - tests under `__tests__/canvas-extensions/`
+  - focused component tests near settings and conversation panel hosts
 - [ ] Implement:
-  - Slot registry for `conversation.header.actions`, `conversation.sidebar`, `conversation.footer`, and `conversation.badges`.
-  - Optional `conversation.event.visualizers` manifest alias that maps to tool visualizer registration.
-  - Stable slot props: conversation ID/status, active backend summary, workspace summary, extension settings helpers, navigation/toast helpers.
-  - Deterministic ordering by priority, extension display name, and slot contribution ID.
-  - Per-slot error boundaries.
+  - Settings panel registry for `contributes.settingsPanels`.
+  - Render settings panels only under a visible Extensions header after built-in settings sections.
+  - Conversation right-panel registry for `contributes.conversationRightPanels`.
+  - Render conversation right panels alongside Files, Browser, and Terminal.
+  - Stable panel props: conversation ID/status where relevant, active backend summary, workspace summary, extension settings helpers, navigation/toast helpers.
+  - Deterministic ordering by `order`, extension display name, and panel contribution ID.
+  - Per-panel error boundaries.
   - No raw store, React Query client, or Canvas-internal component API in the public contract.
 - [ ] Tests:
-  - Slots render in the intended hosts.
+  - Settings panels render only under the Extensions header after built-in settings.
+  - Conversation right panels render beside Files, Browser, and Terminal.
   - Ordering is deterministic.
-  - Disabled/invalid extensions do not render slot content.
-  - Slot error is localized and does not break the conversation page.
+  - Disabled/invalid extensions do not render panel content.
+  - Panel errors are localized and do not break settings or conversation pages.
 - [ ] Done when:
-  - A local extension can add a backend/workspace/conversation badge or header action without a route.
+  - A local Canvas Extension can add a settings panel and a conversation right panel without a full app route.
 - [ ] Handoff notes:
 
 ## 8. Gate G5: Conversation Contributions
@@ -531,11 +537,11 @@ npm run typecheck
 - [ ] Owner:
 - [ ] Depends on: G1.3, G3.1
 - [ ] Files likely touched:
-  - `src/api/extensions-service.ts`
-  - `src/extensions/runtime-compatibility.ts`
-  - `__tests__/extensions/runtime-compatibility.test.ts`
+  - `src/api/canvas-extensions-service.ts`
+  - `src/canvas-extensions/runtime-compatibility.ts`
+  - `__tests__/canvas-extensions/runtime-compatibility.test.ts`
 - [ ] Implement:
-  - `ExtensionsService.getLaunchContributions()`.
+  - `CanvasExtensionsService.getLaunchContributions()`.
   - Runtime classes: `canvas-local`, `agent-server-local`, `agent-server-remote`, `cloud-runtime`, `acp-runtime`.
   - Use launcher-issued `localInstallStoreReadable`.
   - Disable package-relative/local SDK plugin paths unless filesystem-local.
@@ -559,7 +565,7 @@ npm run typecheck
   - `src/hooks/mutation/use-create-conversation.ts`
   - launch/home components
   - `__tests__/api/agent-server-adapter.test.ts`
-  - `__tests__/extensions/conversation-contributions.test.ts`
+  - `__tests__/canvas-extensions/conversation-contributions.test.ts`
 - [ ] Implement:
   - `extensionSystemSuffix` adapter option.
   - Append `<AGENT_CANVAS_RUNTIME>` and `<AGENT_CANVAS_EXTENSIONS>` after `<RUNTIME_SERVICES>`.
@@ -594,9 +600,9 @@ npm run typecheck
   - `scripts/extension-manager.mjs`
   - `scripts/extension-host.mjs`
   - `bin/agent-canvas.mjs`
-  - `src/api/extensions-service.ts`
-  - `src/routes/extensions-packages.tsx`
-  - tests under `__tests__/extensions/`
+  - `src/api/canvas-extensions-service.ts`
+  - `src/routes/canvas-extensions-packages.tsx`
+  - tests under `__tests__/canvas-extensions/`
 - [ ] Implement:
   - `agent-canvas install <path> --dev`.
   - `agent-canvas dev-extension register/list/unregister`.
@@ -630,15 +636,17 @@ npm run build
 npm run build:lib
 npm pack --dry-run
 node bin/agent-canvas.mjs install ./examples/extensions/hello-canvas --yes
-node bin/agent-canvas.mjs list extensions
+node bin/agent-canvas.mjs list canvas-extensions
 node bin/agent-canvas.mjs doctor
 node bin/agent-canvas.mjs
 ```
 
 - [ ] Browser checks:
   - Packages shows `hello.canvas` enabled with no diagnostics.
-  - Sidebar entry appears after Automations and before conversations.
+  - Left navigation entry appears after Automations and before conversations.
   - Extension view renders.
+  - Settings panel appears under a visible Extensions header after built-in settings.
+  - Conversation right panel appears beside Files, Browser, and Terminal.
   - Extension settings patch persists.
   - Launch template shows context/plugin contribution preflight.
   - Conversation payload includes extension suffix.
@@ -654,7 +662,7 @@ node bin/agent-canvas.mjs
 - [ ] Depends on: G7.1
 - [ ] Run from a temp directory/prefix:
   - Install the packed `@openhands/agent-canvas` tarball.
-  - Verify `agent-canvas list extensions`.
+  - Verify `agent-canvas list canvas-extensions`.
   - Verify `agent-canvas doctor`.
   - Install a packed or local `hello.canvas` extension.
   - Launch `agent-canvas` and repeat the browser acceptance checks.
@@ -692,7 +700,7 @@ The PoC is not complete unless all of these are true:
 - [ ] Management CLI commands work when no `build/` directory exists.
 - [ ] Global npm package contains every runtime artifact it needs.
 - [ ] Extension Host routes work through Vite, ingress, static server, and packaged CLI.
-- [ ] `/api/canvas/installations/*` traffic is isolated behind `src/api/extensions-service.ts`.
+- [ ] `/api/canvas/canvas-extensions/*` traffic is isolated behind `src/api/canvas-extensions-service.ts`.
 - [ ] Ordinary Agent Server API calls still use `@openhands/typescript-client`.
 - [ ] Browser modules are trusted same-origin DOM islands and documented/consented as such.
 - [ ] Bare runtime imports in extension browser modules are rejected for MVP.
@@ -700,7 +708,7 @@ The PoC is not complete unless all of these are true:
 - [ ] ACP runtimes do not receive incompatible extension plugin/MCP contributions.
 - [ ] `conversationInstructions` never receives extension system context.
 - [ ] Extension context composes with existing `<RUNTIME_SERVICES>` suffix.
-- [ ] `hello.canvas` proves install, registry, UI, sidebar, view, settings, launch context, SDK plugin preflight, and dev remount.
+- [ ] `hello.canvas` proves install, registry, UI, left navigation, view, settings panel, conversation right panel, tool visualizer, launch context, SDK plugin preflight, and dev remount.
 - [ ] Tests cover the risk surfaces listed in the PoC plan.
 
 ## 12. Handoff Template

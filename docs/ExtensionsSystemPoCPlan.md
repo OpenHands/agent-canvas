@@ -1,4 +1,4 @@
-# Agent Canvas Extensions MVP / PoC Build Plan
+# Canvas Extensions MVP / PoC Build Plan
 
 Status: working build plan
 Source RFC: [ExtensionsSystemRFC.md](./ExtensionsSystemRFC.md)
@@ -8,40 +8,44 @@ Current repo baseline: merged through `upstream/main` at `40844533`. The plan be
 
 ## 1. Purpose
 
-This document turns the Extensions RFC into a practical MVP / PoC build path. The RFC should stay clean and reviewable as the product/architecture proposal. This plan is the working artifact for agents and developers implementing the proof, testing risky assumptions, and tightening the design based on real code.
+This document turns the Canvas Extensions RFC into a practical MVP / PoC build path. The RFC should stay clean and reviewable as the product/architecture proposal. This plan is the working artifact for agents and developers implementing the proof, testing risky assumptions, and tightening the design based on real code.
 
 For multi-agent implementation, use [ExtensionsSystemAgentExecutionPlan.md](./ExtensionsSystemAgentExecutionPlan.md) as the task checklist. It breaks this plan into gates, parallel workstreams, task IDs, file ownership, verification commands, and handoff notes.
 
 The MVP should be built as a vertical proof, not as isolated architecture layers. The first complete proof should demonstrate:
 
-1. A local or npm-packed Agent Canvas extension installs into `~/.openhands/agent-canvas/installations`.
-2. The Packages page shows the installed extension and its diagnostics.
-3. A trusted `browser.module` view renders at `/extensions/:extensionId/:viewId/*`.
-4. A view can contribute a primary Sidebar entry after Automations and before the conversation list, matching the current `SidebarRailBody` order (`New Chat`, `Customize`, `Automations`, then conversations).
-5. A local extension can register a custom tool visualizer for one MCP/action variant and safely fall back to built-in rendering when it does not match or throws.
-6. A launch template can append extension context and include an SDK plugin when the runtime is filesystem-local.
-7. Dev mode can register a local source folder, detect output changes, and remount the view without rebuilding Canvas.
+1. A local or npm-packed Canvas Extension installs into `~/.openhands/agent-canvas/installations`.
+2. The Packages page under Customize shows the installed Canvas Extension and its diagnostics.
+3. A trusted `browser.module` view renders at `/canvas-extensions/:extensionId/:viewId/*`.
+4. A view can contribute a left navigation entry after Automations and before the conversation list, matching the current `SidebarRailBody` order (`New Chat`, `Customize`, `Automations`, then conversations).
+5. A Canvas Extension can add a settings panel only under a visible Extensions header after built-in settings.
+6. A Canvas Extension can add a conversation right panel alongside Files, Browser, and Terminal.
+7. A local Canvas Extension can register a custom tool visualizer for one MCP/action variant and safely fall back to built-in rendering when it does not match or throws.
+8. A launch template can append extension context and include an SDK plugin when the runtime is filesystem-local.
+9. Dev mode can register a local source folder, detect output changes, and remount the view without rebuilding Canvas.
 
 ## 1.1 Scope Locks From The RFC
 
 These decisions should keep the build from spreading sideways:
 
-- First-class install/enable support is for Agent Canvas extension manifests only. Standalone SDK plugins, `SKILL.md` folders, and future MCP-template artifacts can be detected, but they return an explicit unsupported-in-MVP diagnostic unless wrapped by an extension.
+- First-class install/enable support is for Canvas Extension manifests only. Standalone SDK plugins, `SKILL.md` folders, and future MCP-template artifacts can be detected, but they return an explicit unsupported-in-MVP diagnostic unless wrapped by a Canvas Extension.
 - CLI management commands must dispatch before stack startup, before the static `build/` existence check, and before importing `scripts/dev-with-automation.mjs`.
 - CLI management commands must also dispatch before `--public`, `--frontend-only`, and `--backend-only` stack validation, because `install/list/doctor` should work even when no frontend/backend is being launched.
-- Extension author types need real package subpaths: `@openhands/agent-canvas/extensions` and `@openhands/agent-canvas/visualizers`, emitted under `dist/extensions/*` and `dist/visualizers/*` and included in npm release checks.
+- Extension author types need real package subpaths: `@openhands/agent-canvas/canvas-extensions` and `@openhands/agent-canvas/canvas-visualizers`, emitted under `dist/extensions/*` and `dist/visualizers/*` and included in npm release checks.
 - Conversation contribution work targets the current start payload: top-level `agent_settings` plus optional top-level `plugins`. Do not reintroduce the legacy `agent` payload shape.
 - Package-relative/local SDK plugin sources are MVP only when the launcher says `localInstallStoreReadable=true`. ACP runtimes skip extension SDK plugins unless a pinned-version smoke proves the exact plugin shape is compatible.
-- The first route-less JavaScript workstream is custom tool visualizers, not arbitrary root-mounted components. Conversation slots/badges follow after visualizers prove the registration/fallback model.
+- The first route-less JavaScript workstreams are custom tool visualizers, settings panels, and conversation right panels, not arbitrary root-mounted components. Generic conversation slots remain deferred until a concrete workflow cannot be handled by a right panel or visualizer.
 
 ## 1.2 Focused Workstream From Issue #481
 
-The issue feedback points to two concrete places where users want to add content without forking Agent Canvas:
+The issue feedback and product feedback point to four concrete places where users should be able to add content without forking Agent Canvas:
 
 1. **Custom tool/event visualizers.** PR #1246 added an internal visualizer dispatcher that already asks a registry for a React body and falls back to markdown. Extensions should expose that seam first through `registerToolVisualizer()` or a manifest-projected equivalent.
-2. **Conversation UI slots and badges.** Users want content near the active conversation: header actions, sidebar widgets, footer/status indicators, event renderer hooks, and badges for backend/workspace/conversation state.
+2. **Left navigation entries.** A Canvas Extension can add a top-level navigation item after Automations and before the conversation list.
+3. **Settings panels.** A Canvas Extension can add configuration UI only under a visible Extensions header after built-in settings.
+4. **Conversation right panels.** A Canvas Extension can add a panel beside Files, Browser, and Terminal for conversation-adjacent tools and context.
 
-The implementation order should be visualizers first, then slots. Visualizers are narrower, already have a merged internal seam, and have a clear failure mode: try extension renderer, then built-in renderer, then markdown fallback. Slots are still explicit product surface area and should not become a generic "mount anything at app root" API.
+The implementation order should be visualizers first where possible because they are narrow, already have a merged internal seam, and have a clear failure mode: try extension renderer, then built-in renderer, then markdown fallback. Settings panels and conversation right panels should follow as explicit product surfaces. Generic "mount anything at app root" slots remain deferred.
 
 ## 2. Risk-Burner Spikes
 
@@ -65,21 +69,21 @@ Serve a tiny browser-ready ESM file from a local test host and dynamically impor
 
 The extension module must use only bundled or relative imports. This proves the DOM-island `mount()` contract works without Vite, shared React, import maps, or module federation.
 
-Add a negative fixture with a bare runtime import such as `react` and verify validation rejects it with an actionable diagnostic. Type-only imports from `@openhands/agent-canvas/extensions` are fine because the extension build erases them. Author source may import from `@openhands/agent-canvas/visualizers`, but emitted browser modules must bundle those helpers; raw runtime imports from Agent Canvas package subpaths are not MVP-supported.
+Add a negative fixture with a bare runtime import such as `react` and verify validation rejects it with an actionable diagnostic. Type-only imports from `@openhands/agent-canvas/canvas-extensions` are fine because the extension build erases them. Author source may import from `@openhands/agent-canvas/canvas-visualizers`, but emitted browser modules must bundle those helpers; raw runtime imports from Agent Canvas package subpaths are not MVP-supported.
 
 ### 2.3 Launcher Route Smoke
 
-Start a toy Extension Host and route `/api/canvas/installations/*` plus `/canvas-extensions/*` through the existing ingress/static-server/Vite proxy paths.
+Start a toy Extension Host and route `/api/canvas/canvas-extensions/*` plus `/canvas-extension-assets/*` through the existing ingress/static-server/Vite proxy paths.
 
 Cover:
 
 - `scripts/dev-with-automation.mjs` ingress routes.
 - `scripts/dev-safe.mjs` / `dev:minimal`, where direct Vite proxying must handle Extension Host routes without the automation ingress.
 - `scripts/static-server.mjs` routes used by the packaged CLI/static mode.
-- `vite.config.ts` proxy support for direct Vite access, especially `/canvas-extensions/*`.
+- `vite.config.ts` proxy support for direct Vite access, especially `/canvas-extension-assets/*`.
 - `--frontend-only` and `--backend-only` partial-stack behavior: frontend-only can expose Packages/extension views but should show backend-dependent diagnostics, while backend-only should not start the Extension Host view/assets path unless a future CLI-only host mode explicitly needs it.
 
-Exit criteria: a browser opened through either the ingress port or direct Vite/static port can fetch registry JSON and import a browser module from `/canvas-extensions/...`.
+Exit criteria: a browser opened through either the ingress port or direct Vite/static port can fetch registry JSON and import a browser module from `/canvas-extension-assets/...`.
 
 ### 2.4 Npm Package / CLI Smoke
 
@@ -89,7 +93,7 @@ Before any UI work, prove the upcoming release path:
 npm run build
 npm run build:lib
 npm pack --dry-run
-node bin/agent-canvas.mjs list extensions
+node bin/agent-canvas.mjs list canvas-extensions
 node bin/agent-canvas.mjs doctor
 ```
 
@@ -103,13 +107,13 @@ Build the thinnest end-to-end slice next.
 
 Add:
 
-- `src/extensions/types.ts`
+- `src/canvas-extensions/types.ts`
 - manifest constants
 - artifact detection
 - storage-path helpers
 - path normalization
 - manifest validation
-- public package export wiring for `@openhands/agent-canvas/extensions` and `@openhands/agent-canvas/visualizers`
+- public package export wiring for `@openhands/agent-canvas/canvas-extensions` and `@openhands/agent-canvas/canvas-visualizers`
 
 Keep validation deliberately boring:
 
@@ -121,7 +125,7 @@ Keep validation deliberately boring:
 
 Avoid a large JSON Schema dependency unless configuration forms force it.
 
-PR 0 should also update `package.json#exports` for `./extensions` and `./visualizers` and make sure the library build emits `dist/extensions/*` and `dist/visualizers/*`. Keep the actual Extension Host and CLI behavior out of PR 0.
+PR 0 should also update `package.json#exports` for `./canvas-extensions` and `./canvas-visualizers` and make sure the library build emits `dist/extensions/*` and `dist/visualizers/*`. Keep the actual Extension Host and CLI behavior out of PR 0.
 
 ### 3.2 Manager Library
 
@@ -131,7 +135,7 @@ It owns:
 
 - Store bootstrap: `package.json`, `package-lock.json`, `config.json`, `artifacts.json`, `logs/`.
 - Artifact detection.
-- Install Agent Canvas extension manifests from local path, tarball, npm spec.
+- Install Canvas Extension manifests from local path, tarball, npm spec.
 - Typed unsupported diagnostics for detected standalone SDK plugins, standalone skills, and placeholder MCP templates.
 - Enable/disable/remove/update.
 - Registry and launch-contribution projection.
@@ -143,7 +147,7 @@ Update `bin/agent-canvas.mjs` so install/manage commands dispatch before stack s
 
 ```sh
 agent-canvas install ./examples/extensions/hello-canvas --yes
-agent-canvas list extensions
+agent-canvas list canvas-extensions
 agent-canvas enable hello.canvas
 agent-canvas disable hello.canvas
 agent-canvas doctor
@@ -172,8 +176,8 @@ Mutating routes require the same session API key model the frontend already uses
 
 Add an `extensionHostPort` to launcher config, start the host before the frontend, and route it before `/api/*`:
 
-- `/api/canvas/installations/*` -> Extension Host.
-- `/canvas-extensions/*` -> Extension Host.
+- `/api/canvas/canvas-extensions/*` -> Extension Host.
+- `/canvas-extension-assets/*` -> Extension Host.
 - `/api/automation/*` -> automation.
 - `/api/*`, `/sockets`, server metadata -> Agent Server.
 
@@ -186,7 +190,7 @@ The launcher also emits frontend env/runtime metadata for:
 
 Do not expose a write-capable Extension Host key in agent prompts.
 
-Route precedence is the failure-prone part: `/api/canvas/installations/*` and `/canvas-extensions/*` must match before `/api/*` and static SPA fallback in every launcher path.
+Route precedence is the failure-prone part: `/api/canvas/canvas-extensions/*` and `/canvas-extension-assets/*` must match before `/api/*` and static SPA fallback in every launcher path.
 
 Partial-stack mode rule: frontend-only may start enough Extension Host surface to render local Packages and extension browser assets, but must mark agent-runtime contributions unavailable because no Agent Server is running. Backend-only should skip frontend asset hosting and extension browser routes by default; CLI management still works because it dispatches before stack startup.
 
@@ -194,17 +198,18 @@ Partial-stack mode rule: frontend-only may start enough Extension Host surface t
 
 ### 4.1 API Wrapper
 
-Add `src/api/extensions-service.ts` for every `/api/canvas/installations/*` call.
+Add `src/api/canvas-extensions-service.ts` for every `/api/canvas/canvas-extensions/*` call.
 
-Update `src/api/no-direct-agent-server-calls.test.ts` with one narrow allowlist entry for this wrapper, mirroring automation but covering the current blanket `fetch('/api/...')` rule as well as axios. The exception should allow only `/api/canvas/installations/*` from the wrapper; it must not weaken the Agent Server rule for arbitrary `/api/*` calls.
+Update `src/api/no-direct-agent-server-calls.test.ts` with one narrow allowlist entry for this wrapper, mirroring automation but covering the current blanket `fetch('/api/...')` rule as well as axios. The exception should allow only `/api/canvas/canvas-extensions/*` from the wrapper; it must not weaken the Agent Server rule for arbitrary `/api/*` calls.
 
 ### 4.2 Packages Page
 
-Replace `/plugins` with a Packages view, while preserving redirects/bookmarks. Use the existing Extensions layout and navigation: `/customize` is the primary-sidebar hub entry, desktop redirects to `/skills`, mobile renders `ExtensionsMobileHub`, and `ExtensionsNavigation` currently contains Skills, MCP Servers, and a coming-soon Plugins item.
+Replace `/plugins` with a Packages view, while preserving redirects/bookmarks. Use the existing Customize layout and navigation: `/customize` is the primary-sidebar hub entry, desktop redirects to `/skills`, mobile renders the Customize hub, and the current Customize navigation contains Skills, MCP Servers, and a coming-soon Plugins item.
 
 The page should:
 
-- Add a Packages nav item in `ExtensionsNavigation`.
+- Add a Packages nav item in the Customize navigation.
+- Treat legacy file names such as `extensions-hub.tsx` and `extensions-navigation.tsx` as existing Customize implementation details, not product vocabulary for the new Canvas Extensions system.
 - Show Enabled, Installed, Disabled, Invalid, and Dev sections.
 - Show install source, version, contribution badges, required secrets, diagnostics, enable/disable/remove actions.
 - Stay dense and operational; no marketplace browsing in MVP.
@@ -212,7 +217,7 @@ The page should:
 
 ### 4.3 View Host
 
-Add `/extensions/:extensionId/:viewId/*` and a route component that:
+Add `/canvas-extensions/:extensionId/:viewId/*` and a route component that:
 
 - Fetches registry data.
 - Resolves `assetBaseUrl + browser.module`.
@@ -223,7 +228,7 @@ Add `/extensions/:extensionId/:viewId/*` and a route component that:
 
 The extension view should be visibly extension-owned but render in a Canvas-owned route container. Errors stay local to the extension view.
 
-### 4.4 Primary Sidebar Entries
+### 4.4 Left Navigation Entries
 
 Support view navigation contributions that render in the main Canvas Sidebar:
 
@@ -242,7 +247,7 @@ MVP scope:
 
 - Only `primarySidebar` + `afterAutomations` is required.
 - Entries render after Automations and before `SidebarConversationList`.
-- Entries navigate to `/extensions/:extensionId/:viewId/*`.
+- Entries navigate to `/canvas-extensions/:extensionId/:viewId/*`.
 - Disabled/invalid extensions do not render entries.
 - Sorting is deterministic: `order`, extension display name, view ID.
 - Expanded sidebar shows icon + title.
@@ -257,7 +262,7 @@ Use the merged built-in visualizer implementation as the first route-less JS pro
 
 MVP scope:
 
-- Add public authoring types under `@openhands/agent-canvas/visualizers`.
+- Add public authoring types under `@openhands/agent-canvas/canvas-visualizers`.
 - Project enabled extension visualizers into a registry that is consulted before built-in visualizers.
 - Support `priority` and `matches()` so an extension can override one specific MCP tool or event variant without replacing an entire action/observation kind.
 - Preserve the existing fallback chain: extension visualizer, built-in visualizer, markdown fallback.
@@ -266,19 +271,29 @@ MVP scope:
 
 Example fixture: `hello.canvas` registers a visualizer for one synthetic or MCP-style tool call and renders a compact card. Tests should prove extension-first order, `matches()` narrowing, built-in fallback, markdown fallback, and throw-to-next-renderer behavior.
 
-### 4.6 Conversation Slots And Badges
+### 4.6 Settings Panels
 
-After visualizers, add explicit conversation insertion points rather than a generic app-root component API.
+Add Canvas Extension settings panels under one visible Extensions header after all built-in settings sections.
 
-Initial slot list:
+MVP scope:
 
-- `conversation.header.actions`
-- `conversation.sidebar`
-- `conversation.footer`
-- `conversation.badges`
-- `conversation.event.visualizers` as alias/sugar for tool visualizer registration
+- Panels render only in the settings experience, not in the old top-level Extensions section.
+- Built-in settings keep their current order; Canvas Extension panels are grouped after them.
+- Disabled/invalid extensions do not render settings panels.
+- Canvas owns the panel chrome, save/cancel affordances, loading states, and error boundaries.
+- Panel renderers receive extension settings helpers only; no raw settings store or React Query client access.
 
-Slot props should be narrow and stable: active conversation ID/status, active backend summary, workspace summary, and host APIs for navigation, toasts, and extension settings. Do not expose raw stores, React Query clients, or Canvas component internals as the stable extension contract.
+### 4.7 Conversation Right Panels
+
+Add Canvas Extension panels to the existing conversation right-panel/tab system beside Files, Browser, and Terminal.
+
+MVP scope:
+
+- Panels declare `conversationRightPanels` in the manifest.
+- Tabs sort deterministically by `order`, extension display name, and panel ID.
+- Disabled/invalid extensions do not render panels.
+- Panels receive active conversation ID/status, workspace summary, backend summary, and host APIs for navigation, toasts, and extension settings.
+- Canvas owns panel placement, collapsed/expanded behavior, loading state, and error boundaries.
 
 ## 5. Conversation Contributions
 
@@ -286,7 +301,7 @@ Add contribution merge late enough that the install/store/view path already work
 
 ### 5.1 Launch Contributions Endpoint
 
-`ExtensionsService.getLaunchContributions()` fetches enabled extension contributions and returns a frontend-ready, compatibility-filtered shape.
+`CanvasExtensionsService.getLaunchContributions()` fetches enabled extension contributions and returns a frontend-ready, compatibility-filtered shape.
 
 ### 5.2 Runtime Compatibility
 
@@ -344,7 +359,7 @@ npm run build
 npm run build:lib
 npm pack --dry-run
 node bin/agent-canvas.mjs install ./examples/extensions/hello-canvas --yes
-node bin/agent-canvas.mjs list extensions
+node bin/agent-canvas.mjs list canvas-extensions
 node bin/agent-canvas.mjs doctor
 node bin/agent-canvas.mjs
 ```
@@ -352,25 +367,28 @@ node bin/agent-canvas.mjs
 Then in the browser:
 
 1. Open Packages and see `hello.canvas` enabled with no diagnostics.
-2. See its primary Sidebar entry after Automations and before the conversation list.
-3. Open its extension view from the Sidebar and see browser-module UI render.
-4. Change a setting in the extension view and see it persist.
-5. Start its launch template and verify the conversation payload includes the extension context suffix.
-6. In `npm run dev`, register the same extension with `--dev`, rebuild the extension output, and see the view remount with the new code.
+2. See its left navigation entry after Automations and before the conversation list.
+3. Open its extension view from the left navigation and see browser-module UI render.
+4. Open settings and confirm its panel appears under the visible Extensions header after built-in settings.
+5. Change a setting in the extension panel and see it persist.
+6. Open a conversation and confirm its right panel appears beside Files, Browser, and Terminal.
+7. Trigger its fixture tool/event and verify the Canvas Extension visualizer renders with fallback still intact.
+8. Start its launch template and verify the conversation payload includes the extension context suffix.
+9. In `npm run dev`, register the same extension with `--dev`, rebuild the extension output, and see the view remount with the new code.
 
 Release-path acceptance should also install the packed `@openhands/agent-canvas` tarball into a temp npm prefix and repeat `agent-canvas list`, `agent-canvas doctor`, and one packed/local extension install without relying on repo-local files outside the package.
 
 ## 8. Testing Strategy
 
-**Unit:** manifest validation; reserved `browser.entry` diagnostics; path traversal rejection; artifact detection; unsupported standalone artifact diagnostics; install-store bootstrap; enable/disable/remove/update state transitions; duplicate ID handling; asset route path validation; CLI arg parsing before build checks; no-install-scripts default; visualizer contribution projection; visualizer ordering/fallback/error-boundary behavior; slot registration ordering; launch contribution projection; context suffix rendering; plugin merge/dedupe; runtime compatibility classification; dev registration and manifest revalidation.
+**Unit:** manifest validation; reserved `browser.entry` diagnostics; path traversal rejection; artifact detection; unsupported standalone artifact diagnostics; install-store bootstrap; enable/disable/remove/update state transitions; duplicate ID handling; asset route path validation; CLI arg parsing before build checks; no-install-scripts default; visualizer contribution projection; visualizer ordering/fallback/error-boundary behavior; settings panel projection/ordering; conversation right-panel projection/ordering; launch contribution projection; context suffix rendering; plugin merge/dedupe; runtime compatibility classification; dev registration and manifest revalidation.
 
 **Node integration:** run the Extension Host against a temp install store; install the `hello.canvas` fixture from local path and npm-packed tarball; fetch registry and asset URLs; verify route precedence before `/api/*` in Vite, ingress, static server, and packaged CLI paths; verify mutating routes require the session API key; verify `doctor` reports invalid manifests, unsupported standalone artifacts, and missing assets.
 
-**Release packaging:** `npm pack --dry-run`; packed-tarball install into a temp npm prefix; verify `agent-canvas list`, `agent-canvas doctor`, and an extension install work without a source checkout; verify `@openhands/agent-canvas/extensions` and `@openhands/agent-canvas/visualizers` resolve for type consumers.
+**Release packaging:** `npm pack --dry-run`; packed-tarball install into a temp npm prefix; verify `agent-canvas list`, `agent-canvas doctor`, and an extension install work without a source checkout; verify `@openhands/agent-canvas/canvas-extensions` and `@openhands/agent-canvas/canvas-visualizers` resolve for type consumers.
 
-**Component:** Packages page empty/installed/enabled/invalid/dev states; install/enable/disable/remove action wiring; primary Sidebar extension entries in expanded/collapsed/mobile states; extension view loading/error/remount; extension settings read/patch; extension visualizer renders/falls back inside the existing event wrapper; conversation badge/header/footer slots render in order; launch template preflight for incompatible SDK plugin paths.
+**Component:** Packages page empty/installed/enabled/invalid/dev states under Customize; install/enable/disable/remove action wiring; left navigation entries in expanded/collapsed/mobile states; extension view loading/error/remount; settings panel placement under the visible Extensions header; extension settings read/patch; extension visualizer renders/falls back inside the existing event wrapper; conversation right panels render beside Files/Browser/Terminal; launch template preflight for incompatible SDK plugin paths.
 
-**E2E snapshots:** Packages page with enabled extension; invalid extension diagnostics; primary Sidebar entry after Automations; extension view rendered from browser module; launch template showing context/plugin contribution; remote-backend disabled reason for local plugin path; dev extension view remount after output change.
+**E2E snapshots:** Packages page with enabled extension under Customize; invalid extension diagnostics; left navigation entry after Automations; settings panel under Extensions header; conversation right panel beside Files/Browser/Terminal; extension view rendered from browser module; launch template showing context/plugin contribution; remote-backend disabled reason for local plugin path; dev extension view remount after output change.
 
 **Live E2E:** optional after the walking skeleton. If added, keep one cheap local live test that starts a conversation from `hello.canvas` and verifies the created payload/events show the context suffix or plugin load marker. Follow existing live E2E rules under `tests/e2e/live/`.
 
