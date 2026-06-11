@@ -29,7 +29,7 @@ jobs:
   snapshot-tests:
     name: Visual Snapshot Tests
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Check out repository
