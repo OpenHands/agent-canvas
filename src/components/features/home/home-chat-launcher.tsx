@@ -10,6 +10,7 @@ import { useLlmConfigured } from "#/hooks/use-llm-configured";
 import { HOME_PROMPT_DRAFT_KEY } from "#/hooks/chat/use-draft-persistence";
 import { useChatAttachmentUpload } from "#/hooks/chat/use-chat-attachment-upload";
 import { useConversationStore } from "#/stores/conversation-store";
+import type { WorkspaceMode } from "#/api/conversation-metadata-store";
 import { setPendingTaskAttachments } from "#/stores/pending-task-attachments-store";
 import { enqueueHomeTaskPendingMessage } from "#/utils/enqueue-home-task-pending-message";
 import { sendMessageWithAttachments } from "#/utils/send-message-with-attachments";
@@ -43,6 +44,8 @@ export function HomeChatLauncher() {
     useState<GitRepository | null>(null);
   const [pendingBranch, setPendingBranch] = useState<Branch | null>(null);
   const [pendingProvider, setPendingProvider] = useState<Provider | null>(null);
+  const [workspaceMode, setWorkspaceMode] =
+    useState<WorkspaceMode>("local_repo");
 
   const { mutate: createConversation, isPending } = useCreateConversation();
   const isCreatingElsewhere = useIsCreatingConversation();
@@ -89,7 +92,11 @@ export function HomeChatLauncher() {
       query: hasAttachments ? undefined : trimmed || undefined,
     };
     if (isLocal && pendingWorkspace) {
-      variables = { ...variables, workingDir: pendingWorkspace.path };
+      variables = {
+        ...variables,
+        workingDir: pendingWorkspace.path,
+        workspaceMode,
+      };
     } else if (!isLocal && pendingRepository && pendingBranch) {
       variables = {
         ...variables,
@@ -217,7 +224,10 @@ export function HomeChatLauncher() {
             repository={pendingRepository}
             branch={pendingBranch}
             provider={pendingProvider}
+            workspaceMode={workspaceMode}
+            backendKind={backend.kind}
             onRepoClick={() => setIsDialogOpen(true)}
+            onWorkspaceModeChange={setWorkspaceMode}
           />
         ) : (
           <OpenLauncherButton
@@ -238,6 +248,7 @@ export function HomeChatLauncher() {
             setPendingRepository(null);
             setPendingBranch(null);
             setPendingProvider(null);
+            setWorkspaceMode("local_repo");
           }}
         />
       ) : (
@@ -249,6 +260,7 @@ export function HomeChatLauncher() {
             setPendingBranch(branch);
             setPendingProvider(provider ?? repository.git_provider);
             setPendingWorkspace(null);
+            setWorkspaceMode("local_repo");
           }}
         />
       )}

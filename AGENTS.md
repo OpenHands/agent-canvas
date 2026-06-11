@@ -11,7 +11,6 @@
   - `VITE_BACKEND_BASE_URL` for the agent server base URL.
   - `VITE_SESSION_API_KEY` for optional session auth.
   - `VITE_WORKING_DIR` for the default workspace path sent when starting conversations.
-  - `VITE_WORKER_URLS` as a comma-separated list of browser worker URLs if you want the Browser tab to probe exposed app hosts.
   - `VITE_ENABLE_BROWSER_TOOLS=false` to omit `BrowserToolSet` from new conversation payloads.
 - Public skills are loaded from the `@openhands/extensions` npm package at build time via `SKILLS_CATALOG` (exported from `@openhands/extensions/skills`). The frontend's `SkillsService` maps catalog entries to `SkillInfo` objects and merges them with user/project skills fetched from the agent-server (with `load_public: false`). The agent-server no longer clones the extensions repo or uses `EXTENSIONS_REF` for public skills.
 - Default working-dir fallback is now the relative path `workspace/project` (exported as `DEFAULT_WORKING_DIR` from `src/api/agent-server-config.ts`); git-path heuristics and the default PLAN preview path should reuse that constant instead of hardcoding `/workspace/project`.

@@ -8,6 +8,7 @@ import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import {
   getStoredConversationMetadata,
   setStoredConversationMetadata,
+  type WorkspaceMode,
 } from "#/api/conversation-metadata-store";
 
 interface CreateConversationVariables {
@@ -23,6 +24,7 @@ interface CreateConversationVariables {
   agentType?: "default" | "plan";
   plugins?: PluginSpec[];
   workingDir?: string;
+  workspaceMode?: WorkspaceMode;
 }
 
 interface CreateConversationResponse {
@@ -51,6 +53,7 @@ export const useCreateConversation = () => {
         plugins,
         repository,
         workingDir,
+        workspaceMode,
         parentConversationId,
         agentType,
       } = variables;
@@ -68,6 +71,7 @@ export const useCreateConversation = () => {
               }
             : null,
           workingDir,
+          workspaceMode,
           parentConversationId,
           agentType,
         );
@@ -85,6 +89,7 @@ export const useCreateConversation = () => {
           selected_branch: prev?.selected_branch ?? null,
           git_provider: prev?.git_provider ?? null,
           selected_workspace: prev?.selected_workspace ?? null,
+          workspace_mode: prev?.workspace_mode ?? null,
           active_profile: llmProfiles.active_profile,
         });
       }
