@@ -3,7 +3,7 @@ import { cn } from "#/utils/utils";
 
 interface BackendStatusDotProps {
   /** `null` while the first probe is in flight. */
-  isConnected: boolean | null;
+  isConnected: boolean | null | "unavailable";
   className?: string;
 }
 
@@ -20,7 +20,11 @@ export function BackendStatusDot({
   let color: string;
   let label: string;
   let status: string;
-  if (isConnected === true) {
+  if (isConnected === "unavailable") {
+    color = "bg-[var(--oh-text-tertiary)]";
+    label = "No Backend Available";
+    status = "unavailable";
+  } else if (isConnected === true) {
     color = "bg-[var(--oh-status-success)]";
     label = "Connected";
     status = "connected";

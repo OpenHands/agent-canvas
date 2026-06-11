@@ -1,4 +1,14 @@
 import { test, expect, Page } from "@playwright/test";
+import {
+  clickOnboardingStepButton,
+  ONBOARDING_AGENT_STEP,
+  ONBOARDING_BACKEND_STEP,
+  ONBOARDING_HELLO_STEP,
+  ONBOARDING_LLM_STEP,
+  waitForOnboardingBackendConnected,
+  waitForOnboardingLlmSettingsReady,
+  waitForOnboardingStep,
+} from "../support/onboarding-helpers";
 import { seedLocalStorage } from "./support/seed-local-storage";
 
 /**
@@ -9,8 +19,8 @@ import { seedLocalStorage } from "./support/seed-local-storage";
  * It lives on the home route (`routes/home.tsx` → `OnboardingHost`).
  *
  * Steps:
- *   0. Choose agent  — agent cards; OpenHands selected, others "coming soon"
- *   1. Check backend — backend form + connection status banner
+ *   0. Check backend — backend form + connection status banner
+ *   1. Choose agent  — static agent cards; mock mode renders deterministic ACP options
  *   2. Setup LLM     — LLM settings form (pre-filled with Anthropic/Claude Opus)
  *   3. Say hello     — pre-filled message input to start a conversation
  *
@@ -21,7 +31,7 @@ import { seedLocalStorage } from "./support/seed-local-storage";
  * for absolutely-positioned off-screen slides.
  *
  * In MSW mock mode `/server_info` returns HTTP 200 so the backend health
- * probe in step 1 resolves to "connected", enabling the Next button.
+ * probe in step 0 resolves to "connected", enabling the Next button.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -39,91 +49,73 @@ async function dismissConsentModal(page: Page) {
     .catch(() => undefined);
 }
 
-/**
- * Wait for the slide rail to display the given step index as current.
- * More reliable than checking child visibility since inactive slides remain
- * in the DOM (absolute-positioned, clipped by overflow:clip).
- */
-async function waitForStep(page: Page, step: number) {
-  await expect(page.getByTestId("onboarding-slide-rail")).toHaveAttribute(
-    "data-current-step",
-    String(step),
-    { timeout: 15_000 },
-  );
-}
-
 test.describe("Onboarding Modal Visual Snapshots", () => {
   test.setTimeout(60_000);
 
-  test("onboarding step 0 shows agent selection cards", async ({ page }) => {
+  test("onboarding step 0 shows backend connection form", async ({ page }) => {
     await setupMocks(page);
-    await page.goto("/conversations");
+    await page.goto("/");
     await dismissConsentModal(page);
 
     // Modal appears because openhands-onboarded is absent
     await expect(page.getByTestId("onboarding-modal")).toBeVisible({
       timeout: 10_000,
     });
-    await waitForStep(page, 0);
+    await waitForOnboardingStep(page, ONBOARDING_BACKEND_STEP);
+
+    // Wait for the backend connection banner to settle.
+    // In MSW mode /server_info returns 200, so the health probe should
+    // quickly resolve to "connected".
+    await waitForOnboardingBackendConnected(page);
 
     const modal = page.getByTestId("onboarding-modal");
-    await expect(modal).toHaveScreenshot("onboarding-step-0-choose-agent.png", {
+    await expect(modal).toHaveScreenshot(
+      "onboarding-step-0-check-backend.png",
+      { animations: "disabled", maxDiffPixelRatio: 0.01 },
+    );
+  });
+
+  test("onboarding step 1 shows agent selection cards", async ({ page }) => {
+    await setupMocks(page);
+    await page.goto("/");
+    await dismissConsentModal(page);
+
+    await expect(page.getByTestId("onboarding-modal")).toBeVisible({
+      timeout: 10_000,
+    });
+    await waitForOnboardingStep(page, ONBOARDING_BACKEND_STEP);
+
+    await waitForOnboardingBackendConnected(page);
+    await clickOnboardingStepButton(page, "onboarding-backend-next");
+    await waitForOnboardingStep(page, ONBOARDING_AGENT_STEP);
+
+    const modal = page.getByTestId("onboarding-modal");
+    await expect(modal).toHaveScreenshot("onboarding-step-1-choose-agent.png", {
       animations: "disabled",
       maxDiffPixelRatio: 0.01,
     });
   });
 
-  test("onboarding step 1 shows backend connection form", async ({ page }) => {
-    await setupMocks(page);
-    await page.goto("/conversations");
-    await dismissConsentModal(page);
-
-    await expect(page.getByTestId("onboarding-modal")).toBeVisible({
-      timeout: 10_000,
-    });
-    await waitForStep(page, 0);
-
-    // Advance to step 1
-    await page.getByTestId("onboarding-agent-next").click();
-    await waitForStep(page, 1);
-
-    // Wait for the backend connection banner to settle.
-    // In MSW mode /server_info returns 200, so the health probe should
-    // quickly resolve to "connected".
-    await expect(page.getByTestId("onboarding-backend-connected")).toBeVisible({
-      timeout: 10_000,
-    });
-
-    const modal = page.getByTestId("onboarding-modal");
-    await expect(modal).toHaveScreenshot(
-      "onboarding-step-1-check-backend.png",
-      { animations: "disabled", maxDiffPixelRatio: 0.01 },
-    );
-  });
-
   test("onboarding step 2 shows LLM settings form", async ({ page }) => {
     await setupMocks(page);
-    await page.goto("/conversations");
+    await page.goto("/");
     await dismissConsentModal(page);
 
     await expect(page.getByTestId("onboarding-modal")).toBeVisible({
       timeout: 10_000,
     });
-    await waitForStep(page, 0);
+    await waitForOnboardingStep(page, ONBOARDING_BACKEND_STEP);
 
     // Step 0 → 1
-    await page.getByTestId("onboarding-agent-next").click();
-    await waitForStep(page, 1);
+    await waitForOnboardingBackendConnected(page);
+    await clickOnboardingStepButton(page, "onboarding-backend-next");
+    await waitForOnboardingStep(page, ONBOARDING_AGENT_STEP);
 
-    // Wait for backend connected banner then advance
-    await expect(page.getByTestId("onboarding-backend-connected")).toBeVisible({
-      timeout: 10_000,
-    });
-    await page.getByTestId("onboarding-backend-next").click();
-    await waitForStep(page, 2);
+    // Step 1 → 2
+    await clickOnboardingStepButton(page, "onboarding-agent-next");
+    await waitForOnboardingStep(page, ONBOARDING_LLM_STEP);
 
-    // Wait for LLM settings to load (MSW settings + schema endpoints)
-    await page.waitForLoadState("networkidle");
+    await waitForOnboardingLlmSettingsReady(page);
 
     const modal = page.getByTestId("onboarding-modal");
     await expect(modal).toHaveScreenshot("onboarding-step-2-setup-llm.png", {
@@ -134,34 +126,31 @@ test.describe("Onboarding Modal Visual Snapshots", () => {
 
   test("onboarding step 3 shows pre-filled message input", async ({ page }) => {
     await setupMocks(page);
-    await page.goto("/conversations");
+    await page.goto("/");
     await dismissConsentModal(page);
 
     await expect(page.getByTestId("onboarding-modal")).toBeVisible({
       timeout: 10_000,
     });
-    await waitForStep(page, 0);
+    await waitForOnboardingStep(page, ONBOARDING_BACKEND_STEP);
 
-    // Step 0 → 1
-    await page.getByTestId("onboarding-agent-next").click();
-    await waitForStep(page, 1);
+    // Step 0 → 1 (requires backend connected)
+    await waitForOnboardingBackendConnected(page);
+    await clickOnboardingStepButton(page, "onboarding-backend-next");
+    await waitForOnboardingStep(page, ONBOARDING_AGENT_STEP);
 
-    // Step 1 → 2 (requires backend connected)
-    await expect(page.getByTestId("onboarding-backend-connected")).toBeVisible({
-      timeout: 10_000,
-    });
-    await page.getByTestId("onboarding-backend-next").click();
-    await waitForStep(page, 2);
+    // Step 1 → 2
+    await clickOnboardingStepButton(page, "onboarding-agent-next");
+    await waitForOnboardingStep(page, ONBOARDING_LLM_STEP);
 
-    // Allow LLM settings to finish loading so the save control is registered
-    await page.waitForLoadState("networkidle");
+    await waitForOnboardingLlmSettingsReady(page);
 
     // Step 2 → 3:
     // If the LLM form is dirty (it is, because ONBOARDING_LLM_OVERRIDES differs
     // from the mock default model), clicking Next will trigger a PATCH settings
     // mutation. MSW handles the PATCH and resolves onSaveSuccess → onNext.
-    await page.getByTestId("onboarding-llm-next").click();
-    await waitForStep(page, 3);
+    await clickOnboardingStepButton(page, "onboarding-llm-next");
+    await waitForOnboardingStep(page, ONBOARDING_HELLO_STEP);
 
     // Wait for the say-hello input to be ready
     await expect(page.getByTestId("onboarding-hello-input")).toBeVisible({

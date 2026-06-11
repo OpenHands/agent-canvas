@@ -92,6 +92,14 @@ async function setupMocks(page: Page, showConsentModal = false) {
     });
   });
 
+  await page.route("**/api/workspaces**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ workspaces: [], workspaceParents: [] }),
+    });
+  });
+
   await page.route("**/api/bash/execute_bash_command", async (route) => {
     await route.fulfill({
       status: 200,

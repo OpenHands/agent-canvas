@@ -40,6 +40,7 @@ import {
   activateTrajectory,
   resetMockLLM,
   ensureMockLLMProfile,
+  getMockLLMRequests,
 } from "./utils/mock-llm-helpers";
 
 // Token the test asserts on in the agent's text reply (step 2).
@@ -207,10 +208,11 @@ test.describe("mock-LLM automation lifecycle", () => {
   // ── Step 1: Ensure LLM profile + register the automation trajectory ─
 
   test("step 1: setup LLM profile and register automation trajectory", async ({
+    page,
     request,
   }) => {
-    // Ensure the mock LLM profile is configured
-    await ensureMockLLMProfile(request);
+    // Ensure the mock LLM profile is configured via the Settings UI
+    await ensureMockLLMProfile(page);
 
     // Build the terminal commands the mock LLM will return.
     // The curl commands hit the REAL automation backend through the ingress.
@@ -252,8 +254,8 @@ test.describe("mock-LLM automation lifecycle", () => {
     ].join(" ");
 
     // ⚠️  Padding response (index 0):
-    // When public skills are loaded (VITE_LOAD_PUBLIC_SKILLS !== "false"),
-    // the agent-server's skill-activation pipeline makes one internal LLM
+    // Public skills are bundled from @openhands/extensions at build time.
+    // The agent-server's skill-activation pipeline makes one internal LLM
     // call to decide which skills to inject before the agent loop starts.
     // Our user message mentions "automation", which matches the
     // openhands-automation skill, triggering this internal call.
@@ -414,6 +416,57 @@ test.describe("mock-LLM automation lifecycle", () => {
     await test.step("verify no error banners", async () => {
       const errorBanner = page.getByTestId("error-message-banner");
       await expect(errorBanner).not.toBeVisible({ timeout: 2_000 });
+    });
+
+    // ── Verify: runtime services info is included in LLM requests ──
+
+    await test.step("verify runtime services info in LLM system prompt", async () => {
+      const llmRequests = await getMockLLMRequests(request);
+      expect(
+        llmRequests.length,
+        "mock LLM should have received at least one completion request",
+      ).toBeGreaterThan(0);
+
+      // The <RUNTIME_SERVICES> block should appear in a system message
+      // sent to the LLM. Walk all captured requests looking for it.
+      function findRuntimeServicesContent(
+        reqs: Record<string, unknown>[],
+      ): string | null {
+        for (const req of reqs) {
+          const messages = req.messages as
+            | Array<{ role: string; content: unknown }>
+            | undefined;
+          if (!Array.isArray(messages)) continue;
+          for (const msg of messages) {
+            if (msg.role !== "system") continue;
+            const text =
+              typeof msg.content === "string"
+                ? msg.content
+                : Array.isArray(msg.content)
+                  ? (msg.content as Array<{ type?: string; text?: string }>)
+                      .filter((c) => c.type === "text" || typeof c === "string")
+                      .map((c) => (typeof c === "string" ? c : c.text ?? ""))
+                      .join("")
+                  : "";
+            if (text.includes("<RUNTIME_SERVICES>")) return text;
+          }
+        }
+        return null;
+      }
+
+      const runtimeBlock = findRuntimeServicesContent(llmRequests);
+      expect(
+        runtimeBlock,
+        `Expected <RUNTIME_SERVICES> block in a system message.\n` +
+          `Received ${llmRequests.length} LLM request(s) but none contained it.`,
+      ).toBeTruthy();
+
+      // Verify the block includes key services that should be present
+      // in the full agent-canvas stack (agent-server + automation + ingress).
+      expect(runtimeBlock).toContain("Agent Server");
+      expect(runtimeBlock).toContain("Automation backend");
+      expect(runtimeBlock).toContain("/api/automation");
+      expect(runtimeBlock).toContain("</RUNTIME_SERVICES>");
     });
   });
 

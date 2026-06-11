@@ -43,6 +43,11 @@ vi.mock("#/hooks/use-send-message", () => ({
 
 vi.mock("#/hooks/query/use-config");
 vi.mock("#/hooks/mutation/use-unified-upload-files");
+// Treat the LLM as configured by default so the "not configured" gate/banner
+// stays inert for these tests (its own behavior is covered elsewhere).
+vi.mock("#/hooks/use-llm-configured", () => ({
+  useLlmConfigured: () => ({ isConfigured: true, isLoading: false }),
+}));
 vi.mock("#/hooks/use-conversation-id", () => ({
   useConversationId: vi.fn(),
   useOptionalConversationId: vi.fn(),
@@ -77,6 +82,15 @@ vi.mock("#/hooks/use-agent-state", () => ({
   useAgentState: vi.fn(() => ({
     curAgentState: AgentState.AWAITING_USER_INPUT,
   })),
+}));
+
+const trackInitialQuerySubmittedMock = vi.fn();
+const trackUserMessageSentMock = vi.fn();
+vi.mock("#/hooks/use-tracking", () => ({
+  useTracking: () => ({
+    trackInitialQuerySubmitted: trackInitialQuerySubmittedMock,
+    trackUserMessageSent: trackUserMessageSentMock,
+  }),
 }));
 
 // Helper function to render with Router context
@@ -821,5 +835,91 @@ describe("ChatInterface - Status Indicator", () => {
     expect(
       screen.queryByTestId("chat-status-indicator"),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("ChatInterface - Tracking", () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSend.mockResolvedValue({ queued: false });
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    useOptimisticUserMessageStore.setState({ pendingMessages: [] });
+    useErrorMessageStore.setState({ errorMessage: null });
+    (useConfig as unknown as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: {},
+    });
+    (
+      useUnifiedUploadFiles as unknown as ReturnType<typeof vi.fn>
+    ).mockReturnValue({
+      mutateAsync: vi
+        .fn()
+        .mockResolvedValue({ skipped_files: [], uploaded_files: [] }),
+      isLoading: false,
+    });
+    useEventStore.setState({ events: [], eventIds: new Set(), uiEvents: [] });
+  });
+
+  function renderInterface() {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/test-conversation-id"]}>
+          <Routes>
+            <Route path=":conversationId" element={<ChatInterface />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  it("calls trackInitialQuerySubmitted when the first message is sent (empty conversation)", async () => {
+    renderInterface();
+
+    act(() => {
+      useConversationStore.setState({ submittedMessage: "my first task" });
+    });
+
+    await waitFor(() => {
+      expect(trackInitialQuerySubmittedMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          queryCharacterLength: "my first task".length,
+        }),
+      );
+    });
+  });
+
+  it("calls trackUserMessageSent when a follow-up message is sent (non-empty conversation)", async () => {
+    // totalEvents = uiEvents.filter(shouldRenderAgentServerEvent).length.
+    // A MessageEvent (has llm_message.role + content) passes that filter,
+    // so seeding uiEvents with one makes totalEvents = 1.
+    useEventStore.setState({
+      events: [],
+      eventIds: new Set(),
+      uiEvents: [
+        {
+          id: "e1",
+          source: "user",
+          llm_message: { role: "user", content: "prior message" },
+        } as never,
+      ],
+    });
+
+    renderInterface();
+
+    act(() => {
+      useConversationStore.setState({ submittedMessage: "follow-up" });
+    });
+
+    await waitFor(() => {
+      expect(trackUserMessageSentMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          currentMessageLength: "follow-up".length,
+        }),
+      );
+    });
+    expect(trackInitialQuerySubmittedMock).not.toHaveBeenCalled();
   });
 });

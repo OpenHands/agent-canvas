@@ -21,7 +21,7 @@ const cloudBackend: Backend = {
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
-  vi.mocked(axios.post).mockReset();
+  vi.mocked(axios.request).mockReset();
 });
 
 afterEach(() => {
@@ -30,31 +30,36 @@ afterEach(() => {
 });
 
 describe("AgentServerConversationService.updateConversationPublicFlag", () => {
-  it("PATCHes /api/v1/app-conversations/{id} via cloud-proxy on a cloud backend", async () => {
+  it("PATCHes /api/v1/app-conversations/{id} directly on a cloud backend", async () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
-    vi.mocked(axios.post).mockResolvedValue({
+    vi.mocked(axios.request).mockResolvedValue({
       data: { id: "conv-abc", public: true },
     });
 
-    await AgentServerConversationService.updateConversationPublicFlag("conv-abc", true);
+    await AgentServerConversationService.updateConversationPublicFlag(
+      "conv-abc",
+      true,
+    );
 
-    expect(axios.post).toHaveBeenCalledOnce();
-    const [url, body] = vi.mocked(axios.post).mock.calls[0]!;
-    expect(url).toMatch(/\/api\/cloud-proxy$/);
-    expect(body).toMatchObject({
-      host: cloudBackend.host,
+    expect(axios.request).toHaveBeenCalledOnce();
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(config).toMatchObject({
+      url: `${cloudBackend.host}/api/v1/app-conversations/conv-abc`,
       method: "PATCH",
-      path: "/api/v1/app-conversations/conv-abc",
-      body: { public: true },
+      headers: { Authorization: "Bearer bearer-token" },
+      data: { public: true },
     });
   });
 
-  it("rejects without calling the proxy when the active backend is local", async () => {
+  it("rejects without calling the cloud API when the active backend is local", async () => {
     // Default state after reset is the bundled local backend.
     await expect(
-      AgentServerConversationService.updateConversationPublicFlag("conv-abc", true),
+      AgentServerConversationService.updateConversationPublicFlag(
+        "conv-abc",
+        true,
+      ),
     ).rejects.toThrow(/cloud backend/);
-    expect(axios.post).not.toHaveBeenCalled();
+    expect(axios.request).not.toHaveBeenCalled();
   });
 });

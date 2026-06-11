@@ -1,5 +1,7 @@
 import { useSettings } from "#/hooks/query/use-settings";
 import { useConfig } from "#/hooks/query/use-config";
+import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { isSettingsPageHidden } from "#/utils/settings-utils";
 
 interface LlmConfiguredResult {
@@ -37,13 +39,31 @@ export function useLlmConfigured(): LlmConfiguredResult {
     isLoading: configLoading,
     isError: configError,
   } = useConfig();
+  const {
+    data: profilesData,
+    isLoading: profilesLoading,
+    isError: profilesError,
+  } = useLlmProfiles();
+  const { backend } = useActiveBackend();
+  const isLocal = backend.kind === "local";
 
   const isAcpAgent = settings?.agent_settings?.agent_kind === "acp";
   const hasApiKey = settings?.llm_api_key_set === true;
+  const activeProfile = profilesData?.profiles.find(
+    (profile) => profile.name === profilesData.active_profile,
+  );
+  const hasActiveProfileApiKey = activeProfile?.api_key_set === true;
   const llmSettingsHidden = isSettingsPageHidden(
     "/settings/llm",
     config?.feature_flags,
   );
+
+  // In local mode, profiles are the source of truth: a usable LLM must be
+  // backed by an active profile that still exists and has a key. The raw
+  // settings key can be a stale copy left behind by a deleted profile
+  // (settings are not cleared on delete), so we don't count it here. Cloud
+  // backends don't use profiles and keep the settings-key signal.
+  const hasUsableLlm = isLocal ? hasActiveProfileApiKey : hasApiKey;
 
   // Treat a fetch failure as indeterminate (same as loading) only when it
   // leaves us with no data to decide from — otherwise a transient network
@@ -54,9 +74,12 @@ export function useLlmConfigured(): LlmConfiguredResult {
   // state the banner exists to catch — so we keep deciding from that data.
   const settingsIndeterminate = settingsLoading || (settingsError && !settings);
   const configIndeterminate = configLoading || (configError && !config);
+  const profilesIndeterminate =
+    profilesLoading || (profilesError && !profilesData);
 
   return {
-    isConfigured: isAcpAgent || hasApiKey || llmSettingsHidden,
-    isLoading: settingsIndeterminate || configIndeterminate,
+    isConfigured: isAcpAgent || llmSettingsHidden || hasUsableLlm,
+    isLoading:
+      settingsIndeterminate || configIndeterminate || profilesIndeterminate,
   };
 }

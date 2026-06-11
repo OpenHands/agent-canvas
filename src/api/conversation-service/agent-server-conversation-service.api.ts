@@ -1,4 +1,7 @@
-import { ConversationSortOrder } from "@openhands/typescript-client";
+import {
+  ConversationSortOrder,
+  type LLMConfig,
+} from "@openhands/typescript-client";
 import {
   ConversationClient,
   FileClient,
@@ -13,6 +16,7 @@ import {
   buildConversationWorkingDir,
   getAgentServerWorkingDir,
 } from "../agent-server-config";
+import { resolveAbsoluteAgentServerPath } from "../agent-server-home";
 import {
   getActiveBackend,
   getEffectiveLocalBackend,
@@ -37,13 +41,17 @@ import {
   toConversationPage,
 } from "../agent-server-adapter";
 import { GetVSCodeUrlResponse } from "../open-hands.types";
-import { getAgentServerClientOptions } from "../agent-server-client-options";
+import {
+  getAgentServerClientOptions,
+  NoBackendAvailableError,
+} from "../agent-server-client-options";
 import SettingsService from "../settings-service/settings-service.api";
 import {
   ConversationMetadata,
   getStoredConversationMetadata,
   removeStoredConversationMetadata,
   setStoredConversationMetadata,
+  type WorkspaceMode,
 } from "../conversation-metadata-store";
 import type {
   GetHooksResponse,
@@ -338,6 +346,7 @@ class AgentServerConversationService {
     plugins?: PluginSpec[],
     metadata?: ConversationMetadata | null,
     workingDirOverride?: string,
+    workspaceMode?: WorkspaceMode,
     parentConversationId?: string,
     agentType?: "default" | "plan",
     sandboxId?: string,
@@ -369,8 +378,17 @@ class AgentServerConversationService {
 
     const settings = await SettingsService.getSettings();
     const conversationId = uuidv4();
-    const workingDir =
-      workingDirOverride ?? buildConversationWorkingDir(conversationId);
+    // @spec WUP-001 — Send an absolute working_dir to the agent-server.
+    // The default is `workspace/project/<hex>` (relative); without
+    // resolving it here, `/api/file/upload` later prepends `/` and writes
+    // to `/workspace/...` (read-only on macOS and fresh containers). When
+    // the user picks an explicit workspace, `workingDirOverride` is
+    // already absolute (it comes from `search_subdirs`).
+    const workingDir = await resolveAbsoluteAgentServerPath(
+      workingDirOverride ?? buildConversationWorkingDir(conversationId),
+    );
+    const resolvedWorkspaceMode =
+      workspaceMode ?? (workingDirOverride ? "local_repo" : "new_worktree");
 
     // Use encrypted settings to avoid exposing secrets in the browser
     const payload = await buildStartConversationRequestWithEncryptedSettings({
@@ -380,11 +398,14 @@ class AgentServerConversationService {
       plugins,
       conversationId,
       workingDir,
+      worktree: resolvedWorkspaceMode === "new_worktree",
     });
 
     const data = await new ConversationClient(
       getAgentServerClientOptions(),
     ).createConversation<DirectConversationInfo>(payload);
+    const localBackend = getEffectiveLocalBackend();
+    if (!localBackend) throw new NoBackendAvailableError();
 
     if (metadata?.selected_repository || workingDirOverride) {
       // The agent-server runtime has no concept of selected repo/branch/
@@ -398,6 +419,7 @@ class AgentServerConversationService {
         selected_branch: metadata?.selected_branch ?? null,
         git_provider: metadata?.git_provider ?? null,
         selected_workspace: workingDirOverride ?? null,
+        workspace_mode: resolvedWorkspaceMode,
       });
     }
 
@@ -407,7 +429,7 @@ class AgentServerConversationService {
       status: "READY",
       detail: null,
       app_conversation_id: data.id,
-      agent_server_url: getEffectiveLocalBackend().host,
+      agent_server_url: localBackend.host,
       request: {
         initial_message: payload.initial_message as
           | AppConversationStartRequest["initial_message"]
@@ -679,10 +701,21 @@ class AgentServerConversationService {
       return;
     }
 
-    await new ConversationClient(getAgentServerClientOptions()).switchProfile(
-      conversationId,
+    const clientOptions = getAgentServerClientOptions();
+    const conversationClient = new ConversationClient(clientOptions);
+    const profile = await new ProfilesClient(clientOptions).getProfile(
       profileName,
+      { exposeSecrets: "encrypted" },
     );
+    const model =
+      typeof profile.config.model === "string" ? profile.config.model : "";
+    if (!model) throw new Error(`Profile '${profileName}' has no model.`);
+    await conversationClient.switchLLM(conversationId, {
+      ...profile.config,
+      model,
+      // Avoid stale first-write-wins entries in the backend LLM registry.
+      usage_id: `profile:${profileName}:${uuidv4()}`,
+    } as LLMConfig);
   }
 
   /**
@@ -700,10 +733,15 @@ class AgentServerConversationService {
     conversationId: string,
     model: string,
   ): Promise<void> {
-    if (getActiveBackend().backend.kind === "cloud") {
-      throw new Error(
-        "ACP model switching is only supported for local agent-server backends.",
-      );
+    const { backend } = getActiveBackend();
+    if (backend.kind === "cloud") {
+      await callCloudProxy({
+        backend,
+        method: "POST",
+        path: `/api/v1/app-conversations/${conversationId}/switch_acp_model`,
+        body: { model },
+      });
+      return;
     }
 
     await new ConversationClient(getAgentServerClientOptions()).switchAcpModel(

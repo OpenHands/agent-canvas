@@ -7,6 +7,13 @@ import { SettingsForm } from "#/components/shared/modals/settings/settings-form"
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { getAgentSettingValue } from "#/utils/sdk-settings-schema";
 
+const trackSettingsSavedMock = vi.fn();
+vi.mock("#/hooks/use-tracking", () => ({
+  useTracking: () => ({
+    trackSettingsSaved: trackSettingsSavedMock,
+  }),
+}));
+
 describe("SettingsForm", () => {
   const onCloseMock = vi.fn();
   const saveSettingsSpy = vi.spyOn(SettingsService, "saveSettings");
@@ -108,6 +115,32 @@ describe("SettingsForm", () => {
     });
     await waitFor(() => {
       expect(onCloseMock).toHaveBeenCalled();
+    });
+  });
+
+  it("calls trackSettingsSaved with LLM details when form is submitted", async () => {
+    renderWithProviders(
+      <SettingsForm settings={DEFAULT_SETTINGS} onClose={onCloseMock} />,
+      {
+        navigation: { currentPath: "/settings" },
+      },
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("llm-model-input")).toHaveValue(
+        expectedModelName,
+      );
+    });
+
+    fireEvent.submit(screen.getByTestId("settings-form"));
+
+    await waitFor(() => {
+      expect(trackSettingsSavedMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          llmApiKeySet: expect.stringMatching(/^(SET|UNSET)$/),
+          searchApiKeySet: expect.stringMatching(/^(SET|UNSET)$/),
+        }),
+      );
     });
   });
 });

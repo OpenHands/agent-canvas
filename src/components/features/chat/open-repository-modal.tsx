@@ -116,7 +116,6 @@ export function OpenRepositoryModal({
               <GitProviderDropdown
                 providers={providers}
                 value={selectedProvider}
-                placeholder="Select Provider"
                 onChange={handleProviderChange}
               />
             )}
@@ -128,7 +127,6 @@ export function OpenRepositoryModal({
               value={selectedRepository?.id || null}
               repositoryName={selectedRepository?.full_name || null}
               onChange={handleRepositoryChange}
-              placeholder="Search repositories..."
               className="w-full"
             />
 
@@ -138,7 +136,6 @@ export function OpenRepositoryModal({
               selectedBranch={selectedBranch}
               onBranchSelect={handleBranchSelect}
               defaultBranch={selectedRepository?.main_branch || null}
-              placeholder="Select branch..."
               disabled={!selectedRepository}
               className="w-full"
             />
