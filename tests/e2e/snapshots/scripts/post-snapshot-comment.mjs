@@ -25,9 +25,12 @@ import {
   appendFileSync,
   copyFileSync,
   existsSync,
+  mkdtempSync,
   mkdirSync,
   readdirSync,
+  rmSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, dirname, join, relative } from "node:path";
 
 // ── Environment ────────────────────────────────────────────────────────────
@@ -47,8 +50,7 @@ const SNAPSHOTS_DIR = "tests/e2e/__snapshots__";
 // The workflow saves comparison test-results to this path before the
 // --update-snapshots pass wipes test-results/.  Fall back to the default
 // Playwright output directory when running outside CI.
-const TEST_RESULTS_DIR =
-  process.env.COMPARISON_RESULTS_DIR ?? "test-results";
+const TEST_RESULTS_DIR = process.env.COMPARISON_RESULTS_DIR ?? "test-results";
 // Images are pushed to this dedicated branch, NOT to the PR branch.
 // Pushing to the PR branch with [skip ci] was blocking required checks on the HEAD commit.
 const ARTIFACTS_BRANCH = `snapshot-artifacts/pr-${PR_NUMBER}`;
@@ -166,7 +168,7 @@ function publishImages(changed, newSnapshots) {
   // Build a temp directory containing only the images, mirroring the layout
   // that buildComment expects: changed/<relPath>-{actual,expected,diff}.png
   //                            new/<relPath>.png
-  const tmpDir = execSync("mktemp -d").toString().trim();
+  const tmpDir = mkdtempSync(join(tmpdir(), "snapshot-artifacts-"));
   try {
     for (const { relPath, currentFile, baselineFile, diffFile } of changed) {
       const dest = join(tmpDir, "changed", relPath);
@@ -187,7 +189,9 @@ function publishImages(changed, newSnapshots) {
     const git = (cmd) => execSync(`git -C "${tmpDir}" ${cmd}`);
     git("init");
     git(`config user.name "github-actions[bot]"`);
-    git(`config user.email "41898282+github-actions[bot]@users.noreply.github.com"`);
+    git(
+      `config user.email "41898282+github-actions[bot]@users.noreply.github.com"`,
+    );
     git("add .");
     git(`commit -m "snapshot images for PR #${PR_NUMBER} run ${RUN_ID}"`);
     git(
@@ -199,7 +203,7 @@ function publishImages(changed, newSnapshots) {
     console.error("Warning: failed to push snapshot images:", err.message);
     return null;
   } finally {
-    execSync(`rm -rf "${tmpDir}"`);
+    rmSync(tmpDir, { recursive: true, force: true });
   }
 }
 
@@ -254,11 +258,7 @@ function buildComment(changed, newSnapshots, unchanged, commitSha) {
     statusText = "All snapshots match the main branch baselines.";
   }
 
-  const lines = [
-    COMMENT_MARKER,
-    `## 📸 Snapshot Test Report`,
-    "",
-  ];
+  const lines = [COMMENT_MARKER, `## 📸 Snapshot Test Report`, ""];
 
   if (COMPARE_OUTCOME === "failure") {
     lines.push(
@@ -317,9 +317,15 @@ function buildComment(changed, newSnapshots, unchanged, commitSha) {
 
         if (commitSha) {
           const base = join("changed", relPath);
-          const expectedUrl = rawUrl(commitSha, base.replace(".png", "-expected.png"));
-          const actualUrl   = rawUrl(commitSha, base.replace(".png", "-actual.png"));
-          const diffUrl     = diffFile
+          const expectedUrl = rawUrl(
+            commitSha,
+            base.replace(".png", "-expected.png"),
+          );
+          const actualUrl = rawUrl(
+            commitSha,
+            base.replace(".png", "-actual.png"),
+          );
+          const diffUrl = diffFile
             ? rawUrl(commitSha, base.replace(".png", "-diff.png"))
             : null;
 
@@ -418,7 +424,9 @@ async function githubFetch(path, options = {}) {
   }
   // DELETE returns 204 No Content
   if (res.status === 204) return null;
-  return res.headers.get("content-type")?.includes("json") ? res.json() : res.text();
+  return res.headers.get("content-type")?.includes("json")
+    ? res.json()
+    : res.text();
 }
 
 /**
@@ -470,7 +478,9 @@ async function main() {
     if (commitSha) {
       console.log(`  Images published at ${commitSha}`);
     } else {
-      console.log(`  Image publishing failed — comment will link to artifact download`);
+      console.log(
+        `  Image publishing failed — comment will link to artifact download`,
+      );
     }
   }
 

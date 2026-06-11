@@ -82,11 +82,32 @@ function SidebarSection({
 }
 
 function getParentPath(path: string): string | null {
-  const trimmed = path.replace(/\/+$/, "");
-  if (!trimmed || trimmed === "/") return null;
-  const idx = trimmed.lastIndexOf("/");
-  if (idx <= 0) return "/";
-  return trimmed.slice(0, idx);
+  const trimmed = trimTrailingSeparators(path);
+  if (!trimmed || trimmed === "/" || isWindowsDriveRoot(trimmed)) return null;
+
+  const idx = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  if (idx < 0) return null;
+  if (idx === 0) return "/";
+
+  const parent = trimmed.slice(0, idx);
+  if (/^[A-Za-z]:$/.test(parent)) {
+    return `${parent}${trimmed[idx]}`;
+  }
+
+  return parent;
+}
+
+function isWindowsDriveRoot(path: string): boolean {
+  return /^[A-Za-z]:[\\/]?$/.test(path);
+}
+
+function trimTrailingSeparators(path: string): string {
+  const trimmed = path.replace(/[\\/]+$/, "");
+  if (/^[A-Za-z]:$/.test(trimmed)) {
+    const separator = path.includes("/") && !path.includes("\\") ? "/" : "\\";
+    return `${trimmed}${separator}`;
+  }
+  return trimmed;
 }
 
 function shouldDefaultToProjectsPath(
@@ -134,7 +155,7 @@ export function FolderBrowserModal({
 
   const favorites: SidebarEntry[] = useMemo(() => {
     if (!homeData?.home) return [];
-    const trimmed = homeData.home.replace(/[\\/]+$/, "") || homeData.home;
+    const trimmed = trimTrailingSeparators(homeData.home) || homeData.home;
     const backendFavorites = [
       { label: "Home", path: trimmed },
       ...(homeData.favorites ?? []),
@@ -173,10 +194,11 @@ export function FolderBrowserModal({
     subdirs.length === 0;
 
   const getBasename = (path: string): string => {
-    const trimmed = path.replace(/\/+$/, "");
+    const trimmed = trimTrailingSeparators(path);
     if (!trimmed) return "/";
-    const idx = trimmed.lastIndexOf("/");
-    return idx >= 0 ? trimmed.slice(idx + 1) || "/" : trimmed;
+    if (trimmed === "/" || isWindowsDriveRoot(trimmed)) return trimmed;
+    const idx = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+    return idx >= 0 ? trimmed.slice(idx + 1) || trimmed : trimmed;
   };
 
   const handleAddDirectory = () => {
