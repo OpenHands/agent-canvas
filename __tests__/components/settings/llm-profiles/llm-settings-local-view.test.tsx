@@ -625,6 +625,46 @@ describe("LlmSettingsLocalView", () => {
       expect(savedLlm.model).toBe("litellm_proxy/claude-opus-4-8");
       expect(savedLlm.base_url).toBe(OPENHANDS_LLM_PROXY_BASE_URL);
     });
+
+    it("injects the proxy base_url for a litellm_proxy model when server omits it (agent-server ≥1.28)", async () => {
+      // Arrange — agent-server ≥1.28 may omit the default base_url from stored
+      // profile configs. When the profile is fetched with base_url:null the save
+      // must still inject the All-Hands proxy URL, otherwise the profile is
+      // stranded on the next save from the Basic tab.
+      const user = userEvent.setup();
+      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
+        name: "gpt-4-profile",
+        api_key_set: true,
+        config: {
+          model: "litellm_proxy/claude-opus-4-8",
+          api_key: "gAAAA_encrypted_key",
+          base_url: null,
+        },
+      });
+      mockSaveMutateAsync.mockResolvedValueOnce({ success: true });
+
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      await user.click(screen.getAllByTestId("profile-menu-trigger")[0]);
+      await user.click(screen.getByTestId("profile-edit"));
+      await waitFor(() => {
+        expect(screen.getByTestId("profile-name-input")).toHaveValue(
+          "gpt-4-profile",
+        );
+      });
+      await user.click(await screen.findByTestId("sdk-section-basic-toggle"));
+      await waitFor(() => {
+        expect(screen.getByTestId("save-profile-btn")).not.toBeDisabled();
+      });
+      await user.click(screen.getByTestId("save-profile-btn"));
+
+      // Assert — even though the server returned base_url:null, the Basic-tab
+      // save must inject the proxy URL so the profile stays usable.
+      await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
+      const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
+      expect(savedLlm.model).toBe("litellm_proxy/claude-opus-4-8");
+      expect(savedLlm.base_url).toBe(OPENHANDS_LLM_PROXY_BASE_URL);
+    });
   });
 
   describe("All tab save", () => {
