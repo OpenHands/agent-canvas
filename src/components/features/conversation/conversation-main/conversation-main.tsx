@@ -120,7 +120,7 @@ export function ConversationMain() {
                   data-testid="tabs-pane-header"
                   className="flex shrink-0 flex-col border-b border-[var(--oh-border)]"
                 >
-                  <ConversationTabs />
+                  <ConversationTabs isPanelResizing={isDragging} />
                 </div>
                 <div className="flex-1 min-h-0 flex flex-col">
                   <ConversationTabContent />

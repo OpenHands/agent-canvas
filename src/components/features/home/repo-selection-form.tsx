@@ -122,7 +122,6 @@ export function RepositorySelectionForm({
       <GitProviderDropdown
         providers={providers}
         value={selectedProvider}
-        placeholder="Select Provider"
         className="max-w-[500px]"
         onChange={handleProviderSelection}
         disabled={isLoadingSettings}
@@ -166,7 +165,6 @@ export function RepositorySelectionForm({
         selectedBranch={selectedBranch}
         onBranchSelect={handleBranchSelection}
         defaultBranch={defaultBranch}
-        placeholder="Select branch..."
         className="max-w-full"
         disabled={!selectedRepository || isLoadingSettings}
       />
@@ -245,7 +243,7 @@ export function RepositorySelectionForm({
         {onConfirm
           ? t(I18nKey.BUTTON$CONFIRM)
           : !isCreatingConversation
-            ? "Launch"
+            ? t(I18nKey.BUTTON$LAUNCH)
             : t(I18nKey.HOME$LOADING)}
       </BrandButton>
     </div>
