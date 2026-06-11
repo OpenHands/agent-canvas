@@ -35,7 +35,6 @@ vi.mock("#/api/agent-server-config", () => ({
   getAgentServerBaseUrl: vi.fn(() => "http://127.0.0.1:8000"),
   getAgentServerSessionApiKey: vi.fn(() => null),
   getAgentServerWorkingDir: mockGetAgentServerWorkingDir,
-  getConfiguredWorkerUrls: vi.fn(() => []),
   shouldLoadPublicSkills: vi.fn(() => true),
   syncBakedSessionApiKey: vi.fn(),
 }));
@@ -136,7 +135,13 @@ describe("buildStartConversationRequest", () => {
     for (const skill of skills) {
       expect(skill).toHaveProperty("name");
       expect(skill).toHaveProperty("content");
-      expect(skill).toHaveProperty("source", "public");
+      // source must be an absolute path to the skill's SKILL.md so the
+      // Python agent-server can resolve bundled resources (scripts/, references/).
+      const source = skill.source as string;
+      expect(source).toMatch(/^\//);
+      expect(source).toMatch(
+        new RegExp(`/${skill.name as string}/SKILL\\.md$`),
+      );
       expect(skill).toHaveProperty("is_agentskills_format", true);
       // trigger is either null (always-active) or { type, keywords }
       if (skill.trigger !== null) {
@@ -303,7 +308,7 @@ describe("buildStartConversationRequest", () => {
     expect(payload.workspace.working_dir).toBe(workingDir);
   });
 
-  it("always requests a git worktree for new conversations", () => {
+  it("requests a git worktree for new conversations by default", () => {
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
@@ -315,6 +320,25 @@ describe("buildStartConversationRequest", () => {
     }) as { worktree: boolean };
 
     expect(payload.worktree).toBe(true);
+  });
+
+  it("can start a conversation without requesting a git worktree", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          llm: { model: "nested-model" },
+        },
+      },
+      workingDir: "/Users/devin/project-without-git",
+      worktree: false,
+    }) as { worktree: boolean; workspace: { working_dir: string } };
+
+    expect(payload.worktree).toBe(false);
+    expect(payload.workspace.working_dir).toBe(
+      "/Users/devin/project-without-git",
+    );
   });
 
   it("forwards supported conversation runtime fields from nested settings", () => {

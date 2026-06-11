@@ -271,6 +271,7 @@ jobs:
             --workflow-url "$MOCK_LLM_WORKFLOW_URL" \
             --commit "${{ github.event.pull_request.head.sha || github.sha }}" \
             --artifact-url "${{ steps.upload_artifacts.outputs.artifact-url || '' }}" \
+            --exit-code "${{ steps.run_tests.outputs.exit_code }}" \
             --new-files "${{ steps.new_specs.outputs.files || '' }}"
           cat "$MOCK_LLM_REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
 

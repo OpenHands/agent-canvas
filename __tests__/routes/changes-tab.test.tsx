@@ -86,7 +86,7 @@ describe("Changes Tab", () => {
 
     render(<GitChanges />, { wrapper });
 
-    expect(screen.getByText("TIPS$PROTIP:")).toBeInTheDocument();
+    expect(screen.getByText("TIPS$PROTIP")).toBeInTheDocument();
   });
 
   it("should hide the Protip when the git changes request errors", () => {
@@ -105,7 +105,7 @@ describe("Changes Tab", () => {
 
     render(<GitChanges />, { wrapper });
 
-    expect(screen.queryByText("TIPS$PROTIP:")).not.toBeInTheDocument();
+    expect(screen.queryByText("TIPS$PROTIP")).not.toBeInTheDocument();
     expect(
       screen.getByText("DIFF_VIEWER$NOT_A_GIT_REPO"),
     ).toBeInTheDocument();

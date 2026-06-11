@@ -8,6 +8,7 @@ import BlockDrawerLeftIcon from "#/icons/block-drawer-left.svg?react";
 import { ChatActionTooltip } from "../chat/chat-action-tooltip";
 import { useBreakpoint } from "#/hooks/use-breakpoint";
 import { useConversationId } from "#/hooks/use-conversation-id";
+import { useIsArchivedConversation } from "#/hooks/use-is-archived-conversation";
 
 interface RightPanelToggleProps {
   className?: string;
@@ -24,6 +25,7 @@ interface RightPanelToggleProps {
 export function RightPanelToggle({ className }: RightPanelToggleProps) {
   const { t } = useTranslation("openhands");
   const isMobile = useBreakpoint();
+  const isArchivedConversation = useIsArchivedConversation();
   const navigate = useNavigate();
   const { conversationId } = useConversationId();
   const {
@@ -34,6 +36,10 @@ export function RightPanelToggle({ className }: RightPanelToggleProps) {
   } = useConversationStore();
 
   const handleToggle = () => {
+    if (isArchivedConversation) {
+      return;
+    }
+
     if (isMobile) {
       if (!conversationId) return;
       setHasRightPanelToggled(true);
@@ -57,11 +63,13 @@ export function RightPanelToggle({ className }: RightPanelToggleProps) {
     }
   };
 
-  const tooltipText = isMobile
-    ? t(I18nKey.COMMON$SHOW_PANEL)
-    : isRightPanelShown
-      ? t(I18nKey.COMMON$HIDE_PANEL)
-      : t(I18nKey.COMMON$SHOW_PANEL);
+  const tooltipText = isArchivedConversation
+    ? t(I18nKey.CONVERSATION$UNAVAILABLE_FOR_ARCHIVES)
+    : isMobile
+      ? t(I18nKey.COMMON$SHOW_PANEL)
+      : isRightPanelShown
+        ? t(I18nKey.COMMON$HIDE_PANEL)
+        : t(I18nKey.COMMON$SHOW_PANEL);
 
   const ariaPressed = isMobile ? false : isRightPanelShown;
 
@@ -70,9 +78,16 @@ export function RightPanelToggle({ className }: RightPanelToggleProps) {
       <button
         type="button"
         onClick={handleToggle}
-        className={cn(mobileTopBarIconButtonClassName, className)}
+        disabled={isArchivedConversation}
+        className={cn(
+          mobileTopBarIconButtonClassName,
+          isArchivedConversation &&
+            "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-[var(--oh-muted)]",
+          className,
+        )}
         aria-label={tooltipText}
         aria-pressed={ariaPressed}
+        aria-disabled={isArchivedConversation}
         data-testid="right-panel-toggle"
       >
         <BlockDrawerLeftIcon className="w-5 h-5 -scale-x-100" />

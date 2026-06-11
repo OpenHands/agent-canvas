@@ -34,6 +34,7 @@ export const useNewConversationCommand = () => {
         undefined,
         undefined,
         undefined,
+        undefined,
         conversation.sandbox_id ?? undefined,
       );
 
