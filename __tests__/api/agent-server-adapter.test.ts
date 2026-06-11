@@ -135,7 +135,10 @@ describe("buildStartConversationRequest", () => {
     for (const skill of skills) {
       expect(skill).toHaveProperty("name");
       expect(skill).toHaveProperty("content");
-      expect(skill).toHaveProperty("source", "public");
+      // source is an absolute path to SKILL.md in node_modules (app builds)
+      // or the fallback string "public" (library builds where path is unknown)
+      expect(typeof skill.source).toBe("string");
+      expect(skill.source).toBeTruthy();
       expect(skill).toHaveProperty("is_agentskills_format", true);
       // trigger is either null (always-active) or { type, keywords }
       if (skill.trigger !== null) {
