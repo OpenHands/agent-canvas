@@ -23,7 +23,8 @@ export interface SeedLocalStorageOptions {
  *
  * Defaults (overridable via options):
  *   - openhands-onboarded = "1"          (suppresses onboarding modal)
- *   - openhands-telemetry-consent = "denied"  (suppresses analytics consent modal)
+ *   - analytics-consent = "false"       (suppresses server-backed analytics consent modal)
+ *   - openhands-telemetry-consent = "denied"  (suppresses package telemetry)
  *   - openhands-backends / openhands-active-backend = seeded local backend
  */
 export async function seedLocalStorage(
@@ -50,6 +51,7 @@ export async function seedLocalStorage(
         window.localStorage.setItem("openhands-onboarded", "1");
       }
       if (!showConsentModal) {
+        window.localStorage.setItem("analytics-consent", "false");
         window.localStorage.setItem("openhands-telemetry-consent", "denied");
       }
       if (!window.localStorage.getItem("openhands-backends")) {
