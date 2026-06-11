@@ -163,16 +163,6 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Check if fork PR
-        id: check_fork
-        run: |
-          if [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.event.pull_request.base.repo.full_name }}" ]; then
-            echo "is_fork=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::Fork PR detected - skipping comment posting."
-          else
-            echo "is_fork=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Check for .pr directory
         id: check
         run: |
@@ -184,7 +174,7 @@ jobs:
           fi
 
       - name: Post or update PR artifacts comment
-        if: steps.check.outputs.exists == 'true' && steps.check_fork.outputs.is_fork == 'false'
+        if: steps.check.outputs.exists == 'true'
         uses: actions/github-script@v9
         with:
           script: |
