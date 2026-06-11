@@ -235,7 +235,18 @@ export function WorkspaceSelectionForm({
       <FolderBrowserModal
         isOpen={isBrowserOpen}
         onClose={() => setIsBrowserOpen(false)}
-        onAdd={(items) => addWorkspaces(items)}
+        onAdd={(items) => {
+          // Auto-select the newly added workspace so the add action gives
+          // immediate feedback. Selection happens in the per-call onSuccess:
+          // the hook-level onSuccess awaits the list refetch, so the restore
+          // effect above sees the new entry and won't clear the selection.
+          const lastAdded = items[items.length - 1];
+          addWorkspaces(items, {
+            onSuccess: () => {
+              if (lastAdded) handleWorkspaceChange(lastAdded);
+            },
+          });
+        }}
         onAddParent={(items) => addWorkspaceParents(items)}
       />
 
