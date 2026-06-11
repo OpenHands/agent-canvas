@@ -12,7 +12,15 @@ Agent Canvas should ship a first-class **Canvas Extensions** system: user-instal
 
 A Canvas Extension can contribute UI views, left navigation entries, color themes, settings panels, conversation right panels, custom tool/event visualizers, launch templates, OpenHands SDK plugin sources, MCP server templates, and system-prompt context blocks. Canvas Extensions are installed and managed by a small local Node service started by the `agent-canvas` launcher. Agent-side behavior is forwarded only through already-supported SDK surfaces; Canvas does not patch or load code inside the Agent Server.
 
-The MVP delivers CLI install/enable/disable/remove for Canvas Extension packages, an Extensions page under Customize for inventory and diagnostics, trusted same-origin extension views, dev-mode authoring with live reload, and focused UI contribution surfaces: left navigation entries, color themes that appear in Settings > Application > Color Theme, settings panels under a visible Extensions header, conversation right panels beside Files/Browser/Terminal, and extension-provided tool visualizers that compose with the built-in visualizer registry introduced by PR #1246. The extension-facing tool visualizer contract should follow the OpenHands agent team's direction, with draft PR #1277 as the current lead implementation, rather than inventing a parallel Canvas-only renderer model. Broad root-mounted components remain deferred. The CLI can detect adjacent artifact types such as standalone SDK plugins or `SKILL.md` folders, but the first executable slice should install/enable only packages with a Canvas Extension manifest. Marketplace, signing, sandboxed iframe views, arbitrary app-root component/shared dependency runtimes, standalone skill/plugin management, and agent-mediated installation are explicitly deferred. The manifest reserves a future iframe entry point so that stronger isolation can be added later without changing extension package shape.
+**MVP delivers:**
+
+- CLI install/enable/disable/remove for Canvas Extension packages, plus an Extensions page under Customize for inventory and diagnostics.
+- Trusted same-origin extension views and dev-mode authoring with live reload.
+- Focused UI contribution surfaces: left navigation entries; color themes in Settings > Application > Color Theme; settings panels under an Extensions header; conversation right panels beside Files/Browser/Terminal; and tool visualizers that compose with the built-in registry from PR #1246.
+
+The tool visualizer contract follows the OpenHands agent team's direction (draft PR #1277 is the current lead) rather than a parallel Canvas-only renderer; see §12.9. The CLI can detect adjacent artifact types (standalone SDK plugins, `SKILL.md` folders), but the first slice installs and enables only packages with a Canvas Extension manifest.
+
+**Deferred:** marketplace, signing, sandboxed iframe views, broad root-mounted/shared-dependency runtimes, standalone skill/plugin management, and agent-mediated installation. The manifest reserves a future iframe entry point (`browser.entry`) so stronger isolation can be added later without changing package shape; see §11.1.
 
 **Lifecycle tiers (capability-gated by launch mode).** Extension lifecycle has two tiers, selected by how Canvas was launched, not by a per-extension setting:
 
@@ -1257,15 +1265,20 @@ These were open questions in the earlier draft. Decisions for the RFC:
 | 15 | Should generic conversation slots ship before these surfaces? | **No.** Header/footer/badge/sidebar slots remain deferred until a workflow cannot be handled by a right panel or tool visualizer. |
 | 16 | Should the running app ever change extension state without a restart? | **Only on the development source stack.** A launcher-issued `liveExtensionManagement` capability (true only for the Vite-served `npm run dev` / `dev:minimal` stack) enables live enable/disable and discovery of newly installed extensions, so an in-Canvas agent can author an extension and the user can enable it in the same session. Packaged global installs, Docker, and static-served builds stay restart-bounded. Install, update, and remove remain CLI-only in all modes. The capability never relaxes consent, permission re-approval, or the agent-runtime boundary. See §15.2. |
 
-## 28. Remaining Open Questions
+## 28. Open Questions
 
-1. Should the `@openhands/extensions` catalog eventually become one first-party Canvas Extension package, or remain a plain dependency for built-in catalogs?
-2. What is the graduation path for standalone SDK plugin, standalone skill, and MCP-template installers after the extension-package MVP proves out?
-3. What provenance UI is required before enabling a public/community extension marketplace: npm integrity only, signatures, first-party allowlists, or enterprise policy?
+The single list of decisions that would benefit from product/engineering direction. (Other sections point here rather than re-listing.)
+
+1. **Manifest name.** Keep `agent-canvas.extension.json`, or rename it to make "Canvas Extension" more explicit (e.g. `agent-canvas.canvas-extension.json`)? Renaming reduces ambiguity but adds churn; default is to keep the shorter name for MVP.
+2. **Visualizer API.** Confirm the OpenHands agent team's PR #1277 visualizer API shape — registration order instead of `priority`, custom/addon before built-ins, error-boundary fallthrough — and the public export name (PR #1277 proposes `@openhands/agent-canvas/visualizers`). Canvas follows their decision rather than shipping a parallel API.
+3. **Mobile.** Is mobile support for conversation right panels required in the first proof, or can small viewports show a disabled/unsupported reason until a mobile design lands?
+4. **Provenance.** What provenance bar is required before any non-first-party/community distribution: npm integrity, signatures, first-party allowlist, enterprise policy, or a combination? This gates a public marketplace.
+5. **Catalog.** Should the `@openhands/extensions` catalog eventually become a first-party Canvas Extension package, or remain a plain dependency for built-in catalogs?
+6. **Graduation.** What is the graduation path for standalone SDK plugin, standalone skill, and MCP-template installers after the extension-package MVP proves out?
 
 ## 29. Recommended MVP Cut
 
-Build the smallest powerful slice:
+The build sequence for the MVP scope in §1. (What ships and what defers is defined in §1 and §5; this section is only the ordering.)
 
 1. CLI-managed npm extension install/enable/list.
 2. Extension Host registry and asset serving.
@@ -1280,10 +1293,6 @@ Build the smallest powerful slice:
 11. Capability-gated live enable/disable and new-extension discovery on the `npm run dev` source stack (`liveExtensionManagement`); restart-bounded everywhere else.
 12. SDK plugin contribution merge for local conversations.
 13. Context contribution merge behind explicit permission.
-
-Defer: marketplace, package signing, **sandboxed iframe runtime** (manifest field reserved as `browser.entry` but unimplemented), arbitrary root-mounted route-less components/shared dependency runtime, rich extension RPC APIs beyond the visualizer/slot surfaces, agent-mediated installation, SDK/server install management, plugin parameters, and per-run extension enablement.
-
-This delivers a useful end-to-end extension system while keeping the Agent Server boundary clean.
 
 ## 30. Engineering FAQ
 
@@ -1307,11 +1316,11 @@ The app-level section remains Customize. Inside Customize, the Canvas Extension 
 
 **Q: Should the manifest still be named `agent-canvas.extension.json`?**
 
-Current recommendation: keep it for MVP because it is explicit to Agent Canvas, short, and already used throughout the plan. Renaming it to something like `agent-canvas.canvas-extension.json` would reduce ambiguity but adds churn. Clarification requested: do we want to pay that naming churn before PR 0, or keep the shorter manifest name and rely on docs/product vocabulary?
+Keep it for MVP: it is explicit to Agent Canvas, short, and already used throughout the plan. A rename is an open question (§28, item 1).
 
 **Q: Are `@openhands/agent-canvas/canvas-extensions` and the visualizer authoring subpath the right public exports?**
 
-`@openhands/agent-canvas/canvas-extensions` remains intentionally explicit to avoid confusion with `@openhands/extensions`. The visualizer authoring export should follow the OpenHands agent team's approved API from PR #1277 or its successor; PR #1277 currently proposes `@openhands/agent-canvas/visualizers`. Do not create both `./visualizers` and `./canvas-visualizers` unless the agent team explicitly wants aliases.
+`@openhands/agent-canvas/canvas-extensions` is settled — intentionally explicit to avoid confusion with `@openhands/extensions`. The visualizer authoring export is still open and follows the agent team's PR #1277 decision (§28, item 2). Do not create both `./visualizers` and `./canvas-visualizers` unless the agent team wants aliases.
 
 ### 30.2 UI Contribution Surfaces
 
@@ -1353,7 +1362,7 @@ They render in the existing conversation right-panel/tab region beside Files, Br
 
 **Q: How should mobile handle Canvas Extension right panels?**
 
-MVP recommendation: reuse the existing mobile conversation panel pattern and show extension panels as additional entries in that panel navigation, if technically straightforward. If not, hide extension right panels on small viewports with a clear disabled/unsupported reason until a mobile design is intentionally added. Clarification requested: is mobile parity required for the first proof?
+MVP recommendation: reuse the existing mobile conversation panel pattern and show extension panels as additional entries in that panel navigation, if technically straightforward. If not, hide extension right panels on small viewports with a clear disabled/unsupported reason until a mobile design is intentionally added. Whether mobile parity is required for the first proof is an open question (§28, item 3).
 
 **Q: What happens if multiple extensions add left-nav entries or right panels?**
 
@@ -1361,13 +1370,9 @@ Sort deterministically by declared `order`, extension display name, then contrib
 
 ### 30.3 Security And Trust
 
-**Q: What is the MVP trust model?**
+**Q: What is the MVP trust model, and what can a malicious extension do?**
 
-MVP Canvas Extensions are trusted local code. Browser modules run same-origin with Canvas after explicit install/enable consent. This is not a browser-enforced sandbox. The trust model is consent, local install provenance, permission display, diagnostics, and a process-level kill switch.
-
-**Q: What can a malicious enabled Canvas Extension access?**
-
-In MVP, trusted same-origin browser code may be able to inspect browser-visible Canvas state, call same-origin routes if it can access credentials/session context, manipulate DOM, and contact declared or undeclared network origins unless stricter CSP enforcement is added. The RFC therefore does not claim strong isolation until the reserved iframe runtime is implemented.
+MVP browser modules are trusted local code, not sandboxed — see §19 for the full posture and threat list. In short: an enabled extension runs same-origin and can inspect browser-visible Canvas state, call same-origin routes with the session's credentials, manipulate the DOM, and reach network origins. Trust comes from explicit install/enable consent, local install provenance, permission display, diagnostics, and the kill switch — not from browser-enforced isolation, which is deferred to the reserved iframe runtime.
 
 **Q: Is install-time consent enough?**
 
@@ -1431,17 +1436,9 @@ Permission-expanding updates should move the extension back to a disabled or nee
 
 ### 30.6 Tool Visualizers
 
-**Q: Can an extension override built-in visualizers?**
+**Q: Can an extension override built-ins, and what wins when several match?**
 
-Yes, intentionally, subject to the OpenHands agent team's approved visualizer API. Current draft PR #1277 considers custom/addon visualizers before built-ins, uses `matches()` to narrow overrides, and falls back to built-ins and then markdown/default rendering. It intentionally does not include `priority`.
-
-**Q: What if two extensions match the same event?**
-
-Follow the agent-team-approved registry ordering. Current draft PR #1277 uses latest registration first for custom/addon visualizers, then built-ins, then primitive markdown/default fallback. Diagnostics should expose which visualizer was selected when debugging is enabled.
-
-**Q: How do thrown visualizers fall through safely?**
-
-The dispatcher should wrap extension visualizers in a failure boundary that records a local diagnostic and tries the next matching renderer. PR #1277 already sketches this fallthrough behavior; the implementation should reuse or adapt that approach rather than building a separate Canvas-only renderer path.
+Yes, overriding is intentional. The selection order and fallthrough are defined in §12.9 (per the agent team's PR #1277): custom/addon visualizers before built-ins before markdown/default, `matches()` narrows overrides, latest registration wins among custom visualizers, and there is no `priority` field. A thrown extension visualizer is caught by a failure boundary, records a diagnostic, and falls through to the next matching renderer. Diagnostics should expose which visualizer was selected when debugging is enabled.
 
 **Q: Can visualizers fetch data or read settings while rendering?**
 
@@ -1485,10 +1482,4 @@ At minimum: manifest validation, route/path containment tests, no-direct-Agent-S
 
 ### 30.9 Clarifications Requested
 
-These are the decisions that would benefit from product/engineering direction before PR 0:
-
-1. Keep `agent-canvas.extension.json`, or rename the manifest to make "Canvas Extension" even more explicit?
-2. Keep public extension-management subpath as `@openhands/agent-canvas/canvas-extensions`; for visualizers, follow the OpenHands agent team's approved export from PR #1277 or its successor.
-3. Confirm the OpenHands agent team wants PR #1277's visualizer API shape: registration order instead of priority, custom/addon before built-ins, error-boundary fallthrough, and public export naming.
-4. Is mobile support for conversation right panels required in the first proof?
-5. What provenance bar is required before any non-first-party/community Canvas Extension distribution: npm integrity, signatures, first-party allowlist, enterprise policy, or some combination?
+See §28 Open Questions — the manifest name, visualizer API shape, mobile right-panel support, and provenance bar are tracked there. The extension-management subpath stays `@openhands/agent-canvas/canvas-extensions` (intentionally explicit to avoid confusion with `@openhands/extensions`).
