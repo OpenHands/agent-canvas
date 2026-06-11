@@ -12,7 +12,7 @@ Agent Canvas should ship a first-class **Canvas Extensions** system: user-instal
 
 A Canvas Extension can contribute UI views, left navigation entries, settings panels, conversation right panels, custom tool/event visualizers, launch templates, OpenHands SDK plugin sources, MCP server templates, and system-prompt context blocks. Canvas Extensions are installed and managed by a small local Node service started by the `agent-canvas` launcher. Agent-side behavior is forwarded only through already-supported SDK surfaces; Canvas does not patch or load code inside the Agent Server.
 
-The MVP delivers CLI install for Canvas Extension packages, a Packages management page under Customize, trusted same-origin extension views, dev-mode authoring with live reload, and focused UI contribution surfaces: left navigation entries, settings panels under a visible Extensions header, conversation right panels beside Files/Browser/Terminal, and extension-provided tool visualizers that compose with the built-in visualizer registry introduced by PR #1246. Broad root-mounted components remain deferred. The CLI can detect adjacent artifact types such as standalone SDK plugins or `SKILL.md` folders, but the first executable slice should install/enable only packages with a Canvas Extension manifest. Marketplace, signing, sandboxed iframe views, arbitrary app-root component/shared dependency runtimes, standalone skill/plugin management, and agent-mediated installation are explicitly deferred. The manifest reserves a future iframe entry point so that stronger isolation can be added later without changing extension package shape.
+The MVP delivers CLI install for Canvas Extension packages, an Extensions page under Customize, trusted same-origin extension views, dev-mode authoring with live reload, and focused UI contribution surfaces: left navigation entries, settings panels under a visible Extensions header, conversation right panels beside Files/Browser/Terminal, and extension-provided tool visualizers that compose with the built-in visualizer registry introduced by PR #1246. Broad root-mounted components remain deferred. The CLI can detect adjacent artifact types such as standalone SDK plugins or `SKILL.md` folders, but the first executable slice should install/enable only packages with a Canvas Extension manifest. Marketplace, signing, sandboxed iframe views, arbitrary app-root component/shared dependency runtimes, standalone skill/plugin management, and agent-mediated installation are explicitly deferred. The manifest reserves a future iframe entry point so that stronger isolation can be added later without changing extension package shape.
 
 ## 2. Motivation
 
@@ -115,7 +115,7 @@ The Extension Host **must not** proxy arbitrary requests to the Agent Server. Wh
 
 The Canvas frontend owns:
 
-- Extension management UI (the Packages page).
+- Extension management UI (the Extensions page).
 - Navigation for extension views.
 - The extension view host that mounts trusted extension browser modules into Canvas-owned route containers (with a reserved future iframe runtime; see §12.1).
 - Installation consent UX, permission display, secret setup prompts.
@@ -482,7 +482,7 @@ Rules:
 
 **MVP runtime: trusted same-origin browser module.** The extension's `browser.module` is loaded by the Canvas frontend with dynamic `import()` and mounted into a Canvas-owned DOM container at the view route. The extension exports a `mount()` function, receives the typed context (§13), and owns rendering inside that container. It may use React, Svelte, vanilla DOM, or another framework as long as the shipped module is browser-ready. It should use Canvas CSS variables/design tokens and host-provided APIs instead of importing Canvas internals.
 
-Inline extension code runs in the same browser origin as Canvas. That is intentional for MVP, and it means runtime capability declarations are a consent, audit, and UX contract rather than a hard browser sandbox. A trusted inline extension can technically call same-origin routes if it has access to the active session credentials, inspect browser state available to Canvas, and manipulate page DOM. The Packages UI must communicate that trust model clearly before enablement. Strong isolation is deferred to the future `browser.entry` iframe runtime.
+Inline extension code runs in the same browser origin as Canvas. That is intentional for MVP, and it means runtime capability declarations are a consent, audit, and UX contract rather than a hard browser sandbox. A trusted inline extension can technically call same-origin routes if it has access to the active session credentials, inspect browser state available to Canvas, and manipulate page DOM. The Extensions UI must communicate that trust model clearly before enablement. Strong isolation is deferred to the future `browser.entry` iframe runtime.
 
 **Browser module packaging contract.**
 
@@ -949,7 +949,7 @@ Each entry records absolute source path, manifest path, registration timestamp, 
 - Serve assets directly from the source folder.
 - Append a cache-busting version to the browser-module URL after changes so dynamic imports receive fresh code.
 - Dispose and remount only the affected extension view when its module changes; avoid reloading the parent Canvas app.
-- Surface manifest/build errors in the Packages page and extension view.
+- Surface manifest/build errors in the Extensions page and extension view.
 - The extension authoring project owns its build/watch command. Canvas watches declared output files and source manifests; it never runs package install scripts automatically and must ask before any package-manager command.
 - Never hot-reload SDK plugin / tool state into an already-running conversation; a new conversation is required for agent-side contribution changes.
 
@@ -963,7 +963,7 @@ Dev extensions run as trusted same-origin browser modules, just like installed M
 agent-canvas install ../my-extension
 ```
 
-or "Promote to Installed Extension" from the Packages page. Promotion installs into the normal store, freezes version/provenance, and disables dev watch for that extension.
+or "Promote to Installed Extension" from the Extensions page. Promotion installs into the normal store, freezes version/provenance, and disables dev watch for that extension.
 
 ## 22. Agent-Mediated Installation (post-MVP)
 
@@ -979,7 +979,7 @@ The future flow: an agent builds an extension in the workspace, proposes install
 
 **Safety rules.** Proposal alone is not sufficient — user approval required. No write-capable Extension Host key in `<RUNTIME_SERVICES>` or the prompt. The agent cannot call `/api/canvas/canvas-extensions/install` directly. Extension Host re-validates the downloaded artifact; proposal payload is advisory. Conversation artifacts are size-limited and checksum-verified when `sha256` is provided. Permission expansion follows the same re-approval rules as CLI updates.
 
-This is not part of PR 0 or PR 1. It becomes feasible after the local install store, artifact detector, Extension Host, and Packages UI exist.
+This is not part of PR 0 or PR 1. It becomes feasible after the local install store, artifact detector, Extension Host, and Extensions UI exist.
 
 ## 23. Upstream Dependencies
 
@@ -1005,15 +1005,15 @@ Sections:
 
 - Skills
 - MCP Servers
-- Packages
+- Extensions
 
-Current navigation state: `/customize` is the Customize entry in the primary sidebar; desktop redirects to `/skills`, mobile renders the Customize hub; `/skills` and `/mcp` are live; `/plugins` is still a coming-soon page inside the current Customize navigation. MVP should replace `/plugins` with Packages or redirect it to the new Packages route while retaining old bookmarks. Do not rename the Customize section back to Extensions.
+Current navigation state: `/customize` is the Customize entry in the primary sidebar; desktop redirects to `/skills`, mobile renders the Customize hub; `/skills` and `/mcp` are live; `/plugins` is still a coming-soon page inside the current Customize navigation. MVP should replace `/plugins` with Extensions or redirect it to the new Extensions route while retaining old bookmarks. Do not rename the Customize section back to Extensions.
 
 Implementation note: some current files still use legacy "extensions" names, such as `src/routes/extensions-hub.tsx` and `src/components/features/skills/extensions-navigation.tsx`. Treat those as existing Customize implementation details. New Canvas Extension code should use `canvas-extensions` names, and user-facing copy should say Customize or Canvas Extensions as appropriate.
 
-Packages page sections: Enabled · Installed but disabled · Invalid · Install from npm/package spec · Developer extension path.
+The Extensions page is a simple stacked view of installed Canvas Extensions and their status. MVP rows should be grouped or filtered by status only as needed for scanability: Enabled, Disabled, Invalid, and Dev. Install-from-package/dev-path controls can sit above or below the stack, but marketplace-style browsing is out of scope.
 
-Each extension card shows: display name, package name, version; state; contribution badges; required secrets status; enable/disable/remove actions; diagnostics.
+Each extension row/card shows: display name, package name, version; state; contribution badges; required secrets status; enable/disable/remove actions; diagnostics.
 
 ### Launch UX
 
@@ -1057,9 +1057,9 @@ Deliverables: generic install/manage CLI parsing; `install/list/enable/disable/r
 
 ### PR 2 — Frontend management UI
 
-Files: `src/routes.ts`, `src/routes/canvas-extensions-packages.tsx`, legacy Customize navigation files such as `src/components/features/skills/extensions-navigation.tsx`, `src/api/canvas-extensions-service.ts`, `src/api/no-direct-agent-server-calls.test.ts`, `src/hooks/query/use-extensions.ts`, i18n.
+Files: `src/routes.ts`, `src/routes/canvas-extensions-page.tsx`, legacy Customize navigation files such as `src/components/features/skills/extensions-navigation.tsx`, `src/api/canvas-extensions-service.ts`, `src/api/no-direct-agent-server-calls.test.ts`, `src/hooks/query/use-extensions.ts`, i18n.
 
-Deliverables: Packages page under Customize replaces "Plugins coming soon"; install/enable/disable/remove flows; dedicated CanvasExtensionsService wrapper and narrow no-direct-Agent-Server test exception for `/api/canvas/canvas-extensions/*`; dev extension badges, source paths, diagnostics; snapshot coverage for empty/installed/enabled/invalid states. Do not reintroduce a top-level Extensions section.
+Deliverables: Extensions page under Customize replaces "Plugins coming soon"; a simple stacked installed-extensions/status view; install/enable/disable/remove flows; dedicated CanvasExtensionsService wrapper and narrow no-direct-Agent-Server test exception for `/api/canvas/canvas-extensions/*`; dev extension badges, source paths, diagnostics; snapshot coverage for empty/installed/enabled/invalid states. Do not reintroduce a top-level Extensions section.
 
 ### PR 3 — Trusted browser-module view host
 
@@ -1081,7 +1081,7 @@ Deliverables: settings panels under a visible Extensions header after built-in s
 
 ### PR 3c — Dev extension watch mode
 
-Files: `scripts/extension-host.mjs`, `scripts/extension-manager.mjs`, `bin/agent-canvas.mjs`, `src/api/canvas-extensions-service.ts`, `src/routes/canvas-extensions-packages.tsx`, contributor docs.
+Files: `scripts/extension-host.mjs`, `scripts/extension-manager.mjs`, `bin/agent-canvas.mjs`, `src/api/canvas-extensions-service.ts`, `src/routes/canvas-extensions-page.tsx`, contributor docs.
 
 Deliverables: `--dev` install and `dev-extension` subcommands; dev registration store; source folder file watching; manifest revalidation on change; browser-module cache-bust/remount after asset changes; visible dev-mode labeling; example extension and contributor guide; tests for registration, traversal rejection, invalid manifest updates, and view remount signaling.
 
@@ -1101,9 +1101,9 @@ Permission consent modal; secret setup flow; `doctor` command with actionable di
 
 **Release packaging:** `npm pack --dry-run`; install from the packed tarball into a temp global/prefix; verify `agent-canvas list`, `agent-canvas doctor`, and `agent-canvas install <packed-fixture-or-local-extension> --yes` work without a source checkout; verify full `agent-canvas` launch still finds `build/`, `scripts/`, and Extension Host routes.
 
-**Component:** Packages page states under Customize; permission display; browser-module view loading/error; settings panel placement under the visible Extensions header; conversation right-panel tab rendering/error boundaries; MCP required preflight; incompatible runtime warning; dev badge.
+**Component:** Extensions page states under Customize; permission display; browser-module view loading/error; settings panel placement under the visible Extensions header; conversation right-panel tab rendering/error boundaries; MCP required preflight; incompatible runtime warning; dev badge.
 
-**E2E snapshots:** Packages page empty state under Customize; enabled extension with one view; invalid extension diagnostics; settings panel under Extensions header; conversation right panel beside Files/Browser/Terminal; launch template requiring MCP; launch preflight with local-path SDK plugin disabled on remote backend; dev extension view remount after file change; future: agent-mediated install proposal flow.
+**E2E snapshots:** Extensions page empty state under Customize; enabled extension with one view; invalid extension diagnostics; settings panel under Extensions header; conversation right panel beside Files/Browser/Terminal; launch template requiring MCP; launch preflight with local-path SDK plugin disabled on remote backend; dev extension view remount after file change; future: agent-mediated install proposal flow.
 
 **Live E2E:** not required for MVP. If added later, follow existing live E2E rules under `tests/e2e/live/`.
 
@@ -1147,7 +1147,7 @@ Build the smallest powerful slice:
 
 1. CLI-managed npm extension install/enable/list.
 2. Extension Host registry and asset serving.
-3. Packages management page.
+3. Extensions management page.
 4. Trusted same-origin browser-module extension views (with the iframe runtime reserved in the manifest schema).
 5. Left navigation entries for Canvas Extension views.
 6. Settings panels under a visible Extensions header after built-in settings.

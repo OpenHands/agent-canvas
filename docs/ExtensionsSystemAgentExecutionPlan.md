@@ -40,7 +40,7 @@ Use gates to coordinate merge order. Tasks inside a gate can be split, but the g
 | G0 | Risk burners and contracts | Mostly serial | Everything else |
 | G1 | Manager, CLI, install store, host routes | Manager/CLI and launcher work can split after shared contracts land | UI, view host, conversation merge |
 | G2 | Example extension and package release path | Can run alongside G1 after contracts land | View host, acceptance demo |
-| G3 | Frontend Packages page and CanvasExtensionService | Can run once Extension Host registry shape is stable | View host UX, dev mode UX |
+| G3 | Frontend Extensions page and CanvasExtensionService | Can run once Extension Host registry shape is stable | View host UX, dev mode UX |
 | G4 | Browser-module view host, left navigation, settings panels, right panels, and visualizers | Can run after registry/assets exist; visualizers can split after shared types land | Acceptance demo |
 | G5 | Conversation contribution merge | Can run after launch-contributions endpoint exists | Final proof |
 | G6 | Dev mode watch/remount | Can run after manager, host, and view host exist | Final proof |
@@ -50,7 +50,7 @@ Avoid these overlapping edits unless one agent owns the integration:
 
 - `bin/agent-canvas.mjs`, `scripts/dev-safe.mjs`, `scripts/dev-with-automation.mjs`, `scripts/static-server.mjs`, and `vite.config.ts` should have one launcher/routing owner at a time.
 - `src/api/agent-server-adapter.ts` and `src/api/conversation-service/agent-server-conversation-service.api.ts` should have one conversation-merge owner at a time.
-- Sidebar route work should coordinate with Packages page route work before editing `src/routes.ts`.
+- Sidebar route work should coordinate with Extensions page route work before editing `src/routes.ts`.
 - `package.json` exports/files changes should coordinate with release-smoke work.
 
 ## 3. Gate G0: Risk Burners And Contract
@@ -258,7 +258,7 @@ npm test -- __tests__/canvas-extensions/extension-host.test.ts
   - Route `/api/canvas/canvas-extensions/*` and `/canvas-extension-assets/*` before `/api/*` and before SPA fallback.
   - Add Vite proxy support for direct Vite access.
   - Add static server route support for direct static-port access.
-  - Cover `--frontend-only` and `--backend-only`: frontend-only may expose local Packages/browser assets with agent-runtime diagnostics; backend-only should skip browser asset hosting unless a future CLI-only host mode explicitly needs it.
+  - Cover `--frontend-only` and `--backend-only`: frontend-only may expose local Extensions/browser assets with agent-runtime diagnostics; backend-only should skip browser asset hosting unless a future CLI-only host mode explicitly needs it.
   - Emit frontend env/runtime metadata: extension enabled flag, `localInstallStoreReadable`, route/base if needed.
   - Do not expose a write-capable Extension Host key in `<RUNTIME_SERVICES>`.
 - [ ] Tests:
@@ -332,7 +332,7 @@ npm pack --dry-run
   - `agent-canvas list canvas-extensions` and `agent-canvas doctor` work from packed/global install.
 - [ ] Handoff notes:
 
-## 6. Gate G3: Frontend Packages Management
+## 6. Gate G3: Frontend Extensions Management
 
 ### G3.1 CanvasExtensionService API Wrapper
 
@@ -360,24 +360,25 @@ npm run typecheck
   - Frontend consumers never hand-roll Extension Host fetches.
 - [ ] Handoff notes:
 
-### G3.2 Packages Page
+### G3.2 Extensions Page
 
 - [ ] Owner:
 - [ ] Depends on: G3.1
 - [ ] Files likely touched:
   - `src/routes.ts`
-  - `src/routes/canvas-extensions-packages.tsx`
+  - `src/routes/canvas-extensions-page.tsx`
   - `src/components/features/skills/extensions-navigation.tsx`
   - `src/routes/extensions-hub.tsx` if the existing Customize hub needs route/link updates
   - `src/i18n/translation.json`
   - generated i18n files via `npm run make-i18n`
   - `tests/e2e/snapshots/**`
 - [ ] Implement:
-  - Replace or redirect `/plugins` to Packages while preserving bookmarks.
-  - Packages nav item in the existing Customize area (`/customize` primary entry, desktop redirect to `/skills`, mobile Customize hub).
+  - Replace or redirect `/plugins` to Extensions while preserving bookmarks.
+  - Extensions nav item in the existing Customize area (`/customize` primary entry, desktop redirect to `/skills`, mobile Customize hub).
   - Treat legacy "extensions" file/component names as existing Customize implementation details; do not use them as new product vocabulary.
-  - Sections for Enabled, Installed/Disabled, Invalid, Dev.
-  - Cards show display name, package, version, state, contribution badges, required secrets, diagnostics, source path for dev entries.
+  - Simple stacked view of installed Canvas Extensions and their status.
+  - Status grouping/filtering only as needed for scanability: Enabled, Disabled, Invalid, Dev.
+  - Rows/cards show display name, package, version, state, contribution badges, required secrets, diagnostics, source path for dev entries.
   - Actions for install, enable, disable, remove.
   - User-facing copy goes through i18n keys.
 - [ ] Tests:
@@ -601,7 +602,7 @@ npm run typecheck
   - `scripts/extension-host.mjs`
   - `bin/agent-canvas.mjs`
   - `src/api/canvas-extensions-service.ts`
-  - `src/routes/canvas-extensions-packages.tsx`
+  - `src/routes/canvas-extensions-page.tsx`
   - tests under `__tests__/canvas-extensions/`
 - [ ] Implement:
   - `agent-canvas install <path> --dev`.
@@ -642,7 +643,7 @@ node bin/agent-canvas.mjs
 ```
 
 - [ ] Browser checks:
-  - Packages shows `hello.canvas` enabled with no diagnostics.
+  - Extensions shows `hello.canvas` enabled with no diagnostics.
   - Left navigation entry appears after Automations and before conversations.
   - Extension view renders.
   - Settings panel appears under a visible Extensions header after built-in settings.

@@ -15,7 +15,7 @@ For multi-agent implementation, use [ExtensionsSystemAgentExecutionPlan.md](./Ex
 The MVP should be built as a vertical proof, not as isolated architecture layers. The first complete proof should demonstrate:
 
 1. A local or npm-packed Canvas Extension installs into `~/.openhands/agent-canvas/installations`.
-2. The Packages page under Customize shows the installed Canvas Extension and its diagnostics.
+2. The Extensions page under Customize shows the installed Canvas Extension and its diagnostics.
 3. A trusted `browser.module` view renders at `/canvas-extensions/:extensionId/:viewId/*`.
 4. A view can contribute a left navigation entry after Automations and before the conversation list, matching the current `SidebarRailBody` order (`New Chat`, `Customize`, `Automations`, then conversations).
 5. A Canvas Extension can add a settings panel only under a visible Extensions header after built-in settings.
@@ -81,7 +81,7 @@ Cover:
 - `scripts/dev-safe.mjs` / `dev:minimal`, where direct Vite proxying must handle Extension Host routes without the automation ingress.
 - `scripts/static-server.mjs` routes used by the packaged CLI/static mode.
 - `vite.config.ts` proxy support for direct Vite access, especially `/canvas-extension-assets/*`.
-- `--frontend-only` and `--backend-only` partial-stack behavior: frontend-only can expose Packages/extension views but should show backend-dependent diagnostics, while backend-only should not start the Extension Host view/assets path unless a future CLI-only host mode explicitly needs it.
+- `--frontend-only` and `--backend-only` partial-stack behavior: frontend-only can expose Extensions/extension views but should show backend-dependent diagnostics, while backend-only should not start the Extension Host view/assets path unless a future CLI-only host mode explicitly needs it.
 
 Exit criteria: a browser opened through either the ingress port or direct Vite/static port can fetch registry JSON and import a browser module from `/canvas-extension-assets/...`.
 
@@ -192,7 +192,7 @@ Do not expose a write-capable Extension Host key in agent prompts.
 
 Route precedence is the failure-prone part: `/api/canvas/canvas-extensions/*` and `/canvas-extension-assets/*` must match before `/api/*` and static SPA fallback in every launcher path.
 
-Partial-stack mode rule: frontend-only may start enough Extension Host surface to render local Packages and extension browser assets, but must mark agent-runtime contributions unavailable because no Agent Server is running. Backend-only should skip frontend asset hosting and extension browser routes by default; CLI management still works because it dispatches before stack startup.
+Partial-stack mode rule: frontend-only may start enough Extension Host surface to render local Extensions and extension browser assets, but must mark agent-runtime contributions unavailable because no Agent Server is running. Backend-only should skip frontend asset hosting and extension browser routes by default; CLI management still works because it dispatches before stack startup.
 
 ## 4. Frontend Proof
 
@@ -202,15 +202,16 @@ Add `src/api/canvas-extensions-service.ts` for every `/api/canvas/canvas-extensi
 
 Update `src/api/no-direct-agent-server-calls.test.ts` with one narrow allowlist entry for this wrapper, mirroring automation but covering the current blanket `fetch('/api/...')` rule as well as axios. The exception should allow only `/api/canvas/canvas-extensions/*` from the wrapper; it must not weaken the Agent Server rule for arbitrary `/api/*` calls.
 
-### 4.2 Packages Page
+### 4.2 Extensions Page
 
-Replace `/plugins` with a Packages view, while preserving redirects/bookmarks. Use the existing Customize layout and navigation: `/customize` is the primary-sidebar hub entry, desktop redirects to `/skills`, mobile renders the Customize hub, and the current Customize navigation contains Skills, MCP Servers, and a coming-soon Plugins item.
+Replace `/plugins` with an Extensions view, while preserving redirects/bookmarks. Use the existing Customize layout and navigation: `/customize` is the primary-sidebar hub entry, desktop redirects to `/skills`, mobile renders the Customize hub, and the current Customize navigation contains Skills, MCP Servers, and a coming-soon Plugins item.
 
 The page should:
 
-- Add a Packages nav item in the Customize navigation.
+- Add an Extensions nav item in the Customize navigation.
 - Treat legacy file names such as `extensions-hub.tsx` and `extensions-navigation.tsx` as existing Customize implementation details, not product vocabulary for the new Canvas Extensions system.
-- Show Enabled, Installed, Disabled, Invalid, and Dev sections.
+- Show a simple stacked view of installed Canvas Extensions and their status.
+- Use status grouping/filtering only as needed for scanability: Enabled, Disabled, Invalid, and Dev.
 - Show install source, version, contribution badges, required secrets, diagnostics, enable/disable/remove actions.
 - Stay dense and operational; no marketplace browsing in MVP.
 - Route all visible strings, tooltips, and action labels through i18n keys.
@@ -366,7 +367,7 @@ node bin/agent-canvas.mjs
 
 Then in the browser:
 
-1. Open Packages and see `hello.canvas` enabled with no diagnostics.
+1. Open Extensions and see `hello.canvas` enabled with no diagnostics.
 2. See its left navigation entry after Automations and before the conversation list.
 3. Open its extension view from the left navigation and see browser-module UI render.
 4. Open settings and confirm its panel appears under the visible Extensions header after built-in settings.
@@ -386,9 +387,9 @@ Release-path acceptance should also install the packed `@openhands/agent-canvas`
 
 **Release packaging:** `npm pack --dry-run`; packed-tarball install into a temp npm prefix; verify `agent-canvas list`, `agent-canvas doctor`, and an extension install work without a source checkout; verify `@openhands/agent-canvas/canvas-extensions` and `@openhands/agent-canvas/canvas-visualizers` resolve for type consumers.
 
-**Component:** Packages page empty/installed/enabled/invalid/dev states under Customize; install/enable/disable/remove action wiring; left navigation entries in expanded/collapsed/mobile states; extension view loading/error/remount; settings panel placement under the visible Extensions header; extension settings read/patch; extension visualizer renders/falls back inside the existing event wrapper; conversation right panels render beside Files/Browser/Terminal; launch template preflight for incompatible SDK plugin paths.
+**Component:** Extensions page empty/installed/enabled/invalid/dev states under Customize; install/enable/disable/remove action wiring; left navigation entries in expanded/collapsed/mobile states; extension view loading/error/remount; settings panel placement under the visible Extensions header; extension settings read/patch; extension visualizer renders/falls back inside the existing event wrapper; conversation right panels render beside Files/Browser/Terminal; launch template preflight for incompatible SDK plugin paths.
 
-**E2E snapshots:** Packages page with enabled extension under Customize; invalid extension diagnostics; left navigation entry after Automations; settings panel under Extensions header; conversation right panel beside Files/Browser/Terminal; extension view rendered from browser module; launch template showing context/plugin contribution; remote-backend disabled reason for local plugin path; dev extension view remount after output change.
+**E2E snapshots:** Extensions page with enabled extension under Customize; invalid extension diagnostics; left navigation entry after Automations; settings panel under Extensions header; conversation right panel beside Files/Browser/Terminal; extension view rendered from browser module; launch template showing context/plugin contribution; remote-backend disabled reason for local plugin path; dev extension view remount after output change.
 
 **Live E2E:** optional after the walking skeleton. If added, keep one cheap local live test that starts a conversation from `hello.canvas` and verifies the created payload/events show the context suffix or plugin load marker. Follow existing live E2E rules under `tests/e2e/live/`.
 
