@@ -23,8 +23,7 @@ export interface SeedLocalStorageOptions {
  *
  * Defaults (overridable via options):
  *   - openhands-onboarded = "1"          (suppresses onboarding modal)
- *   - analytics-consent = "false"       (suppresses server-backed analytics consent modal)
- *   - openhands-telemetry-consent = "denied"  (suppresses package telemetry)
+ *   - openhands-telemetry-consent = "denied"  (suppresses analytics consent modal)
  *   - openhands-backends / openhands-active-backend = seeded local backend
  */
 export async function seedLocalStorage(

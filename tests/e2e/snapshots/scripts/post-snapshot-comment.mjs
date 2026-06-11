@@ -47,7 +47,8 @@ const SNAPSHOTS_DIR = "tests/e2e/__snapshots__";
 // The workflow saves comparison test-results to this path before the
 // --update-snapshots pass wipes test-results/.  Fall back to the default
 // Playwright output directory when running outside CI.
-const TEST_RESULTS_DIR = process.env.COMPARISON_RESULTS_DIR ?? "test-results";
+const TEST_RESULTS_DIR =
+  process.env.COMPARISON_RESULTS_DIR ?? "test-results";
 // Images are pushed to this dedicated branch, NOT to the PR branch.
 // Pushing to the PR branch with [skip ci] was blocking required checks on the HEAD commit.
 const ARTIFACTS_BRANCH = `snapshot-artifacts/pr-${PR_NUMBER}`;
@@ -186,9 +187,7 @@ function publishImages(changed, newSnapshots) {
     const git = (cmd) => execSync(`git -C "${tmpDir}" ${cmd}`);
     git("init");
     git(`config user.name "github-actions[bot]"`);
-    git(
-      `config user.email "41898282+github-actions[bot]@users.noreply.github.com"`,
-    );
+    git(`config user.email "41898282+github-actions[bot]@users.noreply.github.com"`);
     git("add .");
     git(`commit -m "snapshot images for PR #${PR_NUMBER} run ${RUN_ID}"`);
     git(
@@ -255,35 +254,25 @@ function buildComment(changed, newSnapshots, unchanged, commitSha) {
     statusText = "All snapshots match the main branch baselines.";
   }
 
-  const lines = [COMMENT_MARKER, `## 📸 Snapshot Test Report`, ""];
+  const lines = [
+    COMMENT_MARKER,
+    `## 📸 Snapshot Test Report`,
+    "",
+  ];
 
   if (COMPARE_OUTCOME === "failure") {
-    if (hasDifferences) {
-      lines.push(
-        `> [!NOTE]`,
-        `> Snapshot comparison reported visual differences. The tables below are based on Playwright diff images from the comparison run.`,
-        "",
-      );
-    } else if (newSnapshots.length > 0) {
-      lines.push(
-        `> [!NOTE]`,
-        `> Snapshot comparison reported new snapshots with no main-branch baseline.`,
-        "",
-      );
-    } else {
-      lines.push(
-        `> [!WARNING]`,
-        `> **Snapshot comparison failed before producing visual diffs** (for example, timeout, runner error, or an interaction failure).`,
-        `> Check the [CI logs](https://github.com/${REPO}/actions/runs/${RUN_ID}) for the full error output (look for the "Run snapshot comparison" step).`,
-        "",
-      );
-    }
+    lines.push(
+      `> [!WARNING]`,
+      `> **Snapshot comparison step crashed** (timeout, OOM, or runner error) — diff results below may be incomplete or absent.`,
+      `> Check the [CI logs](https://github.com/${REPO}/actions/runs/${RUN_ID}) for the full error output (look for the "Run snapshot comparison" step).`,
+      "",
+    );
   }
 
   if (GENERATE_OUTCOME === "failure") {
     lines.push(
       `> [!WARNING]`,
-      `> **Snapshot generation did not complete successfully** (for example, timeout, runner error, or an interaction failure). Some current screenshots may be incomplete.`,
+      `> **One or more snapshot tests crashed during generation** — some snapshots below may be incomplete.`,
       `> Check the [CI logs](https://github.com/${REPO}/actions/runs/${RUN_ID}) for the full error output (look for the "Generate current PR snapshots" step).`,
       "",
     );
@@ -328,15 +317,9 @@ function buildComment(changed, newSnapshots, unchanged, commitSha) {
 
         if (commitSha) {
           const base = join("changed", relPath);
-          const expectedUrl = rawUrl(
-            commitSha,
-            base.replace(".png", "-expected.png"),
-          );
-          const actualUrl = rawUrl(
-            commitSha,
-            base.replace(".png", "-actual.png"),
-          );
-          const diffUrl = diffFile
+          const expectedUrl = rawUrl(commitSha, base.replace(".png", "-expected.png"));
+          const actualUrl   = rawUrl(commitSha, base.replace(".png", "-actual.png"));
+          const diffUrl     = diffFile
             ? rawUrl(commitSha, base.replace(".png", "-diff.png"))
             : null;
 
@@ -435,9 +418,7 @@ async function githubFetch(path, options = {}) {
   }
   // DELETE returns 204 No Content
   if (res.status === 204) return null;
-  return res.headers.get("content-type")?.includes("json")
-    ? res.json()
-    : res.text();
+  return res.headers.get("content-type")?.includes("json") ? res.json() : res.text();
 }
 
 /**
@@ -489,9 +470,7 @@ async function main() {
     if (commitSha) {
       console.log(`  Images published at ${commitSha}`);
     } else {
-      console.log(
-        `  Image publishing failed — comment will link to artifact download`,
-      );
+      console.log(`  Image publishing failed — comment will link to artifact download`);
     }
   }
 
