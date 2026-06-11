@@ -36,6 +36,7 @@ export const useUnifiedGetGitChanges = () => {
       if (!conversationId) throw new Error("No conversation ID");
 
       return AgentServerGitService.getGitChanges(
+        conversationId,
         conversationUrl,
         sessionApiKey,
         gitPath,

@@ -7,12 +7,20 @@ import {
 } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
 import { uploadFilesToConversation } from "#/api/conversation-file-upload.api";
+import { clearAgentServerHomeDirCache } from "#/api/agent-server-home";
 
 const fileUploadMock = vi.fn();
+const getHomeMock = vi.fn();
 
 vi.mock("@openhands/typescript-client/workspace/remote-workspace", () => ({
   RemoteWorkspace: vi.fn(function RemoteWorkspaceMock() {
     return { fileUpload: fileUploadMock };
+  }),
+}));
+
+vi.mock("@openhands/typescript-client/clients", () => ({
+  FileClient: vi.fn(function FileClientMock() {
+    return { getHome: getHomeMock };
   }),
 }));
 
@@ -40,11 +48,16 @@ describe("uploadFilesToConversation", () => {
     vi.clearAllMocks();
     window.localStorage.clear();
     __resetActiveStoreForTests();
+    clearAgentServerHomeDirCache();
     fileUploadMock.mockResolvedValue(undefined);
     batchGetCloudConversations.mockReset();
+    getHomeMock.mockReset();
+    getHomeMock.mockResolvedValue({ home: "/Users/test" });
   });
 
-  it("uploads local conversations through the bundled agent-server host", async () => {
+  // @spec WUP-001 — Default-fallback relative working dirs are resolved
+  // against /api/file/home, not the filesystem root.
+  it("uploads local conversations under the agent-server home dir when working dir is relative", async () => {
     setRegisteredBackends([
       {
         id: "local-1",
@@ -62,10 +75,42 @@ describe("uploadFilesToConversation", () => {
 
     expect(fileUploadMock).toHaveBeenCalledWith(
       expect.objectContaining({ name: "a.txt" }),
-      "/workspace/project/a.txt",
+      "/Users/test/workspace/project/a.txt",
     );
     expect(result.uploaded_files).toEqual(["a.txt"]);
     expect(batchGetCloudConversations).not.toHaveBeenCalled();
+    expect(getHomeMock).toHaveBeenCalled();
+  });
+
+  // @spec WUP-001 — Absolute working dirs (e.g. the conversation's own
+  // `workspace.working_dir`) pass through without a /api/file/home round-trip.
+  it("respects an absolute conversation working_dir verbatim", async () => {
+    setRegisteredBackends([
+      {
+        id: "local-1",
+        name: "Local",
+        host: "http://127.0.0.1:18000",
+        apiKey: "local-key",
+        kind: "local",
+      },
+    ]);
+    setActiveSelection({ backendId: "local-1" });
+
+    const result = await uploadFilesToConversation(
+      "conv-1",
+      [makeFile("notes.md")],
+      {
+        id: "conv-1",
+        workspace: { working_dir: "/Users/test/projects/foo" },
+      } as never,
+    );
+
+    expect(fileUploadMock).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "notes.md" }),
+      "/Users/test/projects/foo/notes.md",
+    );
+    expect(result.uploaded_files).toEqual(["notes.md"]);
+    expect(getHomeMock).not.toHaveBeenCalled();
   });
 
   it("uploads cloud conversations against the provisioned runtime URL", async () => {

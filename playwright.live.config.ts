@@ -60,10 +60,8 @@ export default defineConfig({
       "node -e \"const fs=require('node:fs'); for (const p of ['.tmp/live-e2e-state','node_modules/.vite']) fs.rmSync(p,{recursive:true,force:true});\" && " +
       [
         "OH_CANVAS_SAFE_STATE_DIR=.tmp/live-e2e-state",
-        envAssignment("SESSION_API_KEY", liveE2ESessionApiKey),
-        envAssignment("OH_SESSION_API_KEYS_0", liveE2ESessionApiKey),
+        envAssignment("LOCAL_BACKEND_API_KEY", liveE2ESessionApiKey),
         envAssignment("OH_CANVAS_SAFE_BACKEND_PORT", liveE2EBackendPort),
-        envAssignment("VITE_SESSION_API_KEY", liveE2ESessionApiKey),
         "VITE_DO_NOT_TRACK=1",
         "VITE_ENABLE_BROWSER_TOOLS=false",
         envAssignment("VITE_FRONTEND_PORT", liveE2EFrontendPort),

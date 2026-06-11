@@ -1,11 +1,14 @@
 /**
  * Playwright config for mock-LLM E2E tests.
  *
- * Starts two processes:
+ * Starts three processes:
  *   1. Mock LLM server (Python, using openhands-sdk TestLLM)
  *   2. Full agent-canvas stack via bin/agent-canvas.mjs (agent-server +
  *      automation backend + static frontend + ingress proxy), matching the
  *      production npm-published binary.
+ *   3. A second static-server instance with `--auth-required` (public mode)
+ *      on a separate port, proxying to the same backend.  Used by the
+ *      auth-mode E2E tests.
  *
  * The test creates an LLM profile via the UI that points at the mock server,
  * so no real LLM credentials are needed.
@@ -17,6 +20,7 @@
 
 import { defineConfig, devices } from "@playwright/test";
 import { randomBytes } from "node:crypto";
+import { dirname, join, resolve } from "node:path";
 
 // ── Port allocation (separate from live E2E / dev to avoid collisions) ─
 const MOCK_LLM_PORT = process.env.MOCK_LLM_PORT ?? "9999";
@@ -29,6 +33,11 @@ const MOCK_LLM_PORT = process.env.MOCK_LLM_PORT ?? "9999";
 // calls (the ingress proxies /api/* transparently).
 const INGRESS_PORT = process.env.MOCK_LLM_INGRESS_PORT ?? "18300";
 
+// A second static-server instance for public-mode auth tests. It serves
+// the same build/ directory with --auth-required (no baked session key)
+// and proxies to the same backend.
+const PUBLIC_MODE_PORT = process.env.MOCK_LLM_PUBLIC_MODE_PORT ?? "18301";
+
 // ── Session API key ────────────────────────────────────────────────────
 const sessionApiKey =
   process.env.MOCK_LLM_SESSION_API_KEY?.trim() ||
@@ -36,7 +45,12 @@ const sessionApiKey =
 process.env.MOCK_LLM_SESSION_API_KEY = sessionApiKey;
 
 // ── State directory (isolated per test run) ────────────────────────────
-const STATE_DIR = ".tmp/mock-llm-state";
+const STATE_DIR = resolve(".tmp/mock-llm-state");
+
+// Automation DB lives at $parent_of_STATE_DIR/automation/automations.db,
+// mirroring docker/entrypoint.sh which uses $HOME/.openhands/automation/automations.db.
+// Both STATE_DIR and AUTOMATION_DB_DIR must be cleaned between runs to avoid stale data.
+const AUTOMATION_DB_DIR = join(dirname(STATE_DIR), "automation");
 
 // ── URLs ───────────────────────────────────────────────────────────────
 const INGRESS_URL = `http://localhost:${INGRESS_PORT}/`;
@@ -51,7 +65,7 @@ const MOCK_LLM_PYTHON = process.env.MOCK_LLM_PYTHON ?? "python3";
 // calls are proxied to the agent-server, so no direct backend port needed).
 process.env.MOCK_LLM_BACKEND_URL = `http://localhost:${INGRESS_PORT}`;
 process.env.MOCK_LLM_PORT = MOCK_LLM_PORT;
-process.env.VITE_SESSION_API_KEY = sessionApiKey;
+process.env.MOCK_LLM_PUBLIC_MODE_URL = `http://localhost:${PUBLIC_MODE_PORT}`;
 
 function shellQuote(value: string) {
   return `'${value.replaceAll("'", "'\\''")}'`;
@@ -81,7 +95,7 @@ export default defineConfig({
     baseURL: INGRESS_URL,
     screenshot: "only-on-failure",
     trace: "on-first-retry",
-    video: "retain-on-failure",
+    video: "on",
   },
   projects: [
     {
@@ -112,25 +126,51 @@ export default defineConfig({
     // kills children via process groups and exits cleanly.
     {
       command:
-        // Clean state dir to avoid stale profile/conversation data between runs
-        `node -e "const fs=require('node:fs'); fs.rmSync('${STATE_DIR}',{recursive:true,force:true});" && ` +
+        // Clean state dir and automation DB dir to avoid stale data between runs.
+        // Automation DB is stored outside STATE_DIR (at AUTOMATION_DB_DIR) so both
+        // must be cleaned; see scripts/dev-with-automation.mjs startAutomationBackend.
+        `node -e "const fs=require('node:fs'); fs.rmSync('${STATE_DIR}',{recursive:true,force:true}); fs.rmSync('${AUTOMATION_DB_DIR}',{recursive:true,force:true});" && ` +
         // Build frontend if not already built (CI should pre-build for caching)
-        '[ -f build/index.html ] || npm run build:app && ' +
+        "[ -f build/index.html ] || npm run build:app && " +
         [
           "exec env",
           envAssignment("OH_CANVAS_SAFE_STATE_DIR", STATE_DIR),
           envAssignment("PORT", INGRESS_PORT),
-          envAssignment("SESSION_API_KEY", sessionApiKey),
-          envAssignment("OH_SESSION_API_KEYS_0", sessionApiKey),
-          envAssignment("VITE_SESSION_API_KEY", sessionApiKey),
+          envAssignment("LOCAL_BACKEND_API_KEY", sessionApiKey),
           "VITE_DO_NOT_TRACK=1",
           "VITE_ENABLE_BROWSER_TOOLS=false",
           // Bypass npm — exec directly into node so SIGTERM reaches
           // the shutdown handler (npm swallows it).
           "node --env-file-if-exists=.env bin/agent-canvas.mjs",
         ].join(" "),
-      url: INGRESS_URL,
+      // Probe the automation list endpoint through the ingress to ensure
+      // the FULL stack (agent-server + automation backend + ingress) is
+      // up before tests start. The automation backend starts last via
+      // uvx and can take 30-60s — checking only the ingress root or
+      // /server_info would let tests begin before it's ready.
+      // GET /api/automation/v1 returns 200 (empty list) without auth
+      // because the dev automation backend does not enforce session-key
+      // auth on the list endpoint (confirmed in CI).
+      url: `http://localhost:${INGRESS_PORT}/api/automation/v1`,
       timeout: 180_000, // allow extra time for build + agent-server + automation startup
+      reuseExistingServer: !process.env.CI,
+    },
+    // 3. Public-mode static server — same build/, same backend, but with
+    //    --auth-required (no session key injected). The agent-server's
+    //    internal ports are the defaults from config/defaults.json (18000
+    //    for agent-server, 18001 for automation).
+    {
+      command: [
+        "exec node scripts/static-server.mjs",
+        "--dir build",
+        `--port ${PUBLIC_MODE_PORT}`,
+        "--auth-required",
+        "--route /api/automation=http://localhost:18001",
+        "--route /api=http://localhost:18000",
+        "--route /sockets=http://localhost:18000",
+      ].join(" "),
+      url: `http://localhost:${PUBLIC_MODE_PORT}/`,
+      timeout: 15_000,
       reuseExistingServer: !process.env.CI,
     },
   ],

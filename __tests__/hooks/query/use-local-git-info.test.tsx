@@ -67,6 +67,16 @@ const conversationWithoutRepo = {
   selected_branch: null,
 };
 
+const conversationWithoutWorkspace = {
+  id: "conv-2",
+  conversation_url: "https://runtime.example.com/api/conversations/conv-2",
+  session_api_key: "session-key",
+  workspace: null,
+  selected_repository: null,
+  git_provider: null,
+  selected_branch: null,
+};
+
 describe("useLocalGitInfo", () => {
   beforeEach(() => {
     useActiveBackendMock.mockReset();
@@ -110,6 +120,31 @@ describe("useLocalGitInfo", () => {
     expect(useBashCommandRunnerMock).toHaveBeenCalledWith(
       conversationWithoutRepo.conversation_url,
       conversationWithoutRepo.session_api_key,
+      false,
+    );
+  });
+
+  it("does not poll when the conversation has no workspace attached, even on a local backend", async () => {
+    // Arrange
+    useActiveBackendMock.mockReturnValue(makeBackend("local"));
+    useActiveConversationMock.mockReturnValue({
+      data: conversationWithoutWorkspace,
+    });
+
+    // Act
+    const { result } = renderHook(() => useLocalGitInfo(), {
+      wrapper: makeWrapper(),
+    });
+
+    // Assert: query stays disabled; no bash commands are issued.
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20);
+    });
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(runCommandMock).not.toHaveBeenCalled();
+    expect(useBashCommandRunnerMock).toHaveBeenCalledWith(
+      conversationWithoutWorkspace.conversation_url,
+      conversationWithoutWorkspace.session_api_key,
       false,
     );
   });

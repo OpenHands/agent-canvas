@@ -2,7 +2,7 @@ name: Mock-LLM E2E Tests
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 concurrency:
@@ -15,11 +15,6 @@ permissions:
 
 jobs:
   mock-llm-e2e:
-    # Run when the PR has the 'e2e-tests' label, or on manual dispatch.
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' &&
-       contains(github.event.pull_request.labels.*.name, 'e2e-tests'))
     runs-on: ubuntu-24.04
     timeout-minutes: 15
 
@@ -35,6 +30,7 @@ jobs:
         id: defaults
         run: |
           echo "agent_server_version=$(node -p "require('./config/defaults.json').versions.agentServer")" >> "$GITHUB_OUTPUT"
+          echo "automation_version=$(node -p "require('./config/defaults.json').versions.automation")" >> "$GITHUB_OUTPUT"
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -72,9 +68,21 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Install openhands-sdk (for mock LLM server)
+        env:
+          AGENT_SERVER_VERSION: ${{ steps.defaults.outputs.agent_server_version }}
         run: |
           uv venv .mock-llm-venv
-          uv pip install -p .mock-llm-venv openhands-sdk==${{ steps.defaults.outputs.agent_server_version }}
+          uv pip install -p .mock-llm-venv "openhands-sdk==$AGENT_SERVER_VERSION"
+
+      - name: Pre-warm automation backend (uvx cache)
+        env:
+          AUTOMATION_VERSION: ${{ steps.defaults.outputs.automation_version }}
+        run: |
+          # Pre-install openhands-automation into the uvx cache so the
+          # agent-canvas binary doesn't need to download it at startup.
+          # Without this, the 180s Playwright webServer timeout expires
+          # before the automation backend finishes installing (~60-90s).
+          uvx --from "openhands-automation==$AUTOMATION_VERSION" python -c "from openhands.automation.app import app; print('automation package cached')"
 
       - name: Verify mock LLM server starts
         run: |
@@ -114,11 +122,13 @@ jobs:
           npm run test:e2e:mock-llm &
           PW_PID=$!
 
-          # Wait up to 5 min for tests to complete. The custom reporter
-          # writes .tests-done (content: "passed" or "failed") in onEnd()
-          # — which fires BEFORE webServer teardown starts. This lets us
-          # detect completion immediately on both pass AND fail.
-          deadline=$((SECONDS + 300))
+          # Wait for tests to complete. Playwright's globalTimeout is 600s
+          # (10 min) in CI; we add 60s buffer for webServer startup/teardown.
+          # The custom DoneMarkerReporter writes .tests-done only after ALL
+          # tests finish (pass or fail), before webServer teardown begins.
+          # .results.json is flushed after every single test, so even if we
+          # hit the deadline mid-suite the report script still has data.
+          deadline=$((SECONDS + 660))
           while [ "$SECONDS" -lt "$deadline" ]; do
             if ! kill -0 "$PW_PID" 2>/dev/null; then
               break
@@ -130,15 +140,16 @@ jobs:
             sleep 2
           done
 
-          # If Playwright is still running (teardown hang), give it 5s
-          # grace then force-kill. The hang is expected: Playwright's
-          # webServer teardown waits for the multi-process agent-server
-          # tree (node → uvx → Python → uvicorn workers) to fully exit,
-          # which takes longer than our marker-based detection.
+          # If Playwright is still running (teardown hang or deadline hit),
+          # give it 5s grace then force-kill.
           if kill -0 "$PW_PID" 2>/dev/null; then
             sleep 5
             if kill -0 "$PW_PID" 2>/dev/null; then
-              echo "::warning::Killing lingering Playwright process (teardown hung)"
+              if [ -f "$DONE_MARKER" ]; then
+                echo "::warning::Killing lingering Playwright process (teardown hung)"
+              else
+                echo "::warning::Killing Playwright process (deadline reached, tests still running)"
+              fi
               kill "$PW_PID" 2>/dev/null
               sleep 5
               kill -9 "$PW_PID" 2>/dev/null
@@ -175,6 +186,22 @@ jobs:
             playwright-report-mock-llm/
             test-results-mock-llm/
 
+      - name: Detect newly added spec files
+        if: always() && github.event.pull_request.number
+        id: new_specs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          # Find mock-LLM spec files added (not just modified) in this PR
+          # Uses the GitHub API instead of git diff to avoid shallow-clone issues
+          NEW_FILES=$(gh api \
+            "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --paginate \
+            --jq '[.[] | select(.status == "added") | .filename
+                   | select(test("tests/e2e/mock-llm/.*\\.spec\\.ts$"))]
+                   | join(",")')
+          echo "files=$NEW_FILES" >> "$GITHUB_OUTPUT"
+
       - name: Render test report
         if: always()
         run: |
@@ -183,11 +210,31 @@ jobs:
             --output "$MOCK_LLM_REPORT_PATH" \
             --workflow-url "$MOCK_LLM_WORKFLOW_URL" \
             --commit "${{ github.event.pull_request.head.sha || github.sha }}" \
-            --artifact-url "${{ steps.upload_artifacts.outputs.artifact-url || '' }}"
+            --artifact-url "${{ steps.upload_artifacts.outputs.artifact-url || '' }}" \
+            --exit-code "${{ steps.run_tests.outputs.exit_code }}" \
+            --new-files "${{ steps.new_specs.outputs.files || '' }}"
           cat "$MOCK_LLM_REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Post PR comment
+      - name: Save PR number for comment workflow
         if: always() && github.event.pull_request.number
+        run: echo "${{ github.event.pull_request.number }}" > pr_number.txt
+
+      - name: Upload PR comment payload
+        if: always() && github.event.pull_request.number
+        uses: actions/upload-artifact@v7
+        with:
+          name: mock-llm-pr-comment-payload
+          retention-days: 3
+          path: |
+            ${{ env.MOCK_LLM_REPORT_PATH }}
+            pr_number.txt
+
+      - name: Post PR comment (same-repo PRs only)
+        if: >-
+          always() &&
+          github.event.pull_request.number &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |

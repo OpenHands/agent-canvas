@@ -28,6 +28,10 @@ vi.mock("#/hooks/use-conversation-id", () => ({
   useConversationId: () => ({ conversationId: CONVERSATION_ID }),
 }));
 
+vi.mock("#/hooks/use-is-archived-conversation", () => ({
+  useIsArchivedConversation: () => false,
+}));
+
 describe("RightPanelToggle", () => {
   beforeEach(() => {
     localStorage.clear();

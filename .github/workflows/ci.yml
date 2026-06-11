@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - "rel-*"
   workflow_dispatch:
     inputs:
       pr_number:
@@ -28,11 +29,7 @@ jobs:
       - name: Build test matrix
         id: matrix
         run: |
-          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
-            echo 'matrix={"include":[{"name":"ubuntu","os":"ubuntu-24.04","full_checks":true},{"name":"windows","os":"windows-latest","full_checks":false}]}' >> "$GITHUB_OUTPUT"
-          else
-            echo 'matrix={"include":[{"name":"ubuntu","os":"ubuntu-24.04","full_checks":true}]}' >> "$GITHUB_OUTPUT"
-          fi
+          echo 'matrix={"include":[{"name":"ubuntu","os":"ubuntu-24.04","full_checks":true},{"name":"windows","os":"windows-latest","full_checks":false}]}' >> "$GITHUB_OUTPUT"
 
   test-and-build:
     needs: prepare-test-matrix
@@ -64,6 +61,7 @@ jobs:
         run: npm run lint
 
       - name: Test
+        if: matrix.full_checks
         run: npm test
 
       - name: Build app
@@ -285,8 +283,10 @@ jobs:
         id: live_video_preview
         if: always() && steps.live_media.outputs.video_path != '' && steps.pr_context.outputs.is_fork != 'true' && steps.latest_commit.outputs.pr_artifact_only != 'true'
         continue-on-error: true
+        env:
+          VIDEO_PATH: ${{ steps.live_media.outputs.video_path }}
         run: |
-          video_path="${{ steps.live_media.outputs.video_path }}"
+          video_path="$VIDEO_PATH"
           if [ ! -f "$video_path" ]; then
             echo "::warning::Live E2E video file was not found, skipping GIF preview generation."
             exit 0

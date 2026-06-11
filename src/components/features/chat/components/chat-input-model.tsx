@@ -15,6 +15,7 @@ import { Divider } from "#/ui/divider";
 import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
+import { chatInputPillButtonClassName } from "#/utils/form-control-classes";
 import React from "react";
 
 const MODEL_LABEL_MAX_CHARS = 10;
@@ -161,10 +162,7 @@ export function ChatInputModel() {
       <button
         ref={triggerRef}
         type="button"
-        className={cn(
-          "inline-flex items-center gap-1 rounded-[100px] border border-transparent px-1.5 text-sm font-normal leading-5 text-[var(--oh-muted)] whitespace-nowrap min-w-0 transition-[border-color,background-color,box-shadow,opacity] duration-150 motion-reduce:transition-none",
-          "hover:text-white hover:bg-white/10 cursor-pointer",
-        )}
+        className={chatInputPillButtonClassName}
         title={model.displayModel}
         data-testid="chat-input-llm-model"
         aria-expanded={isPopoverOpen}

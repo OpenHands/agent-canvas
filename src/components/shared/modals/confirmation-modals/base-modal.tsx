@@ -2,6 +2,7 @@ import React from "react";
 import { ModalBody } from "../modal-body";
 import { ModalButton } from "../../buttons/modal-button";
 import { cn } from "#/utils/utils";
+import { modalTitleClassName } from "#/utils/modal-classes";
 
 interface ButtonConfig {
   text: string;
@@ -17,13 +18,7 @@ interface BaseModalTitleProps {
 
 export function BaseModalTitle({ title, id, className }: BaseModalTitleProps) {
   return (
-    <span
-      id={id}
-      className={cn(
-        "text-xl leading-6 -tracking-[0.01em] font-medium text-content-2",
-        className,
-      )}
-    >
+    <span id={id} className={cn(modalTitleClassName, className)}>
       {title}
     </span>
   );

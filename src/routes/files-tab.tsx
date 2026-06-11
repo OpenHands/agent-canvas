@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { NoFileSelectedMessage } from "#/components/features/files-tab/no-file-selected-message";
 import { I18nKey } from "#/i18n/declaration";
 import { useFilesTabStore } from "#/stores/files-tab-store";
 import { useWorkspaceFiles } from "#/hooks/query/use-workspace-files";
@@ -191,7 +192,7 @@ function FilesTab() {
                 isTreeVisible={isTreeVisible}
                 onToggleTree={() => setIsTreeVisible((prev) => !prev)}
               />
-              <div className="flex flex-1 min-h-0">
+              <div className="flex h-full min-h-0 flex-1">
                 {isTreeVisible && (
                   <aside
                     className="w-56 shrink-0 border-r border-[var(--oh-border)] overflow-y-auto custom-scrollbar-always"
@@ -205,7 +206,7 @@ function FilesTab() {
                   </aside>
                 )}
                 <section
-                  className="flex-1 min-w-0 min-h-0"
+                  className="flex h-full min-h-0 min-w-0 flex-1 flex-col"
                   data-testid="files-tab-content"
                 >
                   {selectedPath ? (
@@ -214,9 +215,7 @@ function FilesTab() {
                       viewMode={contentViewMode}
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-sm text-[var(--oh-muted)]">
-                      {t(I18nKey.FILES$NO_FILE_SELECTED)}
-                    </div>
+                    <NoFileSelectedMessage />
                   )}
                 </section>
               </div>

@@ -1,7 +1,7 @@
 import React from "react";
-import { usePostHog } from "posthog-js/react";
 import { Pin } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useTracking } from "#/hooks/use-tracking";
 import { cn } from "#/utils/utils";
 import { I18nKey } from "#/i18n/declaration";
 import { transformVSCodeUrl } from "#/utils/vscode-url-helper";
@@ -70,8 +70,8 @@ export function ConversationCard({
   onTogglePin,
   alwaysShowPinIcon = false,
 }: ConversationCardProps) {
-  const posthog = usePostHog();
   const { t } = useTranslation("openhands");
+  const { trackDownloadVsCodeButtonClicked } = useTracking();
   const [titleMode, setTitleMode] = React.useState<"view" | "edit">("view");
   const { mutateAsync: downloadConversation } = useDownloadConversation();
 
@@ -108,7 +108,7 @@ export function ConversationCard({
   ) => {
     event.preventDefault();
     event.stopPropagation();
-    posthog.capture("download_via_vscode_button_clicked");
+    trackDownloadVsCodeButtonClicked();
 
     // Fetch the VS Code URL from the API
     if (conversationId) {

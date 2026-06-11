@@ -6,9 +6,11 @@ import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { useLocalWorkspaces } from "#/hooks/query/use-local-workspaces";
 import { useModelInterceptor } from "#/hooks/chat/use-model-interceptor";
+import { useLlmConfigured } from "#/hooks/use-llm-configured";
 import { HOME_PROMPT_DRAFT_KEY } from "#/hooks/chat/use-draft-persistence";
 import { useChatAttachmentUpload } from "#/hooks/chat/use-chat-attachment-upload";
 import { useConversationStore } from "#/stores/conversation-store";
+import type { WorkspaceMode } from "#/api/conversation-metadata-store";
 import { setPendingTaskAttachments } from "#/stores/pending-task-attachments-store";
 import { enqueueHomeTaskPendingMessage } from "#/utils/enqueue-home-task-pending-message";
 import { sendMessageWithAttachments } from "#/utils/send-message-with-attachments";
@@ -42,10 +44,17 @@ export function HomeChatLauncher() {
     useState<GitRepository | null>(null);
   const [pendingBranch, setPendingBranch] = useState<Branch | null>(null);
   const [pendingProvider, setPendingProvider] = useState<Provider | null>(null);
+  const [workspaceMode, setWorkspaceMode] =
+    useState<WorkspaceMode>("local_repo");
 
   const { mutate: createConversation, isPending } = useCreateConversation();
   const isCreatingElsewhere = useIsCreatingConversation();
   const isCreating = isPending || isCreatingElsewhere;
+  const { isConfigured: isLlmConfigured, isLoading: isLlmConfigLoading } =
+    useLlmConfigured();
+  // Block sending entirely when there's no usable LLM; the banner above the
+  // launcher (rendered by the home route) explains it and offers setup.
+  const llmBlocked = !isLlmConfigLoading && !isLlmConfigured;
   const { images, files, imagesMarkedUploadAsFile, clearAllFiles } =
     useConversationStore();
   const { handleUpload } = useChatAttachmentUpload();
@@ -63,6 +72,11 @@ export function HomeChatLauncher() {
     const hasAttachments = images.length > 0 || files.length > 0;
     if ((!trimmed && !hasAttachments) || isCreating) return;
 
+    // Safety net: the input is disabled when there's no usable LLM, but never
+    // create a conversation that can't run (it would fail with a cryptic
+    // API-key error on the first turn).
+    if (llmBlocked) return;
+
     const attachmentSnapshot = {
       images: [...images],
       files: [...files],
@@ -78,7 +92,11 @@ export function HomeChatLauncher() {
       query: hasAttachments ? undefined : trimmed || undefined,
     };
     if (isLocal && pendingWorkspace) {
-      variables = { ...variables, workingDir: pendingWorkspace.path };
+      variables = {
+        ...variables,
+        workingDir: pendingWorkspace.path,
+        workspaceMode,
+      };
     } else if (!isLocal && pendingRepository && pendingBranch) {
       variables = {
         ...variables,
@@ -195,7 +213,7 @@ export function HomeChatLauncher() {
         <CustomChatInput
           onSubmit={handleSubmitWithModelGuard}
           onFilesPaste={handleUpload}
-          disabled={isCreating}
+          disabled={isCreating || llmBlocked}
         />
       </div>
 
@@ -206,7 +224,10 @@ export function HomeChatLauncher() {
             repository={pendingRepository}
             branch={pendingBranch}
             provider={pendingProvider}
+            workspaceMode={workspaceMode}
+            backendKind={backend.kind}
             onRepoClick={() => setIsDialogOpen(true)}
+            onWorkspaceModeChange={setWorkspaceMode}
           />
         ) : (
           <OpenLauncherButton
@@ -227,6 +248,7 @@ export function HomeChatLauncher() {
             setPendingRepository(null);
             setPendingBranch(null);
             setPendingProvider(null);
+            setWorkspaceMode("local_repo");
           }}
         />
       ) : (
@@ -238,6 +260,7 @@ export function HomeChatLauncher() {
             setPendingBranch(branch);
             setPendingProvider(provider ?? repository.git_provider);
             setPendingWorkspace(null);
+            setWorkspaceMode("local_repo");
           }}
         />
       )}
