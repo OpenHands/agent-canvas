@@ -10,9 +10,9 @@ Current repo baseline: merged through `upstream/main` at `40844533`. The current
 
 Agent Canvas should ship a first-class **Canvas Extensions** system: user-installable npm packages that extend the local Canvas experience and optionally contribute components to the agent runtime through SDK-supported surfaces.
 
-A Canvas Extension can contribute UI views, left navigation entries, settings panels, conversation right panels, custom tool/event visualizers, launch templates, OpenHands SDK plugin sources, MCP server templates, and system-prompt context blocks. Canvas Extensions are installed and managed by a small local Node service started by the `agent-canvas` launcher. Agent-side behavior is forwarded only through already-supported SDK surfaces; Canvas does not patch or load code inside the Agent Server.
+A Canvas Extension can contribute UI views, left navigation entries, color themes, settings panels, conversation right panels, custom tool/event visualizers, launch templates, OpenHands SDK plugin sources, MCP server templates, and system-prompt context blocks. Canvas Extensions are installed and managed by a small local Node service started by the `agent-canvas` launcher. Agent-side behavior is forwarded only through already-supported SDK surfaces; Canvas does not patch or load code inside the Agent Server.
 
-The MVP delivers CLI install for Canvas Extension packages, an Extensions page under Customize, trusted same-origin extension views, dev-mode authoring with live reload, and focused UI contribution surfaces: left navigation entries, settings panels under a visible Extensions header, conversation right panels beside Files/Browser/Terminal, and extension-provided tool visualizers that compose with the built-in visualizer registry introduced by PR #1246. Broad root-mounted components remain deferred. The CLI can detect adjacent artifact types such as standalone SDK plugins or `SKILL.md` folders, but the first executable slice should install/enable only packages with a Canvas Extension manifest. Marketplace, signing, sandboxed iframe views, arbitrary app-root component/shared dependency runtimes, standalone skill/plugin management, and agent-mediated installation are explicitly deferred. The manifest reserves a future iframe entry point so that stronger isolation can be added later without changing extension package shape.
+The MVP delivers CLI install for Canvas Extension packages, an Extensions page under Customize, trusted same-origin extension views, dev-mode authoring with live reload, and focused UI contribution surfaces: left navigation entries, color themes that appear in Settings > Application > Color Theme, settings panels under a visible Extensions header, conversation right panels beside Files/Browser/Terminal, and extension-provided tool visualizers that compose with the built-in visualizer registry introduced by PR #1246. Broad root-mounted components remain deferred. The CLI can detect adjacent artifact types such as standalone SDK plugins or `SKILL.md` folders, but the first executable slice should install/enable only packages with a Canvas Extension manifest. Marketplace, signing, sandboxed iframe views, arbitrary app-root component/shared dependency runtimes, standalone skill/plugin management, and agent-mediated installation are explicitly deferred. The manifest reserves a future iframe entry point so that stronger isolation can be added later without changing extension package shape.
 
 ## 2. Motivation
 
@@ -33,6 +33,7 @@ The system must preserve the existing security and operational boundaries betwee
 - **MCP Server** — external tool server config installed into agent settings.
 - **Skill** — an OpenHands skill loaded by the SDK; usually delivered via an SDK plugin rather than copied into user skill directories.
 - **Tool Visualizer** — a React renderer for one action/observation kind or one more specific tool variant, selected before the built-in markdown fallback.
+- **Color Theme** — a Canvas Extension-provided theme definition that appears as an option in Settings > Application > Color Theme. Theme-only Canvas Extensions are valid and should not need to ship a view or settings panel.
 - **Settings Panel** — a Canvas Extension-owned settings surface shown only under a visible Extensions header after the built-in settings sections.
 - **Conversation Right Panel** — a Canvas Extension-owned panel in the conversation work area alongside built-in Files, Browser, and Terminal panels.
 
@@ -275,7 +276,7 @@ The host package must publish everything the global CLI and extension authors ne
   },
   "activationEvents": ["onStartup"],
   "permissions": {
-    "ui": ["views", "leftNavigation", "settingsPanels", "conversationPanels", "toolVisualizers"],
+    "ui": ["views", "leftNavigation", "colorThemes", "settingsPanels", "conversationPanels", "toolVisualizers"],
     "agent": ["sdkPlugins", "context"],
     "mcp": ["templates"],
     "network": ["https://api.github.com"]
@@ -294,6 +295,23 @@ The host package must publish everything the global CLI and extension authors ne
           "slot": "afterAutomations",
           "order": 300,
           "icon": "./dist/github.svg"
+        }
+      }
+    ],
+    "colorThemes": [
+      {
+        "id": "acme.github.midnight",
+        "label": "GitHub Midnight",
+        "scale": {
+          "--cool-grey-950": "#080B12",
+          "--cool-grey-900": "#111827"
+        },
+        "heroui": {
+          "--heroui-background": "222 40% 5%",
+          "--heroui-foreground": "216 26% 82%"
+        },
+        "tokens": {
+          "--oh-color-primary": "#7DD3FC"
         }
       }
     ],
@@ -423,7 +441,46 @@ MVP navigation locations:
 
 Primary sidebar entries are for user-facing app surfaces, not transient launch templates. They must point at a Canvas Extension view route, use a static icon asset from the extension package, and remain disabled when the extension is disabled or invalid. If multiple enabled Canvas Extensions contribute to the same slot, Canvas sorts by `order`, then extension display name, then view ID for deterministic rendering.
 
-### 12.2 `settingsPanels`
+### 12.2 `colorThemes`
+
+Color themes let a Canvas Extension add one or more theme options to Settings > Application > Color Theme. A theme-only Canvas Extension is valid: it may contribute `colorThemes` and no views, settings panels, right panels, tool visualizers, or agent-runtime behavior.
+
+Manifest contribution shape:
+
+```json
+{
+  "contributes": {
+    "colorThemes": [
+      {
+        "id": "acme.github.midnight",
+        "label": "GitHub Midnight",
+        "scale": {
+          "--cool-grey-950": "#080B12",
+          "--cool-grey-900": "#111827"
+        },
+        "heroui": {
+          "--heroui-background": "222 40% 5%",
+          "--heroui-foreground": "216 26% 82%"
+        },
+        "tokens": {
+          "--oh-color-primary": "#7DD3FC"
+        }
+      }
+    ]
+  }
+}
+```
+
+Rules:
+
+- Extension color themes feed the same Settings > Application > Color Theme dropdown used by built-in themes. They should not create a separate settings panel or custom picker.
+- Canvas owns theme selection, persistence, application, fallback, and validation. Extensions contribute theme definitions only.
+- MVP theme definitions should align with the current `ColorThemeDefinition` shape in [src/themes/color-themes.ts](../src/themes/color-themes.ts): `label`, `scale` CSS custom property overrides, HeroUI HSL-channel overrides, and optional semantic `tokens`.
+- Canvas should validate allowed CSS custom property keys rather than allowing arbitrary global CSS. This keeps theme contributions narrower than same-origin browser modules even though the extension package itself remains trusted local code.
+- If the active theme belongs to a disabled, removed, or invalid extension, Canvas falls back to the default built-in color theme and records a diagnostic.
+- Duplicate theme IDs are rejected. Theme IDs should be namespaced by extension ID or package domain for predictable persistence.
+
+### 12.3 `settingsPanels`
 
 Settings panels let a Canvas Extension add configuration UI without owning a full route. They are intentionally constrained to one visible location: after all built-in settings sections, under an explicit **Extensions** header inside the current settings experience.
 
@@ -446,12 +503,12 @@ Manifest contribution shape:
 
 Rules:
 
-- Canvas Extension settings panels never appear interleaved with built-in settings. They render only under the visible Extensions header after other settings.
+- Canvas Extension settings panels never appear intertwined with built-in settings. They render only under the visible Extensions header after other settings.
 - The panel renderer may reuse a declared `viewId` or a dedicated browser module entry, but Canvas owns the settings chrome, heading, save/cancel affordances, loading state, and error boundary.
 - Settings panels receive only extension metadata/settings, schema-derived values, and host APIs for `readExtensionSettings()` / `patchExtensionSettings()`. They do not receive raw global settings stores.
 - If an extension is disabled or invalid, its settings panel is omitted and its persisted settings remain in the install store until removal/purge.
 
-### 12.3 `conversationRightPanels`
+### 12.4 `conversationRightPanels`
 
 Conversation right panels let a Canvas Extension add a work surface beside the built-in Files, Browser, and Terminal panels. They are for conversation-adjacent tools such as PR context, cost dashboards, deployment status, or domain-specific inspectors.
 
@@ -509,7 +566,7 @@ This DOM-island contract avoids React shared-instance problems in static builds 
 
 **Reserved future runtime: sandboxed iframe.** The manifest reserves `browser.entry` (§11.1) for a future iframe runtime intended for untrusted third-party extensions (e.g., a community marketplace). The iframe sandbox would be `sandbox="allow-scripts allow-forms allow-downloads"` with no `allow-same-origin`, communicating with the parent through a postMessage RPC bridge that exposes the same context API. This is not implemented in MVP; declaring it now keeps the option open without committing implementation cost today.
 
-### 12.4 `agentPlugins`
+### 12.5 `agentPlugins`
 
 Maps to OpenHands SDK `PluginSource` values. Fields: `id`, `source` (package-relative path, GitHub shorthand, Git URL, or absolute path for dev mode), `ref` (optional branch/tag/commit), `repoPath` (optional subdirectory for remote git/GitHub sources), `autoInclude` (`manual` | `enabled` | `always`; default `manual`).
 
@@ -525,7 +582,7 @@ The current frontend `PluginSpec.parameters` field is collected by `/launch` but
 
 **ACP constraint.** SDK plugins can merge skills, MCP config, hooks, and plugin agents before agent initialization. MCP config and other non-ACP-compatible fields can cause `ACPAgent` initialization to fail. MVP should skip `agentPlugins` for ACP runtimes unless the SDK smoke proves a prompt/skills-only plugin is accepted; extension context suffixes remain the compatible path for ACP.
 
-### 12.5 `mcpServers`
+### 12.6 `mcpServers`
 
 Extensions provide MCP templates, never silent installs. The UI shows required MCPs before launch and reuses the existing `InstallServerModal` pattern.
 
@@ -533,11 +590,11 @@ Extensions provide MCP templates, never silent installs. The UI shows required M
 
 **Current catalog shape.** The MCP marketplace now imports `IntegrationCatalogEntry` from `@openhands/extensions/integrations`, not the old `mcps` export. Extension MCP templates should either use the same `IntegrationTransport` vocabulary or provide an adapter that can project templates into the existing MCP install modal without reintroducing a parallel catalog model. The current install flow can save required secrets through the existing secrets-aware MCP form; extension templates should reuse that path rather than inventing separate secret persistence.
 
-### 12.6 `launchTemplates`
+### 12.7 `launchTemplates`
 
 Reusable launch presets shown on home, extension pages, or automation setup. May reference required MCP IDs, required agent plugin IDs, optional context blocks, initial prompt text, and workspace requirements.
 
-### 12.7 `conversationContext`
+### 12.8 `conversationContext`
 
 Context blocks may be appended to `AgentContext.system_message_suffix` only after explicit user enablement. Canvas renders all extension context inside a single block, appended after the existing `<RUNTIME_SERVICES>` block:
 
@@ -552,7 +609,7 @@ The user enabled the following Canvas Extensions for this conversation.
 
 Extension context **must not** be merged into `conversationInstructions`; that turns extension guidance into user-message content. An explicit `extensionSystemSuffix` option will be added to the conversation adapter so runtime services and extension context compose in one place.
 
-### 12.8 `toolVisualizers`
+### 12.9 `toolVisualizers`
 
 Custom event rendering is the first concrete route-less JavaScript extension surface. PR #1246 added the internal `src/components/features/chat/tool-visualizers` registry and dispatcher: `getEventContent()` asks the registry for a React body by action/observation kind, and falls back to the existing markdown renderer when no visualizer matches. Extensions should build on that seam instead of introducing an unrelated event-rendering model.
 
@@ -606,11 +663,11 @@ Selection rules:
 
 Public authoring types and primitives should be exported from `@openhands/agent-canvas/canvas-visualizers`, separate from the broader `@openhands/agent-canvas/canvas-extensions` management contract. The public surface should wrap or re-export stable versions of `defineVisualizer`, `VisualizerProps`, shared primitives such as code blocks/diff/output panes, and action/observation kind types. Do not expose internal file paths under `src/components/features/chat/tool-visualizers/*` as the authoring API.
 
-### 12.9 Deferred Generic Conversation Slots
+### 12.10 Deferred Generic Conversation Slots
 
 Generic conversation slots remain deferred. The concrete MVP surfaces are `conversationRightPanels` and `toolVisualizers`, because they map to existing product regions and existing renderer architecture. Header actions, footer widgets, badges, or arbitrary conversation sidebar content should not ship until there is a specific user workflow that cannot be handled by a right panel or a tool visualizer.
 
-### 12.10 `configuration` and `secrets`
+### 12.11 `configuration` and `secrets`
 
 `configuration` uses JSON Schema; values are stored in the Extension Host's `config.json`. `secrets` are declarations only; values are stored through the existing `SecretsService`.
 
@@ -658,6 +715,11 @@ interface AgentCanvasExtensionContext {
       visualizer: AgentCanvasToolVisualizer,
     ): Promise<AgentCanvasExtensionDisposable>;
   };
+  colorThemes: {
+    registerColorTheme(
+      theme: AgentCanvasColorThemeDefinition,
+    ): Promise<AgentCanvasExtensionDisposable>;
+  };
   settingsPanels: {
     registerSettingsPanel(
       panel: AgentCanvasSettingsPanel,
@@ -682,7 +744,7 @@ interface AgentCanvasExtensionContext {
 }
 ```
 
-For the first implementation slice, the route-less registration APIs are limited to `visualizers.registerToolVisualizer()`, `settingsPanels.registerSettingsPanel()`, and `conversationPanels.registerRightPanel()`. There is **no** supported generic `agentServer.request(path)`. The repo already routes Agent Server traffic through typed service wrappers; the extension surface follows the same pattern with named, permission-declared capabilities. For MVP inline browser modules, this is an API support boundary rather than a browser security boundary (see §19).
+For the first implementation slice, the route-less registration APIs are limited to `visualizers.registerToolVisualizer()`, `colorThemes.registerColorTheme()`, `settingsPanels.registerSettingsPanel()`, and `conversationPanels.registerRightPanel()`. Manifest-projected `contributes.colorThemes` should be enough for most theme-only packages; the runtime API exists for the same lifecycle/disposal model as other UI registries. There is **no** supported generic `agentServer.request(path)`. The repo already routes Agent Server traffic through typed service wrappers; the extension surface follows the same pattern with named, permission-declared capabilities. For MVP inline browser modules, this is an API support boundary rather than a browser security boundary (see §19).
 
 ## 14. Shared Type Contract
 
@@ -724,6 +786,14 @@ export interface AgentCanvasExtensionModule {
     | Promise<void | AgentCanvasExtensionDisposable>;
 }
 
+export interface AgentCanvasColorThemeDefinition {
+  id: string;
+  label: string;
+  scale: Record<string, string>;
+  heroui: Record<string, string>;
+  tokens?: Record<string, string>;
+}
+
 export type InstallableArtifactKind =
   | "extension"
   | "sdk-plugin"
@@ -750,6 +820,7 @@ Permission groups:
 
 - `ui.views` — render trusted same-origin browser-module views.
 - `ui.leftNavigation` — add declared left navigation entries that point at Canvas Extension views.
+- `ui.colorThemes` — add validated color theme definitions to Settings > Application > Color Theme.
 - `ui.settingsPanels` — add settings panels only under the visible Extensions header after built-in settings.
 - `ui.conversationPanels` — add right-side conversation panels alongside Files, Browser, and Terminal.
 - `ui.toolVisualizers` — register custom action/observation renderers in the conversation event pipeline.
@@ -1023,6 +1094,10 @@ For launch templates: show required MCPs; show SDK plugins to be included; show 
 
 Enabled views with `navigation.location: "primarySidebar"` render as top-level Sidebar entries. For MVP, entries appear in the `afterAutomations` slot: after Automations and before the conversation list, which is the current static order in `SidebarRailBody` (`New Chat`, `Customize`, `Automations`, then `SidebarConversationList`). Collapsed Sidebar mode shows only the icon with a tooltip. Mobile drawer mode shows the same entry in the same relative position.
 
+### Color theme UX
+
+Enabled `colorThemes` contributions appear in Settings > Application > Color Theme alongside built-in themes. Theme-only Canvas Extensions should require no extra UI surface: installing and enabling the extension makes its themes selectable, and disabling/removing the extension removes those options. If the current selected theme is no longer available, Canvas falls back to the default built-in theme and records a local diagnostic.
+
 ### Settings panel UX
 
 Canvas Extension settings panels appear only in the settings experience, grouped under a visible Extensions header after built-in settings sections. Canvas owns the settings page chrome and persistence affordances; extension renderers fill only their declared panel body.
@@ -1041,9 +1116,9 @@ The multi-agent, checkable execution checklist for this plan lives in [Extension
 
 ### PR 0 — Contract and types
 
-Files: `docs/ExtensionsSystemRFC.md`, `src/canvas-extensions/types.ts`, `src/canvas-extensions/manifest-schema.ts`, `src/canvas-extensions/manifest-validation.ts`, `src/canvas-extensions/artifact-detection.ts`, `__tests__/canvas-extensions/manifest-validation.test.ts`.
+Files: `docs/ExtensionsSystemRFC.md`, `src/canvas-extensions/types.ts`, `src/canvas-extensions/manifest-schema.ts`, `src/canvas-extensions/manifest-validation.ts`, `src/canvas-extensions/artifact-detection.ts`, `src/themes/color-themes.ts`, `__tests__/canvas-extensions/manifest-validation.test.ts`.
 
-Deliverables: shared manifest and registry types; generic installable artifact kind definitions; contribution types for views, left navigation, settings panels, conversation right panels, tool visualizers, launch templates, SDK plugins, MCP templates, and context; artifact detection rules for extension packages, SDK plugins, skills, and placeholder MCP templates; schema-version constant; manifest validation helpers; storage-path helper for `~/.openhands/agent-canvas/installations`; fixtures for valid/invalid manifests; `@openhands/agent-canvas/canvas-extensions` and `@openhands/agent-canvas/canvas-visualizers` subpath export plan wired to generated `dist/extensions/*` and `dist/visualizers/*`; release packaging checklist. No Extension Host, no frontend UI, no agent contribution merging.
+Deliverables: shared manifest and registry types; generic installable artifact kind definitions; contribution types for views, left navigation, color themes, settings panels, conversation right panels, tool visualizers, launch templates, SDK plugins, MCP templates, and context; artifact detection rules for extension packages, SDK plugins, skills, and placeholder MCP templates; schema-version constant; manifest validation helpers; storage-path helper for `~/.openhands/agent-canvas/installations`; fixtures for valid/invalid manifests, including a theme-only extension; `@openhands/agent-canvas/canvas-extensions` and `@openhands/agent-canvas/canvas-visualizers` subpath export plan wired to generated `dist/extensions/*` and `dist/visualizers/*`; release packaging checklist. No Extension Host, no frontend UI, no agent contribution merging.
 
 **Iframe-runtime forward compatibility (minimal, PR 0 scope):** the manifest schema and TypeScript contract accept both `browser.module` (active) and `browser.entry` (reserved). The validator recognizes `browser.entry` as syntactically valid but emits a `reserved-not-yet-supported` diagnostic so authors can't accidentally ship extensions that depend on an unimplemented runtime. The API contract in `src/canvas-extensions/types.ts` is defined async-only, which is the only change needed so that a future iframe runtime can satisfy the same interface over postMessage without an API redesign. No iframe host, no postMessage bridge, no asset-mode switching, and no parallel runtime code lands here — that work is deferred to a post-MVP PR triggered by one of the trust-boundary conditions in §27 Decision 11. The total PR 0 cost of keeping the option open is a handful of schema fields, one validation rule, one fixture, and a short authoring note in the type comments.
 
@@ -1073,11 +1148,11 @@ Files: `src/components/features/chat/tool-visualizers/*`, `src/canvas-extensions
 
 Deliverables: public `@openhands/agent-canvas/canvas-visualizers` subpath; extension visualizer registry layer that composes before built-ins and then markdown fallback; `priority` and `matches()` support; error boundary/fallback behavior for extension renderers; manifest projection for `contributes.toolVisualizers`; `hello.canvas` or a focused fixture overriding one MCP tool visualizer; unit tests proving extension-first order, built-in fallback, markdown fallback, and throw-to-next-renderer behavior.
 
-### PR 3b — Settings panels and conversation right panels
+### PR 3b — Color themes, settings panels, and conversation right panels
 
-Files: settings route/components, conversation right-panel/tab components, `src/canvas-extensions/panels/*`, `src/i18n/translation.json`, tests under `__tests__/canvas-extensions/` and focused component tests.
+Files: [src/themes/color-themes.ts](../src/themes/color-themes.ts), [src/components/features/settings/app-settings/theme-input.tsx](../src/components/features/settings/app-settings/theme-input.tsx), settings route/components, conversation right-panel/tab components, `src/canvas-extensions/panels/*`, `src/i18n/translation.json`, tests under `__tests__/canvas-extensions/` and focused component tests.
 
-Deliverables: settings panels under a visible Extensions header after built-in settings; conversation right panels beside Files, Browser, and Terminal; stable props with conversation/backend/workspace summaries where relevant; no raw store or React Query client in the public API; per-panel error boundaries; deterministic ordering by priority/order and extension ID; visible examples for a settings panel and PR/context right panel.
+Deliverables: extension color themes appear in Settings > Application > Color Theme; theme-only extensions install and work without views or panels; unavailable extension themes fall back to the default built-in theme; settings panels under a visible Extensions header after built-in settings; conversation right panels beside Files, Browser, and Terminal; stable props with conversation/backend/workspace summaries where relevant; no raw store or React Query client in the public API; per-panel error boundaries; deterministic ordering by priority/order and extension ID; visible examples for a color theme, settings panel, and PR/context right panel.
 
 ### PR 3c — Dev extension watch mode
 
@@ -1097,13 +1172,13 @@ Permission consent modal; secret setup flow; `doctor` command with actionable di
 
 ## 26. Testing Strategy
 
-**Unit:** manifest schema validation; package path traversal rejection; duplicate ID handling; enable/disable precedence; registry sort order; asset route path validation; CLI arg parsing; dev extension registration and path validation; dev manifest revalidation after source changes; launch contribution merge and dedupe; extension context suffix rendering; runtime compatibility classification across all five runtime classes; permission drift / update re-approval; uninstall preserve vs purge.
+**Unit:** manifest schema validation; package path traversal rejection; duplicate ID handling; color theme contribution validation/fallback; enable/disable precedence; registry sort order; asset route path validation; CLI arg parsing; dev extension registration and path validation; dev manifest revalidation after source changes; launch contribution merge and dedupe; extension context suffix rendering; runtime compatibility classification across all five runtime classes; permission drift / update re-approval; uninstall preserve vs purge.
 
 **Release packaging:** `npm pack --dry-run`; install from the packed tarball into a temp global/prefix; verify `agent-canvas list`, `agent-canvas doctor`, and `agent-canvas install <packed-fixture-or-local-extension> --yes` work without a source checkout; verify full `agent-canvas` launch still finds `build/`, `scripts/`, and Extension Host routes.
 
-**Component:** Extensions page states under Customize; permission display; browser-module view loading/error; settings panel placement under the visible Extensions header; conversation right-panel tab rendering/error boundaries; MCP required preflight; incompatible runtime warning; dev badge.
+**Component:** Extensions page states under Customize; permission display; browser-module view loading/error; extension color theme appears in Settings > Application > Color Theme and can be selected; settings panel placement under the visible Extensions header; conversation right-panel tab rendering/error boundaries; MCP required preflight; incompatible runtime warning; dev badge.
 
-**E2E snapshots:** Extensions page empty state under Customize; enabled extension with one view; invalid extension diagnostics; settings panel under Extensions header; conversation right panel beside Files/Browser/Terminal; launch template requiring MCP; launch preflight with local-path SDK plugin disabled on remote backend; dev extension view remount after file change; future: agent-mediated install proposal flow.
+**E2E snapshots:** Extensions page empty state under Customize; enabled extension with one view; invalid extension diagnostics; extension color theme option in Settings > Application; settings panel under Extensions header; conversation right panel beside Files/Browser/Terminal; launch template requiring MCP; launch preflight with local-path SDK plugin disabled on remote backend; dev extension view remount after file change; future: agent-mediated install proposal flow.
 
 **Live E2E:** not required for MVP. If added later, follow existing live E2E rules under `tests/e2e/live/`.
 
@@ -1125,19 +1200,19 @@ These were open questions in the earlier draft. Decisions for the RFC:
 | 4 | `src/installations/` vs `src/canvas-extensions/` directory split? | **Single `src/canvas-extensions/` directory** until a real consumer requires the split. |
 | 5 | API route prefix consistency? | **`/api/canvas/canvas-extensions/*`** for all management routes; `/canvas-extension-assets/*` reserved for asset serving. |
 | 6 | Empty `src/addons/` directory on `main`? | **No longer present.** PR 0 should avoid reviving the old `addons` namespace and use `src/canvas-extensions/`. |
-| 7 | Should the first MVP independently install standalone SDK plugins, standalone skills, or MCP templates? | **No.** Detect them and return explicit unsupported diagnostics; require an Canvas Extension wrapper for MVP. |
+| 7 | Should the first MVP independently install standalone SDK plugins, standalone skills, or MCP templates? | **No.** Detect them and return explicit unsupported diagnostics; require a Canvas Extension wrapper for MVP. |
 | 8 | Should package-relative SDK plugin paths be MVP? | **Yes, but only when `localInstallStoreReadable` is true** and the pinned Agent Server smoke passes. Remote/cloud runtimes get disabled reasons rather than local paths. |
 | 9 | Should extension context be global per extension, selected per launch template, or both? | **Both.** Context blocks use `autoInclude` for global/default behavior and launch templates can require/select specific context IDs. |
-| 10 | Should repo-provided SDK plugins/skills ever be surfaced automatically as Canvas extensions? | **No automatic surfacing.** Repository content remains an Agent Server/runtime concern unless the user explicitly installs/registers an Canvas Extension path. |
+| 10 | Should repo-provided SDK plugins/skills ever be surfaced automatically as Canvas extensions? | **No automatic surfacing.** Repository content remains an Agent Server/runtime concern unless the user explicitly installs/registers a Canvas Extension path. |
 | 11 | What triggers the reserved iframe runtime? | **A trust boundary requirement:** community marketplace distribution, an untrusted third-party publisher tier, or a concrete need for browser-enforced isolation/CSP. |
 | 12 | Should agent-proposed dev extension registration ship with dev watch mode? | **No.** Defer to the broader post-MVP agent-mediated install proposal flow. |
 | 13 | Which create-conversation payload shape should extensions target? | **Current SDK settings shape:** top-level `agent_settings` plus optional top-level `plugins`; do not reintroduce legacy `agent` payloads. |
-| 14 | What route-less JavaScript surfaces are in scope? | **Tool visualizers, settings panels, and conversation right panels.** They map to concrete existing product regions and avoid arbitrary app-root mounting. |
+| 14 | What route-less and registry-backed UI surfaces are in scope? | **Color themes, tool visualizers, settings panels, and conversation right panels.** They map to concrete existing product regions and avoid arbitrary app-root mounting. Color themes are registry data, not arbitrary JavaScript placement. |
 | 15 | Should generic conversation slots ship before these surfaces? | **No.** Header/footer/badge/sidebar slots remain deferred until a workflow cannot be handled by a right panel or tool visualizer. |
 
 ## 28. Remaining Open Questions
 
-1. Should the `@openhands/extensions` catalog eventually become one first-party Extension package, or remain a plain dependency for built-in catalogs?
+1. Should the `@openhands/extensions` catalog eventually become one first-party Canvas Extension package, or remain a plain dependency for built-in catalogs?
 2. What is the graduation path for standalone SDK plugin, standalone skill, and MCP-template installers after the extension-package MVP proves out?
 3. What provenance UI is required before enabling a public/community extension marketplace: npm integrity only, signatures, first-party allowlists, or enterprise policy?
 
@@ -1150,13 +1225,220 @@ Build the smallest powerful slice:
 3. Extensions management page.
 4. Trusted same-origin browser-module extension views (with the iframe runtime reserved in the manifest schema).
 5. Left navigation entries for Canvas Extension views.
-6. Settings panels under a visible Extensions header after built-in settings.
-7. Conversation right panels beside Files, Browser, and Terminal.
-8. Extension tool visualizers.
-9. Dev-mode extension registration / watch / reload.
-10. SDK plugin contribution merge for local conversations.
-11. Context contribution merge behind explicit permission.
+6. Color themes in Settings > Application > Color Theme.
+7. Settings panels under a visible Extensions header after built-in settings.
+8. Conversation right panels beside Files, Browser, and Terminal.
+9. Extension tool visualizers.
+10. Dev-mode extension registration / watch / reload.
+11. SDK plugin contribution merge for local conversations.
+12. Context contribution merge behind explicit permission.
 
 Defer: marketplace, package signing, **sandboxed iframe runtime** (manifest field reserved as `browser.entry` but unimplemented), arbitrary root-mounted route-less components/shared dependency runtime, rich extension RPC APIs beyond the visualizer/slot surfaces, agent-mediated installation, SDK/server install management, plugin parameters, and per-run extension enablement.
 
 This delivers a useful end-to-end extension system while keeping the Agent Server boundary clean.
+
+## 30. Engineering FAQ
+
+### 30.1 Naming And Product Scope
+
+**Q: What is a Canvas Extension, exactly?**
+
+A Canvas Extension is an Agent Canvas-specific package that extends the Canvas UI, UX, or local product behavior. It can add left navigation entries, settings panels, conversation right panels, custom tool visualizers, launch templates, SDK plugin descriptors, MCP templates, and system-context blocks. It is not the same thing as an OpenHands SDK plugin, a skill, an MCP server, or the existing `@openhands/extensions` catalog.
+
+**Q: How is this different from the existing `@openhands/extensions` repo/package?**
+
+`@openhands/extensions` is an OpenHands catalog/dependency for shared assets such as integrations metadata. It is not an installable Canvas Extension format. Canvas Extensions may reuse data from that catalog, and a future first-party Canvas Extension could wrap some of it, but the catalog should remain a plain dependency until there is a product reason to expose it as a user-installed Canvas Extension.
+
+**Q: Why is the product name "Canvas Extensions" if the app section was renamed from Extensions to Customize?**
+
+The app-level section remains Customize. Inside Customize, the Canvas Extension management item can be named Extensions because it is specifically about installed Canvas Extensions. The RFC avoids reintroducing a top-level Extensions hub and explicitly treats legacy file names like `extensions-navigation.tsx` as Customize implementation details.
+
+**Q: Why not call the management page "Packages"?**
+
+"Packages" is too broad and makes this feature sound like a generic npm/package manager. The user-facing surface should be an Extensions page under Customize. The page should be a simple stacked view of installed Canvas Extensions and their status. Package terminology stays in CLI/install mechanics where npm package behavior is actually being discussed.
+
+**Q: Should the manifest still be named `agent-canvas.extension.json`?**
+
+Current recommendation: keep it for MVP because it is explicit to Agent Canvas, short, and already used throughout the plan. Renaming it to something like `agent-canvas.canvas-extension.json` would reduce ambiguity but adds churn. Clarification requested: do we want to pay that naming churn before PR 0, or keep the shorter manifest name and rely on docs/product vocabulary?
+
+**Q: Are `@openhands/agent-canvas/canvas-extensions` and `@openhands/agent-canvas/canvas-visualizers` the right public subpaths?**
+
+They are intentionally verbose to avoid confusion with `@openhands/extensions`. They also distinguish Canvas Extension authoring types from visualizer authoring helpers. Clarification requested: should we keep these explicit subpaths, or prefer shorter `./extensions` and `./visualizers` exports with stronger documentation?
+
+### 30.2 UI Contribution Surfaces
+
+**Q: What UI surfaces are in MVP scope?**
+
+Five concrete surfaces are in scope:
+
+- Left navigation entries that point to Canvas Extension views.
+- Color themes that appear in Settings > Application > Color Theme.
+- Settings panels shown only under a visible Extensions header after built-in settings.
+- Conversation right panels shown beside Files, Browser, and Terminal.
+- Tool visualizers that render matched action/observation events.
+
+Generic header/footer/sidebar/badge slots are deferred.
+
+**Q: Can a Canvas Extension just register a color theme?**
+
+Yes. Theme-only Canvas Extensions should be a first-class supported case because color themes are likely to be an early low-risk extension type. A theme-only package can contribute `colorThemes` and no view, settings panel, right panel, tool visualizer, SDK plugin, MCP template, or launch template. Once enabled, its themes appear in Settings > Application > Color Theme with built-in themes.
+
+**Q: Are extension color themes arbitrary CSS?**
+
+No. The proposed MVP contract is validated theme data aligned with the current `ColorThemeDefinition` model: `scale` CSS custom properties, HeroUI HSL-channel values, and optional semantic `tokens`. Canvas owns validation, persistence, application, and fallback. This should not become a general-purpose global stylesheet injection API.
+
+**Q: Why defer generic conversation slots and badges?**
+
+The concrete product surfaces already cover the known use cases without opening a generic app-root or arbitrary placement API. Right panels give extensions a substantial conversation-adjacent surface. Tool visualizers handle event-specific rendering. Header/footer/badge slots should wait for a workflow that cannot be handled by those two surfaces.
+
+**Q: Where do settings panels render?**
+
+Only in the settings experience, grouped under a visible Extensions header after built-in settings sections. They should not be interleaved with built-in settings and should not create a new top-level Extensions hub. Canvas owns the settings page chrome, persistence affordances, loading states, and error boundaries.
+
+**Q: Do Canvas Extension settings panels appear in settings navigation?**
+
+MVP recommendation: no separate nav item per extension panel unless scanning becomes poor. Start with one Extensions grouping after built-in settings and render installed extension panels in a stacked/ordered list. Clarification requested: should each Canvas Extension settings panel get a left-nav anchor, or should the MVP keep one grouped Extensions section only?
+
+**Q: Where do conversation right panels render?**
+
+They render in the existing conversation right-panel/tab region beside Files, Browser, and Terminal. Canvas owns tab placement, collapsed/expanded behavior, focus handling, loading state, and error boundaries.
+
+**Q: How should mobile handle Canvas Extension right panels?**
+
+MVP recommendation: reuse the existing mobile conversation panel pattern and show extension panels as additional entries in that panel navigation, if technically straightforward. If not, hide extension right panels on small viewports with a clear disabled/unsupported reason until a mobile design is intentionally added. Clarification requested: is mobile parity required for the first proof?
+
+**Q: What happens if multiple extensions add left-nav entries or right panels?**
+
+Sort deterministically by declared `order`, extension display name, then contribution ID. Disabled or invalid extensions do not render. The host should keep enough metadata in the registry for stable ordering and diagnostics.
+
+### 30.3 Security And Trust
+
+**Q: What is the MVP trust model?**
+
+MVP Canvas Extensions are trusted local code. Browser modules run same-origin with Canvas after explicit install/enable consent. This is not a browser-enforced sandbox. The trust model is consent, local install provenance, permission display, diagnostics, and a process-level kill switch.
+
+**Q: What can a malicious enabled Canvas Extension access?**
+
+In MVP, trusted same-origin browser code may be able to inspect browser-visible Canvas state, call same-origin routes if it can access credentials/session context, manipulate DOM, and contact declared or undeclared network origins unless stricter CSP enforcement is added. The RFC therefore does not claim strong isolation until the reserved iframe runtime is implemented.
+
+**Q: Is install-time consent enough?**
+
+For first-party/local/dev Canvas Extensions, yes as an MVP starting point. For a community marketplace, untrusted publishers, or enterprise policy enforcement, no. Those cases should trigger the reserved iframe runtime, stronger provenance checks, and likely tighter network/CSP controls before broad distribution.
+
+**Q: Why reserve `browser.entry` for iframes now?**
+
+It keeps the manifest and runtime API compatible with a future sandboxed document model. The async API shape can later cross `postMessage` without redesigning the extension author contract.
+
+**Q: How does disable/revocation work?**
+
+Disabling an extension removes its contributions from the registry and should unmount active browser modules on the next registry refresh or route/panel remount. Development and implementation should also provide a process-level `--disable-extensions` kill switch. Clarification requested: do we need immediate live unmount across all currently mounted surfaces in MVP, or is refresh/remount behavior acceptable for the first proof?
+
+**Q: Can an extension impersonate built-in UI?**
+
+Canvas should visibly mark extension-owned pages/panels and should own shell/chrome for settings panels and conversation right panels. Extension content fills declared bodies only; it should not own placement, top-level navigation shell, or settings page chrome.
+
+### 30.4 Runtime And Host Architecture
+
+**Q: Why use a local Extension Host instead of bundling extensions at build time?**
+
+Global npm installs cannot rebuild Canvas for each installed extension. A local Extension Host can install packages, validate manifests, serve browser assets, and provide registry/diagnostic APIs without requiring a source checkout or rebuild.
+
+**Q: Does the Extension Host run in every mode?**
+
+It should run in packaged CLI, `npm run dev`, `dev:minimal`, and static mode when the frontend needs to manage or render Canvas Extensions. Frontend-only can expose local management/assets with agent-runtime diagnostics. Backend-only should skip browser asset hosting unless a future CLI-only host mode needs it. CLI management commands must still work before full stack startup.
+
+**Q: Why `/api/canvas/canvas-extensions/*` for management and `/canvas-extension-assets/*` for assets?**
+
+The management prefix clearly identifies local Canvas-owned management APIs and avoids confusing them with Agent Server `/api/*` traffic. The asset prefix is separate because it serves extension-authored static files and benefits from being easy to identify in logs and future CSP rules.
+
+**Q: What happens if the Extension Host is unavailable?**
+
+Canvas should degrade gracefully: built-in app behavior continues, extension contributions are absent, and the Extensions page or relevant surfaces show an Extension Host unavailable diagnostic. The Extension Host should not be a dependency for ordinary Agent Server API calls.
+
+**Q: How are extension registry updates invalidated?**
+
+MVP should use React Query invalidation after install/enable/disable/remove/settings mutations and a dev-mode version token for browser modules. Dev watch should bump a cache-busting token so static dynamic imports remount with new output.
+
+### 30.5 Manifest And Packaging
+
+**Q: Is one `browser.module` per extension enough?**
+
+For MVP, yes. A single browser module plus contribution IDs keeps packaging simple. Settings panels, right panels, views, and visualizers can reference `viewId` or register contributions through that module. If this becomes awkward, a later schema can allow per-contribution modules.
+
+**Q: Should settings panels and right panels reference `viewId`, modules, or exported component IDs?**
+
+Current recommendation: allow them to reference a declared `viewId` for MVP so the host has one browser-module loading path. Runtime registration can provide the actual panel renderer. Clarification requested: do we want the manifest to declare only metadata and let the module register implementations, or should each contribution explicitly name an exported symbol?
+
+**Q: How are path traversal and package containment handled?**
+
+Manifest paths for browser modules, icons, SDK plugin roots, and other assets must resolve inside the installed package root. Any `..` traversal or absolute path from a normal installed package should be rejected. Dev-mode local paths are allowed only through explicit `--dev` registration.
+
+**Q: What happens when permissions change on update?**
+
+Permission-expanding updates should move the extension back to a disabled or needs-review state until the user re-approves. The registry should preserve diagnostics and show the permission diff.
+
+### 30.6 Tool Visualizers
+
+**Q: Can an extension override built-in visualizers?**
+
+Yes, intentionally. Extension visualizers are considered before built-ins, with `priority` and `matches()` to narrow overrides. If no extension matches or an extension fails, Canvas falls back to built-ins and then markdown.
+
+**Q: What if two extensions match the same event?**
+
+Higher priority wins. Ties sort by extension ID and visualizer ID so behavior is deterministic. Diagnostics should expose which visualizer was selected when debugging is enabled.
+
+**Q: How do thrown visualizers fall through safely?**
+
+The dispatcher should wrap extension visualizers in a failure boundary that records a local diagnostic and tries the next matching renderer. This may require rendering candidates through an isolation wrapper instead of a single broad React error boundary. The implementation spike should prove this before committing the public API.
+
+**Q: Can visualizers fetch data or read settings while rendering?**
+
+MVP recommendation: visualizers should receive narrow props and host helpers, but should avoid arbitrary store or React Query access. If a visualizer needs extension settings, it should receive stable settings data through the extension context or a host-provided hook/API, not import Canvas internals.
+
+### 30.7 Agent Runtime Boundary
+
+**Q: Do Canvas Extensions load code into the Agent Server?**
+
+No. Canvas does not patch or load Canvas Extension code inside the Agent Server. Agent-side behavior is forwarded only through existing SDK-supported surfaces: `plugins`, MCP settings/templates, and `AgentContext.system_message_suffix`.
+
+**Q: Which contributions affect conversation creation?**
+
+SDK plugin descriptors, selected MCP requirements/templates, launch templates, and context blocks can affect new conversation payloads. Pure UI contributions such as left nav, color themes, settings panels, right panels, and visualizers do not by themselves change the agent runtime.
+
+**Q: How do local-path SDK plugin contributions work with remote/cloud/ACP runtimes?**
+
+Package-relative or local SDK plugin paths are allowed only when `localInstallStoreReadable=true`, meaning the Agent Server process was launched by the same local Canvas stack and can read the install store. Remote/cloud runtimes get disabled reasons instead of local paths. ACP runtimes should skip SDK plugin contributions unless a smoke test proves the exact plugin shape is compatible.
+
+**Q: What is the audit trail for extension contributions?**
+
+MVP should include extension IDs and contribution IDs in launch preflight UI and in the composed extension system suffix. Recommended follow-up: persist extension IDs/versions and selected contributions on conversation metadata when the backend exposes an appropriate field.
+
+**Q: What if an extension is disabled after a conversation starts?**
+
+Disabling should stop future UI contributions and future conversation launches from using it. Existing conversations may already contain context suffixes or SDK plugin behavior from creation time; disabling cannot reliably remove already-applied agent runtime state from an active conversation.
+
+### 30.8 Testing And Proof
+
+**Q: What is the smallest useful fixture extension?**
+
+`hello.canvas` should prove the full vertical path: install, registry, Extensions page row/status, left nav entry, browser-module view, color theme, settings panel, conversation right panel, one tool visualizer, launch preflight/context contribution, SDK plugin compatibility path, and dev remount.
+
+**Q: Should all UI surfaces land in one PR?**
+
+No. The RFC already splits the work. PR 3 covers view host and left navigation, PR 3a covers tool visualizers, and PR 3b covers color themes, settings panels, and conversation right panels. PR 2 can land the Extensions management page independently once the registry shape is stable.
+
+**Q: What tests are required before sharing broadly?**
+
+At minimum: manifest validation, route/path containment tests, no-direct-Agent-Server API guard tests, Extension Host route tests, visualizer ordering/fallback tests, component tests for Extensions page/settings/right-panel surfaces, and a packaged/static dynamic-import smoke. Full `npm run typecheck && npm test && npm run build` remains the final verification tier.
+
+### 30.9 Clarifications Requested
+
+These are the decisions that would benefit from product/engineering direction before PR 0:
+
+1. Keep `agent-canvas.extension.json`, or rename the manifest to make "Canvas Extension" even more explicit?
+2. Keep public subpaths as `@openhands/agent-canvas/canvas-extensions` and `@openhands/agent-canvas/canvas-visualizers`, or shorten them?
+3. Should settings panels appear in one grouped Extensions section only, or should each installed Canvas Extension get a settings nav anchor?
+4. Is mobile support for conversation right panels required in the first proof?
+5. Do disabled extensions need immediate live unmount across all mounted surfaces in MVP?
+6. Should manifest contributions declare implementation exports explicitly, or should browser modules register implementations at runtime?
+7. What provenance bar is required before any non-first-party/community Canvas Extension distribution: npm integrity, signatures, first-party allowlist, enterprise policy, or some combination?

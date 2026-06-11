@@ -18,11 +18,12 @@ The MVP should be built as a vertical proof, not as isolated architecture layers
 2. The Extensions page under Customize shows the installed Canvas Extension and its diagnostics.
 3. A trusted `browser.module` view renders at `/canvas-extensions/:extensionId/:viewId/*`.
 4. A view can contribute a left navigation entry after Automations and before the conversation list, matching the current `SidebarRailBody` order (`New Chat`, `Customize`, `Automations`, then conversations).
-5. A Canvas Extension can add a settings panel only under a visible Extensions header after built-in settings.
-6. A Canvas Extension can add a conversation right panel alongside Files, Browser, and Terminal.
-7. A local Canvas Extension can register a custom tool visualizer for one MCP/action variant and safely fall back to built-in rendering when it does not match or throws.
-8. A launch template can append extension context and include an SDK plugin when the runtime is filesystem-local.
-9. Dev mode can register a local source folder, detect output changes, and remount the view without rebuilding Canvas.
+5. A Canvas Extension can register a color theme that appears in Settings > Application > Color Theme; a theme-only extension is valid.
+6. A Canvas Extension can add a settings panel only under a visible Extensions header after built-in settings.
+7. A Canvas Extension can add a conversation right panel alongside Files, Browser, and Terminal.
+8. A local Canvas Extension can register a custom tool visualizer for one MCP/action variant and safely fall back to built-in rendering when it does not match or throws.
+9. A launch template can append extension context and include an SDK plugin when the runtime is filesystem-local.
+10. Dev mode can register a local source folder, detect output changes, and remount the view without rebuilding Canvas.
 
 ## 1.1 Scope Locks From The RFC
 
@@ -34,18 +35,19 @@ These decisions should keep the build from spreading sideways:
 - Extension author types need real package subpaths: `@openhands/agent-canvas/canvas-extensions` and `@openhands/agent-canvas/canvas-visualizers`, emitted under `dist/extensions/*` and `dist/visualizers/*` and included in npm release checks.
 - Conversation contribution work targets the current start payload: top-level `agent_settings` plus optional top-level `plugins`. Do not reintroduce the legacy `agent` payload shape.
 - Package-relative/local SDK plugin sources are MVP only when the launcher says `localInstallStoreReadable=true`. ACP runtimes skip extension SDK plugins unless a pinned-version smoke proves the exact plugin shape is compatible.
-- The first route-less JavaScript workstreams are custom tool visualizers, settings panels, and conversation right panels, not arbitrary root-mounted components. Generic conversation slots remain deferred until a concrete workflow cannot be handled by a right panel or visualizer.
+- The first route-less/registry-backed workstreams are color themes, custom tool visualizers, settings panels, and conversation right panels, not arbitrary root-mounted components. Generic conversation slots remain deferred until a concrete workflow cannot be handled by a right panel or visualizer.
 
 ## 1.2 Focused Workstream From Issue #481
 
-The issue feedback and product feedback point to four concrete places where users should be able to add content without forking Agent Canvas:
+The issue feedback and product feedback point to five concrete places where users should be able to add content without forking Agent Canvas:
 
 1. **Custom tool/event visualizers.** PR #1246 added an internal visualizer dispatcher that already asks a registry for a React body and falls back to markdown. Extensions should expose that seam first through `registerToolVisualizer()` or a manifest-projected equivalent.
 2. **Left navigation entries.** A Canvas Extension can add a top-level navigation item after Automations and before the conversation list.
-3. **Settings panels.** A Canvas Extension can add configuration UI only under a visible Extensions header after built-in settings.
-4. **Conversation right panels.** A Canvas Extension can add a panel beside Files, Browser, and Terminal for conversation-adjacent tools and context.
+3. **Color themes.** A Canvas Extension can add one or more color themes to Settings > Application > Color Theme, including a theme-only package with no view or panel.
+4. **Settings panels.** A Canvas Extension can add configuration UI only under a visible Extensions header after built-in settings.
+5. **Conversation right panels.** A Canvas Extension can add a panel beside Files, Browser, and Terminal for conversation-adjacent tools and context.
 
-The implementation order should be visualizers first where possible because they are narrow, already have a merged internal seam, and have a clear failure mode: try extension renderer, then built-in renderer, then markdown fallback. Settings panels and conversation right panels should follow as explicit product surfaces. Generic "mount anything at app root" slots remain deferred.
+The implementation order should be visualizers first where possible because they are narrow, already have a merged internal seam, and have a clear failure mode: try extension renderer, then built-in renderer, then markdown fallback. Color themes are also a narrow early surface because the app already centralizes built-in themes in `src/themes/color-themes.ts` and exposes them through Settings > Application > Color Theme. Settings panels and conversation right panels should follow as explicit product surfaces. Generic "mount anything at app root" slots remain deferred.
 
 ## 2. Risk-Burner Spikes
 
@@ -272,7 +274,22 @@ MVP scope:
 
 Example fixture: `hello.canvas` registers a visualizer for one synthetic or MCP-style tool call and renders a compact card. Tests should prove extension-first order, `matches()` narrowing, built-in fallback, markdown fallback, and throw-to-next-renderer behavior.
 
-### 4.6 Settings Panels
+### 4.6 Color Theme Extension Surface
+
+Add Canvas Extension color themes to the existing application theme selector.
+
+MVP scope:
+
+- Project enabled `contributes.colorThemes` entries into the same data source used by Settings > Application > Color Theme.
+- Support theme-only extensions with no view, panel, visualizer, or agent contribution.
+- Validate theme IDs and allowed token keys before exposing them to the dropdown.
+- Disabled/invalid extensions do not expose theme options.
+- If a selected extension theme becomes unavailable, fall back to the default built-in theme and show a diagnostic.
+- Keep this as theme definition data, not arbitrary CSS or a custom extension-owned settings control.
+
+Example fixture: `hello.canvas` contributes one recognizable color theme so Settings > Application > Color Theme can select it without opening any extension-owned UI.
+
+### 4.7 Settings Panels
 
 Add Canvas Extension settings panels under one visible Extensions header after all built-in settings sections.
 
@@ -284,7 +301,7 @@ MVP scope:
 - Canvas owns the panel chrome, save/cancel affordances, loading states, and error boundaries.
 - Panel renderers receive extension settings helpers only; no raw settings store or React Query client access.
 
-### 4.7 Conversation Right Panels
+### 4.8 Conversation Right Panels
 
 Add Canvas Extension panels to the existing conversation right-panel/tab system beside Files, Browser, and Terminal.
 
@@ -370,26 +387,27 @@ Then in the browser:
 1. Open Extensions and see `hello.canvas` enabled with no diagnostics.
 2. See its left navigation entry after Automations and before the conversation list.
 3. Open its extension view from the left navigation and see browser-module UI render.
-4. Open settings and confirm its panel appears under the visible Extensions header after built-in settings.
-5. Change a setting in the extension panel and see it persist.
-6. Open a conversation and confirm its right panel appears beside Files, Browser, and Terminal.
-7. Trigger its fixture tool/event and verify the Canvas Extension visualizer renders with fallback still intact.
-8. Start its launch template and verify the conversation payload includes the extension context suffix.
-9. In `npm run dev`, register the same extension with `--dev`, rebuild the extension output, and see the view remount with the new code.
+4. Open Settings > Application > Color Theme and select the extension-provided color theme.
+5. Open settings and confirm its panel appears under the visible Extensions header after built-in settings.
+6. Change a setting in the extension panel and see it persist.
+7. Open a conversation and confirm its right panel appears beside Files, Browser, and Terminal.
+8. Trigger its fixture tool/event and verify the Canvas Extension visualizer renders with fallback still intact.
+9. Start its launch template and verify the conversation payload includes the extension context suffix.
+10. In `npm run dev`, register the same extension with `--dev`, rebuild the extension output, and see the view remount with the new code.
 
 Release-path acceptance should also install the packed `@openhands/agent-canvas` tarball into a temp npm prefix and repeat `agent-canvas list`, `agent-canvas doctor`, and one packed/local extension install without relying on repo-local files outside the package.
 
 ## 8. Testing Strategy
 
-**Unit:** manifest validation; reserved `browser.entry` diagnostics; path traversal rejection; artifact detection; unsupported standalone artifact diagnostics; install-store bootstrap; enable/disable/remove/update state transitions; duplicate ID handling; asset route path validation; CLI arg parsing before build checks; no-install-scripts default; visualizer contribution projection; visualizer ordering/fallback/error-boundary behavior; settings panel projection/ordering; conversation right-panel projection/ordering; launch contribution projection; context suffix rendering; plugin merge/dedupe; runtime compatibility classification; dev registration and manifest revalidation.
+**Unit:** manifest validation; reserved `browser.entry` diagnostics; path traversal rejection; artifact detection; unsupported standalone artifact diagnostics; install-store bootstrap; enable/disable/remove/update state transitions; duplicate ID handling; color theme projection/validation/fallback; asset route path validation; CLI arg parsing before build checks; no-install-scripts default; visualizer contribution projection; visualizer ordering/fallback/error-boundary behavior; settings panel projection/ordering; conversation right-panel projection/ordering; launch contribution projection; context suffix rendering; plugin merge/dedupe; runtime compatibility classification; dev registration and manifest revalidation.
 
 **Node integration:** run the Extension Host against a temp install store; install the `hello.canvas` fixture from local path and npm-packed tarball; fetch registry and asset URLs; verify route precedence before `/api/*` in Vite, ingress, static server, and packaged CLI paths; verify mutating routes require the session API key; verify `doctor` reports invalid manifests, unsupported standalone artifacts, and missing assets.
 
 **Release packaging:** `npm pack --dry-run`; packed-tarball install into a temp npm prefix; verify `agent-canvas list`, `agent-canvas doctor`, and an extension install work without a source checkout; verify `@openhands/agent-canvas/canvas-extensions` and `@openhands/agent-canvas/canvas-visualizers` resolve for type consumers.
 
-**Component:** Extensions page empty/installed/enabled/invalid/dev states under Customize; install/enable/disable/remove action wiring; left navigation entries in expanded/collapsed/mobile states; extension view loading/error/remount; settings panel placement under the visible Extensions header; extension settings read/patch; extension visualizer renders/falls back inside the existing event wrapper; conversation right panels render beside Files/Browser/Terminal; launch template preflight for incompatible SDK plugin paths.
+**Component:** Extensions page empty/installed/enabled/invalid/dev states under Customize; install/enable/disable/remove action wiring; left navigation entries in expanded/collapsed/mobile states; extension view loading/error/remount; extension color theme appears in Settings > Application > Color Theme and applies through the existing theme input; settings panel placement under the visible Extensions header; extension settings read/patch; extension visualizer renders/falls back inside the existing event wrapper; conversation right panels render beside Files/Browser/Terminal; launch template preflight for incompatible SDK plugin paths.
 
-**E2E snapshots:** Extensions page with enabled extension under Customize; invalid extension diagnostics; left navigation entry after Automations; settings panel under Extensions header; conversation right panel beside Files/Browser/Terminal; extension view rendered from browser module; launch template showing context/plugin contribution; remote-backend disabled reason for local plugin path; dev extension view remount after output change.
+**E2E snapshots:** Extensions page with enabled extension under Customize; invalid extension diagnostics; left navigation entry after Automations; extension color theme visible in Settings > Application; settings panel under Extensions header; conversation right panel beside Files/Browser/Terminal; extension view rendered from browser module; launch template showing context/plugin contribution; remote-backend disabled reason for local plugin path; dev extension view remount after output change.
 
 **Live E2E:** optional after the walking skeleton. If added, keep one cheap local live test that starts a conversation from `hello.canvas` and verifies the created payload/events show the context suffix or plugin load marker. Follow existing live E2E rules under `tests/e2e/live/`.
 

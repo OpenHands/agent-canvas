@@ -104,14 +104,17 @@ Avoid these overlapping edits unless one agent owns the integration:
   - `src/canvas-extensions/manifest-validation.ts`
   - `src/canvas-extensions/artifact-detection.ts`
   - `src/canvas-extensions/storage-paths.ts`
+  - `src/themes/color-themes.ts`
   - `__tests__/canvas-extensions/manifest-validation.test.ts`
   - `package.json`
   - `tsconfig.lib.json` if needed for emitted type paths
   - keep new public types under `src/canvas-extensions/`; do not recreate the old `src/addons/` namespace
 - [ ] Implement:
   - Manifest v1 types, contribution types, registry entry types, diagnostics, installable artifact kinds.
-  - Contribution types for left navigation, `settingsPanels`, `conversationRightPanels`, and `toolVisualizers`.
+  - Contribution types for left navigation, `colorThemes`, `settingsPanels`, `conversationRightPanels`, and `toolVisualizers`.
+  - `AgentCanvasColorThemeDefinition` aligned with the current app theme model: `label`, `scale`, `heroui`, and optional semantic `tokens`.
   - Validation for required fields, ID regex, duplicate/mutually exclusive `browser.module` and `browser.entry`, path containment, reserved `browser.entry`.
+  - Validation for color theme IDs and allowed theme token keys.
   - Artifact detection order: Canvas Extension, SDK plugin, skill, MCP placeholder.
   - Storage helpers for `~/.openhands/agent-canvas/installations`.
   - Public package exports `@openhands/agent-canvas/canvas-extensions` and `@openhands/agent-canvas/canvas-visualizers` with emitted `dist/extensions/*` and `dist/visualizers/*` outputs.
@@ -122,6 +125,8 @@ Avoid these overlapping edits unless one agent owns the integration:
   - Traversal in manifest/browser/icon/plugin paths.
   - Both `browser.module` and `browser.entry`.
   - Reserved `browser.entry` diagnostic.
+  - Theme-only extension manifest is valid.
+  - Invalid color theme token key is rejected.
   - Standalone SDK plugin / `SKILL.md` detection returns unsupported-in-MVP kind.
 - [ ] Verification:
 
@@ -501,11 +506,13 @@ npm run typecheck
   - A local extension can change how one event/tool renders without forking Agent Canvas.
 - [ ] Handoff notes:
 
-### G4.4 Settings Panels And Conversation Right Panels
+### G4.4 Color Themes, Settings Panels, And Conversation Right Panels
 
 - [ ] Owner:
 - [ ] Depends on: G4.1
 - [ ] Files likely touched:
+  - `src/themes/color-themes.ts`
+  - `src/components/features/settings/app-settings/theme-input.tsx`
   - settings route/components
   - conversation right-panel/tab components
   - `src/canvas-extensions/panels/*`
@@ -513,6 +520,10 @@ npm run typecheck
   - tests under `__tests__/canvas-extensions/`
   - focused component tests near settings and conversation panel hosts
 - [ ] Implement:
+  - Color theme registry for `contributes.colorThemes`.
+  - Project enabled extension color themes into Settings > Application > Color Theme.
+  - Support theme-only extensions with no view/panel/visualizer contribution.
+  - Fall back to the default built-in theme if the selected extension theme is disabled, removed, or invalid.
   - Settings panel registry for `contributes.settingsPanels`.
   - Render settings panels only under a visible Extensions header after built-in settings sections.
   - Conversation right-panel registry for `contributes.conversationRightPanels`.
@@ -522,13 +533,16 @@ npm run typecheck
   - Per-panel error boundaries.
   - No raw store, React Query client, or Canvas-internal component API in the public contract.
 - [ ] Tests:
+  - Extension color theme appears in the Color Theme dropdown.
+  - Theme-only extension contributes no other UI and remains valid.
+  - Selected extension theme falls back when disabled/invalid.
   - Settings panels render only under the Extensions header after built-in settings.
   - Conversation right panels render beside Files, Browser, and Terminal.
   - Ordering is deterministic.
   - Disabled/invalid extensions do not render panel content.
   - Panel errors are localized and do not break settings or conversation pages.
 - [ ] Done when:
-  - A local Canvas Extension can add a settings panel and a conversation right panel without a full app route.
+  - A local Canvas Extension can add a color theme, a settings panel, and a conversation right panel without a full app route.
 - [ ] Handoff notes:
 
 ## 8. Gate G5: Conversation Contributions
@@ -646,6 +660,7 @@ node bin/agent-canvas.mjs
   - Extensions shows `hello.canvas` enabled with no diagnostics.
   - Left navigation entry appears after Automations and before conversations.
   - Extension view renders.
+  - Extension color theme appears in Settings > Application > Color Theme and can be selected.
   - Settings panel appears under a visible Extensions header after built-in settings.
   - Conversation right panel appears beside Files, Browser, and Terminal.
   - Extension settings patch persists.
@@ -709,7 +724,7 @@ The PoC is not complete unless all of these are true:
 - [ ] ACP runtimes do not receive incompatible extension plugin/MCP contributions.
 - [ ] `conversationInstructions` never receives extension system context.
 - [ ] Extension context composes with existing `<RUNTIME_SERVICES>` suffix.
-- [ ] `hello.canvas` proves install, registry, UI, left navigation, view, settings panel, conversation right panel, tool visualizer, launch context, SDK plugin preflight, and dev remount.
+- [ ] `hello.canvas` proves install, registry, UI, left navigation, view, color theme, settings panel, conversation right panel, tool visualizer, launch context, SDK plugin preflight, and dev remount.
 - [ ] Tests cover the risk surfaces listed in the PoC plan.
 
 ## 12. Handoff Template
