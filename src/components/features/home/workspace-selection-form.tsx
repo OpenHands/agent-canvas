@@ -228,7 +228,7 @@ export function WorkspaceSelectionForm({
         {onConfirm
           ? t(I18nKey.BUTTON$CONFIRM)
           : !isCreatingConversation
-            ? "Launch"
+            ? t(I18nKey.BUTTON$LAUNCH)
             : t(I18nKey.HOME$LOADING)}
       </BrandButton>
 

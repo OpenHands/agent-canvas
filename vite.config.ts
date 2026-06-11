@@ -1,6 +1,8 @@
 /// <reference types="vitest" />
 /// <reference types="vite-plugin-svgr/client" />
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+import { resolve, dirname } from "node:path";
 import { defineConfig, loadEnv } from "vite";
 import svgr from "vite-plugin-svgr";
 import { reactRouter } from "@react-router/dev/vite";
@@ -21,6 +23,16 @@ const LIB_EXTERNALS = [
   "react-router",
 ];
 const APP_CHUNK_MAX_BYTES = 450 * 1024;
+
+// Absolute path to the bundled extensions skills directory in node_modules.
+// Injected as __EXTENSIONS_SKILLS_DIR__ so agent-server-adapter.ts can pass
+// real filesystem paths to the Python agent-server (which uses them to
+// resolve bundled skill resources like scripts/ and references/).
+const _require = createRequire(import.meta.url);
+const EXTENSIONS_SKILLS_DIR = resolve(
+  dirname(_require.resolve("@openhands/extensions/package.json")),
+  "skills",
+);
 
 const appBuildConfig = {
   rolldownOptions: {
@@ -59,6 +71,14 @@ export default defineConfig(({ mode }) => {
   const FE_PORT = Number.parseInt(VITE_FRONTEND_PORT, 10);
 
   return {
+    define: {
+      // Empty string for library builds so consumers aren't bound to this
+      // machine's node_modules path; agent-server-adapter falls back to
+      // "public" when the value is falsy.
+      __EXTENSIONS_SKILLS_DIR__: JSON.stringify(
+        isLibraryBuild ? "" : EXTENSIONS_SKILLS_DIR,
+      ),
+    },
     plugins: [
       {
         name: "suppress-chrome-devtools-well-known",
