@@ -52,7 +52,6 @@ vi.mock("#/api/agent-server-config", () => ({
   buildConversationWorkingDir: vi.fn(
     (id: string) => `/state/workspaces/${id.replace(/-/g, "")}`,
   ),
-  getConfiguredWorkerUrls: vi.fn(() => []),
   shouldLoadPublicSkills: vi.fn(() => true),
   syncBakedSessionApiKey: vi.fn(),
 }));
@@ -142,6 +141,7 @@ describe("useCreateConversation persists selected repository metadata", () => {
       selected_branch: "main",
       git_provider: "github",
       selected_workspace: null,
+      workspace_mode: "new_worktree",
     });
   });
 
@@ -162,6 +162,7 @@ describe("useCreateConversation persists selected repository metadata", () => {
       selected_branch: null,
       git_provider: null,
       selected_workspace: "/home/me/code/some-project",
+      workspace_mode: "local_repo",
     });
   });
 
@@ -191,6 +192,7 @@ describe("useCreateConversation persists selected repository metadata", () => {
       selected_branch: null,
       git_provider: null,
       selected_workspace: null,
+      workspace_mode: null,
       active_profile: "team-default",
     });
   });

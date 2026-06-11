@@ -10,8 +10,8 @@ import {
 } from "#/hooks/query/use-agent-settings-schema";
 import { useSettings } from "#/hooks/query/use-settings";
 import { I18nKey } from "#/i18n/declaration";
-import { Typography } from "#/ui/typography";
 import { Settings, SettingsSchema, SettingsScope } from "#/types/settings";
+import { extensionModuleEmptyStateClassName } from "#/utils/extension-module-card-classes";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -599,9 +599,14 @@ export function SdkSectionPage({
 
   if (!hasAnyVisibleSection) {
     return (
-      <Typography.Paragraph className="text-tertiary-alt">
-        {schemaUnavailableMessage}
-      </Typography.Paragraph>
+      <div
+        data-testid="sdk-schema-unavailable"
+        className={extensionModuleEmptyStateClassName}
+      >
+        <p className="text-sm text-[var(--oh-muted)]">
+          {schemaUnavailableMessage}
+        </p>
+      </div>
     );
   }
 
