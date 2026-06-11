@@ -1,0 +1,9 @@
+{
+  "name": "@example/agent-canvas-shell-toolkit",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Multi-surface Canvas Extension: a tool visualizer, a conversation panel, and a nav view from one module.",
+  "agentCanvas": { "manifest": "./agent-canvas.extension.json" },
+  "files": ["agent-canvas.extension.json", "dist"]
+}

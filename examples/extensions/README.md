@@ -5,21 +5,25 @@ Three minimal Canvas Extensions that each exercise one contribution surface from
 (`private: true`), not published packages, and ship hand-written browser ESM so they
 install and run with **no build step**.
 
-| Example | Surface | Browser module | RFC |
+| Example | Surface(s) | Browser module | RFC |
 |---|---|---|---|
 | [`sunset-theme`](./sunset-theme) | A color theme in Settings > Application > Color Theme | none (manifest-only) | §12.2 |
 | [`hello-page`](./hello-page) | A primary-nav page with placeholder content | `mount()` (view) | §12.1, §12.4 |
 | [`app-panel`](./app-panel) | An "App" panel in the conversation view | `activate()` (route-less) | §12.4, §13.1 |
+| [`shell-toolkit`](./shell-toolkit) | **Multi-surface:** a tool visualizer + a conversation panel + a nav view | `activate()` + `mount()` | §12.9, §12.4, §13.1 |
 
-Together they cover the three module shapes: **no module** (theme-only), **`mount()`
-only** (a view), and **`activate()` only** (a route-less registration).
+The first three cover the three module shapes in isolation — **no module** (theme-only),
+**`mount()` only** (a view), and **`activate()` only** (a route-less registration).
+`shell-toolkit` then combines them: one extension, one module, where `activate()`
+registers a visualizer and a panel and `mount()` renders a view.
 
 ## Install
 
 ```sh
-agent-canvas install ./examples/extensions/sunset-theme --yes
-agent-canvas install ./examples/extensions/hello-page  --yes
-agent-canvas install ./examples/extensions/app-panel   --yes
+agent-canvas install ./examples/extensions/sunset-theme  --yes
+agent-canvas install ./examples/extensions/hello-page    --yes
+agent-canvas install ./examples/extensions/app-panel     --yes
+agent-canvas install ./examples/extensions/shell-toolkit --yes
 agent-canvas list canvas-extensions
 ```
 
@@ -44,6 +48,8 @@ Lifecycle depends on launch mode (RFC §15.2):
   opens the placeholder page; the "Say hello" button fires a host toast.
 - **app-panel** — open a conversation; an **App** tab appears beside Files / Browser /
   Terminal and renders the panel (showing the active conversation id).
+- **shell-toolkit** — a **Shell** nav entry, a **Commands** conversation tab, and a
+  terminal-style visualizer for shell-like MCP tool calls — all from one extension.
 
 ## How these map to the spec
 
