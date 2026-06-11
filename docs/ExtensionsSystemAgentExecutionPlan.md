@@ -4,7 +4,7 @@ Status: executable handoff plan
 Source RFC: [ExtensionsSystemRFC.md](./ExtensionsSystemRFC.md)
 Source PoC plan: [ExtensionsSystemPoCPlan.md](./ExtensionsSystemPoCPlan.md)
 Target: a working proof of concept that can be built by multiple agents without one agent holding all context
-Current repo baseline: merged through `upstream/main` at `40844533`. This checklist assumes `agentServer` `1.27.0`, the current local/public auth modes, frontend-only/backend-only partial stacks, MCP catalog data from `@openhands/extensions/integrations`, the merged PR #1246 tool visualizer registry, and public skills defaulting on unless `VITE_LOAD_PUBLIC_SKILLS=false`.
+Current repo baseline: merged through `upstream/main` at `40844533`. This checklist assumes `agentServer` `1.27.0`, the current local/public auth modes, frontend-only/backend-only partial stacks, MCP catalog data from `@openhands/extensions/integrations`, the merged PR #1246 tool visualizer registry, draft PR #1277 as the current lead for extension-facing visualizer registration, and public skills defaulting on unless `VITE_LOAD_PUBLIC_SKILLS=false`.
 
 ## 1. How To Use This Plan
 
@@ -18,6 +18,7 @@ Rules for every agent:
 - Keep each task scoped to its listed files unless implementation discovers a real dependency.
 - End every task with: files changed, tests run, remaining risks, and the next task ID that is unblocked.
 - Do not weaken repo rules: frontend Agent Server calls use typed clients; Extension Host routes use the dedicated wrapper exception; UI strings go through i18n; package dependencies stay exact-pinned.
+- Install, update, and remove are CLI-only in every mode; never add browser controls for them. Enable, disable, and new-extension discovery are CLI + restart by default, but become live browser actions on the development source stack when the launcher reports `liveExtensionManagement` (the Vite-served `npm run dev` / `dev:minimal` stack). Gate the host's `enable`/`disable`/`rescan` routes and the Extensions page toggles/rescan behind that capability; the packaged/Docker/static page stays read-only. See RFC §15.2 and §27 Decision 16.
 
 Suggested verification tiers:
 
@@ -40,7 +41,7 @@ Use gates to coordinate merge order. Tasks inside a gate can be split, but the g
 | G0 | Risk burners and contracts | Mostly serial | Everything else |
 | G1 | Manager, CLI, install store, host routes | Manager/CLI and launcher work can split after shared contracts land | UI, view host, conversation merge |
 | G2 | Example extension and package release path | Can run alongside G1 after contracts land | View host, acceptance demo |
-| G3 | Frontend Extensions page and CanvasExtensionService | Can run once Extension Host registry shape is stable | View host UX, dev mode UX |
+| G3 | Frontend Extensions inventory page and CanvasExtensionService | Can run once Extension Host registry shape is stable | View host UX, dev mode UX |
 | G4 | Browser-module view host, left navigation, settings panels, right panels, and visualizers | Can run after registry/assets exist; visualizers can split after shared types land | Acceptance demo |
 | G5 | Conversation contribution merge | Can run after launch-contributions endpoint exists | Final proof |
 | G6 | Dev mode watch/remount | Can run after manager, host, and view host exist | Final proof |
@@ -117,7 +118,7 @@ Avoid these overlapping edits unless one agent owns the integration:
   - Validation for color theme IDs and allowed theme token keys.
   - Artifact detection order: Canvas Extension, SDK plugin, skill, MCP placeholder.
   - Storage helpers for `~/.openhands/agent-canvas/installations`.
-  - Public package exports `@openhands/agent-canvas/canvas-extensions` and `@openhands/agent-canvas/canvas-visualizers` with emitted `dist/extensions/*` and `dist/visualizers/*` outputs.
+  - Public package exports `@openhands/agent-canvas/canvas-extensions` and the OpenHands agent-team-approved visualizer export, with emitted `dist/extensions/*` and matching visualizer output.
 - [ ] Tests:
   - Valid extension manifest.
   - Missing required fields.
@@ -137,7 +138,7 @@ npm run build:lib
 ```
 
 - [ ] Done when:
-  - Type consumers can import from `@openhands/agent-canvas/canvas-extensions` and `@openhands/agent-canvas/canvas-visualizers`.
+  - Type consumers can import from `@openhands/agent-canvas/canvas-extensions` and the final visualizer authoring export.
   - No runtime host, CLI store, or UI behavior is introduced in this gate.
 - [ ] Handoff notes:
 
@@ -156,11 +157,11 @@ npm run build:lib
   - Read/write registry state with atomic-ish writes where practical.
   - Install Canvas Extension manifests from local paths first; tarball/npm spec can follow in the same gate if scoped.
   - Run npm installs in the private store with `--ignore-scripts` by default.
-  - Enable/disable/remove/update state transitions.
+  - Enable/disable/remove/update state transitions exposed as manager functions; the CLI calls them directly and the host calls enable/disable/rescan only when live management is enabled. The manager itself is mode-agnostic.
   - Disabled wins over enabled if config is manually inconsistent.
   - Typed unsupported diagnostics for standalone SDK plugin, `SKILL.md`, and MCP-template artifacts.
   - Registry projection with `assetBaseUrl`, diagnostics, state, version, package name.
-  - Launch contribution projection from enabled extensions.
+  - Launch contribution projection from extensions enabled at process startup.
 - [ ] Tests:
   - Store bootstrap.
   - Local extension install and enable.
@@ -223,18 +224,19 @@ npm test -- __tests__/canvas-extensions/extension-cli.test.ts
 - [ ] Implement:
   - `GET /api/canvas/canvas-extensions/registry`
   - `GET /api/canvas/canvas-extensions/diagnostics`
-  - `POST /api/canvas/canvas-extensions/install`
-  - `POST /api/canvas/canvas-extensions/:id/enable`
-  - `POST /api/canvas/canvas-extensions/:id/disable`
-  - `DELETE /api/canvas/canvas-extensions/:id`
+  - `GET /api/canvas/canvas-extensions/:id/settings`
   - `PATCH /api/canvas/canvas-extensions/:id/settings`
   - `GET /api/canvas/canvas-extensions/launch-contributions`
   - `GET /canvas-extension-assets/:id/*assetPath`
-  - Session API key guard for mutating routes.
+  - `POST /api/canvas/canvas-extensions/:id/enable`, `POST /api/canvas/canvas-extensions/:id/disable`, and `POST /api/canvas/canvas-extensions/rescan` — registered only when the launcher reports `liveExtensionManagement`.
+  - Session API key guard for settings mutation and for the gated enable/disable/rescan routes.
   - Static asset path containment and content types.
 - [ ] Tests:
   - Registry and diagnostics read.
-  - Mutating routes reject missing/bad API key.
+  - Settings mutation rejects missing/bad API key.
+  - Install/update/remove browser routes are absent in every mode.
+  - `enable`/`disable`/`rescan` routes are absent when `liveExtensionManagement` is false and present + API-key-guarded when true.
+  - Live enable/disable mutates `config.json`; rescan surfaces a newly installed extension.
   - Asset serving works and traversal fails.
   - Launch-contributions filters disabled/invalid extensions.
 - [ ] Verification:
@@ -264,11 +266,13 @@ npm test -- __tests__/canvas-extensions/extension-host.test.ts
   - Add Vite proxy support for direct Vite access.
   - Add static server route support for direct static-port access.
   - Cover `--frontend-only` and `--backend-only`: frontend-only may expose local Extensions/browser assets with agent-runtime diagnostics; backend-only should skip browser asset hosting unless a future CLI-only host mode explicitly needs it.
-  - Emit frontend env/runtime metadata: extension enabled flag, `localInstallStoreReadable`, route/base if needed.
+  - Emit frontend env/runtime metadata: extension enabled flag, `localInstallStoreReadable`, `liveExtensionManagement`, route/base if needed.
+  - Derive `liveExtensionManagement` from the existing `services.frontend.kind` in `scripts/runtime-services-info.mjs`: true for the Vite dev server (`npm run dev` / `dev:minimal`), false for the static server (packaged CLI, Docker, `dev:static`). Use it to register/skip the host enable/disable/rescan routes.
   - Do not expose a write-capable Extension Host key in `<RUNTIME_SERVICES>`.
 - [ ] Tests:
   - Route precedence unit tests for `scripts/static-server.mjs` and ingress route ordering.
   - Launcher config test for `localInstallStoreReadable=true` only when this launcher starts the local Agent Server.
+  - Launcher config test for `liveExtensionManagement=true` only on the Vite dev stack and false for static/packaged/Docker.
   - Partial-stack route tests for frontend-only/backend-only behavior.
   - Vite config contains extension routes before generic `/api` where applicable.
 - [ ] Verification:
@@ -322,7 +326,7 @@ npm test -- __tests__/canvas-extensions
   - `__tests__/canvas-extensions/package-smoke.test.ts` if automated
 - [ ] Implement:
   - Ensure `files` includes every runtime script/build artifact needed by the global CLI and Extension Host.
-  - Ensure `./extensions` export resolves from packed package.
+  - Ensure `./canvas-extensions` and the final visualizer export resolve from the packed package.
   - Add a repeatable smoke for packed tarball install into a temp npm prefix if practical.
 - [ ] Verification:
 
@@ -337,7 +341,7 @@ npm pack --dry-run
   - `agent-canvas list canvas-extensions` and `agent-canvas doctor` work from packed/global install.
 - [ ] Handoff notes:
 
-## 6. Gate G3: Frontend Extensions Management
+## 6. Gate G3: Frontend Extensions Inventory
 
 ### G3.1 CanvasExtensionService API Wrapper
 
@@ -350,10 +354,12 @@ npm pack --dry-run
 - [ ] Implement:
   - Dedicated wrapper for every `/api/canvas/canvas-extensions/*` call.
   - Narrow test exception for this wrapper, including the current `fetch('/api/...')` guard.
-  - React Query hooks for registry, diagnostics, install, enable, disable, remove, settings patch, launch contributions.
+  - React Query hooks for registry, diagnostics, settings read/patch, and launch contributions.
+  - Capability-gated enable/disable/rescan mutation methods that call the host routes only when `liveExtensionManagement` is true and invalidate the registry query on success; never expose install/update/remove mutations.
 - [ ] Tests:
   - No-direct-Agent-Server guard still fails arbitrary `/api/*` fetches outside the wrapper.
   - Wrapper builds the expected routes and auth headers.
+  - Enable/disable/rescan mutations invalidate the registry query and are not exposed (or no-op) when `liveExtensionManagement` is false.
 - [ ] Verification:
 
 ```sh
@@ -384,10 +390,13 @@ npm run typecheck
   - Simple stacked view of installed Canvas Extensions and their status.
   - Status grouping/filtering only as needed for scanability: Enabled, Disabled, Invalid, Dev.
   - Rows/cards show display name, package, version, state, contribution badges, required secrets, diagnostics, source path for dev entries.
-  - Actions for install, enable, disable, remove.
+  - Read `liveExtensionManagement` from launcher metadata. When false: read-only with CLI guidance for enable/disable plus a restart note. When true: per-row enable/disable toggles and a rescan action wired to the gated service methods, with registry-query invalidation on success.
+  - CLI guidance for install, update, and remove in every mode; never render browser install/update/remove actions.
   - User-facing copy goes through i18n keys.
 - [ ] Tests:
-  - Component tests for empty/enabled/invalid/dev states.
+  - Component tests for empty/enabled/invalid/dev/needs-review states.
+  - Read-only CLI guidance when `liveExtensionManagement` is false; no toggles rendered.
+  - Enable/disable toggles and rescan rendered and functional when `liveExtensionManagement` is true, including registry invalidation on a successful toggle.
   - Snapshot tests for key states if scope allows in the PR.
 - [ ] Verification:
 
@@ -398,7 +407,7 @@ npm test
 ```
 
 - [ ] Done when:
-  - A user can see and manage `hello.canvas` from the UI.
+  - A user can inspect `hello.canvas` status and diagnostics from the UI, with management handled by CLI and restart.
 - [ ] Handoff notes:
 
 ## 7. Gate G4: Browser Module View Host And UI Surfaces
@@ -472,6 +481,7 @@ npm run test:e2e:snapshots -- --grep "sidebar"
 
 - [ ] Owner:
 - [ ] Depends on: G0.3, G1.3, G3.1
+- [ ] Coordination required: OpenHands agent team decision on PR #1277 or its successor
 - [ ] Files likely touched:
   - `src/components/features/chat/tool-visualizers/*`
   - `src/canvas-extensions/visualizers/*`
@@ -481,15 +491,16 @@ npm run test:e2e:snapshots -- --grep "sidebar"
   - visualizer tests under `__tests__/components/features/chat/tool-visualizers/`
   - extension tests under `__tests__/canvas-extensions/`
 - [ ] Implement:
-  - Public `@openhands/agent-canvas/canvas-visualizers` subpath with stable authoring types and primitives.
-  - Extension visualizer registry layer that composes before built-in visualizers and markdown fallback.
-  - `priority` plus `matches()` support.
+  - Public visualizer authoring export matched to the OpenHands agent team's approved API; use PR #1277 as the current starting point.
+  - Extension visualizer registry layer that composes before built-in visualizers and markdown/default fallback.
+  - `matches()` support for narrowing one event variant.
+  - No Canvas-only `priority` field unless the agent team approves it.
   - Manifest projection for `contributes.toolVisualizers`.
   - Error boundary/fallback behavior: thrown extension renderer records a diagnostic and falls through to the next renderer/default.
   - Fixture extension visualizer for one MCP/tool variant.
 - [ ] Tests:
   - Extension visualizer wins over built-in when matching.
-  - Higher priority wins among extension visualizers.
+  - Multiple matching extension visualizers follow the approved registry order. For PR #1277 this means latest registration first.
   - `matches()` narrows one action/observation variant without replacing the whole kind.
   - Built-in visualizer still handles unmatched events.
   - Markdown fallback still handles unregistered events.
@@ -525,8 +536,10 @@ npm run typecheck
   - Support theme-only extensions with no view/panel/visualizer contribution.
   - Fall back to the default built-in theme if the selected extension theme is disabled, removed, or invalid.
   - Settings panel registry for `contributes.settingsPanels`.
+  - Settings panel manifests declare metadata only; browser modules register implementations by contribution ID.
   - Render settings panels only under a visible Extensions header after built-in settings sections.
   - Conversation right-panel registry for `contributes.conversationRightPanels`.
+  - Conversation right-panel manifests declare metadata only; browser modules register implementations by contribution ID.
   - Render conversation right panels alongside Files, Browser, and Terminal.
   - Stable panel props: conversation ID/status where relevant, active backend summary, workspace summary, extension settings helpers, navigation/toast helpers.
   - Deterministic ordering by `order`, extension display name, and panel contribution ID.
@@ -537,7 +550,9 @@ npm run typecheck
   - Theme-only extension contributes no other UI and remains valid.
   - Selected extension theme falls back when disabled/invalid.
   - Settings panels render only under the Extensions header after built-in settings.
+  - Missing settings panel implementations produce diagnostics instead of breaking Settings.
   - Conversation right panels render beside Files, Browser, and Terminal.
+  - Missing right-panel implementations produce diagnostics instead of breaking the conversation UI.
   - Ordering is deterministic.
   - Disabled/invalid extensions do not render panel content.
   - Panel errors are localized and do not break settings or conversation pages.
@@ -626,6 +641,7 @@ npm run typecheck
   - Serve assets directly from registered source folder.
   - Watch manifest and declared output files.
   - Manifest changes revalidate and update diagnostics.
+  - Permission, network, secret, or agent-affecting contribution expansion moves the dev extension to needs-review/disabled-for-next-run until CLI re-approval and restart.
   - Browser module changes bump version token and remount affected views.
   - Agent-side changes require new conversation.
 - [ ] Tests:
@@ -633,6 +649,7 @@ npm run typecheck
   - Absolute path storage.
   - Traversal rejection.
   - Invalid manifest update transitions to invalid diagnostics.
+  - Permission-expanding manifest update transitions to needs-review/disabled-for-next-run.
   - Asset change emits remount/cache-bust signal.
 - [ ] Done when:
   - A developer can rebuild `hello.canvas` and see the view remount without rebuilding Canvas.
@@ -657,7 +674,8 @@ node bin/agent-canvas.mjs
 ```
 
 - [ ] Browser checks:
-  - Extensions shows `hello.canvas` enabled with no diagnostics.
+  - Extensions shows `hello.canvas` enabled with no diagnostics in the read-only inventory.
+  - Extensions shows CLI/restart guidance rather than browser management actions.
   - Left navigation entry appears after Automations and before conversations.
   - Extension view renders.
   - Extension color theme appears in Settings > Application > Color Theme and can be selected.
@@ -668,6 +686,7 @@ node bin/agent-canvas.mjs
   - Conversation payload includes extension suffix.
   - Remote/cloud compatibility path shows disabled reason for local plugin path.
   - Dev registration and remount path works in `npm run dev`.
+  - In `npm run dev`, the Extensions page enable/disable toggle reconciles UI contributions without a restart, and rescan surfaces a newly installed extension; the same build served via the static/packaged path shows the page read-only with no toggles.
 - [ ] Done when:
   - The PoC works from a clean checkout.
 - [ ] Handoff notes:
@@ -721,6 +740,9 @@ The PoC is not complete unless all of these are true:
 - [ ] Browser modules are trusted same-origin DOM islands and documented/consented as such.
 - [ ] Bare runtime imports in extension browser modules are rejected for MVP.
 - [ ] Local SDK plugin paths are sent only when `localInstallStoreReadable=true`.
+- [ ] Install, update, and remove are CLI-only with no browser routes or controls in any mode.
+- [ ] Enable/disable/rescan host routes and Extensions page controls exist only when `liveExtensionManagement=true` (the Vite dev stack); the packaged/Docker/static page is read-only and restart-bounded.
+- [ ] Live enable/disable reconciles UI contributions without a restart; SDK plugin and context changes still apply only to conversations created after the change.
 - [ ] ACP runtimes do not receive incompatible extension plugin/MCP contributions.
 - [ ] `conversationInstructions` never receives extension system context.
 - [ ] Extension context composes with existing `<RUNTIME_SERVICES>` suffix.
