@@ -3,16 +3,16 @@
 Status: RFC, ready for review
 Target: `OpenHands/agent-canvas`
 
-Current repo baseline: merged through `upstream/main` at `929e5afc` / `origin/main` at `62f5eae7` while updating this draft. The current package version is `1.0.0-alpha.10`, `config/defaults.json` pins `agentServer` to `1.24.0`, and `@openhands/typescript-client` is `1.24.3`.
+Current repo baseline: merged through `upstream/main` at `40844533`. The current package version is `1.0.0-rc.6`, `config/defaults.json` pins `agentServer` to `1.27.0`, `@openhands/extensions` is `0.4.0`, and `@openhands/typescript-client` is `1.24.3`.
 
 
 ## 1. Summary
 
 Agent Canvas should ship a first-class **Extensions** system: user-installable npm packages that extend the local Canvas experience and optionally contribute components to the agent runtime through SDK-supported surfaces.
 
-An Extension can contribute UI views, primary navigation entries, launch templates, OpenHands SDK plugin sources, MCP server templates, and system-prompt context blocks. Extensions are installed and managed by a small local Node service started by the `agent-canvas` launcher. Agent-side behavior is forwarded only through already-supported SDK surfaces — Canvas does not patch or load code inside the Agent Server.
+An Extension can contribute UI views, primary navigation entries, custom tool/event visualizers, conversation UI slots, launch templates, OpenHands SDK plugin sources, MCP server templates, and system-prompt context blocks. Extensions are installed and managed by a small local Node service started by the `agent-canvas` launcher. Agent-side behavior is forwarded only through already-supported SDK surfaces; Canvas does not patch or load code inside the Agent Server.
 
-The MVP delivers CLI install for Agent Canvas extension packages, a Packages management page, trusted same-origin extension views, dev-mode authoring with live reload, and SDK plugin / context merging on conversation launch. The CLI can detect adjacent artifact types such as standalone SDK plugins or `SKILL.md` folders, but the first executable slice should install/enable only packages with an Agent Canvas manifest. Marketplace, signing, sandboxed iframe views, parent-React component extensions, standalone skill/plugin management, and agent-mediated installation are explicitly deferred. The manifest reserves a future iframe entry point so that stronger isolation can be added later without changing extension package shape.
+The MVP delivers CLI install for Agent Canvas extension packages, a Packages management page, trusted same-origin extension views, dev-mode authoring with live reload, and a narrow first route-less JavaScript surface: extension-provided tool visualizers that compose with the built-in visualizer registry introduced by PR #1246. Conversation slots and badges are the next focused surface after visualizers; broad root-mounted components remain deferred. The CLI can detect adjacent artifact types such as standalone SDK plugins or `SKILL.md` folders, but the first executable slice should install/enable only packages with an Agent Canvas manifest. Marketplace, signing, sandboxed iframe views, arbitrary app-root component/shared dependency runtimes, standalone skill/plugin management, and agent-mediated installation are explicitly deferred. The manifest reserves a future iframe entry point so that stronger isolation can be added later without changing extension package shape.
 
 ## 2. Motivation
 
@@ -31,6 +31,8 @@ The system must preserve the existing security and operational boundaries betwee
 - **SDK Plugin** — the OpenHands SDK plugin format (`.plugin/plugin.json`), containing skills, hooks, MCP config, agents, and slash commands. Extensions may bundle or reference SDK plugins.
 - **MCP Server** — external tool server config installed into agent settings.
 - **Skill** — an OpenHands skill loaded by the SDK; usually delivered via an SDK plugin rather than copied into user skill directories.
+- **Tool Visualizer** — a React renderer for one action/observation kind or one more specific tool variant, selected before the built-in markdown fallback.
+- **Conversation Slot** — a named insertion point in the conversation UI such as header actions, sidebar widgets, footer indicators, badges, or event renderer hooks.
 
 User-facing UI should use the word "Extension." Avoid "plugin" in the Canvas product surface because the SDK already owns that term.
 
@@ -52,6 +54,7 @@ User-facing UI should use the word "Extension." Avoid "plugin" in the Canvas pro
 - No extension may patch or monkeypatch the Agent Server.
 - No extension may register server-side tools except through SDK-supported plugin/MCP mechanisms.
 - No stable extension API may expose Canvas internals, parent React components, or DOM mutation hooks. MVP browser modules are trusted same-origin code, so DOM access is a trust concern rather than an enforceable sandbox boundary.
+- No broad root-mounted route-less JavaScript surface lands before narrower slot APIs prove the need. Tool visualizers are the first route-less JS surface because the registry seam already exists and the fallback behavior is well defined.
 - No repository-local files may modify the running Canvas browser experience simply because a conversation is attached to that repository.
 - No npm install scripts run by default during extension installation.
 - No standalone SDK plugin, standalone `SKILL.md`, or MCP template artifact becomes independently active in the first MVP slice; those artifacts must be wrapped by an Agent Canvas extension until their product UX is designed.
@@ -244,10 +247,10 @@ The manifest path must resolve inside the package root. Path traversal is reject
 The host package must publish everything the global CLI and extension authors need:
 
 - `bin/agent-canvas.mjs`, launcher scripts, static `build/`, and any Extension Host scripts must be included by `package.json#files`.
-- Extension author types must be exported as `@openhands/agent-canvas/extensions`. The release build must emit those files under `dist/extensions/*` and add a matching `./extensions` subpath export.
+- Extension author types must be exported as `@openhands/agent-canvas/extensions` and `@openhands/agent-canvas/visualizers`. The release build must emit those files under `dist/extensions/*` and `dist/visualizers/*` and add matching subpath exports.
 - If JSON Schemas are advertised by URL or package path, the schemas must either be served remotely or included in the npm package. Do not point authors at files that are excluded by `package.json#files`.
 - Example extensions under `examples/` are source-repo fixtures unless `package.json#files` explicitly includes them. The acceptance path for a globally installed package should use either a packed fixture tarball or a separately published example package, not an unpublished repo-local path.
-- Every release candidate should run `npm pack --dry-run` or an equivalent packed-tarball smoke so missing `build`, `scripts`, `dist/extensions`, or schema files are caught before publish.
+- Every release candidate should run `npm pack --dry-run` or an equivalent packed-tarball smoke so missing `build`, `scripts`, `dist/extensions`, `dist/visualizers`, or schema files are caught before publish.
 
 ## 11. Manifest Schema
 
@@ -265,12 +268,12 @@ The host package must publish everything the global CLI and extension authors ne
   "license": "MIT",
   "repository": "https://github.com/acme/agent-canvas-github",
   "compatibility": {
-    "agentCanvas": ">=1.0.0-alpha.10 <2.0.0",
+    "agentCanvas": ">=1.0.0-rc.6 <2.0.0",
     "extensionApi": 1
   },
   "activationEvents": ["onStartup"],
   "permissions": {
-    "ui": ["views"],
+    "ui": ["views", "toolVisualizers"],
     "agent": ["sdkPlugins", "context"],
     "mcp": ["templates"],
     "network": ["https://api.github.com"]
@@ -290,6 +293,15 @@ The host package must publish everything the global CLI and extension authors ne
           "order": 300,
           "icon": "./dist/github.svg"
         }
+      }
+    ],
+    "toolVisualizers": [
+      {
+        "id": "github-pr-check",
+        "module": "./dist/github-pr-check-visualizer.js",
+        "actionKinds": ["MCPToolAction"],
+        "observationKinds": ["MCPToolObservation"],
+        "priority": 25
       }
     ],
     "agentPlugins": [
@@ -400,8 +412,8 @@ Inline extension code runs in the same browser origin as Canvas. That is intenti
 
 - `browser.module` must point to a built ESM file that a browser can import directly.
 - The Extension Host serves static files only; it does not transpile TypeScript/JSX or run bundlers for installed packages.
-- Runtime imports must be relative URLs inside the extension asset tree or bundled into the module. Bare runtime imports such as `react`, `@heroui/react`, or `@openhands/agent-canvas/extensions` are rejected for MVP because the packaged CLI cannot guarantee a Vite resolver or shared dependency graph.
-- Type-only imports from `@openhands/agent-canvas/extensions` are allowed in author source and erased by the extension's build.
+- Runtime imports must be relative URLs inside the extension asset tree or bundled into the module. Bare runtime imports such as `react`, `@heroui/react`, `@openhands/agent-canvas/extensions`, or `@openhands/agent-canvas/visualizers` are rejected for MVP because the packaged CLI cannot guarantee a Vite resolver or shared dependency graph.
+- Type-only imports from `@openhands/agent-canvas/extensions` are allowed in author source and erased by the extension's build. Author source may import `@openhands/agent-canvas/visualizers`, but emitted browser modules must bundle those helpers rather than leaving a bare package import.
 - The default export shape is:
 
 ```ts
@@ -464,7 +476,73 @@ The user enabled the following Agent Canvas extensions for this conversation.
 
 Extension context **must not** be merged into `conversationInstructions`; that turns extension guidance into user-message content. An explicit `extensionSystemSuffix` option will be added to the conversation adapter so runtime services and extension context compose in one place.
 
-### 12.6 `configuration` and `secrets`
+### 12.6 `toolVisualizers`
+
+Custom event rendering is the first concrete route-less JavaScript extension surface. PR #1246 added the internal `src/components/features/chat/tool-visualizers` registry and dispatcher: `getEventContent()` asks the registry for a React body by action/observation kind, and falls back to the existing markdown renderer when no visualizer matches. Extensions should build on that seam instead of introducing an unrelated event-rendering model.
+
+Manifest contribution shape:
+
+```json
+{
+  "contributes": {
+    "toolVisualizers": [
+      {
+        "id": "acme.kubernetes.apply",
+        "module": "./dist/kubernetes-apply-visualizer.js",
+        "actionKinds": ["MCPToolAction"],
+        "observationKinds": ["MCPToolObservation"],
+        "priority": 50
+      }
+    ]
+  }
+}
+```
+
+Runtime registration shape:
+
+```ts
+export default function register(api: AgentCanvasExtensionApi) {
+  api.registerToolVisualizer({
+    id: "acme.kubernetes.apply",
+    actionKinds: ["MCPToolAction"],
+    observationKinds: ["MCPToolObservation"],
+    priority: 50,
+    matches({ action }) {
+      return (
+        action?.action.kind === "MCPToolAction" &&
+        action.action.tool_name === "kubectl_apply"
+      );
+    },
+    Body({ action, observation }) {
+      return <KubernetesApplyCard action={action} observation={observation} />;
+    },
+  });
+}
+```
+
+Selection rules:
+
+- Extension visualizers are considered before built-in visualizers.
+- Higher `priority` wins within extension visualizers; ties sort by extension ID then visualizer ID.
+- `matches()` narrows within a kind so one extension can override a specific MCP tool without replacing all `MCPToolAction` rendering.
+- If an extension visualizer throws, Canvas catches the error, reports a local diagnostic, and tries the next matching visualizer before falling back to the built-in renderer or markdown fallback.
+- Visualizer modules use the same trusted local browser-code model as `browser.module`; no sandbox claim is made in MVP.
+
+Public authoring types and primitives should be exported from `@openhands/agent-canvas/visualizers`, separate from the broader `@openhands/agent-canvas/extensions` management contract. The public surface should wrap or re-export stable versions of `defineVisualizer`, `VisualizerProps`, shared primitives such as code blocks/diff/output panes, and action/observation kind types. Do not expose internal file paths under `src/components/features/chat/tool-visualizers/*` as the authoring API.
+
+### 12.7 `conversationSlots`
+
+Conversation slots are the next focused extension surface after tool visualizers. They answer the UI-slot feedback in issue #481 without opening arbitrary app-root mutation. Initial slot names should be explicit and few:
+
+- `conversation.header.actions` — icon/button actions near the active conversation header.
+- `conversation.sidebar` — compact widgets in the conversation side area when available.
+- `conversation.footer` — status indicators near the chat input/footer region.
+- `conversation.badges` — small status chips for backend, workspace, or extension-provided state.
+- `conversation.event.visualizers` — alias or manifest sugar for tool visualizer contributions.
+
+Slot renderers receive a narrow context object: active conversation ID, execution status, active backend summary, workspace summary, and a host API for navigation/toasts/settings. They should not receive raw React Query clients or arbitrary store access as the stable contract. That restriction keeps the API supportable even while the MVP runtime is trusted same-origin code.
+
+### 12.8 `configuration` and `secrets`
 
 `configuration` uses JSON Schema; values are stored in the Extension Host's `config.json`. `secrets` are declarations only; values are stored through the existing `SecretsService`.
 
@@ -507,6 +585,16 @@ interface AgentCanvasExtensionContext {
   ui: {
     toast(message: string, options?: { tone?: "success" | "error" }): Promise<void>;
   };
+  visualizers: {
+    registerToolVisualizer(
+      visualizer: AgentCanvasToolVisualizer,
+    ): Promise<AgentCanvasExtensionDisposable>;
+  };
+  conversationSlots: {
+    registerSlot(
+      slot: AgentCanvasConversationSlot,
+    ): Promise<AgentCanvasExtensionDisposable>;
+  };
   conversations: {
     list(): Promise<unknown[]>;
     current(): Promise<unknown | null>;
@@ -521,7 +609,7 @@ interface AgentCanvasExtensionContext {
 }
 ```
 
-There is **no** supported generic `agentServer.request(path)`. The repo already routes Agent Server traffic through typed service wrappers; the extension surface follows the same pattern with named, permission-declared capabilities. For MVP inline browser modules, this is an API support boundary rather than a browser security boundary (see §19).
+For the first implementation slice, `visualizers.registerToolVisualizer()` is the only required route-less registration API. `conversationSlots.registerSlot()` can remain typed/reserved until the slot insertion points are implemented. There is **no** supported generic `agentServer.request(path)`. The repo already routes Agent Server traffic through typed service wrappers; the extension surface follows the same pattern with named, permission-declared capabilities. For MVP inline browser modules, this is an API support boundary rather than a browser security boundary (see §19).
 
 ## 14. Shared Type Contract
 
@@ -581,13 +669,15 @@ export interface InstallableArtifactRegistryEntry {
 }
 ```
 
-`registerTool`, parent-React component registration, and Canvas-internal imports are intentionally absent from the MVP public contract.
+`registerTool`, arbitrary app-root components, raw store/query-client access, and Canvas-internal imports are intentionally absent from the MVP public contract.
 
 ## 15. Permissions Model
 
 Permission groups:
 
 - `ui.views` — render trusted same-origin browser-module views and their declared navigation entries.
+- `ui.toolVisualizers` — register custom action/observation renderers in the conversation event pipeline.
+- `ui.conversationSlots` — register named conversation UI slot content when slot support lands.
 - `ui.commands` — register commands.
 - `agent.sdkPlugins` — include SDK plugins in conversation launches.
 - `agent.context` — append extension context to system suffix.
@@ -820,7 +910,7 @@ This is not part of PR 0 or PR 1. It becomes feasible after the local install st
 
 MVP requires **zero broad Agent Server changes**. Current `software-agent-sdk` exposes the needed request shape: `StartConversationRequest.plugins` is `list[PluginSource] | None`, and `PluginSource` carries `source`, optional `ref`, and optional `repo_path`. The SDK loads plugins lazily when a local conversation first runs, then merges plugin skills, MCP config, hooks, and plugin agents into the agent. This is enough for Canvas to forward descriptors; it is also why ACP and filesystem-local preflight matter.
 
-Three things to confirm against the current pinned Agent Server version (`config/defaults.json` currently pins `agentServer` to `1.24.0`) before PR 4:
+Three things to confirm against the current pinned Agent Server version (`config/defaults.json` currently pins `agentServer` to `1.27.0`) before PR 4:
 
 1. Agent Server create-conversation accepts `plugins` in the shape of SDK `PluginSource`.
 2. `AgentContext.system_message_suffix` remains accepted for both `Agent` and `ACPAgent`.
@@ -868,7 +958,7 @@ The multi-agent, checkable execution checklist for this plan lives in [Extension
 
 Files: `docs/ExtensionsSystemRFC.md`, `src/extensions/types.ts`, `src/extensions/manifest-schema.ts`, `src/extensions/manifest-validation.ts`, `src/extensions/artifact-detection.ts`, `__tests__/extensions/manifest-validation.test.ts`.
 
-Deliverables: shared manifest and registry types; generic installable artifact kind definitions; artifact detection rules for extension packages, SDK plugins, skills, and placeholder MCP templates; schema-version constant; manifest validation helpers; storage-path helper for `~/.openhands/agent-canvas/installations`; fixtures for valid/invalid manifests; `@openhands/agent-canvas/extensions` subpath export plan wired to generated `dist/extensions/*`; release packaging checklist. No Extension Host, no frontend UI, no agent contribution merging.
+Deliverables: shared manifest and registry types; generic installable artifact kind definitions; contribution types for views, visualizers, slots, launch templates, SDK plugins, MCP templates, and context; artifact detection rules for extension packages, SDK plugins, skills, and placeholder MCP templates; schema-version constant; manifest validation helpers; storage-path helper for `~/.openhands/agent-canvas/installations`; fixtures for valid/invalid manifests; `@openhands/agent-canvas/extensions` and `@openhands/agent-canvas/visualizers` subpath export plan wired to generated `dist/extensions/*` and `dist/visualizers/*`; release packaging checklist. No Extension Host, no frontend UI, no agent contribution merging.
 
 **Iframe-runtime forward compatibility (minimal, PR 0 scope):** the manifest schema and TypeScript contract accept both `browser.module` (active) and `browser.entry` (reserved). The validator recognizes `browser.entry` as syntactically valid but emits a `reserved-not-yet-supported` diagnostic so authors can't accidentally ship extensions that depend on an unimplemented runtime. The API contract in `src/extensions/types.ts` is defined async-only, which is the only change needed so that a future iframe runtime can satisfy the same interface over postMessage without an API redesign. No iframe host, no postMessage bridge, no asset-mode switching, and no parallel runtime code lands here — that work is deferred to a post-MVP PR triggered by one of the trust-boundary conditions in §27 Decision 11. The total PR 0 cost of keeping the option open is a handful of schema fields, one validation rule, one fixture, and a short authoring note in the type comments.
 
@@ -892,7 +982,19 @@ Files: `src/routes/extension-view-host.tsx`, `src/extensions/runtime/*`, sidebar
 
 Deliverables: route `/extensions/:extensionId/:viewId/*`; DOM-container host for trusted `browser.module` extensions; dynamic import with cache-busting support; browser asset serving; `mount()`/`dispose()` lifecycle; primary-sidebar navigation entries for views; minimal `navigation` and `ui.toast` APIs; example extension package with a bundled browser-ready module.
 
-### PR 3b — Dev extension watch mode
+### PR 3a — Extension tool visualizers
+
+Files: `src/components/features/chat/tool-visualizers/*`, `src/extensions/visualizers/*`, `src/api/extensions-service.ts`, `src/routes/extension-view-host.tsx` or equivalent runtime loader, `package.json`, `tsconfig.lib.json`, tests under `__tests__/extensions/` and existing visualizer tests.
+
+Deliverables: public `@openhands/agent-canvas/visualizers` subpath; extension visualizer registry layer that composes before built-ins and then markdown fallback; `priority` and `matches()` support; error boundary/fallback behavior for extension renderers; manifest projection for `contributes.toolVisualizers`; `hello.canvas` or a focused fixture overriding one MCP tool visualizer; unit tests proving extension-first order, built-in fallback, markdown fallback, and throw-to-next-renderer behavior.
+
+### PR 3b — Conversation slots and badges
+
+Files: conversation header/sidebar/footer/badge components, `src/extensions/slots/*`, `src/i18n/translation.json`, tests under `__tests__/extensions/` and focused component tests.
+
+Deliverables: narrow slot registry for `conversation.header.actions`, `conversation.sidebar`, `conversation.footer`, and `conversation.badges`; stable slot props with conversation/backend/workspace summaries; no raw store or React Query client in the public API; per-slot error boundaries; deterministic ordering by priority and extension ID; visible examples for a backend badge or workspace status chip.
+
+### PR 3c — Dev extension watch mode
 
 Files: `scripts/extension-host.mjs`, `scripts/extension-manager.mjs`, `bin/agent-canvas.mjs`, `src/api/extensions-service.ts`, `src/routes/extensions-packages.tsx`, contributor docs.
 
@@ -945,6 +1047,8 @@ These were open questions in the earlier draft. Decisions for the RFC:
 | 11 | What triggers the reserved iframe runtime? | **A trust boundary requirement:** community marketplace distribution, an untrusted third-party publisher tier, or a concrete need for browser-enforced isolation/CSP. |
 | 12 | Should agent-proposed dev extension registration ship with dev watch mode? | **No.** Defer to the broader post-MVP agent-mediated install proposal flow. |
 | 13 | Which create-conversation payload shape should extensions target? | **Current SDK settings shape:** top-level `agent_settings` plus optional top-level `plugins`; do not reintroduce legacy `agent` payloads. |
+| 14 | What is the first route-less JavaScript surface? | **Tool visualizers.** They build on the merged PR #1246 registry seam and have a clear fallback path. |
+| 15 | Should conversation slots ship before visualizers? | **No.** Keep slots explicit and follow visualizers with header/sidebar/footer/badge slots once the registry/runtime shape is proven. |
 
 ## 28. Remaining Open Questions
 
@@ -960,10 +1064,11 @@ Build the smallest powerful slice:
 2. Extension Host registry and asset serving.
 3. Packages management page.
 4. Trusted same-origin browser-module extension views (with the iframe runtime reserved in the manifest schema).
-5. Dev-mode extension registration / watch / reload.
-6. SDK plugin contribution merge for local conversations.
-7. Context contribution merge behind explicit permission.
+5. Extension tool visualizers as the first route-less JavaScript surface.
+6. Dev-mode extension registration / watch / reload.
+7. SDK plugin contribution merge for local conversations.
+8. Context contribution merge behind explicit permission.
 
-Defer: marketplace, package signing, **sandboxed iframe runtime** (manifest field reserved as `browser.entry` but unimplemented), parent-React component extensions/shared dependency runtime, rich extension RPC APIs, agent-mediated installation, SDK/server install management, plugin parameters, and per-run extension enablement.
+Defer: marketplace, package signing, **sandboxed iframe runtime** (manifest field reserved as `browser.entry` but unimplemented), arbitrary root-mounted route-less components/shared dependency runtime, rich extension RPC APIs beyond the visualizer/slot surfaces, agent-mediated installation, SDK/server install management, plugin parameters, and per-run extension enablement.
 
 This delivers a useful end-to-end extension system while keeping the Agent Server boundary clean.

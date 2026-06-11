@@ -4,7 +4,7 @@ Status: executable handoff plan
 Source RFC: [ExtensionsSystemRFC.md](./ExtensionsSystemRFC.md)
 Source PoC plan: [ExtensionsSystemPoCPlan.md](./ExtensionsSystemPoCPlan.md)
 Target: a working proof of concept that can be built by multiple agents without one agent holding all context
-Current repo baseline: merged through `upstream/main` at `929e5afc` / `origin/main` at `62f5eae7`. This checklist assumes `agentServer` `1.24.0`, the current local/public auth modes, frontend-only/backend-only partial stacks, MCP catalog data from `@openhands/extensions/integrations`, and public skills defaulting on unless `VITE_LOAD_PUBLIC_SKILLS=false`.
+Current repo baseline: merged through `upstream/main` at `40844533`. This checklist assumes `agentServer` `1.27.0`, the current local/public auth modes, frontend-only/backend-only partial stacks, MCP catalog data from `@openhands/extensions/integrations`, the merged PR #1246 tool visualizer registry, and public skills defaulting on unless `VITE_LOAD_PUBLIC_SKILLS=false`.
 
 ## 1. How To Use This Plan
 
@@ -41,7 +41,7 @@ Use gates to coordinate merge order. Tasks inside a gate can be split, but the g
 | G1 | Manager, CLI, install store, host routes | Manager/CLI and launcher work can split after shared contracts land | UI, view host, conversation merge |
 | G2 | Example extension and package release path | Can run alongside G1 after contracts land | View host, acceptance demo |
 | G3 | Frontend Packages page and ExtensionService | Can run once Extension Host registry shape is stable | View host UX, dev mode UX |
-| G4 | Browser-module view host and sidebar entries | Can run after registry/assets exist | Acceptance demo |
+| G4 | Browser-module view host, sidebar entries, visualizers, and slots | Can run after registry/assets exist; visualizers can split after shared types land | Acceptance demo |
 | G5 | Conversation contribution merge | Can run after launch-contributions endpoint exists | Final proof |
 | G6 | Dev mode watch/remount | Can run after manager, host, and view host exist | Final proof |
 | G7 | Acceptance, release smoke, polish | Serial final pass | PoC complete |
@@ -66,7 +66,7 @@ Avoid these overlapping edits unless one agent owns the integration:
 - [ ] Implement:
   - Create the smallest SDK plugin fixture with a visible skill/context marker.
   - Start a local conversation with top-level `plugins: [{ source: absolutePluginPath }]`.
-  - Confirm pinned Agent Server `1.24.0` accepts `PluginSource` and loads from a local path.
+  - Confirm pinned Agent Server `1.27.0` accepts `PluginSource` and loads from a local path.
   - Run the same preflight against an ACP configuration or document that ACP remains context-only.
 - [ ] Tests:
   - Add a repeatable smoke or unit fixture where possible.
@@ -110,10 +110,11 @@ Avoid these overlapping edits unless one agent owns the integration:
   - keep new public types under `src/extensions/`; do not recreate the old `src/addons/` namespace
 - [ ] Implement:
   - Manifest v1 types, contribution types, registry entry types, diagnostics, installable artifact kinds.
+  - Contribution types for `toolVisualizers` and `conversationSlots`.
   - Validation for required fields, ID regex, duplicate/mutually exclusive `browser.module` and `browser.entry`, path containment, reserved `browser.entry`.
   - Artifact detection order: Agent Canvas extension, SDK plugin, skill, MCP placeholder.
   - Storage helpers for `~/.openhands/agent-canvas/installations`.
-  - Public package export `@openhands/agent-canvas/extensions` and emitted `dist/extensions/*`.
+  - Public package exports `@openhands/agent-canvas/extensions` and `@openhands/agent-canvas/visualizers` with emitted `dist/extensions/*` and `dist/visualizers/*` outputs.
 - [ ] Tests:
   - Valid extension manifest.
   - Missing required fields.
@@ -131,7 +132,7 @@ npm run build:lib
 ```
 
 - [ ] Done when:
-  - Type consumers can import from `@openhands/agent-canvas/extensions`.
+  - Type consumers can import from `@openhands/agent-canvas/extensions` and `@openhands/agent-canvas/visualizers`.
   - No runtime host, CLI store, or UI behavior is introduced in this gate.
 - [ ] Handoff notes:
 
@@ -327,7 +328,7 @@ npm pack --dry-run
 ```
 
 - [ ] Done when:
-  - Packed package contains `bin`, `scripts`, `build`, `dist/extensions`, and any advertised schema files.
+  - Packed package contains `bin`, `scripts`, `build`, `dist/extensions`, `dist/visualizers`, and any advertised schema files.
   - `agent-canvas list extensions` and `agent-canvas doctor` work from packed/global install.
 - [ ] Handoff notes:
 
@@ -457,6 +458,70 @@ npm run test:e2e:snapshots -- --grep "sidebar"
 
 - [ ] Done when:
   - `hello.canvas` sidebar item appears immediately after Automations.
+- [ ] Handoff notes:
+
+### G4.3 Extension Tool Visualizers
+
+- [ ] Owner:
+- [ ] Depends on: G0.3, G1.3, G3.1
+- [ ] Files likely touched:
+  - `src/components/features/chat/tool-visualizers/*`
+  - `src/extensions/visualizers/*`
+  - `src/api/extensions-service.ts`
+  - `package.json`
+  - `tsconfig.lib.json`
+  - visualizer tests under `__tests__/components/features/chat/tool-visualizers/`
+  - extension tests under `__tests__/extensions/`
+- [ ] Implement:
+  - Public `@openhands/agent-canvas/visualizers` subpath with stable authoring types and primitives.
+  - Extension visualizer registry layer that composes before built-in visualizers and markdown fallback.
+  - `priority` plus `matches()` support.
+  - Manifest projection for `contributes.toolVisualizers`.
+  - Error boundary/fallback behavior: thrown extension renderer records a diagnostic and falls through to the next renderer/default.
+  - Fixture extension visualizer for one MCP/tool variant.
+- [ ] Tests:
+  - Extension visualizer wins over built-in when matching.
+  - Higher priority wins among extension visualizers.
+  - `matches()` narrows one action/observation variant without replacing the whole kind.
+  - Built-in visualizer still handles unmatched events.
+  - Markdown fallback still handles unregistered events.
+  - Throwing extension renderer falls through.
+- [ ] Verification:
+
+```sh
+npm test -- __tests__/components/features/chat/tool-visualizers
+npm run build:lib
+npm run typecheck
+```
+
+- [ ] Done when:
+  - A local extension can change how one event/tool renders without forking Agent Canvas.
+- [ ] Handoff notes:
+
+### G4.4 Conversation Slots And Badges
+
+- [ ] Owner:
+- [ ] Depends on: G4.3
+- [ ] Files likely touched:
+  - conversation header/sidebar/footer/badge components
+  - `src/extensions/slots/*`
+  - `src/i18n/translation.json`
+  - tests under `__tests__/extensions/`
+  - focused component tests near each slot host
+- [ ] Implement:
+  - Slot registry for `conversation.header.actions`, `conversation.sidebar`, `conversation.footer`, and `conversation.badges`.
+  - Optional `conversation.event.visualizers` manifest alias that maps to tool visualizer registration.
+  - Stable slot props: conversation ID/status, active backend summary, workspace summary, extension settings helpers, navigation/toast helpers.
+  - Deterministic ordering by priority, extension display name, and slot contribution ID.
+  - Per-slot error boundaries.
+  - No raw store, React Query client, or Canvas-internal component API in the public contract.
+- [ ] Tests:
+  - Slots render in the intended hosts.
+  - Ordering is deterministic.
+  - Disabled/invalid extensions do not render slot content.
+  - Slot error is localized and does not break the conversation page.
+- [ ] Done when:
+  - A local extension can add a backend/workspace/conversation badge or header action without a route.
 - [ ] Handoff notes:
 
 ## 8. Gate G5: Conversation Contributions
