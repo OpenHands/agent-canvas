@@ -172,7 +172,7 @@ It should expose:
 - settings
 - static asset routes
 
-The host never exposes HTTP routes for install, update, or remove; those are CLI-only in every mode. It registers `POST /:id/enable`, `POST /:id/disable`, and `POST /rescan` **only when the launcher reports `liveExtensionManagement`** (the Vite dev stack); in packaged/Docker/static modes those routes are absent and lifecycle stays CLI-only and restart-bounded. The gated routes mutate `config.json` / re-read the store through `extension-manager` and require the same session API key model as settings mutations.
+The host never exposes HTTP routes for install, update, or remove; those are CLI-only in every mode. It registers `POST /:id/enable`, `POST /:id/disable`, and `POST /rescan` **only when the launcher reports `liveExtensionManagement`** (the Vite dev stack); in packaged/Docker/static modes those routes are absent and lifecycle stays CLI-only and restart-bounded. The gated routes mutate `config.json` / re-read the store through `extension-manager` and require the same session API key model as settings mutations. The launcher passes the session key to the Host at startup and the Host validates it on settings and the gated routes; route gating is enforced server-side (the Host registers the live routes from its own launch-mode computation), so the frontend `liveExtensionManagement` flag is only a UX mirror.
 
 ### 3.5 Launcher Integration
 
@@ -228,7 +228,7 @@ Add `/canvas-extensions/:extensionId/:viewId/*` and a route component that:
 - Fetches registry data.
 - Resolves `assetBaseUrl + browser.module`.
 - Dynamically imports the module with a cache-busting version.
-- Calls `mount({ root, context })`.
+- Calls the module's `mount({ root, context })` for the view. Route-less contributions (visualizers, themes, settings/right panels) are registered separately during the startup `activate(context)` pass, not here (see RFC §13.1).
 - Calls `dispose()` on unmount/remount.
 - Provides minimal context: extension metadata/settings, `navigation.navigate`, `navigation.openExternal`, `ui.toast`, `settings.readExtensionSettings`, and `settings.patchExtensionSettings`.
 
@@ -304,7 +304,7 @@ MVP scope:
 - Disabled/invalid extensions do not render settings panels.
 - Canvas owns the panel chrome, save/cancel affordances, loading states, and error boundaries.
 - Panel renderers receive extension settings helpers only; no raw settings store or React Query client access.
-- Manifest entries declare metadata only. The browser module registers implementations by panel contribution ID at runtime; missing registrations show diagnostics.
+- Manifest entries declare metadata only. The browser module registers implementations by panel contribution ID during `activate()` (see RFC §13.1); missing registrations show diagnostics.
 
 ### 4.8 Conversation Right Panels
 
@@ -317,7 +317,7 @@ MVP scope:
 - Disabled/invalid extensions do not render panels.
 - Panels receive active conversation ID/status, workspace summary, backend summary, and host APIs for navigation, toasts, and extension settings.
 - Canvas owns panel placement, collapsed/expanded behavior, loading state, and error boundaries.
-- Manifest entries declare metadata only. The browser module registers implementations by panel contribution ID at runtime; missing registrations show diagnostics.
+- Manifest entries declare metadata only. The browser module registers implementations by panel contribution ID during `activate()` (see RFC §13.1); missing registrations show diagnostics.
 
 ## 5. Conversation Contributions
 
@@ -372,6 +372,7 @@ Rules:
 - Permission, network, secret, or agent-affecting contribution expansion moves the dev extension to needs-review/disabled-for-next-run until CLI re-approval and restart.
 - Browser module changes bump a version token and remount only affected views.
 - Agent-side contribution changes require a new conversation.
+- The install store is shared between the CLI and the running Host. Writes use temp-file-then-rename and multi-step transactions take `installations/.lock`, so a CLI install followed by a Host `rescan` (the agent-authoring loop) never reads torn state (see RFC §9).
 
 The example extension should include a minimal `npm run build -- --watch` authoring flow in docs, but Canvas should not run that command automatically.
 
@@ -411,7 +412,7 @@ Release-path acceptance should also install the packed `@openhands/agent-canvas`
 
 **Unit:** manifest validation; reserved `browser.entry` diagnostics; path traversal rejection; artifact detection; unsupported standalone artifact diagnostics; install-store bootstrap; enable/disable/remove/update state transitions through the shared manager (driven by CLI, and by the host enable/disable/rescan routes when live management is enabled); capability gating of those routes by `liveExtensionManagement`; duplicate ID handling; color theme projection/validation/fallback; asset route path validation; CLI arg parsing before build checks; no-install-scripts default; visualizer contribution projection; visualizer ordering/fallback/error-boundary behavior aligned with #1277 or its successor; settings panel projection/registration/ordering; conversation right-panel projection/registration/ordering; launch contribution projection; context suffix rendering; plugin merge/dedupe; runtime compatibility classification; dev registration, manifest revalidation, and permission-drift re-approval.
 
-**Node integration:** run the Extension Host against a temp install store; install the `hello.canvas` fixture from local path and npm-packed tarball through the CLI; fetch registry and asset URLs; verify route precedence before `/api/*` in Vite, ingress, static server, and packaged CLI paths; verify settings mutation routes require the session API key; verify no install/update/remove browser routes exist in any mode; verify `enable`/`disable`/`rescan` routes are absent when `liveExtensionManagement` is false and present (and API-key-guarded) when it is true; verify rescan picks up a newly installed extension and live enable/disable mutates `config.json`; verify `doctor` reports invalid manifests, unsupported standalone artifacts, and missing assets.
+**Node integration:** run the Extension Host against a temp install store; install the `hello.canvas` fixture from local path and npm-packed tarball through the CLI; fetch registry and asset URLs; verify route precedence before `/api/*` in Vite, ingress, static server, and packaged CLI paths; verify settings mutation routes require the session API key; verify no install/update/remove browser routes exist in any mode; verify `enable`/`disable`/`rescan` routes are absent when `liveExtensionManagement` is false and present (and API-key-guarded) when it is true; verify rescan picks up a newly installed extension and live enable/disable mutates `config.json`; verify a concurrent CLI install while the Host is live (then rescan) never yields a torn/partial `config.json`/`artifacts.json` and that rescan waits or reports `install in progress` while the lock is held; verify `doctor` reports invalid manifests, unsupported standalone artifacts, and missing assets.
 
 **Release packaging:** `npm pack --dry-run`; packed-tarball install into a temp npm prefix; verify `agent-canvas list`, `agent-canvas doctor`, and an extension install work without a source checkout; verify `@openhands/agent-canvas/canvas-extensions` and the final visualizer export resolve for type consumers.
 

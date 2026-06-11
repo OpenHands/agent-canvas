@@ -154,7 +154,7 @@ npm run build:lib
   - `__tests__/canvas-extensions/fixtures/**`
 - [ ] Implement:
   - Store bootstrap: private `package.json`, `package-lock.json`, `artifacts.json`, `config.json`, `logs/`, `dev/`, `node_modules/`.
-  - Read/write registry state with atomic-ish writes where practical.
+  - Read/write registry state with atomic writes (temp-file + rename) and single-read loads. Guard multi-step install/update/remove with an exclusive `installations/.lock`; `rescan` reads a consistent snapshot and backs off (waits/retries or reports `install in progress`) if the lock is held.
   - Install Canvas Extension manifests from local paths first; tarball/npm spec can follow in the same gate if scoped.
   - Run npm installs in the private store with `--ignore-scripts` by default.
   - Enable/disable/remove/update state transitions exposed as manager functions; the CLI calls them directly and the host calls enable/disable/rescan only when live management is enabled. The manager itself is mode-agnostic.
@@ -171,6 +171,7 @@ npm run build:lib
   - Invalid manifest state.
   - Remove preserves settings by default.
   - Path traversal rejection.
+  - Concurrent CLI write + Host read never yields a torn/partial `config.json`/`artifacts.json`; rescan during a held lock waits or reports `install in progress`.
 - [ ] Verification:
 
 ```sh
@@ -301,7 +302,7 @@ npm test -- __tests__/canvas-extensions
   - optional README under the fixture
 - [ ] Implement:
   - Manifest with `id: "hello.canvas"`.
-  - One `browser.module` view.
+  - One `browser.module` exporting both `activate(context)` (registers the visualizer, settings panel, and right panel — see RFC §13.1) and `mount(params)` (renders the view).
   - One primary sidebar contribution after Automations.
   - One launch template.
   - One context block with a recognizable marker.
@@ -426,10 +427,12 @@ npm test
   - Fetch registry, resolve enabled view, import `assetBaseUrl + browser.module`.
   - Use `import(/* @vite-ignore */ url)` or equivalent for served extension modules.
   - Add cache-busting version token.
-  - Call `mount({ root, context })`; call `dispose()` on unmount/remount.
+  - Startup activation pass: for each enabled extension with a `browser.module`, import it once and call `activate(context)` so route-less contributions register independent of any open view (RFC §13.1). Call the `activate()` disposable on disable/remove.
+  - Call the module's `mount({ root, context })` for the view; call `dispose()` on unmount/remount.
   - Provide minimal async context: metadata/settings, `navigation.navigate`, `navigation.openExternal`, `ui.toast`, settings read/patch.
   - Local error boundary and diagnostics link.
 - [ ] Tests:
+  - `activate()` runs once at startup for an enabled extension and registers route-less contributions with no view open; a throwing `activate()` is isolated to that extension.
   - Mount success.
   - Mount failure shows local error and does not crash Canvas.
   - Dispose called on unmount/remount.
@@ -492,7 +495,7 @@ npm run test:e2e:snapshots -- --grep "sidebar"
   - extension tests under `__tests__/canvas-extensions/`
 - [ ] Implement:
   - Public visualizer authoring export matched to the OpenHands agent team's approved API; use PR #1277 as the current starting point.
-  - Extension visualizer registry layer that composes before built-in visualizers and markdown/default fallback.
+  - Extension visualizer registry layer that composes before built-in visualizers and markdown/default fallback. Extensions register visualizers during the module's `activate(context)` pass (RFC §13.1), not a standalone default-export function.
   - `matches()` support for narrowing one event variant.
   - No Canvas-only `priority` field unless the agent team approves it.
   - Manifest projection for `contributes.toolVisualizers`.
@@ -536,10 +539,10 @@ npm run typecheck
   - Support theme-only extensions with no view/panel/visualizer contribution.
   - Fall back to the default built-in theme if the selected extension theme is disabled, removed, or invalid.
   - Settings panel registry for `contributes.settingsPanels`.
-  - Settings panel manifests declare metadata only; browser modules register implementations by contribution ID.
+  - Settings panel manifests declare metadata only; browser modules register implementations by contribution ID during `activate()` (RFC §13.1).
   - Render settings panels only under a visible Extensions header after built-in settings sections.
   - Conversation right-panel registry for `contributes.conversationRightPanels`.
-  - Conversation right-panel manifests declare metadata only; browser modules register implementations by contribution ID.
+  - Conversation right-panel manifests declare metadata only; browser modules register implementations by contribution ID during `activate()` (RFC §13.1).
   - Render conversation right panels alongside Files, Browser, and Terminal.
   - Stable panel props: conversation ID/status where relevant, active backend summary, workspace summary, extension settings helpers, navigation/toast helpers.
   - Deterministic ordering by `order`, extension display name, and panel contribution ID.
@@ -742,7 +745,10 @@ The PoC is not complete unless all of these are true:
 - [ ] Local SDK plugin paths are sent only when `localInstallStoreReadable=true`.
 - [ ] Install, update, and remove are CLI-only with no browser routes or controls in any mode.
 - [ ] Enable/disable/rescan host routes and Extensions page controls exist only when `liveExtensionManagement=true` (the Vite dev stack); the packaged/Docker/static page is read-only and restart-bounded.
+- [ ] Route gating is enforced server-side (the Host registers live routes from its own launch-mode computation); the Host validates the session API key on settings and the live routes; a spoofed client flag yields 404s, not privilege.
 - [ ] Live enable/disable reconciles UI contributions without a restart; SDK plugin and context changes still apply only to conversations created after the change.
+- [ ] Route-less contributions (visualizers, themes, settings/right panels) register during the module's `activate()` pass and work with no view open; views render via `mount()`.
+- [ ] The install store survives concurrent CLI writes and Host reads without torn state (atomic write+rename, `installations/.lock`).
 - [ ] ACP runtimes do not receive incompatible extension plugin/MCP contributions.
 - [ ] `conversationInstructions` never receives extension system context.
 - [ ] Extension context composes with existing `<RUNTIME_SERVICES>` suffix.

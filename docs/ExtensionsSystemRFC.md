@@ -134,6 +134,7 @@ The Canvas frontend owns:
 
 - Read-only extension inventory/diagnostics UI (the Extensions page).
 - Navigation for extension views.
+- Activation: importing each enabled extension's `browser.module` once at startup and calling `activate(context)` so route-less contributions register independent of view mounting (see §13.1).
 - The extension view host that mounts trusted extension browser modules into Canvas-owned route containers (with a reserved future iframe runtime; see §12.1).
 - Permission display, CLI management guidance, and secret setup prompts.
 - Settings forms generated from extension JSON Schemas.
@@ -246,6 +247,8 @@ Canvas already stores client state at `~/.openhands/agent-canvas/` (session API 
 ```
 
 Secrets are never stored in this file. They are saved through the existing Agent Server secrets service.
+
+**Concurrency and atomic writes.** Canvas writes the store's JSON files (`config.json`, `artifacts.json`) with temp-file-then-rename and reads each in a single read, so a reader never observes a partial write. Multi-step transactions — install, update, remove — take an exclusive lock at `installations/.lock` so a CLI mutation and a running Host's `rescan` cannot interleave mid-transaction; npm's own `package-lock.json` covers the dependency tree. `rescan` reads a consistent snapshot and, if the lock is held, briefly waits and retries or reports `install in progress` rather than reading torn state. This path is exercised by design: the agent-authoring loop runs a CLI install while the Host is live, then rescans.
 
 All installation is local to the Agent Canvas client. `agent-canvas install` never installs into a remote Agent Server, cloud sandbox, or team backend.
 
@@ -653,26 +656,30 @@ Manifest contribution shape:
 }
 ```
 
-Runtime registration shape:
+Runtime registration shape (registered during `activate()`; see §13.1):
 
 ```ts
-export default function register(api: AgentCanvasExtensionApi) {
-  api.registerToolVisualizer({
-    id: "acme.kubernetes.apply",
-    actionKinds: ["MCPToolAction"],
-    observationKinds: ["MCPToolObservation"],
-    matches({ action }) {
-      return (
-        action?.action.kind === "MCPToolAction" &&
-        action.action.tool_name === "kubectl_apply"
-      );
-    },
-    Body({ action, observation }) {
-      return <KubernetesApplyCard action={action} observation={observation} />;
-    },
-  });
-}
+export default {
+  activate(context) {
+    context.visualizers.registerToolVisualizer({
+      id: "acme.kubernetes.apply",
+      actionKinds: ["MCPToolAction"],
+      observationKinds: ["MCPToolObservation"],
+      matches({ action }) {
+        return (
+          action?.action.kind === "MCPToolAction" &&
+          action.action.tool_name === "kubectl_apply"
+        );
+      },
+      Body({ action, observation }) {
+        return <KubernetesApplyCard action={action} observation={observation} />;
+      },
+    });
+  },
+};
 ```
+
+The visualizer body shape follows the agent-team-approved API (§28); the `activate()`-based registration is the Canvas-side contract regardless of what #1277 settles on.
 
 Selection rules:
 
@@ -694,7 +701,7 @@ Generic conversation slots remain deferred. The concrete MVP surfaces are `conve
 
 ## 13. Extension Runtime API
 
-Extensions receive a typed context object exposing host-mediated operations. In MVP, the context is passed to the extension's `mount()` function along with a Canvas-owned DOM root. The API is defined async-only so that a future iframe runtime can satisfy the same interface via a postMessage RPC bridge without changing extension authoring.
+Extensions receive a typed context object exposing host-mediated operations. A `browser.module` has one default export with two optional entry points: `activate(context)`, called once when the extension loads, and `mount(params)`, called each time one of its views opens. The API is defined async-only so a future iframe runtime can satisfy the same interface via a postMessage RPC bridge without changing extension authoring.
 
 MVP module shape:
 
@@ -709,7 +716,20 @@ interface AgentCanvasExtensionDisposable {
 }
 
 interface AgentCanvasExtensionModule {
-  mount(
+  // Called once when the extension is activated. Register route-less
+  // contributions here (tool visualizers, color themes, settings panels,
+  // conversation right panels) via the context registries. The returned
+  // disposable, if any, is called on disable/remove/dev-remount.
+  activate?(
+    context: AgentCanvasExtensionContext,
+  ):
+    | void
+    | AgentCanvasExtensionDisposable
+    | Promise<void | AgentCanvasExtensionDisposable>;
+
+  // Called each time one of the extension's views is opened at its route.
+  // Renders into the Canvas-owned container. Omit if the extension has no views.
+  mount?(
     params: AgentCanvasExtensionMountParams,
   ):
     | void
@@ -717,6 +737,8 @@ interface AgentCanvasExtensionModule {
     | Promise<void | AgentCanvasExtensionDisposable>;
 }
 ```
+
+A module must export at least one of `activate`/`mount`. A theme-only package needs **neither** — its themes come from manifest projection (§12.2) and it may ship no `browser.module` at all.
 
 MVP API surface:
 
@@ -767,6 +789,15 @@ interface AgentCanvasExtensionContext {
 
 For the first implementation slice, the route-less registration APIs are limited to the agent-team-approved visualizer registration API, `colorThemes.registerColorTheme()`, `settingsPanels.registerSettingsPanel()`, and `conversationPanels.registerRightPanel()`. Manifest-projected `contributes.colorThemes` should be enough for most theme-only packages; the runtime API exists for the same lifecycle/disposal model as other UI registries. Settings and conversation panel manifests declare metadata; runtime registration binds that metadata to implementations by contribution ID. There is **no** supported generic `agentServer.request(path)`. The repo already routes Agent Server traffic through typed service wrappers; the extension surface follows the same pattern with named, permission-declared capabilities. For MVP inline browser modules, this is an API support boundary rather than a browser security boundary (see §19).
 
+### 13.1 Activation lifecycle
+
+Route-less contributions must register independent of whether any view is open, so activation is a global step, not part of the view host:
+
+- On app startup, Canvas reads the registry and, for each enabled extension whose manifest declares a `browser.module`, imports the module once and calls `activate(context)`. Registrations populate the visualizer, color-theme, settings-panel, and right-panel registries.
+- `mount(params)` is called lazily by the view host when a view route is navigated to, and its disposable is called on unmount/remount.
+- In live mode (§15.2), enabling an extension triggers an `activate()`; disabling calls the `activate()` disposable to unregister its route-less contributions, then unmounts any open view.
+- Activation failures are caught per-extension: a throwing `activate()` records a diagnostic and disables that extension's contributions without affecting other extensions or the rest of Canvas.
+
 ## 14. Shared Type Contract
 
 Initial home: `src/canvas-extensions/types.ts`, exported as `@openhands/agent-canvas/canvas-extensions` once stable. (PR 0 will collapse generic installable-artifact types and extension-specific types into a single directory; splitting them across `src/installations/` and `src/canvas-extensions/` is premature before any consumer exists.)
@@ -799,7 +830,13 @@ export interface AgentCanvasExtensionDisposable {
 }
 
 export interface AgentCanvasExtensionModule {
-  mount(
+  activate?(
+    context: AgentCanvasExtensionContext,
+  ):
+    | void
+    | AgentCanvasExtensionDisposable
+    | Promise<void | AgentCanvasExtensionDisposable>;
+  mount?(
     params: AgentCanvasExtensionMountParams,
   ):
     | void
@@ -866,6 +903,8 @@ Every artifact in the registry has exactly one persisted state:
 
 **Conflict rule.** Disabled wins over enabled if a manual config edit creates both persisted entries for the same ID. The process-level `--disable-extensions` kill switch suppresses all extension loading for the current run but does not create a registry state.
 
+**"Needs review" is not a separate state.** The persisted `state` enum is exactly `enabled | disabled | installed | invalid`. "Needs review" is a presentation grouping for a `disabled` (or `installed`) entry carrying a `needs-review` diagnostic — produced by a permission-expanding update (§20) or a permission-expanding dev manifest change (§21). The registry `state` gains no fifth value; UI filters group by the diagnostic, and re-approval clears it so the user re-enables normally.
+
 ### 15.2 Lifecycle Capability And Live Management
 
 Extension lifecycle behavior is gated by a launcher-issued capability rather than by per-extension state. The launcher emits a `liveExtensionManagement` boolean to the frontend alongside the existing `localInstallStoreReadable` flag and runtime-services metadata. It is derived from the same launch-mode signal Canvas already computes (`services.frontend.kind` in `scripts/runtime-services-info.mjs`): `liveExtensionManagement` is true only when the frontend is served by the Vite dev server (`npm run dev`, `npm run dev:minimal`), and false for the static server used by the packaged global CLI, Docker images, and `dev:static`.
@@ -882,7 +921,9 @@ Extension lifecycle behavior is gated by a launcher-issued capability rather tha
 - Newly installed extensions are discovered by re-reading the install store on each registry request and refetching/invalidating the registry query (on the Extensions page, on a manual rescan action, and on the dev-watch cache-bust signal). Filesystem watching of the store is an optional enhancement, not a requirement; the baseline is re-read-on-request plus query invalidation.
 - Reconcilable contributions (left navigation, color themes, settings panels, conversation right panels, tool visualizers, and views) re-project from the refreshed registry and mount/unmount accordingly, reusing the dev-watch remount path.
 - Non-reconcilable contributions are unchanged: SDK plugins and context suffix apply only at conversation creation, so enabling or disabling them mid-session affects future conversations only.
-- Consent is preserved: live-discovered extensions arrive in `installed`/`disabled` state and never auto-enable; enabling from the Extensions page is the explicit consent action. Permission-expanding updates still drop to `disabled`/needs-review.
+- Newly discovered extensions arrive `installed`/`disabled` and are never auto-enabled by discovery; enabling from the Extensions page is the explicit consent action. Permission-expanding updates still drop to `disabled` with a needs-review diagnostic.
+
+**Residual risk on the dev tier.** The live routes are same-origin, so an already-enabled extension on the dev stack can in principle call `/enable` for another *installed* extension — enabled browser code shares Canvas's origin and session (§19). This is bounded and accepted for a dev-only tier: the routes exist only under `liveExtensionManagement`; the caller is already enabled, hence already trusted; and install/update/remove stay CLI-only, so no new code can be introduced — only a package the user already placed on disk can be flipped. Packaged, Docker, and static runs do not expose the routes at all. We therefore do not claim the live tier is a hard consent boundary against already-trusted extension code; the boundary is the dev-only gate plus CLI-only install.
 
 **Restart-bounded semantics (capability false):** unchanged from the rest of this RFC. The Extensions page is read-only, the host exposes no enable/disable routes, and state changes apply on next process start.
 
@@ -952,6 +993,8 @@ POST   /api/canvas/canvas-extensions/rescan
 Note the consistent `/api/canvas/canvas-extensions/*` prefix for local Canvas extension runtime APIs — including `launch-contributions`, which was previously inconsistent. Asset serving keeps its own `/canvas-extension-assets/*` prefix because it serves untrusted third-party static files and benefits from being easy to identify in logs and CSP rules.
 
 The host never exposes browser routes for install, update, or remove; those stay CLI-only in every mode. The `enable`, `disable`, and `rescan` routes are registered **only when the launcher reports `liveExtensionManagement` is true** (the `npm run dev` source stack). In packaged, Docker, and static modes they are absent, so the read-only restart-bounded contract is unchanged and cannot be reached from the browser. When present, `enable`/`disable` mutate `config.json` through the shared `extension-manager` and `rescan` re-reads the install store; all three require the existing session API key, exactly like `PATCH /settings`. `PATCH /settings` is retained in both modes because settings panels need a narrow persistence surface.
+
+**Auth and capability gating.** The launcher starts the Extension Host and hands it the session API key, so the Host validates the *same* key the frontend already holds (baked/injected via the existing session-key mechanism) on `PATCH /settings` and on the gated `enable`/`disable`/`rescan` routes; the `canvas-extensions-service` wrapper attaches it. Capability gating is enforced **server-side**: the Host decides whether to register the live routes from its own launch-mode computation, never from a client-supplied value. The `liveExtensionManagement` flag sent to the frontend is only a UX mirror controlling whether management controls render — a packaged/static build whose client flag is spoofed still reaches a Host that never registered the routes and gets 404s, not privilege.
 
 Frontend code must call these routes only through a dedicated `src/api/canvas-extensions-service.ts` wrapper. Because the route prefix begins with `/api/` but targets the local Extension Host rather than the Agent Server, PR 2 must update `src/api/no-direct-agent-server-calls.test.ts` with a narrow allowlist entry for that wrapper, mirroring the existing automation-service exception. This keeps the `/api/canvas/canvas-extensions/*` ingress shape while preserving the repo rule that ordinary Agent Server traffic goes through `@openhands/typescript-client`.
 
@@ -1131,7 +1174,7 @@ Current navigation state: `/customize` is the Customize entry in the primary sid
 
 Implementation note: some current files still use legacy "extensions" names, such as `src/routes/extensions-hub.tsx` and `src/components/features/skills/extensions-navigation.tsx`. Treat those as existing Customize implementation details. New Canvas Extension code should use `canvas-extensions` names, and user-facing copy should say Customize or Canvas Extensions as appropriate.
 
-The Extensions page is a simple stacked view of installed Canvas Extensions and their status. MVP rows should be grouped or filtered by status only as needed for scanability: Enabled, Disabled, Invalid, Needs review, and Dev. Browser install, update, and remove controls are out of scope in every mode; the page points users to CLI management for those verbs. Marketplace-style browsing is out of scope.
+The Extensions page is a simple stacked view of installed Canvas Extensions and their status. MVP rows should be grouped or filtered by status only as needed for scanability: Enabled, Disabled, Invalid, Needs review (a `disabled`/`installed` entry with a needs-review diagnostic — see §15.1), and Dev. Browser install, update, and remove controls are out of scope in every mode; the page points users to CLI management for those verbs. Marketplace-style browsing is out of scope.
 
 The page adapts to the `liveExtensionManagement` capability (§15.2):
 
