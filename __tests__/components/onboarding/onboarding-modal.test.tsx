@@ -230,7 +230,7 @@ describe("OnboardingModal", () => {
       await screen.findByTestId("onboarding-backend-error"),
     ).toHaveTextContent("BACKEND$CONNECTION_TEST_FAILED");
     expect(screen.getByTestId("onboarding-backend-error")).toHaveTextContent(
-      "Failed to fetch",
+      "Disconnected",
     );
   });
 

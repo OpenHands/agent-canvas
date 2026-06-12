@@ -198,7 +198,7 @@ describe("AddBackendModal – two-column layout", () => {
       "BACKEND$CONNECTION_TEST_FAILED",
     );
     expect(screen.getByTestId("add-backend-error")).toHaveTextContent(
-      "Failed to fetch",
+      "Disconnected",
     );
     expect(onClose).not.toHaveBeenCalled();
   });
