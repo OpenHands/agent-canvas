@@ -1,27 +1,20 @@
-# agent-canvas
+# Agent Canvas
 
-> [!WARNING]
-> This project is in the **Beta** phase. It may be vibecoded, untested, or out of date. OpenHands takes no responsibility for the code or its support. [Learn more](https://github.com/OpenHands/incubator-program).
+OpenHands Agent Canvas turns your coding agents into a self-hosted, always-on engineering team. Built as a frontend web UI, it is a developer control center for starting conversations and automating everyday tasks — like generating reports that publish to Slack or automatically decomposing GitHub issues into tasks.
 
-[![Project Status: Beta](https://img.shields.io/badge/status-beta-blue)](https://github.com/OpenHands/incubator-program)
+It runs locally on your machine by default, but can support connecting to multiple “agent backends”, such as self-hosting agents in Docker containers, on VMs, or within your company infrastructure. You can optionally choose to run agents on OpenHands Cloud or OpenHands Enterprise infrastructure.
 
-OpenHands is a platform for orchestrating coding agents across different environments. You can:
+Agent Canvas runs the open source OpenHands agent out-of-the-box, but configurable to use any third-party agent like Claude Code and Codex.
 
-- ⌨️ prompt agents manually
-- 🕐 run agents on a schedule
-- ⚡ trigger agents automatically — e.g. from Slack, GitHub, or Datadog.
+|    |    |
+|---|---|
+| [**Self-host your way**](https://docs.openhands.dev/openhands/usage/agent-canvas/backend-setup/vm) | Run agents locally, in Docker, on VMs, or anywhere you can run an agent server backend |
+| [**Switch between different backends**](https://docs.openhands.dev/openhands/usage/agent-canvas/backends) | Switch between local, remote, and cloud agents without losing focus |
+| [**Create scheduled and event-driven automations**](https://docs.openhands.dev/openhands/usage/agent-canvas/prebuilt-automations) | Create automations and workflows that integrate with Slack, GitHub, Linear, and more.  |
+| [**Integrate with the tools you use**](https://docs.openhands.dev/openhands/usage/agent-canvas/prebuilt-automations) | Connect your automations with third-party services like Slack, GitHub, Notion, and more to automate workflows |
+| [**Bring your own model**](https://docs.openhands.dev/openhands/usage/settings/llm-settings#llm-profiles) | Use with any LLM |
+| [**Use with any agent**](https://docs.openhands.dev/openhands/usage/agent-canvas/acp-agents) | Use with OpenHands, Claude Code, Codex, Gemini, or any agent with Agent-Client Protocol (ACP). |
 
-Agents can run anywhere:
-
-- 🧑‍💻 on your laptop
-- 🖥️ on a remote virtual machine
-- ☁️ in our hosted cloud
-- 🏢 or inside your company’s infrastructure
-
-The same Agent Canvas frontend can swap between each of these environments, so you can see everything in one place.
-
-OpenHands works with any agent harness (e.g. Claude Code, Codex)
-or connect directly to an LLM (e.g. Anthropic, OpenAI, Gemini, Mistral, Minimax, Kimi).
 
 If you have questions or feedback, please open a GitHub issue or join the [#proj-agent-canvas channel in Slack](https://openhands.dev/joinslack).
 
