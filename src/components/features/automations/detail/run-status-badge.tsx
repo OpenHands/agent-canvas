@@ -10,25 +10,35 @@ interface RunStatusBadgeProps {
   status: AutomationRunStatus;
 }
 
+export const AUTOMATION_RUN_STATUS_LABEL_KEYS: Record<
+  AutomationRunStatus,
+  I18nKey
+> = {
+  [AutomationRunStatus.COMPLETED]: I18nKey.AUTOMATIONS$DETAIL$SUCCESSFUL,
+  [AutomationRunStatus.FAILED]: I18nKey.AUTOMATIONS$DETAIL$FAILED,
+  [AutomationRunStatus.PENDING]: I18nKey.AUTOMATIONS$DETAIL$PENDING,
+  [AutomationRunStatus.RUNNING]: I18nKey.AUTOMATIONS$DETAIL$RUNNING,
+};
+
 const statusConfig: Record<
   AutomationRunStatus,
   { label: I18nKey; style: string }
 > = {
   [AutomationRunStatus.COMPLETED]: {
-    label: I18nKey.AUTOMATIONS$DETAIL$SUCCESSFUL,
+    label: AUTOMATION_RUN_STATUS_LABEL_KEYS[AutomationRunStatus.COMPLETED],
     style:
       "border-[var(--oh-success)]/50 bg-[var(--oh-success)]/10 text-[var(--oh-success)]",
   },
   [AutomationRunStatus.FAILED]: {
-    label: I18nKey.AUTOMATIONS$DETAIL$FAILED,
+    label: AUTOMATION_RUN_STATUS_LABEL_KEYS[AutomationRunStatus.FAILED],
     style: "border-[var(--oh-danger)]/50 bg-[var(--oh-danger)]/10 text-danger",
   },
   [AutomationRunStatus.PENDING]: {
-    label: I18nKey.AUTOMATIONS$DETAIL$PENDING,
+    label: AUTOMATION_RUN_STATUS_LABEL_KEYS[AutomationRunStatus.PENDING],
     style: "border-[var(--oh-border)] bg-surface-raised text-muted",
   },
   [AutomationRunStatus.RUNNING]: {
-    label: I18nKey.AUTOMATIONS$DETAIL$RUNNING,
+    label: AUTOMATION_RUN_STATUS_LABEL_KEYS[AutomationRunStatus.RUNNING],
     style: "border-[var(--oh-border)] bg-surface-raised text-muted",
   },
 };
