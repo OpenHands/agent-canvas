@@ -15,6 +15,17 @@ export interface ModelListEntry {
   switchedTo?: string;
 }
 
+/**
+ * A historical switch to seed via `seedSwitches`. `id` must be stable across
+ * reloads (derived from the source observation event id) so re-seeding the
+ * same loaded history is idempotent.
+ */
+export interface SeededSwitch {
+  id: string;
+  anchorEventId: string | null;
+  profileName: string;
+}
+
 interface ModelState {
   entriesByConversation: Record<string, ModelListEntry[]>;
   /**
@@ -37,6 +48,12 @@ interface ModelActions {
     anchorEventId: string | null,
     profileName: string,
   ) => void;
+  /**
+   * Seeds "Switched to" entries reconstructed from loaded history. Skips any
+   * whose `id` is already present, so it can run on every history (re)load
+   * without duplicating, and it preserves live-recorded entries.
+   */
+  seedSwitches: (conversationId: string, switches: SeededSwitch[]) => void;
   /** Drops only the optimistic active-profile entry for a conversation. */
   clearActiveProfile: (conversationId: string) => void;
   clear: (conversationId: string) => void;
@@ -85,6 +102,28 @@ export const useModelStore = create<ModelStore>()(
             [conversationId]: profileName,
           },
         })),
+      seedSwitches: (conversationId, switches) =>
+        set((s) => {
+          const existing = s.entriesByConversation[conversationId] ?? [];
+          const existingIds = new Set(existing.map((e) => e.id));
+          const additions = switches
+            .filter((sw) => !existingIds.has(sw.id))
+            .map(
+              (sw): ModelListEntry => ({
+                id: sw.id,
+                anchorEventId: sw.anchorEventId,
+                profiles: [],
+                switchedTo: sw.profileName,
+              }),
+            );
+          if (additions.length === 0) return s;
+          return {
+            entriesByConversation: {
+              ...s.entriesByConversation,
+              [conversationId]: [...existing, ...additions],
+            },
+          };
+        }),
       clearActiveProfile: (conversationId) =>
         set((s) => {
           if (!(conversationId in s.activeProfileByConversation)) return s;

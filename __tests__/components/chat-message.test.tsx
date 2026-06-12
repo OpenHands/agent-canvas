@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect } from "vitest";
 import { ChatMessage } from "#/components/features/chat/chat-message";
@@ -64,5 +64,20 @@ describe("ChatMessage", () => {
 
     expect(codeElement.tagName.toLowerCase()).toBe("code");
     expect(codeElement.closest("article")).not.toBeNull();
+  });
+
+  it("truncates long sent user messages to three lines with view more on hover", async () => {
+    const longMessage = `${"Here's a long message. ".repeat(40)}`.trim();
+    render(<ChatMessage type="user" message={longMessage} />);
+
+    expect(screen.getByTestId("chat-message-truncation-gradient")).toBeInTheDocument();
+    expect(screen.getByTestId("chat-message-view-more")).toHaveClass("opacity-0");
+
+    fireEvent.mouseEnter(screen.getByTestId("user-message"));
+    expect(screen.getByTestId("chat-message-view-more")).toHaveClass("opacity-100");
+
+    fireEvent.click(screen.getByTestId("chat-message-expand"));
+    expect(screen.queryByTestId("chat-message-truncation-gradient")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("chat-message-view-more")).not.toBeInTheDocument();
   });
 });

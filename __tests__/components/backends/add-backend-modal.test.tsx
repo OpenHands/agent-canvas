@@ -1,25 +1,50 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
+import {
+  NavigationProvider,
+  type NavigationContextValue,
+} from "#/context/navigation-context";
 import { AddBackendModal } from "#/components/features/backends/add-backend-modal";
 
-function renderWithProviders(ui: React.ReactElement) {
+const getServerInfoMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@openhands/typescript-client/clients", () => ({
+  ServerClient: vi.fn(function ServerClientMock() {
+    return {
+      getServerInfo: getServerInfoMock,
+    };
+  }),
+}));
+
+function renderWithProviders(
+  ui: React.ReactElement,
+  navigation?: NavigationContextValue,
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <ActiveBackendProvider>{ui}</ActiveBackendProvider>
+      <ActiveBackendProvider>
+        {navigation ? (
+          <NavigationProvider value={navigation}>{ui}</NavigationProvider>
+        ) : (
+          ui
+        )}
+      </ActiveBackendProvider>
     </QueryClientProvider>,
   );
 }
 
 beforeEach(() => {
   window.localStorage.clear();
+  getServerInfoMock.mockReset();
+  getServerInfoMock.mockResolvedValue({ version: "1.24.0" });
   __resetActiveStoreForTests();
 });
 
@@ -84,6 +109,8 @@ describe("AddBackendModal – two-column layout", () => {
 
     await user.click(screen.getByTestId("add-backend-submit"));
 
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+
     const stored = JSON.parse(
       window.localStorage.getItem("openhands-backends") ?? "[]",
     );
@@ -132,7 +159,7 @@ describe("AddBackendModal – two-column layout", () => {
 
     await user.click(screen.getByTestId("add-backend-submit"));
 
-    expect(onClose).toHaveBeenCalled();
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
 
     const stored = JSON.parse(
       window.localStorage.getItem("openhands-backends") ?? "[]",
@@ -151,6 +178,29 @@ describe("AddBackendModal – two-column layout", () => {
       window.localStorage.getItem("openhands-active-backend") ?? "null",
     );
     expect(active).toEqual({ backendId: added.id, orgId: null });
+  });
+
+  it("keeps the modal open and shows a connection error when the local backend probe fails", async () => {
+    getServerInfoMock.mockRejectedValueOnce(new Error("Failed to fetch"));
+    const onClose = vi.fn();
+    renderWithProviders(<AddBackendModal onClose={onClose} />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("add-backend-name"), "GPU Tunnel");
+    await user.type(
+      screen.getByTestId("add-backend-host"),
+      "https://127.0.0.1:8000",
+    );
+    await user.type(screen.getByTestId("add-backend-api-key"), "session-key");
+    await user.click(screen.getByTestId("add-backend-submit"));
+
+    expect(await screen.findByTestId("add-backend-error")).toHaveTextContent(
+      "BACKEND$CONNECTION_TEST_FAILED",
+    );
+    expect(screen.getByTestId("add-backend-error")).toHaveTextContent(
+      "Failed to fetch",
+    );
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("closes when the header close button is clicked", async () => {
@@ -180,5 +230,68 @@ describe("AddBackendModal – two-column layout", () => {
     const loginButton = screen.getByTestId("add-backend-login-button");
     expect(loginButton.textContent?.trim()).not.toMatch(/^🔑/);
     expect(loginButton.textContent).not.toContain("🔑");
+  });
+});
+
+// @spec BM-002 — adding a backend auto-switches the active selection, so a
+// backend-scoped detail page is now stale; the user must land on the section
+// list rather than the previous backend's detail page.
+describe("AddBackendModal – redirect after adding a backend", () => {
+  function renderOnPath(currentPath: string) {
+    const navigate = vi.fn();
+    const navigation: NavigationContextValue = {
+      currentPath,
+      conversationId: null,
+      isNavigating: false,
+      navigate,
+    };
+    renderWithProviders(<AddBackendModal onClose={vi.fn()} />, navigation);
+    return { navigate };
+  }
+
+  async function addLocalBackend() {
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("add-backend-name"), "Local Extra");
+    await user.type(
+      screen.getByTestId("add-backend-host"),
+      "http://127.0.0.1:18002",
+    );
+    await user.click(screen.getByTestId("add-backend-submit"));
+    await waitFor(() => {
+      const stored = JSON.parse(
+        window.localStorage.getItem("openhands-backends") ?? "[]",
+      );
+      expect(
+        stored.some((b: { name: string }) => b.name === "Local Extra"),
+      ).toBe(true);
+    });
+  }
+
+  it.each([
+    { path: "/automations/auto-1", expected: "/automations" },
+    { path: "/conversations/abc", expected: "/conversations" },
+  ])(
+    "redirects to the section list when adding from $path",
+    async ({ path, expected }) => {
+      // Arrange
+      const { navigate } = renderOnPath(path);
+
+      // Act
+      await addLocalBackend();
+
+      // Assert
+      expect(navigate).toHaveBeenCalledWith(expected);
+    },
+  );
+
+  it("does not redirect when adding from a section list page", async () => {
+    // Arrange
+    const { navigate } = renderOnPath("/automations");
+
+    // Act
+    await addLocalBackend();
+
+    // Assert
+    expect(navigate).not.toHaveBeenCalled();
   });
 });

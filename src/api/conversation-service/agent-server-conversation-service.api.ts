@@ -16,6 +16,7 @@ import {
   buildConversationWorkingDir,
   getAgentServerWorkingDir,
 } from "../agent-server-config";
+import { resolveAbsoluteAgentServerPath } from "../agent-server-home";
 import {
   getActiveBackend,
   getEffectiveLocalBackend,
@@ -40,13 +41,17 @@ import {
   toConversationPage,
 } from "../agent-server-adapter";
 import { GetVSCodeUrlResponse } from "../open-hands.types";
-import { getAgentServerClientOptions } from "../agent-server-client-options";
+import {
+  getAgentServerClientOptions,
+  NoBackendAvailableError,
+} from "../agent-server-client-options";
 import SettingsService from "../settings-service/settings-service.api";
 import {
   ConversationMetadata,
   getStoredConversationMetadata,
   removeStoredConversationMetadata,
   setStoredConversationMetadata,
+  type WorkspaceMode,
 } from "../conversation-metadata-store";
 import type {
   GetHooksResponse,
@@ -66,21 +71,12 @@ const INVALID_CONVERSATION_RESPONSE_MESSAGE =
   "Unable to load conversations because the selected agent server returned " +
   "data this UI does not understand. Check the backend URL/session key and " +
   "update the agent server if needed.";
-const INVALID_PROFILE_CONFIG_MESSAGE =
-  "Unable to switch LLM profiles because the selected agent server returned " +
-  "profile data this UI does not understand. Check the backend URL/session " +
-  "key and update the agent server if needed.";
-
 function invalidConversationResponse(): Error {
   return new Error(INVALID_CONVERSATION_RESPONSE_MESSAGE);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function isLLMConfig(value: unknown): value is LLMConfig {
-  return isRecord(value) && typeof value.model === "string";
 }
 
 function numberOrNull(value: unknown): number | null {
@@ -350,6 +346,7 @@ class AgentServerConversationService {
     plugins?: PluginSpec[],
     metadata?: ConversationMetadata | null,
     workingDirOverride?: string,
+    workspaceMode?: WorkspaceMode,
     parentConversationId?: string,
     agentType?: "default" | "plan",
     sandboxId?: string,
@@ -381,8 +378,17 @@ class AgentServerConversationService {
 
     const settings = await SettingsService.getSettings();
     const conversationId = uuidv4();
-    const workingDir =
-      workingDirOverride ?? buildConversationWorkingDir(conversationId);
+    // @spec WUP-001 — Send an absolute working_dir to the agent-server.
+    // The default is `workspace/project/<hex>` (relative); without
+    // resolving it here, `/api/file/upload` later prepends `/` and writes
+    // to `/workspace/...` (read-only on macOS and fresh containers). When
+    // the user picks an explicit workspace, `workingDirOverride` is
+    // already absolute (it comes from `search_subdirs`).
+    const workingDir = await resolveAbsoluteAgentServerPath(
+      workingDirOverride ?? buildConversationWorkingDir(conversationId),
+    );
+    const resolvedWorkspaceMode =
+      workspaceMode ?? (workingDirOverride ? "local_repo" : "new_worktree");
 
     // Use encrypted settings to avoid exposing secrets in the browser
     const payload = await buildStartConversationRequestWithEncryptedSettings({
@@ -392,11 +398,14 @@ class AgentServerConversationService {
       plugins,
       conversationId,
       workingDir,
+      worktree: resolvedWorkspaceMode === "new_worktree",
     });
 
     const data = await new ConversationClient(
       getAgentServerClientOptions(),
     ).createConversation<DirectConversationInfo>(payload);
+    const localBackend = getEffectiveLocalBackend();
+    if (!localBackend) throw new NoBackendAvailableError();
 
     if (metadata?.selected_repository || workingDirOverride) {
       // The agent-server runtime has no concept of selected repo/branch/
@@ -410,6 +419,7 @@ class AgentServerConversationService {
         selected_branch: metadata?.selected_branch ?? null,
         git_provider: metadata?.git_provider ?? null,
         selected_workspace: workingDirOverride ?? null,
+        workspace_mode: resolvedWorkspaceMode,
       });
     }
 
@@ -419,7 +429,7 @@ class AgentServerConversationService {
       status: "READY",
       detail: null,
       app_conversation_id: data.id,
-      agent_server_url: getEffectiveLocalBackend().host,
+      agent_server_url: localBackend.host,
       request: {
         initial_message: payload.initial_message as
           | AppConversationStartRequest["initial_message"]
@@ -665,13 +675,14 @@ class AgentServerConversationService {
 
   /**
    * Switches the LLM profile for the running conversation when one is open
-   * (POST /switch_llm — per-conversation swap, doesn't change the user's
+   * (POST /switch_profile — per-conversation swap, doesn't change the user's
    * default profile). When called without a conversationId (home page),
    * falls back to POST /activate so the next conversation created picks up
    * the chosen profile.
    *
-   * The /switch_llm body needs the LLM config, which we fetch with encrypted
-   * secrets — same flow as conversation-start.
+   * The per-conversation endpoint accepts only the profile name, so the UI does
+   * not need to fetch or forward profile secrets. That keeps switching working
+   * even when the agent server has no OH_SECRET_KEY for encrypted secret export.
    */
   static async switchProfile(
     conversationId: string | null,
@@ -683,23 +694,59 @@ class AgentServerConversationService {
       );
     }
 
-    const profilesClient = new ProfilesClient(getAgentServerClientOptions());
-
     if (!conversationId) {
-      await profilesClient.activateProfile(profileName);
+      await new ProfilesClient(getAgentServerClientOptions()).activateProfile(
+        profileName,
+      );
       return;
     }
 
-    const profile = await profilesClient.getProfile(profileName, {
-      exposeSecrets: "encrypted",
-    });
-    if (!isLLMConfig(profile.config)) {
-      throw new Error(INVALID_PROFILE_CONFIG_MESSAGE);
+    const clientOptions = getAgentServerClientOptions();
+    const conversationClient = new ConversationClient(clientOptions);
+    const profile = await new ProfilesClient(clientOptions).getProfile(
+      profileName,
+      { exposeSecrets: "encrypted" },
+    );
+    const model =
+      typeof profile.config.model === "string" ? profile.config.model : "";
+    if (!model) throw new Error(`Profile '${profileName}' has no model.`);
+    await conversationClient.switchLLM(conversationId, {
+      ...profile.config,
+      model,
+      // Avoid stale first-write-wins entries in the backend LLM registry.
+      usage_id: `profile:${profileName}:${uuidv4()}`,
+    } as LLMConfig);
+  }
+
+  /**
+   * Switches the model of a running ACP conversation in place (POST
+   * /switch_acp_model — the ACP analog of {@link switchProfile}'s /switch_profile).
+   * The agent-server calls the ACP wrapper's ``session/set_model`` on the live
+   * session, preserving context. Mirrors {@link switchProfile}'s
+   * local-backend-only guard and per-conversation ConversationClient call.
+   *
+   * Only valid once an ACP session exists (after the first message); the
+   * agent-server returns 409 before then — the home/no-session default is
+   * persisted via Settings instead (see ``use-switch-acp-model``).
+   */
+  static async switchAcpModel(
+    conversationId: string,
+    model: string,
+  ): Promise<void> {
+    const { backend } = getActiveBackend();
+    if (backend.kind === "cloud") {
+      await callCloudProxy({
+        backend,
+        method: "POST",
+        path: `/api/v1/app-conversations/${conversationId}/switch_acp_model`,
+        body: { model },
+      });
+      return;
     }
 
-    await new ConversationClient(getAgentServerClientOptions()).switchLLM(
+    await new ConversationClient(getAgentServerClientOptions()).switchAcpModel(
       conversationId,
-      profile.config,
+      model,
     );
   }
 }

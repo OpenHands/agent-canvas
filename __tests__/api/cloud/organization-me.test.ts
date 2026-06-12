@@ -23,7 +23,7 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.post).mockReset();
+  vi.mocked(axios.request).mockReset();
 });
 
 afterEach(() => {
@@ -31,10 +31,10 @@ afterEach(() => {
   __resetActiveStoreForTests();
 });
 
-describe("cloud organization /me via local proxy", () => {
-  it("calls /api/organizations/{orgId}/me through the proxy and returns user_id", async () => {
+describe("cloud organization /me", () => {
+  it("calls /api/organizations/{orgId}/me directly and returns user_id", async () => {
     const orgId = "0b93b5f2-5396-49f2-8d98-61f906184270";
-    vi.mocked(axios.post).mockResolvedValue({
+    vi.mocked(axios.request).mockResolvedValue({
       data: {
         org_id: orgId,
         user_id: orgId,
@@ -45,12 +45,11 @@ describe("cloud organization /me via local proxy", () => {
 
     const result = await getCloudOrganizationMe(orgId);
 
-    const [url, body] = vi.mocked(axios.post).mock.calls[0]!;
-    expect(url).toMatch(/\/api\/cloud-proxy$/);
-    expect(body).toMatchObject({
-      host: cloudBackend.host,
+    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(config).toMatchObject({
+      url: `${cloudBackend.host}/api/organizations/${orgId}/me`,
       method: "GET",
-      path: `/api/organizations/${orgId}/me`,
+      headers: { Authorization: "Bearer bearer-token" },
     });
     expect(result).toEqual({ orgId, userId: orgId });
   });

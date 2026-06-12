@@ -242,6 +242,16 @@ export default [
           message:
             "Use SETTINGS_QUERY_KEYS helpers instead of raw settings query key arrays.",
         },
+        {
+          selector:
+            "CallExpression[callee.name='t'] > Literal:first-child[value=/^[A-Z0-9_]+\\$/]",
+          message: "Use I18nKey instead of raw translation key strings.",
+        },
+        {
+          selector:
+            "CallExpression[callee.property.name='t'] > Literal:first-child[value=/^[A-Z0-9_]+\\$/]",
+          message: "Use I18nKey instead of raw translation key strings.",
+        },
       ],
       "react/require-default-props": "off",
       "no-underscore-dangle": "off",

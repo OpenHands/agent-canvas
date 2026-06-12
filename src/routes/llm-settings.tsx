@@ -22,6 +22,7 @@ import {
   type SettingsView,
 } from "#/utils/sdk-settings-schema";
 import { DEFAULT_SETTINGS } from "#/services/settings";
+import { OPENHANDS_LLM_PROXY_BASE_URL } from "#/utils/openhands-llm";
 
 const LLM_EXCLUDED_KEYS = new Set(["llm.model", "llm.api_key", "llm.base_url"]);
 
@@ -41,11 +42,11 @@ const getSchemaFieldDefaultValue = (
 const KNOWN_PROVIDER_DEFAULT_BASE_URLS: Partial<Record<string, Set<string>>> = {
   openai: new Set(["https://api.openai.com", "https://api.openai.com/v1"]),
   openhands: new Set([
-    "https://llm-proxy.app.all-hands.dev",
+    OPENHANDS_LLM_PROXY_BASE_URL,
     "https://llm-proxy.app.all-hands.dev/v1",
   ]),
   litellm_proxy: new Set([
-    "https://llm-proxy.app.all-hands.dev",
+    OPENHANDS_LLM_PROXY_BASE_URL,
     "https://llm-proxy.app.all-hands.dev/v1",
   ]),
 };
@@ -100,6 +101,7 @@ export function LlmSettingsScreen({
   initialValueOverrides,
   embedded,
   hideSaveButton,
+  suppressSuccessToast,
   onSaveControlChange,
 }: {
   scope?: SettingsScope;
@@ -111,6 +113,8 @@ export function LlmSettingsScreen({
   embedded?: boolean;
   /** Forwarded to {@link SdkSectionPage}. */
   hideSaveButton?: boolean;
+  /** Forwarded to {@link SdkSectionPage}. */
+  suppressSuccessToast?: boolean;
   /** Forwarded to {@link SdkSectionPage}. */
   onSaveControlChange?: (control: SdkSectionSaveControl) => void;
 }) {
@@ -266,14 +270,18 @@ export function LlmSettingsScreen({
 
   const buildPayload = React.useCallback(
     (
-      basePayload: Record<string, unknown>,
+      defaultPayload: Record<string, unknown>,
       context: {
         values: Record<string, string | boolean>;
         view: SettingsView;
       },
     ) => {
-      // basePayload is a nested dict (e.g. {llm: {model: "gpt-4"}})
-      const agentSettings = structuredClone(basePayload);
+      // defaultPayload is the wrapped diff (e.g.
+      // `{ agent_settings_diff: { llm: { model: "gpt-4" } } }`); we only
+      // mutate the inner `llm` object below.
+      const agentSettings = structuredClone(
+        (defaultPayload.agent_settings_diff as Record<string, unknown>) ?? {},
+      );
 
       const llm = (agentSettings.llm ?? {}) as Record<string, unknown>;
 
@@ -290,8 +298,13 @@ export function LlmSettingsScreen({
   return (
     <SdkSectionPage
       scope={scope}
-      sectionKeys={["llm"]}
-      excludeKeys={LLM_EXCLUDED_KEYS}
+      settingsSources={[
+        {
+          settingsSource: "agent_settings",
+          sectionKeys: ["llm"],
+          excludeKeys: LLM_EXCLUDED_KEYS,
+        },
+      ]}
       header={buildHeader}
       buildPayload={buildPayload}
       getInitialView={getInitialView}
@@ -301,6 +314,7 @@ export function LlmSettingsScreen({
       initialValueOverrides={initialValueOverrides}
       embedded={embedded}
       hideSaveButton={hideSaveButton}
+      suppressSuccessToast={suppressSuccessToast}
       onSaveControlChange={onSaveControlChange}
       testId="llm-settings-screen"
     />

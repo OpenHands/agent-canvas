@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import net from "node:net";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { setTimeout as delay } from "node:timers/promises";
@@ -21,6 +21,11 @@ import {
   isProcessRunning,
   signalProcessTree,
 } from "./dev-process-utils.mjs";
+// buildRuntimeServicesInfo moved to its own dependency-free module so the
+// Docker entrypoint can run it as a CLI. Re-exported below for back-compat
+// (dev-with-automation.mjs and tests still import it from here).
+import { buildRuntimeServicesInfo } from "./runtime-services-info.mjs";
+import { fileLog, stripAnsi } from "./logger.mjs";
 
 // ── Centralized config (single source of truth for versions, ports, etc.) ───
 const __dev_safe_dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -42,7 +47,6 @@ const LOCAL_AGENT_SERVER_SUBDIRS = [
   "openhands-tools",
   "openhands-workspace",
 ];
-const DEFAULT_SECRET_KEY = SHARED_DEFAULTS.defaults.secretKey;
 const DEFAULT_AGENT_SERVER_VERSION = SHARED_DEFAULTS.versions.agentServer;
 const FRONTEND_REQUIRED_BINS = ["cross-env", "react-router"];
 
@@ -54,20 +58,36 @@ export function generateRandomApiKey() {
   return randomBytes(32).toString("hex");
 }
 
-// Where the auto-generated default session API key is persisted so it stays
-// stable across `npm run dev` restarts. Keeping the key stable means the value
-// baked into the frontend (VITE_SESSION_API_KEY) and the persisted
-// backend-registry entry (`openhands-backends` localStorage) stay in sync
-// without users needing to set anything in `.env`.
+// Where the auto-generated API key is persisted so it stays stable across
+// `npm run dev` restarts. Keeping the key stable means the value baked into
+// the frontend (VITE_SESSION_API_KEY) and the persisted backend-registry entry
+// (`openhands-backends` localStorage) stay in sync without users needing to
+// set anything in `.env`.
 //
 // To rotate the key, delete this file. To pin a key explicitly, export
-// SESSION_API_KEY (or OH_SESSION_API_KEYS_0 / VITE_SESSION_API_KEY) -- those
-// take precedence over the persisted file.
-export const DEFAULT_SESSION_API_KEY_PATH = path.join(
+// LOCAL_BACKEND_API_KEY — it takes precedence over the persisted file.
+export const DEFAULT_API_KEY_PATH = path.join(
   homedir(),
   ".openhands",
   "agent-canvas",
-  "session-api-key.txt",
+  "api-key.txt",
+);
+
+/** @deprecated Use DEFAULT_API_KEY_PATH */
+export const DEFAULT_SESSION_API_KEY_PATH = DEFAULT_API_KEY_PATH;
+
+// Where the OH_SECRET_KEY is persisted so dev mode and Docker mode share the
+// same encryption key when both use ~/.openhands as their state directory.
+// docker/entrypoint.sh reads and writes this same file, so whichever mode runs
+// first generates the key and the other picks it up automatically.
+//
+// To rotate the key, delete this file and restart both modes. To pin a key
+// explicitly, export OH_SECRET_KEY — that takes precedence over the file.
+export const DEFAULT_SECRET_KEY_PATH = path.join(
+  homedir(),
+  ".openhands",
+  "agent-canvas",
+  "secret-key.txt",
 );
 
 // Cache so repeated lookups within a single process return the same key,
@@ -75,20 +95,27 @@ export const DEFAULT_SESSION_API_KEY_PATH = path.join(
 const persistedApiKeyCache = new Map();
 
 /**
- * Load the persisted default session API key, generating + persisting one if
- * the file doesn't exist yet.
+ * Load the persisted default API key, generating + persisting one if the file
+ * doesn't exist yet.
  *
  * Best-effort: if the file can't be written (e.g. read-only home dir), we
  * fall back to an in-memory key for this process so dev still works -- the
  * key just won't survive a restart.
  *
  * @param {string} filePath - Where to read/write the key.
- * @returns {string} The (hex) session API key.
+ * @returns {string} The (hex) API key.
  */
-export function getOrCreatePersistedSessionApiKey(
-  filePath = DEFAULT_SESSION_API_KEY_PATH,
+export function getOrCreatePersistedApiKeyFile(
+  filePath = DEFAULT_API_KEY_PATH,
 ) {
   return getOrCreatePersistedApiKey(filePath, "session");
+}
+
+/** @deprecated Use getOrCreatePersistedApiKeyFile */
+export function getOrCreatePersistedSessionApiKey(
+  filePath = DEFAULT_API_KEY_PATH,
+) {
+  return getOrCreatePersistedApiKeyFile(filePath);
 }
 
 /**
@@ -208,6 +235,36 @@ function tryPort(port, host = "127.0.0.1") {
       server.close(() => resolve(true));
     });
   });
+}
+
+/**
+ * Assert that all listed ports are available, throwing a descriptive error if
+ * any are already in use.
+ *
+ * Intended as a pre-flight check before spawning services so that a concurrent
+ * agent-canvas instance is detected immediately rather than silently starting
+ * on a different port.
+ *
+ * @param {Array<{name: string, port: number}>} portConfigs - Named port list
+ * @param {string} [host]
+ */
+export async function assertPortsFree(portConfigs, host = "127.0.0.1") {
+  const results = await Promise.all(
+    portConfigs.map(async ({ name, port }) => ({
+      name,
+      port,
+      free: await tryPort(port, host),
+    })),
+  );
+  const busy = results.filter(({ free }) => !free);
+  if (busy.length === 0) return;
+
+  const lines = busy.map(({ name, port }) => `   • ${name}: port ${port}`).join("\n");
+  throw new Error(
+    `Cannot start: the following ports are already in use:\n\n${lines}\n\n` +
+      `Another agent-canvas instance may already be running.\n` +
+      `Stop it first, or override the port via environment variables (e.g. PORT=<other>).`,
+  );
 }
 
 /**
@@ -337,7 +394,7 @@ export function validateFrontendDependencies(
  *   edits are picked up without a manual reinstall. The agent-server itself
  *   is rebuilt from local source on each invocation (--reinstall).
  * - OH_AGENT_SERVER_GIT_REF: Git commit SHA or branch name
- * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.23.1")
+ * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.28.1")
  *
  * If none are set, defaults to the released version specified by
  * DEFAULT_AGENT_SERVER_VERSION. Set OH_AGENT_SERVER_GIT_REF to use a
@@ -374,13 +431,22 @@ export function buildAgentServerCommand(env = process.env) {
     );
     source = `local (${localPath})`;
   } else if (gitRef) {
-    // Use git ref with subdirectory syntax for uv workspace monorepo
+    // Use git ref with subdirectory syntax for uv workspace monorepo.
     // The software-agent-sdk repo has packages in subdirectories:
-    // openhands-agent-server/, openhands-tools/, openhands-workspace/
+    // openhands-agent-server/, openhands-sdk/, openhands-tools/, openhands-workspace/
+    // All four must come from the same ref so inter-package APIs stay in sync.
+    //
+    // --reinstall is required because the git branch may carry the same version
+    // string as the current PyPI release (e.g. both "1.26.0"). Without it, uv
+    // silently reuses the cached PyPI wheels and the git ref is never actually
+    // used, even though it was explicitly requested.
     const baseGitUrl = `git+${AGENT_SERVER_GIT_REPO}@${gitRef}`;
     uvxArgs.push(
+      "--reinstall",
       "--from",
       `${baseGitUrl}#subdirectory=openhands-agent-server`,
+      "--with",
+      `${baseGitUrl}#subdirectory=openhands-sdk`,
       "--with",
       `${baseGitUrl}#subdirectory=openhands-tools`,
       "--with",
@@ -491,26 +557,14 @@ export async function buildSafeDevConfigAsync(
     preferredBackendPort + 1,
   );
 
-  // Find available ports, preferring the defaults
-  const ports = await findFreePorts([
-    { name: "backend", preferred: preferredBackendPort },
-    { name: "vscode", preferred: preferredVscodePort },
+  // Fail fast if any required port is already in use.
+  await assertPortsFree([
+    { name: "agent-server", port: preferredBackendPort },
+    { name: "vscode", port: preferredVscodePort },
   ]);
 
-  // Log if we're using non-default ports
-  if (ports.backend !== preferredBackendPort) {
-    console.log(
-      `  ℹ Port ${preferredBackendPort} busy, using ${ports.backend} for agent-server`,
-    );
-  }
-  if (ports.vscode !== preferredVscodePort) {
-    console.log(
-      `  ℹ Port ${preferredVscodePort} busy, using ${ports.vscode} for vscode`,
-    );
-  }
-
   return buildConfigFromPorts(
-    { backendPort: ports.backend, vscodePort: ports.vscode },
+    { backendPort: preferredBackendPort, vscodePort: preferredVscodePort },
     cwd,
     env,
   );
@@ -548,28 +602,28 @@ function buildConfigFromPorts(ports, cwd, env) {
     env.OH_CANVAS_SAFE_STATE_DIR ||
       path.join(homedir(), ".openhands", "agent-canvas"),
   );
-  const conversationsPath = path.join(stateDir, "conversations");
+  const conversationsPath = path.join(stateDir, "dev_conversations");
   const workspacesPath = path.join(stateDir, "workspaces");
-  // Use provided secret key or default for local development
-  const secretKey = env.OH_SECRET_KEY || DEFAULT_SECRET_KEY;
-  // Use provided session API key or fall back to a key persisted to
-  // ~/.openhands/agent-canvas/session-api-key.txt. Persisting on disk keeps
-  // the agent-server, the Vite-baked VITE_SESSION_API_KEY, and any
+  // Use provided secret key, or read/generate one persisted to
+  // ~/.openhands/agent-canvas/secret-key.txt. Persisting ensures dev mode
+  // and Docker mode share the same encryption key when they mount the same
+  // ~/.openhands directory (docker/entrypoint.sh reads/writes the same file).
+  const secretKeyPath =
+    env.OH_SECRET_KEY_PATH || DEFAULT_SECRET_KEY_PATH;
+  const secretKey =
+    env.OH_SECRET_KEY || getOrCreatePersistedApiKey(secretKeyPath, "secret");
+  // Use the user-provided LOCAL_BACKEND_API_KEY or fall back to a key
+  // persisted to ~/.openhands/agent-canvas/api-key.txt. Persisting on disk
+  // keeps the agent-server, the Vite-baked VITE_SESSION_API_KEY, and any
   // `openhands-backends` localStorage entries the frontend has cached all
   // pointing at the same value across dev restarts.
   //
-  // Check multiple env vars that may be used:
-  // - SESSION_API_KEY: Common name
-  // - OH_SESSION_API_KEYS_0: Used by agent-server V1 config
-  // - VITE_SESSION_API_KEY: Used by frontend config
+  // LOCAL_BACKEND_API_KEY is the single user-facing env var for the API key.
   // OH_SESSION_API_KEY_PATH overrides the persisted file path (used by tests).
-  const persistedKeyPath =
-    env.OH_SESSION_API_KEY_PATH || DEFAULT_SESSION_API_KEY_PATH;
+  const persistedKeyPath = env.OH_SESSION_API_KEY_PATH || DEFAULT_API_KEY_PATH;
   const sessionApiKey =
-    env.SESSION_API_KEY ||
-    env.OH_SESSION_API_KEYS_0 ||
-    env.VITE_SESSION_API_KEY ||
-    getOrCreatePersistedSessionApiKey(persistedKeyPath);
+    env.LOCAL_BACKEND_API_KEY ||
+    getOrCreatePersistedApiKeyFile(persistedKeyPath);
 
   // Host directory containing Agent-Canvas-specific Python tools (e.g. the
   // canvas_ui tool). Added to OH_EXTRA_PYTHON_PATH below so the agent-server
@@ -582,7 +636,23 @@ function buildConfigFromPorts(ports, cwd, env) {
     backendPort,
     vscodePort,
     stateDir,
-    tmuxTmpDir: path.join(tmpdir(), "openhands-agent-canvas-tmux"),
+    // tmux socket directory. Defaults to <stateDir>/tmux (under
+    // ~/.openhands/agent-canvas), matching where the rest of dev state lives
+    // and persisting across restarts.
+    //
+    // Do NOT use os.tmpdir() here: on macOS it resolves to the per-user
+    // $TMPDIR (/var/folders/.../T), which the OS periodically reaps
+    // (com.apple.bsd.dirhelper deletes entries untouched for a few days).
+    // Reaping deletes the live tmux socket while the server process keeps
+    // running, orphaning it — every later new-window then fails with
+    // "error connecting to .../openhands (No such file or directory)".
+    //
+    // The only hosts where <stateDir>/tmux can't hold the socket are those
+    // whose $HOME is a network/overlay mount without Unix-domain-socket
+    // support (some devcontainers, NFS/CIFS homes). Those rare cases can point
+    // tmux at a local, socket-capable path with the standard TMUX_TMPDIR env
+    // var (e.g. TMUX_TMPDIR=/tmp), which we honor and pass through below.
+    tmuxTmpDir: env.TMUX_TMPDIR || path.join(stateDir, "tmux"),
     conversationsPath,
     workspacesPath,
     bashEventsDir: path.join(stateDir, "bash_events"),
@@ -606,7 +676,20 @@ function buildConfigFromPorts(ports, cwd, env) {
  */
 export function buildAgentServerEnv(config) {
   return {
+    // Force Python to use UTF-8 for all file I/O and streams.
+    //
+    // On Windows, Python defaults to the system ANSI codepage (e.g. cp1252).
+    // The agent-server writes conversation metadata JSON that can contain
+    // emoji (e.g. ✅ U+2705) which cp1252 cannot encode, producing:
+    //   UnicodeEncodeError: 'charmap' codec can't encode character '\u2705'
+    // Setting PYTHONUTF8=1 enables Python's UTF-8 mode (PEP 540) for the
+    // entire agent-server process, matching the behaviour on Linux/macOS
+    // where the locale is already UTF-8.
+    // This is a no-op on Linux/macOS where the locale is already UTF-8.
+    PYTHONUTF8: "1",
     TMUX_TMPDIR: config.tmuxTmpDir,
+    // Parent of stateDir (= ~/.openhands) so settings/secrets match Docker.
+    OH_PERSISTENCE_DIR: path.dirname(config.stateDir),
     OH_CONVERSATIONS_PATH: config.conversationsPath,
     OH_BASH_EVENTS_DIR: config.bashEventsDir,
     OH_VSCODE_PORT: String(config.vscodePort),
@@ -631,121 +714,10 @@ export function buildAgentServerEnv(config) {
   };
 }
 
-/**
- * Build a structured description of the dev-stack services that are
- * reachable from inside the agent's sandbox. The frontend forwards this
- * (verbatim, as a JSON string in `VITE_RUNTIME_SERVICES_INFO`) and renders
- * it into the system prompt via `AgentContext.system_message_suffix`, so
- * the agent sees a `<RUNTIME_SERVICES>` block listing what's available
- * without having to probe.
- *
- * URLs are written from the *agent's* point of view. The agent-server
- * runs on the host, so the host alias is "localhost".
- *
- * @param {object} options
- * @param {string} [options.mode] - Human-readable dev mode label (e.g. "dev:safe").
- * @param {string} [options.agentHostAlias="localhost"] - Hostname the agent
- *   uses to reach services running on the host machine.
- * @param {number} [options.agentServerPort] - Port the agent-server listens on.
- *   Required at runtime; the function throws if missing because the resulting
- *   URL would otherwise bake `undefined` into the agent's system prompt.
- *   Typed as optional only so TypeScript callers can negative-test the guard.
- * @param {number} [options.ingressPort] - Ingress port (omit if no ingress).
- * @param {number} [options.frontendPort] - Frontend port (Vite dev server
- *   or static-file server). Omit if no frontend is exposed.
- * @param {number} [options.vitePort] - Deprecated alias for `frontendPort`,
- *   accepted for backward compat with older launchers. Remove after one release.
- * @param {"vite"|"static"} [options.frontendKind="vite"] - Whether the
- *   frontend port hosts Vite or a static build. Only affects the
- *   description shown to the agent.
- * @param {object} [options.automation] - Automation backend info. Skipped
- *   entirely if `.port` is missing, so passing `{}` is safe.
- * @param {number} [options.automation.port] - Automation backend port.
- * @param {string} [options.automation.apiPrefix="/api/automation"] - Path
- *   prefix all automation routes are mounted under.
- * @param {string} [options.automation.authEnvVar="OPENHANDS_AUTOMATION_API_KEY"]
- *   - Env var holding the API key.
- * @returns {object} A JSON-serializable runtime services info object.
- */
-export function buildRuntimeServicesInfo(options) {
-  const {
-    mode,
-    agentHostAlias = "localhost",
-    agentServerPort,
-    ingressPort,
-    // Accept legacy `vitePort` for one release so external callers keep working.
-    vitePort,
-    frontendPort = vitePort,
-    frontendKind = "vite",
-    automation,
-  } = options;
-
-  if (agentServerPort === undefined || agentServerPort === null) {
-    // Without this the URL becomes `http://localhost:undefined` and ends up
-    // verbatim in the agent's system prompt, which is worse than failing fast.
-    throw new Error(
-      "buildRuntimeServicesInfo: agentServerPort is required " +
-        "(otherwise the agent_server URL would be `http://localhost:undefined`).",
-    );
-  }
-
-  const services = {
-    agent_server: {
-      description:
-        "The OpenHands Agent Server this agent is running inside. " +
-        "Tool calls (terminal, file_editor, browser, etc.) execute here.",
-      // From the agent's POV, the agent-server it's *inside* is on
-      // localhost, regardless of where the host is.
-      url_from_agent: `http://localhost:${agentServerPort}`,
-    },
-  };
-
-  if (ingressPort !== undefined) {
-    services.ingress = {
-      description:
-        "Unified entry point. Routes /api/automation/* to the automation " +
-        "backend, /api/* and /sockets to the agent-server, and /* to the " +
-        "frontend.",
-      url_from_agent: `http://${agentHostAlias}:${ingressPort}`,
-    };
-  }
-
-  if (frontendPort !== undefined) {
-    services.frontend = {
-      kind: frontendKind,
-      description:
-        frontendKind === "static"
-          ? "Static-file server hosting the agent-canvas production build."
-          : "Vite dev server hosting the agent-canvas frontend.",
-      url_from_agent: `http://${agentHostAlias}:${frontendPort}`,
-    };
-  }
-
-  // Require an explicit port so we don't bake `:undefined` into the
-  // automation URL when the caller passes `automation: {}`.
-  if (automation?.port !== undefined && automation.port !== null) {
-    const apiPrefix = automation.apiPrefix ?? "/api/automation";
-    const authEnvVar = automation.authEnvVar ?? "OPENHANDS_AUTOMATION_API_KEY";
-    const baseUrl = `http://${agentHostAlias}:${automation.port}`;
-    services.automation = {
-      description:
-        "OpenHands Automations service. All routes are mounted under " +
-        `'${apiPrefix}'. Authenticate with header ` +
-        `'X-API-Key: $${authEnvVar}'.`,
-      url_from_agent: baseUrl,
-      api_prefix: apiPrefix,
-      docs_url: `${baseUrl}${apiPrefix}/docs`,
-      openapi_url: `${baseUrl}${apiPrefix}/openapi.json`,
-      auth_env_var: authEnvVar,
-    };
-  }
-
-  return {
-    mode,
-    agent_host_alias: agentHostAlias,
-    services,
-  };
-}
+// Re-export so existing importers (dev-with-automation.mjs, tests) keep
+// resolving `buildRuntimeServicesInfo` from this module. The implementation
+// now lives in ./runtime-services-info.mjs (imported at the top of this file).
+export { buildRuntimeServicesInfo };
 
 export function buildNpmScriptCommand(
   scriptName,
@@ -753,17 +725,24 @@ export function buildNpmScriptCommand(
   env = process.env,
   nodeExecPath = process.execPath,
 ) {
-  if (env.npm_execpath) {
-    return {
-      command: env.npm_node_execpath || nodeExecPath,
-      args: [env.npm_execpath, "run", scriptName],
-    };
-  }
-
+  // On Windows, always use cmd.exe regardless of whether npm_execpath is set.
+  // npm_execpath points to a path like
+  // "C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js" which contains
+  // spaces. When that path is passed as an argument with shell:true in
+  // spawnService, cmd.exe splits on the space and tries to run "C:\Program"
+  // as a command, producing "not recognized as an internal or external command".
+  // Using "npm" via cmd.exe avoids the problem entirely.
   if (platform === "win32") {
     return {
       command: env.ComSpec || "cmd.exe",
       args: ["/d", "/s", "/c", "npm", "run", scriptName],
+    };
+  }
+
+  if (env.npm_execpath) {
+    return {
+      command: env.npm_node_execpath || nodeExecPath,
+      args: [env.npm_execpath, "run", scriptName],
     };
   }
 
@@ -823,13 +802,16 @@ function spawnProcess(command, args, options = {}) {
 
   child.once("error", (error) => {
     if (isEnoentError(error) && command === "uvx") {
-      console.error(formatMissingUvxGuidance(options?.cwd));
+      const msg = formatMissingUvxGuidance(options?.cwd);
+      console.error(msg);
+      fileLog("error", stripAnsi(msg));
     } else if (isEnoentError(error)) {
-      console.error(
-        `Failed to start ${command}. Make sure it is installed and on your PATH.`,
-      );
+      const msg = `Failed to start ${command}. Make sure it is installed and on your PATH.`;
+      console.error(msg);
+      fileLog("error", msg);
     } else {
       console.error(`Failed to start ${command}:`, error);
+      fileLog("error", `Failed to start ${command}: ${error.message}`);
     }
   });
 
@@ -838,9 +820,12 @@ function spawnProcess(command, args, options = {}) {
 
 async function main() {
   console.log("Starting isolated agent-server + frontend dev stack...");
+  fileLog("info", "Starting isolated agent-server + frontend dev stack...");
   validateFrontendDependencies();
   console.log("Frontend dependencies found.");
+  fileLog("info", "Frontend dependencies found.");
   console.log("Allocating ports...");
+  fileLog("info", "Allocating ports...");
 
   // Use async config builder with dynamic port allocation
   const config = await buildSafeDevConfigAsync();
@@ -863,16 +848,13 @@ async function main() {
 
   const secretKeySource = process.env.OH_SECRET_KEY
     ? "custom (from OH_SECRET_KEY)"
-    : "default (for local development)";
+    : `persisted (${process.env.OH_SECRET_KEY_PATH || DEFAULT_SECRET_KEY_PATH})`;
 
-  const sessionKeySource =
-    process.env.SESSION_API_KEY ||
-    process.env.OH_SESSION_API_KEYS_0 ||
-    process.env.VITE_SESSION_API_KEY
-      ? "custom (from env)"
-      : `persisted (${
-          process.env.OH_SESSION_API_KEY_PATH || DEFAULT_SESSION_API_KEY_PATH
-        })`;
+  const sessionKeySource = process.env.LOCAL_BACKEND_API_KEY
+    ? "custom (from LOCAL_BACKEND_API_KEY)"
+    : `persisted (${
+        process.env.OH_SESSION_API_KEY_PATH || DEFAULT_API_KEY_PATH
+      })`;
 
   console.log(`- agent-server: ${agentServerCmd.source}`);
   console.log(`- backend: ${config.backendBaseUrl}`);
@@ -882,6 +864,16 @@ async function main() {
   console.log(`- secret key: ${secretKeySource}`);
   console.log(`- session API key: ${sessionKeySource}`);
   console.log("");
+  fileLog(
+    "info",
+    [
+      "Agent-server stack config:",
+      `  agent-server: ${agentServerCmd.source}`,
+      `  backend:      ${config.backendBaseUrl}`,
+      `  working dir:  ${config.workingDir}`,
+      `  state dir:    ${config.stateDir}`,
+    ].join("\n"),
+  );
 
   const backend = spawnProcess(
     agentServerCmd.command,
@@ -982,7 +974,9 @@ async function main() {
 
   backend.once("exit", (code) => {
     if (!shuttingDown) {
-      console.error(`agent-server exited unexpectedly with code ${code ?? 0}`);
+      const msg = `agent-server exited unexpectedly with code ${code ?? 0}`;
+      console.error(msg);
+      fileLog("error", msg);
       shutdown();
       process.exitCode = code ?? 1;
     }
@@ -1069,7 +1063,12 @@ if (
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   main().catch((error) => {
-    console.error(error instanceof Error ? error.message : error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(msg);
+    fileLog("error", `Fatal error: ${msg}`);
+    if (error instanceof Error && error.stack) {
+      fileLog("error", error.stack);
+    }
     process.exit(1);
   });
 }

@@ -15,6 +15,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, afterEach } from "vitest";
 import {
+  assertPortsFree,
   buildSafeDevConfig,
   buildSafeDevConfigAsync,
   buildNpmScriptCommand,
@@ -192,7 +193,10 @@ describe("buildSafeDevConfigAsync", () => {
   }
 
   it("returns config with dynamically allocated ports", async () => {
+    // Use a high port so the assertPortsFree check passes even when a real
+    // dev stack is running on the default port (18000).
     const config = await buildSafeDevConfigAsync(repoRoot, {
+      OH_CANVAS_SAFE_BACKEND_PORT: "19800",
       OH_SESSION_API_KEY_PATH: tempKeyPath(),
     });
 
@@ -204,7 +208,7 @@ describe("buildSafeDevConfigAsync", () => {
     expect(config.backendPort).not.toBe(config.vscodePort);
   });
 
-  it("falls back when preferred ports are busy", async () => {
+  it("throws when preferred port is busy", async () => {
     // Block a specific high port we'll request
     const busyPort = 19600;
     const server = net.createServer();
@@ -216,16 +220,82 @@ describe("buildSafeDevConfigAsync", () => {
       server.on("error", reject);
     });
 
-    // Request the busy port via env var
-    const config = await buildSafeDevConfigAsync(repoRoot, {
-      OH_CANVAS_SAFE_BACKEND_PORT: busyPort.toString(),
-      OH_SESSION_API_KEY_PATH: tempKeyPath(),
+    // Request the busy port via env var — should throw instead of falling back
+    await expect(
+      buildSafeDevConfigAsync(repoRoot, {
+        OH_CANVAS_SAFE_BACKEND_PORT: busyPort.toString(),
+        OH_SESSION_API_KEY_PATH: tempKeyPath(),
+      }),
+    ).rejects.toThrow(/agent-server.*port 19600/i);
+  });
+});
+
+describe("assertPortsFree", () => {
+  const servers: net.Server[] = [];
+
+  afterEach(() => {
+    for (const server of servers) {
+      server.close();
+    }
+    servers.length = 0;
+  });
+
+  it("resolves when all ports are free", async () => {
+    // High ports unlikely to be in use
+    await expect(
+      assertPortsFree([
+        { name: "svc-a", port: 19700 },
+        { name: "svc-b", port: 19701 },
+      ]),
+    ).resolves.toBeUndefined();
+  });
+
+  it("throws when a single port is busy", async () => {
+    const busyPort = await new Promise<number>((resolve, reject) => {
+      const server = net.createServer();
+      server.listen(0, "127.0.0.1", () => {
+        const addr = server.address();
+        if (addr && typeof addr === "object") {
+          servers.push(server);
+          resolve(addr.port);
+        } else {
+          server.close();
+          reject(new Error("Failed to get address"));
+        }
+      });
     });
 
-    // Backend port should NOT be busyPort since it's taken
-    expect(config.backendPort).not.toBe(busyPort);
-    expect(typeof config.backendPort).toBe("number");
-    expect(config.backendPort).toBeGreaterThan(0);
+    await expect(
+      assertPortsFree([{ name: "agent-server", port: busyPort }]),
+    ).rejects.toThrow(/agent-server.*port/i);
+  });
+
+  it("names all busy ports in the error message", async () => {
+    const [portA, portB] = await Promise.all(
+      [0, 0].map(
+        () =>
+          new Promise<number>((resolve, reject) => {
+            const server = net.createServer();
+            server.listen(0, "127.0.0.1", () => {
+              const addr = server.address();
+              if (addr && typeof addr === "object") {
+                servers.push(server);
+                resolve(addr.port);
+              } else {
+                server.close();
+                reject(new Error("Failed to get address"));
+              }
+            });
+          }),
+      ),
+    );
+
+    await expect(
+      assertPortsFree([
+        { name: "ingress", port: portA },
+        { name: "vite", port: portB },
+      ]),
+    ).rejects.toThrow(/ingress.*vite|vite.*ingress/is);
   });
 });
 
@@ -319,16 +389,16 @@ describe("buildAgentServerCommand", () => {
     // Defaults to the released PyPI version with all SDK packages pinned to same version
     expect(cmd.args).toEqual([
       "--from",
-      "openhands-agent-server==1.23.1",
+      "openhands-agent-server==1.28.1",
       "--with",
-      "openhands-sdk==1.23.1",
+      "openhands-sdk==1.28.1",
       "--with",
-      "openhands-tools==1.23.1",
+      "openhands-tools==1.28.1",
       "--with",
-      "openhands-workspace==1.23.1",
+      "openhands-workspace==1.28.1",
       "agent-server",
     ]);
-    expect(cmd.source).toBe("PyPI (1.23.1, default)");
+    expect(cmd.source).toBe("PyPI (1.28.1, default)");
   });
 
   it("uses specific PyPI version when OH_AGENT_SERVER_VERSION is set with all packages pinned", () => {
@@ -358,8 +428,11 @@ describe("buildAgentServerCommand", () => {
 
     expect(cmd.command).toBe("uvx");
     expect(cmd.args).toEqual([
+      "--reinstall",
       "--from",
       "git+https://github.com/OpenHands/software-agent-sdk@feature-branch#subdirectory=openhands-agent-server",
+      "--with",
+      "git+https://github.com/OpenHands/software-agent-sdk@feature-branch#subdirectory=openhands-sdk",
       "--with",
       "git+https://github.com/OpenHands/software-agent-sdk@feature-branch#subdirectory=openhands-tools",
       "--with",
@@ -374,8 +447,11 @@ describe("buildAgentServerCommand", () => {
 
     expect(cmd.command).toBe("uvx");
     expect(cmd.args).toEqual([
+      "--reinstall",
       "--from",
       "git+https://github.com/OpenHands/software-agent-sdk@abc1234#subdirectory=openhands-agent-server",
+      "--with",
+      "git+https://github.com/OpenHands/software-agent-sdk@abc1234#subdirectory=openhands-sdk",
       "--with",
       "git+https://github.com/OpenHands/software-agent-sdk@abc1234#subdirectory=openhands-tools",
       "--with",
@@ -521,11 +597,9 @@ describe("buildSafeDevConfig", () => {
     expect(config.stateDir).toBe(
       path.join(homedir(), ".openhands", "agent-canvas"),
     );
-    expect(config.tmuxTmpDir).toBe(
-      path.join(tmpdir(), "openhands-agent-canvas-tmux"),
-    );
+    expect(config.tmuxTmpDir).toBe(path.join(config.stateDir, "tmux"));
     expect(config.conversationsPath).toBe(
-      path.join(config.stateDir, "conversations"),
+      path.join(config.stateDir, "dev_conversations"),
     );
     expect(config.workspacesPath).toBe(
       path.join(config.stateDir, "workspaces"),
@@ -552,6 +626,17 @@ describe("buildSafeDevConfig", () => {
     expect(config.backendHost).toBe("127.0.0.1:19000");
     expect(config.stateDir).toBe(path.resolve(cwd, ".tmp", "dev-safe"));
     expect(config.workingDir).toBe("/workspace/custom-repo");
+    // tmux socket dir defaults to <stateDir>/tmux.
+    expect(config.tmuxTmpDir).toBe(path.join(config.stateDir, "tmux"));
+  });
+
+  it("honors TMUX_TMPDIR for hosts without socket-capable homes", () => {
+    const config = buildSafeDevConfig("/workspace/project/agent-canvas", {
+      TMUX_TMPDIR: "/tmp",
+      OH_SESSION_API_KEY_PATH: tempKeyPath(),
+    });
+
+    expect(config.tmuxTmpDir).toBe("/tmp");
   });
 
   it("falls back to the persisted session key file when no env override is set", () => {
@@ -583,14 +668,14 @@ describe("buildSafeDevConfig", () => {
     expect(second.sessionApiKey).toBe(first.sessionApiKey);
   });
 
-  it("env-provided session keys take precedence over the persisted file", () => {
+  it("LOCAL_BACKEND_API_KEY takes precedence over the persisted file", () => {
     const keyPath = tempKeyPath();
     // Pre-seed the file with one key.
     mkdirSync(path.dirname(keyPath), { recursive: true });
     writeFileSync(keyPath, "persisted-key-value\n");
 
     const config = buildSafeDevConfig("/workspace/project/agent-canvas", {
-      SESSION_API_KEY: "env-key-wins",
+      LOCAL_BACKEND_API_KEY: "env-key-wins",
       OH_SESSION_API_KEY_PATH: keyPath,
     });
 
@@ -655,24 +740,45 @@ describe("getOrCreatePersistedSessionApiKey", () => {
 });
 
 describe("buildNpmScriptCommand", () => {
-  it("reuses npm's own CLI path when available", () => {
+  it("runs npm through cmd.exe on Windows even when npm_execpath is set", () => {
+    // npm_execpath points to a path with spaces like
+    // "C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js".
+    // spawnService uses shell:true on Windows, so passing that path as an
+    // argument causes cmd.exe to split on the space and fail with
+    // "'C:\Program' is not recognized as an internal or external command".
+    // The win32 branch must fire BEFORE the npm_execpath branch.
     const command = buildNpmScriptCommand(
       "dev:frontend",
       "win32",
       {
-        npm_execpath: "C:\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
-        npm_node_execpath: "C:\\nodejs\\node.exe",
+        ComSpec: "C:\\Windows\\System32\\cmd.exe",
+        npm_execpath:
+          "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+        npm_node_execpath: "C:\\Program Files\\nodejs\\node.exe",
       },
-      "C:\\fallback\\node.exe",
+      "C:\\Program Files\\nodejs\\node.exe",
     );
 
     expect(command).toEqual({
-      command: "C:\\nodejs\\node.exe",
-      args: [
-        "C:\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
-        "run",
-        "dev:frontend",
-      ],
+      command: "C:\\Windows\\System32\\cmd.exe",
+      args: ["/d", "/s", "/c", "npm", "run", "dev:frontend"],
+    });
+  });
+
+  it("reuses npm's own CLI path when available on POSIX", () => {
+    const command = buildNpmScriptCommand(
+      "dev:frontend",
+      "linux",
+      {
+        npm_execpath: "/usr/lib/node_modules/npm/bin/npm-cli.js",
+        npm_node_execpath: "/usr/bin/node",
+      },
+      "/fallback/node",
+    );
+
+    expect(command).toEqual({
+      command: "/usr/bin/node",
+      args: ["/usr/lib/node_modules/npm/bin/npm-cli.js", "run", "dev:frontend"],
     });
   });
 
@@ -713,8 +819,13 @@ describe("dev-safe CLI startup", () => {
     const child = spawn(process.execPath, ["scripts/dev-safe.mjs"], {
       cwd: repoRoot,
       env: {
-        // Use empty PATH to ensure uvx is not found
+        // Use empty PATH to ensure uvx is not found.
         PATH: "",
+        // Redirect the agent-server port to a high free port so the
+        // assertPortsFree pre-flight check passes when a real dev stack is
+        // running on the default port (18000) — the test is about uvx, not
+        // port detection.
+        OH_CANVAS_SAFE_BACKEND_PORT: "19810",
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -882,12 +993,12 @@ describe("buildRuntimeServicesInfo", () => {
     expect(info.services.automation).toBeUndefined();
   });
 
-  it("throws when agentServerPort is missing", () => {
+  it("throws when neither agentServerPort nor agentServerUrl is given", () => {
     expect(() =>
       buildRuntimeServicesInfo({
         mode: "dev:safe",
       }),
-    ).toThrow(/agentServerPort is required/);
+    ).toThrow(/agentServerPort or agentServerUrl is required/);
   });
 
   it("accepts the legacy vitePort alias for frontendPort", () => {

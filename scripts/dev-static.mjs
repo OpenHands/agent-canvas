@@ -384,10 +384,13 @@ function startStaticServer(config) {
       staticServerScript,
       "--dir",
       join(config.canvasPath, "build"),
-      "--host",
-      "0.0.0.0",
       "--port",
       String(config.vitePort),
+      // Inject the API key so the pre-built frontend can authenticate
+      // to the agent-server without a baked-in VITE_SESSION_API_KEY.
+      ...(config.sessionApiKey
+        ? ["--session-api-key", config.sessionApiKey]
+        : []),
       "--route",
       `/api/automation=http://localhost:${config.autoBackendPort}`,
       "--route",
@@ -551,7 +554,7 @@ async function main() {
   const { mkdirSync } = await import("node:fs");
   for (const dir of [
     config.stateDir,
-    join(config.stateDir, "conversations"),
+    join(config.stateDir, "dev_conversations"),
     join(config.stateDir, "workspaces"),
     join(config.stateDir, "bash_events"),
     join(config.stateDir, "storage"),
@@ -582,7 +585,7 @@ async function main() {
     );
     process.exit(1);
   }
-  const conversationsPath = join(config.stateDir, "conversations");
+  const conversationsPath = join(config.stateDir, "dev_conversations");
   const cleared = releaseStaleConversationLeases(conversationsPath);
   if (cleared > 0) {
     logService(

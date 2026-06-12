@@ -3,6 +3,10 @@ import { useCombobox } from "downshift";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "#/utils/utils";
+import {
+  dropdownFooterActionClassName,
+  dropdownMenuListClassName,
+} from "#/utils/dropdown-classes";
 import { formControlFieldClassName } from "#/utils/form-control-classes";
 import { LocalWorkspace } from "#/types/workspace";
 import { I18nKey } from "#/i18n/declaration";
@@ -128,11 +132,11 @@ export function WorkspaceDropdown({
 
   const stickyFooterItem = useMemo(
     () => (
-      <div className="flex flex-col">
+      <div className={dropdownMenuListClassName}>
         <button
           type="button"
           data-testid="add-workspaces-button"
-          className="flex items-center w-full px-2 py-2 text-sm text-white hover:bg-[var(--oh-interactive-hover)] rounded-md transition-colors duration-150 font-normal"
+          className={cn(dropdownFooterActionClassName, "cursor-pointer")}
           onMouseDown={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -150,7 +154,7 @@ export function WorkspaceDropdown({
           <button
             type="button"
             data-testid="manage-workspaces-button"
-            className="flex items-center w-full px-2 py-2 text-sm text-white hover:bg-[var(--oh-interactive-hover)] rounded-md transition-colors duration-150 font-normal"
+            className={cn(dropdownFooterActionClassName, "cursor-pointer")}
             onMouseDown={(e) => {
               e.preventDefault();
               e.stopPropagation();

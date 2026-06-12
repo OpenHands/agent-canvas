@@ -24,6 +24,7 @@ export interface SeedLocalStorageOptions {
  * Defaults (overridable via options):
  *   - openhands-onboarded = "1"          (suppresses onboarding modal)
  *   - openhands-telemetry-consent = "denied"  (suppresses analytics consent modal)
+ *   - openhands-backends / openhands-active-backend = seeded local backend
  */
 export async function seedLocalStorage(
   page: Page,
@@ -49,7 +50,28 @@ export async function seedLocalStorage(
         window.localStorage.setItem("openhands-onboarded", "1");
       }
       if (!showConsentModal) {
+        window.localStorage.setItem("analytics-consent", "false");
         window.localStorage.setItem("openhands-telemetry-consent", "denied");
+      }
+      if (!window.localStorage.getItem("openhands-backends")) {
+        window.localStorage.setItem(
+          "openhands-backends",
+          JSON.stringify([
+            {
+              id: "default-local",
+              name: "Local",
+              host: window.location.origin,
+              apiKey: "test-session-key",
+              kind: "local",
+            },
+          ]),
+        );
+      }
+      if (!window.localStorage.getItem("openhands-active-backend")) {
+        window.localStorage.setItem(
+          "openhands-active-backend",
+          JSON.stringify({ backendId: "default-local", orgId: null }),
+        );
       }
       for (const [key, value] of extra) {
         window.localStorage.setItem(key, value);

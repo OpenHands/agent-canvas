@@ -18,6 +18,7 @@ import { settingsLikeMainScrollClassName } from "#/utils/settings-like-page-layo
 import {
   extensionModuleCardGridClassName,
   extensionModuleCardGridContainerClassName,
+  extensionModuleEmptyStateClassName,
 } from "#/utils/extension-module-card-classes";
 import type { SkillInfo } from "#/types/settings";
 import { getSkillCardDescription } from "#/components/features/skills/get-skill-card-description";
@@ -57,11 +58,10 @@ function SkillsSettingsScreen() {
 
   // Sync local state with server settings when data first arrives
   React.useEffect(() => {
-    if (settings?.disabled_skills) {
-      setDisabledSet(new Set(settings.disabled_skills));
-      setHasHydratedInitialSettings(true);
-    }
-  }, [settings?.disabled_skills]);
+    if (settingsLoading || !settings) return;
+    setDisabledSet(new Set(settings.disabled_skills ?? []));
+    setHasHydratedInitialSettings(true);
+  }, [settingsLoading, settings?.disabled_skills]);
 
   const handleToggle = (skillName: string, enabled: boolean) => {
     setDisabledSet((prev) => {
@@ -143,9 +143,14 @@ function SkillsSettingsScreen() {
           )}
 
           {!isLoading && (!skills || skills.length === 0) && (
-            <p className="text-sm text-tertiary">
-              {t(I18nKey.SETTINGS$SKILLS_NO_SKILLS)}
-            </p>
+            <div
+              data-testid="skills-empty"
+              className={extensionModuleEmptyStateClassName}
+            >
+              <p className="text-sm text-tertiary-light">
+                {t(I18nKey.SETTINGS$SKILLS_NO_SKILLS)}
+              </p>
+            </div>
           )}
 
           {!isLoading && skills && skills.length > 0 && (
@@ -157,12 +162,14 @@ function SkillsSettingsScreen() {
                 onTypeFilterChange={setTypeFilter}
               />
               {filteredSkills.length === 0 ? (
-                <p
+                <div
                   data-testid="skills-no-match"
-                  className="text-sm text-tertiary"
+                  className={extensionModuleEmptyStateClassName}
                 >
-                  {t(I18nKey.SETTINGS$SKILLS_NO_MATCH)}
-                </p>
+                  <p className="text-sm text-tertiary-light">
+                    {t(I18nKey.SETTINGS$SKILLS_NO_MATCH)}
+                  </p>
+                </div>
               ) : (
                 <section
                   className={cn(

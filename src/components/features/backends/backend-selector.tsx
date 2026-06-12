@@ -4,6 +4,7 @@ import { useMatch, useNavigate } from "react-router";
 import { Plus, Settings } from "lucide-react";
 import { Dropdown } from "#/ui/dropdown/dropdown";
 import { DropdownOption } from "#/ui/dropdown/types";
+import { isNoBackend } from "#/api/backend-registry/active-store";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useAllCloudOrganizations } from "#/hooks/query/use-cloud-organizations";
 import { useCloudCurrentUserId } from "#/hooks/query/use-cloud-current-user-id";
@@ -29,6 +30,11 @@ import { BackendStatusDot } from "./backend-status-dot";
 import { ManageBackendsModal } from "./manage-backends-modal";
 import { cn } from "#/utils/utils";
 import { formControlTransitionClassName } from "#/utils/form-control-classes";
+import {
+  dropdownFooterActionClassName,
+  dropdownMenuListClassName,
+  dropdownMenuRowIconWrapperClassName,
+} from "#/utils/dropdown-classes";
 
 const VALUE_SEPARATOR = "::";
 
@@ -46,6 +52,10 @@ function parseOptionValue(value: string): {
 
 function buildStatusPrefix(health: BackendHealth | undefined) {
   return <BackendStatusDot isConnected={health?.isConnected ?? null} />;
+}
+
+function buildNoBackendPrefix() {
+  return <BackendStatusDot isConnected="unavailable" />;
 }
 
 function buildOptions(
@@ -172,8 +182,12 @@ export function BackendSelector({
     ],
   );
 
+  const noBackendSelected = isNoBackend(active.backend);
+  const noBackendLabel = t(I18nKey.BACKEND$NO_BACKEND_AVAILABLE);
   const activeValue = makeOptionValue(active.backend.id, active.orgId);
-  const activeOption = options.find((o) => o.value === activeValue);
+  const activeOption = noBackendSelected
+    ? undefined
+    : options.find((o) => o.value === activeValue);
   const isSettingsActive = Boolean(settingsMatch || settingsSubrouteMatch);
   const settingsLabel = t(I18nKey.SIDEBAR$SETTINGS);
   const isRightPanelShown = useConversationStore(
@@ -201,7 +215,8 @@ export function BackendSelector({
   // X-Org-Id header sent by `callCloudProxy`, so the cloud UI's
   // org choice is never mutated as a side effect.
   React.useEffect(() => {
-    if (active.backend.kind !== "cloud" || active.orgId) return;
+    if (noBackendSelected || active.backend.kind !== "cloud" || active.orgId)
+      return;
     const { backend } = active;
     const entry = cloudOrgs[backend.id];
     if (!entry || entry.orgs.length === 0) return;
@@ -214,7 +229,7 @@ export function BackendSelector({
     if (target) {
       setActive(backend.id, target.id);
     }
-  }, [active, cloudOrgs, currentUserIds, setActive]);
+  }, [active, cloudOrgs, currentUserIds, setActive, noBackendSelected]);
 
   const openAddBackendModal = React.useCallback(() => {
     if (onOpenAddBackend) {
@@ -243,15 +258,20 @@ export function BackendSelector({
   );
 
   const addBackendFooter = (
-    <div className="flex flex-col">
+    <div className={dropdownMenuListClassName}>
       <button
         type="button"
         data-testid="add-backend-menu-item"
         onMouseDown={preventDropdownMenuClose}
         onClick={openAddBackendModal}
-        className="flex w-full items-center gap-2 px-2 py-2 rounded-md text-sm cursor-pointer text-white hover:bg-[var(--oh-interactive-hover)]"
+        className={cn(
+          dropdownFooterActionClassName,
+          "cursor-pointer rounded-md",
+        )}
       >
-        <Plus width={16} height={16} className="text-white shrink-0" />
+        <span className={dropdownMenuRowIconWrapperClassName} aria-hidden>
+          <Plus width={16} height={16} />
+        </span>
         {t(I18nKey.BACKEND$ADD)}
       </button>
       <button
@@ -259,9 +279,14 @@ export function BackendSelector({
         data-testid="manage-backends-menu-item"
         onMouseDown={preventDropdownMenuClose}
         onClick={openManageBackendsModal}
-        className="flex w-full items-center gap-2 px-2 py-2 rounded-md text-sm cursor-pointer text-white hover:bg-[var(--oh-interactive-hover)]"
+        className={cn(
+          dropdownFooterActionClassName,
+          "cursor-pointer rounded-md",
+        )}
       >
-        <Settings width={16} height={16} className="text-white shrink-0" />
+        <span className={dropdownMenuRowIconWrapperClassName} aria-hidden>
+          <Settings width={16} height={16} />
+        </span>
         {t(I18nKey.BACKEND$MANAGE)}
       </button>
     </div>
@@ -312,8 +337,10 @@ export function BackendSelector({
             defaultValue={
               activeOption ?? {
                 value: activeValue,
-                label: active.backend.name,
-                prefix: buildStatusPrefix(healthByBackendId[active.backend.id]),
+                label: noBackendSelected ? noBackendLabel : active.backend.name,
+                prefix: noBackendSelected
+                  ? buildNoBackendPrefix()
+                  : buildStatusPrefix(healthByBackendId[active.backend.id]),
               }
             }
             footer={addBackendFooter}
@@ -325,7 +352,9 @@ export function BackendSelector({
               if (!item) return;
               void handleSelectBackend(item.value);
             }}
-            placeholder={active.backend.name}
+            placeholder={
+              noBackendSelected ? noBackendLabel : active.backend.name
+            }
             loading={someCloudLoading}
             options={options}
             className="h-10 px-2 py-0 bg-transparent border-transparent hover:bg-[var(--oh-surface-raised)] focus-within:bg-[var(--oh-surface-raised)] focus-within:border-transparent focus-within:ring-0"

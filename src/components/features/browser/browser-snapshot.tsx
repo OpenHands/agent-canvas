@@ -11,7 +11,7 @@ export function BrowserSnapshot({ src }: BrowserSnaphsotProps) {
   return (
     <img
       src={src}
-      className="rounded-xl object-contain w-full h-auto"
+      className="block w-full h-auto"
       alt={t(I18nKey.BROWSER$SCREENSHOT_ALT)}
     />
   );

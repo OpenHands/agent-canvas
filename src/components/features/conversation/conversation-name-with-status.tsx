@@ -59,8 +59,8 @@ export function ConversationNameWithStatus() {
 
   return (
     <div className="flex items-center justify-between w-full">
-      <div className="flex items-center">
-        <div className="group relative">
+      <div className="flex items-center min-w-0">
+        <div className="group relative shrink-0">
           <DebugStackframeDot
             className="ml-[3.5px] w-6 h-6 cursor-pointer"
             color={statusColor}

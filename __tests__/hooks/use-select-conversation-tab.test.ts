@@ -213,7 +213,7 @@ describe("useSelectConversationTab", () => {
     it("should return current selectedTab from store", () => {
       // Arrange
       useConversationStore.setState({
-        selectedTab: "vscode",
+        selectedTab: "browser",
         isRightPanelShown: true,
         hasRightPanelToggled: true,
       });
@@ -221,7 +221,7 @@ describe("useSelectConversationTab", () => {
       const { result } = renderHook(() => useSelectConversationTab());
 
       // Assert: Should return current selectedTab
-      expect(result.current.selectedTab).toBe("vscode");
+      expect(result.current.selectedTab).toBe("browser");
     });
 
     it("should return current isRightPanelShown from store", () => {

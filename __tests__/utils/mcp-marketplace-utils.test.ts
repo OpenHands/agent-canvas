@@ -1,21 +1,40 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   findCatalogEntryForServer,
   findInstalledMatch,
+  getDefaultMcpTransport,
+  getInstallableMcpConnectionOption,
+  getMcpMarketplaceCatalog,
   installedServerMatchesQuery,
   isMarketplaceEntryAvailable,
   marketplaceEntryMatchesQuery,
 } from "#/utils/mcp-marketplace-utils";
-import { MCP_CATALOG as MCP_MARKETPLACE } from "@openhands/extensions/mcps";
+import * as agentServerAdapter from "#/api/agent-server-adapter";
+import { INTEGRATION_CATALOG as MCP_MARKETPLACE } from "@openhands/extensions/integrations";
 
-const slackEntry = MCP_MARKETPLACE.find((e) => e.id === "slack")!;
-const tavilyEntry = MCP_MARKETPLACE.find((e) => e.id === "tavily")!;
-const linearEntry = MCP_MARKETPLACE.find((e) => e.id === "linear")!;
-const filesystemEntry = MCP_MARKETPLACE.find((e) => e.id === "filesystem")!;
+vi.mock("#/api/agent-server-adapter", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("#/api/agent-server-adapter")>();
+  return { ...actual, getDeploymentMode: vi.fn(() => null) };
+});
+
+const mcpMarketplace = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
+const slackEntry = mcpMarketplace.find((e) => e.id === "slack")!;
+const tavilyEntry = mcpMarketplace.find((e) => e.id === "tavily")!;
+const linearEntry = mcpMarketplace.find((e) => e.id === "linear")!;
+const filesystemEntry = mcpMarketplace.find((e) => e.id === "filesystem")!;
+
+function optionTransport(entry: typeof slackEntry, optionId = "api") {
+  const transport = entry.connectionOptions.find(
+    (option) => option.id === optionId,
+  )?.transport;
+  if (!transport) throw new Error(`Missing ${optionId} transport`);
+  return transport;
+}
 
 describe("findInstalledMatch", () => {
   it("matches stdio servers by name", () => {
-    const result = findInstalledMatch(slackEntry.template, [
+    const result = findInstalledMatch(optionTransport(slackEntry), [
       {
         id: "stdio-0",
         type: "stdio",
@@ -28,7 +47,7 @@ describe("findInstalledMatch", () => {
   });
 
   it("does not match a different stdio name", () => {
-    const result = findInstalledMatch(slackEntry.template, [
+    const result = findInstalledMatch(optionTransport(slackEntry), [
       {
         id: "stdio-0",
         type: "stdio",
@@ -44,7 +63,7 @@ describe("findInstalledMatch", () => {
     // Tavily lives in the catalog as a stdio MCP entry (the previous
     // tavily-builtin / search_api_key flow never persisted anywhere
     // and silently dropped the key); confirm the now-uniform match.
-    const result = findInstalledMatch(tavilyEntry.template, [
+    const result = findInstalledMatch(getDefaultMcpTransport(tavilyEntry)!, [
       {
         id: "stdio-0",
         type: "stdio",
@@ -57,24 +76,64 @@ describe("findInstalledMatch", () => {
     expect(result).toEqual(expect.objectContaining({ id: "stdio-0" }));
   });
 
-  it("matches SSE servers loosely on URL", () => {
-    const result = findInstalledMatch(linearEntry.template, [
+  it("matches HTTP servers loosely on URL", () => {
+    const result = findInstalledMatch(getDefaultMcpTransport(linearEntry)!, [
       {
-        id: "sse-0",
-        type: "sse",
-        url: "https://mcp.linear.app/sse/",
+        id: "shttp-0",
+        type: "shttp",
+        url: "https://mcp.linear.app/mcp/",
       },
     ]);
-    expect(result).toEqual(expect.objectContaining({ id: "sse-0" }));
+    expect(result).toEqual(expect.objectContaining({ id: "shttp-0" }));
   });
 
   it("returns null when servers carry malformed urls (defensive)", () => {
-    const result = findInstalledMatch(linearEntry.template, [
+    const result = findInstalledMatch(getDefaultMcpTransport(linearEntry)!, [
       // Cast to any to simulate runtime data slipping past the type.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      { id: "sse-0", type: "sse", url: undefined as any },
+      { id: "shttp-0", type: "shttp", url: undefined as any },
     ]);
     expect(result).toBeNull();
+  });
+});
+
+describe("getInstallableMcpConnectionOption", () => {
+  it("prefers Slack's API fallback over the default OAuth option", () => {
+    const option = getInstallableMcpConnectionOption(slackEntry);
+    expect(option?.id).toBe("api");
+    expect(option?.auth.strategy).toBe("api_key");
+    expect(option?.transport.kind).toBe("stdio");
+  });
+
+  it("returns undefined for an OAuth-only entry (no locally installable option)", () => {
+    const oauthOnlyEntry: Parameters<typeof getInstallableMcpConnectionOption>[0] =
+      {
+        ...slackEntry,
+        id: "oauth-only",
+        defaultConnectionOptionId: "oauth",
+        connectionOptions: [
+          {
+            id: "oauth",
+            provider: "mcp",
+            auth: { strategy: "oauth2" },
+            transport: { kind: "shttp", url: "https://example.com/mcp" },
+          } as Parameters<typeof getInstallableMcpConnectionOption>[0]["connectionOptions"][number],
+        ],
+      };
+    const option = getInstallableMcpConnectionOption(oauthOnlyEntry);
+    expect(option).toBeUndefined();
+  });
+
+  it("returns undefined when the entry has no MCP connection options", () => {
+    const noOptionsEntry: Parameters<typeof getInstallableMcpConnectionOption>[0] =
+      {
+        ...slackEntry,
+        id: "no-mcp",
+        defaultConnectionOptionId: undefined,
+        connectionOptions: [],
+      };
+    const option = getInstallableMcpConnectionOption(noOptionsEntry);
+    expect(option).toBeUndefined();
   });
 });
 
@@ -164,7 +223,7 @@ describe("findCatalogEntryForServer", () => {
         command: "npx",
         args: [],
       },
-      MCP_MARKETPLACE,
+      mcpMarketplace,
     );
     expect(match?.id).toBe("slack");
   });
@@ -179,25 +238,74 @@ describe("findCatalogEntryForServer", () => {
           command: "npx",
           args: [],
         },
-        MCP_MARKETPLACE,
+        mcpMarketplace,
       ),
     ).toBeUndefined();
   });
 
-  it("matches an SSE server whose URL differs only by trailing slash", () => {
+  it("matches an HTTP server whose URL differs only by trailing slash", () => {
     // Regression coverage for the strict-=== URL match that previously
     // diverged from findInstalledMatch and caused installed cards to
     // render the generic icon while the marketplace tile said
     // "Installed".
-    const linear = MCP_MARKETPLACE.find((e) => e.id === "linear")!;
-    if (linear.template.kind !== "sse") {
-      throw new Error("Linear template should be SSE");
+    const linear = mcpMarketplace.find((e) => e.id === "linear")!;
+    const linearTransport = getDefaultMcpTransport(linear);
+    if (linearTransport?.kind !== "shttp") {
+      throw new Error("Linear template should be shttp");
     }
-    const normalizedUrl = linear.template.url.replace(/\/$/, "");
+    const normalizedUrl = linearTransport.url.replace(/\/$/, "");
     const match = findCatalogEntryForServer(
-      { id: "sse-0", type: "sse", url: `${normalizedUrl}/` },
-      MCP_MARKETPLACE,
+      { id: "shttp-0", type: "shttp", url: `${normalizedUrl}/` },
+      mcpMarketplace,
     );
     expect(match?.id).toBe("linear");
+  });
+});
+
+describe("patchGitHubEntry (via getMcpMarketplaceCatalog)", () => {
+  const mockedGetDeploymentMode = vi.mocked(
+    agentServerAdapter.getDeploymentMode,
+  );
+
+  function getGitHubStdioTransport(catalog: ReturnType<typeof getMcpMarketplaceCatalog>) {
+    const github = catalog.find((e) => e.id === "github");
+    expect(github).toBeDefined();
+    const option = github!.connectionOptions.find(
+      (o) => o.transport?.kind === "stdio",
+    );
+    expect(option?.transport?.kind).toBe("stdio");
+    const transport = option!.transport!;
+    if (transport.kind !== "stdio") throw new Error("expected stdio");
+    return transport;
+  }
+
+  it("leaves the GitHub entry unchanged when not in docker mode", () => {
+    mockedGetDeploymentMode.mockReturnValue(null);
+    const transport = getGitHubStdioTransport(
+      getMcpMarketplaceCatalog(MCP_MARKETPLACE),
+    );
+    expect(transport.command).toBe("docker");
+    expect(transport.args[0]).toBe("run");
+  });
+
+  it("rewrites the GitHub command to native binary in docker mode", () => {
+    mockedGetDeploymentMode.mockReturnValue("docker");
+    const transport = getGitHubStdioTransport(
+      getMcpMarketplaceCatalog(MCP_MARKETPLACE),
+    );
+    expect(transport.command).toBe("github-mcp-server");
+    expect(transport.args).toEqual(["stdio"]);
+  });
+
+  it("does not affect other entries in docker mode", () => {
+    mockedGetDeploymentMode.mockReturnValue("docker");
+    const catalog = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
+    const tavily = catalog.find((e) => e.id === "tavily");
+    const stdioOption = tavily?.connectionOptions.find(
+      (o) => o.transport?.kind === "stdio",
+    );
+    expect(stdioOption?.transport?.kind).toBe("stdio");
+    if (stdioOption?.transport?.kind !== "stdio") throw new Error("expected stdio");
+    expect(stdioOption.transport.command).not.toBe("github-mcp-server");
   });
 });
