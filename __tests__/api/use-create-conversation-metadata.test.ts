@@ -141,6 +141,7 @@ describe("useCreateConversation persists selected repository metadata", () => {
       selected_branch: "main",
       git_provider: "github",
       selected_workspace: null,
+      workspace_mode: "new_worktree",
     });
   });
 
@@ -161,6 +162,7 @@ describe("useCreateConversation persists selected repository metadata", () => {
       selected_branch: null,
       git_provider: null,
       selected_workspace: "/home/me/code/some-project",
+      workspace_mode: "local_repo",
     });
   });
 
@@ -190,6 +192,7 @@ describe("useCreateConversation persists selected repository metadata", () => {
       selected_branch: null,
       git_provider: null,
       selected_workspace: null,
+      workspace_mode: null,
       active_profile: "team-default",
     });
   });

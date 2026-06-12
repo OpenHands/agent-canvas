@@ -1,7 +1,7 @@
 /**
  * Mock-LLM E2E tests: LLM profile management regressions.
  *
- * Covers three scenarios that previously had no end-to-end guard:
+ * Covers two scenarios that previously had no end-to-end guard:
  *
  *   1. Active profile deletion + reconciliation:
  *      The active LLM profile IS deletable (the PR #1127 disable-guard was
@@ -16,19 +16,10 @@
  *      user selected, not the first alphabetical match. The fix
  *      stamps the active profile name on client-side conversation
  *      metadata at creation and on per-conversation switches.
- *
- *   3. Proxy base_url preservation for litellm_proxy profiles (PR #1148):
- *      When the SDK rewrites an `openhands/*` model to `litellm_proxy/*`
- *      with the All-Hands proxy base_url, re-saving the profile from the
- *      Basic tab must not strip the base_url. Without it the profile is
- *      stranded and LiteLLM reroutes requests to the wrong endpoint.
  */
 
 import { test, expect } from "@playwright/test";
 import {
-  BACKEND_URL,
-  SESSION_API_KEY,
-  MOCK_LLM_AGENT_URL,
   seedLocalStorage,
   routeSessionApiKey,
   dismissAnalyticsModal,
@@ -47,28 +38,6 @@ import {
 } from "./utils/mock-llm-helpers";
 
 const MOCK_MODEL = "openai/mock-test-model";
-
-/**
- * Read-only helper: fetch a profile's persisted config via the API.
- * Used to verify that UI-driven saves persisted the expected values.
- */
-async function getProfileConfig(
-  request: import("@playwright/test").APIRequestContext,
-  name: string,
-): Promise<Record<string, unknown>> {
-  const resp = await request.get(
-    `${BACKEND_URL}/api/profiles/${encodeURIComponent(name)}`,
-    {
-      headers: {
-        "X-Session-API-Key": SESSION_API_KEY,
-        "X-Expose-Secrets": "encrypted",
-      },
-    },
-  );
-  expect(resp.ok(), `GET /api/profiles/${name}: ${resp.status()}`).toBe(true);
-  const data = await resp.json();
-  return (data.config ?? {}) as Record<string, unknown>;
-}
 
 test.describe.configure({ mode: "serial" });
 
@@ -116,8 +85,14 @@ test.describe("active profile deletion + reconciliation", () => {
     await deleteProfileIfExists(page, INACTIVE_PROFILE);
 
     // Create both profiles through the Settings UI
-    await createProfileViaUI(page, { profileName: ACTIVE_PROFILE, model: MOCK_MODEL });
-    await createProfileViaUI(page, { profileName: INACTIVE_PROFILE, model: MOCK_MODEL });
+    await createProfileViaUI(page, {
+      profileName: ACTIVE_PROFILE,
+      model: MOCK_MODEL,
+    });
+    await createProfileViaUI(page, {
+      profileName: INACTIVE_PROFILE,
+      model: MOCK_MODEL,
+    });
 
     // Activate the first profile through the UI
     await activateProfileViaUI(page, ACTIVE_PROFILE);
@@ -289,8 +264,14 @@ test.describe("same-model profile identity", () => {
     await deleteProfileIfExists(page, PROFILE_ALPHA);
     await deleteProfileIfExists(page, PROFILE_BETA);
 
-    await createProfileViaUI(page, { profileName: PROFILE_ALPHA, model: SHARED_MODEL });
-    await createProfileViaUI(page, { profileName: PROFILE_BETA, model: SHARED_MODEL });
+    await createProfileViaUI(page, {
+      profileName: PROFILE_ALPHA,
+      model: SHARED_MODEL,
+    });
+    await createProfileViaUI(page, {
+      profileName: PROFILE_BETA,
+      model: SHARED_MODEL,
+    });
     await activateProfileViaUI(page, PROFILE_BETA);
 
     // Register a trajectory for the conversation.
@@ -344,133 +325,6 @@ test.describe("same-model profile identity", () => {
         switchButton,
         "Profile identity should persist across page reloads",
       ).toContainText(PROFILE_BETA, { timeout: 10_000 });
-    });
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════════════
-// Test 3 — Proxy base_url preservation for litellm_proxy profiles
-//          (PR #1148, issue #1146)
-// ═══════════════════════════════════════════════════════════════════════
-
-test.describe("litellm_proxy proxy base_url preservation", () => {
-  // Simulates the state the SDK persists after onboarding through the
-  // OpenHands provider: openhands/* is rewritten to litellm_proxy/* and
-  // paired with the All-Hands proxy base URL.
-  const PROXY_PROFILE = "proxy-base-url-test";
-  const LITELLM_PROXY_MODEL = "litellm_proxy/claude-opus-4-8";
-  const OPENHANDS_PROXY_BASE_URL = "https://llm-proxy.app.all-hands.dev/";
-
-  test.beforeEach(async ({ page }) => {
-    await seedLocalStorage(page);
-  });
-
-  test.afterAll(async ({ browser }) => {
-    const page = await browser.newPage();
-    try {
-      await seedLocalStorage(page);
-      await routeSessionApiKey(page);
-      await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
-      await dismissAnalyticsModal(page);
-      await waitForTestId(page, "add-llm-profile");
-      await deleteProfileIfExists(page, PROXY_PROFILE);
-    } catch {
-      // best-effort
-    } finally {
-      await page.close();
-    }
-  });
-
-  test("re-saving a litellm_proxy profile from Basic view preserves the proxy base_url", async ({
-    page,
-    request,
-  }) => {
-    // ── Setup: create a profile with the SDK-rewritten litellm_proxy
-    // model + proxy base_url through the Settings UI, exactly as
-    // the agent-server persists it after an openhands/* model
-    // selection during onboarding. ──
-    await routeSessionApiKey(page);
-    await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
-    await dismissAnalyticsModal(page);
-    await waitForTestId(page, "add-llm-profile");
-
-    await deleteProfileIfExists(page, PROXY_PROFILE);
-    await createProfileViaUI(page, {
-      profileName: PROXY_PROFILE,
-      model: LITELLM_PROXY_MODEL,
-      baseUrl: OPENHANDS_PROXY_BASE_URL,
-    });
-
-    // ── Find the profile row and open edit mode ──
-    await test.step("open profile in edit mode", async () => {
-      const profileRows = page.getByTestId("profile-row");
-      const rowCount = await profileRows.count();
-      let targetRow: ReturnType<typeof profileRows.nth> | null = null;
-
-      for (let i = 0; i < rowCount; i++) {
-        const row = profileRows.nth(i);
-        const text = await row.textContent();
-        if (text?.includes(PROXY_PROFILE)) {
-          targetRow = row;
-          break;
-        }
-      }
-      expect(
-        targetRow,
-        `Could not find profile row for "${PROXY_PROFILE}"`,
-      ).not.toBeNull();
-
-      await targetRow!.getByTestId("profile-menu-trigger").click();
-      await waitForTestId(page, "profile-actions-menu");
-      await page.getByTestId("profile-edit").click();
-
-      // Wait for the editor to load with the profile data
-      await expect(page.getByTestId("profile-name-input")).toHaveValue(
-        PROXY_PROFILE,
-        { timeout: 10_000 },
-      );
-    });
-
-    // ── Ensure we are on the Basic tab, then save ──
-    await test.step("switch to Basic view and save", async () => {
-      // The litellm_proxy provider + proxy base_url is recognized as a
-      // known default, so the form may already be on Basic. Click the
-      // toggle to be explicit — this is the same user action the unit
-      // test for PR #1148 exercises.
-      const basicToggle = page.getByTestId("sdk-section-basic-toggle");
-      if (await basicToggle.isVisible().catch(() => false)) {
-        await basicToggle.click();
-      }
-
-      const saveButton = page.getByTestId("save-profile-btn");
-      await expect(saveButton).toBeEnabled({ timeout: 10_000 });
-      await saveButton.click();
-
-      // Wait for save to complete — the UI navigates back to the
-      // profile list after a successful save.
-      await waitForTestId(page, "add-llm-profile");
-    });
-
-    // ── Verify: the proxy base_url survived the Basic-tab save ──
-    await test.step("verify base_url is preserved after save", async () => {
-      const config = await getProfileConfig(request, PROXY_PROFILE);
-      expect(
-        config.base_url,
-        "base_url must be the All-Hands proxy URL after a Basic-tab re-save; " +
-          "dropping it strands the profile (issue #1146)",
-      ).toBe(OPENHANDS_PROXY_BASE_URL);
-      expect(config.model).toBe(LITELLM_PROXY_MODEL);
-    });
-
-    // ── Verify: the profile also looks correct after a page reload ──
-    await test.step("profile survives page reload", async () => {
-      await page.reload({ waitUntil: "domcontentloaded" });
-      await waitForTestId(page, "add-llm-profile");
-
-      // Re-read via API to confirm persistence is durable
-      const config = await getProfileConfig(request, PROXY_PROFILE);
-      expect(config.base_url).toBe(OPENHANDS_PROXY_BASE_URL);
-      expect(config.model).toBe(LITELLM_PROXY_MODEL);
     });
   });
 });

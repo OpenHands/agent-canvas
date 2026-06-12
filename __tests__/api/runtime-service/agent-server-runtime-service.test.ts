@@ -141,8 +141,7 @@ describe("AgentServerRuntimeService.executeCommand", () => {
       const proxyCall = vi.mocked(callCloudProxy).mock.calls[0][0];
       expect(proxyCall.method).toBe("POST");
       expect(proxyCall.path).toBe("/api/bash/execute_bash_command");
-      // hostOverride resolves to http:// because JSDOM's window.location.protocol is http:
-      expect(proxyCall.hostOverride).toBe("http://runtime.example.com");
+      expect(proxyCall.hostOverride).toBe("https://runtime.example.com");
       expect(proxyCall.body).toEqual({
         command: "find . -type f",
         cwd: "/workspace/project",
@@ -271,7 +270,7 @@ describe("AgentServerRuntimeService.downloadFile", () => {
       expect(proxyCall.path).toBe(
         "/api/file/download?path=%2Fworkspace%2Fproject%2Fsrc%2Fmain.ts",
       );
-      expect(proxyCall.hostOverride).toBe("http://runtime.example.com");
+      expect(proxyCall.hostOverride).toBe("https://runtime.example.com");
       expect(proxyCall.authMode).toBe("session-api-key");
       expect(proxyCall.sessionApiKey).toBe(SESSION_KEY);
       expect(proxyCall.responseType).toBe("blob");

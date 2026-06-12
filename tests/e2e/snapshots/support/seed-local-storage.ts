@@ -50,6 +50,7 @@ export async function seedLocalStorage(
         window.localStorage.setItem("openhands-onboarded", "1");
       }
       if (!showConsentModal) {
+        window.localStorage.setItem("analytics-consent", "false");
         window.localStorage.setItem("openhands-telemetry-consent", "denied");
       }
       if (!window.localStorage.getItem("openhands-backends")) {

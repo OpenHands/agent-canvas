@@ -2,6 +2,8 @@ import { Provider } from "#/types/settings";
 
 const STORAGE_KEY = "openhands-agent-server-conversation-metadata";
 
+export type WorkspaceMode = "local_repo" | "new_worktree";
+
 export interface ConversationMetadata {
   selected_repository: string | null;
   selected_branch: string | null;
@@ -15,6 +17,15 @@ export interface ConversationMetadata {
    * git baseline to compare against.
    */
   selected_workspace?: string | null;
+  /**
+   * How the conversation should use `selected_workspace`.
+   *
+   * `local_repo` means the runtime should operate directly in the selected
+   * folder, even when it is not a git checkout. `new_worktree` preserves the
+   * historical agent-server behavior for conversations that should start in a
+   * generated per-conversation worktree.
+   */
+  workspace_mode?: WorkspaceMode | null;
   /**
    * The LLM profile the conversation was created with (or last switched to).
    * Client-side only. Lets the chat-header switcher show the exact profile
