@@ -1,4 +1,4 @@
-# Agent Canvas (BETA)
+# Agent Canvas
 
 OpenHands Agent Canvas turns your coding agents into a self-hosted, always-on engineering team. Built as a frontend web UI, it is a developer control center for starting conversations and automating everyday tasks — like generating reports that publish to Slack or automatically decomposing GitHub issues into tasks.
 
