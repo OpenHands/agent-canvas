@@ -100,12 +100,12 @@ export function ChatInterface() {
   const { curAgentState } = useAgentState();
   const { handleBuildPlanClick } = useHandleBuildPlanClick();
 
-  // Cloud conversations whose sandbox is MISSING or ERROR are read-only:
-  // the sandbox is gone and cannot be resumed, so we hide the chat input
-  // and show an explanatory banner. For local backends sandbox_status is
-  // always null, so this is effectively a no-op for non-cloud use.
+  // Cloud conversations whose sandbox is MISSING, STOPPED, or ERROR are
+  // read-only: the sandbox is unavailable, so we hide the chat input and show
+  // an explanatory banner. For local backends sandbox_status is always null.
   const { data: activeConversation } = useActiveConversation();
   const sandboxStatus = activeConversation?.sandbox_status ?? null;
+  const isStoppedConversation = sandboxStatus === "STOPPED";
   const isArchivedConversation = useIsArchivedConversation();
 
   // Block sending in a resumed conversation that has no usable LLM, and show
@@ -559,12 +559,16 @@ export function ChatInterface() {
               <p className="text-xs font-semibold text-[var(--oh-foreground)]">
                 {sandboxStatus === "ERROR"
                   ? t(I18nKey.CHAT_INTERFACE$ERROR_SANDBOX_TITLE)
-                  : t(I18nKey.CHAT_INTERFACE$ARCHIVED_SANDBOX_TITLE)}
+                  : isStoppedConversation
+                    ? t(I18nKey.COMMON$STOPPED)
+                    : t(I18nKey.CHAT_INTERFACE$ARCHIVED_SANDBOX_TITLE)}
               </p>
               <p className="text-xs text-[var(--oh-muted)] mt-0.5">
                 {sandboxStatus === "ERROR"
                   ? t(I18nKey.CHAT_INTERFACE$ERROR_SANDBOX_DESCRIPTION)
-                  : t(I18nKey.CHAT_INTERFACE$ARCHIVED_SANDBOX_DESCRIPTION)}
+                  : isStoppedConversation
+                    ? t(I18nKey.CHAT_INTERFACE$AGENT_STOPPED_MESSAGE)
+                    : t(I18nKey.CHAT_INTERFACE$ARCHIVED_SANDBOX_DESCRIPTION)}
               </p>
             </div>
           ) : (

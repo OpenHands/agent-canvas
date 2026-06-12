@@ -7,8 +7,8 @@ import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 interface ConversationStatusDotProps {
   executionStatus: ExecutionStatus | null | undefined;
   /**
-   * Cloud-only sandbox lifecycle status. When provided, MISSING and ERROR
-   * override the execution-status visual so the dot reflects the sandbox
+   * Cloud-only sandbox lifecycle status. When provided, MISSING, STOPPED,
+   * and ERROR override the execution-status visual so the dot reflects the sandbox
    * state rather than the last agent execution state.
    */
   sandboxStatus?: SandboxStatus | null;
@@ -42,8 +42,12 @@ const visualFor = (status: ExecutionStatus | null | undefined): Visual => {
   }
 };
 
-const labelKeyFor = (visual: Visual, isArchived?: boolean): string => {
-  if (isArchived) return "COMMON$ARCHIVED";
+const labelKeyFor = (
+  visual: Visual,
+  options: { isArchived?: boolean; isStopped?: boolean } = {},
+): string => {
+  if (options.isArchived) return "COMMON$ARCHIVED";
+  if (options.isStopped) return "COMMON$STOPPED";
   switch (visual) {
     case "check":
       return "COMMON$FINISHED";
@@ -122,18 +126,20 @@ export function ConversationStatusDot({
   const { t } = useTranslation("openhands");
 
   // sandbox_status === "MISSING" → show archived (gray) dot
+  // sandbox_status === "STOPPED" → show stopped (gray) dot
   // sandbox_status === "ERROR"   → show error (red) dot
   // Otherwise fall through to the execution-status visual.
   const isArchived = sandboxStatus === "MISSING";
+  const isStopped = sandboxStatus === "STOPPED";
   const effectiveVisual: Visual =
     sandboxStatus === "ERROR"
       ? "error"
-      : isArchived
+      : isArchived || isStopped
         ? "paused"
         : visualFor(executionStatus);
 
   const visual = effectiveVisual;
-  const label = t(labelKeyFor(visual, isArchived));
+  const label = t(labelKeyFor(visual, { isArchived, isStopped }));
   const indicator = isArchived ? (
     <FaArchive
       data-testid="conversation-status-archived"

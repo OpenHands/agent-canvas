@@ -376,6 +376,9 @@ test.describe("UI regressions", () => {
     const layout = page.getByTestId("root-layout");
     await expect(layout).toBeVisible();
 
+    await expect
+      .poll(() => layout.evaluate((el) => getComputedStyle(el).backgroundColor))
+      .not.toBe("rgba(0, 0, 0, 0)");
     const insideBackground = await layout.evaluate(
       (el) => getComputedStyle(el).backgroundColor,
     );
@@ -392,7 +395,6 @@ test.describe("UI regressions", () => {
       };
     });
 
-    expect(insideBackground).not.toBe("rgba(0, 0, 0, 0)");
     expect(outsideStyles.backgroundColor).not.toBe(insideBackground);
   });
 

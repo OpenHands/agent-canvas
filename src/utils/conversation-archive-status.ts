@@ -3,5 +3,9 @@ import type { SandboxStatus } from "#/api/conversation-service/agent-server-conv
 export function isArchivedSandboxStatus(
   sandboxStatus: SandboxStatus | null | undefined,
 ): boolean {
-  return sandboxStatus === "MISSING" || sandboxStatus === "ERROR";
+  return (
+    sandboxStatus === "MISSING" ||
+    sandboxStatus === "STOPPED" ||
+    sandboxStatus === "ERROR"
+  );
 }

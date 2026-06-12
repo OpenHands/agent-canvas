@@ -46,7 +46,26 @@ describe("ConversationStatusDot", () => {
   it("renders the unknown state for missing execution status", () => {
     renderWithProviders(<ConversationStatusDot executionStatus={undefined} />);
 
-    expect(screen.getByTestId("conversation-status-unknown")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("conversation-status-unknown"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("styled-tooltip")).toHaveAttribute(
+      "data-content",
+      "COMMON$STOPPED",
+    );
+  });
+
+  it("renders stopped state when sandbox is STOPPED", () => {
+    renderWithProviders(
+      <ConversationStatusDot
+        executionStatus={ExecutionStatus.RUNNING}
+        sandboxStatus="STOPPED"
+      />,
+    );
+
+    expect(
+      screen.getByTestId("conversation-status-paused"),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("styled-tooltip")).toHaveAttribute(
       "data-content",
       "COMMON$STOPPED",

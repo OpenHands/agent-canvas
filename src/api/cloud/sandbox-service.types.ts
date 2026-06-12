@@ -2,6 +2,7 @@ export type V1SandboxStatus =
   | "STARTING"
   | "RUNNING"
   | "PAUSED"
+  | "STOPPED"
   | "ERROR"
   | "MISSING";
 

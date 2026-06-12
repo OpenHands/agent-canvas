@@ -11,6 +11,7 @@ export type SandboxStatus =
   | "PAUSED"
   | "RUNNING"
   | "STARTING"
+  | "STOPPED"
   | "MISSING"
   | "ERROR";
 
