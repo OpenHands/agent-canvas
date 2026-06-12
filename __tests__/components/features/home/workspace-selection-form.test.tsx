@@ -336,6 +336,51 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     ]);
   });
 
+  it("handles Windows paths when browsing and adding a workspace", async () => {
+    const homePath = String.raw`C:\Users\me`;
+    const devPath = String.raw`C:\Users\me\dev`;
+    const addSpy = vi
+      .spyOn(WorkspacesService, "addWorkspaces")
+      .mockResolvedValue({ workspaces: [], workspaceParents: [] });
+    mockGetHome.mockResolvedValue({ home: homePath });
+    mockSearchSubdirectories.mockImplementation(async (dir: string) => {
+      if (dir === homePath) {
+        return {
+          items: [{ name: "dev", path: devPath }],
+          next_page_id: null,
+        };
+      }
+      return { items: [], next_page_id: null };
+    });
+    renderForm();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByTestId("workspace-dropdown"));
+    await user.click(await screen.findByTestId("add-workspaces-button"));
+    await screen.findByTestId("folder-browser-modal");
+    await expect(
+      screen.getByTestId("folder-browser-current-path"),
+    ).toHaveTextContent(homePath);
+
+    await user.click(await screen.findByTestId("folder-browser-entry-dev"));
+    await expect(
+      screen.getByTestId("folder-browser-current-path"),
+    ).toHaveTextContent(devPath);
+
+    await user.click(screen.getByTestId("folder-browser-up"));
+    await expect(
+      screen.getByTestId("folder-browser-current-path"),
+    ).toHaveTextContent(homePath);
+
+    await user.click(await screen.findByTestId("folder-browser-entry-dev"));
+    await user.click(screen.getByTestId("folder-browser-use"));
+
+    await waitFor(() => expect(addSpy).toHaveBeenCalledTimes(1));
+    expect(addSpy).toHaveBeenCalledWith([
+      { id: devPath, name: "dev", path: devPath },
+    ]);
+  });
+
   it("auto-selects the newly added workspace after Add Workspace", async () => {
     // Arrange: start with another workspace already selected, mirroring the
     // repro in OpenHands/agent-canvas#1212.
