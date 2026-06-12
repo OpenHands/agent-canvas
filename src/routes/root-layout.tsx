@@ -23,8 +23,6 @@ import { ReactRouterNavigationProvider } from "./react-router-navigation-provide
 import { OnboardingHost } from "#/components/features/onboarding";
 import { isOnboardingPreviewActive } from "#/components/features/onboarding/onboarding-preview";
 
-// Lazy-load overlays and conditional chrome to keep the root layout's eager
-// dev/prod graph small until a user action or route state needs them.
 const EnvironmentSwitchOverlay = React.lazy(
   () => import("#/components/features/backends/environment-switch-overlay"),
 );

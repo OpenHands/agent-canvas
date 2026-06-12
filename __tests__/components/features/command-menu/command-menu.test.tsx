@@ -40,7 +40,7 @@ describe("CommandMenu", () => {
     const searchInput = await screen.findByRole("combobox", {
       name: SEARCH_LABEL_KEY,
     });
-    expect(searchInput).toHaveFocus();
+    await waitFor(() => expect(searchInput).toHaveFocus());
     expect(screen.getByTestId("command-menu")).toBeInTheDocument();
 
     await userEvent.keyboard("{Escape}");
@@ -48,6 +48,17 @@ describe("CommandMenu", () => {
     await waitFor(() => {
       expect(screen.queryByTestId("command-menu")).not.toBeInTheDocument();
     });
+  });
+
+  it("opens from the global ctrl-k shortcut", async () => {
+    renderCommandMenu();
+
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+
+    const searchInput = await screen.findByRole("combobox", {
+      name: SEARCH_LABEL_KEY,
+    });
+    await waitFor(() => expect(searchInput).toHaveFocus());
   });
 
   it("filters commands by page and setting keywords", async () => {
@@ -70,6 +81,22 @@ describe("CommandMenu", () => {
     await userEvent.click(screen.getByText(AUTOMATIONS_TITLE_KEY));
 
     expect(navigate).toHaveBeenCalledWith(COMMAND_MENU_ROUTE.automations);
+    await waitFor(() => {
+      expect(screen.queryByTestId("command-menu")).not.toBeInTheDocument();
+    });
+  });
+
+  it("supports arrow-key navigation and enter selection", async () => {
+    useCommandMenuStore.getState().open();
+    const { navigate } = renderCommandMenu();
+    const searchInput = screen.getByRole("combobox", {
+      name: SEARCH_LABEL_KEY,
+    });
+
+    await userEvent.type(searchInput, "settings");
+    await userEvent.keyboard("{ArrowDown}{ArrowUp}{Enter}");
+
+    expect(navigate).toHaveBeenCalledWith(COMMAND_MENU_ROUTE.settings);
     await waitFor(() => {
       expect(screen.queryByTestId("command-menu")).not.toBeInTheDocument();
     });
