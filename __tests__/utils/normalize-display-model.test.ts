@@ -5,9 +5,9 @@ const OPENHANDS_VERIFIED = ["claude-opus-4-7", "gpt-5.5"];
 const OPENHANDS_PROXY_BASE_URL = "https://llm-proxy.app.all-hands.dev/";
 
 describe("normalizeDisplayModel", () => {
-  it("rewrites litellm_proxy/<m> to openhands/<m> when the base URL is the All-Hands proxy and the model is in the openhands verified list", () => {
-    // Arrange — mirrors the SDK round-trip: openhands/<m> on save becomes
-    // litellm_proxy/<m> on disk plus the All-Hands proxy base URL.
+  it("rewrites legacy litellm_proxy/<m> to openhands/<m> when the base URL is the All-Hands proxy and the model is verified", () => {
+    // Arrange — mirrors pre-#3548 persisted settings that stored the LiteLLM
+    // proxy transport model instead of the public OpenHands provider model.
     const persistedModel = "litellm_proxy/claude-opus-4-7";
 
     // Act
@@ -18,6 +18,16 @@ describe("normalizeDisplayModel", () => {
     );
 
     // Assert
+    expect(result).toBe("openhands/claude-opus-4-7");
+  });
+
+  it("leaves current openhands/<m> models unchanged", () => {
+    const result = normalizeDisplayModel(
+      "openhands/claude-opus-4-7",
+      undefined,
+      OPENHANDS_VERIFIED,
+    );
+
     expect(result).toBe("openhands/claude-opus-4-7");
   });
 

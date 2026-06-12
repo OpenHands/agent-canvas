@@ -16,7 +16,10 @@ import { PRODUCT_URL } from "#/utils/constants";
 import { useSearchProviders } from "#/hooks/query/use-search-providers";
 import { useProviderModels } from "#/hooks/query/use-provider-models";
 import { useOpenhandsVerifiedModels } from "#/hooks/query/use-openhands-verified-models";
-import { normalizeDisplayModel } from "#/utils/normalize-display-model";
+import {
+  needsLegacyOpenHandsDisplayNormalization,
+  normalizeDisplayModel,
+} from "#/utils/normalize-display-model";
 
 interface ModelSelectorProps {
   isDisabled?: boolean;
@@ -73,23 +76,34 @@ export function ModelSelector({
   );
 
   React.useEffect(() => {
-    // Wait for the openhands verified list before initializing — otherwise a
-    // persisted `litellm_proxy/<m>` model would first land as `litellm_proxy`
-    // and only later flip to `openhands`, triggering a redundant /api/llm/models
-    // fetch for the throwaway provider value.
-    if (currentModel && openhandsVerifiedModels !== undefined) {
-      const displayModel = normalizeDisplayModel(
-        currentModel,
-        currentBaseUrl,
-        openhandsVerifiedModels,
-      );
-      const { provider, model } = extractModelAndProvider(displayModel);
+    if (!currentModel) return;
 
-      setLitellmId(displayModel);
-      setSelectedProvider(provider || null);
-      setSelectedModel(model);
-      onDefaultValuesChanged?.(provider || null, model);
+    const needsLegacyNormalization = needsLegacyOpenHandsDisplayNormalization(
+      currentModel,
+      currentBaseUrl,
+    );
+
+    // Legacy persisted `litellm_proxy/<m>` + All-Hands proxy configs need the
+    // OpenHands verified list before they can be safely displayed as
+    // `openhands/<m>`. Current SDK settings already return `openhands/*`, so
+    // initialize those immediately instead of waiting on the extra query.
+    if (needsLegacyNormalization && openhandsVerifiedModels === undefined) {
+      return;
     }
+
+    const displayModel = needsLegacyNormalization
+      ? normalizeDisplayModel(
+          currentModel,
+          currentBaseUrl,
+          openhandsVerifiedModels ?? [],
+        )
+      : currentModel;
+    const { provider, model } = extractModelAndProvider(displayModel);
+
+    setLitellmId(displayModel);
+    setSelectedProvider(provider || null);
+    setSelectedModel(model);
+    onDefaultValuesChanged?.(provider || null, model);
   }, [currentModel, currentBaseUrl, openhandsVerifiedModels]);
 
   const handleChangeProvider = (provider: string) => {

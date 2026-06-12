@@ -2,9 +2,9 @@ export const OPENHANDS_LLM_PROXY_BASE_URL =
   "https://llm-proxy.app.all-hands.dev/";
 
 // Accepted spellings of the All-Hands LiteLLM proxy base URL, normalized
-// without a trailing slash. The agent-server stores curated OpenHands models
-// against one of these once its validator rewrites `openhands/*` to
-// `litellm_proxy/*`.
+// without a trailing slash. Current SDK versions keep `openhands/*` models
+// public/stored and use this URL only at the LiteLLM boundary; the frontend
+// still recognizes it for legacy persisted proxy settings.
 const OPENHANDS_LLM_PROXY_BASE_URLS = new Set([
   "https://llm-proxy.app.all-hands.dev",
   "https://llm-proxy.app.all-hands.dev/v1",

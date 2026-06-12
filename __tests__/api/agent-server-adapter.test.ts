@@ -775,7 +775,7 @@ describe("toAppConversation", () => {
         ...baseInfo,
         agent: {
           kind: "Agent",
-          llm: { model: "litellm_proxy/claude-sonnet-4-6" },
+          llm: { model: "openhands/claude-sonnet-4-6" },
         },
       });
       expect(result.active_profile).toBe("claude-sonnet-4.6");

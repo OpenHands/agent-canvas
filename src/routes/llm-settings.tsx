@@ -39,6 +39,9 @@ const getSchemaFieldDefaultValue = (
     .flatMap((section) => section.fields)
     .find((field) => field.key === fieldKey)?.default ?? null;
 
+// Current SDK versions keep `openhands/*` stored without a proxy base URL.
+// These proxy defaults are recognized so legacy pre-#3548 settings still open
+// in the Basic view instead of forcing users into Advanced settings.
 const KNOWN_PROVIDER_DEFAULT_BASE_URLS: Partial<Record<string, Set<string>>> = {
   openai: new Set(["https://api.openai.com", "https://api.openai.com/v1"]),
   openhands: new Set([
