@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import { useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef, useEffect } from "react";
 
 import type { CommandResult } from "#/api/runtime-service/agent-server-runtime-service";
 import { useActiveBackend } from "#/contexts/active-backend-context";
@@ -98,6 +98,7 @@ export const useLocalGitInfo = () => {
   const runtimeIsReady = useRuntimeIsReady();
   const { backend } = useActiveBackend();
   const isLocalBackend = backend.kind === "local";
+  const queryClient = useQueryClient();
 
   const conversationId = conversation?.id;
   const conversationUrl = conversation?.conversation_url;
@@ -134,7 +135,7 @@ export const useLocalGitInfo = () => {
   // runCommandRef is a ref (always stable); the linter cannot infer this so
   // we disable the exhaustive-deps check here.
   // eslint-disable-next-line @tanstack/query/exhaustive-deps
-  return useQuery<LocalGitInfo>({
+  const query = useQuery<LocalGitInfo>({
     queryKey: [
       "local-git-info",
       conversationId,
@@ -160,4 +161,28 @@ export const useLocalGitInfo = () => {
     gcTime: 1000 * 60 * 5,
     meta: { disableToast: true },
   });
+
+  // When the live branch from git probe diverges from the recorded
+  // selected_branch, invalidate the conversation query so it refetches
+  // immediately (rather than waiting up to 30 s for the next poll cycle).
+  useEffect(() => {
+    const localBranch = query.data?.branch;
+    const recordedBranch = conversation?.selected_branch;
+    if (
+      localBranch &&
+      recordedBranch &&
+      localBranch !== recordedBranch
+    ) {
+      queryClient.invalidateQueries({
+        queryKey: ["user", "conversation", conversationId],
+      });
+    }
+  }, [
+    query.data?.branch,
+    conversation?.selected_branch,
+    conversationId,
+    queryClient,
+  ]);
+
+  return query;
 };

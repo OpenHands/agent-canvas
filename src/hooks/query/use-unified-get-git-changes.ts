@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import AgentServerGitService from "#/api/git-service/agent-server-git-service.api";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
+import { useLocalGitInfo } from "#/hooks/query/use-local-git-info";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 import { getGitPath } from "#/utils/get-git-path";
 import type { GitChange } from "#/api/open-hands.types";
@@ -10,6 +11,7 @@ import type { GitChange } from "#/api/open-hands.types";
 export const useUnifiedGetGitChanges = () => {
   const { conversationId } = useConversationId();
   const { data: conversation } = useActiveConversation();
+  const { data: localGitInfo } = useLocalGitInfo();
   const [orderedChanges, setOrderedChanges] = React.useState<GitChange[]>([]);
   const previousDataRef = React.useRef<GitChange[] | null>(null);
   const runtimeIsReady = useRuntimeIsReady();
@@ -20,8 +22,10 @@ export const useUnifiedGetGitChanges = () => {
   const workingDir = conversation?.workspace?.working_dir?.trim();
 
   const gitPath = React.useMemo(
-    () => getGitPath(selectedRepository, workingDir),
-    [selectedRepository, workingDir],
+    // localGitInfo.repository is the fallback when selectedRepository is absent
+    // but the local git probe detected a repo (e.g. agent autonomously cloned).
+    () => getGitPath(selectedRepository, workingDir, localGitInfo?.repository ?? null),
+    [selectedRepository, workingDir, localGitInfo?.repository],
   );
 
   const result = useQuery({

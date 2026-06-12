@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import AgentServerGitService from "#/api/git-service/agent-server-git-service.api";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
+import { useLocalGitInfo } from "#/hooks/query/use-local-git-info";
 import { getGitPath } from "#/utils/get-git-path";
 import { GitChangeStatus } from "#/api/open-hands.types";
 
@@ -15,6 +16,7 @@ type UseUnifiedGitDiffConfig = {
 export const useUnifiedGitDiff = (config: UseUnifiedGitDiffConfig) => {
   const { conversationId } = useConversationId();
   const { data: conversation } = useActiveConversation();
+  const { data: localGitInfo } = useLocalGitInfo();
 
   const conversationUrl = conversation?.conversation_url;
   const sessionApiKey = conversation?.session_api_key;
@@ -22,9 +24,15 @@ export const useUnifiedGitDiff = (config: UseUnifiedGitDiffConfig) => {
   const workingDir = conversation?.workspace?.working_dir?.trim();
 
   const absoluteFilePath = React.useMemo(() => {
-    const gitPath = getGitPath(selectedRepository, workingDir);
+    // localGitInfo.repository is the fallback when selectedRepository is absent
+    // but the local git probe detected a repo (e.g. agent autonomously cloned).
+    const gitPath = getGitPath(
+      selectedRepository,
+      workingDir,
+      localGitInfo?.repository ?? null,
+    );
     return `${gitPath}/${config.filePath}`;
-  }, [selectedRepository, config.filePath, workingDir]);
+  }, [selectedRepository, config.filePath, workingDir, localGitInfo?.repository]);
 
   // Deleted files no longer exist on disk, so the agent server's
   // `/api/git/diff` endpoint returns a `GitPathError` (HTTP 400) for them.

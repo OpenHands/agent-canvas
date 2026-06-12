@@ -15,10 +15,6 @@ export const useActiveConversation = () => {
 
   const userConversation = useUserConversation(
     actualConversationId,
-    // Poll at 3 s while the sandbox URL is absent OR while the sandbox is
-    // PAUSED. A paused sandbox still carries the old conversation_url (it isn't
-    // cleared), so checking only for a missing URL would leave us on the slow
-    // 30 s interval while the sandbox is waking up after a resume call.
     (query) => {
       const data = query.state.data;
       if (
@@ -38,6 +34,7 @@ export const useActiveConversation = () => {
     conversationId,
     userConversation.isFetched,
     userConversation?.data?.execution_status,
+    userConversation?.data?.selected_branch,
   ]);
   return userConversation;
 };
