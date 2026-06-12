@@ -8,7 +8,7 @@ import { NoBackendAvailableError } from "../agent-server-client-options";
 import { buildAuthHeaders } from "../backend-registry/auth";
 import type { Backend } from "../backend-registry/types";
 
-interface CloudProxyRequest {
+export interface CloudProxyRequest {
   /**
    * Cloud backend whose bearer token authenticates the upstream call.
    * `backend.host` is also the default upstream host unless `hostOverride`
@@ -64,11 +64,11 @@ function buildUpstreamAuthHeaders(
 
 /**
  * Send a cloud request. App-host calls (`backend.host`) go directly to the
- * cloud API with the cloud backend's auth headers. Runtime-sandbox calls pass
- * `hostOverride`, and those still go through `/api/cloud-proxy` because the
+ * cloud API with the cloud backend's auth headers. Runtime-sandbox calls
+ * pass `hostOverride`, and those go through `/api/cloud-proxy` because the
  * per-conversation runtime hosts are not the configured cloud app origin.
  *
- * App-host auth headers are sent directly to the cloud host. Runtime auth
+ * App-host auth headers are sent directly to the cloud host. Proxied auth
  * headers are carried in the proxy envelope and attached server-side.
  */
 export async function callCloudProxy<TResponse = unknown>(

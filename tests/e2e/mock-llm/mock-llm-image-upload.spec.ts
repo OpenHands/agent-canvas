@@ -77,13 +77,13 @@ test.describe("mock-LLM image upload", () => {
     page,
     request,
   }) => {
-    // ── 1. Configure mock LLM via API (avoids repeating the UI profile steps) ──
+    // ── 1. Configure mock LLM via the Settings UI ──
     //    Use a vision-capable model name so litellm does not strip image_url
     //    content blocks when constructing the completion request.  The base_url
     //    still points at the local mock server; the model name is purely a hint
     //    to litellm about what content types the model accepts.
 
-    await ensureMockLLMProfile(request, "openai/gpt-4o");
+    await ensureMockLLMProfile(page, { model: "openai/gpt-4o" });
 
     // ── 2. Register and activate the trajectory ──
     //    The mock LLM ignores the request body, so we don't need the agent to
@@ -91,8 +91,8 @@ test.describe("mock-LLM image upload", () => {
     //    called and the conversation completed successfully.
     //
     //    ⚠️  Padding note (mirrors the automation test's pattern):
-    //    When public skills are loaded (VITE_LOAD_PUBLIC_SKILLS !== "false"),
-    //    the agent-server may make one internal LLM call for skill-analysis
+    //    Public skills are bundled from @openhands/extensions at build time.
+    //    The agent-server may make one internal LLM call for skill-analysis
     //    before the agent loop starts, consuming one trajectory slot.
     //    Turn 0 is a throwaway empty response that absorbs this internal call.
     //    Turn 1 is the agent's actual reply (IMAGE_REPLY_TOKEN).

@@ -4,6 +4,12 @@ import { PluginSpec } from "#/api/conversation-service/agent-server-conversation
 import { SuggestedTask } from "#/utils/types";
 import { Provider } from "#/types/settings";
 import { useTracking } from "#/hooks/use-tracking";
+import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
+import {
+  getStoredConversationMetadata,
+  setStoredConversationMetadata,
+  type WorkspaceMode,
+} from "#/api/conversation-metadata-store";
 
 interface CreateConversationVariables {
   query?: string;
@@ -18,6 +24,7 @@ interface CreateConversationVariables {
   agentType?: "default" | "plan";
   plugins?: PluginSpec[];
   workingDir?: string;
+  workspaceMode?: WorkspaceMode;
 }
 
 interface CreateConversationResponse {
@@ -30,6 +37,10 @@ interface CreateConversationResponse {
 export const useCreateConversation = () => {
   const queryClient = useQueryClient();
   const { trackConversationCreated } = useTracking();
+  // Cache-warm on the home page (the profile picker reads the same query).
+  // Stamped onto the conversation at creation so the switcher can show the
+  // exact profile even when several profiles share a model (#1082).
+  const { data: llmProfiles } = useLlmProfiles();
 
   return useMutation({
     mutationKey: ["create-conversation"],
@@ -42,6 +53,7 @@ export const useCreateConversation = () => {
         plugins,
         repository,
         workingDir,
+        workspaceMode,
         parentConversationId,
         agentType,
       } = variables;
@@ -59,9 +71,28 @@ export const useCreateConversation = () => {
               }
             : null,
           workingDir,
+          workspaceMode,
           parentConversationId,
           agentType,
         );
+
+      // Stamp the active LLM profile onto the (local) conversation so the
+      // chat switcher shows the exact profile even when several profiles
+      // share a model (#1082). Cloud conversations don't use local profiles
+      // (app_conversation_id stays null until the sandbox is READY). Merge so
+      // the repo/workspace metadata the service just persisted is preserved.
+      const localConversationId = conversation.app_conversation_id;
+      if (localConversationId && llmProfiles?.active_profile) {
+        const prev = getStoredConversationMetadata(localConversationId);
+        setStoredConversationMetadata(localConversationId, {
+          selected_repository: prev?.selected_repository ?? null,
+          selected_branch: prev?.selected_branch ?? null,
+          git_provider: prev?.git_provider ?? null,
+          selected_workspace: prev?.selected_workspace ?? null,
+          workspace_mode: prev?.workspace_mode ?? null,
+          active_profile: llmProfiles.active_profile,
+        });
+      }
 
       // OpenHands cloud pattern: when the start task isn't immediately
       // READY (cloud sandbox is still provisioning),

@@ -2,6 +2,7 @@ import { ActionEvent } from "#/types/agent-server/core";
 import { getDefaultEventContent, MAX_CONTENT_LENGTH } from "./shared";
 import i18n from "#/i18n";
 import { SecurityRisk } from "#/types/agent-server/core/base/common";
+import { I18nKey } from "#/i18n/declaration";
 import {
   ExecuteBashAction,
   TerminalAction,
@@ -29,14 +30,14 @@ import {
 const getRiskText = (risk: SecurityRisk) => {
   switch (risk) {
     case SecurityRisk.LOW:
-      return i18n.t("SECURITY$LOW_RISK");
+      return i18n.t(I18nKey.SECURITY$LOW_RISK);
     case SecurityRisk.MEDIUM:
-      return i18n.t("SECURITY$MEDIUM_RISK");
+      return i18n.t(I18nKey.SECURITY$MEDIUM_RISK);
     case SecurityRisk.HIGH:
-      return i18n.t("SECURITY$HIGH_RISK");
+      return i18n.t(I18nKey.SECURITY$HIGH_RISK);
     case SecurityRisk.UNKNOWN:
     default:
-      return i18n.t("SECURITY$UNKNOWN_RISK");
+      return i18n.t(I18nKey.SECURITY$UNKNOWN_RISK);
   }
 };
 

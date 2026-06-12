@@ -84,7 +84,7 @@ describe("SettingsNavigation", () => {
     );
 
     await userEvent.click(
-      screen.getByRole("button", { name: /close navigation menu/i }),
+      screen.getByRole("button", { name: "SIDEBAR$CLOSE_MENU" }),
     );
 
     expect(onCloseMobileMenu).toHaveBeenCalledTimes(1);

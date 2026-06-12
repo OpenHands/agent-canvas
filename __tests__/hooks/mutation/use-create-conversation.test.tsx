@@ -11,6 +11,17 @@ vi.mock("#/hooks/use-tracking", () => ({
   }),
 }));
 
+// The hook stamps the active LLM profile onto the conversation (#1082).
+// Mock it so the captured value is deterministic — the real hook fires a
+// query the global MSW layer would answer non-deterministically under test
+// timing.
+const { useLlmProfilesMock } = vi.hoisted(() => ({
+  useLlmProfilesMock: vi.fn(() => ({ data: { active_profile: null } })),
+}));
+vi.mock("#/hooks/query/use-llm-profiles", () => ({
+  useLlmProfiles: () => useLlmProfilesMock(),
+}));
+
 describe("useCreateConversation", () => {
   it("passes suggested tasks to the V1 create conversation API", async () => {
     const createConversationSpy = vi
@@ -83,37 +94,39 @@ describe("useCreateConversation", () => {
         undefined,
         undefined,
         undefined,
+        undefined,
       );
     });
   });
 
   it("invalidates the conversation list and start-tasks queries on success", async () => {
-    vi.spyOn(AgentServerConversationService, "createConversation").mockResolvedValue(
-      {
-        id: "task-id",
-        created_by_user_id: null,
-        status: "READY",
-        detail: null,
-        app_conversation_id: "conv-1",
-        agent_server_url: "http://agent-server.local",
-        request: {
-          initial_message: null,
-          processors: [],
-          llm_model: null,
-          selected_repository: null,
-          selected_branch: null,
-          git_provider: "github",
-          suggested_task: null,
-          title: null,
-          trigger: null,
-          pr_number: [],
-          parent_conversation_id: null,
-          agent_type: "default",
-        },
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+    vi.spyOn(
+      AgentServerConversationService,
+      "createConversation",
+    ).mockResolvedValue({
+      id: "task-id",
+      created_by_user_id: null,
+      status: "READY",
+      detail: null,
+      app_conversation_id: "conv-1",
+      agent_server_url: "http://agent-server.local",
+      request: {
+        initial_message: null,
+        processors: [],
+        llm_model: null,
+        selected_repository: null,
+        selected_branch: null,
+        git_provider: "github",
+        suggested_task: null,
+        title: null,
+        trigger: null,
+        pr_number: [],
+        parent_conversation_id: null,
+        agent_type: "default",
       },
-    );
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
 
     const queryClient = new QueryClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");

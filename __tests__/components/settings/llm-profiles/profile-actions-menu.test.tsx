@@ -108,6 +108,20 @@ describe("ProfileActionsMenu", () => {
     expect(setActiveButton).toBeDisabled();
   });
 
+  it("keeps Delete enabled even when isActive is true", () => {
+    // The active profile is deletable; useEnsureActiveProfile promotes another
+    // profile to active afterwards so one is always active in local mode.
+    render(<ProfileActionsMenu {...defaultProps} isActive />);
+
+    expect(screen.getByTestId("profile-delete")).not.toBeDisabled();
+  });
+
+  it("enables Delete button when isActive is false", () => {
+    render(<ProfileActionsMenu {...defaultProps} isActive={false} />);
+
+    expect(screen.getByTestId("profile-delete")).not.toBeDisabled();
+  });
+
   it("calls onDelete and onClose when Delete is clicked", async () => {
     const user = userEvent.setup();
     const handleDelete = vi.fn();

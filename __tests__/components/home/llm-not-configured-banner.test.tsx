@@ -104,20 +104,21 @@ describe("LlmNotConfiguredBanner", () => {
     ).toBeInTheDocument();
   });
 
-  it("stays hidden once an LLM API key is configured", async () => {
-    // Arrange
+  it("warns when only a stale settings key is set but no active profile (local)", async () => {
+    // Arrange: the delete-all state — agent_settings still holds a key, but no
+    // profile backs it. In local mode profiles are the source of truth, so a
+    // lingering settings key must not count as configured.
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       buildSettings({ llm_api_key_set: true }),
     );
 
     // Act
     renderBanner();
-    await screen.findByTestId("queries-settled");
 
     // Assert
     expect(
-      screen.queryByTestId("home-llm-not-configured-banner"),
-    ).not.toBeInTheDocument();
+      await screen.findByTestId("home-llm-not-configured-banner"),
+    ).toBeInTheDocument();
   });
 
   it("stays hidden once an active LLM profile has a saved API key", async () => {

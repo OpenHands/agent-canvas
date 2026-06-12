@@ -225,6 +225,8 @@ class AutomationService {
           backend: active,
           method: "GET",
           path,
+          // Fail fast, matching the local branch's 5s timeout below.
+          timeoutSeconds: 5,
         });
         return response;
       }

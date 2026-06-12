@@ -2,7 +2,10 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { isNoBackend } from "#/api/backend-registry/active-store";
-import { getAgentServerFormDefaults } from "#/api/agent-server-config";
+import {
+  getAgentServerFormDefaults,
+  isAuthRequired,
+} from "#/api/agent-server-config";
 import { DEFAULT_LOCAL_BACKEND_NAME } from "#/api/backend-registry/default-backend";
 import { BackendForm } from "#/components/features/backends/backend-form-modal";
 import { BrandButton } from "#/components/features/settings/brand-button";
@@ -156,7 +159,7 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
         backend={backendForForm}
         onSubmitted={onNext}
         testIdRoot="onboarding-backend"
-        requireApiKey
+        requireApiKey={isAuthRequired()}
         hideConfigurationFields={hideConfigurationFields}
         renderActions={({ canSubmit, isSubmitting }) => (
           <div

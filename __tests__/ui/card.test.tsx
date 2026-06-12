@@ -16,7 +16,7 @@ describe("Card", () => {
   });
 
   // Prop-passthrough contract: consumer-supplied className must land on the
-  // element. Visual styling is covered by the Playwright snapshot suite.
+  // element.
   it("should apply custom className", () => {
     render(
       <Card testId="test-card" className="custom-class">

@@ -116,7 +116,7 @@ export function SettingsMobileDrawer({
               "cursor-pointer rounded-md p-0.5 hover:bg-tertiary md:hidden",
               navInteractiveTransitionClassName,
             )}
-            aria-label="Close navigation menu"
+            aria-label={t(I18nKey.SIDEBAR$CLOSE_MENU)}
           >
             <CloseIcon width={32} height={32} />
           </button>

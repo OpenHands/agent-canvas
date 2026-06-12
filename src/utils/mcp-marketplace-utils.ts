@@ -4,6 +4,7 @@ import type {
   IntegrationConnectionOption,
   IntegrationTransport,
 } from "@openhands/extensions/integrations";
+import { getDeploymentMode } from "#/api/agent-server-adapter";
 
 export type { MarketplaceEntry };
 
@@ -59,10 +60,97 @@ export function getDefaultMcpTransport(
   return getDefaultMcpConnectionOption(entry)?.transport;
 }
 
+const LINEAR_DEPRECATED_SSE_URL = "https://mcp.linear.app/sse";
+const LINEAR_SHTTP_URL = "https://mcp.linear.app/mcp";
+const LINEAR_DOCS_URL = "https://linear.app/docs/mcp";
+
+/**
+ * Upstream @openhands/extensions still ships Linear's deprecated SSE
+ * transport (removed upstream on 2026-04-08; the /sse endpoint now
+ * rejects every call). Rewrite the entry to streamable HTTP at the
+ * /mcp replacement endpoint until the pinned dependency catches up.
+ *
+ * The /mcp endpoint authenticates via OAuth 2.1 or a Linear API key
+ * sent as "Authorization: Bearer <token>". This client has no
+ * interactive OAuth flow for MCP installs, so switch the auth
+ * strategy from "none" to "bearer" — the install modal then offers
+ * an (optional) API key field and the agent server forwards it as a
+ * Bearer header.
+ *
+ * Patches immutably — the imported catalog JSON is shared module
+ * state and must not be mutated.
+ */
+function patchLinearEntry(entry: MarketplaceEntry): MarketplaceEntry {
+  if (entry.id !== "linear") return entry;
+  return {
+    ...entry,
+    docsUrl: LINEAR_DOCS_URL,
+    installHint:
+      "Authenticate with a Linear API key (Linear → Settings → Security & access) — sent as a Bearer token. Optional when the endpoint accepts your OAuth session.",
+    connectionOptions: entry.connectionOptions.map((option) =>
+      option.transport?.kind === "sse" &&
+      urlsMatch(option.transport.url, LINEAR_DEPRECATED_SSE_URL)
+        ? {
+            ...option,
+            auth: { ...option.auth, strategy: "bearer" as const },
+            transport: {
+              kind: "shttp" as const,
+              url: LINEAR_SHTTP_URL,
+              apiKeyOptional: option.transport.apiKeyOptional,
+            },
+          }
+        : option,
+    ),
+  };
+}
+
+/**
+ * The upstream catalog ships the GitHub MCP server with `command: "docker"`
+ * (`docker run … ghcr.io/github/github-mcp-server`). This requires Docker-
+ * in-Docker when agent-canvas itself runs inside the Docker image, which
+ * isn't available. The Docker image pre-installs the native Go binary at
+ * `/usr/local/bin/github-mcp-server`, so we rewrite the transport to use
+ * it directly.
+ *
+ * Only applied when `getDeploymentMode()` returns `"docker"`.
+ */
+function patchGitHubEntry(entry: MarketplaceEntry): MarketplaceEntry {
+  if (entry.id !== "github") return entry;
+  if (getDeploymentMode() !== "docker") return entry;
+  return {
+    ...entry,
+    installHint:
+      "Requires a GitHub Personal Access Token (classic or fine-grained).",
+    // The upstream @openhands/extensions catalog defines the GitHub entry
+    // with `command: "docker"` (i.e. `docker run …`). We match on that
+    // exact value to replace it with the pre-installed native binary.
+    // If the upstream ever changes the command string, this patch becomes
+    // a no-op and the original transport is preserved — the worst case is
+    // the user falls back to the Docker-based transport (which still works
+    // outside the Docker image).
+    connectionOptions: entry.connectionOptions.map((option) =>
+      option.transport?.kind === "stdio" &&
+      option.transport.command === "docker"
+        ? {
+            ...option,
+            transport: {
+              ...option.transport,
+              command: "github-mcp-server",
+              args: ["stdio"],
+            },
+          }
+        : option,
+    ),
+  };
+}
+
 export function getMcpMarketplaceCatalog(
   catalog: MarketplaceEntry[],
 ): MarketplaceEntry[] {
-  return catalog.filter((entry) => !!getDefaultMcpConnectionOption(entry));
+  return catalog
+    .map(patchLinearEntry)
+    .map(patchGitHubEntry)
+    .filter((entry) => !!getDefaultMcpConnectionOption(entry));
 }
 
 const tryUrl = (raw: string): URL | null => {

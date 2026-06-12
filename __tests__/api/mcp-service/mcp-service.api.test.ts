@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import McpService from "#/api/mcp-service/mcp-service.api";
+import * as activeStore from "#/api/backend-registry/active-store";
 import type { MCPServerConfig } from "#/types/mcp-server";
 
 // vi.mock factories are hoisted before imports, so spy functions must be
@@ -27,6 +28,36 @@ vi.mock("#/api/agent-server-client-options", () => ({
   }),
 }));
 
+vi.mock("#/api/backend-registry/active-store", () => ({
+  getActiveBackend: vi.fn(),
+}));
+
+const mockGetActiveBackend = vi.mocked(activeStore.getActiveBackend);
+
+const localActive = () =>
+  mockGetActiveBackend.mockReturnValue({
+    backend: {
+      id: "local-1",
+      name: "Local",
+      host: "http://localhost:3000",
+      apiKey: "test-key",
+      kind: "local",
+    },
+    orgId: null,
+  });
+
+const cloudActive = () =>
+  mockGetActiveBackend.mockReturnValue({
+    backend: {
+      id: "cloud-1",
+      name: "Cloud",
+      host: "https://app.all-hands.dev",
+      apiKey: "cloud-key",
+      kind: "cloud",
+    },
+    orgId: null,
+  });
+
 const SERVER: MCPServerConfig = {
   id: "shttp-1",
   type: "shttp",
@@ -36,6 +67,7 @@ const SERVER: MCPServerConfig = {
 describe("McpService.testServer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localActive();
   });
 
   it("passes success responses through unchanged", async () => {
@@ -51,7 +83,8 @@ describe("McpService.testServer", () => {
     // by the i18next no-escape prefix in the translation string, not here.
     mockTestServer.mockResolvedValue({
       ok: false,
-      error: "Client error '401 Unauthorized' for url https://mcp.example.com/mcp",
+      error:
+        "Client error '401 Unauthorized' for url https://mcp.example.com/mcp",
       error_kind: "unknown",
     });
 
@@ -59,7 +92,8 @@ describe("McpService.testServer", () => {
 
     expect(result).toEqual({
       ok: false,
-      error: "Client error '401 Unauthorized' for url https://mcp.example.com/mcp",
+      error:
+        "Client error '401 Unauthorized' for url https://mcp.example.com/mcp",
       error_kind: "unknown",
     });
   });
@@ -86,5 +120,19 @@ describe("McpService.testServer", () => {
       },
       name: "my-server",
     });
+  });
+
+  it("short-circuits with a synthetic ok response on cloud backends", async () => {
+    // Regression: when the active backend is cloud, the local agent-server's
+    // /api/mcp/test endpoint is not reachable. Previously, the helper threw
+    // `NoBackendAvailableError("No backend is configured.")` which surfaced
+    // in the install modal and blocked users from creating any MCP server
+    // (e.g. Slack) on a cloud session.
+    cloudActive();
+
+    const result = await McpService.testServer(SERVER);
+
+    expect(result).toEqual({ ok: true, tools: [] });
+    expect(mockTestServer).not.toHaveBeenCalled();
   });
 });

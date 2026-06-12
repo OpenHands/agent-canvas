@@ -13,7 +13,7 @@ describe("SettingsNavDivider", () => {
   });
 
   // Prop-passthrough contract: consumer-supplied className must land on the
-  // element. Visual styling is covered by the Playwright snapshot suite.
+  // element.
   it("should accept custom className", () => {
     // Arrange & Act
     const { container } = render(<SettingsNavDivider className="custom-class" />);

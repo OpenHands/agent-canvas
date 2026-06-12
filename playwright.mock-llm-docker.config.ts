@@ -29,6 +29,8 @@
 
 import { defineConfig, devices } from "@playwright/test";
 import { randomBytes } from "node:crypto";
+import { mkdirSync } from "node:fs";
+import { resolve } from "node:path";
 
 // ── Docker image ────────────────────────────────────────────────────────
 const DOCKER_IMAGE =
@@ -85,6 +87,57 @@ if (!process.env.MOCK_LLM_AGENT_URL) {
   process.env.MOCK_LLM_AGENT_URL = MOCK_LLM_URL;
 }
 
+// ── Skill test support ────────────────────────────────────────────────
+// The skill tests create git repos and user skill files on the host.
+// We volume-mount these into the container so the agent-server can see them.
+
+// Project skills: host creates repos here, container sees them at a fixed path.
+const SKILL_REPOS_HOST_DIR = resolve(".tmp/mock-llm-skill-repos");
+const SKILL_REPOS_CONTAINER_DIR = "/tmp/mock-llm-skill-repos";
+mkdirSync(SKILL_REPOS_HOST_DIR, { recursive: true });
+process.env.MOCK_LLM_SKILL_REPOS_CONTAINER_DIR = SKILL_REPOS_CONTAINER_DIR;
+
+// User skills: host creates skill files here, container mounts them at
+// the agent-server's expected ~/.openhands/skills/ path.
+const USER_SKILLS_HOST_DIR = resolve(".tmp/mock-llm-user-skills");
+const USER_SKILLS_CONTAINER_DIR = "/home/openhands/.openhands/skills";
+mkdirSync(USER_SKILLS_HOST_DIR, { recursive: true });
+process.env.MOCK_LLM_USER_SKILLS_HOST_DIR = USER_SKILLS_HOST_DIR;
+
+// ── Folder-workspace test support ──────────────────────────────────────
+// The folder-workspace test creates a temp directory on the host that the
+// agent-server's folder browser needs to list. Mount a shared directory into
+// the container at the same path so the agent-server can see it.
+const FOLDER_WORKSPACE_HOST_DIR = resolve(".tmp/e2e-folder-workspace-test");
+const FOLDER_WORKSPACE_CONTAINER_DIR = "/tmp/e2e-folder-workspace-test";
+mkdirSync(FOLDER_WORKSPACE_HOST_DIR, { recursive: true });
+process.env.MOCK_LLM_FOLDER_WORKSPACE_HOST_DIR = FOLDER_WORKSPACE_HOST_DIR;
+process.env.MOCK_LLM_FOLDER_WORKSPACE_CONTAINER_DIR =
+  FOLDER_WORKSPACE_CONTAINER_DIR;
+
+// ── ACP test support ──────────────────────────────────────────────────
+// The mock ACP server script lives on the host. We volume-mount it into
+// the container and tell the test which container-side paths to use when
+// typing the `acp_command` into the Settings UI.
+const MOCK_ACP_HOST_PATH = resolve(
+  "tests/e2e/mock-llm/scripts/mock-acp-server.py",
+);
+const MOCK_ACP_CONTAINER_PATH = "/opt/mock-acp-server.py";
+
+// The agent-server image ships Python 3 via the openhands-sdk base.
+process.env.MOCK_ACP_CONTAINER_PYTHON = "python3";
+process.env.MOCK_ACP_CONTAINER_SCRIPT = MOCK_ACP_CONTAINER_PATH;
+
+const DEFAULT_CI_GLOBAL_TIMEOUT_MS = 1_200_000;
+const configuredCiGlobalTimeoutMs = Number.parseInt(
+  process.env.MOCK_LLM_DOCKER_GLOBAL_TIMEOUT_MS ??
+    String(DEFAULT_CI_GLOBAL_TIMEOUT_MS),
+  10,
+);
+const ciGlobalTimeoutMs = Number.isFinite(configuredCiGlobalTimeoutMs)
+  ? configuredCiGlobalTimeoutMs
+  : DEFAULT_CI_GLOBAL_TIMEOUT_MS;
+
 export default defineConfig({
   testDir: "./tests/e2e/mock-llm",
   testMatch: /.*\.spec\.ts/,
@@ -94,7 +147,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: 1,
   timeout: 60_000,
-  globalTimeout: process.env.CI ? 600_000 : 0, // 10 min hard cap in CI
+  globalTimeout: process.env.CI ? ciGlobalTimeoutMs : 0, // 20 min hard cap in CI
   reporter: [
     ["line"],
     [
@@ -152,6 +205,16 @@ export default defineConfig({
         "--rm",
         `--name ${CONTAINER_NAME}`,
         "--network host",
+        // Mount the mock ACP server script so the agent-server inside
+        // Docker can spawn it as an ACP subprocess.
+        `-v ${MOCK_ACP_HOST_PATH}:${MOCK_ACP_CONTAINER_PATH}:ro`,
+        // Mount skill test directories so the agent-server can access
+        // repos and user skills created by the host-side test code.
+        `-v ${SKILL_REPOS_HOST_DIR}:${SKILL_REPOS_CONTAINER_DIR}`,
+        `-v ${USER_SKILLS_HOST_DIR}:${USER_SKILLS_CONTAINER_DIR}`,
+        // Mount the folder-workspace test directory so the agent-server's
+        // folder browser can list/navigate it inside the container.
+        `-v ${FOLDER_WORKSPACE_HOST_DIR}:${FOLDER_WORKSPACE_CONTAINER_DIR}`,
         `-e PORT=${INGRESS_PORT}`,
         `-e SESSION_API_KEY=${sessionApiKey}`,
         `-e OH_SESSION_API_KEYS_0=${sessionApiKey}`,
