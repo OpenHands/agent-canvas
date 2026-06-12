@@ -11,7 +11,6 @@ import * as useLlmProfilesHook from "#/hooks/query/use-llm-profiles";
 import * as useActivateLlmProfileHook from "#/hooks/mutation/use-activate-llm-profile";
 import * as useSaveLlmProfileHook from "#/hooks/mutation/use-save-llm-profile";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
-import { OPENHANDS_LLM_PROXY_BASE_URL } from "#/utils/openhands-llm";
 
 vi.mock("#/hooks/query/use-llm-profiles");
 vi.mock("#/hooks/mutation/use-activate-llm-profile");
@@ -132,7 +131,9 @@ describe("LlmSettingsLocalView", () => {
     expect(
       screen.getByText(/Add LLM Profile|SETTINGS\$ADD_LLM_PROFILE/),
     ).toBeInTheDocument();
-    expect(screen.getByTestId("profile-editor-description")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("profile-editor-description"),
+    ).toBeInTheDocument();
   });
 
   it("returns to list view when back button clicked", async () => {
@@ -193,7 +194,9 @@ describe("LlmSettingsLocalView", () => {
     renderWithProviders(<LlmSettingsLocalView />);
 
     // Error message component should be rendered (text is a translation key)
-    expect(screen.getByText("SETTINGS$PROFILES_LOAD_ERROR")).toBeInTheDocument();
+    expect(
+      screen.getByText("SETTINGS$PROFILES_LOAD_ERROR"),
+    ).toBeInTheDocument();
   });
 
   /**
@@ -344,9 +347,9 @@ describe("LlmSettingsLocalView", () => {
       expect(
         screen.getByText(/Edit LLM Profile|SETTINGS\$EDIT_LLM_PROFILE/),
       ).toBeInTheDocument();
-      expect(screen.getByTestId("profile-editor-description")).toHaveTextContent(
-        /gpt-4-profile|SETTINGS\$PROFILE_LOADED/,
-      );
+      expect(
+        screen.getByTestId("profile-editor-description"),
+      ).toHaveTextContent(/gpt-4-profile|SETTINGS\$PROFILE_LOADED/);
 
       // Verify getProfile was called with the correct profile name
       expect(ProfilesService.getProfile).toHaveBeenCalledWith(
@@ -542,11 +545,7 @@ describe("LlmSettingsLocalView", () => {
   });
 
   describe("Basic tab save", () => {
-    it("persists the OpenHands proxy base_url for OpenHands models", async () => {
-      // Arrange — a profile whose stored config pairs an OpenHands model with a
-      // stale, non-proxy base_url. Persisting that stale URL is wrong, but
-      // older local agent-server builds do not derive the All-Hands proxy when
-      // base_url is omitted, so the Basic tab must save the proxy explicitly.
+    it("drops hidden base_url values for OpenHands models", async () => {
       const user = userEvent.setup();
       vi.mocked(ProfilesService.getProfile).mockResolvedValue({
         name: "gpt-4-profile",
@@ -561,7 +560,6 @@ describe("LlmSettingsLocalView", () => {
 
       renderWithProviders(<LlmSettingsLocalView />);
 
-      // Act — open the profile in edit mode, force the Basic tab, and save.
       await user.click(screen.getAllByTestId("profile-menu-trigger")[0]);
       await user.click(screen.getByTestId("profile-edit"));
       await waitFor(() => {
@@ -575,55 +573,10 @@ describe("LlmSettingsLocalView", () => {
       });
       await user.click(screen.getByTestId("save-profile-btn"));
 
-      // Assert — the saved LLM config keeps the OpenHands model and replaces
-      // the stale base_url with the proxy required for litellm_proxy models.
       await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
       const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
       expect(savedLlm.model).toBe("openhands/claude-opus-4-5-20251101");
-      expect(savedLlm.base_url).toBe(OPENHANDS_LLM_PROXY_BASE_URL);
-    });
-
-    it("keeps the proxy base_url for a stored litellm_proxy OpenHands model (issue #1146)", async () => {
-      // Arrange — the shape actually persisted after onboarding through the
-      // OpenHands provider: the SDK has already rewritten openhands/* to
-      // litellm_proxy/* and paired it with the All-Hands proxy base URL. A
-      // Basic-tab re-save must not strip that base URL, otherwise the profile
-      // is stranded as `litellm_proxy/* + base_url:null` and LiteLLM reroutes
-      // the OpenHands key to the default OpenAI endpoint.
-      const user = userEvent.setup();
-      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
-        name: "gpt-4-profile",
-        api_key_set: true,
-        config: {
-          model: "litellm_proxy/claude-opus-4-8",
-          api_key: "gAAAA_encrypted_key",
-          base_url: OPENHANDS_LLM_PROXY_BASE_URL,
-        },
-      });
-      mockSaveMutateAsync.mockResolvedValueOnce({ success: true });
-
-      renderWithProviders(<LlmSettingsLocalView />);
-
-      // Act — open the profile in edit mode, force the Basic tab, and save
-      // without touching the model dropdown.
-      await user.click(screen.getAllByTestId("profile-menu-trigger")[0]);
-      await user.click(screen.getByTestId("profile-edit"));
-      await waitFor(() => {
-        expect(screen.getByTestId("profile-name-input")).toHaveValue(
-          "gpt-4-profile",
-        );
-      });
-      await user.click(await screen.findByTestId("sdk-section-basic-toggle"));
-      await waitFor(() => {
-        expect(screen.getByTestId("save-profile-btn")).not.toBeDisabled();
-      });
-      await user.click(screen.getByTestId("save-profile-btn"));
-
-      // Assert — the rewritten model is preserved and so is the proxy base URL.
-      await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
-      const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
-      expect(savedLlm.model).toBe("litellm_proxy/claude-opus-4-8");
-      expect(savedLlm.base_url).toBe(OPENHANDS_LLM_PROXY_BASE_URL);
+      expect(savedLlm).not.toHaveProperty("base_url");
     });
   });
 

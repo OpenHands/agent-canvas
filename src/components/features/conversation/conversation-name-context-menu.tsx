@@ -22,6 +22,8 @@ import CloseIcon from "#/icons/u-close.svg?react";
 import DeleteIcon from "#/icons/u-delete.svg?react";
 import CopyIcon from "#/icons/copy.svg?react";
 import { ConversationNameContextMenuIconText } from "./conversation-name-context-menu-icon-text";
+import { ArchivedDisabledTooltip } from "../context-menu/archived-disabled-tooltip";
+import { useIsArchivedConversation } from "#/hooks/use-is-archived-conversation";
 
 interface ConversationNameContextMenuProps {
   onClose: () => void;
@@ -106,6 +108,7 @@ export function ConversationNameContextMenu({
   const { t } = useTranslation("openhands");
   const { backend } = useActiveBackend();
   const { data: conversation } = useActiveConversation();
+  const isArchivedConversation = useIsArchivedConversation();
   const ref = useClickOutsideElement<HTMLUListElement>(onClose);
 
   const anchorElement = anchorRef?.current ?? null;
@@ -177,40 +180,55 @@ export function ConversationNameContextMenu({
       {hasTools && <Divider testId="separator-tools" inset="menu" />}
 
       {onShowSkills && (
-        <ContextMenuListItem testId="show-skills-button" onClick={onShowSkills}>
-          <ConversationNameContextMenuIconText
-            icon={
-              <SkillsIcon
-                width={16}
-                height={16}
-                className="stroke-[1.75]"
-                aria-hidden
-              />
-            }
-            text={t(I18nKey.CONVERSATION$SHOW_SKILLS)}
-          />
-        </ContextMenuListItem>
+        <ArchivedDisabledTooltip isDisabled={isArchivedConversation}>
+          <ContextMenuListItem
+            testId="show-skills-button"
+            onClick={onShowSkills}
+            isDisabled={isArchivedConversation}
+          >
+            <ConversationNameContextMenuIconText
+              icon={
+                <SkillsIcon
+                  width={16}
+                  height={16}
+                  className="stroke-[1.75]"
+                  aria-hidden
+                />
+              }
+              text={t(I18nKey.CONVERSATION$SHOW_SKILLS)}
+            />
+          </ContextMenuListItem>
+        </ArchivedDisabledTooltip>
       )}
 
       {onShowHooks && (
-        <ContextMenuListItem testId="show-hooks-button" onClick={onShowHooks}>
-          <ConversationNameContextMenuIconText
-            icon={<FishingHookIcon width={16} height={16} aria-hidden />}
-            text={t(I18nKey.CONVERSATION$SHOW_HOOKS)}
-          />
-        </ContextMenuListItem>
+        <ArchivedDisabledTooltip isDisabled={isArchivedConversation}>
+          <ContextMenuListItem
+            testId="show-hooks-button"
+            onClick={onShowHooks}
+            isDisabled={isArchivedConversation}
+          >
+            <ConversationNameContextMenuIconText
+              icon={<FishingHookIcon width={16} height={16} aria-hidden />}
+              text={t(I18nKey.CONVERSATION$SHOW_HOOKS)}
+            />
+          </ContextMenuListItem>
+        </ArchivedDisabledTooltip>
       )}
 
       {onShowAgentTools && (
-        <ContextMenuListItem
-          testId="show-agent-tools-button"
-          onClick={onShowAgentTools}
-        >
-          <ConversationNameContextMenuIconText
-            icon={<ToolsIcon width={16} height={16} />}
-            text={t(I18nKey.BUTTON$SHOW_AGENT_TOOLS_AND_METADATA)}
-          />
-        </ContextMenuListItem>
+        <ArchivedDisabledTooltip isDisabled={isArchivedConversation}>
+          <ContextMenuListItem
+            testId="show-agent-tools-button"
+            onClick={onShowAgentTools}
+            isDisabled={isArchivedConversation}
+          >
+            <ConversationNameContextMenuIconText
+              icon={<ToolsIcon width={16} height={16} />}
+              text={t(I18nKey.BUTTON$SHOW_AGENT_TOOLS_AND_METADATA)}
+            />
+          </ContextMenuListItem>
+        </ArchivedDisabledTooltip>
       )}
 
       {onDownloadConversation && (
@@ -287,12 +305,18 @@ export function ConversationNameContextMenu({
       )}
 
       {onStop && (
-        <ContextMenuListItem testId="stop-button" onClick={onStop}>
-          <ConversationNameContextMenuIconText
-            icon={<CloseIcon width={16} height={16} />}
-            text={t(stopLabelKey)}
-          />
-        </ContextMenuListItem>
+        <ArchivedDisabledTooltip isDisabled={isArchivedConversation}>
+          <ContextMenuListItem
+            testId="stop-button"
+            onClick={onStop}
+            isDisabled={isArchivedConversation}
+          >
+            <ConversationNameContextMenuIconText
+              icon={<CloseIcon width={16} height={16} />}
+              text={t(stopLabelKey)}
+            />
+          </ContextMenuListItem>
+        </ArchivedDisabledTooltip>
       )}
 
       {onDelete && (

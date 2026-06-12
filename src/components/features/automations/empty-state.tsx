@@ -16,7 +16,7 @@ export function EmptyState() {
         {t(I18nKey.AUTOMATIONS$EMPTY_HINT)}
       </p>
 
-      <div className="mt-8 flex justify-center">
+      <div className="mt-8 flex justify-center border-t border-[var(--oh-border)] pt-8">
         <CreateInstructions />
       </div>
     </div>

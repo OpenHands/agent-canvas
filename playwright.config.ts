@@ -26,19 +26,6 @@ export default defineConfig({
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: "html",
 
-  /* Snapshot configuration for visual regression tests */
-  snapshotDir: "./tests/e2e/__snapshots__",
-  snapshotPathTemplate:
-    "{snapshotDir}/{testFilePath}/{projectName}/{arg}{ext}",
-  expect: {
-    toHaveScreenshot: {
-      /* Threshold for pixel comparison (0-1, lower = stricter) */
-      threshold: 0.01,
-      /* Maximum allowed different pixels */
-      maxDiffPixels: 100,
-    },
-  },
-
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */

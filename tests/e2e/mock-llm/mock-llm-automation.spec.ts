@@ -208,10 +208,11 @@ test.describe("mock-LLM automation lifecycle", () => {
   // ── Step 1: Ensure LLM profile + register the automation trajectory ─
 
   test("step 1: setup LLM profile and register automation trajectory", async ({
+    page,
     request,
   }) => {
-    // Ensure the mock LLM profile is configured
-    await ensureMockLLMProfile(request);
+    // Ensure the mock LLM profile is configured via the Settings UI
+    await ensureMockLLMProfile(page);
 
     // Build the terminal commands the mock LLM will return.
     // The curl commands hit the REAL automation backend through the ingress.
@@ -253,8 +254,8 @@ test.describe("mock-LLM automation lifecycle", () => {
     ].join(" ");
 
     // ⚠️  Padding response (index 0):
-    // When public skills are loaded (VITE_LOAD_PUBLIC_SKILLS !== "false"),
-    // the agent-server's skill-activation pipeline makes one internal LLM
+    // Public skills are bundled from @openhands/extensions at build time.
+    // The agent-server's skill-activation pipeline makes one internal LLM
     // call to decide which skills to inject before the agent loop starts.
     // Our user message mentions "automation", which matches the
     // openhands-automation skill, triggering this internal call.

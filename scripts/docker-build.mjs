@@ -56,9 +56,9 @@ const cmd = [
   ".",
 ];
 
-console.log(`Agent Server image : ${agentServerImage}`);
-console.log(`Automation version : ${automationVersion}`);
-console.log(`Tag                : ${tag}`);
+console.log(`Agent Server image      : ${agentServerImage}`);
+console.log(`Automation version      : ${automationVersion}`);
+console.log(`Tag                     : ${tag}`);
 console.log(`\n$ ${cmd.join(" ")}\n`);
 
 try {

@@ -1,17 +1,5 @@
 import { SlashCommandItem } from "#/hooks/chat/use-slash-command";
 
-export const ASSET_FILE_TYPES = [
-  ".png",
-  ".jpg",
-  ".jpeg",
-  ".bmp",
-  ".gif",
-  ".pdf",
-  ".mp4",
-  ".webm",
-  ".ogg",
-];
-
 export const JSON_VIEW_THEME = {
   base00: "transparent", // background
   base01: "var(--cool-grey-900)", // lighter background
@@ -31,13 +19,6 @@ export const JSON_VIEW_THEME = {
   base0F: "#ff5370", // deprecated, red
 };
 
-export const DOCUMENTATION_URL = {
-  MICROAGENTS: {
-    MICROAGENTS_OVERVIEW:
-      "https://docs.all-hands.dev/usage/prompting/microagents-overview",
-  },
-};
-
 export const PRODUCT_URL = {
   PRODUCTION: "https://app.all-hands.dev",
 };
@@ -45,21 +26,6 @@ export const PRODUCT_URL = {
 export const SETTINGS_FORM = {
   LABEL_CLASSNAME: "text-[11px] font-medium leading-4 tracking-[0.11px]",
 };
-
-export const GIT_PROVIDER_OPTIONS = [
-  {
-    label: "GitHub",
-    value: "github",
-  },
-  {
-    label: "GitLab",
-    value: "gitlab",
-  },
-  {
-    label: "Bitbucket",
-    value: "bitbucket",
-  },
-];
 
 // Chat input constants
 export const CHAT_INPUT = {

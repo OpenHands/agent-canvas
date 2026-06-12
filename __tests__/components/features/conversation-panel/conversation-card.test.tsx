@@ -193,8 +193,7 @@ describe("ConversationCard", () => {
     );
 
     // The closed state is observable via the `data-context-menu-open` attr
-    // on the conversation-card root; visual hiding is a CSS consequence
-    // covered by the Playwright snapshot suite.
+    // on the conversation-card root; visual hiding is a CSS consequence.
     expect(screen.getByTestId("conversation-card")).toHaveAttribute(
       "data-context-menu-open",
       "false",

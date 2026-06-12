@@ -39,14 +39,19 @@ COPY . .
 # VITE_APP_ENV controls the PostHog telemetry key baked into the bundle:
 #   "production" → prod key (set by CI for tagged releases)
 #   anything else → staging key (default for PR / main / local builds)
+# VITE_POSTHOG_CLIENT_KEY is the PostHog project key exposed via the web client
+# config (option-service). Not a secret — it's a public, client-side key. CI
+# passes the prod key for tagged releases and the staging key otherwise.
 ARG VITE_APP_ENV=""
+ARG VITE_POSTHOG_CLIENT_KEY=""
 ENV VITE_APP_ENV=${VITE_APP_ENV}
+ENV VITE_POSTHOG_CLIENT_KEY=${VITE_POSTHOG_CLIENT_KEY}
 RUN npm run build
 
 # ── Stage 1b: Generate shell-sourceable defaults from config/defaults.json ──
 # This avoids needing jq/python at container runtime to parse the JSON.
 FROM node:24-slim AS config-gen
-COPY config/defaults.json /tmp/defaults.json
+COPY config/defaults.json /tmp/
 RUN node -e " \
   const c = JSON.parse(require('fs').readFileSync('/tmp/defaults.json','utf-8')); \
   const lines = [ \

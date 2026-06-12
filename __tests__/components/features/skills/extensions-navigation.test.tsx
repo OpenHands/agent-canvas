@@ -56,11 +56,11 @@ describe("ExtensionsNavigation", () => {
     expect(skillsItem.tagName).toBe("A");
   });
 
-  // When the primary Sidebar is expanded, an iPad-portrait viewport
-  // (768–1023px) doesn't have horizontal room for both sidebars plus the
-  // page content, so this nav suppresses itself. The three cases below
-  // pin down the gating logic by varying one input at a time.
-  describe("suppresses itself when the Sidebar is expanded at iPad portrait widths", () => {
+  // Regression: the nav used to suppress itself at iPad-portrait widths
+  // (768–1023px) whenever the primary Sidebar was expanded, leaving users
+  // on /skills, /mcp, and /plugins with no way to switch between those
+  // pages. It must stay rendered there, like the Settings secondary nav.
+  describe("tablet viewports", () => {
     const originalInnerWidth = window.innerWidth;
 
     function setViewport(width: number) {
@@ -73,45 +73,15 @@ describe("ExtensionsNavigation", () => {
 
     afterEach(() => {
       setViewport(originalInnerWidth);
-      // The Zustand sidebar store is a module singleton — reset it so
-      // a `collapsed: true` from one case doesn't bleed into the next.
+      // The Zustand sidebar store is a module singleton — reset it so this
+      // suite's state doesn't bleed into other tests.
       useSidebarStore.setState({ collapsed: false });
     });
 
-    it("hides the aside when the Sidebar is expanded and the viewport is in the iPad portrait range (768–1023)", () => {
-      // Arrange: iPad Air portrait, Sidebar expanded.
+    it("stays rendered at iPad portrait width while the Sidebar is expanded", () => {
+      // Arrange: iPad Air portrait viewport with the primary Sidebar
+      // expanded — the exact conditions that previously hid the nav.
       setViewport(820);
-      useSidebarStore.setState({ collapsed: false });
-
-      // Act
-      renderExtensionsNavigation(<ExtensionsNavigation />);
-
-      // Assert: no aside renders, freeing the row for the page's main
-      // column to take the full width.
-      expect(
-        screen.queryByTestId("extensions-navbar-desktop"),
-      ).not.toBeInTheDocument();
-    });
-
-    it("renders the aside in the iPad portrait range once the Sidebar is collapsed", () => {
-      // Arrange: same viewport as above, but the user has collapsed the
-      // primary Sidebar to the icon rail, so there's room for this nav.
-      setViewport(820);
-      useSidebarStore.setState({ collapsed: true });
-
-      // Act
-      renderExtensionsNavigation(<ExtensionsNavigation />);
-
-      // Assert
-      expect(
-        screen.getByTestId("extensions-navbar-desktop"),
-      ).toBeInTheDocument();
-    });
-
-    it("renders the aside at lg+ viewports even when the Sidebar is expanded", () => {
-      // Arrange: desktop viewport (≥1024). The rule only applies in the
-      // md→<lg band, so an expanded Sidebar here should not suppress us.
-      setViewport(1280);
       useSidebarStore.setState({ collapsed: false });
 
       // Act
