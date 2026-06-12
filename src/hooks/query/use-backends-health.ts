@@ -43,6 +43,10 @@ export function isCloudBackendApiKeyOrNetworkHealthError(
   return error === CLOUD_BACKEND_API_KEY_OR_NETWORK_ERROR;
 }
 
+function hasMissingBackendApiKey(backend: Backend): boolean {
+  return backend.kind === "cloud" && !backend.apiKey.trim();
+}
+
 /**
  * Probe a single backend for connectivity. The probe path differs by
  * backend kind:
@@ -150,7 +154,7 @@ export function useBackendsHealth(
   const results = useQueries({
     queries: backends.map((b) => {
       const entry = healthMap[b.id];
-      const hasMissingCloudApiKey = b.kind === "cloud" && !b.apiKey.trim();
+      const hasMissingCloudApiKey = hasMissingBackendApiKey(b);
       const isDisabled = entry?.disabled === true;
       const shouldReprobeStaleCloudNetworkError =
         isDisabled &&
@@ -201,7 +205,7 @@ export function useBackendsHealth(
   backends.forEach((b, i) => {
     const r = results[i];
     const entry = healthMap[b.id];
-    const hasMissingCloudApiKey = b.kind === "cloud" && !b.apiKey.trim();
+    const hasMissingCloudApiKey = hasMissingBackendApiKey(b);
     const disabled = hasMissingCloudApiKey ? false : entry?.disabled === true;
     const consecutiveFailures = hasMissingCloudApiKey
       ? 0
