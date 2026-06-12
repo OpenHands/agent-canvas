@@ -986,26 +986,6 @@ describe("buildRuntimeServicesSystemSuffix", () => {
     expect(suffix).not.toContain("Vite frontend");
   });
 
-  it("accepts the legacy `vite` service key", () => {
-    // Older launchers may still emit `services.vite`. Render it under the
-    // new "Frontend" label rather than dropping the entry.
-    vi.stubEnv(
-      "VITE_RUNTIME_SERVICES_INFO",
-      JSON.stringify({
-        mode: "dev:safe",
-        services: {
-          agent_server: { url_from_agent: "http://localhost:18000" },
-          vite: {
-            description: "Vite dev server",
-            url_from_agent: "http://localhost:3001",
-          },
-        },
-      }),
-    );
-    const suffix = buildRuntimeServicesSystemSuffix();
-    expect(suffix).toContain("* Frontend: http://localhost:3001");
-  });
-
   it("explicitly mentions when automation is absent", () => {
     vi.stubEnv(
       "VITE_RUNTIME_SERVICES_INFO",

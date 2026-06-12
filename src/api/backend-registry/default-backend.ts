@@ -5,12 +5,20 @@ import {
 import type { Backend } from "./types";
 
 /**
- * Stable id for the default local backend that is auto-seeded into the
- * registry when the launcher provides both a backend host and API key.
- * After seeding, this backend is a normal registered entry — the user can
- * rename it, edit its host/api key, or remove it like any other backend.
+ * Stable id for the seeded default local backend that is auto-registered in
+ * the backend registry when the launcher provides both a backend host and
+ * API key. After seeding, this backend is a normal registered entry — the
+ * user can rename it, edit its host/api key, or remove it like any other
+ * backend.
  */
-export const DEFAULT_LOCAL_BACKEND_ID = "default-local";
+export const SEEDED_DEFAULT_BACKEND_ID = "default-local";
+
+/**
+ * @deprecated Use SEEDED_DEFAULT_BACKEND_ID instead. "Bundled" no longer
+ *   reflects the actual semantics — the backend is a seeded default, not
+ *   a built-in bundled entry.
+ */
+export const DEFAULT_LOCAL_BACKEND_ID = SEEDED_DEFAULT_BACKEND_ID;
 
 export const DEFAULT_LOCAL_BACKEND_NAME = "Local";
 
@@ -29,7 +37,7 @@ export function makeDefaultLocalBackend(): Backend | null {
   if (!host || !apiKey) return null;
 
   return {
-    id: DEFAULT_LOCAL_BACKEND_ID,
+    id: SEEDED_DEFAULT_BACKEND_ID,
     name: DEFAULT_LOCAL_BACKEND_NAME,
     host,
     apiKey,
