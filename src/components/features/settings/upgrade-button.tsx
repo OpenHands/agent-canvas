@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
-import { cn } from "#/utils/utils";
 import { I18nKey } from "#/i18n/declaration";
+import { cn } from "#/utils/utils";
 
 interface UpgradeButtonProps {
   onClick?: () => void;

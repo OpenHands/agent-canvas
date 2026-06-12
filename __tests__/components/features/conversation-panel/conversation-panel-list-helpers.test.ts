@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyGroupFolderOrder,
   getGroupConversationPreview,
   groupConversations,
   GROUP_CONVERSATIONS_PREVIEW_LIMIT,
   parseConversationTimeMs,
+  moveGroupFolderOrder,
+  resolvePinnedConversations,
   sortConversationsByField,
 } from "#/components/features/conversation-panel/conversation-panel-list-helpers";
 import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
@@ -252,6 +255,20 @@ describe("conversation-panel-list-helpers", () => {
     expect(GROUP_CONVERSATIONS_PREVIEW_LIMIT).toBe(5);
   });
 
+  it("resolvePinnedConversations preserves pin order and drops missing ids", () => {
+    const conversations = [
+      { ...base, id: "a", title: "A" },
+      { ...base, id: "b", title: "B" },
+      { ...base, id: "c", title: "C" },
+    ] as AppConversation[];
+
+    expect(
+      resolvePinnedConversations(["c", "missing", "a"], conversations).map(
+        (conversation) => conversation.id,
+      ),
+    ).toEqual(["c", "a"]);
+  });
+
   it("groups local conversations by selected_workspace, collapsing per-conversation worktree paths", () => {
     // Two worktree-mode conversations launched against the same workspace must
     // end up in a single group keyed off the user-selected workspace, not split
@@ -364,5 +381,37 @@ describe("conversation-panel-list-helpers", () => {
         branch: "main",
       },
     });
+  });
+
+  it("applies a persisted folder order and moves folders via drag-and-drop", () => {
+    const groups = [
+      { id: "ws:/workspace/alpha", label: "alpha" },
+      { id: "ws:/workspace/beta", label: "beta" },
+      { id: "ws:/workspace/gamma", label: "gamma" },
+    ];
+
+    expect(
+      applyGroupFolderOrder(groups, [
+        "ws:/workspace/gamma",
+        "ws:/workspace/alpha",
+      ]).map((group) => group.id),
+    ).toEqual([
+      "ws:/workspace/gamma",
+      "ws:/workspace/alpha",
+      "ws:/workspace/beta",
+    ]);
+
+    expect(
+      moveGroupFolderOrder(
+        ["ws:/workspace/gamma", "ws:/workspace/alpha"],
+        groups.map((group) => group.id),
+        "ws:/workspace/alpha",
+        "ws:/workspace/beta",
+      ),
+    ).toEqual([
+      "ws:/workspace/gamma",
+      "ws:/workspace/beta",
+      "ws:/workspace/alpha",
+    ]);
   });
 });
