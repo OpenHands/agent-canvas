@@ -65,6 +65,8 @@ const localBackend: Backend = {
   kind: "local",
 };
 
+const GITHUB_HOSTED_MCP_URL = "https://api.githubcopilot.com/mcp/";
+
 const cloudBackend: Backend = {
   id: "cloud-backend",
   name: "Cloud",
@@ -103,9 +105,8 @@ function settingsWithGithubMcp() {
   return settingsWithMcpConfig({
     mcpServers: {
       github: {
-        command: "npx",
-        args: ["-y", "@modelcontextprotocol/server-github"],
-        env: { GITHUB_PERSONAL_ACCESS_TOKEN: "github-token" },
+        url: GITHUB_HOSTED_MCP_URL,
+        auth: "github-token",
       },
     },
   });
@@ -369,16 +370,16 @@ describe("recommended automations", () => {
 
     const modal = await screen.findByTestId("mcp-install-modal");
     expect(modal).toHaveAttribute("data-marketplace-id", "github");
-    expect(
-      screen.getByTestId("mcp-install-field-command-readonly"),
-    ).toHaveValue(
-      "docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server",
+    expect(screen.getByTestId("mcp-install-field-url")).toHaveValue(
+      GITHUB_HOSTED_MCP_URL,
     );
+    expect(screen.getByTestId("mcp-install-field-api_key")).toBeInTheDocument();
     expect(
-      screen.getByTestId("mcp-install-field-GITHUB_PERSONAL_ACCESS_TOKEN"),
-    ).toBeInTheDocument();
-    expect(screen.queryByTestId("mcp-install-field-url")).toBeNull();
-    expect(screen.queryByTestId("mcp-install-field-api_key")).toBeNull();
+      screen.queryByTestId("mcp-install-field-command-readonly"),
+    ).toBeNull();
+    expect(
+      screen.queryByTestId("mcp-install-field-GITHUB_PERSONAL_ACCESS_TOKEN"),
+    ).toBeNull();
     expect(mockCreateConversationMutate).not.toHaveBeenCalled();
   });
 
@@ -442,10 +443,9 @@ describe("recommended automations", () => {
     );
     await screen.findByTestId("mcp-install-modal");
 
-    fireEvent.change(
-      screen.getByTestId("mcp-install-field-GITHUB_PERSONAL_ACCESS_TOKEN"),
-      { target: { value: "github-token" } },
-    );
+    fireEvent.change(screen.getByTestId("mcp-install-field-api_key"), {
+      target: { value: "github-token" },
+    });
     fireEvent.click(screen.getByTestId("mcp-install-submit"));
 
     await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
