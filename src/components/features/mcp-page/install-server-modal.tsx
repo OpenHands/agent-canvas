@@ -136,10 +136,11 @@ export function InstallServerModal({
   stateRef.current = state;
 
   const [globalError, setGlobalError] = React.useState<string | null>(null);
+  const [isFinalizingInstall, setIsFinalizingInstall] = React.useState(false);
   const option = getInstallableMcpConnectionOption(entry);
   const template = option?.transport;
 
-  const isPending = isTesting || isAdding;
+  const isPending = isTesting || isAdding || isFinalizingInstall;
 
   const setValue = (key: string, value: string) => {
     setState((prev) => ({
@@ -157,11 +158,11 @@ export function InstallServerModal({
     }));
   };
 
-  const saveHostedCredentialAsSecret = () => {
+  const saveHostedCredentialAsSecret = (): Promise<void> => {
     const secretName = option?.auth.credentialSecretName;
     const apiKey = stateRef.current.values.api_key?.trim();
     if (!secretName || !apiKey || !stateRef.current.savedAsSecret.api_key) {
-      return;
+      return Promise.resolve();
     }
 
     const field: MarketplaceField = {
@@ -169,11 +170,25 @@ export function InstallServerModal({
       label: option.auth.credentialLabel ?? secretName,
       type: "password",
     };
-    saveFieldsAsSecrets(
+    return saveFieldsAsSecrets(
       [field],
       { [secretName]: apiKey },
       { [secretName]: true },
     );
+  };
+
+  const saveSelectedSecrets = (): Promise<void> => {
+    if (template?.kind === "stdio") {
+      return saveFieldsAsSecrets(
+        template.envFields ?? [],
+        stateRef.current.values,
+        stateRef.current.savedAsSecret,
+      );
+    }
+    if (template?.kind === "shttp" || template?.kind === "sse") {
+      return saveHostedCredentialAsSecret();
+    }
+    return Promise.resolve();
   };
 
   const makeTestErrorMessage = (failure: MCPTestFailure): string => {
@@ -198,22 +213,15 @@ export function InstallServerModal({
         addMcpServer(payload, {
           onSuccess: () => {
             displaySuccessToast(t(I18nKey.MCP$INSTALL_SUCCESS));
-            onSuccess?.(entry);
-            onClose();
-
-            // Save checked envFields as secrets in the background so the
-            // Automation Server can access them without a separate manual step.
-            // Runs after onClose so failures don't block the modal from closing.
-            // Uses stateRef.current to avoid reading a stale closure snapshot.
-            if (template?.kind === "stdio") {
-              saveFieldsAsSecrets(
-                template.envFields ?? [],
-                stateRef.current.values,
-                stateRef.current.savedAsSecret,
-              );
-            } else if (template?.kind === "shttp" || template?.kind === "sse") {
-              saveHostedCredentialAsSecret();
-            }
+            setIsFinalizingInstall(true);
+            void (async () => {
+              try {
+                await saveSelectedSecrets();
+              } finally {
+                onSuccess?.(entry);
+                onClose();
+              }
+            })();
           },
           onError: (err: unknown) => {
             const message = retrieveAxiosErrorMessage(err as AxiosError);
@@ -500,6 +508,7 @@ export function InstallServerModal({
             variant="secondary"
             onClick={onClose}
             testId="mcp-install-cancel"
+            isDisabled={isPending}
           >
             {t(I18nKey.BUTTON$CANCEL)}
           </BrandButton>
@@ -511,7 +520,7 @@ export function InstallServerModal({
           >
             {isTesting
               ? t(I18nKey.MCP$VERIFYING)
-              : isAdding
+              : isAdding || isFinalizingInstall
                 ? t(I18nKey.SETTINGS$SAVING)
                 : t(I18nKey.MCP$INSTALL_BUTTON)}
           </BrandButton>

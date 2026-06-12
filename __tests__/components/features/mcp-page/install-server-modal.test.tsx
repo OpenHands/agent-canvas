@@ -635,6 +635,49 @@ describe("InstallServerModal", () => {
       );
     });
 
+    it("waits for hosted credential secrets before reporting install success", async () => {
+      vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
+      let resolveSecret!: () => void;
+      const secretSaved = new Promise<void>((resolve) => {
+        resolveSecret = resolve;
+      });
+      vi.spyOn(SecretsService, "createSecret").mockReturnValue(secretSaved);
+      const onClose = vi.fn();
+      const onSuccess = vi.fn();
+
+      renderWith(
+        <InstallServerModal
+          entry={SHTTP_ENTRY}
+          onClose={onClose}
+          onSuccess={onSuccess}
+        />,
+      );
+      await screen.findByTestId("mcp-install-modal");
+      await waitFor(() =>
+        expect(SettingsService.getSettings).toHaveBeenCalled(),
+      );
+
+      fireEvent.change(screen.getByTestId("mcp-install-field-api_key"), {
+        target: { value: "hosted-token" },
+      });
+      fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+      await waitFor(() =>
+        expect(SecretsService.createSecret).toHaveBeenCalledWith(
+          "PROVIDER_PERSONAL_ACCESS_TOKEN",
+          "hosted-token",
+          "Personal access token",
+        ),
+      );
+      expect(onSuccess).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+
+      resolveSecret();
+
+      await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
     it("does not call createSecret when all toggles are unchecked before install", async () => {
       vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
       const onClose = vi.fn();
@@ -661,7 +704,7 @@ describe("InstallServerModal", () => {
       expect(SecretsService.createSecret).not.toHaveBeenCalled();
     });
 
-    it("closes the modal even when the background secret save fails", async () => {
+    it("closes the modal even when the secret save fails", async () => {
       vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
       vi.spyOn(SecretsService, "createSecret").mockRejectedValue(
         new Error("forbidden"),
