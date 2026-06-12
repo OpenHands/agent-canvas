@@ -112,13 +112,7 @@ export function OpenAISubscriptionAuthCard({
       cancelled = true;
       clearPollTimeout();
     };
-  }, [
-    challenge,
-    clearPollTimeout,
-    connected,
-    isDisabled,
-    pollDeviceLogin,
-  ]);
+  }, [challenge, clearPollTimeout, connected, isDisabled, pollDeviceLogin]);
 
   const handleStartLogin = async () => {
     try {

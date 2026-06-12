@@ -236,17 +236,18 @@ describe("LlmSettingsScreen", () => {
       accountEmail: null,
       expiresAt: null,
     });
-    vi.spyOn(LLMSubscriptionService, "startOpenAIDeviceLogin").mockResolvedValue(
-      {
-        deviceCode: "device-code",
-        userCode: "USER-CODE",
-        verificationUri: "https://auth.openai.com/activate",
-        verificationUriComplete:
-          "https://auth.openai.com/activate?user_code=USER-CODE",
-        expiresAt: null,
-        intervalSeconds: 1,
-      },
-    );
+    vi.spyOn(
+      LLMSubscriptionService,
+      "startOpenAIDeviceLogin",
+    ).mockResolvedValue({
+      deviceCode: "device-code",
+      userCode: "USER-CODE",
+      verificationUri: "https://auth.openai.com/activate",
+      verificationUriComplete:
+        "https://auth.openai.com/activate?user_code=USER-CODE",
+      expiresAt: null,
+      intervalSeconds: 1,
+    });
     vi.spyOn(LLMSubscriptionService, "getOpenAIModels").mockResolvedValue([
       "gpt-5.2-codex",
     ]);
