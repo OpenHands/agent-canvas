@@ -1,5 +1,6 @@
 import { MCPServerConfig } from "#/types/mcp-server";
 import type {
+  IntegrationAuthConfig,
   IntegrationCatalogEntry as MarketplaceEntry,
   IntegrationConnectionOption,
   IntegrationTransport,
@@ -7,9 +8,18 @@ import type {
 
 export type { MarketplaceEntry };
 
-export type McpMarketplaceConnectionOption = IntegrationConnectionOption & {
+type McpIntegrationAuthConfig = IntegrationAuthConfig & {
+  credentialSecretName?: string;
+  saveCredentialAsSecretByDefault?: boolean;
+};
+
+export type McpMarketplaceConnectionOption = Omit<
+  IntegrationConnectionOption,
+  "auth" | "provider" | "transport"
+> & {
   provider: "mcp";
   transport: IntegrationTransport;
+  auth: McpIntegrationAuthConfig;
 };
 
 export function getMcpConnectionOptions(
