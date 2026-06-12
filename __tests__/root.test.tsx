@@ -66,25 +66,28 @@ describe("App root agent-server availability guard", () => {
   });
 
 
-  it("renders the routed page even when the connected server reports an old version", async () => {
+  it("shows the manage-backends modal when the connected server reports an old version", async () => {
     server.use(
       http.get("/server_info", () =>
-        HttpResponse.json({ uptime: 0, idle_time: 0, version: "1.0.0" }),
+        HttpResponse.json({ uptime: 0, idle_time: 0, version: "1.27.1" }),
       ),
     );
 
     renderApp(["/"]);
 
     await waitFor(() => {
-      expect(screen.getByTestId("app-outlet")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("agent-server-onboarding-screen"),
+      ).toBeInTheDocument();
     });
 
-    expect(
-      screen.queryByTestId("agent-server-onboarding-screen"),
-    ).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId("manage-backends-modal")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("app-outlet")).not.toBeInTheDocument();
   });
 
-  it("renders the routed page when the server omits a version field", async () => {
+  it("shows the manage-backends modal when the server omits a version field", async () => {
     server.use(
       http.get("/server_info", () =>
         HttpResponse.json({ uptime: 0, idle_time: 0 }),
@@ -94,8 +97,11 @@ describe("App root agent-server availability guard", () => {
     renderApp(["/"]);
 
     await waitFor(() => {
-      expect(screen.getByTestId("app-outlet")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("agent-server-onboarding-screen"),
+      ).toBeInTheDocument();
     });
+    expect(screen.queryByTestId("app-outlet")).not.toBeInTheDocument();
   });
 
   it("shows the manage-backends modal when the backend is unreachable", async () => {
