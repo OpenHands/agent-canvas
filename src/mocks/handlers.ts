@@ -1,10 +1,7 @@
 import { FILE_SERVICE_HANDLERS } from "./file-service-handlers";
 import { TASK_SUGGESTIONS_HANDLERS } from "./task-suggestions-handlers";
 import { SECRETS_HANDLERS } from "./secrets-handlers";
-import {
-  GIT_REPOSITORY_HANDLERS,
-  setMockGitChanges,
-} from "./git-repository-handlers";
+import { GIT_REPOSITORY_HANDLERS } from "./git-repository-handlers";
 import {
   SETTINGS_HANDLERS,
   MOCK_DEFAULT_USER_SETTINGS,
@@ -44,5 +41,4 @@ export {
   resetTestHandlersMockSettings,
   resetAutomationMockData,
   resetMockWorkspaces,
-  setMockGitChanges,
 };

@@ -75,7 +75,7 @@ The main CI workflow installs dependencies with `npm ci` and runs:
 - Library build through `npm run build:lib`.
 - Package verification through `npm pack --dry-run`.
 
-Additional workflows run visual snapshot tests and optional live end-to-end QA.
+Additional workflows run optional live end-to-end QA.
 
 ## Security posture
 
