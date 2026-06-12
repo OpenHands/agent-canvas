@@ -276,6 +276,71 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     ]);
   });
 
+  it("auto-selects the newly added workspace after Add Workspace", async () => {
+    // Arrange: start with another workspace already selected, mirroring the
+    // repro in OpenHands/agent-canvas#1212.
+    const existingWorkspace = {
+      id: "/Users/me/dev/repo1",
+      name: "repo1",
+      path: "/Users/me/dev/repo1",
+    };
+    const addedWorkspace = {
+      id: "/Users/me/dev",
+      name: "dev",
+      path: "/Users/me/dev",
+    };
+    const addSpy = vi
+      .spyOn(WorkspacesService, "addWorkspaces")
+      .mockImplementation(async (items) => {
+        // Mimic the server: once added, the list endpoint includes the new
+        // workspace so the post-add refetch resolves it.
+        const workspaces = [existingWorkspace, ...items];
+        vi.spyOn(WorkspacesService, "listWorkspaces").mockResolvedValue({
+          workspaces,
+          workspaceParents: [],
+        });
+        return { workspaces, workspaceParents: [] };
+      });
+    mockSearchSubdirectories.mockImplementation(async (path: string) => {
+      if (path === "/Users/me") {
+        return {
+          items: [{ name: "dev", path: "/Users/me/dev" }],
+          next_page_id: null,
+        };
+      }
+      return { items: [], next_page_id: null };
+    });
+    renderForm({ workspaces: [existingWorkspace] });
+    const user = userEvent.setup();
+
+    const selectionMenu = await openWorkspaceDropdown(user);
+    await user.click(await within(selectionMenu).findByText("repo1"));
+    await waitFor(() =>
+      expect(
+        window.sessionStorage.getItem(HOME_SELECTED_WORKSPACE_PATH_KEY),
+      ).toBe(existingWorkspace.path),
+    );
+
+    // Act
+    await openWorkspaceDropdown(user);
+    await user.click(await screen.findByTestId("add-workspaces-button"));
+    await screen.findByTestId("folder-browser-modal");
+    await user.click(await screen.findByTestId("folder-browser-entry-dev"));
+    await user.click(screen.getByTestId("folder-browser-use"));
+
+    // Assert
+    await waitFor(() => expect(addSpy).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByTestId("workspace-dropdown")).toHaveValue(
+        addedWorkspace.name,
+      ),
+    );
+    expect(
+      window.sessionStorage.getItem(HOME_SELECTED_WORKSPACE_PATH_KEY),
+    ).toBe(addedWorkspace.path);
+    expect(screen.getByTestId("workspace-launch-button")).not.toBeDisabled();
+  });
+
   it("Remove Workspace dispatches removeWorkspace and clears the selected workspace", async () => {
     // Arrange
     const removeSpy = vi

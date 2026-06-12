@@ -152,7 +152,7 @@ describe("BashService.listOutputs — cloud backend", () => {
     const proxyCall = vi.mocked(callCloudProxy).mock.calls[0][0];
     expect(proxyCall.method).toBe("GET");
     expect(proxyCall.path).toMatch(/^\/api\/bash\/bash_events\/search\?/);
-    expect(proxyCall.hostOverride).toBe("http://runtime.example.com");
+    expect(proxyCall.hostOverride).toBe("https://runtime.example.com");
     expect(proxyCall.authMode).toBe("session-api-key");
     expect(proxyCall.sessionApiKey).toBe(SESSION_KEY);
 

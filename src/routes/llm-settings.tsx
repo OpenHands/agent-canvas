@@ -22,10 +22,7 @@ import {
   type SettingsView,
 } from "#/utils/sdk-settings-schema";
 import { DEFAULT_SETTINGS } from "#/services/settings";
-import {
-  OPENHANDS_LLM_PROXY_BASE_URL,
-  isOpenHandsProxyModel,
-} from "#/utils/openhands-llm";
+import { OPENHANDS_LLM_PROXY_BASE_URL } from "#/utils/openhands-llm";
 
 const LLM_EXCLUDED_KEYS = new Set(["llm.model", "llm.api_key", "llm.base_url"]);
 
@@ -289,11 +286,7 @@ export function LlmSettingsScreen({
       const llm = (agentSettings.llm ?? {}) as Record<string, unknown>;
 
       if (context.view === "basic") {
-        const model = llm.model ?? context.values["llm.model"];
-        const baseUrl = llm.base_url ?? context.values["llm.base_url"];
-        llm.base_url = isOpenHandsProxyModel(model, baseUrl)
-          ? OPENHANDS_LLM_PROXY_BASE_URL
-          : getSchemaFieldDefaultValue(schema, "llm.base_url");
+        llm.base_url = getSchemaFieldDefaultValue(schema, "llm.base_url");
         agentSettings.llm = llm;
       }
 
