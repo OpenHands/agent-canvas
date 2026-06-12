@@ -4,10 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  parseArgs,
-  startStaticServer,
-} from "../../scripts/static-server.mjs";
+import { parseArgs, startStaticServer } from "../../scripts/static-server.mjs";
 
 describe("static-server.mjs", () => {
   const servers: Server[] = [];
@@ -75,6 +72,22 @@ describe("static-server.mjs", () => {
     it("treats empty string as null for runtime services info", () => {
       const config = parseArgs(["--runtime-services-info", ""]);
       expect(config.runtimeServicesInfo).toBeNull();
+    });
+
+    it("defaults defaultBackends to null", () => {
+      const config = parseArgs([]);
+      expect(config.defaultBackends).toBeNull();
+    });
+
+    it("parses --default-backends", () => {
+      const json = '[{"host":"http://10.0.0.5:8000","apiKey":"k"}]';
+      const config = parseArgs(["--default-backends", json]);
+      expect(config.defaultBackends).toBe(json);
+    });
+
+    it("treats empty string as null for default backends", () => {
+      const config = parseArgs(["--default-backends", ""]);
+      expect(config.defaultBackends).toBeNull();
     });
   });
 
@@ -148,6 +161,80 @@ describe("static-server.mjs", () => {
 
       const body = await (await fetch(`${origin}/`)).text();
       expect(body).not.toContain("__AGENT_CANVAS_RUNTIME_SERVICES_INFO__");
+    });
+  });
+
+  describe("default backends injection", () => {
+    async function startServerWithDefaultBackends(
+      dir: string,
+      defaultBackends: string,
+    ) {
+      const server = await startStaticServer({
+        port: 0,
+        host: "127.0.0.1",
+        dir,
+        routes: {},
+        defaultBackends,
+      });
+      servers.push(server);
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        throw new Error("Static server did not bind to a TCP port");
+      }
+      return `http://127.0.0.1:${address.port}`;
+    }
+
+    function writeIndex(): string {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(
+        path.join(buildDir, "index.html"),
+        "<html><head></head><body>app</body></html>",
+      );
+      return buildDir;
+    }
+
+    it("exposes the backends on window.__AGENT_CANVAS_DEFAULT_BACKENDS__", async () => {
+      const buildDir = writeIndex();
+      const json = JSON.stringify([
+        { host: "http://10.0.0.5:8000", apiKey: "fleet-key", name: "Fleet A" },
+      ]);
+      const origin = await startServerWithDefaultBackends(buildDir, json);
+      const body = await (await fetch(`${origin}/`)).text();
+
+      expect(body).toContain("window.__AGENT_CANVAS_DEFAULT_BACKENDS__");
+      // Emitted as a real array literal (no escaped quotes) so the client
+      // global is self-describing.
+      expect(body).toContain('"host":"http://10.0.0.5:8000"');
+      expect(body).toContain('"name":"Fleet A"');
+    });
+
+    it("ignores a non-array value without injecting the global", async () => {
+      const buildDir = writeIndex();
+      const origin = await startServerWithDefaultBackends(
+        buildDir,
+        '{"host":"http://10.0.0.5:8000"}',
+      );
+      const body = await (await fetch(`${origin}/`)).text();
+      expect(body).not.toContain("__AGENT_CANVAS_DEFAULT_BACKENDS__");
+    });
+
+    it("does not inject when defaultBackends is null", async () => {
+      const buildDir = writeIndex();
+      const server = await startStaticServer({
+        port: 0,
+        host: "127.0.0.1",
+        dir: buildDir,
+        routes: {},
+        defaultBackends: null,
+      });
+      servers.push(server);
+      const address = server.address();
+      if (!address || typeof address === "string") throw new Error("No port");
+      const origin = `http://127.0.0.1:${(address as { port: number }).port}`;
+
+      const body = await (await fetch(`${origin}/`)).text();
+      expect(body).not.toContain("__AGENT_CANVAS_DEFAULT_BACKENDS__");
     });
   });
 

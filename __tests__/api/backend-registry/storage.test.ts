@@ -297,4 +297,90 @@ describe("backend-registry storage", () => {
     window.localStorage.setItem(ACTIVE_BACKEND_STORAGE_KEY, "{broken");
     expect(readStoredActiveBackend()).toBeNull();
   });
+
+  describe("deployment default backends", () => {
+    type MutableWindow = Record<string, unknown>;
+
+    function setDeploymentBackends(value: unknown): void {
+      (window as unknown as MutableWindow).__AGENT_CANVAS_DEFAULT_BACKENDS__ =
+        value;
+    }
+
+    afterEach(() => {
+      delete (window as unknown as MutableWindow)
+        .__AGENT_CANVAS_DEFAULT_BACKENDS__;
+    });
+
+    it("seeds deployment defaults on first read even without a launcher local backend", () => {
+      vi.stubEnv("VITE_SESSION_API_KEY", "");
+      setDeploymentBackends([
+        { host: "http://10.0.0.5:8000", apiKey: "fleet-key", name: "Fleet A" },
+      ]);
+
+      const result = readStoredBackends();
+
+      expect(result).toEqual([
+        {
+          id: "deployment:http://10.0.0.5:8000",
+          name: "Fleet A",
+          host: "http://10.0.0.5:8000",
+          apiKey: "fleet-key",
+          kind: "local",
+        },
+      ]);
+      // Persisted so the rest of the app sees the same registry.
+      expect(window.localStorage.getItem(BACKENDS_STORAGE_KEY)).not.toBeNull();
+    });
+
+    it("merges deployment defaults into an existing registry and persists", () => {
+      const existing: Backend = {
+        id: "user-1",
+        name: "My Box",
+        host: "http://192.168.1.50:8000",
+        apiKey: "user-key",
+        kind: "local",
+      };
+      window.localStorage.setItem(
+        BACKENDS_STORAGE_KEY,
+        JSON.stringify([existing]),
+      );
+      setDeploymentBackends([
+        { host: "http://10.0.0.5:8000", apiKey: "fleet-key", name: "Fleet A" },
+      ]);
+
+      const result = readStoredBackends();
+
+      expect(result.map((b) => b.host)).toEqual([
+        "http://192.168.1.50:8000",
+        "http://10.0.0.5:8000",
+      ]);
+      const persisted = JSON.parse(
+        window.localStorage.getItem(BACKENDS_STORAGE_KEY) as string,
+      );
+      expect(persisted.map((b: Backend) => b.host)).toEqual([
+        "http://192.168.1.50:8000",
+        "http://10.0.0.5:8000",
+      ]);
+    });
+
+    it("does not duplicate a deployment default whose host is already registered", () => {
+      const existing: Backend = {
+        id: "user-edited",
+        name: "Renamed Fleet A",
+        host: "http://10.0.0.5:8000",
+        apiKey: "user-key",
+        kind: "local",
+      };
+      window.localStorage.setItem(
+        BACKENDS_STORAGE_KEY,
+        JSON.stringify([existing]),
+      );
+      setDeploymentBackends([
+        { host: "http://10.0.0.5:8000", apiKey: "fleet-key", name: "Fleet A" },
+      ]);
+
+      // User's own entry (name + key) is preserved, no duplicate added.
+      expect(readStoredBackends()).toEqual([existing]);
+    });
+  });
 });
