@@ -60,6 +60,33 @@ if (typeof requestAnimationFrame === "undefined") {
   );
 }
 
+// MSW's @mswjs/interceptors evaluates `typeof ProgressEvent` at module-load
+// time. In jsdom the class IS defined, so the check passes. But when Vitest
+// tears down the jsdom environment between test files, the global disappears
+// while the MSW module still holds its cached `SUPPORTS_PROGRESS_EVENT = true`
+// flag. Any late async XHR response then calls `new ProgressEvent(...)` against
+// the now-missing global and throws a ReferenceError — surfacing as a flaky
+// "Unhandled Rejection" that fails the entire suite. Stubbing the class at
+// setup time keeps it reachable even after jsdom cleanup.
+if (typeof globalThis.ProgressEvent === "undefined") {
+  class ProgressEventPolyfill extends Event {
+    readonly lengthComputable: boolean;
+    readonly loaded: number;
+    readonly total: number;
+
+    constructor(
+      type: string,
+      init?: { lengthComputable?: boolean; loaded?: number; total?: number },
+    ) {
+      super(type);
+      this.lengthComputable = init?.lengthComputable ?? false;
+      this.loaded = init?.loaded ?? 0;
+      this.total = init?.total ?? 0;
+    }
+  }
+  vi.stubGlobal("ProgressEvent", ProgressEventPolyfill);
+}
+
 // Mock ResizeObserver for test environment
 class MockResizeObserver {
   observe = vi.fn();
