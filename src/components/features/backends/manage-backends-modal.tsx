@@ -97,6 +97,12 @@ function BackendRow({
       : health?.isConnected === false
         ? "text-red-300"
         : "text-[var(--oh-muted)]";
+  const statusDetail =
+    backend.kind === "local" &&
+    health?.isConnected === false &&
+    health.lastError?.startsWith("Agent Canvas requires agent-server ")
+      ? health.lastError
+      : null;
   const dotStatus = health?.isConnected ?? null;
   const canSelect = health?.isConnected === true;
 
@@ -131,6 +137,15 @@ function BackendRow({
           >
             {statusLabel}
           </span>
+          {statusDetail ? (
+            <span
+              data-testid={`manage-backends-status-detail-${backend.name}`}
+              title={statusDetail}
+              className="text-xs text-red-300/80 whitespace-normal break-words"
+            >
+              {statusDetail}
+            </span>
+          ) : null}
         </div>
         <span className="px-2 py-1 rounded-full text-[11px] uppercase tracking-wide text-[var(--oh-text-tertiary)] bg-[var(--oh-surface)] border border-[var(--oh-border)]">
           {backend.kind === "cloud"

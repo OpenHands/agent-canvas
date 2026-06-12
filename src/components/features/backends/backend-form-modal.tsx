@@ -15,6 +15,7 @@ import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useNavigation } from "#/context/navigation-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
+import { assertAgentServerVersionIsSupported } from "#/api/agent-server-compatibility";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend, BackendKind } from "#/api/backend-registry/types";
@@ -145,13 +146,14 @@ async function testBackendConnection(
   // Cloud backends authenticate via OAuth; preflight GET is not applicable.
   if (backend.kind !== "local") return;
 
-  await new ServerClient(
+  const serverInfo = await new ServerClient(
     getAgentServerClientOptions({
       host: backend.host,
       sessionApiKey: backend.apiKey || null,
       timeout: 5000,
     }),
   ).getServerInfo();
+  assertAgentServerVersionIsSupported(serverInfo);
 }
 
 /**

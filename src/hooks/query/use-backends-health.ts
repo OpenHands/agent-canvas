@@ -1,9 +1,15 @@
 import React from "react";
 import { useQueries } from "@tanstack/react-query";
-import { SettingsClient } from "@openhands/typescript-client/clients";
 import axios from "axios";
+import {
+  ServerClient,
+  SettingsClient,
+} from "@openhands/typescript-client/clients";
 import { getCurrentCloudApiKey } from "#/api/cloud/organization-service.api";
-import { isSdkHttpStatusError } from "#/api/agent-server-compatibility";
+import {
+  assertAgentServerVersionIsSupported,
+  isSdkHttpStatusError,
+} from "#/api/agent-server-compatibility";
 import type { Backend } from "#/api/backend-registry/types";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import {
@@ -51,14 +57,14 @@ function hasMissingBackendApiKey(backend: Backend): boolean {
  * Probe a single backend for connectivity. The probe path differs by
  * backend kind:
  *
- *  - Local agent-server: GET `/api/settings` via the typescript-client.
- *    Unlike `/server_info`, this validates the configured session API key.
- *  - Cloud: GET `/api/keys/current` directly against the cloud host.
- *    That endpoint is lightweight, requires auth, and
- *    `getCurrentCloudApiKey` already absorbs the legacy-key 400 fallback
- *    so we treat that as "connected" too. Missing / rejected keys are
- *    reported explicitly instead of falling through to the browser's
- *    opaque CORS/network error shape.
+ *  - Local agent-server: GET `/api/settings`, then `/server_info` via the
+ *    typescript-client. The settings call validates the configured session
+ *    API key; the server info call validates the version compatibility floor.
+ *  - Cloud: GET `/api/keys/current` directly against the cloud host. That
+ *    endpoint is lightweight, requires auth, and `getCurrentCloudApiKey`
+ *    already absorbs the legacy-key 400 fallback so we treat that as
+ *    "connected" too. Missing / rejected keys are reported explicitly instead
+ *    of falling through to the browser's opaque CORS/network error shape.
  *
  * Throws on failure so React Query marks the query as errored — the
  * dropdown reads `isSuccess` to flip the indicator green.
@@ -84,13 +90,15 @@ async function probeBackend(backend: Backend): Promise<true> {
   }
 
   try {
-    await new SettingsClient(
-      getAgentServerClientOptions({
-        host: backend.host,
-        sessionApiKey: backend.apiKey || null,
-        timeout: PROBE_TIMEOUT_MS,
-      }),
-    ).getSettings();
+    const clientOptions = getAgentServerClientOptions({
+      host: backend.host,
+      sessionApiKey: backend.apiKey || null,
+      timeout: PROBE_TIMEOUT_MS,
+    });
+
+    await new SettingsClient(clientOptions).getSettings();
+    const serverInfo = await new ServerClient(clientOptions).getServerInfo();
+    assertAgentServerVersionIsSupported(serverInfo);
   } catch (error) {
     if (isSdkHttpStatusError(error, 401)) {
       throw new Error(INVALID_BACKEND_API_KEY_ERROR);
