@@ -22,6 +22,12 @@ import {
 } from "./conversation-service/agent-server-conversation-service.types";
 import SettingsService from "./settings-service/settings-service.api";
 import { getStoredConversationMetadata } from "./conversation-metadata-store";
+import LLMSubscriptionService from "./llm-subscription-service";
+import {
+  LLM_AUTH_TYPE_SUBSCRIPTION,
+  OPENAI_SUBSCRIPTION_VENDOR,
+  isSubscriptionLlmConfig,
+} from "#/constants/llm-subscription";
 
 export interface DirectConversationInfo {
   id: string;
@@ -471,6 +477,10 @@ function isToolRecord(
 }
 
 function shouldIncludeTool(name: string, agentSettings: SettingsRecord) {
+  if (name === CANVAS_UI_TOOL_NAME) {
+    return isAgentServerToolAvailable(name);
+  }
+
   if (name === BROWSER_TOOL_SET_NAME) {
     return browserToolsEnabled() && isAgentServerToolAvailable(name);
   }
@@ -489,7 +499,9 @@ function getAgentTools(agentSettings: SettingsRecord): AgentToolSpec[] {
   const tools = new Map<string, AgentToolSpec>();
 
   for (const name of DEFAULT_TOOL_NAMES) {
-    tools.set(name, { name, params: {} });
+    if (shouldIncludeTool(name, agentSettings)) {
+      tools.set(name, { name, params: {} });
+    }
   }
 
   for (const name of [BROWSER_TOOL_SET_NAME, TASK_TOOL_SET_NAME]) {
@@ -731,6 +743,16 @@ function buildConfiguredOpenHandsAgentSettings(
     delete llm.base_url;
   }
 
+  if (isSubscriptionLlmConfig(llm)) {
+    llm.auth_type = LLM_AUTH_TYPE_SUBSCRIPTION;
+    llm.subscription_vendor = OPENAI_SUBSCRIPTION_VENDOR;
+    delete llm.api_key;
+    delete llm.base_url;
+  } else {
+    delete llm.auth_type;
+    delete llm.subscription_vendor;
+  }
+
   const mcpConfig = toRecord(agentSettings.mcp_config);
   if (Object.keys(mcpConfig).length === 0 || !("mcpServers" in mcpConfig)) {
     delete agentSettings.mcp_config;
@@ -914,12 +936,23 @@ export function buildStartConversationRequest(
     payload.hook_config = conversationSettings.hook_config;
   }
 
-  payload.tool_module_qualnames = {
-    [CANVAS_UI_TOOL_NAME]: CANVAS_UI_TOOL_MODULE,
-    ...((conversationSettings.tool_module_qualnames as
+  const toolModuleQualnames: Record<string, string> = {};
+  const canvasUiAvailable = isAgentServerToolAvailable(CANVAS_UI_TOOL_NAME);
+  if (canvasUiAvailable) {
+    toolModuleQualnames[CANVAS_UI_TOOL_NAME] = CANVAS_UI_TOOL_MODULE;
+  }
+  Object.assign(
+    toolModuleQualnames,
+    (conversationSettings.tool_module_qualnames as
       | Record<string, string>
-      | undefined) ?? {}),
-  };
+      | undefined) ?? {},
+  );
+  if (!canvasUiAvailable) {
+    delete toolModuleQualnames[CANVAS_UI_TOOL_NAME];
+  }
+  if (Object.keys(toolModuleQualnames).length > 0) {
+    payload.tool_module_qualnames = toolModuleQualnames;
+  }
 
   if (conversationSettings.agent_definitions) {
     payload.agent_definitions = conversationSettings.agent_definitions;
@@ -928,7 +961,7 @@ export function buildStartConversationRequest(
   // Every saved secret rides as a LookupSecret the agent-server resolves back
   // from its own store at spawn time — ``request.secrets`` is the sole channel,
   // uniform for ACP and non-ACP (agent-canvas#1039). For ACP the resolution
-  // runs off the event loop (software-agent-sdk#3510, ≥1.25.0), so the loopback
+  // runs off the event loop (software-agent-sdk#3510, >=1.25.0), so the loopback
   // fetch can't deadlock.
   if (options.customSecrets && options.customSecrets.length > 0) {
     const backend = getEffectiveLocalBackend();
@@ -955,6 +988,27 @@ export function buildStartConversationRequest(
   return payload;
 }
 
+export const SUBSCRIPTION_LOGIN_REQUIRED_ERROR =
+  "Connect your ChatGPT subscription before starting a conversation with this LLM profile.";
+
+/**
+ * Throws if a ChatGPT subscription LLM profile is not connected.
+ * Called before conversation creation and LLM profile switch only — not on
+ * subsequent message sends or conversation resume. The agent-server must handle
+ * mid-conversation token expiry gracefully.
+ */
+export async function assertSubscriptionAuthReady(
+  agentSettings: Record<string, unknown>,
+): Promise<void> {
+  const llm = toRecord(agentSettings.llm);
+  if (!isSubscriptionLlmConfig(llm)) return;
+
+  const status = await LLMSubscriptionService.getOpenAIStatus();
+  if (!status.connected) {
+    throw new Error(SUBSCRIPTION_LOGIN_REQUIRED_ERROR);
+  }
+}
+
 export async function buildStartConversationRequestWithEncryptedSettings(options: {
   settings: Settings;
   query?: string;
@@ -973,6 +1027,8 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
 
   const { agentSettings, conversationSettings, secretsEncrypted } =
     settingsResult;
+
+  await assertSubscriptionAuthReady(agentSettings);
 
   return buildStartConversationRequest({
     ...options,

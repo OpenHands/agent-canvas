@@ -14,6 +14,10 @@ import {
 } from "#/api/conversation-metadata-store";
 import { ACP_VERTEX_SAFE_MODEL } from "#/constants/acp-providers";
 import { DEFAULT_SETTINGS } from "#/services/settings";
+import {
+  LLM_AUTH_TYPE_SUBSCRIPTION,
+  OPENAI_SUBSCRIPTION_VENDOR,
+} from "#/constants/llm-subscription";
 
 const {
   mockGetAgentServerWorkingDir,
@@ -160,6 +164,48 @@ describe("buildStartConversationRequest", () => {
     expect(payload.initial_message.content[0]?.text).toBe("hello");
   });
 
+  it("uses subscription auth metadata without API credentials", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          llm: {
+            model: "gpt-5.2-codex",
+            api_key: "stale-api-key",
+            base_url: "https://api.openai.com/v1",
+            auth_type: LLM_AUTH_TYPE_SUBSCRIPTION,
+            subscription_vendor: OPENAI_SUBSCRIPTION_VENDOR,
+          },
+        },
+      },
+    }) as { agent_settings: { llm: Record<string, unknown> } };
+
+    expect(payload.agent_settings.llm).toEqual({
+      model: "gpt-5.2-codex",
+      auth_type: LLM_AUTH_TYPE_SUBSCRIPTION,
+      subscription_vendor: OPENAI_SUBSCRIPTION_VENDOR,
+    });
+  });
+
+  it("passes the stored model through unchanged for subscription auth", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          llm: {
+            model: "openai/gpt-4o",
+            auth_type: LLM_AUTH_TYPE_SUBSCRIPTION,
+            subscription_vendor: OPENAI_SUBSCRIPTION_VENDOR,
+          },
+        },
+      },
+    }) as { agent_settings: { llm: Record<string, unknown> } };
+
+    expect(payload.agent_settings.llm.model).toBe("openai/gpt-4o");
+  });
+
   it("forwards the switch-LLM setting to SDK agent settings", () => {
     const payload = buildStartConversationRequest({
       settings: {
@@ -204,7 +250,6 @@ describe("buildStartConversationRequest", () => {
       { name: "terminal", params: {} },
       { name: "file_editor", params: {} },
       { name: "task_tracker", params: {} },
-      { name: "canvas_ui", params: {} },
     ]);
   });
 
@@ -232,7 +277,6 @@ describe("buildStartConversationRequest", () => {
       { name: "terminal", params: {} },
       { name: "file_editor", params: {} },
       { name: "task_tracker", params: {} },
-      { name: "canvas_ui", params: {} },
       { name: "task_tool_set", params: {} },
     ]);
   });
@@ -427,7 +471,7 @@ describe("buildStartConversationRequest", () => {
   });
 
   it("does NOT mirror conversation secrets onto agent_context for ACP — request.secrets is the sole channel", () => {
-    // The pinned minimum agent-server (1.25.0) injects the ACP spawn env from
+    // The compatible agent-server line injects the ACP spawn env from
     // ``secret_registry``, which is seeded from ``request.secrets``
     // (sdk#3299/#3464; the agent_context drain is gone entirely in sdk#3528).
     // Mirroring the map onto ``agent_context.secrets`` would keep a second,
@@ -521,7 +565,7 @@ describe("buildStartConversationRequest", () => {
       expect(payload.secrets.CODEX_AUTH_JSON?.kind).toBe("LookupSecret");
       expect(payload.secrets.MY_TOKEN?.kind).toBe("LookupSecret");
       // ``request.secrets`` is the sole channel — no agent_context mirror
-      // (the ≥1.25.0 agent-server injects the spawn env from secret_registry).
+      // (agent-server >=1.25.0 injects the spawn env from secret_registry).
       expect(payload.agent_settings.agent_context?.secrets).toBeUndefined();
       // The configured model rides along unchanged.
       expect(payload.agent_settings.acp_model).toBe("gpt-5.5/medium");
@@ -549,13 +593,54 @@ describe("buildStartConversationRequest", () => {
   });
 
   describe("canvas_ui tool injection", () => {
-    it("always registers canvas_ui_tool in tool_module_qualnames, even when no user settings supply qualnames", () => {
+    it("registers canvas_ui_tool in tool_module_qualnames when the backend advertises canvas_ui", () => {
       const payload = buildStartConversationRequest({
         settings: DEFAULT_SETTINGS,
       }) as { tool_module_qualnames: Record<string, string> };
 
       expect(payload.tool_module_qualnames).toMatchObject({
         canvas_ui: "canvas_ui_tool",
+      });
+    });
+
+    it("omits canvas_ui and its module qualname when the backend does not advertise canvas_ui", () => {
+      mockIsAgentServerToolAvailable.mockImplementation(
+        (toolName: string) => toolName !== "canvas_ui",
+      );
+
+      const payload = buildStartConversationRequest({
+        settings: DEFAULT_SETTINGS,
+      }) as {
+        agent_settings: { tools: Array<{ name: string }> };
+        tool_module_qualnames?: Record<string, string>;
+      };
+
+      expect(payload.agent_settings.tools.map((tool) => tool.name)).not.toContain(
+        "canvas_ui",
+      );
+      expect(payload.tool_module_qualnames).toBeUndefined();
+    });
+
+    it("drops a user-supplied canvas_ui module qualname when the backend does not advertise canvas_ui", () => {
+      mockIsAgentServerToolAvailable.mockImplementation(
+        (toolName: string) => toolName !== "canvas_ui",
+      );
+
+      const payload = buildStartConversationRequest({
+        settings: {
+          ...DEFAULT_SETTINGS,
+          conversation_settings: {
+            ...DEFAULT_SETTINGS.conversation_settings,
+            tool_module_qualnames: {
+              canvas_ui: "custom_canvas_ui_tool",
+              my_tool: "my_package.my_tool",
+            },
+          },
+        },
+      }) as { tool_module_qualnames: Record<string, string> };
+
+      expect(payload.tool_module_qualnames).toEqual({
+        my_tool: "my_package.my_tool",
       });
     });
 
