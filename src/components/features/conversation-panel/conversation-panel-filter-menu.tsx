@@ -17,15 +17,16 @@ import {
 } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import type { BackendKind } from "#/api/backend-registry/types";
+import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import { Divider } from "#/ui/divider";
 import { cn } from "#/utils/utils";
 import {
   dropdownMenuRowClassName,
   dropdownMenuRowIconClassName,
-  dropdownInstantColorClassName,
   dropdownMenuListClassName,
   dropdownMenuViewportScrollClassName,
 } from "#/utils/dropdown-classes";
+import { formControlTransitionClassName } from "#/utils/form-control-classes";
 import type {
   ConversationSortField,
   OrganizeMode,
@@ -234,27 +235,32 @@ export function ConversationPanelFilterMenu({
 
   return (
     <div ref={menuRef} className="relative shrink-0 pr-0.5">
-      <button
-        ref={triggerRef}
-        type="button"
-        data-testid="older-conversations-filter-toggle"
-        aria-label={t(I18nKey.CONVERSATION_PANEL$FILTER_LABEL)}
-        aria-haspopup="menu"
-        aria-expanded={filterMenuOpen}
-        onClick={() => setFilterMenuOpen(!filterMenuOpen)}
-        className={cn(
-          "inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
-          dropdownInstantColorClassName,
-        )}
+      <StyledTooltip
+        content={t(I18nKey.CONVERSATION_PANEL$FILTER_LABEL)}
+        placement="bottom"
       >
-        <ListFilter
-          className="lucide lucide-list-filter shrink-0"
-          width={14}
-          height={14}
-          strokeWidth={2}
-          aria-hidden
-        />
-      </button>
+        <button
+          ref={triggerRef}
+          type="button"
+          data-testid="older-conversations-filter-toggle"
+          aria-label={t(I18nKey.CONVERSATION_PANEL$FILTER_LABEL)}
+          aria-haspopup="menu"
+          aria-expanded={filterMenuOpen}
+          onClick={() => setFilterMenuOpen(!filterMenuOpen)}
+          className={cn(
+            "inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
+            formControlTransitionClassName,
+          )}
+        >
+          <ListFilter
+            className="lucide lucide-list-filter shrink-0"
+            width={14}
+            height={14}
+            strokeWidth={2}
+            aria-hidden
+          />
+        </button>
+      </StyledTooltip>
 
       {filterMenuOpen ? (
         <div

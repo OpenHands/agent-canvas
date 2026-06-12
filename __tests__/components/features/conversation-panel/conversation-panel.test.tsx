@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import i18n from "i18next";
@@ -1717,6 +1717,116 @@ describe("ConversationPanel", () => {
           screen.queryByTestId("load-more-conversations"),
         ).not.toBeInTheDocument();
       });
+    });
+  });
+
+  describe("conversation search", () => {
+    it("opens a search modal with most recent section when toggled", async () => {
+      const user = userEvent.setup();
+      renderConversationPanel();
+
+      await screen.findAllByTestId("conversation-card");
+
+      expect(
+        screen.queryByTestId("conversation-panel-search-modal"),
+      ).not.toBeInTheDocument();
+
+      await user.click(screen.getByTestId("conversation-panel-search-toggle"));
+
+      expect(
+        screen.getByTestId("conversation-panel-search-modal"),
+      ).toBeInTheDocument();
+      expect(
+        within(screen.getByTestId("conversation-panel-search-modal")).getByTestId(
+          "conversation-panel-search-section-label",
+        ),
+      ).toHaveTextContent("COMMON$MOST_RECENT");
+    });
+
+    it("filters conversations by any part of the conversation string in the modal", async () => {
+      const user = userEvent.setup();
+      vi.spyOn(
+        AgentServerConversationService,
+        "searchConversations",
+      ).mockResolvedValue({
+        items: [
+          createMockConversation({
+            id: "1",
+            title: "Can you review the project?",
+          }),
+          createMockConversation({
+            id: "2",
+            title: "Enable Figma design export",
+          }),
+          createMockConversation({
+            id: "3",
+            title: "Confirm access to inkscape project",
+          }),
+        ],
+        next_page_id: null,
+      });
+
+      renderConversationPanel();
+      await screen.findAllByTestId("conversation-card");
+
+      await user.click(screen.getByTestId("conversation-panel-search-toggle"));
+      await user.type(
+        screen.getByTestId("conversation-panel-search-input"),
+        "figma",
+      );
+
+      const modal = screen.getByTestId("conversation-panel-search-modal");
+      await waitFor(() => {
+        expect(
+          within(modal).getAllByTestId("conversation-panel-search-result"),
+        ).toHaveLength(1);
+      });
+      expect(
+        within(modal).getByTestId("conversation-panel-search-result"),
+      ).toHaveAttribute("data-conversation-id", "2");
+      expect(screen.getAllByTestId("conversation-card")).toHaveLength(3);
+    });
+
+    it("shows a no-results message in the modal when nothing matches", async () => {
+      const user = userEvent.setup();
+      renderConversationPanel();
+      await screen.findAllByTestId("conversation-card");
+
+      await user.click(screen.getByTestId("conversation-panel-search-toggle"));
+      await user.type(
+        screen.getByTestId("conversation-panel-search-input"),
+        "zzzz-not-found",
+      );
+
+      const modal = screen.getByTestId("conversation-panel-search-modal");
+      await waitFor(() => {
+        expect(
+          within(modal).getByTestId("conversation-panel-search-no-results"),
+        ).toBeInTheDocument();
+      });
+      expect(
+        within(modal).queryAllByTestId("conversation-panel-search-result"),
+      ).toHaveLength(0);
+    });
+
+    it("opens the search modal with the primary modifier shortcut", async () => {
+      vi.stubGlobal("navigator", { platform: "MacIntel" });
+      renderConversationPanel();
+      await screen.findAllByTestId("conversation-card");
+
+      expect(
+        screen.queryByTestId("conversation-panel-search-modal"),
+      ).not.toBeInTheDocument();
+
+      fireEvent.keyDown(document, {
+        key: "k",
+        metaKey: true,
+        ctrlKey: false,
+      });
+
+      expect(
+        screen.getByTestId("conversation-panel-search-modal"),
+      ).toBeInTheDocument();
     });
   });
 });
