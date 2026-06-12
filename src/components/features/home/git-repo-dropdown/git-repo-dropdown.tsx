@@ -40,7 +40,7 @@ export function GitRepoDropdown({
   provider,
   value,
   repositoryName,
-  placeholder = "Search repositories...",
+  placeholder,
   className,
   disabled = false,
   onChange,
@@ -298,7 +298,8 @@ export function GitRepoDropdown({
         <input
           {...getInputProps({
             disabled,
-            placeholder,
+            placeholder:
+              placeholder ?? t(I18nKey.COMMON$SEARCH_REPOSITORIES_PLACEHOLDER),
             className: cn(
               formControlFieldClassName,
               "text-inherit shadow-none pl-7 pr-16 text-sm font-normal leading-5",
