@@ -20,6 +20,7 @@ import {
   settingsListTableHeadClassName,
   settingsListTableHeaderCellClassName,
 } from "#/utils/settings-list-classes";
+import { extensionModuleEmptyStateClassName } from "#/utils/extension-module-card-classes";
 
 export const handle = { hideTitle: true };
 
@@ -119,7 +120,7 @@ export function SecretsSettingsScreen() {
             onClick={() => setView("add-secret-form")}
             isDisabled={isLoadingSecrets}
           >
-            {t("SECRETS$ADD_NEW_SECRET")}
+            {t(I18nKey.SECRETS$ADD_NEW_SECRET)}
           </BrandButton>
         </div>
       ) : null}
@@ -143,7 +144,18 @@ export function SecretsSettingsScreen() {
         </ul>
       )}
 
-      {view === "list" && !isLoadingSecrets && (
+      {view === "list" && !isLoadingSecrets && secrets?.length === 0 && (
+        <div
+          data-testid="secrets-empty"
+          className={extensionModuleEmptyStateClassName}
+        >
+          <p className="text-sm text-[var(--oh-muted)]">
+            {t(I18nKey.SECRETS$EMPTY)}
+          </p>
+        </div>
+      )}
+
+      {view === "list" && !isLoadingSecrets && (secrets?.length ?? 0) > 0 && (
         <div
           ref={tableContainerRef}
           className={settingsListScrollContainerClassName}
@@ -209,7 +221,7 @@ export function SecretsSettingsScreen() {
 
       {confirmationModalIsVisible && (
         <ConfirmationModal
-          text={t("SECRETS$CONFIRM_DELETE_KEY")}
+          text={t(I18nKey.SECRETS$CONFIRM_DELETE_KEY)}
           onConfirm={onConfirmDeleteSecret}
           onCancel={onCancelDeleteSecret}
         />

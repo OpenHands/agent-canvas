@@ -74,6 +74,17 @@ describe("package library metadata", () => {
     expect(violations).toEqual([]);
   });
 
+  it("ships runtime logger dependencies for the published CLI", () => {
+    expect(packageJson.dependencies).toMatchObject({
+      winston: "^3.19.0",
+      "winston-daily-rotate-file": "^5.0.0",
+    });
+    expect(packageJson.devDependencies?.winston).toBeUndefined();
+    expect(
+      packageJson.devDependencies?.["winston-daily-rotate-file"],
+    ).toBeUndefined();
+  });
+
   it("uses local dev commands without Docker", () => {
     expect(packageJson.scripts.dev).toBe(
       "node --env-file-if-exists=.env scripts/dev-with-automation.mjs",

@@ -9,11 +9,11 @@ import { useActiveConversation } from "#/hooks/query/use-active-conversation";
  * user came in to inspect, so the diff view is the more useful default.
  *
  * We deliberately do *not* probe the filesystem here — the agent-server
- * initialises every conversation workspace as an internal git worktree
- * for change tracking, so a positive `git status` does not by itself
- * imply the user attached a real source. That's why we read the
- * explicit selection signals (`selected_repository` on the conversation,
- * `selected_workspace` from the conversation-metadata store) instead.
+ * can initialise conversations without an explicit selection in generated git
+ * worktrees, so a positive `git status` does not by itself imply the user
+ * attached a real source. That's why we read the explicit selection signals
+ * (`selected_repository` on the conversation, `selected_workspace` from the
+ * conversation-metadata store) instead.
  */
 export function useHasAttachedSource(): {
   hasAttachedSource: boolean;

@@ -17,6 +17,7 @@ import { ScrollProvider } from "#/context/scroll-context";
 import { useInitialQueryStore } from "#/stores/initial-query-store";
 import { useSendMessage } from "#/hooks/use-send-message";
 import { useAgentState } from "#/hooks/use-agent-state";
+import { useIsArchivedConversation } from "#/hooks/use-is-archived-conversation";
 import { useHandleBuildPlanClick } from "#/hooks/use-handle-build-plan-click";
 
 import { ScrollToBottomButton } from "#/components/shared/buttons/scroll-to-bottom-button";
@@ -27,6 +28,8 @@ import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { SERVER_CONNECTION_ERROR_MESSAGE } from "#/constants/server-connection-error";
 import { ErrorMessageBanner } from "./error-message-banner";
+import { LlmNotConfiguredBanner } from "#/components/features/home/llm-not-configured-banner";
+import { useLlmConfigured } from "#/hooks/use-llm-configured";
 import { Messages } from "#/components/conversation-events/chat/messages";
 import { PendingUserMessages } from "./pending-user-messages";
 import { useUnifiedUploadFiles } from "#/hooks/mutation/use-unified-upload-files";
@@ -103,8 +106,13 @@ export function ChatInterface() {
   // always null, so this is effectively a no-op for non-cloud use.
   const { data: activeConversation } = useActiveConversation();
   const sandboxStatus = activeConversation?.sandbox_status ?? null;
-  const isArchivedConversation =
-    sandboxStatus === "MISSING" || sandboxStatus === "ERROR";
+  const isArchivedConversation = useIsArchivedConversation();
+
+  // Block sending in a resumed conversation that has no usable LLM, and show
+  // the same setup banner as the home screen so the dead end is explained.
+  const { isConfigured: isLlmConfigured, isLoading: isLlmConfigLoading } =
+    useLlmConfigured();
+  const llmBlocked = !isLlmConfigLoading && !isLlmConfigured;
 
   // Disable Build button while agent is running (streaming)
   const isAgentRunning =
@@ -315,7 +323,7 @@ export function ChatInterface() {
 
     skippedFiles.forEach((f) => displayErrorToast(f.reason));
 
-    const filePrompt = `${t("CHAT_INTERFACE$AUGMENTED_PROMPT_FILES_TITLE")}: ${uploadedFiles.join("\n\n")}`;
+    const filePrompt = `${t(I18nKey.CHAT_INTERFACE$AUGMENTED_PROMPT_FILES_TITLE)}: ${uploadedFiles.join("\n\n")}`;
     const prompt =
       uploadedFiles.length > 0 ? `${content}\n\n${filePrompt}` : content;
 
@@ -350,7 +358,7 @@ export function ChatInterface() {
       const sendErrorMessage =
         sendError instanceof Error
           ? sendError.message
-          : "Failed to send message";
+          : t(I18nKey.CHAT_INTERFACE$FAILED_TO_SEND_MESSAGE);
       markPendingMessageError(pendingId, sendErrorMessage);
     }
   };
@@ -450,7 +458,12 @@ export function ChatInterface() {
           !isChatLoading &&
           !isProvisioningTask &&
           totalEvents === 0 &&
-          !isArchivedConversation && (
+          !isArchivedConversation &&
+          // With no usable LLM the suggestions can't be acted on (the input is
+          // disabled). They're also a `pointer-events-auto` overlay that would
+          // sit over the LlmNotConfiguredBanner below and swallow clicks on its
+          // setup button — so hide them and let the banner be the lone CTA.
+          !llmBlocked && (
             <ChatSuggestions
               onSuggestionsClick={(message) => setMessageToSend(message)}
             />
@@ -520,7 +533,7 @@ export function ChatInterface() {
           <PendingUserMessages />
         </div>
 
-        <div className="flex shrink-0 flex-col gap-[6px]">
+        <div className="flex shrink-0 flex-col gap-[6px] pb-4">
           <BtwMessages conversationId={conversationId} />
           {errorMessage && (
             <ErrorMessageBanner
@@ -533,6 +546,8 @@ export function ChatInterface() {
               }
             />
           )}
+
+          {llmBlocked && !isArchivedConversation && <LlmNotConfiguredBanner />}
 
           {isArchivedConversation ? (
             // Archived / sandbox-error: show a read-only notice in place of
@@ -582,7 +597,7 @@ export function ChatInterface() {
 
               <InteractiveChatBox
                 onSubmit={handleSendMessage}
-                disabled={isNewConversationPending}
+                disabled={isNewConversationPending || llmBlocked}
               />
             </div>
           )}

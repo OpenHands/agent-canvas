@@ -46,7 +46,7 @@ export function BtwMessages({ conversationId }: BtwMessagesProps) {
                 {isPending && (
                   <span
                     data-testid="btw-spinner"
-                    className="inline-block w-3.5 h-3.5 ml-2 rounded-full border-2 border-[var(--oh-border-input)] border-t-transparent animate-spin"
+                    className="inline-block w-3.5 h-3.5 ml-2 rounded-full border-2 border-transparent border-t-[var(--oh-border-input)] animate-spin"
                   />
                 )}
               </span>

@@ -200,8 +200,8 @@ export function AppSettingsScreen() {
                 type="submit"
                 isDisabled={isPending || formIsClean}
               >
-                {!isPending && t("SETTINGS$SAVE_CHANGES")}
-                {isPending && t("SETTINGS$SAVING")}
+                {!isPending && t(I18nKey.SETTINGS$SAVE_CHANGES)}
+                {isPending && t(I18nKey.SETTINGS$SAVING)}
               </BrandButton>
             </div>
           </div>

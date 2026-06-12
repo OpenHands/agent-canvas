@@ -520,6 +520,37 @@ describe("BackendSelector", () => {
     ).not.toBeInTheDocument();
   });
 
+  it.each([
+    {
+      itemTestId: "add-backend-menu-item",
+      modalTestId: "add-backend-modal",
+    },
+    {
+      itemTestId: "manage-backends-menu-item",
+      modalTestId: "manage-backends-modal",
+    },
+  ])(
+    "opens $modalTestId from touch without bubbling to surrounding menus",
+    async ({ itemTestId, modalTestId }) => {
+      const outsideTouchEnd = vi.fn();
+
+      renderWithProviders(
+        <div onTouchEnd={outsideTouchEnd}>
+          <BackendSelector />
+        </div>,
+      );
+
+      await openDropdown();
+      const action = screen.getByTestId(itemTestId);
+
+      fireEvent.touchStart(action);
+      fireEvent.touchEnd(action);
+
+      expect(outsideTouchEnd).not.toHaveBeenCalled();
+      expect(await screen.findByTestId(modalTestId)).toBeInTheDocument();
+    },
+  );
+
   it("renders the backend footer actions and opens/closes the add modal", async () => {
     renderWithProviders(<BackendSelector />);
 

@@ -43,6 +43,11 @@ vi.mock("#/hooks/use-send-message", () => ({
 
 vi.mock("#/hooks/query/use-config");
 vi.mock("#/hooks/mutation/use-unified-upload-files");
+// Treat the LLM as configured by default so the "not configured" gate/banner
+// stays inert for these tests (its own behavior is covered elsewhere).
+vi.mock("#/hooks/use-llm-configured", () => ({
+  useLlmConfigured: () => ({ isConfigured: true, isLoading: false }),
+}));
 vi.mock("#/hooks/use-conversation-id", () => ({
   useConversationId: vi.fn(),
   useOptionalConversationId: vi.fn(),

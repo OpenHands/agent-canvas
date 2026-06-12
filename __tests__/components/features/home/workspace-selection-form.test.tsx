@@ -1,4 +1,10 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, vi, beforeEach, it } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -7,6 +13,7 @@ import {
   HOME_SELECTED_WORKSPACE_PATH_KEY,
   WorkspaceSelectionForm,
 } from "../../../../src/components/features/home/workspace-selection-form";
+import { WorkspaceDropdown } from "../../../../src/components/features/home/workspace-dropdown/workspace-dropdown";
 import WorkspacesService from "#/api/workspaces-service/workspaces-service.api";
 import { LocalWorkspace, LocalWorkspaceParent } from "#/types/workspace";
 
@@ -94,6 +101,59 @@ async function openWorkspaceDropdown(user: ReturnType<typeof userEvent.setup>) {
   await user.click(dropdown);
   return screen.findByTestId("workspace-dropdown-menu");
 }
+
+describe("WorkspaceDropdown", () => {
+  it.each([
+    {
+      testId: "add-workspaces-button",
+      expectedCallback: "add",
+    },
+    {
+      testId: "manage-workspaces-button",
+      expectedCallback: "manage",
+    },
+  ])(
+    "opens $expectedCallback workspace action from touch without bubbling",
+    async ({ testId, expectedCallback }) => {
+      const outsideTouchEnd = vi.fn();
+      const onAddClick = vi.fn();
+      const onManageClick = vi.fn();
+      const user = userEvent.setup();
+
+      render(
+        <div onTouchEnd={outsideTouchEnd}>
+          <WorkspaceDropdown
+            workspaces={[
+              {
+                id: "/Users/me/dev/repo1",
+                name: "repo1",
+                path: "/Users/me/dev/repo1",
+              },
+            ]}
+            value={null}
+            onChange={vi.fn()}
+            onAddClick={onAddClick}
+            onManageClick={onManageClick}
+          />
+        </div>,
+      );
+
+      await user.click(await screen.findByTestId("workspace-dropdown"));
+      const action = await screen.findByTestId(testId);
+
+      fireEvent.touchStart(action);
+      fireEvent.touchEnd(action);
+
+      expect(outsideTouchEnd).not.toHaveBeenCalled();
+      expect(onAddClick).toHaveBeenCalledTimes(
+        expectedCallback === "add" ? 1 : 0,
+      );
+      expect(onManageClick).toHaveBeenCalledTimes(
+        expectedCallback === "manage" ? 1 : 0,
+      );
+    },
+  );
+});
 
 describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
   beforeEach(() => {
@@ -274,6 +334,71 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     expect(addSpy).toHaveBeenCalledWith([
       { id: "/Users/me/dev", name: "dev", path: "/Users/me/dev" },
     ]);
+  });
+
+  it("auto-selects the newly added workspace after Add Workspace", async () => {
+    // Arrange: start with another workspace already selected, mirroring the
+    // repro in OpenHands/agent-canvas#1212.
+    const existingWorkspace = {
+      id: "/Users/me/dev/repo1",
+      name: "repo1",
+      path: "/Users/me/dev/repo1",
+    };
+    const addedWorkspace = {
+      id: "/Users/me/dev",
+      name: "dev",
+      path: "/Users/me/dev",
+    };
+    const addSpy = vi
+      .spyOn(WorkspacesService, "addWorkspaces")
+      .mockImplementation(async (items) => {
+        // Mimic the server: once added, the list endpoint includes the new
+        // workspace so the post-add refetch resolves it.
+        const workspaces = [existingWorkspace, ...items];
+        vi.spyOn(WorkspacesService, "listWorkspaces").mockResolvedValue({
+          workspaces,
+          workspaceParents: [],
+        });
+        return { workspaces, workspaceParents: [] };
+      });
+    mockSearchSubdirectories.mockImplementation(async (path: string) => {
+      if (path === "/Users/me") {
+        return {
+          items: [{ name: "dev", path: "/Users/me/dev" }],
+          next_page_id: null,
+        };
+      }
+      return { items: [], next_page_id: null };
+    });
+    renderForm({ workspaces: [existingWorkspace] });
+    const user = userEvent.setup();
+
+    const selectionMenu = await openWorkspaceDropdown(user);
+    await user.click(await within(selectionMenu).findByText("repo1"));
+    await waitFor(() =>
+      expect(
+        window.sessionStorage.getItem(HOME_SELECTED_WORKSPACE_PATH_KEY),
+      ).toBe(existingWorkspace.path),
+    );
+
+    // Act
+    await openWorkspaceDropdown(user);
+    await user.click(await screen.findByTestId("add-workspaces-button"));
+    await screen.findByTestId("folder-browser-modal");
+    await user.click(await screen.findByTestId("folder-browser-entry-dev"));
+    await user.click(screen.getByTestId("folder-browser-use"));
+
+    // Assert
+    await waitFor(() => expect(addSpy).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(screen.getByTestId("workspace-dropdown")).toHaveValue(
+        addedWorkspace.name,
+      ),
+    );
+    expect(
+      window.sessionStorage.getItem(HOME_SELECTED_WORKSPACE_PATH_KEY),
+    ).toBe(addedWorkspace.path);
+    expect(screen.getByTestId("workspace-launch-button")).not.toBeDisabled();
   });
 
   it("Remove Workspace dispatches removeWorkspace and clears the selected workspace", async () => {
