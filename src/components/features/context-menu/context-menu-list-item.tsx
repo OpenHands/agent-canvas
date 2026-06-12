@@ -1,4 +1,5 @@
 import { cn } from "#/utils/utils";
+import { dropdownMenuRowForegroundClassName } from "#/utils/dropdown-classes";
 
 interface ContextMenuListItemProps {
   testId?: string;
@@ -21,9 +22,8 @@ export function ContextMenuListItem({
       onClick={onClick}
       disabled={isDisabled}
       className={cn(
-        "group w-full cursor-pointer rounded px-2 py-2 text-start text-nowrap text-sm font-normal",
-        "text-[var(--oh-foreground)] hover:bg-[var(--oh-interactive-hover)]",
-        "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent",
+        dropdownMenuRowForegroundClassName,
+        "text-nowrap",
         className,
       )}
     >

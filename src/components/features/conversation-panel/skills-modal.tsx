@@ -5,7 +5,6 @@ import { ModalBody } from "#/components/shared/modals/modal-body";
 import { I18nKey } from "#/i18n/declaration";
 import { getAgentServerWorkingDir } from "#/api/agent-server-config";
 import { useConversationSkills } from "#/hooks/query/use-conversation-skills";
-import { AgentState } from "#/types/agent-state";
 import {
   groupSkillsByScope,
   SKILL_SCOPE_ORDER,
@@ -13,11 +12,9 @@ import {
 } from "#/utils/skill-scope";
 import { SkillsModalHeader } from "./skills-modal-header";
 import { SkillsModalSection } from "./skills-modal-section";
-import { SkillsRuntimeWaitingState } from "./skills-runtime-waiting-state";
 import { SkillsLoadingState } from "./skills-loading-state";
 import { SkillsEmptyState } from "./skills-empty-state";
 import { SkillItem } from "./skill-item";
-import { useAgentState } from "#/hooks/use-agent-state";
 
 interface SkillsModalProps {
   onClose: () => void;
@@ -31,7 +28,6 @@ const SECTION_TITLE_KEY: Record<SkillScope, I18nKey> = {
 
 export function SkillsModal({ onClose }: SkillsModalProps) {
   const { t } = useTranslation("openhands");
-  const { curAgentState } = useAgentState();
   const projectDir = getAgentServerWorkingDir();
   const [expandedAgents, setExpandedAgents] = useState<Record<string, boolean>>(
     {},
@@ -58,10 +54,6 @@ export function SkillsModal({ onClose }: SkillsModalProps) {
     }));
   };
 
-  const isAgentReady = ![AgentState.LOADING, AgentState.INIT].includes(
-    curAgentState,
-  );
-
   return (
     <ModalBackdrop onClose={onClose}>
       <ModalBody
@@ -77,9 +69,7 @@ export function SkillsModal({ onClose }: SkillsModalProps) {
         />
 
         <div className="w-full h-[60vh] overflow-auto rounded-md border border-[var(--oh-border)] bg-surface-raised custom-scrollbar-always">
-          {!isAgentReady ? (
-            <SkillsRuntimeWaitingState />
-          ) : isLoading ? (
+          {isLoading ? (
             <SkillsLoadingState />
           ) : isError || !skills || skills.length === 0 ? (
             <SkillsEmptyState isError={isError} />

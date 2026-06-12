@@ -131,7 +131,7 @@ function isMinorField(field: SettingsFieldSchema): boolean {
   return field.prominence === "minor";
 }
 
-function normalizeFieldValue(
+export function normalizeFieldValue(
   field: SettingsFieldSchema,
   rawValue: unknown,
 ): string | boolean {

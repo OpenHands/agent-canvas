@@ -17,4 +17,10 @@ export interface SystemPromptEvent extends BaseEvent {
    * List of tools in OpenAI tool format
    */
   tools: ChatCompletionToolParam[];
+
+  /**
+   * Runtime-injected context appended to the system message (datetime, skills,
+   * runtime services, secrets). Optional for older persisted events.
+   */
+  dynamic_context?: TextContent;
 }

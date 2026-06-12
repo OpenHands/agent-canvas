@@ -13,9 +13,9 @@ function getActiveCloudBackend(): Backend {
 
 /**
  * Batch-fetch cloud sandboxes by id. Mirrors OpenHands'
- * `SandboxService.batchGetSandboxes` — routes through the bundled
- * agent-server's cloud proxy and hits `GET /api/v1/sandboxes?id=...` on
- * the cloud backend, returning each `SandboxInfo` (or null if not found).
+ * `SandboxService.batchGetSandboxes` by calling
+ * `GET /api/v1/sandboxes?id=...` on the cloud backend, returning each
+ * `SandboxInfo` (or null if not found).
  *
  * The returned `SandboxInfo.exposed_urls` carry the cloud-computed,
  * publicly-reachable URLs for the sandbox's services (VSCODE,

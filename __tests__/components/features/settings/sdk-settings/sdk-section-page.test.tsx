@@ -6,7 +6,10 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import SettingsService from "#/api/settings-service/settings-service.api";
-import { SdkSectionPage } from "#/components/features/settings/sdk-settings/sdk-section-page";
+import {
+  SdkSectionPage,
+  type SdkSectionSaveControl,
+} from "#/components/features/settings/sdk-settings/sdk-section-page";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { Settings } from "#/types/settings";
 import * as ToastHandlers from "#/utils/custom-toast-handlers";
@@ -38,6 +41,13 @@ function buildSettings(overrides: Partial<Settings> = {}): Settings {
     agent_settings_schema:
       overrides.agent_settings_schema ??
       MOCK_DEFAULT_USER_SETTINGS.agent_settings_schema,
+    conversation_settings: {
+      ...MOCK_DEFAULT_USER_SETTINGS.conversation_settings,
+      ...overrides.conversation_settings,
+    },
+    conversation_settings_schema:
+      overrides.conversation_settings_schema ??
+      MOCK_DEFAULT_USER_SETTINGS.conversation_settings_schema,
   };
 }
 
@@ -154,7 +164,9 @@ describe("SdkSectionPage", () => {
     );
 
     renderSdkSectionPage({
-      sectionKeys: ["llm"],
+      settingsSources: [
+        { settingsSource: "agent_settings", sectionKeys: ["llm"] },
+      ],
       getInitialView: () => "advanced",
     });
 
@@ -222,7 +234,9 @@ describe("SdkSectionPage", () => {
 
       return (
         <SdkSectionPage
-          sectionKeys={["llm"]}
+          settingsSources={[
+            { settingsSource: "agent_settings", sectionKeys: ["llm"] },
+          ]}
           header={() => (
             <input
               data-testid="external-state-input"
@@ -236,7 +250,9 @@ describe("SdkSectionPage", () => {
 
     render(<Wrapper />, {
       wrapper: ({ children }) => (
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        <QueryClientProvider client={queryClient}>
+          {children}
+        </QueryClientProvider>
       ),
     });
 
@@ -247,7 +263,9 @@ describe("SdkSectionPage", () => {
     await userEvent.type(screen.getByTestId("external-state-input"), "a");
 
     await waitFor(() => {
-      expect(screen.getByTestId("sdk-settings-llm.base_url")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("sdk-settings-llm.base_url"),
+      ).toBeInTheDocument();
     });
   });
 
@@ -302,32 +320,46 @@ describe("SdkSectionPage", () => {
     const getSettingsSpy = vi
       .spyOn(SettingsService, "getSettings")
       .mockImplementation(async () => structuredClone(persistedSettings));
-    vi.spyOn(SettingsService, "saveSettings").mockImplementation(async (payload) => {
-      const agentSettings = payload.agent_settings_diff as Record<string, unknown>;
-      const llmSettings = (agentSettings.llm ?? {}) as Record<string, unknown>;
+    vi.spyOn(SettingsService, "saveSettings").mockImplementation(
+      async (payload) => {
+        const agentSettings = payload.agent_settings_diff as Record<
+          string,
+          unknown
+        >;
+        const llmSettings = (agentSettings.llm ?? {}) as Record<
+          string,
+          unknown
+        >;
 
-      persistedSettings = buildSettings({
-        agent_settings_schema: schema,
-        agent_settings: {
-          llm: {
-            endpoint:
-              typeof llmSettings.endpoint === "string"
-                ? llmSettings.endpoint
-                : "https://api.example.com",
+        persistedSettings = buildSettings({
+          agent_settings_schema: schema,
+          agent_settings: {
+            llm: {
+              endpoint:
+                typeof llmSettings.endpoint === "string"
+                  ? llmSettings.endpoint
+                  : "https://api.example.com",
+            },
           },
-        },
-      });
+        });
 
-      return true;
+        return true;
+      },
+    );
+
+    renderSdkSectionPage({
+      settingsSources: [
+        { settingsSource: "agent_settings", sectionKeys: ["llm"] },
+      ],
     });
-
-    renderSdkSectionPage({ sectionKeys: ["llm"] });
 
     await screen.findByTestId("sdk-section-advanced-toggle");
     await userEvent.click(screen.getByTestId("sdk-section-advanced-toggle"));
     await screen.findByTestId("sdk-settings-llm.api_version");
 
-    const endpointInput = await screen.findByTestId("sdk-settings-llm.endpoint");
+    const endpointInput = await screen.findByTestId(
+      "sdk-settings-llm.endpoint",
+    );
     await userEvent.clear(endpointInput);
     await userEvent.type(endpointInput, "https://api.changed.example.com");
     await userEvent.click(screen.getByTestId("save-button"));
@@ -394,32 +426,46 @@ describe("SdkSectionPage", () => {
     const getSettingsSpy = vi
       .spyOn(SettingsService, "getSettings")
       .mockImplementation(async () => structuredClone(persistedSettings));
-    vi.spyOn(SettingsService, "saveSettings").mockImplementation(async (payload) => {
-      const agentSettings = payload.agent_settings_diff as Record<string, unknown>;
-      const llmSettings = (agentSettings.llm ?? {}) as Record<string, unknown>;
+    vi.spyOn(SettingsService, "saveSettings").mockImplementation(
+      async (payload) => {
+        const agentSettings = payload.agent_settings_diff as Record<
+          string,
+          unknown
+        >;
+        const llmSettings = (agentSettings.llm ?? {}) as Record<
+          string,
+          unknown
+        >;
 
-      persistedSettings = buildSettings({
-        agent_settings_schema: schema,
-        agent_settings: {
-          llm: {
-            endpoint:
-              typeof llmSettings.endpoint === "string"
-                ? llmSettings.endpoint
-                : "https://api.example.com",
+        persistedSettings = buildSettings({
+          agent_settings_schema: schema,
+          agent_settings: {
+            llm: {
+              endpoint:
+                typeof llmSettings.endpoint === "string"
+                  ? llmSettings.endpoint
+                  : "https://api.example.com",
+            },
           },
-        },
-      });
+        });
 
-      return true;
+        return true;
+      },
+    );
+
+    renderSdkSectionPage({
+      settingsSources: [
+        { settingsSource: "agent_settings", sectionKeys: ["llm"] },
+      ],
     });
-
-    renderSdkSectionPage({ sectionKeys: ["llm"] });
 
     await screen.findByTestId("sdk-section-all-toggle");
     await userEvent.click(screen.getByTestId("sdk-section-all-toggle"));
     await screen.findByTestId("sdk-settings-llm.timeout");
 
-    const endpointInput = await screen.findByTestId("sdk-settings-llm.endpoint");
+    const endpointInput = await screen.findByTestId(
+      "sdk-settings-llm.endpoint",
+    );
     await userEvent.clear(endpointInput);
     await userEvent.type(endpointInput, "https://api.changed.example.com");
     await userEvent.click(screen.getByTestId("save-button"));
@@ -429,25 +475,32 @@ describe("SdkSectionPage", () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByTestId("sdk-settings-llm.timeout")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("sdk-settings-llm.timeout"),
+      ).not.toBeInTheDocument();
     });
   });
 
-
-
   it("shows the advanced toggle when it is forced for a critical-only schema", async () => {
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSavableSettings());
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSavableSettings(),
+    );
 
     renderSdkSectionPage({
-      sectionKeys: ["llm"],
+      settingsSources: [
+        { settingsSource: "agent_settings", sectionKeys: ["llm"] },
+      ],
       forceShowAdvancedView: true,
     });
 
     await screen.findByTestId("sdk-section-basic-toggle");
-    expect(screen.getByTestId("sdk-section-advanced-toggle")).toBeInTheDocument();
-    expect(screen.queryByTestId("sdk-section-all-toggle")).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("sdk-section-advanced-toggle"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("sdk-section-all-toggle"),
+    ).not.toBeInTheDocument();
   });
-
 
   it("shows the all toggle instead of an empty advanced tier for minor-only schemas", async () => {
     const schema: NonNullable<Settings["agent_settings_schema"]> = {
@@ -498,7 +551,11 @@ describe("SdkSectionPage", () => {
       }),
     );
 
-    renderSdkSectionPage({ sectionKeys: ["condenser"] });
+    renderSdkSectionPage({
+      settingsSources: [
+        { settingsSource: "agent_settings", sectionKeys: ["condenser"] },
+      ],
+    });
 
     await screen.findByTestId("sdk-section-basic-toggle");
     expect(
@@ -550,14 +607,18 @@ describe("SdkSectionPage", () => {
       buildSettings({
         agent_settings_schema: schema,
         agent_settings: {
-          "verification.critic_enabled": true,
-          "verification.critic_server_url": "https://critic.example.com",
+          verification: {
+            critic_enabled: true,
+            critic_server_url: "https://critic.example.com",
+          },
         },
       }),
     );
 
     renderSdkSectionPage({
-      sectionKeys: ["verification"],
+      settingsSources: [
+        { settingsSource: "agent_settings", sectionKeys: ["verification"] },
+      ],
       getInitialView: () => "all",
     });
 
@@ -576,7 +637,11 @@ describe("SdkSectionPage", () => {
       "displaySuccessToast",
     );
 
-    renderSdkSectionPage({ sectionKeys: ["llm"] });
+    renderSdkSectionPage({
+      settingsSources: [
+        { settingsSource: "agent_settings", sectionKeys: ["llm"] },
+      ],
+    });
 
     const endpointInput = await screen.findByTestId(
       "sdk-settings-llm.endpoint",
@@ -590,6 +655,113 @@ describe("SdkSectionPage", () => {
     });
   });
 
+  it("saves dirty fields from multiple settings sources into separate diffs", async () => {
+    const agentSchema: NonNullable<Settings["agent_settings_schema"]> = {
+      model_name: "AgentSettings",
+      sections: [
+        {
+          key: "verification",
+          label: "Verification",
+          fields: [
+            {
+              key: "verification.critic_enabled",
+              label: "Enable critic",
+              section: "verification",
+              section_label: "Verification",
+              value_type: "boolean",
+              default: false,
+              choices: [],
+              depends_on: [],
+              prominence: "critical",
+              secret: false,
+              required: false,
+            },
+          ],
+        },
+      ],
+    };
+    const conversationSchema: NonNullable<
+      Settings["conversation_settings_schema"]
+    > = {
+      model_name: "ConversationSettings",
+      sections: [
+        {
+          key: "verification",
+          label: "Verification",
+          fields: [
+            {
+              key: "confirmation_mode",
+              label: "Confirmation mode",
+              section: "verification",
+              section_label: "Verification",
+              value_type: "boolean",
+              default: false,
+              choices: [],
+              depends_on: [],
+              prominence: "critical",
+              secret: false,
+              required: false,
+            },
+          ],
+        },
+      ],
+    };
+
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings_schema: agentSchema,
+        conversation_settings_schema: conversationSchema,
+        agent_settings: {
+          verification: {
+            critic_enabled: false,
+          },
+        },
+        conversation_settings: {
+          confirmation_mode: false,
+        },
+      }),
+    );
+    const saveSettingsSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    renderSdkSectionPage({
+      settingsSources: [
+        {
+          settingsSource: "conversation_settings",
+          sectionKeys: ["verification"],
+        },
+        {
+          settingsSource: "agent_settings",
+          sectionKeys: ["verification"],
+        },
+      ],
+    });
+
+    const confirmationInput = await screen.findByTestId(
+      "sdk-settings-confirmation_mode",
+    );
+    const criticInput = await screen.findByTestId(
+      "sdk-settings-verification.critic_enabled",
+    );
+    await userEvent.click(confirmationInput.closest("label")!);
+    await userEvent.click(criticInput.closest("label")!);
+    await userEvent.click(screen.getByTestId("save-button"));
+
+    await waitFor(() => {
+      expect(saveSettingsSpy).toHaveBeenCalledWith({
+        conversation_settings_diff: {
+          confirmation_mode: true,
+        },
+        agent_settings_diff: {
+          verification: {
+            critic_enabled: true,
+          },
+        },
+      });
+    });
+  });
+
   it("shows an error toast when saving settings fails", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       buildSavableSettings(),
@@ -599,7 +771,11 @@ describe("SdkSectionPage", () => {
     );
     const displayErrorToastSpy = vi.spyOn(ToastHandlers, "displayErrorToast");
 
-    renderSdkSectionPage({ sectionKeys: ["llm"] });
+    renderSdkSectionPage({
+      settingsSources: [
+        { settingsSource: "agent_settings", sectionKeys: ["llm"] },
+      ],
+    });
 
     const endpointInput = await screen.findByTestId(
       "sdk-settings-llm.endpoint",
@@ -632,7 +808,11 @@ describe("SdkSectionPage", () => {
       buildSettings({ agent_settings_schema: malformedSchema }),
     );
 
-    renderSdkSectionPage({ sectionKeys: ["llm"] });
+    renderSdkSectionPage({
+      settingsSources: [
+        { settingsSource: "agent_settings", sectionKeys: ["llm"] },
+      ],
+    });
 
     expect(
       await screen.findByText("SETTINGS$SDK_SCHEMA_UNAVAILABLE"),
@@ -649,7 +829,9 @@ describe("SdkSectionPage", () => {
       .mockResolvedValue(true);
 
     renderSdkSectionPage({
-      sectionKeys: ["llm"],
+      settingsSources: [
+        { settingsSource: "agent_settings", sectionKeys: ["llm"] },
+      ],
       extraDirty: true,
       buildPayload: (payload) => ({
         ...payload,
@@ -663,6 +845,40 @@ describe("SdkSectionPage", () => {
       expect(saveSettingsSpy).toHaveBeenCalledWith(
         expect.objectContaining({ search_api_key: "external-search-key" }),
       );
+    });
+  });
+
+  it("exposes the active view and a coerced, dirty-only payload on the save control", async () => {
+    // Arrange — a basic-tier schema with a single editable field.
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSavableSettings(),
+    );
+    let latestControl: SdkSectionSaveControl | null = null;
+
+    renderSdkSectionPage({
+      settingsSources: [
+        { settingsSource: "agent_settings", sectionKeys: ["llm"] },
+      ],
+      onSaveControlChange: (control) => {
+        latestControl = control;
+      },
+    });
+
+    // Act — change one field so it becomes dirty.
+    const endpointInput = await screen.findByTestId(
+      "sdk-settings-llm.endpoint",
+    );
+    await userEvent.clear(endpointInput);
+    await userEvent.type(endpointInput, "https://new.example.com");
+
+    // Assert — the control reports the basic view and returns only the dirty
+    // field, nested under its section. Consumers (e.g. the local profile
+    // editor) rely on both to drive a custom save.
+    await waitFor(() => {
+      expect(latestControl?.view).toBe("basic");
+      expect(latestControl?.getDirtyPayload()).toEqual({
+        llm: { endpoint: "https://new.example.com" },
+      });
     });
   });
 });

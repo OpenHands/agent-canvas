@@ -23,8 +23,10 @@ describe("Automation MSW Handlers", () => {
       const data = await res.json();
 
       expect(res.status).toBe(200);
-      expect(data.automations).toHaveLength(5);
-      expect(data.total).toBe(5);
+      expect(data.automations).toHaveLength(
+        MOCK_AUTOMATIONS_RESPONSE.automations.length,
+      );
+      expect(data.total).toBe(MOCK_AUTOMATIONS_RESPONSE.total);
     });
 
     it("respects pagination parameters", async () => {

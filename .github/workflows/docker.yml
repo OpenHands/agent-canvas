@@ -98,22 +98,29 @@ jobs:
 
       - name: Compute metadata and tags
         id: prep
+        env:
+          AGENT_SERVER_IMAGE_INPUT: ${{ inputs.agent_server_image }}
+          DEFAULT_AGENT_SERVER_IMAGE: ${{ steps.config.outputs.default_agent_server_image }}
+          AUTOMATION_VERSION_INPUT: ${{ inputs.automation_version }}
+          DEFAULT_AUTOMATION_VERSION: ${{ steps.config.outputs.default_automation_version }}
+          POSTHOG_STAGING_KEY: ${{ vars.POSTHOG_STAGING_KEY }}
+          POSTHOG_PROD_KEY: ${{ vars.POSTHOG_PROD_KEY }}
         run: |
           SHORT_SHA=$(echo "$RELEVANT_SHA" | cut -c1-7)
           echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
 
           # Resolve agent-server base image (input override > config/defaults.json)
-          if [ -n "${{ inputs.agent_server_image }}" ]; then
-            echo "agent_server_image=${{ inputs.agent_server_image }}" >> "$GITHUB_OUTPUT"
+          if [ -n "$AGENT_SERVER_IMAGE_INPUT" ]; then
+            echo "agent_server_image=$AGENT_SERVER_IMAGE_INPUT" >> "$GITHUB_OUTPUT"
           else
-            echo "agent_server_image=${{ steps.config.outputs.default_agent_server_image }}" >> "$GITHUB_OUTPUT"
+            echo "agent_server_image=$DEFAULT_AGENT_SERVER_IMAGE" >> "$GITHUB_OUTPUT"
           fi
 
           # Resolve automation version (input override > config/defaults.json)
-          if [ -n "${{ inputs.automation_version }}" ]; then
-            echo "automation_version=${{ inputs.automation_version }}" >> "$GITHUB_OUTPUT"
+          if [ -n "$AUTOMATION_VERSION_INPUT" ]; then
+            echo "automation_version=$AUTOMATION_VERSION_INPUT" >> "$GITHUB_OUTPUT"
           else
-            echo "automation_version=${{ steps.config.outputs.default_automation_version }}" >> "$GITHUB_OUTPUT"
+            echo "automation_version=$DEFAULT_AUTOMATION_VERSION" >> "$GITHUB_OUTPUT"
           fi
 
           # Build arch-suffixed tags (e.g., sha-abc1234-amd64)
@@ -162,11 +169,15 @@ jobs:
 
           echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
 
-          # Use production PostHog key only for tagged releases
+          # Use the production PostHog config only for tagged releases;
+          # everything else (PR / main / local) uses staging. Both keys are
+          # public, client-side keys — not secrets — so they live in repo vars.
           if [[ "$RELEVANT_REF" == refs/tags/v* ]]; then
             echo "vite_app_env=production" >> "$GITHUB_OUTPUT"
+            echo "posthog_client_key=$POSTHOG_PROD_KEY" >> "$GITHUB_OUTPUT"
           else
             echo "vite_app_env=" >> "$GITHUB_OUTPUT"
+            echo "posthog_client_key=$POSTHOG_STAGING_KEY" >> "$GITHUB_OUTPUT"
           fi
 
           echo "=== Build outputs ==="
@@ -190,33 +201,40 @@ jobs:
             OPENHANDS_BUILD_GIT_SHA=${{ env.RELEVANT_SHA }}
             OPENHANDS_BUILD_GIT_REF=${{ env.RELEVANT_REF }}
             VITE_APP_ENV=${{ steps.prep.outputs.vite_app_env }}
+            VITE_POSTHOG_CLIENT_KEY=${{ steps.prep.outputs.posthog_client_key }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: true
           sbom: true
 
       - name: Summary (${{ matrix.arch }})
+        env:
+          TAGS: ${{ steps.prep.outputs.tags }}
         run: |
-          echo "Image: ${{ env.IMAGE }}"
+          echo "Image: $IMAGE"
           echo "Architecture: ${{ matrix.arch }}"
           echo "Platform: ${{ matrix.platform }}"
           echo "Short SHA: ${{ steps.prep.outputs.short_sha }}"
-          echo "Tags: ${{ steps.prep.outputs.tags }}"
+          echo "Tags: $TAGS"
           echo "Build digest: ${{ steps.build.outputs.digest }}"
 
       - name: Save build info for consolidation
+        env:
+          TAGS: ${{ steps.prep.outputs.tags }}
+          AGENT_SERVER_IMAGE: ${{ steps.prep.outputs.agent_server_image }}
+          AUTOMATION_VERSION: ${{ steps.prep.outputs.automation_version }}
         run: |
           mkdir -p build-info
           jq -n \
             --arg arch "${{ matrix.arch }}" \
-            --arg image "${{ env.IMAGE }}" \
+            --arg image "$IMAGE" \
             --arg short_sha "${{ steps.prep.outputs.short_sha }}" \
-            --arg tags "${{ steps.prep.outputs.tags }}" \
-            --arg agent_server_image "${{ steps.prep.outputs.agent_server_image }}" \
-            --arg automation_version "${{ steps.prep.outputs.automation_version }}" \
+            --arg tags "$TAGS" \
+            --arg agent_server_image "$AGENT_SERVER_IMAGE" \
+            --arg automation_version "$AUTOMATION_VERSION" \
             --arg platform "${{ matrix.platform }}" \
             --arg git_sha "${{ env.RELEVANT_SHA }}" \
-            --arg git_ref "${{ env.RELEVANT_REF }}" \
+            --arg git_ref "$RELEVANT_REF" \
             '{arch: $arch, image: $image, short_sha: $short_sha, tags: $tags, agent_server_image: $agent_server_image, automation_version: $automation_version, platform: $platform, git_sha: $git_sha, git_ref: $git_ref}' \
             > "build-info/${{ matrix.arch }}.json"
           cat "build-info/${{ matrix.arch }}.json"
@@ -330,7 +348,7 @@ jobs:
           # Save manifest info for consolidation
           mkdir -p manifest-info
           jq -n \
-            --arg image "${{ env.IMAGE }}" \
+            --arg image "$IMAGE" \
             --arg short_sha "$SHORT_SHA" \
             --arg manifest_tags "$MANIFEST_TAG_CSV" \
             '{image: $image, short_sha: $short_sha, manifest_tags: $manifest_tags}' \
@@ -459,8 +477,9 @@ jobs:
     steps:
       - name: Generate PR description from build summary
         id: generate_description
+        env:
+          BUILD_SUMMARY: ${{ needs.consolidate-build-info.outputs.build_summary }}
         run: |
-          BUILD_SUMMARY='${{ needs.consolidate-build-info.outputs.build_summary }}'
           echo "Build summary received:"
           echo "$BUILD_SUMMARY" | jq .
 

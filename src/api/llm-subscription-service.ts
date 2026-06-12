@@ -1,6 +1,12 @@
-import { LLMMetadataClient } from "@openhands/typescript-client/clients";
 import { getAgentServerClientOptions } from "./agent-server-client-options";
-import { OPENAI_SUBSCRIPTION_VENDOR } from "#/constants/llm-subscription";
+import {
+  OPENAI_SUBSCRIPTION_DEVICE_POLL_PATH,
+  OPENAI_SUBSCRIPTION_DEVICE_START_PATH,
+  OPENAI_SUBSCRIPTION_LOGOUT_PATH,
+  OPENAI_SUBSCRIPTION_MODELS_PATH,
+  OPENAI_SUBSCRIPTION_STATUS_PATH,
+  OPENAI_SUBSCRIPTION_VENDOR,
+} from "#/constants/llm-subscription";
 
 type RawSubscriptionStatus = Record<string, unknown>;
 type RawDeviceStart = Record<string, unknown>;
@@ -19,6 +25,10 @@ export interface LLMSubscriptionDeviceChallenge {
   verificationUriComplete: string | null;
   expiresAt: string | number | null;
   intervalSeconds: number | null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 const readString = (
@@ -60,15 +70,35 @@ const readBoolean = (
   return false;
 };
 
-async function withLlmClient<T>(
-  callback: (client: LLMMetadataClient) => Promise<T>,
-): Promise<T> {
-  const client = new LLMMetadataClient(getAgentServerClientOptions());
-  try {
-    return await callback(client);
-  } finally {
-    client.close();
+async function requestSubscriptionEndpoint(
+  path: string,
+  init: RequestInit = {},
+): Promise<unknown> {
+  const { host, apiKey } = getAgentServerClientOptions();
+  const headers = new Headers(init.headers);
+  headers.set("Accept", "application/json");
+  if (init.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
   }
+  if (apiKey) {
+    headers.set("X-Session-API-Key", apiKey);
+  }
+
+  const response = await fetch(`${host}${path}`, { ...init, headers });
+  if (!response.ok) {
+    throw new Error(`Subscription request failed with ${response.status}`);
+  }
+  return response.json();
+}
+
+function normalizeModels(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw.filter((item): item is string => typeof item === "string");
+  }
+  if (isRecord(raw) && Array.isArray(raw.models)) {
+    return raw.models.filter((item): item is string => typeof item === "string");
+  }
+  return [];
 }
 
 function normalizeStatus(raw: RawSubscriptionStatus): LLMSubscriptionStatus {
@@ -121,40 +151,46 @@ function normalizeDeviceChallenge(
 
 class LLMSubscriptionService {
   static async getOpenAIModels(): Promise<string[]> {
-    return withLlmClient(async (client) => {
-      return client.getOpenAISubscriptionModels();
-    });
+    const response = await requestSubscriptionEndpoint(
+      OPENAI_SUBSCRIPTION_MODELS_PATH,
+    );
+    return normalizeModels(response);
   }
 
   static async getOpenAIStatus(): Promise<LLMSubscriptionStatus> {
-    return withLlmClient(async (client) => {
-      const response = await client.getOpenAISubscriptionStatus();
-      return normalizeStatus(response as unknown as RawSubscriptionStatus);
-    });
+    const response = await requestSubscriptionEndpoint(
+      OPENAI_SUBSCRIPTION_STATUS_PATH,
+    );
+    return normalizeStatus(response as RawSubscriptionStatus);
   }
 
   static async startOpenAIDeviceLogin(): Promise<LLMSubscriptionDeviceChallenge> {
-    return withLlmClient(async (client) => {
-      const response = await client.startOpenAISubscriptionDeviceLogin();
-      return normalizeDeviceChallenge(response as unknown as RawDeviceStart);
-    });
+    const response = await requestSubscriptionEndpoint(
+      OPENAI_SUBSCRIPTION_DEVICE_START_PATH,
+      { method: "POST" },
+    );
+    return normalizeDeviceChallenge(response as RawDeviceStart);
   }
 
   static async pollOpenAIDeviceLogin(
     deviceCode: string,
   ): Promise<LLMSubscriptionStatus> {
-    return withLlmClient(async (client) => {
-      const response =
-        await client.pollOpenAISubscriptionDeviceLogin(deviceCode);
-      return normalizeStatus(response as unknown as RawSubscriptionStatus);
-    });
+    const response = await requestSubscriptionEndpoint(
+      OPENAI_SUBSCRIPTION_DEVICE_POLL_PATH,
+      {
+        method: "POST",
+        body: JSON.stringify({ device_code: deviceCode }),
+      },
+    );
+    return normalizeStatus(response as RawSubscriptionStatus);
   }
 
   static async logoutOpenAI(): Promise<LLMSubscriptionStatus> {
-    return withLlmClient(async (client) => {
-      const response = await client.logoutOpenAISubscription();
-      return normalizeStatus(response as unknown as RawSubscriptionStatus);
-    });
+    const response = await requestSubscriptionEndpoint(
+      OPENAI_SUBSCRIPTION_LOGOUT_PATH,
+      { method: "POST" },
+    );
+    return normalizeStatus(response as RawSubscriptionStatus);
   }
 }
 

@@ -14,12 +14,15 @@ import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
 import { useUpdateMcpServer } from "#/hooks/mutation/use-update-mcp-server";
 import { useDeleteMcpServer } from "#/hooks/mutation/use-delete-mcp-server";
 import { useTestMcpServer } from "#/hooks/mutation/use-test-mcp-server";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { MCPServerConfig } from "#/types/mcp-server";
 import {
   displayErrorToast,
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
+import { cn } from "#/utils/utils";
+import { modalTitleLgClassName } from "#/utils/modal-classes";
 
 interface CustomServerEditorProps {
   server: MCPServerConfig;
@@ -50,6 +53,13 @@ export function CustomServerEditor({
     reset: resetTest,
   } = useTestMcpServer();
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+
+  // The MCP connectivity-test endpoint only exists on the local agent-server.
+  // For cloud backends `McpService.testServer` short-circuits with a synthetic
+  // success so the save still completes; we hide the manual "Test connection"
+  // button here so cloud users aren't shown a misleading "0 tools" result.
+  const { backend } = useActiveBackend();
+  const isCloudBackend = backend.kind === "cloud";
 
   const isEditing = !!server.id;
   const isPending = isAdding || isUpdating || isDeleting;
@@ -148,7 +158,7 @@ export function CustomServerEditor({
             testId="mcp-custom-editor-close"
             disabled={isDismissBlocked}
           />
-          <h2 className="mb-4 pr-6 text-lg font-semibold">
+          <h2 className={cn("mb-4 pr-6", modalTitleLgClassName)}>
             {isEditing
               ? t(I18nKey.MCP$EDIT_CUSTOM_TITLE)
               : t(I18nKey.MCP$ADD_CUSTOM_TITLE)}
@@ -161,9 +171,9 @@ export function CustomServerEditor({
             onCancel={onClose}
             onDelete={isEditing ? () => setShowDeleteConfirm(true) : undefined}
             isActionDisabled={isPending}
-            onTest={handleTestClick}
+            onTest={isCloudBackend ? undefined : handleTestClick}
             isTestPending={isTesting}
-            testMessage={testMessage}
+            testMessage={isCloudBackend ? null : testMessage}
           />
         </div>
       </ModalBackdrop>

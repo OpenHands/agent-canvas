@@ -5,15 +5,34 @@ import { createUserMessageEvent } from "test-utils";
 import { ConversationWebSocketProvider } from "#/contexts/conversation-websocket-context";
 import { useEventStore } from "#/stores/use-event-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { useBrowserStore } from "#/stores/browser-store";
 import { useUserConversation } from "#/hooks/query/use-user-conversation";
 import EventService from "#/api/event-service/event-service.api";
+import { getStoredConversationMetadata } from "#/api/conversation-metadata-store";
 import type { MessageEvent } from "#/types/agent-server/core";
+
+// Captures the main socket's `onMessage` (`handleMainMessage`) so tests can
+// drive the live message path without a real WebSocket. Only the main socket
+// gets a non-empty url (planning stays ""), so url presence discriminates it.
+const wsCapture = vi.hoisted(() => ({
+  mainOnMessage: null as null | ((event: { data: string }) => void),
+}));
 
 // Keep the units under test real (the provider, `useConversationHistory`, the
 // event store). Only the network is stubbed: the WebSocket transport and the
 // REST service the history query depends on.
 vi.mock("#/hooks/use-websocket", () => ({
-  useWebSocket: vi.fn(() => ({ socket: null, reconnect: vi.fn() })),
+  useWebSocket: vi.fn(
+    (
+      url: string,
+      options?: { onMessage?: (event: { data: string }) => void },
+    ) => {
+      if (url && options?.onMessage) {
+        wsCapture.mainOnMessage = options.onMessage;
+      }
+      return { socket: null, reconnect: vi.fn() };
+    },
+  ),
 }));
 vi.mock("#/hooks/query/use-user-conversation", () => ({
   useUserConversation: vi.fn(),
@@ -51,6 +70,8 @@ describe("ConversationWebSocketProvider — conversation-scoped event store", ()
     );
 
   beforeEach(() => {
+    wsCapture.mainOnMessage = null;
+    window.localStorage.clear();
     queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
@@ -62,6 +83,7 @@ describe("ConversationWebSocketProvider — conversation-scoped event store", ()
       loadedConversationId: null,
     });
     useOptimisticUserMessageStore.setState({ pendingMessages: [] });
+    useBrowserStore.getState().reset();
 
     vi.mocked(useUserConversation).mockReturnValue({
       data: { conversation_url: "http://localhost/api", session_api_key: null },
@@ -79,6 +101,56 @@ describe("ConversationWebSocketProvider — conversation-scoped event store", ()
 
   afterEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
+  });
+
+  // A successful model switch the agent performed on its own (via the
+  // SwitchLLM tool), delivered over the main WebSocket.
+  const makeAgentSwitchObservation = (profileName: string) => ({
+    id: "evt-switch-1",
+    timestamp: new Date().toISOString(),
+    source: "environment",
+    action_id: "action-switch-1",
+    tool_name: "switch_llm",
+    tool_call_id: "call-switch-1",
+    observation: {
+      kind: "SwitchLLMObservation",
+      content: [{ type: "text", text: `Switched to ${profileName}` }],
+      is_error: false,
+      profile_name: profileName,
+      reason: null,
+      active_model: null,
+    },
+  });
+
+  it("stamps active_profile on a successful agent-triggered model switch so it survives reload", async () => {
+    // Arrange: open a conversation with a real ws url so the main socket's
+    // onMessage (handleMainMessage) is wired and captured.
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ConversationWebSocketProvider
+          conversationId="conv-switch"
+          conversationUrl="http://localhost/api"
+        >
+          <div />
+        </ConversationWebSocketProvider>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(wsCapture.mainOnMessage).not.toBeNull());
+
+    // Act: the agent switches to "fast-opus" via the SwitchLLM tool.
+    act(() => {
+      wsCapture.mainOnMessage!({
+        data: JSON.stringify(makeAgentSwitchObservation("fast-opus")),
+      });
+    });
+
+    // Assert: the profile identity is persisted to stored metadata — the same
+    // field the chat-header switcher reads after a reload (#1082). Without the
+    // stamp this stays null and the header falls back to ambiguous matching.
+    expect(getStoredConversationMetadata("conv-switch")?.active_profile).toBe(
+      "fast-opus",
+    );
   });
 
   it("clears the previous conversation's events when switching conversations", async () => {
@@ -100,6 +172,32 @@ describe("ConversationWebSocketProvider — conversation-scoped event store", ()
 
     // Assert: B's history replaced A's — A did not leak into B.
     await waitFor(() => expect(eventIds()).toEqual(["user-msg-conv-b"]));
+  });
+
+  it("resets browser-panel state when switching conversations", async () => {
+    const { rerender } = renderProvider("conv-a");
+    await waitFor(() => expect(eventIds()).toEqual(["user-msg-conv-a"]));
+
+    useBrowserStore.setState({
+      url: "https://example.com",
+      screenshotSrc: "data:image/png;base64,abc123",
+    });
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <ConversationWebSocketProvider
+          conversationId="conv-b"
+          conversationUrl={null}
+        >
+          <div />
+        </ConversationWebSocketProvider>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(useBrowserStore.getState().screenshotSrc).toBe(""),
+    );
+    expect(useBrowserStore.getState().url).toBe("");
   });
 
   it("keeps events that arrived after history when re-entering the same conversation", async () => {

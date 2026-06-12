@@ -14,21 +14,33 @@ For a static frontend build (better for slow networks, remote access, tunnels):
 npm run dev:static
 ```
 
+The published `agent-canvas` binary also supports partial-stack modes when you want to run the frontend and backend processes separately:
+
+```sh
+agent-canvas --frontend-only
+agent-canvas --backend-only
+```
+
+Both modes still start the ingress proxy; the proxy only routes to the services started by that mode.
+
 The dev stack uses `uvx` to run a temporary `agent-server`
 installation on `127.0.0.1:18000` and points the frontend at it. It isolates
 conversation persistence by setting separate `OH_CONVERSATIONS_PATH`,
 `OH_BASH_EVENTS_DIR`, and `OH_VSCODE_PORT` values under `.openhands-dev/`, and
-places tmux sockets under `/tmp` (via `TMUX_TMPDIR`) to avoid filesystem-support
-issues, so it does not collide with other local or cloud-backed OpenHands
-sessions.
+keeps its tmux sockets under `~/.openhands/agent-canvas/tmux` (via
+`TMUX_TMPDIR`), so it does not collide with other local or cloud-backed
+OpenHands sessions. If `$HOME` is on a filesystem that does not support Unix
+domain sockets (some devcontainers, NFS/CIFS homes), set the standard
+`TMUX_TMPDIR` env var to a local path such as `/tmp` and the dev stack will use
+it instead.
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PORT` | Ingress port | `8000` |
-| `OH_AUTOMATION_GIT_REF` | Git ref for automation backend | `main` |
-| `OH_AGENT_SERVER_GIT_REF` | Git ref for agent-server | `main` |
+| Variable                  | Description                    | Default |
+| ------------------------- | ------------------------------ | ------- |
+| `PORT`                    | Ingress port                   | `8000`  |
+| `OH_AUTOMATION_GIT_REF`   | Git ref for automation backend | `main`  |
+| `OH_AGENT_SERVER_GIT_REF` | Git ref for agent-server       | `main`  |
 
 ### Alternative: Minimal Mode (without Automation)
 
@@ -86,7 +98,7 @@ npm run dev:frontend
 
 The frontend-only workflow expects the backend at `127.0.0.1:8000` by default.
 
-If you start the backend with `SESSION_API_KEY` or `OH_SESSION_API_KEYS_0`, every `/api/*` route is authenticated with `X-Session-API-Key`. In that case the frontend must send the same key via `VITE_SESSION_API_KEY`.
+If you set `LOCAL_BACKEND_API_KEY`, it is used as the API key for the agent-server (mapped internally to `OH_SESSION_API_KEYS_0`). The launcher auto-generates and persists a key when `LOCAL_BACKEND_API_KEY` is not set.
 
 ### Mock mode
 
@@ -142,15 +154,14 @@ If you want Tailwind layout utilities on the inner themed container, pass `conte
 
 You can create a `.env` file in the project directory with these variables based on `.env.sample`.
 
-| Variable                    | Description                                                                        | Default Value          |
-| --------------------------- | ---------------------------------------------------------------------------------- | ---------------------- |
-| `VITE_BACKEND_BASE_URL`     | Full base URL for the agent server used by direct browser requests                 | current browser origin |
-| `VITE_BACKEND_HOST`         | Backend host used by the Vite dev proxy                                            | `127.0.0.1:8000`       |
-| `VITE_SESSION_API_KEY`      | Optional `X-Session-API-Key` header value for authenticated agent_server instances | -                      |
-| `VITE_WORKING_DIR`          | Workspace path sent when starting new conversations                                | `workspace/project`    |
-| `VITE_WORKER_URLS`          | Optional comma-separated worker/app URLs for the Browser tab                       | -                      |
-| `VITE_ENABLE_BROWSER_TOOLS` | Set to `false` to omit `BrowserToolSet` from new conversation payloads             | `true`                 |
-| `VITE_MOCK_API`             | Enable/disable API mocking with MSW                                                | `false`                |
-| `VITE_USE_TLS`              | Use HTTPS/WSS for the Vite proxy target                                            | `false`                |
-| `VITE_FRONTEND_PORT`        | Port to run the frontend application                                               | `3001`                 |
-| `VITE_INSECURE_SKIP_VERIFY` | Skip TLS certificate verification for proxied backend requests                     | `false`                |
+| Variable                    | Description                                                                               | Default Value          |
+| --------------------------- | ----------------------------------------------------------------------------------------- | ---------------------- |
+| `VITE_BACKEND_BASE_URL`     | Full base URL for the agent server used by direct browser requests                        | current browser origin |
+| `VITE_BACKEND_HOST`         | Backend host used by the Vite dev proxy                                                   | `127.0.0.1:8000`       |
+| `VITE_SESSION_API_KEY`      | (Internal) Session API key injected by the launcher — set `LOCAL_BACKEND_API_KEY` instead | -                      |
+| `VITE_WORKING_DIR`          | Workspace path sent when starting new conversations                                       | `workspace/project`    |
+| `VITE_ENABLE_BROWSER_TOOLS` | Set to `false` to omit `BrowserToolSet` from new conversation payloads                    | `true`                 |
+| `VITE_MOCK_API`             | Enable/disable API mocking with MSW                                                       | `false`                |
+| `VITE_USE_TLS`              | Use HTTPS/WSS for the Vite proxy target                                                   | `false`                |
+| `VITE_FRONTEND_PORT`        | Port to run the frontend application                                                      | `3001`                 |
+| `VITE_INSECURE_SKIP_VERIFY` | Skip TLS certificate verification for proxied backend requests                            | `false`                |

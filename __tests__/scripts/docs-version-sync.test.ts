@@ -22,37 +22,51 @@ function read(rel: string): string {
 }
 
 const config = JSON.parse(read("config/defaults.json")) as {
-  versions: { agentServer: string };
+  images: { agentCanvas: string };
+  versions: { agentServer: string; agentCanvas: string };
 };
-const v = config.versions.agentServer;
+const agentServerVersion = config.versions.agentServer;
+const dockerImage = `${config.images.agentCanvas}:${config.versions.agentCanvas}`;
 
 describe("docs/example references stay in sync with config/defaults.json", () => {
   it("AGENTS.md documents the current default version", () => {
     const agentsMd = read("AGENTS.md");
     expect(agentsMd).toContain(
-      `\`OH_AGENT_SERVER_VERSION\` — specific PyPI version (e.g., "${v}")`,
+      `\`OH_AGENT_SERVER_VERSION\` — specific PyPI version (e.g., "${agentServerVersion}")`,
     );
     expect(agentsMd).toContain(
-      `Default: released PyPI version \`${v}\` for agent-server SDK libraries`,
+      `Default: released PyPI version \`${agentServerVersion}\` for agent-server SDK libraries`,
     );
+  });
+
+  it("every README Docker image reference uses the pinned tag", () => {
+    const imageRefPattern = /ghcr\.io\/openhands\/agent-canvas:[^\s`"]+/g;
+
+    for (const file of ["README.md", "README.windows.md"]) {
+      const refs = read(file).match(imageRefPattern) ?? [];
+      expect(refs.length).toBeGreaterThan(0);
+      for (const ref of refs) {
+        expect(ref).toBe(dockerImage);
+      }
+    }
   });
 
   it("scripts/dev-safe.mjs JSDoc example matches the current default", () => {
     const devSafe = read("scripts/dev-safe.mjs");
     expect(devSafe).toContain(
-      `OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "${v}")`,
+      `OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "${agentServerVersion}")`,
     );
   });
 
   it("scripts/check-sdk-version-sync.mjs examples match the current default", () => {
     const src = read("scripts/check-sdk-version-sync.mjs");
-    expect(src).toContain(`EXPECTED_SDK_VERSION=${v}`);
-    expect(src).toContain(`"version": "${v}"`);
-    expect(src).toContain(`"openhands-sdk>=${v},<2.0.0"`);
-    expect(src).toContain(`"openhands-tools==${v}"`);
-    expect(src).toContain(`"openhands-workspace (>=${v})"`);
+    expect(src).toContain(`EXPECTED_SDK_VERSION=${agentServerVersion}`);
+    expect(src).toContain(`"version": "${agentServerVersion}"`);
+    expect(src).toContain(`"openhands-sdk>=${agentServerVersion},<2.0.0"`);
+    expect(src).toContain(`"openhands-tools==${agentServerVersion}"`);
+    expect(src).toContain(`"openhands-workspace (>=${agentServerVersion})"`);
     expect(src).toContain(
-      `">=${v}", "==${v}", "(>=${v})", "~=${v}"`,
+      `">=${agentServerVersion}", "==${agentServerVersion}", "(>=${agentServerVersion})", "~=${agentServerVersion}"`,
     );
   });
 });

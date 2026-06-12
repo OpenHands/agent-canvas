@@ -9,7 +9,8 @@
  *     --output  mock-llm-report.md \
  *     [--workflow-url <url>] \
  *     [--commit <sha>] \
- *     [--artifact-url <url>]
+ *     [--artifact-url <url>] \
+ *     [--new-files <comma-separated spec paths added in this PR>]
  */
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -51,10 +52,12 @@ function loadResults(path) {
   }
 }
 
-function collectTests(suites, parents = []) {
+function collectTests(suites, parents = [], parentFile = "") {
   const tests = [];
   for (const suite of suites ?? []) {
     const titles = [...parents, suite.title].filter(Boolean);
+    // Playwright's JSON reporter sets `file` on each suite/spec
+    const suiteFile = suite.file || parentFile;
     for (const spec of suite.specs ?? []) {
       for (const test of spec.tests ?? []) {
         const results = test.results ?? [];
@@ -65,6 +68,7 @@ function collectTests(suites, parents = []) {
         );
         tests.push({
           title: [...titles, spec.title].filter(Boolean).join(" › "),
+          file: spec.file || suiteFile,
           status: lastResult?.status ?? (spec.ok ? "passed" : "unknown"),
           durationMs: duration,
           retryCount: Math.max(0, results.length - 1),
@@ -72,7 +76,7 @@ function collectTests(suites, parents = []) {
         });
       }
     }
-    tests.push(...collectTests(suite.suites, titles));
+    tests.push(...collectTests(suite.suites, titles, suiteFile));
   }
   return tests;
 }
@@ -141,7 +145,15 @@ function overallIcon(status) {
 
 // ── Report rendering ───────────────────────────────────────────────────
 
-function renderReport({ tests, workflowUrl, commit, artifactUrl }) {
+function renderReport({
+  tests,
+  workflowUrl,
+  commit,
+  artifactUrl,
+  title,
+  newFiles,
+  markerMeta,
+}) {
   const status = overallStatus(tests);
   const icon = overallIcon(status);
   const passed = tests.filter((t) => t.status === "passed").length;
@@ -150,17 +162,43 @@ function renderReport({ tests, workflowUrl, commit, artifactUrl }) {
   ).length;
   const skipped = tests.filter((t) => t.status === "skipped").length;
   const total = tests.length;
+  const wasKilledMidSuite =
+    markerMeta?.status === "in_progress" && markerMeta.total > markerMeta.completed;
+
+  // Determine which tests are new (from newly added spec files).
+  // Playwright's JSON file paths are relative to testDir (e.g. "mock-llm-skills.spec.ts")
+  // while --new-files paths are repo-relative (e.g. "tests/e2e/mock-llm/mock-llm-skills.spec.ts").
+  // Match by basename or suffix in either direction.
+  const newFileSet = new Set(newFiles ?? []);
+  const basename = (p) => p.split("/").pop();
+  const isNewTest = (t) =>
+    newFileSet.size > 0 &&
+    t.file &&
+    [...newFileSet].some(
+      (nf) =>
+        t.file === nf ||
+        basename(t.file) === basename(nf) ||
+        nf.endsWith(`/${t.file}`) ||
+        t.file.endsWith(`/${nf}`),
+    );
+  const newCount = tests.filter(isNewTest).length;
 
   const lines = [];
 
-  // Header
-  lines.push(`## ${icon} Mock-LLM E2E Tests`);
+  // Header — use 🛑 when killed mid-suite so it's visually distinct
+  const headerIcon = wasKilledMidSuite ? "🛑" : icon;
+  lines.push(`## ${headerIcon} ${title || "Mock-LLM E2E Tests"}`);
   lines.push("");
 
   // Summary line
   const parts = [`**${passed}/${total} passed**`];
   if (failed) parts.push(`**${failed} failed**`);
   if (skipped) parts.push(`${skipped} skipped`);
+  if (newCount) parts.push(`🆕 ${newCount} new`);
+  if (wasKilledMidSuite) {
+    const notRun = markerMeta.total - markerMeta.completed;
+    parts.push(`⚠️ **${notRun} not run** (process killed at ${markerMeta.completed}/${markerMeta.total})`);
+  }
   lines.push(parts.join(" · "));
   lines.push("");
 
@@ -171,6 +209,25 @@ function renderReport({ tests, workflowUrl, commit, artifactUrl }) {
   if (artifactUrl) meta.push(`[Test artifacts](${artifactUrl})`);
   if (meta.length) {
     lines.push(meta.join(" · "));
+    lines.push("");
+  }
+
+  // New-tests callout (prominent, above the table)
+  if (newCount > 0) {
+    const newTests = tests.filter(isNewTest);
+    // Group new tests by spec file
+    const byFile = new Map();
+    for (const t of newTests) {
+      const key = t.file || "unknown";
+      if (!byFile.has(key)) byFile.set(key, []);
+      byFile.get(key).push(t);
+    }
+    lines.push(`> **🟢 ${newCount} new test${newCount === 1 ? "" : "s"} added in this PR**`);
+    for (const [file, fileTests] of byFile) {
+      for (const t of fileTests) {
+        lines.push(`> - ${statusIcon(t.status)} \`${file}\` › ${t.title.replace(/^.*› /, "")}`);
+      }
+    }
     lines.push("");
   }
 
@@ -223,16 +280,19 @@ const outputPath = args.output || "mock-llm-report.md";
 const data = loadResults(resultsPath);
 let tests = data ? collectTests(data.suites) : [];
 
-// When Playwright is killed during webServer teardown, the JSON reporter
-// never flushes results.json. Fall back to .results.json written by
-// DoneMarkerReporter (onTestEnd) which fires before teardown.
+// When Playwright is killed during webServer teardown (or mid-suite),
+// the JSON reporter never flushes results.json. Fall back to .results.json
+// written incrementally by DoneMarkerReporter after every onTestEnd().
+let markerMeta = null;
 if (!data || tests.length === 0) {
   const markerDir = args.marker_dir || ".mock-llm-markers";
   const markerResultsPath = `${markerDir}/.results.json`;
   const donePath = `${markerDir}/.tests-done`;
 
   if (existsSync(markerResultsPath)) {
-    // Rich results from DoneMarkerReporter — has per-test timing & errors
+    // Rich results from DoneMarkerReporter — has per-test timing & errors.
+    // May be partial (status: "in_progress") if the process was killed
+    // before all tests finished.
     const markerData = JSON.parse(readFileSync(markerResultsPath, "utf8"));
     tests = (markerData.tests ?? []).map((t) => ({
       title: t.title,
@@ -241,8 +301,13 @@ if (!data || tests.length === 0) {
       retryCount: 0,
       error: t.error ?? "",
     }));
+    markerMeta = {
+      status: markerData.status,
+      completed: markerData.completed ?? tests.length,
+      total: markerData.total ?? tests.length,
+    };
     console.log(
-      `No results.json; using marker results (${tests.length} tests, ${markerData.status})`,
+      `No results.json; using marker results (${tests.length} tests run, ${markerMeta.completed}/${markerMeta.total} completed, status: ${markerData.status})`,
     );
   } else if (existsSync(donePath)) {
     // Minimal fallback — just pass/fail status, no timing
@@ -263,17 +328,50 @@ if (!data || tests.length === 0) {
       },
     ];
   } else {
-    console.warn(
-      `Warning: no results file at ${resultsPath} and no marker files`,
-    );
+    // No results file AND no marker files — Playwright was likely killed
+    // before the DoneMarkerReporter could run. Check the exit code to
+    // distinguish a genuine timeout from other failures.
+    const exitCode = args.exit_code || "";
+    if (exitCode === "124") {
+      console.warn(
+        `Warning: test suite timed out (exit code 124) — no results were collected`,
+      );
+      tests = [
+        {
+          title: "(test suite timed out before completing)",
+          status: "timedOut",
+          durationMs: 0,
+          retryCount: 0,
+          error:
+            "The CI wrapper killed the Playwright process after the 5-minute deadline. " +
+            "No test results were collected. Check the workflow logs for details.",
+        },
+      ];
+    } else {
+      console.warn(
+        `Warning: no results file at ${resultsPath} and no marker files` +
+          (exitCode ? ` (exit code: ${exitCode})` : ""),
+      );
+    }
   }
 }
+
+// Parse --new-files: comma-separated list of spec file paths added in this PR
+const newFiles = args.new_files
+  ? args.new_files
+      .split(",")
+      .map((f) => f.trim())
+      .filter(Boolean)
+  : [];
 
 const report = renderReport({
   tests,
   workflowUrl: args.workflow_url || "",
   commit: args.commit || "",
   artifactUrl: args.artifact_url || "",
+  title: args.title || "",
+  newFiles,
+  markerMeta,
 });
 
 writeFileSync(outputPath, report);

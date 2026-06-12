@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  within,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import MCPPage from "#/routes/mcp";
 import SettingsService from "#/api/settings-service/settings-service.api";
@@ -89,11 +95,16 @@ describe("MCPPage", () => {
       expect(screen.getByTestId("mcp-install-modal")).toBeInTheDocument();
     });
     expect(
+      screen.getByTestId("mcp-install-field-command-readonly"),
+    ).toHaveValue("npx -y @zencoderai/slack-mcp-server");
+    expect(
       screen.getByTestId("mcp-install-field-SLACK_BOT_TOKEN"),
     ).toBeInTheDocument();
     expect(
       screen.getByTestId("mcp-install-field-SLACK_TEAM_ID"),
     ).toBeInTheDocument();
+    expect(screen.queryByTestId("mcp-install-field-url")).toBeNull();
+    expect(screen.queryByTestId("mcp-install-field-api_key")).toBeNull();
   });
 
   it("filters marketplace tiles by the search input", async () => {
@@ -182,7 +193,9 @@ describe("MCPPage", () => {
     fireEvent.click(screen.getByTestId("mcp-section-filter-library"));
 
     await waitFor(() => {
-      expect(screen.queryByTestId("mcp-installed-empty")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("mcp-installed-empty"),
+      ).not.toBeInTheDocument();
     });
     expect(screen.getByTestId("mcp-marketplace-section")).toBeInTheDocument();
   });
@@ -267,7 +280,7 @@ describe("MCPPage", () => {
     expect(sent.mcp_config).toBeNull();
   });
 
-  it("shows the catalog description and command line on installed server cards", async () => {
+  it("shows the catalog description and URL on installed server cards", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       buildSettings({
         agent_settings: {
@@ -275,16 +288,8 @@ describe("MCPPage", () => {
           mcp_config: {
             mcpServers: {
               github: {
-                command: "docker",
-                args: [
-                  "run",
-                  "-i",
-                  "--rm",
-                  "-e",
-                  "GITHUB_PERSONAL_ACCESS_TOKEN",
-                  "ghcr.io/github/github-mcp-server",
-                ],
-                env: { GITHUB_PERSONAL_ACCESS_TOKEN: "github_pat_test" },
+                url: "https://api.githubcopilot.com/mcp/",
+                auth: "github_pat_test",
               },
             },
           },
@@ -296,15 +301,13 @@ describe("MCPPage", () => {
 
     const card = await screen.findByTestId("mcp-server-item");
     expect(
-      within(card).getByTestId("mcp-server-description-stdio-0"),
+      within(card).getByTestId("mcp-server-description-shttp-0"),
     ).toHaveTextContent(
       "Search code, manage issues and pull requests, and inspect repos via the GitHub API.",
     );
     expect(
-      within(card).getByTestId("mcp-server-detail-stdio-0"),
-    ).toHaveTextContent(
-      "docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server",
-    );
+      within(card).getByTestId("mcp-server-detail-shttp-0"),
+    ).toHaveTextContent("https://api.githubcopilot.com/mcp/");
   });
 
   it("shows Tavily marketplace toggle as add-only when installed", async () => {
@@ -330,9 +333,10 @@ describe("MCPPage", () => {
     renderPage();
 
     await screen.findByTestId("mcp-marketplace-card-tavily");
-    expect(
-      screen.getByTestId("mcp-marketplace-toggle-tavily"),
-    ).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByTestId("mcp-marketplace-toggle-tavily")).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
     expect(screen.getByTestId("mcp-installed-list")).toBeInTheDocument();
   });
 
@@ -366,9 +370,10 @@ describe("MCPPage", () => {
     renderPage();
 
     const tile = await screen.findByTestId("mcp-marketplace-card-slack");
-    expect(
-      screen.getByTestId("mcp-marketplace-toggle-slack"),
-    ).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByTestId("mcp-marketplace-toggle-slack")).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
     fireEvent.click(tile);
 
     await screen.findByTestId("mcp-install-modal");
@@ -390,9 +395,8 @@ describe("MCPPage", () => {
       .agent_settings_diff as {
       mcp_config: { mcpServers: Record<string, unknown> };
     };
-    // The original Slack entry is preserved AND a second one is added
-    // alongside it (suffix-collided name comes from the per-base
-    // uniqueness logic in toSdkMcpConfig).
+    // The original Slack stdio entry is preserved and the new stdio
+    // install is suffixed rather than overwriting it.
     expect(Object.keys(sent.mcp_config.mcpServers).sort()).toEqual([
       "slack",
       "slack_1",

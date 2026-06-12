@@ -1,11 +1,20 @@
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, {
+  useState,
+  useCallback,
+  useMemo,
+  useEffect,
+  useRef,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { LlmProfilesManager } from "./llm-profiles-manager";
 import { ProfileNameInput } from "./profile-name-input";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { LlmSettingsScreen } from "#/routes/llm-settings";
 import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
+import { useActivateLlmProfile } from "#/hooks/mutation/use-activate-llm-profile";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
+import { useSettings } from "#/hooks/query/use-settings";
+import { useAgentSettingsSchema } from "#/hooks/query/use-agent-settings-schema";
 import ProfilesService, {
   ProfileInfo,
   type SaveProfileRequest,
@@ -20,7 +29,6 @@ import {
   isProfileNameValid,
 } from "#/utils/derive-profile-name";
 import { SdkSectionSaveControl } from "../sdk-settings/sdk-section-page";
-import { SettingsFormValues } from "#/utils/sdk-settings-schema";
 import {
   LLM_AUTH_TYPE_API_KEY,
   LLM_AUTH_TYPE_KEY,
@@ -29,7 +37,11 @@ import {
   OPENAI_SUBSCRIPTION_VENDOR,
   resolveLlmAuthType,
 } from "#/constants/llm-subscription";
-import { ArrowLeft } from "lucide-react";
+import {
+  normalizeFieldValue,
+  SettingsFormValues,
+} from "#/utils/sdk-settings-schema";
+import { BackNavButton } from "#/components/shared/buttons/back-nav-button";
 import { Typography } from "#/ui/typography";
 import { useSettingsSectionHeader } from "#/contexts/settings-section-header-context";
 
@@ -38,81 +50,27 @@ type ViewMode = "list" | "create" | "edit";
 interface EditingProfile {
   profile: ProfileInfo;
   initialValues: SettingsFormValues;
+  /**
+   * The profile's full LLM config (flat keys; `api_key` is the encrypted
+   * token). Used as the merge base on save so fields the user did not touch —
+   * including ones hidden in the current tab or absent from the schema — are
+   * preserved instead of being reset to LLM defaults by the full-replace save.
+   */
+  baseConfig: Record<string, unknown>;
 }
 
-interface BuildProfileLlmConfigOptions {
-  model: string;
-  apiKey: string;
-  baseUrl: string;
-  authType: string;
-  viewMode: ViewMode;
-  editingProfile: EditingProfile | null;
-}
-
-function readStringValue(values: SettingsFormValues, key: string) {
-  const value = values[key];
-  return typeof value === "string" ? value : "";
-}
-
-function buildProfileLlmConfig({
-  model,
-  apiKey,
-  baseUrl,
-  authType,
-  viewMode,
-  editingProfile,
-}: BuildProfileLlmConfigOptions): SaveProfileRequest["llm"] {
-  if (authType === LLM_AUTH_TYPE_SUBSCRIPTION) {
-    return {
-      model,
-      auth_type: LLM_AUTH_TYPE_SUBSCRIPTION,
-      subscription_vendor: OPENAI_SUBSCRIPTION_VENDOR,
-    } as SaveProfileRequest["llm"];
-  }
-
-  const llmConfig: Record<string, unknown> = {
-    model,
-    auth_type: LLM_AUTH_TYPE_API_KEY,
-  };
-  const existingApiKey = editingProfile?.initialValues["llm.api_key"];
-  const preservedApiKey = viewMode === "edit" ? existingApiKey : null;
-
-  if (apiKey) {
-    llmConfig.api_key = apiKey;
-  } else if (preservedApiKey) {
-    llmConfig.api_key = preservedApiKey;
-  }
-
-  if (baseUrl) {
-    llmConfig.base_url = baseUrl;
-  }
-
-  return llmConfig as SaveProfileRequest["llm"];
-}
-
-async function renameProfileIfNeeded(
-  originalName: string | undefined,
-  trimmedName: string,
-  viewMode: ViewMode,
-) {
-  const isRename =
-    viewMode === "edit" &&
-    Boolean(originalName) &&
-    originalName !== trimmedName;
-  if (isRename && originalName) {
-    await ProfilesService.renameProfile(originalName, trimmedName);
-  }
-  return isRename;
-}
-
-async function reactivateProfileIfNeeded(
-  profileName: string,
-  isRename: boolean,
-  wasActive: boolean,
-) {
-  if (isRename && wasActive) {
-    await ProfilesService.activateProfile(profileName);
-  }
+export function shouldReapplyProfileAfterSave({
+  activeProfileName,
+  originalName,
+  savedName,
+}: {
+  activeProfileName: string | null | undefined;
+  originalName: string | null | undefined;
+  savedName: string;
+}): boolean {
+  if (!activeProfileName) return false;
+  if (originalName) return activeProfileName === originalName;
+  return activeProfileName === savedName;
 }
 
 /**
@@ -129,7 +87,21 @@ export function LlmSettingsLocalView() {
   const { t } = useTranslation("openhands");
   const { setHideSectionHeader } = useSettingsSectionHeader();
   const saveProfile = useSaveLlmProfile();
+  const activateProfile = useActivateLlmProfile();
   const { data: profilesData } = useLlmProfiles();
+  const { data: settings } = useSettings();
+  const { data: agentSchema } = useAgentSettingsSchema(
+    settings?.agent_settings_schema,
+  );
+
+  // Always hold the freshest schema. `handleEditProfile` awaits a network
+  // round-trip before seeding the form, so reading the schema from a ref
+  // (rather than the value captured in the callback's closure) picks up a
+  // schema that finished loading during that await. This closes the brief
+  // first-load window where the schema is still pending when Edit is clicked
+  // and would otherwise seed only the three hard-coded keys.
+  const agentSchemaRef = useRef(agentSchema);
+  agentSchemaRef.current = agentSchema;
 
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [profileName, setProfileName] = useState("");
@@ -189,17 +161,41 @@ export function LlmSettingsLocalView() {
         // (NOT nested under a "llm" key)
         const config = (detail.config ?? {}) as Record<string, unknown>;
 
-        const initialValues: SettingsFormValues = {
-          "llm.model": (config.model as string) ?? "",
-          "llm.api_key": (config.api_key as string) ?? "",
-          "llm.base_url": (config.base_url as string) ?? "",
-          [LLM_AUTH_TYPE_KEY]: resolveLlmAuthType(config.auth_type),
-          [LLM_SUBSCRIPTION_VENDOR_KEY]:
-            (config.subscription_vendor as string) ??
-            OPENAI_SUBSCRIPTION_VENDOR,
-        };
+        // Seed every llm.* form field from the profile config so all tabs —
+        // including "All" — reflect the profile's real values rather than the
+        // active settings. Fields absent from the schema are still preserved
+        // on save via `baseConfig`. Read the schema from the ref so a schema
+        // that loaded during the `getProfile` await above is used.
+        const schema = agentSchemaRef.current;
+        const llmFields =
+          schema?.sections.find((section) => section.key === "llm")?.fields ??
+          [];
+        const initialValues: SettingsFormValues = {};
+        for (const field of llmFields) {
+          const flatKey = field.key.startsWith("llm.")
+            ? field.key.slice("llm.".length)
+            : field.key;
+          initialValues[field.key] = normalizeFieldValue(
+            field,
+            config[flatKey],
+          );
+        }
 
-        setEditingProfile({ profile, initialValues });
+        // Safety net for the specially-rendered keys when the schema is
+        // unavailable, so editing still works without it.
+        if (llmFields.length === 0) {
+          initialValues["llm.model"] = (config.model as string) ?? "";
+          initialValues["llm.api_key"] = (config.api_key as string) ?? "";
+          initialValues["llm.base_url"] = (config.base_url as string) ?? "";
+          initialValues[LLM_AUTH_TYPE_KEY] = resolveLlmAuthType(
+            config.auth_type,
+          );
+          initialValues[LLM_SUBSCRIPTION_VENDOR_KEY] =
+            (config.subscription_vendor as string) ??
+            OPENAI_SUBSCRIPTION_VENDOR;
+        }
+
+        setEditingProfile({ profile, initialValues, baseConfig: config });
         setProfileName(profile.name);
         setViewMode("edit");
       } catch (error) {
@@ -244,12 +240,65 @@ export function LlmSettingsLocalView() {
   const handleSave = useCallback(async () => {
     if (!saveControl || !isNameValid) return;
 
-    const values = saveControl.values;
-    const model = readStringValue(values, "llm.model");
-    const apiKey = readStringValue(values, "llm.api_key");
-    const baseUrl = readStringValue(values, "llm.base_url");
-    const authType = resolveLlmAuthType(values[LLM_AUTH_TYPE_KEY]);
+    // Coerced, dirty-only changes from the embedded form. Merging these over
+    // the profile's existing full config preserves fields the user did not
+    // touch (incl. ones hidden in the current tab or absent from the schema);
+    // the backend replaces the whole LLM object, so a partial payload would
+    // otherwise reset everything else to defaults.
+    let dirtyLlm: Record<string, unknown>;
+    try {
+      dirtyLlm = (saveControl.getDirtyPayload().llm ?? {}) as Record<
+        string,
+        unknown
+      >;
+    } catch (error) {
+      displayErrorToast(
+        error instanceof Error ? error.message : t(I18nKey.ERROR$GENERIC),
+      );
+      return;
+    }
 
+    const baseConfig =
+      viewMode === "edit" && editingProfile?.baseConfig
+        ? { ...editingProfile.baseConfig }
+        : {};
+    const llmConfig: Record<string, unknown> = { ...baseConfig, ...dirtyLlm };
+    const authType = resolveLlmAuthType(llmConfig.auth_type);
+
+    if (authType === LLM_AUTH_TYPE_SUBSCRIPTION) {
+      llmConfig.auth_type = LLM_AUTH_TYPE_SUBSCRIPTION;
+      llmConfig.subscription_vendor = OPENAI_SUBSCRIPTION_VENDOR;
+      delete llmConfig.api_key;
+      delete llmConfig.base_url;
+    } else {
+      llmConfig.auth_type = LLM_AUTH_TYPE_API_KEY;
+      llmConfig.subscription_vendor = null;
+
+      // The Basic tab has no base_url field. Provider defaults are handled by
+      // the backend, so drop stale custom values for every provider.
+      if (saveControl.view === "basic") {
+        delete llmConfig.base_url;
+      }
+
+      // API key handling: an empty value means "no change" (the UX doesn't
+      // support clearing a key). In edit mode preserve the existing encrypted
+      // key from the profile; in create mode omit api_key entirely. A newly
+      // typed key arrives in `dirtyLlm` and wins.
+      if (
+        typeof llmConfig.api_key !== "string" ||
+        llmConfig.api_key.trim() === ""
+      ) {
+        const existingKey =
+          typeof baseConfig.api_key === "string" ? baseConfig.api_key : "";
+        if (existingKey) {
+          llmConfig.api_key = existingKey;
+        } else {
+          delete llmConfig.api_key;
+        }
+      }
+    }
+
+    const model = typeof llmConfig.model === "string" ? llmConfig.model : "";
     if (!model) {
       displayErrorToast(t(I18nKey.SETTINGS$MODEL_REQUIRED));
       return;
@@ -257,33 +306,35 @@ export function LlmSettingsLocalView() {
 
     const trimmedName = profileName.trim();
     const originalName = editingProfile?.profile.name;
-    const wasActive = profilesData?.active_profile === originalName;
+    const isRename =
+      viewMode === "edit" && originalName && originalName !== trimmedName;
+    const shouldReapplyActiveProfile = shouldReapplyProfileAfterSave({
+      activeProfileName: profilesData?.active_profile,
+      originalName,
+      savedName: trimmedName,
+    });
 
     setIsSaving(true);
     try {
-      const renamed = await renameProfileIfNeeded(
-        originalName,
-        trimmedName,
-        viewMode,
-      );
-      const llmConfig = buildProfileLlmConfig({
-        model,
-        apiKey,
-        baseUrl,
-        authType,
-        viewMode,
-        editingProfile,
-      });
+      // If editing and name changed, rename the profile first
+      if (isRename) {
+        await ProfilesService.renameProfile(originalName, trimmedName);
+      }
 
       await saveProfile.mutateAsync({
         name: trimmedName,
         request: {
-          llm: llmConfig,
+          llm: llmConfig as SaveProfileRequest["llm"],
           include_secrets: true,
         },
       });
 
-      await reactivateProfileIfNeeded(trimmedName, renamed, wasActive);
+      // Conversation start uses agent_settings.llm, not the profile row
+      // directly. Re-applying an active profile keeps those settings in sync
+      // after editing or recreating a profile with the active profile name.
+      if (shouldReapplyActiveProfile) {
+        await activateProfile.mutateAsync(trimmedName);
+      }
 
       displaySuccessToast(
         viewMode === "create"
@@ -305,6 +356,7 @@ export function LlmSettingsLocalView() {
     editingProfile,
     profilesData?.active_profile,
     saveProfile,
+    activateProfile,
     t,
     handleBackToList,
   ]);
@@ -335,15 +387,9 @@ export function LlmSettingsLocalView() {
     <div className="flex flex-col gap-6">
       {/* Header with back button */}
       <div className="flex flex-col gap-2">
-        <button
-          type="button"
-          onClick={handleBackToList}
-          className="flex items-center gap-2 self-start rounded-lg p-2 text-[var(--oh-muted)] transition-colors hover:bg-tertiary hover:text-white"
-          data-testid="back-to-profiles"
-        >
-          <ArrowLeft size={20} aria-hidden />
-          <span className="text-sm leading-5">{t(I18nKey.BUTTON$BACK)}</span>
-        </button>
+        <BackNavButton testId="back-to-profiles" onClick={handleBackToList}>
+          {t(I18nKey.BUTTON$BACK)}
+        </BackNavButton>
         <Typography.H2 testId="profile-editor-title">
           {profileEditorTitle}
         </Typography.H2>
@@ -389,11 +435,11 @@ export function LlmSettingsLocalView() {
       />
 
       {/* Action buttons */}
-      <div className="flex justify-start gap-3 pt-4 border-t border-[var(--oh-border)]">
+      <div className="flex justify-start gap-3 pt-4">
         <BrandButton
           testId="cancel-profile-btn"
           type="button"
-          variant="tertiary"
+          variant="secondary"
           onClick={handleBackToList}
         >
           {t(I18nKey.BUTTON$CANCEL)}

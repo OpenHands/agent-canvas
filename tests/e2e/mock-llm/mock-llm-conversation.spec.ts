@@ -24,7 +24,7 @@ import {
   BASH_TOKEN,
   REPLY_TOKEN,
   waitForAgentMessageContaining,
-  MOCK_LLM_BASE_URL,
+  MOCK_LLM_AGENT_URL,
   BACKEND_URL,
   SESSION_API_KEY,
   seedLocalStorage,
@@ -37,6 +37,7 @@ import {
   waitForSuccessfulBashObservation,
   deleteConversation,
   resetMockLLM,
+  setChatInput,
 } from "./utils/mock-llm-helpers";
 
 const PROFILE_NAME = "mock-llm-e2e";
@@ -117,10 +118,12 @@ test.describe("mock-LLM agent-server conversation", () => {
     await modelInput.click();
     await modelInput.fill(MOCK_MODEL);
 
-    // Fill in base URL pointing to our mock server
+    // Fill in base URL pointing to our mock server.
+    // Use MOCK_LLM_AGENT_URL — the URL the agent-server will use for
+    // inference calls. In Docker this may differ from the host-local URL.
     const baseUrlInput = page.getByTestId("base-url-input");
     await baseUrlInput.click();
-    await baseUrlInput.fill(MOCK_LLM_BASE_URL);
+    await baseUrlInput.fill(MOCK_LLM_AGENT_URL);
 
     // Fill in a fake API key (mock server doesn't validate it)
     const apiKeyInput = page.getByTestId("llm-api-key-input");
@@ -170,35 +173,45 @@ test.describe("mock-LLM agent-server conversation", () => {
 
     // Open the actions menu for this profile
     await targetRow!.getByTestId("profile-menu-trigger").click();
+    await waitForTestId(page, "profile-actions-menu");
 
-    // Click "Set as active"
-    await page.getByTestId("profile-set-active").click();
-
-    // Verify the "Active" badge appears on our profile
-    // Re-find the row after the state change
-    await page.waitForTimeout(1_000); // wait for the mutation to settle
-
-    // Reload to see the persisted state
-    await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
-    await waitForTestId(page, "add-llm-profile");
-
-    const updatedRows = page.getByTestId("profile-row");
-    const updatedCount = await updatedRows.count();
-    let foundActiveBadge = false;
-
-    for (let i = 0; i < updatedCount; i++) {
-      const row = updatedRows.nth(i);
-      const text = await row.textContent();
-      if (text?.includes(PROFILE_NAME)) {
-        const badge = row.getByTestId("profile-active-badge");
-        foundActiveBadge = (await badge.count()) > 0;
-        break;
-      }
+    // Click "Set as active" — with client-side reconciliation
+    // (useEnsureActiveProfile) a freshly-created keyed profile may already be
+    // auto-activated, which disables this item. Only click when it isn't active
+    // yet; either way the badge poll below verifies the end state.
+    const setActive = page.getByTestId("profile-set-active");
+    if (await setActive.isEnabled()) {
+      await setActive.click();
+    } else {
+      await page.keyboard.press("Escape");
     }
-    expect(
-      foundActiveBadge,
-      `Profile "${PROFILE_NAME}" should have an "Active" badge`,
-    ).toBe(true);
+
+    // Verify the "Active" badge appears on our profile.
+    // Poll with reload instead of a fixed timeout — the mutation may take
+    // more than 1s to persist on a loaded CI runner.
+    await expect
+      .poll(
+        async () => {
+          await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
+          await waitForTestId(page, "add-llm-profile");
+          const rows = page.getByTestId("profile-row");
+          const count = await rows.count();
+          for (let i = 0; i < count; i++) {
+            const row = rows.nth(i);
+            const text = await row.textContent();
+            if (text?.includes(PROFILE_NAME)) {
+              return (await row.getByTestId("profile-active-badge").count()) > 0;
+            }
+          }
+          return false;
+        },
+        {
+          message: `Profile "${PROFILE_NAME}" should have an "Active" badge`,
+          timeout: 15_000,
+          intervals: [1_000, 2_000, 3_000],
+        },
+      )
+      .toBe(true);
 
     // Verify the settings API now reflects the activated profile's LLM config
     await test.step("verify settings API reflects the active profile's model", async () => {
@@ -219,8 +232,8 @@ test.describe("mock-LLM agent-server conversation", () => {
       const llmBaseUrl = settings?.agent_settings?.llm?.base_url;
       expect(
         llmBaseUrl,
-        `Expected settings llm.base_url="${MOCK_LLM_BASE_URL}" but got "${llmBaseUrl}"`,
-      ).toBe(MOCK_LLM_BASE_URL);
+        `Expected settings llm.base_url="${MOCK_LLM_AGENT_URL}" but got "${llmBaseUrl}"`,
+      ).toBe(MOCK_LLM_AGENT_URL);
     });
   });
 
@@ -235,23 +248,8 @@ test.describe("mock-LLM agent-server conversation", () => {
     // that wasn't fully consumed due to earlier failures.
     await resetMockLLM(request);
 
-    // Verify the mock LLM profile is active before creating a conversation.
-    // Steps 1+2 configure it via the UI; this API check ensures persistence.
-    await test.step("verify mock-llm profile is active via API", async () => {
-      const profilesResp = await request.get(`${BACKEND_URL}/api/profiles`, {
-        headers: { "X-Session-API-Key": SESSION_API_KEY },
-      });
-      expect(profilesResp.ok(), `GET /api/profiles returned ${profilesResp.status()}`).toBe(true);
-      const profiles = await profilesResp.json();
-      const activeProfile = profiles?.active_profile;
-      const profileNames = profiles?.profiles ? Object.keys(profiles.profiles) : [];
-      expect(
-        activeProfile,
-        `Expected active_profile="${PROFILE_NAME}" but got "${activeProfile}". ` +
-        `Available profiles: [${profileNames.join(", ")}]. ` +
-        `Full response: ${JSON.stringify(profiles).slice(0, 500)}`,
-      ).toBe(PROFILE_NAME);
-    });
+    // Steps 1+2 already configured and verified the profile via the UI
+    // (including the "Active" badge check). No API pre-check needed.
 
     // Passively observe POST /api/conversations to capture the request body.
     // Using page.on('request') instead of page.route() avoids conflicts with
@@ -288,24 +286,7 @@ test.describe("mock-LLM agent-server conversation", () => {
     // Keeping the tokens out of the user bubble lets us assert they appear
     // *only* in agent output.
 
-    // Set contenteditable text via evaluate (contentEditable divs don't
-    // respond reliably to Playwright's .fill() or .type()).
-    await page.evaluate(
-      ({ testId, text }) => {
-        const el = document.querySelector(`[data-testid="${testId}"]`);
-        if (!(el instanceof HTMLElement)) throw new Error("Chat input not found");
-        el.focus();
-        el.textContent = text;
-        el.dispatchEvent(
-          new InputEvent("input", {
-            bubbles: true,
-            data: text,
-            inputType: "insertText",
-          }),
-        );
-      },
-      { testId: "chat-input", text: USER_MESSAGE },
-    );
+    await setChatInput(page, USER_MESSAGE);
 
     // Click the submit button — this triggers conversation creation
     await page.getByTestId("submit-button").click();

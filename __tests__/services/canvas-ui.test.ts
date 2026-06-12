@@ -68,6 +68,14 @@ describe("handleCanvasUIAction", () => {
     }
   });
 
+  it("open_tab routes the removed vscode tab to files", () => {
+    handleCanvasUIAction(action({ command: "open_tab", tab: "vscode" }));
+
+    expect(useConversationStore.getState().selectedTab).toBe("files");
+    expect(useConversationStore.getState().isRightPanelShown).toBe(true);
+    expect(useFilesTabStore.getState().selectedPath).toBeNull();
+  });
+
   it("navigate_to_file leaves selectedPath alone when no path is supplied", () => {
     useFilesTabStore.setState({ selectedPath: "previous.txt" });
 

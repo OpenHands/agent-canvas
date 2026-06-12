@@ -1,5 +1,5 @@
-import { http, HttpResponse } from "msw";
 import type { MCPTestResponse } from "@openhands/typescript-client";
+import { http, HttpResponse } from "msw";
 
 /**
  * MSW handlers for the MCP API.
@@ -9,8 +9,7 @@ import type { MCPTestResponse } from "@openhands/typescript-client";
  * `CustomServerEditor` calls it before persisting the new server via the
  * existing settings PATCH. In mock mode there is no real MCP server to
  * connect to, so we return a deterministic success response so the install
- * flow can complete in both `npm run dev:mock` and the Playwright snapshot
- * tests.
+ * flow can complete in `npm run dev:mock`.
  */
 const MOCK_MCP_TEST_SUCCESS: MCPTestResponse = {
   ok: true,

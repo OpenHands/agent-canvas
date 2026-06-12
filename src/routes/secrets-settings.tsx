@@ -1,7 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import React, { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft } from "lucide-react";
+import { BackNavButton } from "#/components/shared/buttons/back-nav-button";
 import { useSearchSecrets } from "#/hooks/query/use-get-secrets";
 import { useDeleteSecret } from "#/hooks/mutation/use-delete-secret";
 import { SecretForm } from "#/components/features/settings/secrets-settings/secret-form";
@@ -20,6 +20,7 @@ import {
   settingsListTableHeadClassName,
   settingsListTableHeaderCellClassName,
 } from "#/utils/settings-list-classes";
+import { extensionModuleEmptyStateClassName } from "#/utils/extension-module-card-classes";
 
 export const handle = { hideTitle: true };
 
@@ -119,22 +120,16 @@ export function SecretsSettingsScreen() {
             onClick={() => setView("add-secret-form")}
             isDisabled={isLoadingSecrets}
           >
-            {t("SECRETS$ADD_NEW_SECRET")}
+            {t(I18nKey.SECRETS$ADD_NEW_SECRET)}
           </BrandButton>
         </div>
       ) : null}
 
       {isFormView ? (
         <div className="flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={handleBackToList}
-            className="flex items-center gap-2 self-start rounded-lg p-2 text-[var(--oh-muted)] transition-colors hover:bg-tertiary hover:text-white"
-            data-testid="back-to-secrets"
-          >
-            <ArrowLeft size={20} aria-hidden />
-            <span className="text-sm leading-5">{t(I18nKey.BUTTON$BACK)}</span>
-          </button>
+          <BackNavButton testId="back-to-secrets" onClick={handleBackToList}>
+            {t(I18nKey.BUTTON$BACK)}
+          </BackNavButton>
           <Typography.H2 testId="secret-editor-title">
             {formTitle}
           </Typography.H2>
@@ -149,7 +144,18 @@ export function SecretsSettingsScreen() {
         </ul>
       )}
 
-      {view === "list" && !isLoadingSecrets && (
+      {view === "list" && !isLoadingSecrets && secrets?.length === 0 && (
+        <div
+          data-testid="secrets-empty"
+          className={extensionModuleEmptyStateClassName}
+        >
+          <p className="text-sm text-[var(--oh-muted)]">
+            {t(I18nKey.SECRETS$EMPTY)}
+          </p>
+        </div>
+      )}
+
+      {view === "list" && !isLoadingSecrets && (secrets?.length ?? 0) > 0 && (
         <div
           ref={tableContainerRef}
           className={settingsListScrollContainerClassName}
@@ -215,7 +221,7 @@ export function SecretsSettingsScreen() {
 
       {confirmationModalIsVisible && (
         <ConfirmationModal
-          text={t("SECRETS$CONFIRM_DELETE_KEY")}
+          text={t(I18nKey.SECRETS$CONFIRM_DELETE_KEY)}
           onConfirm={onConfirmDeleteSecret}
           onCancel={onCancelDeleteSecret}
         />

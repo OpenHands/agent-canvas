@@ -9,6 +9,7 @@ import {
   getActiveBackend,
   getEffectiveLocalBackend,
 } from "../backend-registry/active-store";
+import { NoBackendAvailableError } from "../agent-server-client-options";
 import { callCloudProxy } from "../cloud/proxy";
 
 const AUTOMATION_BASE_PATH = "/api/automation";
@@ -34,6 +35,7 @@ localAutomationAxios.interceptors.request.use((config) => {
   // session key that scripts/static-server.mjs seeds into localStorage, fixing
   // the 401 errors reported in issue #829.
   const backend = getEffectiveLocalBackend();
+  if (!backend) throw new NoBackendAvailableError();
   // eslint-disable-next-line no-param-reassign
   if (!config.baseURL) config.baseURL = backend.host;
 
@@ -223,6 +225,8 @@ class AutomationService {
           backend: active,
           method: "GET",
           path,
+          // Fail fast, matching the local branch's 5s timeout below.
+          timeoutSeconds: 5,
         });
         return response;
       }

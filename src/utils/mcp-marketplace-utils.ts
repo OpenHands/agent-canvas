@@ -1,8 +1,125 @@
 import { MCPServerConfig } from "#/types/mcp-server";
 import type {
+  IntegrationAuthConfig,
   IntegrationCatalogEntry as MarketplaceEntry,
-  IntegrationTransport as MarketplaceTemplate,
+  IntegrationConnectionOption,
+  IntegrationTransport,
 } from "@openhands/extensions/integrations";
+
+export type { MarketplaceEntry };
+
+type McpIntegrationAuthConfig = IntegrationAuthConfig & {
+  credentialSecretName?: string;
+  saveCredentialAsSecretByDefault?: boolean;
+};
+
+export type McpMarketplaceConnectionOption = Omit<
+  IntegrationConnectionOption,
+  "auth" | "provider" | "transport"
+> & {
+  provider: "mcp";
+  transport: IntegrationTransport;
+  auth: McpIntegrationAuthConfig;
+};
+
+export function getMcpConnectionOptions(
+  entry: MarketplaceEntry,
+): McpMarketplaceConnectionOption[] {
+  return entry.connectionOptions.filter(
+    (option): option is McpMarketplaceConnectionOption =>
+      option.provider === "mcp" && !!option.transport,
+  );
+}
+
+export function getDefaultMcpConnectionOption(
+  entry: MarketplaceEntry,
+): McpMarketplaceConnectionOption | undefined {
+  const options = getMcpConnectionOptions(entry);
+  return (
+    options.find((option) => option.id === entry.defaultConnectionOptionId) ??
+    options[0]
+  );
+}
+
+function isLocallyInstallableMcpOption(
+  option: McpMarketplaceConnectionOption,
+): boolean {
+  // The local install modal writes static MCP server config. OAuth options
+  // describe hosted redirect flows, so prefer an API/stdio fallback when one
+  // exists and leave OAuth as the default connection for hosted integrations.
+  return option.auth.strategy !== "oauth2";
+}
+
+export function getInstallableMcpConnectionOption(
+  entry: MarketplaceEntry,
+): McpMarketplaceConnectionOption | undefined {
+  const options = getMcpConnectionOptions(entry);
+  const defaultOption = options.find(
+    (option) => option.id === entry.defaultConnectionOptionId,
+  );
+  if (defaultOption && isLocallyInstallableMcpOption(defaultOption)) {
+    return defaultOption;
+  }
+  return options.find(isLocallyInstallableMcpOption);
+}
+
+export function getDefaultMcpTransport(
+  entry: MarketplaceEntry,
+): IntegrationTransport | undefined {
+  return getDefaultMcpConnectionOption(entry)?.transport;
+}
+
+const LINEAR_DEPRECATED_SSE_URL = "https://mcp.linear.app/sse";
+const LINEAR_SHTTP_URL = "https://mcp.linear.app/mcp";
+const LINEAR_DOCS_URL = "https://linear.app/docs/mcp";
+
+/**
+ * Upstream @openhands/extensions still ships Linear's deprecated SSE
+ * transport (removed upstream on 2026-04-08; the /sse endpoint now
+ * rejects every call). Rewrite the entry to streamable HTTP at the
+ * /mcp replacement endpoint until the pinned dependency catches up.
+ *
+ * The /mcp endpoint authenticates via OAuth 2.1 or a Linear API key
+ * sent as "Authorization: Bearer <token>". This client has no
+ * interactive OAuth flow for MCP installs, so switch the auth
+ * strategy from "none" to "bearer" — the install modal then offers
+ * an (optional) API key field and the agent server forwards it as a
+ * Bearer header.
+ *
+ * Patches immutably — the imported catalog JSON is shared module
+ * state and must not be mutated.
+ */
+function patchLinearEntry(entry: MarketplaceEntry): MarketplaceEntry {
+  if (entry.id !== "linear") return entry;
+  return {
+    ...entry,
+    docsUrl: LINEAR_DOCS_URL,
+    installHint:
+      "Authenticate with a Linear API key (Linear → Settings → Security & access) — sent as a Bearer token. Optional when the endpoint accepts your OAuth session.",
+    connectionOptions: entry.connectionOptions.map((option) =>
+      option.transport?.kind === "sse" &&
+      urlsMatch(option.transport.url, LINEAR_DEPRECATED_SSE_URL)
+        ? {
+            ...option,
+            auth: { ...option.auth, strategy: "bearer" as const },
+            transport: {
+              kind: "shttp" as const,
+              url: LINEAR_SHTTP_URL,
+              apiKeyOptional: option.transport.apiKeyOptional,
+            },
+          }
+        : option,
+    ),
+  };
+}
+
+export function getMcpMarketplaceCatalog(
+  catalog: MarketplaceEntry[],
+): MarketplaceEntry[] {
+  return catalog
+    .map(patchLinearEntry)
+    .filter((entry) => !!getDefaultMcpConnectionOption(entry));
+}
 
 const tryUrl = (raw: string): URL | null => {
   try {
@@ -40,77 +157,50 @@ export function urlsMatch(a: unknown, b: unknown): boolean {
 }
 
 /**
- * Get the default transport template from an integration catalog entry.
- * Integrations may have multiple connection options; we use the default
- * one (or the first if no default is specified). Only MCP-backed options
- * have a `transport` field.
- */
-export function getDefaultTemplate(
-  entry: MarketplaceEntry,
-): MarketplaceTemplate | undefined {
-  const option =
-    entry.connectionOptions.find(
-      (o) => o.id === entry.defaultConnectionOptionId,
-    ) ?? entry.connectionOptions[0];
-  return option?.transport;
-}
-
-/**
- * Get the stdio (API key-based) transport template from an integration entry.
- * Many integrations have multiple connection options (e.g., OAuth + stdio).
- * Since OAuth isn't implemented in the UI yet, the install modal should use
- * this function to get the stdio-based option that can be configured with
- * API keys/tokens.
- *
- * Falls back to getDefaultTemplate if no stdio option exists.
- */
-export function getInstallableTemplate(
-  entry: MarketplaceEntry,
-): MarketplaceTemplate | undefined {
-  // First, try to find a stdio option (API key-based, what we can actually install)
-  const stdioOption = entry.connectionOptions.find(
-    (o) => o.transport?.kind === "stdio",
-  );
-  if (stdioOption?.transport) return stdioOption.transport;
-
-  // Fall back to the default template (could be shttp/sse with api_key)
-  return getDefaultTemplate(entry);
-}
-
-/**
  * Decide whether a marketplace template is already represented by one
  * of the installed MCP servers. Used to render an "Installed" badge on
  * the marketplace tile. Returns the first matching server, or null.
  */
 export function findInstalledMatch(
-  template: MarketplaceTemplate,
+  transport: IntegrationTransport,
   servers: MCPServerConfig[],
 ): MCPServerConfig | null {
-  if (template.kind === "shttp") {
-    const tplUrl = template.url;
-    if (!tplUrl) return null;
+  return (
+    servers.find((server) => transportMatchesServer(transport, server)) ?? null
+  );
+}
+
+export function findInstalledEntryMatch(
+  entry: MarketplaceEntry,
+  servers: MCPServerConfig[],
+): MCPServerConfig | null {
+  for (const option of getMcpConnectionOptions(entry)) {
+    const match = findInstalledMatch(option.transport, servers);
+    if (match) return match;
+  }
+  return null;
+}
+
+function transportMatchesServer(
+  transport: IntegrationTransport,
+  server: MCPServerConfig,
+): boolean {
+  if (transport.kind === "shttp") {
+    const tplUrl = transport.url;
     return (
-      servers.find(
-        (s) => s.type === "shttp" && !!s.url && urlsMatch(s.url, tplUrl),
-      ) ?? null
+      server.type === "shttp" && !!server.url && urlsMatch(server.url, tplUrl)
     );
   }
 
-  if (template.kind === "sse") {
-    const tplUrl = template.url;
-    if (!tplUrl) return null;
+  if (transport.kind === "sse") {
+    const tplUrl = transport.url;
     return (
-      servers.find(
-        (s) => s.type === "sse" && !!s.url && urlsMatch(s.url, tplUrl),
-      ) ?? null
+      server.type === "sse" && !!server.url && urlsMatch(server.url, tplUrl)
     );
   }
 
   // stdio: match on the registered server name.
-  return (
-    servers.find((s) => s.type === "stdio" && s.name === template.serverName) ??
-    null
-  );
+  return server.type === "stdio" && server.name === transport.serverName;
 }
 
 export function isMarketplaceEntryAvailable(
@@ -203,38 +293,17 @@ export function installedServerMatchesQuery(
  * Look up the catalog entry that best matches an installed server.
  * Mirrors the lookup used in `installed-server-card.tsx` for
  * rendering the friendly icon.
- *
- * Since an entry may have multiple connection options (e.g., OAuth + stdio),
- * we check ALL templates in the entry's connectionOptions, not just the default.
  */
 export function findCatalogEntryForServer(
   server: MCPServerConfig,
   catalog: MarketplaceEntry[],
 ): MarketplaceEntry | undefined {
   return catalog.find((entry) => {
-    // Check all connection options, not just the default
-    for (const option of entry.connectionOptions) {
-      const tpl = option.transport;
-      if (!tpl) continue;
-      if (tpl.kind === "stdio") {
-        if (server.type === "stdio" && server.name === tpl.serverName)
-          return true;
-      }
-      // Reuse the same loose URL match as `findInstalledMatch` so a
-      // server whose URL was normalized by the backend (trailing slash
-      // stripped, query string dropped, etc.) still gets paired with
-      // its catalog tile — otherwise the installed-servers list would
-      // render the generic icon while the marketplace shows the
-      // entry as installed, which is confusing.
-      if (tpl.kind === "shttp") {
-        if (server.type === "shttp" && urlsMatch(server.url, tpl.url))
-          return true;
-      }
-      if (tpl.kind === "sse") {
-        if (server.type === "sse" && urlsMatch(server.url, tpl.url))
-          return true;
-      }
-    }
-    return false;
+    // Check every MCP option rather than only the default. Some unified
+    // integration entries default to OAuth-hosted MCP while still exposing
+    // an API/stdio option; existing installed servers should match either.
+    return getMcpConnectionOptions(entry).some((option) =>
+      transportMatchesServer(option.transport, server),
+    );
   });
 }
