@@ -9,7 +9,10 @@ import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { SaveAsSecretToggle } from "#/components/features/mcp-page/save-as-secret-toggle";
 import { I18nKey } from "#/i18n/declaration";
-import type { IntegrationCatalogEntry as MarketplaceEntry } from "@openhands/extensions/integrations";
+import type {
+  IntegrationCatalogEntry as MarketplaceEntry,
+  MarketplaceField,
+} from "@openhands/extensions/integrations";
 import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
 import { MCPServerConfig } from "#/types/mcp-server";
 import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
@@ -100,6 +103,10 @@ function makeInitialState(entry: MarketplaceEntry): FieldState {
     }
   } else if (optionNeedsCredentialField(option)) {
     values.api_key = "";
+    if (option?.auth.credentialSecretName) {
+      savedAsSecret.api_key =
+        option.auth.saveCredentialAsSecretByDefault ?? false;
+    }
   }
   return { values, errors: {}, savedAsSecret };
 }
@@ -129,10 +136,11 @@ export function InstallServerModal({
   stateRef.current = state;
 
   const [globalError, setGlobalError] = React.useState<string | null>(null);
+  const [isFinalizingInstall, setIsFinalizingInstall] = React.useState(false);
   const option = getInstallableMcpConnectionOption(entry);
   const template = option?.transport;
 
-  const isPending = isTesting || isAdding;
+  const isPending = isTesting || isAdding || isFinalizingInstall;
 
   const setValue = (key: string, value: string) => {
     setState((prev) => ({
@@ -148,6 +156,39 @@ export function InstallServerModal({
       ...prev,
       savedAsSecret: { ...prev.savedAsSecret, [key]: value },
     }));
+  };
+
+  const saveHostedCredentialAsSecret = (): Promise<void> => {
+    const secretName = option?.auth.credentialSecretName;
+    const apiKey = stateRef.current.values.api_key?.trim();
+    if (!secretName || !apiKey || !stateRef.current.savedAsSecret.api_key) {
+      return Promise.resolve();
+    }
+
+    const field: MarketplaceField = {
+      key: secretName,
+      label: option.auth.credentialLabel ?? secretName,
+      type: "password",
+    };
+    return saveFieldsAsSecrets(
+      [field],
+      { [secretName]: apiKey },
+      { [secretName]: true },
+    );
+  };
+
+  const saveSelectedSecrets = (): Promise<void> => {
+    if (template?.kind === "stdio") {
+      return saveFieldsAsSecrets(
+        template.envFields ?? [],
+        stateRef.current.values,
+        stateRef.current.savedAsSecret,
+      );
+    }
+    if (template?.kind === "shttp" || template?.kind === "sse") {
+      return saveHostedCredentialAsSecret();
+    }
+    return Promise.resolve();
   };
 
   const makeTestErrorMessage = (failure: MCPTestFailure): string => {
@@ -172,20 +213,15 @@ export function InstallServerModal({
         addMcpServer(payload, {
           onSuccess: () => {
             displaySuccessToast(t(I18nKey.MCP$INSTALL_SUCCESS));
-            onSuccess?.(entry);
-            onClose();
-
-            // Save checked envFields as secrets in the background so the
-            // Automation Server can access them without a separate manual step.
-            // Runs after onClose so failures don't block the modal from closing.
-            // Uses stateRef.current to avoid reading a stale closure snapshot.
-            if (template?.kind === "stdio") {
-              saveFieldsAsSecrets(
-                template.envFields ?? [],
-                stateRef.current.values,
-                stateRef.current.savedAsSecret,
-              );
-            }
+            setIsFinalizingInstall(true);
+            void (async () => {
+              try {
+                await saveSelectedSecrets();
+              } finally {
+                onSuccess?.(entry);
+                onClose();
+              }
+            })();
           },
           onError: (err: unknown) => {
             const message = retrieveAxiosErrorMessage(err as AxiosError);
@@ -290,6 +326,7 @@ export function InstallServerModal({
     if (template?.kind === "shttp" || template?.kind === "sse") {
       const shouldRenderCredential = optionNeedsCredentialField(option);
       const apiKeyOptional = option ? isCredentialOptional(option) : false;
+      const credentialSecretName = option?.auth.credentialSecretName;
       return (
         <>
           <SettingsInput
@@ -308,16 +345,34 @@ export function InstallServerModal({
                 testId="mcp-install-field-api_key"
                 name="api_key"
                 type="password"
-                label={t(I18nKey.SETTINGS$MCP_API_KEY)}
+                label={
+                  option?.auth.credentialLabel ??
+                  t(I18nKey.SETTINGS$MCP_API_KEY)
+                }
                 value={state.values.api_key ?? ""}
                 onChange={(v) => setValue("api_key", v)}
-                placeholder={t(I18nKey.SETTINGS$MCP_API_KEY_PLACEHOLDER)}
+                placeholder={
+                  option?.auth.credentialPlaceholder ??
+                  t(I18nKey.SETTINGS$MCP_API_KEY_PLACEHOLDER)
+                }
                 showOptionalTag={apiKeyOptional}
                 required={!apiKeyOptional}
                 className="w-full"
               />
+              {option?.auth.credentialHelp && (
+                <p className="text-xs text-tertiary-alt">
+                  {renderHelperText(option.auth.credentialHelp)}
+                </p>
+              )}
               {state.errors.api_key && (
                 <p className="text-xs text-red-500">{state.errors.api_key}</p>
+              )}
+              {credentialSecretName && (
+                <SaveAsSecretToggle
+                  fieldKey={credentialSecretName}
+                  checked={state.savedAsSecret.api_key ?? false}
+                  onToggle={(v) => toggleSecret("api_key", v)}
+                />
               )}
             </div>
           ) : null}
@@ -453,6 +508,7 @@ export function InstallServerModal({
             variant="secondary"
             onClick={onClose}
             testId="mcp-install-cancel"
+            isDisabled={isPending}
           >
             {t(I18nKey.BUTTON$CANCEL)}
           </BrandButton>
@@ -464,7 +520,7 @@ export function InstallServerModal({
           >
             {isTesting
               ? t(I18nKey.MCP$VERIFYING)
-              : isAdding
+              : isAdding || isFinalizingInstall
                 ? t(I18nKey.SETTINGS$SAVING)
                 : t(I18nKey.MCP$INSTALL_BUTTON)}
           </BrandButton>
