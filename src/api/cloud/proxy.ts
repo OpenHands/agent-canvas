@@ -49,18 +49,6 @@ export interface CloudProxyRequest {
    * payload (e.g. ZIP downloads); leave undefined for default JSON.
    */
   responseType?: "blob";
-  /**
-   * Force this app-host call through the bundled agent-server's
-   * `/api/cloud-proxy` instead of calling the cloud host directly from the
-   * browser. App-host calls normally go direct because the main cloud API
-   * loosens CORS for bearer-token requests (ApiKeyAwareCORSMiddleware →
-   * `Access-Control-Allow-Origin: *`). The standalone automation service
-   * (`/api/automation/*`) uses a strict origin allowlist instead, so direct
-   * browser requests fail CORS preflight; the same-origin proxy hop avoids
-   * cross-origin entirely while attaching the same auth and `X-Org-Id`
-   * headers server-side.
-   */
-  forceProxy?: boolean;
 }
 
 function buildUpstreamAuthHeaders(
@@ -76,10 +64,9 @@ function buildUpstreamAuthHeaders(
 
 /**
  * Send a cloud request. App-host calls (`backend.host`) go directly to the
- * cloud API with the cloud backend's auth headers, unless `forceProxy` is
- * set. Runtime-sandbox calls pass `hostOverride`, and those still go through
- * `/api/cloud-proxy` because the per-conversation runtime hosts are not the
- * configured cloud app origin.
+ * cloud API with the cloud backend's auth headers. Runtime-sandbox calls
+ * pass `hostOverride`, and those go through `/api/cloud-proxy` because the
+ * per-conversation runtime hosts are not the configured cloud app origin.
  *
  * App-host auth headers are sent directly to the cloud host. Proxied auth
  * headers are carried in the proxy envelope and attached server-side.
@@ -106,7 +93,7 @@ export async function callCloudProxy<TResponse = unknown>(
   };
   const upstreamHost = req.hostOverride ?? req.backend.host;
 
-  if (!req.hostOverride && !req.forceProxy) {
+  if (!req.hostOverride) {
     const response = await axios.request<TResponse>({
       url: `${upstreamHost.replace(/\/+$/, "")}${req.path}`,
       method: req.method,
