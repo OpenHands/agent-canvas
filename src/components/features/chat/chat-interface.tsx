@@ -358,7 +358,7 @@ export function ChatInterface() {
       const sendErrorMessage =
         sendError instanceof Error
           ? sendError.message
-          : "Failed to send message";
+          : t(I18nKey.CHAT_INTERFACE$FAILED_TO_SEND_MESSAGE);
       markPendingMessageError(pendingId, sendErrorMessage);
     }
   };

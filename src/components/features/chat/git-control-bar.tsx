@@ -193,7 +193,9 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
           ).catch((error) => {
             if (!pendingId) return;
             const errorMessage =
-              error instanceof Error ? error.message : "Failed to send message";
+              error instanceof Error
+                ? error.message
+                : t(I18nKey.CHAT_INTERFACE$FAILED_TO_SEND_MESSAGE);
             markPendingMessageError(pendingId, errorMessage);
           });
         },
