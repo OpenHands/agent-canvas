@@ -37,7 +37,6 @@ if (args.includes("--info")) {
 Default stack versions:
   agent-server:    ${defaults.versions.agentServer}
   automation:      ${defaults.versions.automation}
-  automation-sdk:  ${defaults.versions.automationSdk}
 
 Default ports:
   ingress:         ${defaults.ports.proxy}
