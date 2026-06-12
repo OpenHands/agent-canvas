@@ -196,7 +196,7 @@ export function WorkspaceDropdown({
             placeholder:
               isOpen && value
                 ? value.name
-               : (placeholder ?? t(I18nKey.HOME$WORKSPACE_PLACEHOLDER)),
+                : (placeholder ?? t(I18nKey.HOME$WORKSPACE_PLACEHOLDER)),
             className: cn(
               formControlFieldClassName,
               "text-inherit shadow-none pl-7 pr-16 text-sm font-normal leading-5",
