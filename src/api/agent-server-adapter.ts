@@ -945,7 +945,7 @@ export function buildStartConversationRequest(
   // Every saved secret rides as a LookupSecret the agent-server resolves back
   // from its own store at spawn time — ``request.secrets`` is the sole channel,
   // uniform for ACP and non-ACP (agent-canvas#1039). For ACP the resolution
-  // runs off the event loop (software-agent-sdk#3510, ≥1.25.0), so the loopback
+  // runs off the event loop (software-agent-sdk#3510, >=1.25.0), so the loopback
   // fetch can't deadlock.
   if (options.customSecrets && options.customSecrets.length > 0) {
     const backend = getEffectiveLocalBackend();
