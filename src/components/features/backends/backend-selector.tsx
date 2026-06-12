@@ -250,11 +250,43 @@ export function BackendSelector({
   }, [onOpenManageBackends, onSelectOption]);
 
   const preventDropdownMenuClose = React.useCallback(
-    (event: React.MouseEvent<HTMLButtonElement>) => {
+    (event: React.SyntheticEvent<HTMLButtonElement>) => {
       event.preventDefault();
       event.stopPropagation();
     },
     [],
+  );
+
+  const handleAddBackendClick = React.useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      preventDropdownMenuClose(event);
+      openAddBackendModal();
+    },
+    [openAddBackendModal, preventDropdownMenuClose],
+  );
+
+  const handleAddBackendTouchEnd = React.useCallback(
+    (event: React.TouchEvent<HTMLButtonElement>) => {
+      preventDropdownMenuClose(event);
+      openAddBackendModal();
+    },
+    [openAddBackendModal, preventDropdownMenuClose],
+  );
+
+  const handleManageBackendsClick = React.useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      preventDropdownMenuClose(event);
+      openManageBackendsModal();
+    },
+    [openManageBackendsModal, preventDropdownMenuClose],
+  );
+
+  const handleManageBackendsTouchEnd = React.useCallback(
+    (event: React.TouchEvent<HTMLButtonElement>) => {
+      preventDropdownMenuClose(event);
+      openManageBackendsModal();
+    },
+    [openManageBackendsModal, preventDropdownMenuClose],
   );
 
   const addBackendFooter = (
@@ -263,7 +295,9 @@ export function BackendSelector({
         type="button"
         data-testid="add-backend-menu-item"
         onMouseDown={preventDropdownMenuClose}
-        onClick={openAddBackendModal}
+        onTouchStart={preventDropdownMenuClose}
+        onTouchEnd={handleAddBackendTouchEnd}
+        onClick={handleAddBackendClick}
         className={cn(
           dropdownFooterActionClassName,
           "cursor-pointer rounded-md",
@@ -278,7 +312,9 @@ export function BackendSelector({
         type="button"
         data-testid="manage-backends-menu-item"
         onMouseDown={preventDropdownMenuClose}
-        onClick={openManageBackendsModal}
+        onTouchStart={preventDropdownMenuClose}
+        onTouchEnd={handleManageBackendsTouchEnd}
+        onClick={handleManageBackendsClick}
         className={cn(
           dropdownFooterActionClassName,
           "cursor-pointer rounded-md",
