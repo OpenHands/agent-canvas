@@ -96,7 +96,9 @@ function normalizeModels(raw: unknown): string[] {
     return raw.filter((item): item is string => typeof item === "string");
   }
   if (isRecord(raw) && Array.isArray(raw.models)) {
-    return raw.models.filter((item): item is string => typeof item === "string");
+    return raw.models.filter(
+      (item): item is string => typeof item === "string",
+    );
   }
   return [];
 }
