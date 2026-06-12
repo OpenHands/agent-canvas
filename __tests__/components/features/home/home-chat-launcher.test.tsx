@@ -174,8 +174,27 @@ vi.mock("#/components/features/home/open-repository-dialog", () => ({
 // about for these tests. It's purely presentational once a selection is
 // confirmed, so a thin stub is sufficient.
 vi.mock("#/components/features/home/home-git-control-bar-preview", () => ({
-  HomeGitControlBarPreview: () => (
-    <div data-testid="stub-git-control-bar-preview" />
+  HomeGitControlBarPreview: ({
+    workspaceMode,
+    backendKind,
+    onWorkspaceModeChange,
+  }: {
+    workspaceMode: "local_repo" | "new_worktree";
+    backendKind: "local" | "cloud";
+    onWorkspaceModeChange: (mode: "local_repo" | "new_worktree") => void;
+  }) => (
+    <div data-testid="stub-git-control-bar-preview">
+      <span data-testid="stub-workspace-mode">
+        {backendKind}:{workspaceMode}
+      </span>
+      <button
+        type="button"
+        data-testid="stub-workspace-mode-new-worktree"
+        onClick={() => onWorkspaceModeChange("new_worktree")}
+      >
+        New Worktree
+      </button>
+    </div>
   ),
 }));
 
@@ -284,6 +303,7 @@ describe("HomeChatLauncher", () => {
       undefined,
       undefined,
       undefined,
+      undefined,
     );
     await waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith("/conversations/conv-abc"),
@@ -329,11 +349,52 @@ describe("HomeChatLauncher", () => {
       undefined,
       null,
       "/p/app",
+      "local_repo",
       undefined,
       undefined,
     );
     await waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith("/conversations/conv-ws"),
+    );
+  });
+
+  it("passes the picked workspace path with new-worktree mode when selected", async () => {
+    const createSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue(
+        makeConversationResponse({ app_conversation_id: "conv-wt" }),
+      );
+
+    renderLauncher();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("open-workspace-button"));
+    await user.click(
+      await screen.findByTestId("stub-workspace-dialog-confirm"),
+    );
+    expect(screen.getByTestId("stub-workspace-mode")).toHaveTextContent(
+      "local:local_repo",
+    );
+
+    await user.click(screen.getByTestId("stub-workspace-mode-new-worktree"));
+    expect(screen.getByTestId("stub-workspace-mode")).toHaveTextContent(
+      "local:new_worktree",
+    );
+    await user.click(screen.getByTestId("stub-chat-submit"));
+
+    await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+    expect(createSpy).toHaveBeenCalledWith(
+      "hello world",
+      undefined,
+      undefined,
+      null,
+      "/p/app",
+      "new_worktree",
+      undefined,
+      undefined,
+    );
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith("/conversations/conv-wt"),
     );
   });
 
@@ -386,6 +447,7 @@ describe("HomeChatLauncher", () => {
       undefined,
       undefined,
       undefined,
+      undefined,
     );
     await waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith("/conversations/conv-repo"),
@@ -408,6 +470,7 @@ describe("HomeChatLauncher", () => {
       undefined,
       undefined,
       null,
+      undefined,
       undefined,
       undefined,
       undefined,
@@ -488,6 +551,7 @@ describe("HomeChatLauncher", () => {
       undefined,
       undefined,
       null,
+      undefined,
       undefined,
       undefined,
       undefined,

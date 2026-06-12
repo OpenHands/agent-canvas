@@ -280,7 +280,7 @@ describe("MCPPage", () => {
     expect(sent.mcp_config).toBeNull();
   });
 
-  it("shows the catalog description and command line on installed server cards", async () => {
+  it("shows the catalog description and URL on installed server cards", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       buildSettings({
         agent_settings: {
@@ -288,16 +288,8 @@ describe("MCPPage", () => {
           mcp_config: {
             mcpServers: {
               github: {
-                command: "docker",
-                args: [
-                  "run",
-                  "-i",
-                  "--rm",
-                  "-e",
-                  "GITHUB_PERSONAL_ACCESS_TOKEN",
-                  "ghcr.io/github/github-mcp-server",
-                ],
-                env: { GITHUB_PERSONAL_ACCESS_TOKEN: "github_pat_test" },
+                url: "https://api.githubcopilot.com/mcp/",
+                auth: "github_pat_test",
               },
             },
           },
@@ -309,15 +301,13 @@ describe("MCPPage", () => {
 
     const card = await screen.findByTestId("mcp-server-item");
     expect(
-      within(card).getByTestId("mcp-server-description-stdio-0"),
+      within(card).getByTestId("mcp-server-description-shttp-0"),
     ).toHaveTextContent(
       "Search code, manage issues and pull requests, and inspect repos via the GitHub API.",
     );
     expect(
-      within(card).getByTestId("mcp-server-detail-stdio-0"),
-    ).toHaveTextContent(
-      "docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server",
-    );
+      within(card).getByTestId("mcp-server-detail-shttp-0"),
+    ).toHaveTextContent("https://api.githubcopilot.com/mcp/");
   });
 
   it("shows Tavily marketplace toggle as add-only when installed", async () => {

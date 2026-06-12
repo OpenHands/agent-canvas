@@ -6,10 +6,24 @@ import {
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
-import SkillsService from "#/api/skills-service";
 
-const { mockGetSkills } = vi.hoisted(() => ({
+const { mockGetSkills, MOCK_PUBLIC_CATALOG } = vi.hoisted(() => ({
   mockGetSkills: vi.fn(),
+  MOCK_PUBLIC_CATALOG: [
+    {
+      name: "mock-public-skill",
+      description: "A mock public skill",
+      triggers: ["mock"],
+      content: "mock content",
+    },
+    {
+      name: "another-public-skill",
+      description: "Another one",
+      triggers: [],
+      content: "more content",
+      license: "MIT",
+    },
+  ],
 }));
 
 vi.mock("@openhands/typescript-client/clients", () => ({
@@ -17,6 +31,12 @@ vi.mock("@openhands/typescript-client/clients", () => ({
     return { getSkills: mockGetSkills };
   }),
 }));
+
+vi.mock("@openhands/extensions/skills", () => ({
+  SKILLS_CATALOG: MOCK_PUBLIC_CATALOG,
+}));
+
+import SkillsService from "#/api/skills-service";
 
 const localBackend: Backend = {
   id: "local",
@@ -41,37 +61,49 @@ afterEach(() => {
 });
 
 describe("SkillsService.getSkills against the agent-server backend", () => {
-  it("requests load_public:true for the global Skills page even when VITE_LOAD_PUBLIC_SKILLS is unset, so a fresh dev env still shows the public catalog", async () => {
-    // Arrange: the dev-default scenario that shipped the empty Skills page —
-    // VITE_LOAD_PUBLIC_SKILLS is not set, so shouldLoadPublicSkills() would
-    // return false. The agent-server has one public skill it can return.
-    vi.stubEnv("VITE_LOAD_PUBLIC_SKILLS", "");
+  it("requests only user/project skills from agent-server (load_public: false) and appends the bundled public catalog", async () => {
+    const userSkill = {
+      name: "my-custom-skill",
+      type: "knowledge",
+      content: "custom content",
+      triggers: [],
+      source: "user",
+      is_agentskills_format: false,
+    };
     mockGetSkills.mockResolvedValue({
-      skills: [
-        {
-          name: "alpha",
-          type: "knowledge",
-          content: "...",
-          triggers: [],
-          source: "public",
-          is_agentskills_format: false,
-        },
-      ],
-      sources: { sandbox: 0, sdk_base: 1, org: 0, project: 0 },
+      skills: [userSkill],
+      sources: { sandbox: 0, sdk_base: 0, org: 0, project: 0 },
     });
 
-    // Act
     const skills = await SkillsService.getSkills();
 
-    // Assert: the request opts the user into public skills regardless of the
-    // perf-oriented VITE_LOAD_PUBLIC_SKILLS gate, and the page receives them.
+    // Agent-server is asked only for user/project skills, not public.
     expect(mockGetSkills).toHaveBeenCalledTimes(1);
     expect(mockGetSkills.mock.calls[0]?.[0]).toMatchObject({
-      load_public: true,
+      load_public: false,
       load_user: true,
       load_project: true,
       load_org: false,
     });
-    expect(skills.map((s) => s.name)).toEqual(["alpha"]);
+
+    // Result = local skills first, then all bundled public skills.
+    expect(skills[0]?.name).toBe("my-custom-skill");
+    expect(skills).toHaveLength(1 + MOCK_PUBLIC_CATALOG.length);
+
+    // Every public skill from the bundled catalog is present.
+    const publicNames = skills.slice(1).map((s) => s.name);
+    for (const entry of MOCK_PUBLIC_CATALOG) {
+      expect(publicNames).toContain(entry.name);
+    }
+    expect(skills.slice(1).every((s) => s.source === "public")).toBe(true);
+  });
+
+  it("returns only bundled public skills when agent-server is unreachable", async () => {
+    mockGetSkills.mockRejectedValue(new Error("ECONNREFUSED"));
+
+    const skills = await SkillsService.getSkills();
+
+    expect(skills).toHaveLength(MOCK_PUBLIC_CATALOG.length);
+    expect(skills.every((s) => s.source === "public")).toBe(true);
   });
 });

@@ -19,11 +19,8 @@
  *      working under the new profile.
  */
 
-import { test, expect, type APIRequestContext } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import {
-  BACKEND_URL,
-  SESSION_API_KEY,
-  MOCK_LLM_AGENT_URL,
   seedLocalStorage,
   routeSessionApiKey,
   dismissAnalyticsModal,
@@ -36,61 +33,17 @@ import {
   activateTrajectory,
   resetMockLLM,
   ensureMockLLMProfile,
+  createProfileViaUI,
+  deleteProfileIfExists,
   setChatInput,
 } from "./utils/mock-llm-helpers";
 
-/** Profile B is the switch target — created via the profiles API. */
+/** Profile B is the switch target — created via the Settings UI. */
 const PROFILE_B_NAME = "model-switch-profile-b";
 const MODEL_B = "openai/mock-model-beta";
 
 const INITIAL_REPLY_TOKEN = "MODEL_SWITCH_INITIAL_REPLY_OK";
 const POST_SWITCH_REPLY_TOKEN = "MODEL_SWITCH_POST_SWITCH_REPLY_OK";
-
-/**
- * Create (or overwrite) a named LLM profile via the agent-server profiles API.
- * Deletes first so setup is idempotent across re-runs — if a previous test
- * crashed before afterAll cleanup, the stale profile won't cause a 409.
- */
-async function saveProfile(
-  request: APIRequestContext,
-  name: string,
-  model: string,
-) {
-  // Best-effort delete so a leftover profile doesn't block creation.
-  await request.delete(
-    `${BACKEND_URL}/api/profiles/${encodeURIComponent(name)}`,
-    { headers: { "X-Session-API-Key": SESSION_API_KEY } },
-  );
-  const resp = await request.post(
-    `${BACKEND_URL}/api/profiles/${encodeURIComponent(name)}`,
-    {
-      headers: {
-        "X-Session-API-Key": SESSION_API_KEY,
-        "Content-Type": "application/json",
-      },
-      data: {
-        llm: {
-          model,
-          api_key: "mock-api-key-for-testing",
-          base_url: MOCK_LLM_AGENT_URL,
-        },
-        include_secrets: true,
-      },
-    },
-  );
-  expect(
-    resp.ok(),
-    `POST /api/profiles/${name} returned ${resp.status()}`,
-  ).toBe(true);
-}
-
-/** Delete a profile (best-effort cleanup). */
-async function deleteProfile(request: APIRequestContext, name: string) {
-  await request.delete(
-    `${BACKEND_URL}/api/profiles/${encodeURIComponent(name)}`,
-    { headers: { "X-Session-API-Key": SESSION_API_KEY } },
-  );
-}
 
 test.describe.configure({ mode: "serial" });
 
@@ -112,12 +65,20 @@ test.describe("mock-LLM /model slash command", () => {
     }
   });
 
-  test.afterAll(async ({ request }) => {
-    // Clean up the profile we created and reset mock LLM
+  test.afterAll(async ({ request, browser }) => {
+    // Best-effort cleanup via UI
+    const page = await browser.newPage();
     try {
-      await deleteProfile(request, PROFILE_B_NAME);
+      await seedLocalStorage(page);
+      await routeSessionApiKey(page);
+      await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
+      await dismissAnalyticsModal(page);
+      await waitForTestId(page, "add-llm-profile");
+      await deleteProfileIfExists(page, PROFILE_B_NAME);
     } catch {
       // best-effort
+    } finally {
+      await page.close();
     }
     try {
       await resetMockLLM(request);
@@ -136,20 +97,24 @@ test.describe("mock-LLM /model slash command", () => {
     // flow used by mock-llm-conversation.spec.ts.
     await ensureMockLLMProfile(page);
 
-    // Create profile B as the switch target — it has a different model name
-    // but the same mock LLM base_url so post-switch inference still works.
-    await saveProfile(request, PROFILE_B_NAME, MODEL_B);
+    // Create profile B as the switch target through the Settings UI — it has
+    // a different model name but the same mock LLM base_url so post-switch
+    // inference still works.
+    await routeSessionApiKey(page);
+    await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
+    await dismissAnalyticsModal(page);
+    await waitForTestId(page, "add-llm-profile");
 
-    // Verify profile B was created
-    const profilesResp = await request.get(`${BACKEND_URL}/api/profiles`, {
-      headers: { "X-Session-API-Key": SESSION_API_KEY },
-    });
-    expect(profilesResp.ok()).toBe(true);
-    const profiles = await profilesResp.json();
-    const profileNames: string[] = profiles.profiles.map(
-      (p: { name: string }) => p.name,
-    );
-    expect(profileNames).toContain(PROFILE_B_NAME);
+    await deleteProfileIfExists(page, PROFILE_B_NAME);
+    await createProfileViaUI(page, { profileName: PROFILE_B_NAME, model: MODEL_B });
+
+    // Verify profile B appears in the list
+    const profileRows = page.getByTestId("profile-row");
+    const profileTexts = await profileRows.allTextContents();
+    expect(
+      profileTexts.some((text) => text.includes(PROFILE_B_NAME)),
+      `Profile "${PROFILE_B_NAME}" should appear in the list`,
+    ).toBe(true);
 
     // Register a trajectory with THREE entries:
     //   Turn 0: padding — the agent-server makes an internal LLM call

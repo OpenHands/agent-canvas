@@ -40,7 +40,7 @@ export function GitRepoDropdown({
   provider,
   value,
   repositoryName,
-  placeholder = "Search repositories...",
+  placeholder,
   className,
   disabled = false,
   onChange,
@@ -290,7 +290,7 @@ export function GitRepoDropdown({
       <div className="group relative text-[var(--oh-muted)] hover:text-white">
         <div className="absolute left-2 top-1/2 transform -translate-y-1/2 z-10">
           {isLoadingState ? (
-            <div className="animate-spin h-4 w-4 border-2 border-white/20 border-t-white rounded-full" />
+            <div className="animate-spin h-4 w-4 border-2 border-transparent border-t-white rounded-full" />
           ) : (
             <RepoIcon width={16} height={16} />
           )}
@@ -298,7 +298,8 @@ export function GitRepoDropdown({
         <input
           {...getInputProps({
             disabled,
-            placeholder,
+            placeholder:
+              placeholder ?? t(I18nKey.COMMON$SEARCH_REPOSITORIES_PLACEHOLDER),
             className: cn(
               formControlFieldClassName,
               "text-inherit shadow-none pl-7 pr-16 text-sm font-normal leading-5",

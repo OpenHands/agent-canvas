@@ -569,7 +569,11 @@ function spawnService(name, command, args, options = {}) {
       .filter(Boolean)
       .forEach((line) => {
         const parsed = parseLogLine ? parseLogLine(line.trim()) : null;
-        logService(name, parsed ? parsed.text : line.trim(), parsed ? parsed.color : color);
+        logService(
+          name,
+          parsed ? parsed.text : line.trim(),
+          parsed ? parsed.color : color,
+        );
       });
   });
 
@@ -580,7 +584,11 @@ function spawnService(name, command, args, options = {}) {
       .filter(Boolean)
       .forEach((line) => {
         const parsed = parseLogLine ? parseLogLine(line.trim()) : null;
-        logService(name, parsed ? parsed.text : line.trim(), parsed ? parsed.color : c.yellow);
+        logService(
+          name,
+          parsed ? parsed.text : line.trim(),
+          parsed ? parsed.color : c.yellow,
+        );
       });
   });
 
@@ -1150,7 +1158,9 @@ function printBanner(config) {
       ? [`  Main UI:         http://localhost:${config.ingressPort}/`]
       : []),
     ...(config.launchAutomation
-      ? [`  API Docs:        http://localhost:${config.ingressPort}/api/automation/docs`]
+      ? [
+          `  API Docs:        http://localhost:${config.ingressPort}/api/automation/docs`,
+        ]
       : []),
     `  State directory: ${config.stateDir}`,
   ];

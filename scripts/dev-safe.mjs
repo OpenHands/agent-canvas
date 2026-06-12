@@ -36,32 +36,6 @@ const SHARED_DEFAULTS = JSON.parse(
   ),
 );
 
-/**
- * Extract the pinned commit SHA for @openhands/extensions from package.json.
- * Returns the 40-char hex SHA when the dependency is a git+https URL with a
- * commit hash fragment (e.g. "git+https://…#62594156…"), null otherwise.
- * @returns {string | null}
- */
-function getExtensionsRef() {
-  try {
-    const pkg = JSON.parse(
-      readFileSync(
-        path.join(__dev_safe_dirname, "..", "package.json"),
-        "utf-8",
-      ),
-    );
-    const url =
-      (pkg.dependencies ?? pkg.devDependencies ?? {})["@openhands/extensions"] ??
-      "";
-    return url.match(/#([0-9a-f]{40})$/i)?.[1] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-/** Pinned extensions commit SHA derived from package.json, or null if not pinned. */
-export const DEFAULT_EXTENSIONS_REF = getExtensionsRef();
-
 const DEFAULT_BACKEND_PORT = SHARED_DEFAULTS.ports.agentServer;
 const DEFAULT_VITE_PORT = 3001;
 const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
@@ -420,7 +394,7 @@ export function validateFrontendDependencies(
  *   edits are picked up without a manual reinstall. The agent-server itself
  *   is rebuilt from local source on each invocation (--reinstall).
  * - OH_AGENT_SERVER_GIT_REF: Git commit SHA or branch name
- * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.26.0")
+ * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.28.1")
  *
  * If none are set, defaults to the released version specified by
  * DEFAULT_AGENT_SERVER_VERSION. Set OH_AGENT_SERVER_GIT_REF to use a
@@ -737,13 +711,6 @@ export function buildAgentServerEnv(config) {
     // Make the host tools/ directory importable so the agent-server can
     // resolve modules listed in tool_module_qualnames (e.g. canvas_ui_tool).
     OH_EXTRA_PYTHON_PATH: config.canvasToolsDir,
-    // Tell the agent-server which extensions commit to use for the public
-    // skills catalog. Derived from the @openhands/extensions pin in
-    // package.json; the SDK skips network polling when it already has this
-    // SHA cached. Only injected when the caller has not already set it.
-    ...(DEFAULT_EXTENSIONS_REF && !process.env.EXTENSIONS_REF
-      ? { EXTENSIONS_REF: DEFAULT_EXTENSIONS_REF }
-      : {}),
   };
 }
 

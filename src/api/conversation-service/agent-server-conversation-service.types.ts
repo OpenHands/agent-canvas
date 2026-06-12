@@ -60,6 +60,11 @@ export interface SendMessageRequest {
 }
 
 export interface AppConversationStartRequest {
+  // Re-provision an EXISTING conversation (waking a recycled sandbox) instead
+  // of minting a new one. The backend keys the rebuilt conversation on this id
+  // and, for ACP, resumes it from the durable event store with a bootstrap
+  // prompt (OpenHands#14640). Omit/null to create a fresh conversation.
+  conversation_id?: string | null;
   initial_message?: SendMessageRequest | null;
   processors?: unknown[]; // EventCallbackProcessor - keeping as unknown for now
   llm_model?: string | null;
@@ -162,8 +167,8 @@ export interface AppConversation {
    * The local workspace the user explicitly attached when creating this
    * conversation. Client-side only — never round-tripped to the agent-server
    * or cloud. Null/undefined for conversations created via "No workspace".
-   * Distinct from `workspace.working_dir` (the per-conversation worktree path
-   * the runtime actually operates in).
+   * Distinct from `workspace.working_dir`, which is the runtime path and may
+   * either match this folder directly or point at a per-conversation worktree.
    */
   selected_workspace?: string | null;
   /**

@@ -99,32 +99,36 @@ describe("getInstallableMcpConnectionOption", () => {
   });
 
   it("returns undefined for an OAuth-only entry (no locally installable option)", () => {
-    const oauthOnlyEntry: Parameters<typeof getInstallableMcpConnectionOption>[0] =
-      {
-        ...slackEntry,
-        id: "oauth-only",
-        defaultConnectionOptionId: "oauth",
-        connectionOptions: [
-          {
-            id: "oauth",
-            provider: "mcp",
-            auth: { strategy: "oauth2" },
-            transport: { kind: "shttp", url: "https://example.com/mcp" },
-          } as Parameters<typeof getInstallableMcpConnectionOption>[0]["connectionOptions"][number],
-        ],
-      };
+    const oauthOnlyEntry: Parameters<
+      typeof getInstallableMcpConnectionOption
+    >[0] = {
+      ...slackEntry,
+      id: "oauth-only",
+      defaultConnectionOptionId: "oauth",
+      connectionOptions: [
+        {
+          id: "oauth",
+          provider: "mcp",
+          auth: { strategy: "oauth2" },
+          transport: { kind: "shttp", url: "https://example.com/mcp" },
+        } as Parameters<
+          typeof getInstallableMcpConnectionOption
+        >[0]["connectionOptions"][number],
+      ],
+    };
     const option = getInstallableMcpConnectionOption(oauthOnlyEntry);
     expect(option).toBeUndefined();
   });
 
   it("returns undefined when the entry has no MCP connection options", () => {
-    const noOptionsEntry: Parameters<typeof getInstallableMcpConnectionOption>[0] =
-      {
-        ...slackEntry,
-        id: "no-mcp",
-        defaultConnectionOptionId: undefined,
-        connectionOptions: [],
-      };
+    const noOptionsEntry: Parameters<
+      typeof getInstallableMcpConnectionOption
+    >[0] = {
+      ...slackEntry,
+      id: "no-mcp",
+      defaultConnectionOptionId: undefined,
+      connectionOptions: [],
+    };
     const option = getInstallableMcpConnectionOption(noOptionsEntry);
     expect(option).toBeUndefined();
   });
@@ -252,5 +256,40 @@ describe("findCatalogEntryForServer", () => {
       mcpMarketplace,
     );
     expect(match?.id).toBe("linear");
+  });
+});
+
+describe("GitHub hosted MCP entry", () => {
+  function getGitHubTransport(
+    catalog: ReturnType<typeof getMcpMarketplaceCatalog>,
+  ) {
+    const github = catalog.find((e) => e.id === "github");
+    expect(github).toBeDefined();
+    const transport = getDefaultMcpTransport(github!);
+    expect(transport?.kind).toBe("shttp");
+    if (transport?.kind !== "shttp") throw new Error("expected shttp");
+    return transport;
+  }
+
+  it("uses GitHub's hosted streamable HTTP endpoint", () => {
+    const transport = getGitHubTransport(
+      getMcpMarketplaceCatalog(MCP_MARKETPLACE),
+    );
+    expect(transport.url).toBe("https://api.githubcopilot.com/mcp/");
+  });
+
+  it("matches installed hosted GitHub servers by URL", () => {
+    const github = getMcpMarketplaceCatalog(MCP_MARKETPLACE).find(
+      (e) => e.id === "github",
+    )!;
+    const match = findCatalogEntryForServer(
+      {
+        id: "shttp-0",
+        type: "shttp",
+        url: "https://api.githubcopilot.com/mcp/",
+      },
+      [github],
+    );
+    expect(match?.id).toBe("github");
   });
 });

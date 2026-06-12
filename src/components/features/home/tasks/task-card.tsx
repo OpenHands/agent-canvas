@@ -6,14 +6,15 @@ import { TaskIssueNumber } from "./task-issue-number";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { useNavigation } from "#/context/navigation-context";
 import { cn } from "#/utils/utils";
+import { I18nKey } from "#/i18n/declaration";
 
 const getTaskTypeMap = (
   t: (key: string) => string,
 ): Record<SuggestedTask["task_type"], string> => ({
-  FAILING_CHECKS: t("HOME$FIX_FAILING_CHECKS"),
-  MERGE_CONFLICTS: t("HOME$RESOLVE_MERGE_CONFLICTS"),
-  OPEN_ISSUE: t("HOME$OPEN_ISSUE"),
-  UNRESOLVED_COMMENTS: t("HOME$RESOLVE_UNRESOLVED_COMMENTS"),
+  FAILING_CHECKS: t(I18nKey.HOME$FIX_FAILING_CHECKS),
+  MERGE_CONFLICTS: t(I18nKey.HOME$RESOLVE_MERGE_CONFLICTS),
+  OPEN_ISSUE: t(I18nKey.HOME$OPEN_ISSUE),
+  UNRESOLVED_COMMENTS: t(I18nKey.HOME$RESOLVE_UNRESOLVED_COMMENTS),
 });
 
 interface TaskCardProps {
@@ -46,7 +47,7 @@ export function TaskCard({ task }: TaskCardProps) {
           // looking at when they clicked the task).
           enqueuePendingMessage({
             conversationId: data.conversation_id,
-            text: t("TASK$ADDRESSING_TASK"),
+            text: t(I18nKey.TASK$ADDRESSING_TASK),
           });
           navigate(`/conversations/${data.conversation_id}`);
         },

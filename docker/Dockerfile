@@ -39,22 +39,21 @@ COPY . .
 # VITE_APP_ENV controls the PostHog telemetry key baked into the bundle:
 #   "production" → prod key (set by CI for tagged releases)
 #   anything else → staging key (default for PR / main / local builds)
+# VITE_POSTHOG_CLIENT_KEY is the PostHog project key exposed via the web client
+# config (option-service). Not a secret — it's a public, client-side key. CI
+# passes the prod key for tagged releases and the staging key otherwise.
 ARG VITE_APP_ENV=""
+ARG VITE_POSTHOG_CLIENT_KEY=""
 ENV VITE_APP_ENV=${VITE_APP_ENV}
+ENV VITE_POSTHOG_CLIENT_KEY=${VITE_POSTHOG_CLIENT_KEY}
 RUN npm run build
 
 # ── Stage 1b: Generate shell-sourceable defaults from config/defaults.json ──
 # This avoids needing jq/python at container runtime to parse the JSON.
-# package.json is also read to extract the pinned @openhands/extensions SHA
-# and emit it as CONFIG_EXTENSIONS_REF so the agent-server uses the same
-# extensions commit as the bundled UI (via EXTENSIONS_REF in entrypoint.sh).
 FROM node:24-slim AS config-gen
-COPY config/defaults.json package.json /tmp/
+COPY config/defaults.json /tmp/
 RUN node -e " \
   const c = JSON.parse(require('fs').readFileSync('/tmp/defaults.json','utf-8')); \
-  const pkg = JSON.parse(require('fs').readFileSync('/tmp/package.json','utf-8')); \
-  const extUrl = (pkg.dependencies || pkg.devDependencies || {})['@openhands/extensions'] || ''; \
-  const extSha = (extUrl.match(/#([0-9a-f]{40})\$/i) || [])[1] || ''; \
   const lines = [ \
     'CONFIG_AGENT_SERVER_PORT=' + c.ports.agentServer, \
     'CONFIG_AUTOMATION_PORT=' + c.ports.automation, \
@@ -64,7 +63,6 @@ RUN node -e " \
     'CONFIG_BASH_EVENTS=' + c.paths.bashEvents, \
     'CONFIG_AUTOMATION_DB=' + c.paths.automationDb, \
   ]; \
-  if (extSha) lines.push('CONFIG_EXTENSIONS_REF=' + extSha); \
   require('fs').writeFileSync('/tmp/defaults.env', lines.join('\n') + '\n'); \
 "
 
