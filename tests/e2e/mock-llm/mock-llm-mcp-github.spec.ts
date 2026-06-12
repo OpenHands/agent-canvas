@@ -152,14 +152,15 @@ test.describe("MCP GitHub server install flow", () => {
     const mcpConfig = settings?.agent_settings?.mcp_config;
     expect(mcpConfig).toBeTruthy();
 
-    // The GitHub server should be stored as a hosted streamable HTTP server
-    // with the PAT saved as its Authorization header.
+    // The GitHub server should be stored as a hosted streamable HTTP server.
+    // The settings API redacts persisted secrets, so the raw PAT must not be
+    // readable after installation.
     const mcpServers = mcpConfig?.mcpServers ?? mcpConfig?.shttp_servers;
     expect(mcpServers).toBeTruthy();
     expect(mcpServers?.shttp).toMatchObject({
       url: GITHUB_HOSTED_MCP_URL,
       headers: {
-        Authorization: `Bearer ${FAKE_PAT}`,
+        Authorization: "<redacted>",
       },
     });
   });
