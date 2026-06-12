@@ -24,10 +24,15 @@ import { seedLocalStorage } from "./support/seed-local-storage";
  */
 
 async function dismissConsentModal(page: Page) {
+  const modal = page
+    .getByRole("dialog")
+    .filter({ hasText: /your privacy preferences/i });
+
   await page
-    .getByRole("button", { name: "Confirm preferences" })
-    .click({ timeout: 3_000 })
+    .getByRole("button", { name: /confirm preferences/i })
+    .click({ timeout: 5_000 })
     .catch(() => undefined);
+  await modal.waitFor({ state: "hidden", timeout: 5_000 }).catch(() => undefined);
 }
 
 async function setupMocks(page: Page) {
@@ -129,6 +134,7 @@ test.describe("Settings – Verification & Condenser Visual Snapshots", () => {
     await page.goto("/settings/verification");
     await dismissConsentModal(page);
     await waitForVerificationPage(page);
+    await dismissConsentModal(page);
 
     // The schema-rendered SettingsSwitch's underlying <input type="checkbox">
     // is `hidden`; clicking the visible label that wraps it activates the

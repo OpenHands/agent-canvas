@@ -20,6 +20,7 @@ import {
   buildConfig,
   buildRouteArgs,
   buildViteBackendEnv,
+  getAutomationDbPath,
   getFrontendBackend,
   getLocalServiceRoutes,
   DEFAULT_AUTOMATION_REPO,
@@ -475,6 +476,24 @@ describe("stack mode routing", () => {
         envWithIsolatedKeyPath(),
       ),
     ).rejects.toThrow(/cannot be used together/);
+  });
+});
+
+describe("getAutomationDbPath", () => {
+  it("resolves to <stateDir>/../automation/automations.db", () => {
+    const config = { stateDir: path.join("/home/user/.openhands", "agent-canvas") };
+    const dbPath = getAutomationDbPath(config);
+    expect(dbPath).toBe(
+      path.join("/home/user/.openhands", "automation", "automations.db"),
+    );
+  });
+
+  it("works with custom stateDir", () => {
+    const config = { stateDir: path.join("/tmp/custom-state", "agent-canvas") };
+    const dbPath = getAutomationDbPath(config);
+    expect(dbPath).toBe(
+      path.join("/tmp/custom-state", "automation", "automations.db"),
+    );
   });
 });
 

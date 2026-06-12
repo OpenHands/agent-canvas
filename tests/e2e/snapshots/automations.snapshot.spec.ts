@@ -20,10 +20,15 @@ import { seedLocalStorage } from "./support/seed-local-storage";
  * user_consents_to_analytics: null so the modal can show on any page).
  */
 async function dismissConsentModal(page: Page) {
+  const modal = page
+    .getByRole("dialog")
+    .filter({ hasText: /your privacy preferences/i });
+
   await page
-    .getByRole("button", { name: "Confirm preferences" })
-    .click({ timeout: 3_000 })
+    .getByRole("button", { name: /confirm preferences/i })
+    .click({ timeout: 5_000 })
     .catch(() => undefined);
+  await modal.waitFor({ state: "hidden", timeout: 5_000 }).catch(() => undefined);
 }
 
 /**
@@ -168,9 +173,12 @@ test.describe("Automations Visual Snapshots", () => {
     await dismissConsentModal(page);
     await page.waitForLoadState("networkidle");
 
-    // Wait for the first kebab button to be visible before interacting
+    // Wait for the first kebab button to be visible before interacting.
+    // The privacy modal can render a beat later than navigation completes, so
+    // dismiss it again right before the click to avoid overlay interception.
     const kebab = page.getByRole("button", { name: "Automation actions" }).first();
     await expect(kebab).toBeVisible({ timeout: 10_000 });
+    await dismissConsentModal(page);
     await kebab.click();
 
     await page.getByRole("button", { name: "Delete" }).click();

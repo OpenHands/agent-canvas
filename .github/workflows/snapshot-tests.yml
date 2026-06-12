@@ -218,7 +218,10 @@ jobs:
           fi
 
       - name: Generate current PR snapshots
-        if: github.event_name == 'pull_request'
+        # Only regenerate the PR's screenshots when comparison found diffs or
+        # missing baselines. When comparison already passes, re-running the
+        # full suite here is redundant and can push the job past its timeout.
+        if: github.event_name == 'pull_request' && steps.compare.outcome == 'failure'
         id: generate
         run: npm run test:e2e:snapshots:update
         continue-on-error: true
