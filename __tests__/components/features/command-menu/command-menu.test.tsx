@@ -17,7 +17,9 @@ const NEW_CHAT_TITLE_KEY = "COMMAND_MENU$NEW_CHAT_TITLE";
 const SECRETS_TITLE_KEY = "COMMAND_MENU$SECRETS_SETTINGS_TITLE";
 const TOGGLE_SIDEBAR_TITLE_KEY = "COMMAND_MENU$TOGGLE_SIDEBAR_TITLE";
 
-function renderCommandMenu(navigate = vi.fn()) {
+const navigateMock = vi.fn();
+
+function renderCommandMenu(navigate = navigateMock) {
   const view = renderWithProviders(<CommandMenu />, {
     navigation: { navigate },
   });
@@ -26,6 +28,7 @@ function renderCommandMenu(navigate = vi.fn()) {
 }
 
 beforeEach(() => {
+  navigateMock.mockReset();
   window.localStorage.clear();
   useCommandMenuStore.setState({ isOpen: false });
   useSidebarStore.setState({ collapsed: false });
