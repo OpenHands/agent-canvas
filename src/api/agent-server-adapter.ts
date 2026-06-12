@@ -468,6 +468,10 @@ function isToolRecord(
 }
 
 function shouldIncludeTool(name: string, agentSettings: SettingsRecord) {
+  if (name === CANVAS_UI_TOOL_NAME) {
+    return isAgentServerToolAvailable(name);
+  }
+
   if (name === BROWSER_TOOL_SET_NAME) {
     return browserToolsEnabled() && isAgentServerToolAvailable(name);
   }
@@ -486,7 +490,9 @@ function getAgentTools(agentSettings: SettingsRecord): AgentToolSpec[] {
   const tools = new Map<string, AgentToolSpec>();
 
   for (const name of DEFAULT_TOOL_NAMES) {
-    tools.set(name, { name, params: {} });
+    if (shouldIncludeTool(name, agentSettings)) {
+      tools.set(name, { name, params: {} });
+    }
   }
 
   for (const name of [BROWSER_TOOL_SET_NAME, TASK_TOOL_SET_NAME]) {
@@ -911,12 +917,23 @@ export function buildStartConversationRequest(
     payload.hook_config = conversationSettings.hook_config;
   }
 
-  payload.tool_module_qualnames = {
-    [CANVAS_UI_TOOL_NAME]: CANVAS_UI_TOOL_MODULE,
-    ...((conversationSettings.tool_module_qualnames as
+  const toolModuleQualnames: Record<string, string> = {};
+  const canvasUiAvailable = isAgentServerToolAvailable(CANVAS_UI_TOOL_NAME);
+  if (canvasUiAvailable) {
+    toolModuleQualnames[CANVAS_UI_TOOL_NAME] = CANVAS_UI_TOOL_MODULE;
+  }
+  Object.assign(
+    toolModuleQualnames,
+    (conversationSettings.tool_module_qualnames as
       | Record<string, string>
-      | undefined) ?? {}),
-  };
+      | undefined) ?? {},
+  );
+  if (!canvasUiAvailable) {
+    delete toolModuleQualnames[CANVAS_UI_TOOL_NAME];
+  }
+  if (Object.keys(toolModuleQualnames).length > 0) {
+    payload.tool_module_qualnames = toolModuleQualnames;
+  }
 
   if (conversationSettings.agent_definitions) {
     payload.agent_definitions = conversationSettings.agent_definitions;
@@ -925,7 +942,7 @@ export function buildStartConversationRequest(
   // Every saved secret rides as a LookupSecret the agent-server resolves back
   // from its own store at spawn time — ``request.secrets`` is the sole channel,
   // uniform for ACP and non-ACP (agent-canvas#1039). For ACP the resolution
-  // runs off the event loop (software-agent-sdk#3510, ≥1.25.0), so the loopback
+  // runs off the event loop (software-agent-sdk#3510, >=1.25.0), so the loopback
   // fetch can't deadlock.
   if (options.customSecrets && options.customSecrets.length > 0) {
     const backend = getEffectiveLocalBackend();

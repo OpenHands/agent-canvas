@@ -167,6 +167,7 @@ export default defineConfig({
         "--auth-required",
         "--route /api/automation=http://localhost:18001",
         "--route /api=http://localhost:18000",
+        "--route /server_info=http://localhost:18000",
         "--route /sockets=http://localhost:18000",
       ].join(" "),
       url: `http://localhost:${PUBLIC_MODE_PORT}/`,
