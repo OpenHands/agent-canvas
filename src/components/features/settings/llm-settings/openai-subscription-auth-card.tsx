@@ -17,6 +17,9 @@ import {
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
 
+const DEFAULT_DEVICE_POLL_INTERVAL_SECONDS = 5;
+const MIN_DEVICE_POLL_INTERVAL_SECONDS = 1;
+
 interface OpenAISubscriptionAuthCardProps {
   isDisabled?: boolean;
 }
@@ -38,6 +41,14 @@ export function OpenAISubscriptionAuthCard({
     React.useState<LLMSubscriptionDeviceChallenge | null>(null);
   const [copied, setCopied] = React.useState(false);
   const [isPendingLogin, setIsPendingLogin] = React.useState(false);
+  const pollTimeoutRef = React.useRef<number | null>(null);
+
+  const clearPollTimeout = React.useCallback(() => {
+    if (pollTimeoutRef.current !== null) {
+      window.clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
+  }, []);
 
   const handleCopyCode = () => {
     if (!challenge) return;
@@ -50,11 +61,70 @@ export function OpenAISubscriptionAuthCard({
     startLogin.isPending || pollLogin.isPending || logout.isPending;
   const connected = Boolean(status.data?.connected);
 
+  const pollDeviceLogin = React.useCallback(
+    async (deviceCode: string) => {
+      try {
+        const nextStatus = await pollLogin.mutateAsync(deviceCode);
+        if (nextStatus.connected) {
+          setChallenge(null);
+          setIsPendingLogin(false);
+          displaySuccessToast(t(I18nKey.SETTINGS$SUBSCRIPTION_CONNECTED_TOAST));
+          return true;
+        }
+        setIsPendingLogin(true);
+        return false;
+      } catch {
+        displayErrorToast(t(I18nKey.SETTINGS$SUBSCRIPTION_CONNECT_ERROR));
+        return true;
+      }
+    },
+    [pollLogin, t],
+  );
+
+  React.useEffect(() => {
+    if (!challenge || connected || isDisabled) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    const intervalSeconds = Math.max(
+      challenge.intervalSeconds ?? DEFAULT_DEVICE_POLL_INTERVAL_SECONDS,
+      MIN_DEVICE_POLL_INTERVAL_SECONDS,
+    );
+
+    const schedulePoll = () => {
+      clearPollTimeout();
+      pollTimeoutRef.current = window.setTimeout(async () => {
+        if (cancelled) {
+          return;
+        }
+
+        const shouldStop = await pollDeviceLogin(challenge.deviceCode);
+        if (!cancelled && !shouldStop) {
+          schedulePoll();
+        }
+      }, intervalSeconds * 1000);
+    };
+
+    schedulePoll();
+
+    return () => {
+      cancelled = true;
+      clearPollTimeout();
+    };
+  }, [
+    challenge,
+    clearPollTimeout,
+    connected,
+    isDisabled,
+    pollDeviceLogin,
+  ]);
+
   const handleStartLogin = async () => {
     try {
       const nextChallenge = await startLogin.mutateAsync();
       setChallenge(nextChallenge);
-      setIsPendingLogin(false);
+      setIsPendingLogin(true);
       openVerificationUrl(nextChallenge);
     } catch {
       displayErrorToast(t(I18nKey.SETTINGS$SUBSCRIPTION_CONNECT_ERROR));
@@ -63,23 +133,14 @@ export function OpenAISubscriptionAuthCard({
 
   const handlePollLogin = async () => {
     if (!challenge) return;
-    try {
-      const nextStatus = await pollLogin.mutateAsync(challenge.deviceCode);
-      if (nextStatus.connected) {
-        setChallenge(null);
-        setIsPendingLogin(false);
-        displaySuccessToast(t(I18nKey.SETTINGS$SUBSCRIPTION_CONNECTED_TOAST));
-      } else {
-        setIsPendingLogin(true);
-      }
-    } catch {
-      displayErrorToast(t(I18nKey.SETTINGS$SUBSCRIPTION_CONNECT_ERROR));
-    }
+    clearPollTimeout();
+    void pollDeviceLogin(challenge.deviceCode);
   };
 
   const handleLogout = async () => {
     try {
       await logout.mutateAsync();
+      clearPollTimeout();
       setChallenge(null);
       setIsPendingLogin(false);
       displaySuccessToast(t(I18nKey.SETTINGS$SUBSCRIPTION_DISCONNECTED_TOAST));
@@ -89,6 +150,7 @@ export function OpenAISubscriptionAuthCard({
   };
 
   const handleCancelLogin = () => {
+    clearPollTimeout();
     setChallenge(null);
     setIsPendingLogin(false);
   };

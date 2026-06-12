@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 // Import the named export LlmSettingsScreen directly for testing the form component.
@@ -226,6 +226,71 @@ describe("LlmSettingsScreen", () => {
 
     expect(screen.getByTestId("llm-auth-type-input")).toBeDisabled();
     expect(screen.getByTestId("llm-subscription-model-input")).toBeDisabled();
+  });
+
+  it("auto-polls the ChatGPT subscription device login after opening verification", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    vi.spyOn(LLMSubscriptionService, "getOpenAIStatus").mockResolvedValue({
+      vendor: "openai",
+      connected: false,
+      accountEmail: null,
+      expiresAt: null,
+    });
+    vi.spyOn(LLMSubscriptionService, "startOpenAIDeviceLogin").mockResolvedValue(
+      {
+        deviceCode: "device-code",
+        userCode: "USER-CODE",
+        verificationUri: "https://auth.openai.com/activate",
+        verificationUriComplete:
+          "https://auth.openai.com/activate?user_code=USER-CODE",
+        expiresAt: null,
+        intervalSeconds: 1,
+      },
+    );
+    vi.spyOn(LLMSubscriptionService, "getOpenAIModels").mockResolvedValue([
+      "gpt-5.2-codex",
+    ]);
+    const pollLogin = vi
+      .spyOn(LLMSubscriptionService, "pollOpenAIDeviceLogin")
+      .mockResolvedValue({
+        vendor: "openai",
+        connected: true,
+        accountEmail: "graham@example.com",
+        expiresAt: null,
+      });
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        llm_model: "gpt-5.2-codex",
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          llm: {
+            model: "gpt-5.2-codex",
+            auth_type: "subscription",
+            subscription_vendor: "openai",
+          },
+        },
+      }),
+    );
+
+    renderLlmSettingsScreen();
+
+    await screen.findByTestId("llm-subscription-settings");
+    fireEvent.click(screen.getByTestId("subscription-connect"));
+    await screen.findByText("USER-CODE");
+
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://auth.openai.com/activate?user_code=USER-CODE",
+      "_blank",
+      "noopener,noreferrer",
+    );
+
+    await waitFor(
+      () => {
+        expect(pollLogin).toHaveBeenCalled();
+      },
+      { timeout: 2500 },
+    );
+    expect(pollLogin.mock.calls[0]?.[0]).toBe("device-code");
   });
 });
 
