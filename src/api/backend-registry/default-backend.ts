@@ -13,13 +13,6 @@ import type { Backend } from "./types";
  */
 export const SEEDED_DEFAULT_BACKEND_ID = "default-local";
 
-/**
- * @deprecated Use SEEDED_DEFAULT_BACKEND_ID instead. "Bundled" no longer
- *   reflects the actual semantics — the backend is a seeded default, not
- *   a built-in bundled entry.
- */
-export const DEFAULT_LOCAL_BACKEND_ID = SEEDED_DEFAULT_BACKEND_ID;
-
 export const DEFAULT_LOCAL_BACKEND_NAME = "Local";
 
 /**

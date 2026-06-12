@@ -8,7 +8,7 @@ import {
   setRegisteredBackends,
   subscribeActiveBackend,
 } from "#/api/backend-registry/active-store";
-import { DEFAULT_LOCAL_BACKEND_ID } from "#/api/backend-registry/default-backend";
+import { SEEDED_DEFAULT_BACKEND_ID } from "#/api/backend-registry/default-backend";
 import type { Backend } from "#/api/backend-registry/types";
 
 beforeEach(() => {
@@ -58,7 +58,7 @@ describe("active-store", () => {
     __resetActiveStoreForTests();
 
     const { backend, orgId } = getActiveBackend();
-    expect(backend.id).toBe(DEFAULT_LOCAL_BACKEND_ID);
+    expect(backend.id).toBe(SEEDED_DEFAULT_BACKEND_ID);
     expect(backend.kind).toBe("local");
     expect(orgId).toBeNull();
   });
