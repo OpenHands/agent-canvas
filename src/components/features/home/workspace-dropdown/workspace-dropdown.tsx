@@ -96,6 +96,16 @@ export function WorkspaceDropdown({
       handleSelectionChange(newSelectedItem ?? null);
     },
     inputValue,
+    onIsOpenChange: ({
+      isOpen: newIsOpen,
+      selectedItem: currentSelectedItem,
+    }) => {
+      if (newIsOpen) {
+        setInputValue("");
+      } else {
+        setInputValue(currentSelectedItem?.name ?? "");
+      }
+    },
     stateReducer: (state, actionAndChanges) =>
       actionAndChanges.type === useCombobox.stateChangeTypes.InputClick &&
       state.isOpen
@@ -224,7 +234,10 @@ export function WorkspaceDropdown({
         <input
           {...getInputProps({
             disabled,
-            placeholder: placeholder ?? t(I18nKey.HOME$WORKSPACE_PLACEHOLDER),
+            placeholder:
+              isOpen && value
+                ? value.name
+                : (placeholder ?? t(I18nKey.HOME$WORKSPACE_PLACEHOLDER)),
             className: cn(
               formControlFieldClassName,
               "text-inherit shadow-none pl-7 pr-16 text-sm font-normal leading-5",

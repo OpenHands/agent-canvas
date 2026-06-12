@@ -44,6 +44,7 @@ export const useUnifiedGitDiff = (config: UseUnifiedGitDiffConfig) => {
       if (!conversationId) throw new Error("No conversation ID");
 
       return AgentServerGitService.getGitChangeDiff(
+        conversationId,
         conversationUrl,
         sessionApiKey,
         absoluteFilePath,

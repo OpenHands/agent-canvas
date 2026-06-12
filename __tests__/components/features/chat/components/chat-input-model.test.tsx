@@ -303,7 +303,7 @@ describe("ChatInputModel", () => {
     });
   });
 
-  it("does not offer selectable rows on a cloud backend (display + Settings link only)", () => {
+  it("offers selectable rows on a cloud backend for ACP conversations (mid-conversation model switching is supported)", () => {
     useActiveBackendMock.mockReturnValue({ backend: { kind: "cloud" } });
     useActiveConversationMock.mockReturnValue({
       data: {
@@ -318,10 +318,16 @@ describe("ChatInputModel", () => {
 
     fireEvent.click(screen.getByTestId("chat-input-llm-model"));
 
-    // No selectable model rows; the popover keeps the display value + Settings.
+    // Cloud ACP conversations support mid-conversation model switching,
+    // so selectable model rows are shown.
+    const selectedRow = screen.getByTestId(
+      "chat-input-acp-model-option-claude-sonnet-4-6",
+    );
+    expect(selectedRow).toBeInTheDocument();
+    expect(selectedRow).toHaveTextContent("Claude Sonnet 4.6");
     expect(
-      screen.queryByTestId("chat-input-acp-model-option-claude-sonnet-4-6"),
-    ).not.toBeInTheDocument();
+      screen.getByTestId("chat-input-acp-model-option-claude-opus-4-7"),
+    ).toBeInTheDocument();
     const popover = screen.getByTestId("chat-input-llm-model-popover");
     expect(popover).toHaveTextContent("Claude Sonnet 4.6");
     expect(screen.getByRole("link")).toHaveAttribute("href", "/settings/agent");
