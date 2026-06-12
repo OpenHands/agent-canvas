@@ -1,0 +1,237 @@
+---
+name: Nightly Integration Tests
+run-name: >-
+  Nightly Integration Tests ${{ inputs.reason || github.event.label.name || 'scheduled' }}
+
+on:
+  pull_request_target:
+    types:
+      - labeled
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Reason for manual trigger
+        required: true
+        default: ""
+      model:
+        description: >-
+          LLM model to use (e.g. openhands/claude-haiku-4-5-20251001).
+          Defaults to the standard nightly model.
+        required: false
+        default: ""
+        type: string
+      pr_number:
+        description: PR number to post results to (optional)
+        required: false
+        default: ""
+        type: string
+  schedule:
+    # Runs at 10:30pm UTC every day (same cadence as software-agent-sdk)
+    - cron: "30 22 * * *"
+
+env:
+  DEFAULT_MODEL: openhands/claude-haiku-4-5-20251001
+  LLM_BASE_URL: https://llm-proxy.app.all-hands.dev
+
+jobs:
+  run-live-e2e:
+    # Run when: integration-test label added (same-repo PRs only),
+    # manual dispatch, or nightly schedule on the main repo.
+    if: >
+      (
+        github.event_name == 'pull_request_target' &&
+        github.event.label.name == 'integration-test' &&
+        github.event.pull_request.head.repo.full_name == github.event.pull_request.base.repo.full_name
+      ) ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'schedule' && github.repository == 'OpenHands/agent-canvas')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    env:
+      LIVE_E2E_LLM_MODEL: ${{ inputs.model || '' }}
+      LIVE_E2E_RECORD_VIDEO: "on"
+
+    steps:
+      - name: Resolve test parameters
+        id: params
+        run: |
+          # Model: input > default
+          model="${{ env.LIVE_E2E_LLM_MODEL }}"
+          if [ -z "$model" ]; then
+            model="${{ env.DEFAULT_MODEL }}"
+          fi
+          echo "model=$model" >> "$GITHUB_OUTPUT"
+
+          # PR number: input > label trigger
+          pr_number="${{ inputs.pr_number || github.event.pull_request.number || '' }}"
+          echo "pr_number=$pr_number" >> "$GITHUB_OUTPUT"
+
+          # Ref to check out
+          if [ "${{ github.event_name }}" = "pull_request_target" ]; then
+            echo "checkout_ref=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+            echo "checkout_repo=${{ github.event.pull_request.head.repo.full_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "checkout_ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "checkout_repo=${{ github.repository }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ steps.params.outputs.checkout_repo }}
+          ref: ${{ steps.params.outputs.checkout_ref }}
+          persist-credentials: false
+
+      - name: Post initial comment
+        if: steps.params.outputs.pr_number != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment "${{ steps.params.outputs.pr_number }}" --body \
+            "**Nightly Integration Test Started**
+          - **Model:** \`${{ steps.params.outputs.model }}\`
+          - **Trigger:** ${{ github.event_name }}
+          - **Commit:** \`${{ steps.params.outputs.checkout_ref }}\`
+          - **Workflow run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+          Results will be posted here when complete."
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run live Agent Server E2E
+        id: live_test
+        env:
+          LIVE_E2E_LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LIVE_E2E_LLM_BASE_URL: ${{ env.LLM_BASE_URL }}
+          LIVE_E2E_LLM_MODEL: ${{ steps.params.outputs.model }}
+        run: |
+          set +e
+          npm run test:e2e:live
+          exit_code=$?
+          echo "exit_code=$exit_code" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-live-${{ github.run_id }}
+          path: |
+            playwright-report-live/
+            test-results-live/
+          retention-days: 30
+
+      - name: Generate results summary
+        if: always()
+        id: summary
+        run: |
+          results_file="test-results-live/results.json"
+          if [ ! -f "$results_file" ]; then
+            echo "status=error" >> "$GITHUB_OUTPUT"
+            echo "summary=No results file found" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Parse results from Playwright JSON reporter
+          passed=$(jq '[.suites[].specs[].tests[] | select(.results[0].status == "passed")] | length' "$results_file" 2>/dev/null || echo 0)
+          failed=$(jq '[.suites[].specs[].tests[] | select(.results[0].status == "failed")] | length' "$results_file" 2>/dev/null || echo 0)
+          skipped=$(jq '[.suites[].specs[].tests[] | select(.results[0].status == "skipped")] | length' "$results_file" 2>/dev/null || echo 0)
+          total_duration=$(jq '[.suites[].specs[].tests[].results[0].duration] | add / 1000 | . * 10 | floor / 10' "$results_file" 2>/dev/null || echo "?")
+
+          if [ "$failed" -gt 0 ]; then
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+          elif [ "$passed" -gt 0 ]; then
+            echo "status=passed" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=error" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "passed=$passed" >> "$GITHUB_OUTPUT"
+          echo "failed=$failed" >> "$GITHUB_OUTPUT"
+          echo "skipped=$skipped" >> "$GITHUB_OUTPUT"
+          echo "duration=${total_duration}s" >> "$GITHUB_OUTPUT"
+          echo "summary=${passed} passed, ${failed} failed, ${skipped} skipped, ${total_duration}s total" >> "$GITHUB_OUTPUT"
+
+      - name: Post results comment
+        if: always() && steps.params.outputs.pr_number != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          status="${{ steps.summary.outputs.status || 'error' }}"
+          summary="${{ steps.summary.outputs.summary || 'No summary available' }}"
+
+          if [ "$status" = "passed" ]; then
+            status_icon="✅"
+          elif [ "$status" = "failed" ]; then
+            status_icon="❌"
+          else
+            status_icon="⚠️"
+          fi
+
+          gh pr comment "${{ steps.params.outputs.pr_number }}" --body \
+            "## $status_icon Nightly Integration Test: ${status^}
+
+          **Summary:** $summary
+          - **Model:** \`${{ steps.params.outputs.model }}\`
+          - **Commit:** \`${{ steps.params.outputs.checkout_ref }}\`
+          - **Workflow run:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - **Artifacts:** [Playwright report](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          _This comment was generated by the nightly integration test workflow._"
+
+      - name: Comment on tracker issue (nightly schedule)
+        if: always() && github.event_name == 'schedule'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          status="${{ steps.summary.outputs.status || 'error' }}"
+          summary="${{ steps.summary.outputs.summary || 'No summary available' }}"
+
+          if [ "$status" = "passed" ]; then
+            status_icon="✅"
+          elif [ "$status" = "failed" ]; then
+            status_icon="❌"
+          else
+            status_icon="⚠️"
+          fi
+
+          # Post to a tracking issue (create one and update the number here)
+          # gh issue comment <TRACKING_ISSUE_NUMBER> --body \
+          echo "## $status_icon Nightly Integration Test: ${status^}
+
+          **Trigger:** Nightly Scheduled Run
+          **Summary:** $summary
+          - **Model:** \`${{ steps.params.outputs.model }}\`
+          - **Commit:** \`${{ github.sha }}\`
+          - **Workflow run:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          - **Artifacts:** [Playwright report](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          _This comment was generated by the nightly integration test workflow._"
+
+      - name: Fail if tests failed
+        if: always() && steps.live_test.outputs.exit_code != '0' && steps.live_test.outputs.exit_code != ''
+        run: |
+          echo "::error::Live E2E tests failed with exit code ${{ steps.live_test.outputs.exit_code }}"
+          exit 1
