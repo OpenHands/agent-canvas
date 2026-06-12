@@ -14,6 +14,10 @@ import {
 } from "#/api/conversation-metadata-store";
 import { ACP_VERTEX_SAFE_MODEL } from "#/constants/acp-providers";
 import { DEFAULT_SETTINGS } from "#/services/settings";
+import {
+  LLM_AUTH_TYPE_SUBSCRIPTION,
+  OPENAI_SUBSCRIPTION_VENDOR,
+} from "#/constants/llm-subscription";
 
 const {
   mockGetAgentServerWorkingDir,
@@ -158,6 +162,48 @@ describe("buildStartConversationRequest", () => {
     );
     expect(payload.max_iterations).toBe(123);
     expect(payload.initial_message.content[0]?.text).toBe("hello");
+  });
+
+  it("uses subscription auth metadata without API credentials", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          llm: {
+            model: "gpt-5.2-codex",
+            api_key: "stale-api-key",
+            base_url: "https://api.openai.com/v1",
+            auth_type: LLM_AUTH_TYPE_SUBSCRIPTION,
+            subscription_vendor: OPENAI_SUBSCRIPTION_VENDOR,
+          },
+        },
+      },
+    }) as { agent_settings: { llm: Record<string, unknown> } };
+
+    expect(payload.agent_settings.llm).toEqual({
+      model: "gpt-5.2-codex",
+      auth_type: LLM_AUTH_TYPE_SUBSCRIPTION,
+      subscription_vendor: OPENAI_SUBSCRIPTION_VENDOR,
+    });
+  });
+
+  it("passes the stored model through unchanged for subscription auth", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          llm: {
+            model: "openai/gpt-4o",
+            auth_type: LLM_AUTH_TYPE_SUBSCRIPTION,
+            subscription_vendor: OPENAI_SUBSCRIPTION_VENDOR,
+          },
+        },
+      },
+    }) as { agent_settings: { llm: Record<string, unknown> } };
+
+    expect(payload.agent_settings.llm.model).toBe("openai/gpt-4o");
   });
 
   it("forwards the switch-LLM setting to SDK agent settings", () => {
