@@ -8,7 +8,7 @@ import {
 } from "#/types/agent-server/type-guards";
 import { StreamingDeltaEvent } from "#/types/agent-server/core/events/streaming-delta-event";
 
-const mergeStreamingDeltaEvent = (
+export const mergeStreamingDeltaEvent = (
   incoming: StreamingDeltaEvent,
   existing: StreamingDeltaEvent,
 ): StreamingDeltaEvent => ({
