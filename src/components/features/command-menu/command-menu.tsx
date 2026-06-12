@@ -62,8 +62,7 @@ export function CommandMenu() {
   const isOpen = useCommandMenuStore((state) => state.isOpen);
   const open = useCommandMenuStore((state) => state.open);
   const close = useCommandMenuStore((state) => state.close);
-  const collapsed = useSidebarStore((state) => state.collapsed);
-  const setCollapsed = useSidebarStore((state) => state.setCollapsed);
+  const toggleCollapsed = useSidebarStore((state) => state.toggleCollapsed);
   const [query, setQuery] = React.useState(EMPTY_QUERY);
   const [activeIndex, setActiveIndex] = React.useState(0);
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -99,9 +98,9 @@ export function CommandMenu() {
   const items = React.useMemo(
     () =>
       createCommandMenuItems({
-        toggleSidebar: () => setCollapsed(!collapsed),
+        toggleSidebar: toggleCollapsed,
       }),
-    [collapsed, setCollapsed],
+    [toggleCollapsed],
   );
 
   const filteredItems = React.useMemo(
