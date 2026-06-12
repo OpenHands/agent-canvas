@@ -1,4 +1,10 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, vi, beforeEach, it } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -7,6 +13,7 @@ import {
   HOME_SELECTED_WORKSPACE_PATH_KEY,
   WorkspaceSelectionForm,
 } from "../../../../src/components/features/home/workspace-selection-form";
+import { WorkspaceDropdown } from "../../../../src/components/features/home/workspace-dropdown/workspace-dropdown";
 import WorkspacesService from "#/api/workspaces-service/workspaces-service.api";
 import { LocalWorkspace, LocalWorkspaceParent } from "#/types/workspace";
 
@@ -94,6 +101,59 @@ async function openWorkspaceDropdown(user: ReturnType<typeof userEvent.setup>) {
   await user.click(dropdown);
   return screen.findByTestId("workspace-dropdown-menu");
 }
+
+describe("WorkspaceDropdown", () => {
+  it.each([
+    {
+      testId: "add-workspaces-button",
+      expectedCallback: "add",
+    },
+    {
+      testId: "manage-workspaces-button",
+      expectedCallback: "manage",
+    },
+  ])(
+    "opens $expectedCallback workspace action from touch without bubbling",
+    async ({ testId, expectedCallback }) => {
+      const outsideTouchEnd = vi.fn();
+      const onAddClick = vi.fn();
+      const onManageClick = vi.fn();
+      const user = userEvent.setup();
+
+      render(
+        <div onTouchEnd={outsideTouchEnd}>
+          <WorkspaceDropdown
+            workspaces={[
+              {
+                id: "/Users/me/dev/repo1",
+                name: "repo1",
+                path: "/Users/me/dev/repo1",
+              },
+            ]}
+            value={null}
+            onChange={vi.fn()}
+            onAddClick={onAddClick}
+            onManageClick={onManageClick}
+          />
+        </div>,
+      );
+
+      await user.click(await screen.findByTestId("workspace-dropdown"));
+      const action = await screen.findByTestId(testId);
+
+      fireEvent.touchStart(action);
+      fireEvent.touchEnd(action);
+
+      expect(outsideTouchEnd).not.toHaveBeenCalled();
+      expect(onAddClick).toHaveBeenCalledTimes(
+        expectedCallback === "add" ? 1 : 0,
+      );
+      expect(onManageClick).toHaveBeenCalledTimes(
+        expectedCallback === "manage" ? 1 : 0,
+      );
+    },
+  );
+});
 
 describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
   beforeEach(() => {

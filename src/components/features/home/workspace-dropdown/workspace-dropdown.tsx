@@ -140,6 +140,50 @@ export function WorkspaceDropdown({
     />
   );
 
+  const preventDropdownMenuClose = useCallback(
+    (event: React.SyntheticEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [],
+  );
+
+  const handleAddClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      preventDropdownMenuClose(event);
+      closeMenu();
+      onAddClick();
+    },
+    [closeMenu, onAddClick, preventDropdownMenuClose],
+  );
+
+  const handleAddTouchEnd = useCallback(
+    (event: React.TouchEvent<HTMLButtonElement>) => {
+      preventDropdownMenuClose(event);
+      closeMenu();
+      onAddClick();
+    },
+    [closeMenu, onAddClick, preventDropdownMenuClose],
+  );
+
+  const handleManageClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      preventDropdownMenuClose(event);
+      closeMenu();
+      onManageClick();
+    },
+    [closeMenu, onManageClick, preventDropdownMenuClose],
+  );
+
+  const handleManageTouchEnd = useCallback(
+    (event: React.TouchEvent<HTMLButtonElement>) => {
+      preventDropdownMenuClose(event);
+      closeMenu();
+      onManageClick();
+    },
+    [closeMenu, onManageClick, preventDropdownMenuClose],
+  );
+
   const stickyFooterItem = useMemo(
     () => (
       <div className={dropdownMenuListClassName}>
@@ -147,16 +191,10 @@ export function WorkspaceDropdown({
           type="button"
           data-testid="add-workspaces-button"
           className={cn(dropdownFooterActionClassName, "cursor-pointer")}
-          onMouseDown={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            closeMenu();
-            onAddClick();
-          }}
+          onMouseDown={preventDropdownMenuClose}
+          onTouchStart={preventDropdownMenuClose}
+          onTouchEnd={handleAddTouchEnd}
+          onClick={handleAddClick}
         >
           {t(I18nKey.HOME$ADD_WORKSPACES)}
         </button>
@@ -165,23 +203,26 @@ export function WorkspaceDropdown({
             type="button"
             data-testid="manage-workspaces-button"
             className={cn(dropdownFooterActionClassName, "cursor-pointer")}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              closeMenu();
-              onManageClick();
-            }}
+            onMouseDown={preventDropdownMenuClose}
+            onTouchStart={preventDropdownMenuClose}
+            onTouchEnd={handleManageTouchEnd}
+            onClick={handleManageClick}
           >
             {t(I18nKey.HOME$MANAGE_WORKSPACES)}
           </button>
         )}
       </div>
     ),
-    [onAddClick, onManageClick, t, closeMenu, workspaces.length, showManage],
+    [
+      handleAddClick,
+      handleAddTouchEnd,
+      handleManageClick,
+      handleManageTouchEnd,
+      preventDropdownMenuClose,
+      t,
+      workspaces.length,
+      showManage,
+    ],
   );
 
   const control = (
