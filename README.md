@@ -6,6 +6,7 @@ It runs locally on your machine by default, but can support connecting to multip
 
 Agent Canvas runs the open source OpenHands agent out-of-the-box, but configurable to use any third-party agent like Claude Code and Codex.
 
+|    |    |
 |---|---|
 | [**Self-host your way**](https://docs.openhands.dev/openhands/usage/agent-canvas/backend-setup/vm) | Run agents locally, in Docker, on VMs, or anywhere you can run an agent server backend |
 | [**Switch between different backends**](https://docs.openhands.dev/openhands/usage/agent-canvas/backends) | Switch between local, remote, and cloud agents without losing focus |
