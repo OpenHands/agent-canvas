@@ -21,8 +21,9 @@ function makeObservationEvent(
 ): OHEvent {
   return {
     id,
-    timestamp: new Date(Date.now() + Number(id.replace(/\D/g, "")) * 1000)
-      .toISOString(),
+    timestamp: new Date(
+      Date.now() + Number(id.replace(/\D/g, "")) * 1000,
+    ).toISOString(),
     source: "environment",
     tool_name: "str_replace_based_edit_tool",
     tool_call_id: `tc-${id}`,
@@ -34,6 +35,32 @@ function makeObservationEvent(
       old_content: null,
       new_content: "hello",
       output: "ok",
+    },
+  } as unknown as OHEvent;
+}
+
+function makeBashObservationEvent(
+  id: string,
+  command: string,
+  exitCode = 0,
+): OHEvent {
+  return {
+    id,
+    timestamp: new Date(
+      Date.now() + Number(id.replace(/\D/g, "")) * 1000,
+    ).toISOString(),
+    source: "environment",
+    tool_name: "execute_bash",
+    tool_call_id: `tc-${id}`,
+    action_id: `act-${id}`,
+    observation: {
+      kind: "ExecuteBashObservation",
+      command,
+      exit_code: exitCode,
+      content: [],
+      error: false,
+      timeout: false,
+      metadata: {},
     },
   } as unknown as OHEvent;
 }
@@ -102,9 +129,45 @@ describe("useAutoRefreshFilesOnEdit", () => {
     act(() => {
       useEventStore
         .getState()
-        .addEvent(
-          makeObservationEvent("1", "ExecuteBashObservation", "ls"),
-        );
+        .addEvent(makeObservationEvent("1", "ExecuteBashObservation", "ls"));
+    });
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("refreshes git changes after successful git commands that change diff state", () => {
+    const client = new QueryClient();
+    const spy = vi.spyOn(client, "invalidateQueries");
+
+    renderHook(() => useAutoRefreshFilesOnEdit(), {
+      wrapper: makeWrapper(client),
+    });
+
+    act(() => {
+      useEventStore
+        .getState()
+        .addEvent(makeBashObservationEvent("1", "git commit -m 'done'"));
+    });
+
+    const invalidatedKeys = spy.mock.calls.map(
+      (call) => (call[0] as { queryKey: unknown[] }).queryKey[0],
+    );
+    expect(invalidatedKeys).toEqual(["file_changes"]);
+    expect(useWorkspaceMutationCounter.getState().count).toBe(0);
+  });
+
+  it("does not refresh git changes for failed git commands", () => {
+    const client = new QueryClient();
+    const spy = vi.spyOn(client, "invalidateQueries");
+
+    renderHook(() => useAutoRefreshFilesOnEdit(), {
+      wrapper: makeWrapper(client),
+    });
+
+    act(() => {
+      useEventStore
+        .getState()
+        .addEvent(makeBashObservationEvent("1", "git commit -m 'done'", 1));
     });
 
     expect(spy).not.toHaveBeenCalled();
@@ -132,11 +195,7 @@ describe("useAutoRefreshFilesOnEdit", () => {
       useEventStore
         .getState()
         .addEvent(
-          makeObservationEvent(
-            "2",
-            "StrReplaceEditorObservation",
-            "create",
-          ),
+          makeObservationEvent("2", "StrReplaceEditorObservation", "create"),
         );
     });
     expect(useWorkspaceMutationCounter.getState().count).toBe(2);
@@ -155,9 +214,7 @@ describe("useAutoRefreshFilesOnEdit", () => {
         .addEvent(makeObservationEvent("1", "FileEditorObservation", "view"));
       useEventStore
         .getState()
-        .addEvent(
-          makeObservationEvent("2", "ExecuteBashObservation", "ls"),
-        );
+        .addEvent(makeObservationEvent("2", "ExecuteBashObservation", "ls"));
     });
 
     expect(useWorkspaceMutationCounter.getState().count).toBe(0);
@@ -182,10 +239,14 @@ describe("useAutoRefreshFilesOnEdit", () => {
     act(() => {
       useEventStore
         .getState()
-        .addEvent(makeObservationEvent("10", "FileEditorObservation", "create"));
+        .addEvent(
+          makeObservationEvent("10", "FileEditorObservation", "create"),
+        );
       useEventStore
         .getState()
-        .addEvent(makeObservationEvent("20", "FileEditorObservation", "create"));
+        .addEvent(
+          makeObservationEvent("20", "FileEditorObservation", "create"),
+        );
     });
     const callsAfterInitial = spy.mock.calls.length;
     expect(callsAfterInitial).toBeGreaterThan(0);
