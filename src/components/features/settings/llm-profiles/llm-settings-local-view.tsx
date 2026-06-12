@@ -38,6 +38,8 @@ import { useSettingsSectionHeader } from "#/contexts/settings-section-header-con
 
 type ViewMode = "list" | "create" | "edit";
 
+const HIDDEN_API_KEY_PLACEHOLDER = "<hidden>";
+
 interface EditingProfile {
   profile: ProfileInfo;
   initialValues: SettingsFormValues;
@@ -48,6 +50,7 @@ interface EditingProfile {
    * preserved instead of being reset to LLM defaults by the full-replace save.
    */
   baseConfig: Record<string, unknown>;
+  hasSavedApiKey: boolean;
 }
 
 export function shouldReapplyProfileAfterSave({
@@ -103,11 +106,36 @@ export function LlmSettingsLocalView() {
     null,
   );
   const [isSaving, setIsSaving] = useState(false);
+  const profileFormRef = useRef<HTMLDivElement>(null);
+  const shouldShowSavedApiKeyPlaceholder =
+    viewMode === "edit" && Boolean(editingProfile?.hasSavedApiKey);
+  const apiKeyFormValue = saveControl?.values["llm.api_key"];
+  const apiKeyPlaceholderRefreshKey =
+    typeof apiKeyFormValue === "string" ? apiKeyFormValue : "";
+  const activeSettingsView = saveControl?.view;
 
   useEffect(() => {
     setHideSectionHeader(viewMode !== "list");
     return () => setHideSectionHeader(false);
   }, [viewMode, setHideSectionHeader]);
+
+  useEffect(() => {
+    const apiKeyInput = profileFormRef.current?.querySelector<HTMLInputElement>(
+      '[data-testid="llm-api-key-input"]',
+    );
+    if (!apiKeyInput) return;
+
+    // Profile edit mode intentionally leaves the value empty so saving an
+    // untouched key preserves the encrypted secret. The placeholder is the only
+    // visible hint that the profile already has a saved key.
+    apiKeyInput.placeholder = shouldShowSavedApiKeyPlaceholder
+      ? HIDDEN_API_KEY_PLACEHOLDER
+      : "";
+  }, [
+    shouldShowSavedApiKeyPlaceholder,
+    apiKeyPlaceholderRefreshKey,
+    activeSettingsView,
+  ]);
 
   // Get existing profile names for validation
   const existingNames = useMemo(
@@ -151,6 +179,9 @@ export function LlmSettingsLocalView() {
         // The structure is: { model, api_key, base_url, ... }
         // (NOT nested under a "llm" key)
         const config = (detail.config ?? {}) as Record<string, unknown>;
+        const hasSavedApiKey =
+          Boolean(detail.api_key_set) ||
+          (typeof config.api_key === "string" && config.api_key.trim() !== "");
 
         // Seed every llm.* form field from the profile config so all tabs —
         // including "All" — reflect the profile's real values rather than the
@@ -166,21 +197,28 @@ export function LlmSettingsLocalView() {
           const flatKey = field.key.startsWith("llm.")
             ? field.key.slice("llm.".length)
             : field.key;
-          initialValues[field.key] = normalizeFieldValue(
-            field,
-            config[flatKey],
-          );
+          initialValues[field.key] =
+            field.key === "llm.api_key" && hasSavedApiKey
+              ? ""
+              : normalizeFieldValue(field, config[flatKey]);
         }
 
         // Safety net for the specially-rendered keys when the schema is
         // unavailable, so editing still works without it.
         if (llmFields.length === 0) {
           initialValues["llm.model"] = (config.model as string) ?? "";
-          initialValues["llm.api_key"] = (config.api_key as string) ?? "";
+          initialValues["llm.api_key"] = hasSavedApiKey
+            ? ""
+            : ((config.api_key as string) ?? "");
           initialValues["llm.base_url"] = (config.base_url as string) ?? "";
         }
 
-        setEditingProfile({ profile, initialValues, baseConfig: config });
+        setEditingProfile({
+          profile,
+          initialValues,
+          baseConfig: config,
+          hasSavedApiKey,
+        });
         setProfileName(profile.name);
         setViewMode("edit");
       } catch (error) {
@@ -388,23 +426,25 @@ export function LlmSettingsLocalView() {
       />
 
       {/* Profile form - key ensures form remounts when switching profiles */}
-      <LlmSettingsScreen
-        key={
-          viewMode === "edit"
-            ? `edit-${editingProfile?.profile.name}`
-            : "new-profile"
-        }
-        embedded
-        hideSaveButton
-        initialValueOverrides={
-          viewMode === "edit" && editingProfile?.initialValues
-            ? // Edit mode: use the existing profile values
-              editingProfile.initialValues
-            : // Create mode: start with empty fields for a fresh profile
-              { "llm.model": "", "llm.api_key": "", "llm.base_url": "" }
-        }
-        onSaveControlChange={handleSaveControlChange}
-      />
+      <div ref={profileFormRef}>
+        <LlmSettingsScreen
+          key={
+            viewMode === "edit"
+              ? `edit-${editingProfile?.profile.name}`
+              : "new-profile"
+          }
+          embedded
+          hideSaveButton
+          initialValueOverrides={
+            viewMode === "edit" && editingProfile?.initialValues
+              ? // Edit mode: use the existing profile values
+                editingProfile.initialValues
+              : // Create mode: start with empty fields for a fresh profile
+                { "llm.model": "", "llm.api_key": "", "llm.base_url": "" }
+          }
+          onSaveControlChange={handleSaveControlChange}
+        />
+      </div>
 
       {/* Action buttons */}
       <div className="flex justify-start gap-3 pt-4">
