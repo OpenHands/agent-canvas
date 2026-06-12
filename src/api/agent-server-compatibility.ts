@@ -68,10 +68,10 @@ export class AgentServerUnsupportedVersionError extends AgentServerUnavailableEr
   readonly requiredVersion = MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION;
 
   constructor(actualVersion: string) {
-    super(
-      `Agent Canvas requires agent-server ${MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION} or newer; this backend is running ${actualVersion}. Please upgrade the agent-server backend.`,
-    );
+    const message = `Agent Canvas requires agent-server ${MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION} or newer; this backend is running ${actualVersion}. Please upgrade the agent-server backend.`;
+    super(message);
     this.name = "AgentServerUnsupportedVersionError";
+    this.message = message;
     this.actualVersion = actualVersion;
   }
 }
@@ -184,7 +184,9 @@ function parseAgentServerVersion(version: string) {
   return { major, minor, patch, prerelease };
 }
 
-function assertAgentServerVersionIsSupported(serverInfo: AgentServerInfo) {
+export function assertAgentServerVersionIsSupported(
+  serverInfo: AgentServerInfo,
+) {
   const actualVersion = getReportedAgentServerVersion(serverInfo);
   const comparison = compareAgentServerVersions(
     actualVersion,
