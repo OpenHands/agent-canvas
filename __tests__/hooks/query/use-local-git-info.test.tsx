@@ -101,27 +101,57 @@ describe("useLocalGitInfo", () => {
     vi.clearAllMocks();
   });
 
-  it("does not call the bash runner on a cloud backend even when conversation metadata is incomplete", async () => {
+  it("probes git metadata on a cloud backend when conversation metadata is incomplete", async () => {
     // Arrange
     useActiveBackendMock.mockReturnValue(makeBackend("cloud"));
+    runCommandMock.mockResolvedValueOnce({
+      exit_code: 0,
+      stdout: "git@github.com:acme/widgets.git\nmain",
+      stderr: "",
+    });
 
     // Act
     const { result } = renderHook(() => useLocalGitInfo(), {
       wrapper: makeWrapper(),
     });
 
-    // Assert: query stays disabled (no fetch, no data); bash endpoint not driven.
+    // Assert: cloud backends now also probe when metadata is incomplete
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(useBashCommandRunnerMock).toHaveBeenCalledWith(
+      conversationWithoutRepo.conversation_url,
+      conversationWithoutRepo.session_api_key,
+      true,
+    );
+    expect(runCommandMock).toHaveBeenCalledTimes(1);
+    expect(result.current.data).toMatchObject({
+      repository: "acme/widgets",
+      branch: "main",
+    });
+  });
+
+  it("does not poll when the conversation has complete repo metadata", async () => {
+    // Arrange: conversation has a complete repo tuple — probe should be disabled
+    useActiveBackendMock.mockReturnValue(makeBackend("local"));
+    useActiveConversationMock.mockReturnValue({
+      data: {
+        ...conversationWithoutRepo,
+        selected_repository: "acme/widgets",
+        git_provider: "github",
+        selected_branch: "main",
+      },
+    });
+
+    // Act
+    const { result } = renderHook(() => useLocalGitInfo(), {
+      wrapper: makeWrapper(),
+    });
+
+    // Assert: query is disabled when metadata is already complete
     await new Promise((resolve) => {
       setTimeout(resolve, 20);
     });
     expect(result.current.fetchStatus).toBe("idle");
     expect(runCommandMock).not.toHaveBeenCalled();
-    // The bash command runner should be created in a disabled state on cloud.
-    expect(useBashCommandRunnerMock).toHaveBeenCalledWith(
-      conversationWithoutRepo.conversation_url,
-      conversationWithoutRepo.session_api_key,
-      false,
-    );
   });
 
   it("does not poll when the conversation has no workspace attached, even on a local backend", async () => {

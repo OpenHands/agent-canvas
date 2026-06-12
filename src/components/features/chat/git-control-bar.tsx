@@ -206,13 +206,18 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   // Local backends never use the remote-repo "Connect Repo" CTA, so suppress the
   // empty-state button there. A repo or workspace label inferred from local git
   // metadata is still informational and stays visible.
+  const localGitDetectedRepo = !!localGitInfo?.repository;
   const showRepoButton =
-    !isLocalBackend || !!selectedRepository || !!workspaceName;
+    !isLocalBackend ||
+    !!selectedRepository ||
+    !!workspaceName ||
+    localGitDetectedRepo;
   // On a local backend the informational pill (e.g. workspace name, or a repo
   // detected without a recognized provider) should not open the remote-repo
   // modal — that flow is cloud-only. Disable the button in that case so the
   // click is a no-op. Linkable repos render as <a> and ignore `disabled`.
-  const isRepoButtonInert = isLocalBackend && !hasRepository;
+  const isRepoButtonInert =
+    isLocalBackend && !hasRepository && !localGitDetectedRepo;
 
   // True when the bar will render at least one chip (cloud always shows
   // "Open Repository"; local needs a repo or a workspace name; selected
@@ -225,13 +230,14 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   return (
     <div className="flex flex-row items-center">
       <div className="flex flex-row gap-2.5 items-center overflow-x-auto flex-nowrap relative scrollbar-hide">
-        {showRepoButton ? (
+        {showRepoButton || hasRepository ? (
           <GitControlBarRepoButton
             selectedRepository={selectedRepository}
             gitProvider={gitProvider}
             workspaceName={workspaceName}
             onClick={() => setIsOpenRepoModalOpen(true)}
             disabled={!isConversationReady || isRepoButtonInert}
+            data-testid="git-control-bar-repo-button"
           />
         ) : null}
 

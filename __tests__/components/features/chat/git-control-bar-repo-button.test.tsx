@@ -85,6 +85,19 @@ describe("GitControlBarRepoButton", () => {
 
       expect(screen.queryByTestId("repo-forked-icon")).not.toBeInTheDocument();
     });
+
+    it("should have data-testid attribute on link variant", () => {
+      render(
+        <GitControlBarRepoButton
+          selectedRepository="owner/repo"
+          gitProvider="github"
+          dataTestId="git-control-bar-repo-button"
+        />,
+      );
+
+      const link = screen.getByRole("link");
+      expect(link).toHaveAttribute("data-testid", "git-control-bar-repo-button");
+    });
   });
 
   describe("when only a workspace name is provided", () => {

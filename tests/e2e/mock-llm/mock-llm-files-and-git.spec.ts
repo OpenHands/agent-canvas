@@ -11,7 +11,7 @@
  *   - Files tab defaults to file-tree view when NO workspace is attached
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import {
   REPLY_TOKEN,
   seedLocalStorage,
@@ -39,25 +39,30 @@ const WORKSPACE_PATH = "/tmp/e2e-test-project/my-app";
  * `about:blank` would write to the wrong origin.
  */
 async function seedWorkspaceMetadata(
-  page: import("@playwright/test").Page,
+  page: Page,
   conversationId: string,
   workspacePath: string,
+  repoMetadata?: {
+    selected_repository?: string | null;
+    git_provider?: string | null;
+    selected_branch?: string | null;
+  },
 ) {
   await page.addInitScript(
-    ({ convId, wsPath }) => {
+    ({ convId, wsPath, repoMeta }) => {
       const STORAGE_KEY = "openhands-agent-server-conversation-metadata";
       const raw = window.localStorage.getItem(STORAGE_KEY);
       const all = raw ? JSON.parse(raw) : {};
       all[convId] = {
         ...(all[convId] || {}),
         selected_workspace: wsPath,
-        selected_repository: null,
-        selected_branch: null,
-        git_provider: null,
+        selected_repository: repoMeta?.selected_repository ?? null,
+        git_provider: repoMeta?.git_provider ?? null,
+        selected_branch: repoMeta?.selected_branch ?? null,
       };
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
     },
-    { convId: conversationId, wsPath: workspacePath },
+    { convId: conversationId, wsPath: workspacePath, repoMeta: repoMetadata },
   );
 }
 
@@ -377,6 +382,152 @@ test.describe("files tab, git control bar, and browser tab", () => {
       const diffOffOption = page.getByTestId("files-tab-diff-toggle-option-off");
       await expect(diffOffOption).toBeVisible({ timeout: 10_000 });
       await expect(diffOffOption).toHaveAttribute("aria-checked", "true");
+    });
+  });
+
+  // ── Step 7: Verify repo button is not inert when selected_repository is seeded ─
+
+  test("step 7: repo button is visible and not disabled when selected_repository is seeded", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+
+    // Fresh trajectory for a new conversation
+    await resetMockLLM(request);
+
+    await routeSessionApiKey(page);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await dismissAnalyticsModal(page);
+    await waitForTestId(page, "home-chat-launcher");
+
+    await page.evaluate(
+      ({ testId, text }) => {
+        const el = document.querySelector(`[data-testid="${testId}"]`);
+        if (!(el instanceof HTMLElement)) throw new Error("Chat input not found");
+        el.focus();
+        el.textContent = text;
+        el.dispatchEvent(
+          new InputEvent("input", {
+            bubbles: true,
+            data: text,
+            inputType: "insertText",
+          }),
+        );
+      },
+      { testId: "chat-input", text: USER_MESSAGE },
+    );
+    await page.getByTestId("submit-button").click();
+
+    await waitForPath(page, /\/conversations\/.+/, 30_000);
+    const conversationId = getConversationIdFromURL(page);
+    conversationIds.add(conversationId);
+
+    await waitForNonUserMessageText(page, REPLY_TOKEN, 60_000);
+
+    // Seed workspace path AND a complete repo tuple — this exercises the
+    // selectedRepository path in getGitPath() and makes hasRepository true.
+    await seedWorkspaceMetadata(page, conversationId, WORKSPACE_PATH, {
+      selected_repository: "test-org/test-repo",
+      git_provider: "github",
+      selected_branch: "main",
+    });
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await dismissAnalyticsModal(page);
+    await waitForTestId(page, "chat-interface", 30_000);
+
+    await test.step("verify repo pill shows repo name", async () => {
+      await expect(
+        page.getByText("test-repo").first(),
+      ).toBeVisible({ timeout: 15_000 });
+    });
+
+    await test.step("verify repo button is present and not disabled", async () => {
+      const repoButton = page.getByTestId("git-control-bar-repo-button");
+      await expect(repoButton).toBeVisible({ timeout: 10_000 });
+      // Not inert: hasRepository=true when selected_repository is seeded
+      await expect(repoButton).toHaveAttribute("data-disabled", "false", {
+        timeout: 10_000,
+      });
+    });
+  });
+
+  // ── Step 8: Verify Changes tab uses selectedRepository-derived path over workingDir ─
+
+  test("step 8: changes tab shows selectedRepository-derived path when repo is seeded", async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+
+    // Fresh trajectory for a new conversation
+    await resetMockLLM(request);
+
+    await routeSessionApiKey(page);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await dismissAnalyticsModal(page);
+    await waitForTestId(page, "home-chat-launcher");
+
+    await page.evaluate(
+      ({ testId, text }) => {
+        const el = document.querySelector(`[data-testid="${testId}"]`);
+        if (!(el instanceof HTMLElement)) throw new Error("Chat input not found");
+        el.focus();
+        el.textContent = text;
+        el.dispatchEvent(
+          new InputEvent("input", {
+            bubbles: true,
+            data: text,
+            inputType: "insertText",
+          }),
+        );
+      },
+      { testId: "chat-input", text: USER_MESSAGE },
+    );
+    await page.getByTestId("submit-button").click();
+
+    await waitForPath(page, /\/conversations\/.+/, 30_000);
+    const conversationId = getConversationIdFromURL(page);
+    conversationIds.add(conversationId);
+
+    await waitForNonUserMessageText(page, REPLY_TOKEN, 60_000);
+
+    // Seed a workspace path that differs from what selected_repository derives.
+    // getGitPath() must prefer selectedRepository over workingDir, so the
+    // panel should show /workspace/widgets (from "acme/widgets"), not
+    // /tmp/e2e-test-project/my-app (the stale workingDir from bug #1193).
+    await seedWorkspaceMetadata(page, conversationId, WORKSPACE_PATH, {
+      selected_repository: "acme/widgets",
+      git_provider: "github",
+      selected_branch: "develop",
+    });
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await dismissAnalyticsModal(page);
+    await waitForTestId(page, "chat-interface", 30_000);
+
+    await test.step("open right panel and files tab", async () => {
+      const toggle = page.getByTestId("right-panel-toggle");
+      await expect(toggle).toBeVisible({ timeout: 10_000 });
+      await toggle.click();
+
+      const anyTab = page
+        .locator('[data-testid^="conversation-tab-"]')
+        .first();
+      await expect(anyTab).toBeVisible({ timeout: 10_000 });
+
+      const filesTab = page.getByTestId("conversation-tab-files");
+      await filesTab.click();
+      await page.waitForTimeout(500);
+    });
+
+    await test.step("verify workspace path derives from selectedRepository", async () => {
+      // The workspace pill shows the repo name derived from selected_repository.
+      // Bug #1193 caused it to show the stale workingDir instead.
+      await expect(
+        page.getByText("widgets").first(),
+      ).toBeVisible({ timeout: 15_000 });
     });
   });
 });
