@@ -28,13 +28,21 @@ const getAdvertisedTools = (serverInfo: AgentServerInfo | null) => {
 
 export class AgentServerUnavailableError extends Error {
   readonly details: string | null;
+  readonly noBackendConfigured: boolean;
 
-  constructor(details?: string | null) {
+  constructor(
+    details?: string | null,
+    options?: { noBackendConfigured?: boolean },
+  ) {
+    const noBackendConfigured = options?.noBackendConfigured ?? false;
     super(
-      "Agent server not found. Could not connect to the configured agent server. Start a compatible agent server and reload the page.",
+      noBackendConfigured
+        ? "No agent server backend is configured yet. Add a backend to get started."
+        : "Could not connect to the configured agent server. Make sure it is running and reachable, then reload the page.",
     );
     this.name = "AgentServerUnavailableError";
     this.details = details ?? null;
+    this.noBackendConfigured = noBackendConfigured;
   }
 }
 
@@ -103,7 +111,9 @@ export async function loadAgentServerInfo() {
     // configured at all.  Throw so root.tsx shows the manage-backends
     // modal instead of silently rendering a broken home page.
     if (isNoBackend(getActiveBackend().backend)) {
-      throw new AgentServerUnavailableError("No backend configured");
+      throw new AgentServerUnavailableError("No backend configured", {
+        noBackendConfigured: true,
+      });
     }
 
     // Active backend is cloud — no local probe needed.

@@ -77,10 +77,22 @@ class MockLLMHandler(BaseHTTPRequestHandler):
     # Named trajectories that tests can register via the admin API and then
     # activate with POST /admin/trajectory/activate.
     _named_trajectories: dict[str, list[Message | Exception]] = {}
+    # All completion request bodies since the last /admin/reset.
+    # Tests read them via GET /admin/requests to verify image / content details.
+    # Stored as a list so assertions survive even when the agent-server makes
+    # multiple LLM calls (e.g., internal condenser calls after the main turn).
+    _completion_requests: list = []
     _lock = threading.Lock()
 
     def do_GET(self):
-        """Health check — Playwright's webServer probes GET / to detect readiness."""
+        """Health check and admin read endpoints."""
+        path = self.path.rstrip("/").split("?")[0]
+        if path == "/admin/requests":
+            with self._lock:
+                payload = list(MockLLMHandler._completion_requests)
+            self._send_json(200, {"requests": payload})
+            return
+        # Default: health check — Playwright's webServer probes GET / to detect readiness.
         self._send_json(200, {"status": "ok", "server": "mock-llm"})
 
     def do_POST(self):
@@ -91,6 +103,7 @@ class MockLLMHandler(BaseHTTPRequestHandler):
             with self._lock:
                 MockLLMHandler.test_llm = TestLLM.from_messages(build_trajectory())
                 MockLLMHandler._named_trajectories.clear()
+                MockLLMHandler._completion_requests.clear()
                 remaining = MockLLMHandler.test_llm.remaining_responses
             self._send_json(200, {
                 "status": "reset",
@@ -148,6 +161,11 @@ class MockLLMHandler(BaseHTTPRequestHandler):
         # ── Normal chat completion ──
         length = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(length)) if length else {}
+
+        # Append to request history for test verification.
+        # Tests can GET /admin/requests to confirm image content was included.
+        with self._lock:
+            MockLLMHandler._completion_requests.append(body)
 
         try:
             response = self.test_llm.completion([])

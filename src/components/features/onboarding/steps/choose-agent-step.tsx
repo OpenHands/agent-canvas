@@ -105,6 +105,8 @@ export function ChooseAgentStep({
   const { mutate: saveSettings, isPending: isSaving } = useSaveSettings();
 
   const handleNext = () => {
+    // The diff builder seeds the preferred default model (Vertex-safe for
+    // Gemini) when none is passed.
     const diff = buildAcpAgentSettingsDiff(selectedAgentId);
     if (!diff) {
       // Unknown id (shouldn't be reachable through the UI). Advance
@@ -192,7 +194,12 @@ export function ChooseAgentStep({
         })}
       </div>
 
-      <div className="sticky bottom-0 flex items-center justify-between gap-2 bg-base-secondary pt-4 pb-7">
+      <div
+        className={cn(
+          "sticky bottom-0 flex items-center gap-2 bg-base-secondary pt-4 pb-7",
+          onBack ? "justify-between" : "justify-end",
+        )}
+      >
         {onBack ? (
           <BrandButton
             testId="onboarding-agent-back"

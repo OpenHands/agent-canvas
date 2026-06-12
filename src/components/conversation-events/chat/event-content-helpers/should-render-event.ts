@@ -7,6 +7,7 @@ import {
   isConversationStateUpdateEvent,
   isHookExecutionEvent,
   isACPToolCallEvent,
+  isStreamingDeltaEvent,
 } from "#/types/agent-server/type-guards";
 
 export const shouldRenderEvent = (event: OpenHandsEvent) => {
@@ -86,6 +87,10 @@ export const shouldRenderEvent = (event: OpenHandsEvent) => {
   // fan-out is gone, so the running card is now a single clean event.
   if (isACPToolCallEvent(event)) {
     return true;
+  }
+
+  if (isStreamingDeltaEvent(event)) {
+    return event.content !== null || event.reasoning_content !== null;
   }
 
   // Don't render any other event types (system events, etc.)

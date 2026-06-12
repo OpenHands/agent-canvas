@@ -16,6 +16,7 @@ import {
   buildConversationWorkingDir,
   getAgentServerWorkingDir,
 } from "../agent-server-config";
+import { resolveAbsoluteAgentServerPath } from "../agent-server-home";
 import {
   getActiveBackend,
   getEffectiveLocalBackend,
@@ -50,6 +51,7 @@ import {
   getStoredConversationMetadata,
   removeStoredConversationMetadata,
   setStoredConversationMetadata,
+  type WorkspaceMode,
 } from "../conversation-metadata-store";
 import type {
   GetHooksResponse,
@@ -344,6 +346,7 @@ class AgentServerConversationService {
     plugins?: PluginSpec[],
     metadata?: ConversationMetadata | null,
     workingDirOverride?: string,
+    workspaceMode?: WorkspaceMode,
     parentConversationId?: string,
     agentType?: "default" | "plan",
     sandboxId?: string,
@@ -375,8 +378,17 @@ class AgentServerConversationService {
 
     const settings = await SettingsService.getSettings();
     const conversationId = uuidv4();
-    const workingDir =
-      workingDirOverride ?? buildConversationWorkingDir(conversationId);
+    // @spec WUP-001 — Send an absolute working_dir to the agent-server.
+    // The default is `workspace/project/<hex>` (relative); without
+    // resolving it here, `/api/file/upload` later prepends `/` and writes
+    // to `/workspace/...` (read-only on macOS and fresh containers). When
+    // the user picks an explicit workspace, `workingDirOverride` is
+    // already absolute (it comes from `search_subdirs`).
+    const workingDir = await resolveAbsoluteAgentServerPath(
+      workingDirOverride ?? buildConversationWorkingDir(conversationId),
+    );
+    const resolvedWorkspaceMode =
+      workspaceMode ?? (workingDirOverride ? "local_repo" : "new_worktree");
 
     // Use encrypted settings to avoid exposing secrets in the browser
     const payload = await buildStartConversationRequestWithEncryptedSettings({
@@ -386,6 +398,7 @@ class AgentServerConversationService {
       plugins,
       conversationId,
       workingDir,
+      worktree: resolvedWorkspaceMode === "new_worktree",
     });
 
     const data = await new ConversationClient(
@@ -406,6 +419,7 @@ class AgentServerConversationService {
         selected_branch: metadata?.selected_branch ?? null,
         git_provider: metadata?.git_provider ?? null,
         selected_workspace: workingDirOverride ?? null,
+        workspace_mode: resolvedWorkspaceMode,
       });
     }
 
@@ -719,10 +733,15 @@ class AgentServerConversationService {
     conversationId: string,
     model: string,
   ): Promise<void> {
-    if (getActiveBackend().backend.kind === "cloud") {
-      throw new Error(
-        "ACP model switching is only supported for local agent-server backends.",
-      );
+    const { backend } = getActiveBackend();
+    if (backend.kind === "cloud") {
+      await callCloudProxy({
+        backend,
+        method: "POST",
+        path: `/api/v1/app-conversations/${conversationId}/switch_acp_model`,
+        body: { model },
+      });
+      return;
     }
 
     await new ConversationClient(getAgentServerClientOptions()).switchAcpModel(

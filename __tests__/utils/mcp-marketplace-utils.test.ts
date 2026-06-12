@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   findCatalogEntryForServer,
   findInstalledMatch,
@@ -9,7 +9,14 @@ import {
   isMarketplaceEntryAvailable,
   marketplaceEntryMatchesQuery,
 } from "#/utils/mcp-marketplace-utils";
+import * as agentServerAdapter from "#/api/agent-server-adapter";
 import { INTEGRATION_CATALOG as MCP_MARKETPLACE } from "@openhands/extensions/integrations";
+
+vi.mock("#/api/agent-server-adapter", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("#/api/agent-server-adapter")>();
+  return { ...actual, getDeploymentMode: vi.fn(() => null) };
+});
 
 const mcpMarketplace = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
 const slackEntry = mcpMarketplace.find((e) => e.id === "slack")!;
@@ -69,22 +76,22 @@ describe("findInstalledMatch", () => {
     expect(result).toEqual(expect.objectContaining({ id: "stdio-0" }));
   });
 
-  it("matches SSE servers loosely on URL", () => {
+  it("matches HTTP servers loosely on URL", () => {
     const result = findInstalledMatch(getDefaultMcpTransport(linearEntry)!, [
       {
-        id: "sse-0",
-        type: "sse",
-        url: "https://mcp.linear.app/sse/",
+        id: "shttp-0",
+        type: "shttp",
+        url: "https://mcp.linear.app/mcp/",
       },
     ]);
-    expect(result).toEqual(expect.objectContaining({ id: "sse-0" }));
+    expect(result).toEqual(expect.objectContaining({ id: "shttp-0" }));
   });
 
   it("returns null when servers carry malformed urls (defensive)", () => {
     const result = findInstalledMatch(getDefaultMcpTransport(linearEntry)!, [
       // Cast to any to simulate runtime data slipping past the type.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      { id: "sse-0", type: "sse", url: undefined as any },
+      { id: "shttp-0", type: "shttp", url: undefined as any },
     ]);
     expect(result).toBeNull();
   });
@@ -236,21 +243,69 @@ describe("findCatalogEntryForServer", () => {
     ).toBeUndefined();
   });
 
-  it("matches an SSE server whose URL differs only by trailing slash", () => {
+  it("matches an HTTP server whose URL differs only by trailing slash", () => {
     // Regression coverage for the strict-=== URL match that previously
     // diverged from findInstalledMatch and caused installed cards to
     // render the generic icon while the marketplace tile said
     // "Installed".
     const linear = mcpMarketplace.find((e) => e.id === "linear")!;
     const linearTransport = getDefaultMcpTransport(linear);
-    if (linearTransport?.kind !== "sse") {
-      throw new Error("Linear template should be SSE");
+    if (linearTransport?.kind !== "shttp") {
+      throw new Error("Linear template should be shttp");
     }
     const normalizedUrl = linearTransport.url.replace(/\/$/, "");
     const match = findCatalogEntryForServer(
-      { id: "sse-0", type: "sse", url: `${normalizedUrl}/` },
+      { id: "shttp-0", type: "shttp", url: `${normalizedUrl}/` },
       mcpMarketplace,
     );
     expect(match?.id).toBe("linear");
+  });
+});
+
+describe("patchGitHubEntry (via getMcpMarketplaceCatalog)", () => {
+  const mockedGetDeploymentMode = vi.mocked(
+    agentServerAdapter.getDeploymentMode,
+  );
+
+  function getGitHubStdioTransport(catalog: ReturnType<typeof getMcpMarketplaceCatalog>) {
+    const github = catalog.find((e) => e.id === "github");
+    expect(github).toBeDefined();
+    const option = github!.connectionOptions.find(
+      (o) => o.transport?.kind === "stdio",
+    );
+    expect(option?.transport?.kind).toBe("stdio");
+    const transport = option!.transport!;
+    if (transport.kind !== "stdio") throw new Error("expected stdio");
+    return transport;
+  }
+
+  it("leaves the GitHub entry unchanged when not in docker mode", () => {
+    mockedGetDeploymentMode.mockReturnValue(null);
+    const transport = getGitHubStdioTransport(
+      getMcpMarketplaceCatalog(MCP_MARKETPLACE),
+    );
+    expect(transport.command).toBe("docker");
+    expect(transport.args[0]).toBe("run");
+  });
+
+  it("rewrites the GitHub command to native binary in docker mode", () => {
+    mockedGetDeploymentMode.mockReturnValue("docker");
+    const transport = getGitHubStdioTransport(
+      getMcpMarketplaceCatalog(MCP_MARKETPLACE),
+    );
+    expect(transport.command).toBe("github-mcp-server");
+    expect(transport.args).toEqual(["stdio"]);
+  });
+
+  it("does not affect other entries in docker mode", () => {
+    mockedGetDeploymentMode.mockReturnValue("docker");
+    const catalog = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
+    const tavily = catalog.find((e) => e.id === "tavily");
+    const stdioOption = tavily?.connectionOptions.find(
+      (o) => o.transport?.kind === "stdio",
+    );
+    expect(stdioOption?.transport?.kind).toBe("stdio");
+    if (stdioOption?.transport?.kind !== "stdio") throw new Error("expected stdio");
+    expect(stdioOption.transport.command).not.toBe("github-mcp-server");
   });
 });
