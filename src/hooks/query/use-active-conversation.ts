@@ -38,6 +38,9 @@ export const useActiveConversation = () => {
     conversationId,
     userConversation.isFetched,
     userConversation?.data?.execution_status,
+    userConversation?.data?.selected_repository,
+    userConversation?.data?.selected_branch,
+    userConversation?.data?.selected_workspace,
   ]);
   return userConversation;
 };
