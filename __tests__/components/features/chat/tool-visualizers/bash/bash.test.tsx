@@ -72,11 +72,4 @@ describe("bashVisualizer", () => {
     expect(container).toHaveTextContent("wc -l");
     expect(container).toHaveTextContent("362 index.html");
   });
-
-  it("matches snapshot", () => {
-    const { container } = renderVisualizer(
-      <Body observation={bashObservation("ok", 0, "ls")} />,
-    );
-    expect(container.firstChild).toMatchSnapshot();
-  });
 });

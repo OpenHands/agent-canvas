@@ -90,7 +90,6 @@ Each cell = create automation → dispatch run → run reaches COMPLETED → con
 | Suite | Install | OS | Agents | Automations |
 |---|---|---|---|---|
 | `vitest` (unit) | — | Linux | — | partial |
-| `test:e2e` (snapshots) | npm (mock) | Linux | — | partial |
 | `test:e2e:mock-llm` | npm | Linux | OpenHands, ACP (mock) | ✅ full |
 | `test:e2e:mock-llm:docker` | Docker | Linux | OpenHands, ACP (mock) | ✅ full |
 | `test:e2e:live` | npm | Linux | OpenHands | ❌ |
