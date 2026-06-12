@@ -141,6 +141,39 @@ export const AUTOMATION_HANDLERS = [
     return HttpResponse.json(run, { status: 201 });
   }),
 
+  // POST /api/automation/v1/runs/:runId/cancel — Cancel a run
+  http.post("*/api/automation/v1/runs/:runId/cancel", async ({ params }) => {
+    await delay(200);
+
+    const runId = params.runId as string;
+
+    // Find the run across all automations
+    for (const [, runs] of Object.entries(MOCK_AUTOMATION_RUNS)) {
+      const run = runs.find((r) => r.id === runId);
+      if (run) {
+        if (
+          run.status !== AutomationRunStatus.PENDING &&
+          run.status !== AutomationRunStatus.RUNNING
+        ) {
+          return HttpResponse.json(
+            {
+              detail: `Run is ${run.status}, only PENDING or RUNNING runs can be cancelled`,
+            },
+            { status: 409 },
+          );
+        }
+
+        run.status = AutomationRunStatus.CANCELLED;
+        run.error_detail = "Cancelled by user";
+        run.completed_at = new Date().toISOString();
+
+        return HttpResponse.json(run);
+      }
+    }
+
+    return HttpResponse.json({ detail: "Run not found" }, { status: 404 });
+  }),
+
   // DELETE /api/automation/v1/:id — Delete automation
   http.delete("*/api/automation/v1/:id", async ({ params }) => {
     await delay(200);
