@@ -1,0 +1,51 @@
+{
+  "$schema": "https://schemas.openhands.dev/agent-canvas/extension.v1.json",
+  "schemaVersion": 1,
+  "id": "example.sunset-theme",
+  "displayName": "Sunset Theme",
+  "version": "0.1.0",
+  "description": "Adds a warm 'Sunset' color theme to Settings > Application > Color Theme.",
+  "publisher": { "name": "Agent Canvas Examples" },
+  "license": "MIT",
+  "compatibility": {
+    "agentCanvas": ">=1.0.0-rc.6 <2.0.0",
+    "extensionApi": 1
+  },
+  "permissions": {
+    "ui": ["colorThemes"]
+  },
+  "contributes": {
+    "colorThemes": [
+      {
+        "id": "example.sunset-theme.sunset",
+        "label": "Sunset",
+        "scale": {
+          "--cool-grey-50": "#FBF6F2",
+          "--cool-grey-100": "#F4E9E1",
+          "--cool-grey-200": "#E7D3C4",
+          "--cool-grey-300": "#D4B49E",
+          "--cool-grey-400": "#B98C70",
+          "--cool-grey-500": "#9A6A4E",
+          "--cool-grey-600": "#7C5038",
+          "--cool-grey-700": "#5E3B29",
+          "--cool-grey-800": "#462C20",
+          "--cool-grey-900": "#34211A",
+          "--cool-grey-925": "#271913",
+          "--cool-grey-950": "#1A0F0B",
+          "--cool-grey-975": "#0F0805"
+        },
+        "heroui": {
+          "--heroui-background": "18 30% 7%",
+          "--heroui-background-foreground": "28 40% 92%",
+          "--heroui-foreground": "28 30% 85%",
+          "--heroui-content1": "18 25% 12%",
+          "--heroui-default": "20 20% 30%"
+        },
+        "tokens": {
+          "--oh-color-primary": "#FB923C",
+          "--oh-accent": "#F97316"
+        }
+      }
+    ]
+  }
+}

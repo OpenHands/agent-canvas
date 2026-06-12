@@ -1,0 +1,50 @@
+{
+  "$schema": "https://schemas.openhands.dev/agent-canvas/extension.v1.json",
+  "schemaVersion": 1,
+  "id": "example.shell-toolkit",
+  "displayName": "Shell Toolkit",
+  "version": "0.1.0",
+  "description": "Multi-surface example: a tool visualizer for shell commands, a 'Commands' conversation panel, and a 'Shell' nav page — all from one extension.",
+  "publisher": { "name": "Agent Canvas Examples" },
+  "license": "MIT",
+  "compatibility": {
+    "agentCanvas": ">=1.0.0-rc.6 <2.0.0",
+    "extensionApi": 1
+  },
+  "permissions": {
+    "ui": ["toolVisualizers", "conversationPanels", "views", "leftNavigation"]
+  },
+  "browser": {
+    "module": "./dist/index.js"
+  },
+  "contributes": {
+    "toolVisualizers": [
+      {
+        "id": "example.shell-toolkit.shell",
+        "actionKinds": ["MCPToolAction"],
+        "observationKinds": ["MCPToolObservation"]
+      }
+    ],
+    "conversationRightPanels": [
+      {
+        "id": "example.shell-toolkit.commands",
+        "title": "Commands",
+        "icon": "./dist/shell-toolkit.svg",
+        "order": 250
+      }
+    ],
+    "views": [
+      {
+        "id": "shell",
+        "title": "Shell",
+        "route": "/shell",
+        "navigation": {
+          "location": "primarySidebar",
+          "slot": "afterAutomations",
+          "order": 350,
+          "icon": "./dist/shell-toolkit.svg"
+        }
+      }
+    ]
+  }
+}
