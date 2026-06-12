@@ -195,6 +195,38 @@ describe("LlmSettingsScreen", () => {
     expect(screen.queryByTestId("llm-api-key-input")).not.toBeInTheDocument();
     expect(screen.queryByTestId("base-url-input")).not.toBeInTheDocument();
   });
+
+  it("disables subscription model controls while models are loading", async () => {
+    vi.spyOn(LLMSubscriptionService, "getOpenAIStatus").mockResolvedValue({
+      vendor: "openai",
+      connected: true,
+      accountEmail: "graham@example.com",
+      expiresAt: null,
+    });
+    vi.spyOn(LLMSubscriptionService, "getOpenAIModels").mockReturnValue(
+      new Promise(() => {}),
+    );
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        llm_model: "gpt-5.2-codex",
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          llm: {
+            model: "gpt-5.2-codex",
+            auth_type: "subscription",
+            subscription_vendor: "openai",
+          },
+        },
+      }),
+    );
+
+    renderLlmSettingsScreen();
+
+    await screen.findByTestId("llm-subscription-settings");
+
+    expect(screen.getByTestId("llm-auth-type-input")).toBeDisabled();
+    expect(screen.getByTestId("llm-subscription-model-input")).toBeDisabled();
+  });
 });
 
 describe("LlmSettingsRoute - backend mode rendering", () => {

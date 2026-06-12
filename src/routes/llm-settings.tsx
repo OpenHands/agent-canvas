@@ -150,9 +150,15 @@ export function LlmSettingsScreen({
   );
   const [enableSubscriptionModels, setEnableSubscriptionModels] =
     React.useState(initialAuthType === LLM_AUTH_TYPE_SUBSCRIPTION);
-  const { data: subscriptionModels } = useOpenAISubscriptionModels({
-    enabled: enableSubscriptionModels,
-  });
+  const {
+    data: subscriptionModels,
+    isLoading: isSubscriptionModelsLoading,
+    isFetching: isSubscriptionModelsFetching,
+  } = useOpenAISubscriptionModels({ enabled: enableSubscriptionModels });
+  const isWaitingForSubscriptionModels =
+    enableSubscriptionModels &&
+    !subscriptionModels &&
+    (isSubscriptionModelsLoading || isSubscriptionModelsFetching);
   const lastApiKeyModelRef = React.useRef<string | null>(null);
   const lastSubscriptionModelRef = React.useRef<string | null>(null);
 
@@ -199,6 +205,8 @@ export function LlmSettingsScreen({
       const showOpenHandsApiKeyHelp = modelValue.startsWith("openhands/");
       const authType = resolveLlmAuthType(values[LLM_AUTH_TYPE_KEY]);
       const isSubscriptionAuth = authType === LLM_AUTH_TYPE_SUBSCRIPTION;
+      const shouldDisableSubscriptionControls =
+        isDisabled || (isSubscriptionAuth && isWaitingForSubscriptionModels);
       const subscriptionModelValue = subscriptionModels?.includes(modelValue)
         ? modelValue
         : (subscriptionModels?.[0] ?? "");
@@ -289,7 +297,7 @@ export function LlmSettingsScreen({
           selectedKey={authType}
           isClearable={false}
           required
-          isDisabled={isDisabled}
+          isDisabled={shouldDisableSubscriptionControls}
           onSelectionChange={handleAuthTypeChange}
         />
       );
@@ -310,12 +318,17 @@ export function LlmSettingsScreen({
             selectedKey={subscriptionModelValue}
             isClearable={false}
             required
-            isDisabled={isDisabled}
+            isDisabled={
+              shouldDisableSubscriptionControls || !subscriptionModels?.length
+            }
             onSelectionChange={(selectedKey) => {
-              onChange(
-                "llm.model",
-                String(selectedKey ?? subscriptionModels?.[0] ?? ""),
-              );
+              const nextModel =
+                typeof selectedKey === "string"
+                  ? selectedKey
+                  : subscriptionModels?.[0];
+              if (nextModel) {
+                onChange("llm.model", nextModel);
+              }
             }}
           />
           <OpenAISubscriptionAuthCard isDisabled={isDisabled} />
@@ -407,7 +420,14 @@ export function LlmSettingsScreen({
         </div>
       );
     },
-    [defaultModel, embedded, settings?.llm_api_key_set, subscriptionModels, t],
+    [
+      defaultModel,
+      embedded,
+      isWaitingForSubscriptionModels,
+      settings?.llm_api_key_set,
+      subscriptionModels,
+      t,
+    ],
   );
 
   const buildPayload = React.useCallback(

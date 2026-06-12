@@ -993,8 +993,9 @@ export const SUBSCRIPTION_LOGIN_REQUIRED_ERROR =
 
 /**
  * Throws if a ChatGPT subscription LLM profile is not connected.
- * Called before conversation creation so subscription-backed profiles fail
- * fast instead of starting an agent run that cannot authenticate.
+ * Called before conversation creation and LLM profile switch only — not on
+ * subsequent message sends or conversation resume. The agent-server must handle
+ * mid-conversation token expiry gracefully.
  */
 export async function assertSubscriptionAuthReady(
   agentSettings: Record<string, unknown>,
