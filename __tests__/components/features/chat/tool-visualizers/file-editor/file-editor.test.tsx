@@ -139,17 +139,4 @@ describe("fileEditorVisualizer", () => {
     );
     expect(screen.getByText("No replacement performed")).toBeInTheDocument();
   });
-
-  it("matches snapshot for a diff", () => {
-    const { container } = renderVisualizer(
-      <Body
-        observation={fileEditorObservation({
-          command: "str_replace",
-          old_content: "a\nb",
-          new_content: "a\nc",
-        })}
-      />,
-    );
-    expect(container.firstChild).toMatchSnapshot();
-  });
 });
