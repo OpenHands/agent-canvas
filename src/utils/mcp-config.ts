@@ -35,6 +35,12 @@ type SdkMcpServerConfig = Record<string, SettingsValue>;
 type SdkMcpConfig = { mcpServers: Record<string, SdkMcpServerConfig> };
 
 function apiKeyFromAuthorizationHeader(value: unknown): string | undefined {
+  if (Array.isArray(value)) {
+    return value
+      .map(apiKeyFromAuthorizationHeader)
+      .find((apiKey) => apiKey !== undefined);
+  }
+
   if (typeof value !== "string" || value.length === 0) return undefined;
   const bearer = value.match(/^Bearer\s+(.+)$/i);
   return bearer ? bearer[1] : value;

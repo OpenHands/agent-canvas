@@ -153,12 +153,14 @@ test.describe("MCP GitHub server install flow", () => {
     expect(mcpConfig).toBeTruthy();
 
     // The GitHub server should be stored as a hosted streamable HTTP server
-    // with the PAT saved as its auth credential.
+    // with the PAT saved as its Authorization header.
     const mcpServers = mcpConfig?.mcpServers ?? mcpConfig?.shttp_servers;
     expect(mcpServers).toBeTruthy();
     expect(mcpServers?.shttp).toMatchObject({
       url: GITHUB_HOSTED_MCP_URL,
-      auth: FAKE_PAT,
+      headers: {
+        Authorization: `Bearer ${FAKE_PAT}`,
+      },
     });
   });
 
@@ -177,7 +179,9 @@ test.describe("MCP GitHub server install flow", () => {
               mcpServers: {
                 shttp: {
                   url: GITHUB_HOSTED_MCP_URL,
-                  auth: FAKE_PAT,
+                  headers: {
+                    Authorization: `Bearer ${FAKE_PAT}`,
+                  },
                 },
               },
             },
