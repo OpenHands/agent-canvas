@@ -12,13 +12,13 @@ const SKILL_TYPE_BADGE_CLASS_NAME =
 
 const TYPE_CONFIG: Record<SkillType, { labelKey: I18nKey }> = {
   agentskills: {
-    labelKey: I18nKey.SETTINGS$SKILLS_TYPE_AGENTSKILLS,
+    labelKey: I18nKey.SETTINGS$SKILLS_BADGE_AUTO_DISCOVERY,
   },
   knowledge: {
-    labelKey: I18nKey.SETTINGS$SKILLS_TYPE_KNOWLEDGE,
+    labelKey: I18nKey.SETTINGS$SKILLS_BADGE_TRIGGER_BASED,
   },
   repo: {
-    labelKey: I18nKey.SETTINGS$SKILLS_TYPE_REPO,
+    labelKey: I18nKey.SETTINGS$SKILLS_BADGE_ALWAYS_ACTIVE,
   },
 };
 

@@ -9,7 +9,10 @@ import { SkillDetailModal } from "#/components/features/skills/skill-detail-moda
 import { AddSkillModal } from "#/components/features/skills/add-skill-modal";
 import { SkillsToolbar } from "#/components/features/skills/skills-toolbar";
 import { BrandButton } from "#/components/features/settings/brand-button";
-import type { SkillTypeFilter } from "#/components/features/skills/skill-type-filter";
+import type {
+  SkillScopeFilter,
+  SkillStatusFilter,
+} from "#/components/features/skills/skill-type-filter";
 import { I18nKey } from "#/i18n/declaration";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
@@ -22,6 +25,7 @@ import {
 } from "#/utils/extension-module-card-classes";
 import type { SkillInfo } from "#/types/settings";
 import { getSkillCardDescription } from "#/components/features/skills/get-skill-card-description";
+import { getSkillScope } from "#/utils/skill-scope";
 
 function matchesSearch(skill: SkillInfo, query: string): boolean {
   if (!query) return true;
@@ -50,7 +54,9 @@ function SkillsSettingsScreen() {
   const [hasHydratedInitialSettings, setHasHydratedInitialSettings] =
     React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [typeFilter, setTypeFilter] = React.useState<SkillTypeFilter>("all");
+  const [scopeFilter, setScopeFilter] = React.useState<SkillScopeFilter>("all");
+  const [statusFilter, setStatusFilter] =
+    React.useState<SkillStatusFilter>("all");
   const [selectedSkill, setSelectedSkill] = React.useState<SkillInfo | null>(
     null,
   );
@@ -93,12 +99,19 @@ function SkillsSettingsScreen() {
 
   const filteredSkills = React.useMemo(() => {
     if (!skills) return [];
-    return skills.filter(
-      (skill) =>
-        (typeFilter === "all" || skill.type === typeFilter) &&
-        matchesSearch(skill, searchQuery),
-    );
-  }, [skills, typeFilter, searchQuery]);
+    return skills.filter((skill) => {
+      if (scopeFilter !== "all" && getSkillScope(skill) !== scopeFilter) {
+        return false;
+      }
+      if (statusFilter === "enabled" && disabledSet.has(skill.name)) {
+        return false;
+      }
+      if (statusFilter === "disabled" && !disabledSet.has(skill.name)) {
+        return false;
+      }
+      return matchesSearch(skill, searchQuery);
+    });
+  }, [skills, scopeFilter, statusFilter, disabledSet, searchQuery]);
 
   return (
     <div
@@ -158,8 +171,10 @@ function SkillsSettingsScreen() {
               <SkillsToolbar
                 search={searchQuery}
                 onSearchChange={setSearchQuery}
-                typeFilter={typeFilter}
-                onTypeFilterChange={setTypeFilter}
+                scopeFilter={scopeFilter}
+                onScopeFilterChange={setScopeFilter}
+                statusFilter={statusFilter}
+                onStatusFilterChange={setStatusFilter}
               />
               {filteredSkills.length === 0 ? (
                 <div

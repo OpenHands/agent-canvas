@@ -1,11 +1,11 @@
 import type { SkillInfo } from "#/types/settings";
 
-export type SkillScope = "project" | "personal" | "public";
+export type SkillScope = "project" | "personal" | "bundled";
 
 export const SKILL_SCOPE_ORDER: SkillScope[] = [
   "project",
   "personal",
-  "public",
+  "bundled",
 ];
 
 const USER_SKILL_DIR_MARKERS = [
@@ -78,12 +78,12 @@ export function getSkillScope(
 ): SkillScope {
   const source = skill.source?.trim();
   if (!source) {
-    return skill.type === "repo" ? "project" : "public";
+    return skill.type === "repo" ? "project" : "bundled";
   }
 
   const lower = source.toLowerCase();
   if (isPublicSource(source)) {
-    return "public";
+    return "bundled";
   }
   if (lower === "user" || lower === "global") {
     return "personal";
@@ -98,7 +98,7 @@ export function getSkillScope(
     return "project";
   }
 
-  return "public";
+  return "bundled";
 }
 
 export function groupSkillsByScope(
@@ -108,7 +108,7 @@ export function groupSkillsByScope(
   const groups: Record<SkillScope, SkillInfo[]> = {
     project: [],
     personal: [],
-    public: [],
+    bundled: [],
   };
 
   for (const skill of skills) {

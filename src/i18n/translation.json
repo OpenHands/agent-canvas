@@ -24241,22 +24241,22 @@
     "uk": "Навички користувача",
     "ca": "Habilitats de l'usuari"
   },
-  "SKILLS_MODAL$SECTION_PUBLIC": {
-    "en": "Public skills",
-    "ja": "パブリックスキル",
-    "zh-CN": "公共技能",
-    "zh-TW": "公開技能",
-    "ko-KR": "공개 스킬",
-    "no": "Offentlige ferdigheter",
-    "ar": "المهارات العامة",
-    "de": "Öffentliche Fähigkeiten",
-    "fr": "Compétences publiques",
-    "it": "Abilità pubbliche",
-    "pt": "Habilidades públicas",
-    "es": "Habilidades públicas",
-    "tr": "Genel yetenekler",
-    "uk": "Загальнодоступні навички",
-    "ca": "Habilitats públiques"
+  "SKILLS_MODAL$SECTION_BUNDLED": {
+    "en": "Bundled skills",
+    "ja": "バンドル済みスキル",
+    "zh-CN": "捆绑技能",
+    "zh-TW": "內建技能",
+    "ko-KR": "번들 스킬",
+    "no": "Inkluderte ferdigheter",
+    "ar": "المهارات المدمجة",
+    "de": "Gebündelte Fähigkeiten",
+    "fr": "Compétences intégrées",
+    "it": "Abilità incluse",
+    "pt": "Habilidades incluídas",
+    "es": "Habilidades incluidas",
+    "tr": "Paketlenmiş yetenekler",
+    "uk": "Вбудовані навички",
+    "ca": "Habilitats incloses"
   },
   "CONVERSATION$SHARE_PUBLICLY": {
     "en": "Public Share",
@@ -25040,7 +25040,7 @@
     "uk": "Усі",
     "ca": "Tot"
   },
-  "SETTINGS$SKILLS_TYPE_AGENTSKILLS": {
+  "SETTINGS$SKILLS_BADGE_AUTO_DISCOVERY": {
     "en": "Auto-discovery",
     "ja": "自動検出",
     "zh-CN": "自动发现",
@@ -25057,7 +25057,7 @@
     "uk": "Автовиявлення",
     "ca": "Descoberta automàtica"
   },
-  "SETTINGS$SKILLS_TYPE_KNOWLEDGE": {
+  "SETTINGS$SKILLS_BADGE_TRIGGER_BASED": {
     "en": "Trigger-based",
     "ja": "トリガーベース",
     "zh-CN": "基于触发",
@@ -25074,7 +25074,7 @@
     "uk": "На основі тригерів",
     "ca": "Basat en activadors"
   },
-  "SETTINGS$SKILLS_TYPE_REPO": {
+  "SETTINGS$SKILLS_BADGE_ALWAYS_ACTIVE": {
     "en": "Always active",
     "ja": "常時有効",
     "zh-CN": "始终激活",
@@ -25090,6 +25090,57 @@
     "tr": "Her zaman etkin",
     "uk": "Завжди активний",
     "ca": "Sempre actiu"
+  },
+  "SETTINGS$SKILLS_SCOPE_BUNDLED": {
+    "en": "Bundled",
+    "ja": "バンドル済み",
+    "zh-CN": "捆绑",
+    "zh-TW": "內建",
+    "ko-KR": "번들",
+    "no": "Inkludert",
+    "ar": "مدمج",
+    "de": "Gebündelt",
+    "fr": "Intégré",
+    "it": "Incluso",
+    "pt": "Incluído",
+    "es": "Incluido",
+    "tr": "Paketlenmiş",
+    "uk": "Вбудовано",
+    "ca": "Inclòs"
+  },
+  "SETTINGS$SKILLS_SCOPE_PERSONAL": {
+    "en": "Personal",
+    "ja": "個人",
+    "zh-CN": "个人",
+    "zh-TW": "個人",
+    "ko-KR": "개인",
+    "no": "Personlig",
+    "ar": "شخصي",
+    "de": "Persönlich",
+    "fr": "Personnel",
+    "it": "Personale",
+    "pt": "Pessoal",
+    "es": "Personal",
+    "tr": "Kişisel",
+    "uk": "Особистий",
+    "ca": "Personal"
+  },
+  "SETTINGS$SKILLS_SCOPE_PROJECT": {
+    "en": "Project",
+    "ja": "プロジェクト",
+    "zh-CN": "项目",
+    "zh-TW": "專案",
+    "ko-KR": "프로젝트",
+    "no": "Prosjekt",
+    "ar": "مشروع",
+    "de": "Projekt",
+    "fr": "Projet",
+    "it": "Progetto",
+    "pt": "Projeto",
+    "es": "Proyecto",
+    "tr": "Proje",
+    "uk": "Проєкт",
+    "ca": "Projecte"
   },
   "SETTINGS$SKILLS_VERSION": {
     "en": "v{{version}}",

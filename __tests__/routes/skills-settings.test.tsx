@@ -139,7 +139,7 @@ Full skill body.`,
     ).toBeInTheDocument();
     expect(
       within(card).getByTestId("skill-type-badge-knowledge"),
-    ).toHaveTextContent("SETTINGS$SKILLS_TYPE_KNOWLEDGE");
+    ).toHaveTextContent("SETTINGS$SKILLS_BADGE_TRIGGER_BASED");
   });
 
   it("copies the source path when the copy button is clicked", async () => {
@@ -196,27 +196,75 @@ Full skill body.`,
     expect(screen.getByTestId("skill-card-vercel")).toBeInTheDocument();
   });
 
-  it("narrows the visible skills when a type filter chip is selected", async () => {
+  it("narrows the visible skills when a scope filter is selected", async () => {
     const user = userEvent.setup();
     vi.spyOn(SkillsService, "getSkills").mockResolvedValue([
-      buildSkill({ name: "deno", type: "knowledge" }),
       buildSkill({
-        name: "global-rules",
+        name: "deno",
+        source:
+          "/Users/test/.openhands/cache/skills/public-skills/skills/deno/SKILL.md",
+      }),
+      buildSkill({
+        name: "project-rules",
         type: "repo",
         triggers: [],
-        source: "/skills/global-rules.md",
+        source: "/workspace/project/.agents/skills/rules/SKILL.md",
       }),
     ]);
 
     renderSkillsSettingsScreen();
     await screen.findByTestId("skill-card-deno");
 
-    const filter = screen.getByTestId("skills-type-filter");
+    const filter = screen.getByTestId("skills-scope-filter");
     await user.click(within(filter).getByTestId("dropdown-trigger"));
-    await user.click(screen.getByTestId("skills-type-filter-repo"));
+    await user.click(screen.getByTestId("skills-scope-filter-bundled"));
 
-    expect(screen.queryByTestId("skill-card-deno")).not.toBeInTheDocument();
-    expect(screen.getByTestId("skill-card-global-rules")).toBeInTheDocument();
+    expect(screen.getByTestId("skill-card-deno")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("skill-card-project-rules"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("filters skills by enabled/disabled status", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(SkillsService, "getSkills").mockResolvedValue([
+      buildSkill({ name: "enabled-skill" }),
+      buildSkill({ name: "to-disable" }),
+    ]);
+    // Keep save as a pending promise to prevent save → invalidate → re-hydrate loop
+    vi.spyOn(SettingsService, "saveSettings").mockImplementation(
+      () => new Promise(() => {}),
+    );
+
+    renderSkillsSettingsScreen();
+    await screen.findByTestId("skill-card-enabled-skill");
+
+    // Toggle one skill off via the card toggle
+    const card = screen.getByTestId("skill-card-to-disable");
+    await user.click(within(card).getByTestId("skill-toggle-to-disable"));
+
+    // Both still visible with "all" status filter
+    expect(screen.getByTestId("skill-card-enabled-skill")).toBeInTheDocument();
+    expect(screen.getByTestId("skill-card-to-disable")).toBeInTheDocument();
+
+    // Filter to disabled only
+    const filter = screen.getByTestId("skills-status-filter");
+    await user.click(within(filter).getByTestId("dropdown-trigger"));
+    await user.click(screen.getByTestId("skills-status-filter-disabled"));
+
+    expect(
+      screen.queryByTestId("skill-card-enabled-skill"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("skill-card-to-disable")).toBeInTheDocument();
+
+    // Switch to enabled only
+    await user.click(within(filter).getByTestId("dropdown-trigger"));
+    await user.click(screen.getByTestId("skills-status-filter-enabled"));
+
+    expect(screen.getByTestId("skill-card-enabled-skill")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("skill-card-to-disable"),
+    ).not.toBeInTheDocument();
   });
 
   it("opens a detail modal with full metadata when a skill card is clicked", async () => {
