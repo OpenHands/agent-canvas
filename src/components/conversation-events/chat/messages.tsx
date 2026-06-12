@@ -18,6 +18,7 @@ interface MessagesProps {
 }
 
 const getLastEventId = (events: OpenHandsEvent[]) => events.at(-1)?.id;
+const getLastEvent = (events: OpenHandsEvent[]) => events.at(-1);
 
 export const Messages: React.FC<MessagesProps> = React.memo(
   ({ messages, allEvents }) => {
@@ -133,7 +134,10 @@ export const Messages: React.FC<MessagesProps> = React.memo(
     prevProps.messages.length === nextProps.messages.length &&
     prevProps.allEvents.length === nextProps.allEvents.length &&
     getLastEventId(prevProps.messages) === getLastEventId(nextProps.messages) &&
-    getLastEventId(prevProps.allEvents) === getLastEventId(nextProps.allEvents),
+    getLastEventId(prevProps.allEvents) ===
+      getLastEventId(nextProps.allEvents) &&
+    getLastEvent(prevProps.messages) === getLastEvent(nextProps.messages) &&
+    getLastEvent(prevProps.allEvents) === getLastEvent(nextProps.allEvents),
 );
 
 Messages.displayName = "Messages";

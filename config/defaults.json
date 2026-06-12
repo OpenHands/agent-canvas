@@ -4,8 +4,7 @@
   "versions": {
     "agentServer": "1.28.1",
     "agentCanvas": "1.0.0-rc.6",
-    "automation": "1.0.0a9",
-    "githubMcpServer": "1.2.0"
+    "automation": "1.0.0a9"
   },
 
   "images": {
