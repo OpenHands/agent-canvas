@@ -12,6 +12,7 @@ import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useAgentSettingsSchema } from "#/hooks/query/use-agent-settings-schema";
 import type { SettingsSchema } from "#/types/settings";
+import { withLlmSubscriptionSchemaFields } from "#/utils/llm-subscription-schema";
 
 const agentSchema: SettingsSchema = {
   model_name: "AgentSettings",
@@ -86,7 +87,9 @@ describe("useAgentSettingsSchema", () => {
     });
 
     await waitFor(() => {
-      expect(result.current.schemaQuery.data).toEqual(agentSchema);
+      expect(result.current.schemaQuery.data).toEqual(
+        withLlmSubscriptionSchemaFields(agentSchema),
+      );
     });
     expect(getSettingsSchemaSpy).toHaveBeenCalledTimes(1);
   });
