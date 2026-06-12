@@ -12,8 +12,8 @@ import type {
  *
  * Without these handlers, mock-mode renders of the home / sidebar /
  * conversation pages let those requests fall through to the Vite proxy
- * (`127.0.0.1:8000` ECONNREFUSED), which spams the snapshot-test logs and
- * surfaces global error toasts in the captured screenshots.
+ * (`127.0.0.1:8000` ECONNREFUSED), which spams logs and surfaces
+ * global error toasts in mock-mode screens.
  *
  * The mock keeps an in-memory list so the install / remove flow round-trips
  * cleanly within a single page load. State resets on every test reload.

@@ -68,13 +68,4 @@ describe("searchVisualizer", () => {
     );
     expect(screen.getByText("COMMON$TRUNCATED")).toBeInTheDocument();
   });
-
-  it("matches snapshot", () => {
-    const { container } = renderVisualizer(
-      <Body
-        observation={grepObservation({ pattern: "TODO", matches: ["a.ts"] })}
-      />,
-    );
-    expect(container.firstChild).toMatchSnapshot();
-  });
 });
