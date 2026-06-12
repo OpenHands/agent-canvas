@@ -68,6 +68,7 @@ import {
   isProcessRunning,
   signalProcessTree,
 } from "./dev-process-utils.mjs";
+import { fileLog, stripAnsi } from "./logger.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -105,18 +106,54 @@ const c = {
 function logService(name, message, color = c.reset) {
   const ts = new Date().toISOString().split("T")[1].split(".")[0];
   console.log(`${c.dim}${ts}${c.reset} ${color}[${name}]${c.reset} ${message}`);
+  fileLog("info", `[${name}] ${stripAnsi(message)}`);
 }
 
 function logStep(step, message) {
   console.log(`${c.cyan}[${step}]${c.reset} ${message}`);
+  fileLog("info", `[${step}] ${message}`);
 }
 
 function logSuccess(message) {
   console.log(`${c.green}✓${c.reset} ${message}`);
+  fileLog("info", `✓ ${message}`);
 }
 
 function logError(message) {
   console.error(`${c.red}✗${c.reset} ${message}`);
+  fileLog("error", `✗ ${stripAnsi(message)}`);
+}
+
+/**
+ * Parse one JSON log line produced by the SDK's JsonFormatter and return a
+ * single-line human-readable string + an appropriate ANSI color.
+ *
+ * Returns null for non-JSON lines so callers can fall back to the raw text.
+ *
+ * @param {string} rawLine
+ * @returns {{ text: string; color: string } | null}
+ */
+function parseAgentServerLogLine(rawLine) {
+  try {
+    const obj = JSON.parse(rawLine);
+    if (!obj.levelname || obj.message === undefined) return null;
+    const level = obj.levelname.padEnd(8);
+    const location =
+      obj.filename && obj.lineno ? `  ${obj.filename}:${obj.lineno}` : "";
+    const text = `${level} ${obj.message}${location}`;
+    const lvl = obj.levelname;
+    const color =
+      lvl === "DEBUG"
+        ? c.dim
+        : lvl === "WARNING"
+          ? c.yellow
+          : lvl === "ERROR" || lvl === "CRITICAL"
+            ? c.red
+            : c.blue;
+    return { text, color };
+  } catch {
+    return null;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -440,7 +477,9 @@ function checkPrerequisites({
 
   if (checkUvx) {
     if (!commandExists("uvx")) {
-      console.error(formatMissingUvxGuidance(projectRoot));
+      const uvxGuidance = formatMissingUvxGuidance(projectRoot);
+      console.error(uvxGuidance);
+      fileLog("error", stripAnsi(uvxGuidance));
       process.exit(1);
     }
     logSuccess("uvx found");
@@ -521,6 +560,7 @@ function spawnService(name, command, args, options = {}) {
   );
 
   const color = options.color || c.reset;
+  const parseLogLine = options.parseLogLine;
 
   proc.stdout.on("data", (data) => {
     data
@@ -528,7 +568,12 @@ function spawnService(name, command, args, options = {}) {
       .split("\n")
       .filter(Boolean)
       .forEach((line) => {
-        logService(name, line.trim(), color);
+        const parsed = parseLogLine ? parseLogLine(line.trim()) : null;
+        logService(
+          name,
+          parsed ? parsed.text : line.trim(),
+          parsed ? parsed.color : color,
+        );
       });
   });
 
@@ -538,7 +583,12 @@ function spawnService(name, command, args, options = {}) {
       .split("\n")
       .filter(Boolean)
       .forEach((line) => {
-        logService(name, line.trim(), c.yellow);
+        const parsed = parseLogLine ? parseLogLine(line.trim()) : null;
+        logService(
+          name,
+          parsed ? parsed.text : line.trim(),
+          parsed ? parsed.color : c.yellow,
+        );
       });
   });
 
@@ -699,6 +749,11 @@ function startAgentServer(config) {
     // Ensure the agent-server uses the resolved key from config. This is
     // LOCAL_BACKEND_API_KEY when set, or the auto-generated persisted key.
     OH_SESSION_API_KEYS_0: config.sessionApiKey,
+    // Emit structured JSON log lines instead of Rich-formatted output.
+    // Rich wraps long messages across multiple lines and prepends its own
+    // timestamp; LOG_JSON=true produces one JSON object per record which
+    // parseAgentServerLogLine re-formats into a clean single-line entry.
+    LOG_JSON: "true",
   };
 
   spawnService(
@@ -715,6 +770,7 @@ function startAgentServer(config) {
       cwd: safeConfig.workspacesPath,
       env: agentServerEnv,
       color: c.blue,
+      parseLogLine: parseAgentServerLogLine,
     },
   );
 }
@@ -796,8 +852,10 @@ function startAutomationBackend(config) {
           join(config.stateDir, "workspaces"),
         // Session API key for self-hosted auth — shared with agent-server via X-Session-API-Key header
         AUTOMATION_LOCAL_API_KEY: config.sessionApiKey,
-        // CORS: allow localhost origins for dev
-        AUTOMATION_CORS_ORIGINS: `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
+        // CORS: allow localhost origins for dev, unless explicitly overridden.
+        AUTOMATION_CORS_ORIGINS:
+          process.env.AUTOMATION_CORS_ORIGINS ||
+          `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
         FILE_STORE: "local",
         LOCAL_STORAGE_PATH: join(config.stateDir, "storage"),
         OPENHANDS_SUPPRESS_BANNER: "1",
@@ -819,6 +877,7 @@ function shutdown() {
 
   console.log("");
   console.log(`${c.yellow}Shutting down...${c.reset}`);
+  fileLog("info", "Shutting down...");
 
   for (const [name, proc] of processes) {
     logService(name, "Stopping...", c.dim);
@@ -1090,6 +1149,22 @@ function printBanner(config) {
   console.log(`${c.dim}State directory: ${config.stateDir}${c.reset}`);
   console.log(`${c.dim}Press Ctrl+C to stop${c.reset}`);
   console.log("");
+
+  // Write a compact plain-text summary to the log file.
+  const summary = [
+    `${stackName} — started`,
+    `  Ingress:         http://localhost:${config.ingressPort}/`,
+    ...(config.launchFrontend
+      ? [`  Main UI:         http://localhost:${config.ingressPort}/`]
+      : []),
+    ...(config.launchAutomation
+      ? [
+          `  API Docs:        http://localhost:${config.ingressPort}/api/automation/docs`,
+        ]
+      : []),
+    `  State directory: ${config.stateDir}`,
+  ];
+  fileLog("info", summary.join("\n"));
 }
 
 async function main(options = {}) {
@@ -1143,6 +1218,7 @@ async function main(options = {}) {
   console.log("");
   console.log(`${c.cyan}${c.bold}${titleWithMode}${c.reset}`);
   console.log("");
+  fileLog("info", titleWithMode);
 
   // Setup phase
   checkPrerequisites({
@@ -1269,6 +1345,13 @@ function startStaticFrontend(config, staticDir) {
   logService("static", `Starting on port ${config.vitePort}...`, c.magenta);
   logService("static", `Serving from: ${staticDir}`, c.dim);
 
+  // Build the runtime-services info JSON so the pre-built frontend can
+  // populate the agent's <RUNTIME_SERVICES> system-prompt block without
+  // VITE_RUNTIME_SERVICES_INFO baked in at build time.
+  const runtimeServicesInfo = config.launchAgentServer
+    ? JSON.stringify(buildAutomationRuntimeServicesInfo(config))
+    : null;
+
   const staticServerScript = join(projectRoot, "scripts", "static-server.mjs");
   spawnService(
     "static",
@@ -1277,8 +1360,6 @@ function startStaticFrontend(config, staticDir) {
       staticServerScript,
       "--dir",
       staticDir,
-      "--host",
-      "0.0.0.0",
       "--port",
       String(config.vitePort),
       // In local mode, inject the API key so the pre-built frontend can
@@ -1289,6 +1370,10 @@ function startStaticFrontend(config, staticDir) {
         : []),
       ...(config.launchAgentServer && config.isPublic
         ? ["--auth-required"]
+        : []),
+      // Inject runtime-services info so the agent knows what's reachable.
+      ...(runtimeServicesInfo
+        ? ["--runtime-services-info", runtimeServicesInfo]
         : []),
       // Proxy routes only to services that this launch mode started.
       ...buildRouteArgs(getLocalServiceRoutes(config)),
@@ -1345,6 +1430,7 @@ if (isMainModule) {
     logError(`Fatal error: ${err.message}`);
     if (err.stack) {
       console.error(c.dim + err.stack + c.reset);
+      fileLog("error", err.stack);
     }
     process.exit(1);
   });

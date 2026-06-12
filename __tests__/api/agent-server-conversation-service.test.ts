@@ -79,7 +79,6 @@ vi.mock("#/api/agent-server-config", () => ({
   buildConversationWorkingDir: vi.fn(
     (id: string) => `/state/workspaces/${id.replace(/-/g, "")}`,
   ),
-  getConfiguredWorkerUrls: vi.fn(() => []),
   getAgentServerHeaders: vi.fn(() => ({ "X-Session-API-Key": "test-api-key" })),
   shouldLoadPublicSkills: vi.fn(() => true),
   syncBakedSessionApiKey: vi.fn(),
@@ -146,6 +145,9 @@ describe("AgentServerConversationService", () => {
         );
         return response.data;
       },
+      // @spec WUP-001 — createConversation resolves relative working dirs
+      // via FileClient.getHome before sending the conversation-start payload.
+      getHome: async () => ({ home: "/Users/agent" }),
     });
     mockSettingsClient.mockReturnValue({
       listSecrets: vi.fn().mockResolvedValue({ secrets: [] }),
@@ -264,10 +266,12 @@ describe("AgentServerConversationService", () => {
       const firstPayload = firstCall[1] as {
         conversation_id: string;
         workspace: { working_dir: string };
+        worktree: boolean;
       };
       const secondPayload = secondCall[1] as {
         conversation_id: string;
         workspace: { working_dir: string };
+        worktree: boolean;
       };
 
       expect(firstPayload.conversation_id).toBeTruthy();
@@ -283,6 +287,125 @@ describe("AgentServerConversationService", () => {
       expect(secondPayload.workspace.working_dir).toBe(
         `/state/workspaces/${secondHex}`,
       );
+      expect(firstPayload.worktree).toBe(true);
+      expect(secondPayload.worktree).toBe(true);
+    });
+
+    // @spec WUP-001 — When the default working_dir is relative, the
+    // conversation-start payload must be anchored against the agent-server
+    // home dir so the worktree and later file uploads agree on a writable
+    // absolute path.
+    it("resolves relative default working dirs against /api/file/home", async () => {
+      const { buildConversationWorkingDir: mockedBuilder } =
+        await import("#/api/agent-server-config");
+      vi.mocked(mockedBuilder).mockImplementationOnce(
+        (id: string) => `workspace/project/${id.replace(/-/g, "")}`,
+      );
+      const { clearAgentServerHomeDirCache } =
+        await import("#/api/agent-server-home");
+      clearAgentServerHomeDirCache();
+
+      mockGetSettings.mockResolvedValue({
+        agent_settings: { llm: { model: "gpt-4o" } },
+        conversation_settings: {},
+      });
+      mockGetSettingsForConversation.mockResolvedValue({
+        agentSettings: { llm: { model: "gpt-4o" } },
+        conversationSettings: {},
+        secretsEncrypted: true,
+      });
+      mockHttpPost.mockResolvedValue({
+        data: {
+          id: "ignored-server-id",
+          created_at: "2024-01-01",
+          updated_at: "2024-01-01",
+        },
+      });
+
+      await AgentServerConversationService.createConversation();
+
+      const [payloadCall] = mockHttpPost.mock.calls;
+      const payload = payloadCall[1] as {
+        conversation_id: string;
+        workspace: { working_dir: string };
+      };
+      const hex = payload.conversation_id.replace(/-/g, "");
+      expect(payload.workspace.working_dir).toBe(
+        `/Users/agent/workspace/project/${hex}`,
+      );
+    });
+
+    // @spec WUP-001 — User-supplied workspace overrides are already absolute
+    // (they come from `search_subdirs`), so they must pass through verbatim.
+    it("leaves an absolute workingDirOverride untouched", async () => {
+      mockGetSettings.mockResolvedValue({
+        agent_settings: { llm: { model: "gpt-4o" } },
+        conversation_settings: {},
+      });
+      mockGetSettingsForConversation.mockResolvedValue({
+        agentSettings: { llm: { model: "gpt-4o" } },
+        conversationSettings: {},
+        secretsEncrypted: true,
+      });
+      mockHttpPost.mockResolvedValue({
+        data: {
+          id: "ignored-server-id",
+          created_at: "2024-01-01",
+          updated_at: "2024-01-01",
+        },
+      });
+
+      await AgentServerConversationService.createConversation(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        "/Users/jane/projects/foo",
+      );
+
+      const [payloadCall] = mockHttpPost.mock.calls;
+      const payload = payloadCall[1] as {
+        workspace: { working_dir: string };
+        worktree: boolean;
+      };
+      expect(payload.workspace.working_dir).toBe("/Users/jane/projects/foo");
+      expect(payload.worktree).toBe(false);
+    });
+
+    it("honors an explicit new-worktree mode for a selected workspace", async () => {
+      mockGetSettings.mockResolvedValue({
+        agent_settings: { llm: { model: "gpt-4o" } },
+        conversation_settings: {},
+      });
+      mockGetSettingsForConversation.mockResolvedValue({
+        agentSettings: { llm: { model: "gpt-4o" } },
+        conversationSettings: {},
+        secretsEncrypted: true,
+      });
+      mockHttpPost.mockResolvedValue({
+        data: {
+          id: "ignored-server-id",
+          created_at: "2024-01-01",
+          updated_at: "2024-01-01",
+        },
+      });
+
+      await AgentServerConversationService.createConversation(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        "/Users/jane/projects/foo",
+        "new_worktree",
+      );
+
+      const [payloadCall] = mockHttpPost.mock.calls;
+      const payload = payloadCall[1] as {
+        workspace: { working_dir: string };
+        worktree: boolean;
+      };
+      expect(payload.workspace.working_dir).toBe("/Users/jane/projects/foo");
+      expect(payload.worktree).toBe(true);
     });
   });
 
@@ -759,6 +882,7 @@ describe("AgentServerConversationService", () => {
         undefined,
         undefined,
         null,
+        undefined,
         undefined,
         "parent-conv-1",
         "plan",

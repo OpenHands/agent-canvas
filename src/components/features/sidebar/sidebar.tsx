@@ -120,9 +120,7 @@ export function Sidebar() {
     ) {
       // We don't show toast errors for settings in the global error handler
       // because we have a special case for 404 errors
-      displayErrorToast(
-        "Something went wrong while fetching settings. Please reload the page.",
-      );
+      displayErrorToast(t(I18nKey.SETTINGS$FETCH_ERROR));
     } else if (
       settingsErrorStatus === 404 &&
       !config?.feature_flags?.hide_llm_settings
@@ -135,6 +133,7 @@ export function Sidebar() {
     settingsIsError,
     settingsErrorStatus,
     config?.feature_flags?.hide_llm_settings,
+    t,
   ]);
 
   const linkDisabled = settings?.email_verified === false;

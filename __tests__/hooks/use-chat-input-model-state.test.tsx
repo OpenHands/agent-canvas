@@ -182,7 +182,7 @@ describe("useChatInputModelState", () => {
     expect(result.current.currentModelId).toBe(provider?.default_model);
   });
 
-  it("showAcpPicker tri-condition: cloud backend suppresses the picker even with a model list", () => {
+  it("showAcpPicker: cloud backend shows the picker when a model list is present (cloud ACP supports mid-conversation switching)", () => {
     useActiveBackendMock.mockReturnValue({ backend: { kind: "cloud" } });
     useActiveConversationMock.mockReturnValue({
       data: {
@@ -199,8 +199,9 @@ describe("useChatInputModelState", () => {
     const { result } = renderHook(() => useChatInputModelState());
 
     expect(result.current.availableAcpModels.length).toBeGreaterThan(0);
-    // ACP + model list present, but cloud backend → display-only.
-    expect(result.current.showAcpPicker).toBe(false);
+    // ACP + model list present → picker is enabled on all backends
+    // (cloud ACP conversations support mid-conversation model switching).
+    expect(result.current.showAcpPicker).toBe(true);
   });
 
   it("showAcpPicker tri-condition: an unknown ACP provider has no model list → no picker", () => {
