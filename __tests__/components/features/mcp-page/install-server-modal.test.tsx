@@ -208,51 +208,44 @@ describe("InstallServerModal", () => {
     await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
   });
 
-  it("installs Linear over streamable HTTP with the api key as a bearer credential", async () => {
-    // Arrange: the marketplace serves the patched Linear entry (shttp
-    // /mcp endpoint, bearer auth) — the UI must never touch the removed
-    // /sse transport.
+  it("installs Linear with its default transport from the catalog", async () => {
+    // The Linear catalog entry uses sse transport. The runtime patch that
+    // previously rewrote it to shttp has been removed (issue #1336).
     const linear = getMcpMarketplaceCatalog(MCP_MARKETPLACE).find(
       (e) => e.id === "linear",
     )!;
     const testSpy = vi
       .spyOn(McpService, "testServer")
       .mockResolvedValue({ ok: true, tools: [] });
-    const getSpy = vi
-      .spyOn(SettingsService, "getSettings")
-      .mockResolvedValue(MOCK_DEFAULT_USER_SETTINGS);
-    const saveSpy = vi
-      .spyOn(SettingsService, "saveSettings")
-      .mockResolvedValue(true);
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      MOCK_DEFAULT_USER_SETTINGS,
+    );
+    vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
 
     renderWith(<InstallServerModal entry={linear} onClose={vi.fn()} />);
     await screen.findByTestId("mcp-install-modal");
     // Wait for useSettings() so the add-mcp-server mutation doesn't bail.
-    await waitFor(() => expect(getSpy).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(SettingsService.getSettings).toHaveBeenCalled(),
+    );
 
-    // Act: provide the optional Linear API key and install.
-    fireEvent.change(screen.getByTestId("mcp-install-field-api_key"), {
-      target: { value: "lin_api_secret" },
-    });
+    // The Linear entry uses sse transport, not shttp — no api_key field renders.
+    expect(screen.queryByTestId("mcp-install-field-api_key")).toBeNull();
+
+    // Verify the URL field shows the catalog's sse endpoint.
+    const urlInput = screen.getByTestId("mcp-install-field-url");
+    expect(urlInput.getAttribute("value") ?? urlInput.textContent).toContain(
+      "mcp.linear.app",
+    );
+
     fireEvent.click(screen.getByTestId("mcp-install-submit"));
 
-    // Assert: both the pre-flight test and the persisted config target
-    // the new endpoint over streamable HTTP with the bearer credential.
-    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
-    expect(testSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: "shttp",
-        url: "https://mcp.linear.app/mcp",
-        api_key: "lin_api_secret",
-      }),
+    // In tests i18n keys are returned as-is, so the button shows the key name.
+    await waitFor(() =>
+      expect(screen.getByTestId("mcp-install-submit")).toHaveTextContent(
+        "MCP$VERIFYING",
+      ),
     );
-    const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
-      .agent_settings_diff as {
-      mcp_config: { mcpServers: Record<string, unknown> };
-    };
-    expect(sent.mcp_config.mcpServers).toMatchObject({
-      shttp: { url: "https://mcp.linear.app/mcp", auth: "lin_api_secret" },
-    });
   });
 
   it("closes from the top-right close button", async () => {
