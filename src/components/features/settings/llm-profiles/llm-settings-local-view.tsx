@@ -35,10 +35,6 @@ import {
 import { BackNavButton } from "#/components/shared/buttons/back-nav-button";
 import { Typography } from "#/ui/typography";
 import { useSettingsSectionHeader } from "#/contexts/settings-section-header-context";
-import {
-  OPENHANDS_LLM_PROXY_BASE_URL,
-  isOpenHandsProxyModel,
-} from "#/utils/openhands-llm";
 
 type ViewMode = "list" | "create" | "edit";
 
@@ -253,32 +249,10 @@ export function LlmSettingsLocalView() {
         : {};
     const llmConfig: Record<string, unknown> = { ...baseConfig, ...dirtyLlm };
 
-    // The Basic tab has no base_url field; the provider implies it. Persist
-    // the All-Hands proxy explicitly for OpenHands models — including ones the
-    // SDK has already rewritten to `litellm_proxy/*` — because local
-    // agent-server builds do not infer the LiteLLM proxy api_base on their own,
-    // and dropping it strands the profile as `litellm_proxy/* + base_url:null`
-    // (issue #1146). For other providers, drop any stale custom value and let
-    // the backend use its normal provider defaults.
-    //
-    // Agent-server ≥1.28 may omit the default base_url from profile configs,
-    // causing the stored value to be null even for genuine OpenHands proxy
-    // models. Treat litellm_proxy/* with a missing base_url the same as
-    // litellm_proxy/* with the proxy URL already set.
+    // The Basic tab has no base_url field. Provider defaults are handled by
+    // the backend, so drop stale custom values for every provider.
     if (saveControl.view === "basic") {
-      const model = llmConfig.model;
-      const baseUrl = llmConfig.base_url;
-      const isProxy = isOpenHandsProxyModel(model, baseUrl);
-      const isLitellmProxyWithMissingBaseUrl =
-        !isProxy &&
-        typeof model === "string" &&
-        model.startsWith("litellm_proxy/") &&
-        !baseUrl;
-      if (isProxy || isLitellmProxyWithMissingBaseUrl) {
-        llmConfig.base_url = OPENHANDS_LLM_PROXY_BASE_URL;
-      } else {
-        delete llmConfig.base_url;
-      }
+      delete llmConfig.base_url;
     }
 
     // API key handling: an empty value means "no change" (the UX doesn't
