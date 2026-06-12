@@ -842,6 +842,10 @@ export interface StartConversationOptions {
   customSecrets?: Array<{ name: string; description?: string }>;
 }
 
+/**
+ * Allows conversation creation to replace the agent settings payload with
+ * settings derived from related conversation context before the request is sent.
+ */
 type ResolveAgentSettings = (
   agentSettings: Record<string, SettingsValue>,
 ) => Promise<Record<string, SettingsValue> | undefined>;

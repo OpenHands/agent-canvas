@@ -369,11 +369,16 @@ async function resolveParentOpenHandsAgentSettings(
         ...(isRecord(encryptedAgentSettings.llm)
           ? encryptedAgentSettings.llm
           : {}),
+        // The parent's active profile is the source of truth for inherited
+        // child settings; only normalize model after copying the profile.
         ...(profileConfig as Record<string, SettingsValue>),
         model,
       },
     };
   } catch {
+    // Parent profile lookup is best-effort. Conversation creation should fall
+    // back to the caller's settings instead of failing because inheritance
+    // metadata is stale or inaccessible.
     return undefined;
   }
 }
@@ -401,6 +406,7 @@ async function resolveParentAgentSettings(
     );
   }
 
+  // Unknown agent shapes cannot be inherited safely; keep default settings.
   return undefined;
 }
 

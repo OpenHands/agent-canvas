@@ -488,7 +488,6 @@ describe("AgentServerConversationService", () => {
     });
 
     it("inherits an OpenHands parent's active profile with encrypted config", async () => {
-      window.localStorage.clear();
       setStoredConversationMetadata("parent-openhands", {
         selected_repository: null,
         selected_branch: null,
