@@ -427,7 +427,7 @@ describe("buildStartConversationRequest", () => {
   });
 
   it("does NOT mirror conversation secrets onto agent_context for ACP — request.secrets is the sole channel", () => {
-    // The pinned minimum agent-server (1.25.0) injects the ACP spawn env from
+    // The compatible agent-server line injects the ACP spawn env from
     // ``secret_registry``, which is seeded from ``request.secrets``
     // (sdk#3299/#3464; the agent_context drain is gone entirely in sdk#3528).
     // Mirroring the map onto ``agent_context.secrets`` would keep a second,
@@ -521,7 +521,7 @@ describe("buildStartConversationRequest", () => {
       expect(payload.secrets.CODEX_AUTH_JSON?.kind).toBe("LookupSecret");
       expect(payload.secrets.MY_TOKEN?.kind).toBe("LookupSecret");
       // ``request.secrets`` is the sole channel — no agent_context mirror
-      // (the ≥1.25.0 agent-server injects the spawn env from secret_registry).
+      // (agent-server >=1.25.0 injects the spawn env from secret_registry).
       expect(payload.agent_settings.agent_context?.secrets).toBeUndefined();
       // The configured model rides along unchanged.
       expect(payload.agent_settings.acp_model).toBe("gpt-5.5/medium");

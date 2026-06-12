@@ -9,6 +9,10 @@
     "githubMcpServer": "1.2.0"
   },
 
+  "compatibility": {
+    "minimumAgentServer": "1.28.0"
+  },
+
   "images": {
     "agentServer": "ghcr.io/openhands/agent-server",
     "agentCanvas": "ghcr.io/openhands/agent-canvas"
