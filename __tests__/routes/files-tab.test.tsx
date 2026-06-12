@@ -319,8 +319,7 @@ describe("FilesTab", () => {
     expect(
       screen.queryByTestId("file-content-viewer-iframe"),
     ).not.toBeInTheDocument();
-    // The rich-rendered markdown container is mounted (visual styling of
-    // this container is covered by the Playwright snapshot suite).
+    // The rich-rendered markdown container is mounted.
     expect(
       screen.getByTestId("file-content-viewer-markdown"),
     ).toBeInTheDocument();

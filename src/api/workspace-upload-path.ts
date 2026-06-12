@@ -24,21 +24,6 @@ export function getSafeUploadFileName(fileName: string): string {
 }
 
 /**
- * @deprecated The old `prepend `/` if not already absolute` behaviour is the
- * root cause of #XXXX (relative `workspace/project` → `/workspace/project`,
- * which is on a read-only mount on macOS / fresh containers). Callers that
- * need an actual absolute path must use {@link resolveAbsoluteWorkspacePath}
- * so the relative leg is anchored against `/api/file/home` instead.
- *
- * Kept for the rare callers that genuinely just want a leading-slash
- * normaliser on a value already known to be agent-server-rooted (e.g.
- * cosmetic display, log strings).
- */
-export function toAbsoluteWorkspacePath(path: string): string {
-  return path.startsWith("/") ? path : `/${path}`;
-}
-
-/**
  * Resolve `workingDir` to an absolute path the agent-server's file APIs
  * accept. Relative paths are joined against `/api/file/home` (cached per
  * backend); absolute paths pass through.

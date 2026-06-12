@@ -35,12 +35,6 @@ vi.mock("#/routes/browser-tab", () => ({
   },
 }));
 
-vi.mock("#/routes/vscode-tab", () => ({
-  default: () => (
-    <div data-testid="vscode-tab-content">VSCode Tab Content</div>
-  ),
-}));
-
 vi.mock("#/routes/planner-tab", () => ({
   default: () => (
     <div data-testid="planner-tab-content">Planner Tab Content</div>
@@ -124,16 +118,6 @@ describe("ConversationTabContent", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("browser-tab-content")).toBeInTheDocument();
-      });
-    });
-
-    it("should render vscode tab when selected", async () => {
-      setSelectedTab("vscode");
-
-      render(<ConversationTabContent />, { wrapper: createWrapper() });
-
-      await waitFor(() => {
-        expect(screen.getByTestId("vscode-tab-content")).toBeInTheDocument();
       });
     });
 

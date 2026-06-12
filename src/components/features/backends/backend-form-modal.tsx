@@ -338,8 +338,13 @@ export function BackendForm({
   const [nameTouched, setNameTouched] = React.useState(false);
   const [hostTouched, setHostTouched] = React.useState(false);
 
-  // Kind is inferred from the host on every change.
-  const kind: BackendKind = inferKindFromHost(host);
+  // In edit mode preserve the existing backend's kind so that renaming or
+  // rotating the API key on a cloud backend (e.g. an OHE/enterprise instance
+  // on a custom domain) does not silently downgrade it to "local" and switch
+  // the auth header from `Authorization: Bearer` to `X-Session-API-Key`.
+  // Only infer from the host when adding a new backend.
+  const kind: BackendKind =
+    mode === "edit" && backend ? backend.kind : inferKindFromHost(host);
 
   const testIdRoot =
     explicitTestIdRoot ?? (mode === "edit" ? "edit-backend" : "add-backend");

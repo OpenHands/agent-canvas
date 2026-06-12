@@ -24,9 +24,10 @@ describe("mock conversation handlers", () => {
 
   it("returns pre-seeded git changes for mock conversations", async () => {
     // MOCK_GIT_CHANGES is pre-seeded in git-repository-handlers.ts with three
-    // representative entries (UPDATED→M, ADDED→A, DELETED→D) so E2E snapshot
-    // tests can exercise the full diff-viewer UI without per-test manipulation.
+    // representative entries (UPDATED→M, ADDED→A, DELETED→D) so mock mode
+    // exercises the full diff-viewer UI without per-test manipulation.
     const changes = await AgentServerGitService.getGitChanges(
+      "1",
       "http://localhost:3000/api/conversations/1",
       null,
       "workspace/project",

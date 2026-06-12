@@ -3,8 +3,9 @@ import { test, type APIRequestContext } from "@playwright/test";
 import {
   BACKEND_URL,
   clickButtonByTestId,
-  clickButtonByTestIdOrText,
   configureLiveAgentServer,
+  createLiveConversation,
+  deleteLiveLlmProfile,
   dismissAnalyticsModal,
   enableLiveE2EFlags,
   EXPECTED_BASH_COMMAND,
@@ -13,15 +14,15 @@ import {
   expandVisibleEventDetails,
   fillChatInput,
   getLiveArtifactMask,
-  getConversationIdFromURL,
   getOptionalConversationIdFromURL,
   guardAgainstPostHogRequests,
   hasLiveLLMConfig,
   missingLiveLLMConfigMessage,
-  openCreatedConversation,
   routeBackendSessionApiKey,
   sessionApiKey,
   waitForAgentReply,
+  waitForCriticResultDisplay,
+  waitForCriticResultEvent,
   waitForNonUserMessageText,
   waitForSuccessfulBashObservation,
   waitForTestId,
@@ -81,10 +82,12 @@ test.describe("live Agent Server terminal conversation", () => {
     }
 
     await cleanupKnownConversations(request);
+    await deleteLiveLlmProfile(request);
   });
 
   test.afterAll(async ({ request }) => {
     await cleanupKnownConversations(request);
+    await deleteLiveLlmProfile(request);
   });
 
   test("runs a real LLM-backed Agent Server terminal conversation through the UI", async ({
@@ -94,19 +97,15 @@ test.describe("live Agent Server terminal conversation", () => {
     test.skip(!hasLiveLLMConfig, missingLiveLLMConfigMessage);
 
     await configureLiveAgentServer(request);
+    const conversationId = await createLiveConversation(request);
+    createdConversationIds.add(conversationId);
     await routeBackendSessionApiKey(page);
     const postHogGuard = await guardAgainstPostHogRequests(page);
 
-    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await page.goto(`/conversations/${conversationId}`, {
+      waitUntil: "domcontentloaded",
+    });
     await dismissAnalyticsModal(page);
-    await clickButtonByTestIdOrText(
-      page,
-      "launch-new-conversation-button",
-      "New Conversation",
-    );
-    await openCreatedConversation(page);
-    const conversationId = getConversationIdFromURL(page);
-    createdConversationIds.add(conversationId);
     await waitForTestId(page, "app-route");
     await waitForTestId(page, "chat-interface");
     await waitForTestId(page, "interactive-chat-box");
@@ -133,6 +132,58 @@ test.describe("live Agent Server terminal conversation", () => {
       mask: getLiveArtifactMask(page),
     });
     await testInfo.attach("live-agent-response", {
+      path: screenshotPath,
+      contentType: "image/png",
+    });
+
+    await postHogGuard.expectNoRequests();
+  });
+
+  test("renders critic evaluation results for a real LLM-backed conversation", async ({
+    page,
+    request,
+  }, testInfo) => {
+    test.skip(!hasLiveLLMConfig, missingLiveLLMConfigMessage);
+    test.setTimeout(240_000);
+
+    await configureLiveAgentServer(request, { enableCritic: true });
+    const conversationId = await createLiveConversation(request, {
+      enableCritic: true,
+    });
+    createdConversationIds.add(conversationId);
+    await routeBackendSessionApiKey(page);
+    const postHogGuard = await guardAgainstPostHogRequests(page);
+
+    await page.goto(`/conversations/${conversationId}`, {
+      waitUntil: "domcontentloaded",
+    });
+    await dismissAnalyticsModal(page);
+    await waitForTestId(page, "app-route");
+    await waitForTestId(page, "chat-interface");
+    await waitForTestId(page, "interactive-chat-box");
+
+    await fillChatInput(
+      page,
+      [
+        "Use the terminal/bash tool exactly once.",
+        `Run this exact command: ${EXPECTED_BASH_COMMAND}`,
+        `After the command succeeds, reply with exactly this token and then finish: ${EXPECTED_REPLY_TOKEN}`,
+        "Do not use any other tools. Do not add any other text in the final reply.",
+      ].join("\n"),
+    );
+    await clickButtonByTestId(page, "submit-button");
+
+    await waitForAgentReply(page);
+    await waitForSuccessfulBashObservation(request, conversationId);
+    await waitForCriticResultEvent(request, conversationId);
+    await waitForCriticResultDisplay(page);
+
+    const screenshotPath = testInfo.outputPath("live-critic-result.png");
+    await page.getByTestId("chat-interface").screenshot({
+      path: screenshotPath,
+      mask: getLiveArtifactMask(page),
+    });
+    await testInfo.attach("live-critic-result", {
       path: screenshotPath,
       contentType: "image/png",
     });

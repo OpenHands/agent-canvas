@@ -335,9 +335,9 @@ describe("AutomationService", () => {
   });
 
   // When the active backend is cloud the local axios instance must be
-  // bypassed entirely; calls must route through `callCloudProxy` so the
-  // bundled local agent-server forwards the request server-side to the
-  // cloud host.
+  // bypassed entirely; calls must route through `callCloudProxy`, which
+  // sends them directly to the cloud host from the browser (the automation
+  // service grants permissive CORS to API-key requests, automation#185).
   describe("cloud routing", () => {
     beforeEach(() => {
       mockGetActive.mockReturnValue({ backend: cloudBackend, orgId: null });
@@ -358,9 +358,7 @@ describe("AutomationService", () => {
       expect(mockCallCloudProxy).toHaveBeenCalledWith({
         backend: cloudBackend,
         method: "GET",
-        path: "/api/automation/v1?limit=10&offset=5",
-        forceProxy: true,
-      });
+        path: "/api/automation/v1?limit=10&offset=5",      });
       expect(mockGet).not.toHaveBeenCalled();
       expect(result).toEqual(response);
     });
@@ -373,9 +371,7 @@ describe("AutomationService", () => {
       expect(mockCallCloudProxy).toHaveBeenCalledWith({
         backend: cloudBackend,
         method: "GET",
-        path: "/api/automation/v1/abc",
-        forceProxy: true,
-      });
+        path: "/api/automation/v1/abc",      });
       expect(result).toEqual(mockAutomation);
     });
 
@@ -387,9 +383,7 @@ describe("AutomationService", () => {
       expect(mockCallCloudProxy).toHaveBeenCalledWith({
         backend: cloudBackend,
         method: "POST",
-        path: "/api/automation/v1/abc/dispatch",
-        forceProxy: true,
-      });
+        path: "/api/automation/v1/abc/dispatch",      });
       expect(mockPost).not.toHaveBeenCalled();
       expect(result).toEqual(mockRun);
     });
@@ -406,9 +400,7 @@ describe("AutomationService", () => {
         backend: cloudBackend,
         method: "PATCH",
         path: "/api/automation/v1/abc",
-        body: { enabled: false },
-        forceProxy: true,
-      });
+        body: { enabled: false },      });
       expect(mockPatch).not.toHaveBeenCalled();
       expect(result).toEqual(updated);
     });
@@ -421,9 +413,7 @@ describe("AutomationService", () => {
       expect(mockCallCloudProxy).toHaveBeenCalledWith({
         backend: cloudBackend,
         method: "DELETE",
-        path: "/api/automation/v1/abc",
-        forceProxy: true,
-      });
+        path: "/api/automation/v1/abc",      });
       expect(mockDelete).not.toHaveBeenCalled();
     });
 
@@ -444,14 +434,12 @@ describe("AutomationService", () => {
       expect(mockCallCloudProxy).toHaveBeenCalledWith({
         backend: cloudBackend,
         method: "POST",
-        path: "/api/automation/v1/abc/dispatch",
-        forceProxy: true,
-      });
+        path: "/api/automation/v1/abc/dispatch",      });
       expect(mockPost).not.toHaveBeenCalled();
       expect(result).toEqual(run);
     });
 
-    it("checkHealth tunnels through the cloud proxy with a fail-fast timeout and returns the upstream status", async () => {
+    it("checkHealth calls the cloud host with a fail-fast timeout and returns the upstream status", async () => {
       mockCallCloudProxy.mockResolvedValue({ status: "ok" });
 
       const result = await AutomationService.checkHealth();
@@ -461,13 +449,12 @@ describe("AutomationService", () => {
       const call = mockCallCloudProxy.mock.calls[0]![0];
       expect(call.method).toBe("GET");
       expect(call.path).toBe("/api/automation/health");
-      expect(call.forceProxy).toBe(true);
       expect(call.timeoutSeconds).toBe(5);
       expect(mockGet).not.toHaveBeenCalled();
       expect(result).toEqual({ status: "ok" });
     });
 
-    it("checkHealth resolves to an error status instead of throwing when the proxy call fails", async () => {
+    it("checkHealth resolves to an error status instead of throwing when the cloud call fails", async () => {
       mockCallCloudProxy.mockRejectedValue(new Error("proxy unreachable"));
 
       const result = await AutomationService.checkHealth();

@@ -94,7 +94,7 @@ export const ERROR_TOAST_OPTIONS: ToastOptions = {
 };
 
 export const displayErrorToast = (error: string | null | undefined) => {
-  let errorMessage = error || i18n.t("STATUS$ERROR");
+  let errorMessage = error || i18n.t(I18nKey.STATUS$ERROR);
   if (isCorsOrNetworkErrorMessage(errorMessage)) {
     errorMessage = i18n.t(I18nKey.ERROR$CORS_OR_NETWORK);
   } else if (isBackendRequestTimeoutMessage(errorMessage)) {
@@ -114,5 +114,20 @@ export const displaySuccessToast = (message: string) => {
       {message}
     </span>,
     { ...TOAST_OPTIONS, duration },
+  );
+};
+
+/**
+ * Neutral, non-success notice — used when an action completed but the outcome
+ * is qualified (e.g. a secret was saved but the active backend can't consume it
+ * yet). Renders without the success checkmark so it doesn't read as "all good".
+ */
+export const displayWarningToast = (message: string) => {
+  const duration = calculateToastDuration(message, 6000);
+  toast(
+    <span className="[word-break:break-word] [overflow-wrap:anywhere]">
+      {message}
+    </span>,
+    { ...TOAST_OPTIONS, icon: "⚠️", duration },
   );
 };

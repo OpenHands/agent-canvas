@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useCombobox } from "downshift";
+import { useTranslation } from "react-i18next";
 import { Provider } from "#/types/settings";
+import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import { DropdownItem } from "../shared/dropdown-item";
 import { GenericDropdownMenu } from "../shared/generic-dropdown-menu";
@@ -27,7 +29,7 @@ export interface GitProviderDropdownProps {
 export function GitProviderDropdown({
   providers,
   value,
-  placeholder = "Select Provider",
+  placeholder,
   className,
   errorMessage,
   disabled = false,
@@ -37,6 +39,7 @@ export function GitProviderDropdown({
   toggleButtonClassName,
   itemClassName,
 }: GitProviderDropdownProps) {
+  const { t } = useTranslation("openhands");
   const [inputValue, setInputValue] = useState("");
   const [localSelectedItem, setLocalSelectedItem] = useState<Provider | null>(
     value || null,
@@ -170,7 +173,8 @@ export function GitProviderDropdown({
         <input
           {...getInputProps({
             disabled,
-            placeholder,
+            placeholder:
+              placeholder ?? t(I18nKey.COMMON$SELECT_PROVIDER_PLACEHOLDER),
             readOnly: true, // Make it non-searchable like the original
             className: cn(
               "w-29.5 h-6 py-0 border border-[var(--oh-border-input)] rounded shadow-none h-6 min-h-6 max-h-6 ",

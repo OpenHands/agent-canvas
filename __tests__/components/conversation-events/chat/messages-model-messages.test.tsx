@@ -5,6 +5,7 @@ import { Messages } from "#/components/conversation-events/chat/messages";
 import { useModelStore } from "#/stores/model-store";
 import { ActionEvent, SecurityRisk } from "#/types/agent-server/core";
 import { ExecuteBashAction } from "#/types/agent-server/core/base/action";
+import { StreamingDeltaEvent } from "#/types/agent-server/core/events/streaming-delta-event";
 
 const CONVERSATION_ID = "test-conversation-id";
 
@@ -35,6 +36,15 @@ const makeBashAction = (id: string): ActionEvent<ExecuteBashAction> => ({
   security_risk: SecurityRisk.UNKNOWN,
 });
 
+const makeStreamingDelta = (content: string): StreamingDeltaEvent => ({
+  id: "delta-1",
+  timestamp: "2026-06-12T12:00:00Z",
+  source: "agent",
+  kind: "StreamingDeltaEvent",
+  content,
+  reasoning_content: null,
+});
+
 describe("Messages model entries", () => {
   beforeEach(() => {
     useModelStore.setState({ entriesByConversation: {} });
@@ -50,5 +60,20 @@ describe("Messages model entries", () => {
     );
 
     expect(screen.getByTestId("model-messages")).toBeInTheDocument();
+  });
+
+  it("rerenders when a streaming delta is compacted under the same event id", () => {
+    const firstDelta = makeStreamingDelta("First");
+    const mergedDelta = makeStreamingDelta("First second third");
+
+    const { rerender } = renderWithProviders(
+      <Messages messages={[firstDelta]} allEvents={[firstDelta]} />,
+    );
+
+    expect(screen.getByText("First")).toBeInTheDocument();
+
+    rerender(<Messages messages={[mergedDelta]} allEvents={[mergedDelta]} />);
+
+    expect(screen.getByText("First second third")).toBeInTheDocument();
   });
 });

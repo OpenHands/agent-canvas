@@ -12,7 +12,6 @@
     "src/i18n/**/*.tsx",
     "src/routes/conversation.tsx",
     "src/routes/app-settings.tsx",
-    "src/routes/git-settings.tsx",
     "src/routes/llm-settings.tsx",
     "src/routes/mcp-settings.tsx",
     "src/routes/secrets-settings.tsx"

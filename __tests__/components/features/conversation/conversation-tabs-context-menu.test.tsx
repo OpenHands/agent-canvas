@@ -26,6 +26,10 @@ vi.mock("#/hooks/use-task-list", () => ({
   }),
 }));
 
+vi.mock("#/hooks/use-is-archived-conversation", () => ({
+  useIsArchivedConversation: () => false,
+}));
+
 function seedActiveBackend(backend: Backend): void {
   localStorage.setItem(BACKENDS_STORAGE_KEY, JSON.stringify([backend]));
   localStorage.setItem(
@@ -65,24 +69,6 @@ describe("ConversationTabsContextMenu", () => {
 
     // Planner is cloud-only; on the default (local) backend it is hidden.
     expect(screen.queryByText("COMMON$PLANNER")).not.toBeInTheDocument();
-  });
-
-  it("should show the Code entry when the active backend is cloud", () => {
-    seedActiveBackend({
-      id: "cloud-test",
-      name: "Cloud Test",
-      host: "https://app.example.com",
-      apiKey: "secret",
-      kind: "cloud",
-    });
-
-    render(
-      <ActiveBackendProvider>
-        <ConversationTabsContextMenu isOpen={true} onClose={vi.fn()} />
-      </ActiveBackendProvider>,
-    );
-
-    expect(screen.getByText("COMMON$CODE")).toBeInTheDocument();
   });
 
   it("should show the Planner entry when the active backend is cloud", () => {

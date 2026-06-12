@@ -9,6 +9,11 @@ vi.mock("react-i18next", () => ({
       ({
         SETTINGS$TOP_P_LABEL: "Top P",
         SETTINGS$TOP_P_DESCRIPTION: "Controls nucleus sampling.",
+        SCHEMA$VERIFICATION$CRITIC_API_KEY$HELP_TEXT:
+          "If OpenHands is selected as your active LLM provider, leave this empty because the Critic API Key is the same as your OpenHands Provider LLM Key, which you can find in the",
+        SCHEMA$VERIFICATION$CRITIC_API_KEY$HELP_SUFFIX:
+          "tab of OpenHands Cloud; otherwise, enter a Critic API Key from that page.",
+        SETTINGS$NAV_API_KEYS: "API Keys",
       })[key] ?? key,
   }),
 }));
@@ -66,5 +71,34 @@ describe("SchemaField", () => {
 
     expect(screen.getByText("Top P")).toBeInTheDocument();
     expect(screen.getByText("Controls nucleus sampling.")).toBeInTheDocument();
+  });
+
+  it("renders critic API key guidance as one settings-sized help line", () => {
+    render(
+      <SchemaField
+        field={buildField({
+          key: "verification.critic_api_key",
+          label: "Critic API Key",
+          description: "Server schema description should be replaced.",
+          value_type: "string",
+          secret: true,
+        })}
+        value=""
+        isDisabled={false}
+        onChange={() => {}}
+      />,
+    );
+
+    const help = screen.getByTestId("help-link-verification.critic_api_key");
+
+    expect(help).toHaveTextContent(
+      "Critic API Key is the same as your OpenHands Provider LLM Key",
+    );
+    expect(help).toHaveTextContent("API Keys");
+    expect(help).toHaveClass("text-sm");
+    expect(help).toHaveClass("font-normal");
+    expect(
+      screen.queryByText("Server schema description should be replaced."),
+    ).not.toBeInTheDocument();
   });
 });

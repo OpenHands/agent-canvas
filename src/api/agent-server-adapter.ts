@@ -4,6 +4,7 @@ import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { Settings, SettingsValue } from "#/types/settings";
 import {
+  getAcpPreferredDefaultModel,
   getAcpProvider,
   resolveEffectiveAcpModel,
 } from "#/constants/acp-providers";
@@ -163,6 +164,14 @@ function parseRuntimeServicesInfo(): RuntimeServicesInfo | null {
     // injected value.
     return null;
   }
+}
+
+/**
+ * Return the deployment mode from the runtime services info, e.g. "docker",
+ * "dev:automation", etc. Returns `null` when no runtime info is configured.
+ */
+export function getDeploymentMode(): string | null {
+  return parseRuntimeServicesInfo()?.mode ?? null;
 }
 
 /**
@@ -535,7 +544,7 @@ interface BundledSkill {
   name: string;
   content: string;
   trigger: { type: "keyword"; keywords: string[] } | null;
-  source: "public";
+  source: string;
   description: string | null;
   is_agentskills_format: true;
   license?: string;
@@ -557,11 +566,18 @@ function buildBundledSkills(): BundledSkill[] {
         ? { type: "keyword", keywords: entry.triggers }
         : null;
 
+    // Use the absolute path to the skill's SKILL.md so the Python
+    // agent-server can resolve bundled resources (scripts/, references/).
+    // Falls back to "public" in library builds where the path isn't known.
+    const source = __EXTENSIONS_SKILLS_DIR__
+      ? `${__EXTENSIONS_SKILLS_DIR__}/${entry.name}/SKILL.md`
+      : "public";
+
     return {
       name: entry.name,
       content: entry.content,
       trigger,
-      source: "public" as const,
+      source,
       description: entry.description ?? null,
       is_agentskills_format: true as const,
       ...(entry.license ? { license: entry.license } : {}),
@@ -638,11 +654,18 @@ function buildConfiguredAcpAgentSettings(
     agent_context: buildAgentContext(agentSettings),
   };
 
+  // TODO(#1019): set ``acp_isolate_data_dir: true`` here for a containerized
+  // backend so concurrent same-provider conversations don't race on a shared
+  // HOME. The SDK supports it (software-agent-sdk#3492), but the released
+  // ``@openhands/typescript-client`` (1.24.3) doesn't surface it on
+  // ``ACPAgentSettings`` yet, so sending it risks a validation error on older
+  // servers. Cloud grouping isolation is separate (agent-canvas#1016).
+
   for (const key of ACP_SETTINGS_KEYS) {
     // ``acp_model`` is resolved separately below so a saved ``null`` still
     // falls back to the provider's default rather than being dropped.
     if (key === "acp_model") continue;
-    // ``acp_env`` is deprecated — provider creds now route via agent_context.secrets.
+    // ``acp_env`` is deprecated — provider creds now route via ``request.secrets``.
     if (key === "acp_env") continue;
     const value =
       key === "acp_command"
@@ -664,18 +687,17 @@ function buildConfiguredAcpAgentSettings(
 
   // Saved settings may carry ``acp_model: null`` (existing users predating
   // the default-model registry, or saved fields the agent-server stripped).
-  // Fall back to the provider's ``default_model`` so the conversation starts
-  // with whatever the Settings → Agent UI shows — without that, the form's
-  // displayed default would silently not take effect at runtime until the
-  // user re-saved the page.
+  // Fall back to the *preferred* default (Vertex-safe for Gemini) so the
+  // conversation starts with whatever the Settings → Agent UI shows — without
+  // that, the form's displayed default would silently not take effect at
+  // runtime until the user re-saved the page.
   const serverKey =
     typeof agentSettings.acp_server === "string"
       ? agentSettings.acp_server
       : undefined;
-  const provider = getAcpProvider(serverKey);
   const effectiveModel = resolveEffectiveAcpModel({
     configured: agentSettings.acp_model as string | null | undefined,
-    providerDefault: provider?.default_model,
+    providerDefault: getAcpPreferredDefaultModel(serverKey),
   });
   if (effectiveModel) {
     payload.acp_model = effectiveModel;
@@ -792,7 +814,7 @@ type StartConversationPayload = Record<string, unknown> & {
   max_iterations: number;
   stuck_detection: true;
   autotitle: true;
-  worktree: true;
+  worktree: boolean;
   secrets_encrypted?: true;
   conversation_id?: string;
   secrets?: Record<string, LookupSecret>;
@@ -807,6 +829,7 @@ export interface StartConversationOptions {
   plugins?: PluginSpec[];
   conversationId?: string;
   workingDir?: string;
+  worktree?: boolean;
   encryptedAgentSettings?: Record<string, SettingsValue>;
   encryptedConversationSettings?: Record<string, SettingsValue>;
   secretsEncrypted?: boolean;
@@ -851,14 +874,21 @@ export function buildStartConversationRequest(
         : 500,
     stuck_detection: true,
     autotitle: true,
-    worktree: true,
+    worktree: options.worktree ?? true,
   };
 
   if (acpServerTag) {
     payload.tags = { [ACP_SERVER_TAG_KEY]: acpServerTag };
   }
 
-  if (options.secretsEncrypted) {
+  // ``secrets_encrypted`` makes the agent-server run every request secret through
+  // ``cipher.decrypt()`` at conversation start. Suppress it for ACP: an ACP agent
+  // carries no encrypted payload (no LLM api_key, and credentials ride as
+  // LookupSecrets whose values are fetched at resolution time, not decrypted), so
+  // there is nothing to decrypt. Claiming otherwise hard-fails ("cipher not
+  // configured") on a backend without ``OH_SECRET_KEY`` (e.g. a fresh ACP
+  // container). Non-ACP conversations still need it for their encrypted LLM key.
+  if (options.secretsEncrypted && !acpMode) {
     payload.secrets_encrypted = true;
   }
 
@@ -895,6 +925,11 @@ export function buildStartConversationRequest(
     payload.agent_definitions = conversationSettings.agent_definitions;
   }
 
+  // Every saved secret rides as a LookupSecret the agent-server resolves back
+  // from its own store at spawn time — ``request.secrets`` is the sole channel,
+  // uniform for ACP and non-ACP (agent-canvas#1039). For ACP the resolution
+  // runs off the event loop (software-agent-sdk#3510, ≥1.25.0), so the loopback
+  // fetch can't deadlock.
   if (options.customSecrets && options.customSecrets.length > 0) {
     const backend = getEffectiveLocalBackend();
     const headers = backend ? buildAuthHeaders(backend) : {};
@@ -915,13 +950,6 @@ export function buildStartConversationRequest(
     }
 
     payload.secrets = secrets;
-
-    if (acpMode) {
-      payload.agent_settings.agent_context = {
-        ...payload.agent_settings.agent_context,
-        secrets,
-      };
-    }
   }
 
   return payload;
@@ -934,6 +962,7 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   plugins?: PluginSpec[];
   conversationId?: string;
   workingDir?: string;
+  worktree?: boolean;
 }): Promise<Record<string, unknown>> {
   const { SecretsService } = await import("./secrets-service");
 
