@@ -6,14 +6,10 @@ import {
   Check,
   Clock3,
   ClockArrowDown,
-  Eye,
-  EyeOff,
   Folder,
   GitBranch,
   ListFilter,
   MessageCircle,
-  Star,
-  Trash2,
 } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import type { BackendKind } from "#/api/backend-registry/types";
@@ -29,11 +25,7 @@ import {
 import type {
   ConversationSortField,
   OrganizeMode,
-  ThreadScope,
 } from "./conversation-panel-list-helpers";
-
-const capitalizeLabel = (label: string) =>
-  label.length > 0 ? label.charAt(0).toUpperCase() + label.slice(1) : label;
 
 const MENU_SECTION_HEADING_PADDING = "px-2 pb-1 pt-1";
 const MENU_SECTION_HEADING_TEXT =
@@ -142,16 +134,12 @@ export interface ConversationPanelFilterMenuProps {
   setOrganizeMode: (mode: OrganizeMode) => void;
   conversationSort: ConversationSortField;
   setConversationSort: (sort: ConversationSortField) => void;
-  threadScope: ThreadScope;
-  setThreadScope: (scope: ThreadScope) => void;
-  showOlderConversations: boolean;
-  toggleShowOlderConversations: () => void;
+  showRecentOnly: boolean;
+  setShowRecentOnly: (value: boolean) => void;
   showRepoBranchMetadata: boolean;
   toggleShowRepoBranchMetadata: () => void;
   showLlmProfiles: boolean;
   toggleShowLlmProfiles: () => void;
-  totalConversationsCount: number;
-  onRequestDeleteAll: () => void;
 }
 
 export function ConversationPanelFilterMenu({
@@ -163,16 +151,12 @@ export function ConversationPanelFilterMenu({
   setOrganizeMode,
   conversationSort,
   setConversationSort,
-  threadScope,
-  setThreadScope,
-  showOlderConversations,
-  toggleShowOlderConversations,
+  showRecentOnly,
+  setShowRecentOnly,
   showRepoBranchMetadata,
   toggleShowRepoBranchMetadata,
   showLlmProfiles,
   toggleShowLlmProfiles,
-  totalConversationsCount,
-  onRequestDeleteAll,
 }: ConversationPanelFilterMenuProps) {
   const { t } = useTranslation("openhands");
 
@@ -321,19 +305,19 @@ export function ConversationPanelFilterMenu({
           <MenuHeading>{t(I18nKey.CONVERSATION_PANEL$SHOW)}</MenuHeading>
           <MenuRow
             icon={MessageCircle}
-            label={t(I18nKey.CONVERSATION_PANEL$ALL_THREADS)}
-            selected={threadScope === "all"}
+            label={t(I18nKey.CONVERSATION_PANEL$ALL_CONVERSATIONS)}
+            selected={!showRecentOnly}
             onClick={() => {
-              setThreadScope("all");
+              setShowRecentOnly(false);
               setFilterMenuOpen(false);
             }}
           />
           <MenuRow
-            icon={Star}
-            label={t(I18nKey.CONVERSATION_PANEL$RELEVANT_THREADS)}
-            selected={threadScope === "relevant"}
+            icon={Clock3}
+            label={t(I18nKey.CONVERSATION_PANEL$RECENT_CONVERSATIONS)}
+            selected={showRecentOnly}
             onClick={() => {
-              setThreadScope("relevant");
+              setShowRecentOnly(true);
               setFilterMenuOpen(false);
             }}
           />
@@ -357,43 +341,6 @@ export function ConversationPanelFilterMenu({
             testId="toggle-repo-branch-metadata"
             onClick={() => {
               toggleShowRepoBranchMetadata();
-              setFilterMenuOpen(false);
-            }}
-          />
-
-          <MenuSeparator />
-          <MenuHeading
-            suffix={
-              <span className="shrink-0 text-right text-[10px] font-medium normal-case tracking-normal text-[var(--oh-muted)]/70">
-                {t(I18nKey.CONVERSATION_PANEL$OLDER_OVER_ONE_HOUR)}
-              </span>
-            }
-          >
-            {t(I18nKey.CONVERSATION_PANEL$OLDER_SECTION)}
-          </MenuHeading>
-          <MenuRow
-            testId="toggle-older-conversations"
-            icon={showOlderConversations ? EyeOff : Eye}
-            label={
-              showOlderConversations
-                ? capitalizeLabel(t(I18nKey.CONVERSATION$HIDE))
-                : capitalizeLabel(t(I18nKey.CONVERSATION$SHOW_ALL))
-            }
-            onClick={() => {
-              toggleShowOlderConversations();
-              setFilterMenuOpen(false);
-            }}
-          />
-
-          <MenuSeparator />
-          <MenuRow
-            testId="delete-all-conversations"
-            icon={Trash2}
-            label={capitalizeLabel(t(I18nKey.CONVERSATION$DELETE_ALL))}
-            disabled={totalConversationsCount === 0}
-            onClick={() => {
-              if (totalConversationsCount === 0) return;
-              onRequestDeleteAll();
               setFilterMenuOpen(false);
             }}
           />

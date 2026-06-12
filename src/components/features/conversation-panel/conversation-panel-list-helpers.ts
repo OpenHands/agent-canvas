@@ -3,7 +3,6 @@ import type { BackendKind } from "#/api/backend-registry/types";
 import type { Provider } from "#/types/settings";
 
 export type ConversationSortField = "created" | "updated";
-export type ThreadScope = "all" | "relevant";
 export type OrganizeMode = "grouped" | "chronological";
 
 /** Max conversations shown under a workspace/repo folder before "View more". */
