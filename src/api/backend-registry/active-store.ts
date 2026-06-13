@@ -4,6 +4,7 @@ import {
   writeStoredActiveBackend,
   writeStoredBackends,
 } from "./storage";
+import { getBackendHealthEntry } from "./health-store";
 import type { Backend, BackendSelection, ResolvedActiveBackend } from "./types";
 
 type Listener = () => void;
@@ -34,7 +35,24 @@ export function isNoBackend(backend: Backend): boolean {
 }
 
 function pickFallbackBackend(backends: Backend[]): Backend {
-  return backends[0] ?? NO_BACKEND;
+  if (backends.length === 0) return NO_BACKEND;
+
+  const ranked = [...backends].sort((a, b) => {
+    // Prefer local over cloud when kinds differ
+    const localA = a.kind === "local" ? 0 : 1;
+    const localB = b.kind === "local" ? 0 : 1;
+    const kindDelta = localA - localB;
+    if (kindDelta !== 0) return kindDelta;
+
+    // Prefer healthier backends
+    const hA = getBackendHealthEntry(a.id);
+    const hB = getBackendHealthEntry(b.id);
+    const scoreA = hA ? (hA.disabled ? Infinity : hA.consecutiveFailures) : 0;
+    const scoreB = hB ? (hB.disabled ? Infinity : hB.consecutiveFailures) : 0;
+    return scoreA - scoreB;
+  });
+
+  return ranked[0] ?? NO_BACKEND;
 }
 
 function computeSnapshot(
