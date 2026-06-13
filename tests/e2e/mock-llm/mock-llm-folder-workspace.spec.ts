@@ -27,8 +27,12 @@ import {
   deleteConversation,
 } from "./utils/mock-llm-helpers";
 import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
+import {
+  getFolderBrowserPathSegments,
+  getFolderBrowserRootPath,
+  resolveFolderWorkspacePaths,
+  TEST_DIR_NAME,
+} from "./utils/folder-workspace-paths";
 
 /**
  * The folder-workspace test creates a directory that the agent-server's folder
@@ -43,20 +47,11 @@ import * as path from "path";
  * **npm mode**: Host IS the agent-server, so both paths resolve identically
  * via os.tmpdir().
  */
-const WORKSPACE_DIR_NAME = "e2e-folder-workspace-test";
-const HOST_DIR_BASE =
-  process.env.MOCK_LLM_FOLDER_WORKSPACE_HOST_DIR ??
-  path.join(os.tmpdir(), WORKSPACE_DIR_NAME);
-/** Container-side path the agent-server sees (always POSIX). In npm mode
- *  this equals HOST_DIR_BASE; in Docker mode it is set by the config. */
-const CONTAINER_DIR_BASE =
-  process.env.MOCK_LLM_FOLDER_WORKSPACE_CONTAINER_DIR ??
-  path.posix.join(os.tmpdir(), WORKSPACE_DIR_NAME);
-const TEST_DIR_NAME = "my-test-project";
-/** Host-side path where we create the directory via fs.mkdirSync. */
-const HOST_DIR = path.join(HOST_DIR_BASE, TEST_DIR_NAME);
-/** Container-side path the folder browser UI navigates to (POSIX). */
-const TEST_DIR = path.posix.join(CONTAINER_DIR_BASE, TEST_DIR_NAME);
+const {
+  hostDirBase: HOST_DIR_BASE,
+  hostDir: HOST_DIR,
+  testDir: TEST_DIR,
+} = resolveFolderWorkspacePaths();
 
 const METADATA_STORAGE_KEY = "openhands-agent-server-conversation-metadata";
 
@@ -140,9 +135,9 @@ test.describe("mock-LLM folder browser → workspace → conversation", () => {
     // ── Open the "Open Workspace" dialog ──
     await test.step("open workspace dialog", async () => {
       await page.getByTestId("open-workspace-button").click();
-      await expect(
-        page.getByTestId("open-workspace-dialog-body"),
-      ).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByTestId("open-workspace-dialog-body")).toBeVisible({
+        timeout: 10_000,
+      });
     });
 
     // ── Browse to the test directory using the folder browser UI ──
@@ -159,6 +154,7 @@ test.describe("mock-LLM folder browser → workspace → conversation", () => {
       // until we reach "/" (path shows "/" or up button is disabled).
       const upBtn = page.getByTestId("folder-browser-up");
       const currentPathEl = page.getByTestId("folder-browser-current-path");
+      const rootPath = getFolderBrowserRootPath(TEST_DIR);
 
       // Wait for the modal to finish initializing. `currentPath` starts as
       // null (rendering an empty path and a disabled up button) until
@@ -173,11 +169,11 @@ test.describe("mock-LLM folder browser → workspace → conversation", () => {
         await upBtn.click();
         await page.waitForTimeout(300);
       }
-      await expect(currentPathEl).toHaveText("/", { timeout: 5_000 });
+      await expect(currentPathEl).toHaveText(rootPath, { timeout: 5_000 });
 
       // Navigate down through each segment of the test directory path.
       // e.g. /tmp/e2e-folder-workspace-test/my-test-project → ["tmp", "e2e-...", "my-test-project"]
-      const segments = TEST_DIR.split(path.posix.sep).filter(Boolean);
+      const segments = getFolderBrowserPathSegments(TEST_DIR);
       for (const segment of segments) {
         const entry = page.getByTestId(`folder-browser-entry-${segment}`);
         await expect(entry).toBeVisible({ timeout: 10_000 });
@@ -202,9 +198,9 @@ test.describe("mock-LLM folder browser → workspace → conversation", () => {
     // dropdown should now include it.
     await test.step("select the workspace in the dropdown and confirm", async () => {
       // The workspace dialog should still be visible
-      await expect(
-        page.getByTestId("open-workspace-dialog-body"),
-      ).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByTestId("open-workspace-dialog-body")).toBeVisible({
+        timeout: 10_000,
+      });
 
       // The workspace dropdown should contain our test directory.
       const dropdown = page.getByTestId("workspace-dropdown");
@@ -223,17 +219,17 @@ test.describe("mock-LLM folder browser → workspace → conversation", () => {
       await confirmBtn.click();
 
       // The dialog should close
-      await expect(
-        page.getByTestId("open-workspace-dialog-body"),
-      ).toBeHidden({ timeout: 5_000 });
+      await expect(page.getByTestId("open-workspace-dialog-body")).toBeHidden({
+        timeout: 5_000,
+      });
     });
 
     // ── Type a message and submit to create a conversation ──
     await test.step("submit a message to create a conversation", async () => {
       // Type into the home-page chat input (contentEditable div)
-      const chatInput = page.getByTestId("home-chat-launcher").locator(
-        '[contenteditable="true"]',
-      );
+      const chatInput = page
+        .getByTestId("home-chat-launcher")
+        .locator('[contenteditable="true"]');
       await expect(chatInput).toBeVisible({ timeout: 10_000 });
       await chatInput.click();
 
