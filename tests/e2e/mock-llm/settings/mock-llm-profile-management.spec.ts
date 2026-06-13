@@ -17,11 +17,10 @@
  *      stamps the active profile name on client-side conversation
  *      metadata at creation and on per-conversation switches.
  *
- *   3. OpenHands provider base_url normalization:
- *      The public `openhands/` model namespace is enough to preserve
- *      profile identity. Re-saving an OpenHands profile from the Basic tab
- *      must drop stale LiteLLM proxy base_url details so the SDK owns
- *      transport-time mapping.
+ *   3. OpenHands provider hidden base_url preservation:
+ *      A base_url typed in Advanced view is still real profile data after
+ *      switching to Basic. Re-saving from Basic without changing the model
+ *      must preserve that hidden value.
  */
 
 import { test, expect } from "@playwright/test";
@@ -360,19 +359,18 @@ test.describe("same-model profile identity", () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════
-// Test 3 — OpenHands provider base_url normalization
+// Test 3 — OpenHands provider hidden base_url preservation
 // ═══════════════════════════════════════════════════════════════════════
 
-test.describe("OpenHands provider base_url normalization", () => {
-  // The public OpenHands provider model is the target persisted identity. Older
-  // agent-server releases may still report the transitional litellm_proxy form,
-  // but Basic-mode saves should not continue stamping proxy transport details
-  // in either case.
+test.describe("OpenHands provider hidden base_url preservation", () => {
+  // The public OpenHands provider model remains the profile identity, but a
+  // custom Advanced base_url is still user data. A same-model Basic save must
+  // not wipe it just because the field is invisible in that view.
   const OPENHANDS_PROFILE = "openhands-basic-save-test";
   const OPENHANDS_MODEL = "openhands/claude-opus-4-5-20251101";
   const LEGACY_TRANSPORT_MODEL = "litellm_proxy/claude-opus-4-5-20251101";
   const EXPECTED_OPENHANDS_MODELS = [OPENHANDS_MODEL, LEGACY_TRANSPORT_MODEL];
-  const OPENHANDS_PROXY_BASE_URL = "https://llm-proxy.app.all-hands.dev/";
+  const CUSTOM_BASE_URL = "https://custom-openhands-proxy.example/v1";
 
   test.beforeEach(async ({ page }) => {
     await seedLocalStorage(page);
@@ -394,13 +392,13 @@ test.describe("OpenHands provider base_url normalization", () => {
     }
   });
 
-  test("re-saving an OpenHands profile from Basic view drops proxy base_url", async ({
+  test("re-saving an OpenHands profile from Basic view preserves hidden base_url", async ({
     page,
     request,
   }) => {
-    // ── Setup: create a public OpenHands profile with a stale proxy base_url
-    // through the Settings UI. This mirrors legacy/manual profile state while
-    // keeping the public openhands/* model namespace that this PR trusts. ──
+    // ── Setup: create a public OpenHands profile with a custom base_url through
+    // Advanced view. The value becomes hidden after switching to Basic, but it
+    // is still part of the profile unless the model changes. ──
     await routeSessionApiKey(page);
     await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
@@ -410,7 +408,7 @@ test.describe("OpenHands provider base_url normalization", () => {
     await createProfileViaUI(page, {
       profileName: OPENHANDS_PROFILE,
       model: OPENHANDS_MODEL,
-      baseUrl: OPENHANDS_PROXY_BASE_URL,
+      baseUrl: CUSTOM_BASE_URL,
     });
 
     await test.step("open profile in edit mode", async () => {
@@ -441,9 +439,9 @@ test.describe("OpenHands provider base_url normalization", () => {
       );
     });
 
-    await test.step("switch to Basic view and save", async () => {
+    await test.step("switch to Basic view and save without changing model", async () => {
       // Click the Basic toggle explicitly so the save path exercises the view
-      // that hides base_url and therefore drops stale provider transport data.
+      // that hides base_url without changing the selected model.
       const basicToggle = page.getByTestId("sdk-section-basic-toggle");
       if (await basicToggle.isVisible().catch(() => false)) {
         await basicToggle.click();
@@ -456,14 +454,13 @@ test.describe("OpenHands provider base_url normalization", () => {
       await waitForTestId(page, "add-llm-profile");
     });
 
-    // ── Verify: Basic-tab save removed the stale proxy base_url ──
-    await test.step("verify base_url is dropped after save", async () => {
+    // ── Verify: Basic-tab save preserved the hidden custom base_url ──
+    await test.step("verify base_url is preserved after save", async () => {
       const config = await getProfileConfig(request, OPENHANDS_PROFILE);
       expect(
-        config.base_url ?? null,
-        "base_url should not be persisted for public OpenHands models after " +
-          "a Basic-tab re-save; the SDK owns transport-time proxy mapping",
-      ).toBeNull();
+        config.base_url,
+        "Basic-tab re-save without a model change must not clear hidden base_url",
+      ).toBe(CUSTOM_BASE_URL);
       expect(EXPECTED_OPENHANDS_MODELS).toContain(config.model);
     });
 
@@ -473,7 +470,7 @@ test.describe("OpenHands provider base_url normalization", () => {
 
       // Re-read via API to confirm persistence is durable
       const config = await getProfileConfig(request, OPENHANDS_PROFILE);
-      expect(config.base_url ?? null).toBeNull();
+      expect(config.base_url).toBe(CUSTOM_BASE_URL);
       expect(EXPECTED_OPENHANDS_MODELS).toContain(config.model);
     });
   });
