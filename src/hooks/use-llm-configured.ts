@@ -3,6 +3,15 @@ import { useConfig } from "#/hooks/query/use-config";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { isSettingsPageHidden } from "#/utils/settings-utils";
+import { LLM_SETTINGS_ROUTE } from "#/constants/llm-settings";
+
+export const LLM_CONFIGURATION_ISSUES = {
+  NOT_CONFIGURED: "not-configured",
+  ACTIVE_PROFILE_MISSING_API_KEY: "active-profile-missing-api-key",
+} as const;
+
+type LlmConfigurationIssue =
+  (typeof LLM_CONFIGURATION_ISSUES)[keyof typeof LLM_CONFIGURATION_ISSUES];
 
 interface LlmConfiguredResult {
   /**
@@ -21,6 +30,13 @@ interface LlmConfiguredResult {
    * warning doesn't flash before data loads or on a transient network error.
    */
   isLoading: boolean;
+  /**
+   * Specific recovery issue for the unconfigured state. Used by the UI to
+   * distinguish a fresh setup gap from an active saved profile whose key is no
+   * longer usable.
+   */
+  issue: LlmConfigurationIssue | null;
+  activeProfileName: string | null;
 }
 
 /**
@@ -53,8 +69,10 @@ export function useLlmConfigured(): LlmConfiguredResult {
     (profile) => profile.name === profilesData.active_profile,
   );
   const hasActiveProfileApiKey = activeProfile?.api_key_set === true;
+  const hasActiveProfileMissingApiKey =
+    isLocal && Boolean(activeProfile) && activeProfile?.api_key_set === false;
   const llmSettingsHidden = isSettingsPageHidden(
-    "/settings/llm",
+    LLM_SETTINGS_ROUTE,
     config?.feature_flags,
   );
 
@@ -76,10 +94,18 @@ export function useLlmConfigured(): LlmConfiguredResult {
   const configIndeterminate = configLoading || (configError && !config);
   const profilesIndeterminate =
     profilesLoading || (profilesError && !profilesData);
+  const isConfigured = isAcpAgent || llmSettingsHidden || hasUsableLlm;
+  const issue = isConfigured
+    ? null
+    : hasActiveProfileMissingApiKey
+      ? LLM_CONFIGURATION_ISSUES.ACTIVE_PROFILE_MISSING_API_KEY
+      : LLM_CONFIGURATION_ISSUES.NOT_CONFIGURED;
 
   return {
-    isConfigured: isAcpAgent || llmSettingsHidden || hasUsableLlm,
+    isConfigured,
     isLoading:
       settingsIndeterminate || configIndeterminate || profilesIndeterminate,
+    issue,
+    activeProfileName: activeProfile?.name ?? null,
   };
 }

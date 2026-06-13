@@ -83,7 +83,13 @@ export function shouldReapplyProfileAfterSave({
  * See PR review feedback for details.
  */
 
-export function LlmSettingsLocalView() {
+interface LlmSettingsLocalViewProps {
+  editProfileName?: string | null;
+}
+
+export function LlmSettingsLocalView({
+  editProfileName = null,
+}: LlmSettingsLocalViewProps = {}) {
   const { t } = useTranslation("openhands");
   const { setHideSectionHeader } = useSettingsSectionHeader();
   const saveProfile = useSaveLlmProfile();
@@ -112,6 +118,7 @@ export function LlmSettingsLocalView() {
     null,
   );
   const [isSaving, setIsSaving] = useState(false);
+  const requestedEditProfileNameRef = useRef<string | null>(null);
 
   useEffect(() => {
     setHideSectionHeader(viewMode !== "list");
@@ -205,6 +212,19 @@ export function LlmSettingsLocalView() {
     },
     [t],
   );
+
+  useEffect(() => {
+    if (!editProfileName) return;
+    if (requestedEditProfileNameRef.current === editProfileName) return;
+
+    const profile = profilesData?.profiles.find(
+      (candidate) => candidate.name === editProfileName,
+    );
+    if (!profile) return;
+
+    requestedEditProfileNameRef.current = editProfileName;
+    void handleEditProfile(profile);
+  }, [editProfileName, handleEditProfile, profilesData?.profiles]);
 
   const handleBackToList = useCallback(() => {
     setViewMode("list");

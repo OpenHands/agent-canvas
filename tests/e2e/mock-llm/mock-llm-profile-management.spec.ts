@@ -1,7 +1,7 @@
 /**
  * Mock-LLM E2E tests: LLM profile management regressions.
  *
- * Covers two scenarios that previously had no end-to-end guard:
+ * Covers LLM profile scenarios that previously had no end-to-end guard:
  *
  *   1. Active profile deletion + reconciliation:
  *      The active LLM profile IS deletable (the PR #1127 disable-guard was
@@ -22,9 +22,15 @@
  *      profile identity. Re-saving an OpenHands profile from the Basic tab
  *      must drop stale LiteLLM proxy base_url details so the SDK owns
  *      transport-time mapping.
+ *
+ *   4. Active profile missing API key (issue #1344):
+ *      When the active profile exists but has `api_key_set: false`, the home
+ *      page should explain that the selected profile needs its key re-entered
+ *      and link directly to the profile editor instead of showing generic setup
+ *      copy.
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type APIRequestContext } from "@playwright/test";
 import {
   BACKEND_URL,
   SESSION_API_KEY,
@@ -43,6 +49,7 @@ import {
   createProfileViaUI,
   deleteProfileIfExists,
   activateProfileViaUI,
+  MOCK_LLM_AGENT_URL,
 } from "./utils/mock-llm-helpers";
 
 const MOCK_MODEL = "openai/mock-test-model";
@@ -52,7 +59,7 @@ const MOCK_MODEL = "openai/mock-test-model";
  * Used to verify that UI-driven saves persisted the expected values.
  */
 async function getProfileConfig(
-  request: import("@playwright/test").APIRequestContext,
+  request: APIRequestContext,
   name: string,
 ): Promise<Record<string, unknown>> {
   const resp = await request.get(
@@ -67,6 +74,55 @@ async function getProfileConfig(
   expect(resp.ok(), `GET /api/profiles/${name}: ${resp.status()}`).toBe(true);
   const data = await resp.json();
   return (data.config ?? {}) as Record<string, unknown>;
+}
+
+async function deleteProfileViaAPI(request: APIRequestContext, name: string) {
+  await request.delete(
+    `${BACKEND_URL}/api/profiles/${encodeURIComponent(name)}`,
+    {
+      headers: { "X-Session-API-Key": SESSION_API_KEY },
+    },
+  );
+}
+
+async function saveProfileViaAPI(
+  request: APIRequestContext,
+  { name, apiKey }: { name: string; apiKey?: string },
+) {
+  const llm: Record<string, string> = {
+    model: MOCK_MODEL,
+    base_url: MOCK_LLM_AGENT_URL,
+  };
+  if (apiKey) {
+    llm.api_key = apiKey;
+  }
+
+  const response = await request.post(
+    `${BACKEND_URL}/api/profiles/${encodeURIComponent(name)}`,
+    {
+      headers: {
+        "X-Session-API-Key": SESSION_API_KEY,
+        "Content-Type": "application/json",
+      },
+      data: {
+        llm,
+        include_secrets: true,
+      },
+    },
+  );
+  expect(response.ok(), `Save profile ${name}: ${response.status()}`).toBe(
+    true,
+  );
+}
+
+async function activateProfileViaAPI(request: APIRequestContext, name: string) {
+  const response = await request.post(
+    `${BACKEND_URL}/api/profiles/${encodeURIComponent(name)}/activate`,
+    { headers: { "X-Session-API-Key": SESSION_API_KEY } },
+  );
+  expect(response.ok(), `Activate profile ${name}: ${response.status()}`).toBe(
+    true,
+  );
 }
 
 test.describe.configure({ mode: "serial" });
@@ -476,5 +532,75 @@ test.describe("OpenHands provider base_url normalization", () => {
       expect(config.base_url ?? null).toBeNull();
       expect(EXPECTED_OPENHANDS_MODELS).toContain(config.model);
     });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// Test 4 — Active profile missing API key recovery (issue #1344)
+// ═══════════════════════════════════════════════════════════════════════
+
+test.describe("active profile missing API key recovery", () => {
+  const MISSING_KEY_PROFILE = "missing-key-recovery";
+  const RESTORED_PROFILE = "mock-llm";
+
+  test.beforeEach(async ({ page }) => {
+    await seedLocalStorage(page);
+  });
+
+  test.afterAll(async ({ request }) => {
+    try {
+      await saveProfileViaAPI(request, {
+        name: RESTORED_PROFILE,
+        apiKey: "mock-api-key-for-testing",
+      });
+      await activateProfileViaAPI(request, RESTORED_PROFILE);
+      await deleteProfileViaAPI(request, MISSING_KEY_PROFILE);
+    } catch {
+      // best-effort cleanup
+    }
+  });
+
+  test("home page explains and links directly to a keyless active profile", async ({
+    page,
+    request,
+  }) => {
+    await deleteProfileViaAPI(request, MISSING_KEY_PROFILE);
+    await saveProfileViaAPI(request, { name: MISSING_KEY_PROFILE });
+    await activateProfileViaAPI(request, MISSING_KEY_PROFILE);
+
+    const profilesResponse = await request.get(`${BACKEND_URL}/api/profiles`, {
+      headers: { "X-Session-API-Key": SESSION_API_KEY },
+    });
+    expect(
+      profilesResponse.ok(),
+      `List profiles: ${profilesResponse.status()}`,
+    ).toBe(true);
+    const profilesBody = await profilesResponse.json();
+    const activeProfile = profilesBody.profiles.find(
+      (profile: { name: string }) => profile.name === MISSING_KEY_PROFILE,
+    );
+    expect(profilesBody.active_profile).toBe(MISSING_KEY_PROFILE);
+    expect(activeProfile?.api_key_set).toBe(false);
+
+    await routeSessionApiKey(page);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await dismissAnalyticsModal(page);
+    await waitForTestId(page, "home-chat-launcher");
+
+    const banner = page.getByTestId("home-llm-not-configured-banner");
+    await expect(banner).toBeVisible({ timeout: 10_000 });
+    await expect(banner).toContainText(MISSING_KEY_PROFILE);
+    await expect(banner).toContainText(/API key/i);
+    await expect(page.getByTestId("submit-button")).toBeDisabled();
+
+    await page.getByTestId("home-llm-not-configured-action").click();
+    await expect(page).toHaveURL(
+      new RegExp(`/settings/llm\\?profile=${MISSING_KEY_PROFILE}$`),
+      { timeout: 10_000 },
+    );
+    await waitForTestId(page, "profile-editor-title");
+    await expect(page.getByTestId("profile-name-input")).toHaveValue(
+      MISSING_KEY_PROFILE,
+    );
   });
 });

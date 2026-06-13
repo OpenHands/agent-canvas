@@ -149,6 +149,39 @@ describe("LlmNotConfiguredBanner", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows a specific recovery message when the active profile has no API key", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({ llm_api_key_set: false }),
+    );
+    vi.spyOn(ProfilesService, "listProfiles").mockResolvedValue({
+      profiles: [
+        {
+          name: "active-profile",
+          model: "openai/gpt-4.1",
+          base_url: null,
+          api_key_set: false,
+        },
+      ],
+      active_profile: "active-profile",
+    });
+    const user = userEvent.setup();
+    const { navigate } = renderBanner();
+
+    const banner = await screen.findByTestId("home-llm-not-configured-banner");
+    expect(banner).toHaveTextContent(
+      "HOME$LLM_PROFILE_MISSING_API_KEY_MESSAGE",
+    );
+    expect(
+      screen.getByTestId("home-llm-not-configured-action"),
+    ).toHaveTextContent("HOME$LLM_PROFILE_MISSING_API_KEY_ACTION");
+
+    await user.click(screen.getByTestId("home-llm-not-configured-action"));
+
+    expect(navigate).toHaveBeenCalledWith(
+      "/settings/llm?profile=active-profile",
+    );
+  });
+
   it("stays hidden for ACP agents, which own their LLM and need no key", async () => {
     // Arrange: ACP agent, no key — must not be nagged.
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
