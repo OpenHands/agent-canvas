@@ -1,12 +1,51 @@
 name: Mock-LLM E2E Tests
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
   workflow_dispatch:
+    inputs:
+      test_specs:
+        description: >-
+          Comma-separated spec filenames to run (e.g.
+          "mock-llm-conversation.spec.ts,mock-llm-automation.spec.ts").
+          Leave empty to run the full suite.
+        required: false
+        default: ""
+      test_grep:
+        description: >-
+          Playwright --grep pattern to filter tests by title
+          (e.g. "conversation|automation"). Leave empty for no filter.
+        required: false
+        default: ""
+      pr_number:
+        description: >-
+          PR number for comment posting when triggered externally
+          (e.g. by the agent-e2e-selector workflow). Leave empty for
+          non-PR dispatches.
+        required: false
+        default: ""
+  # Reusable workflow entry point — called by agent-e2e-selector.yml.
+  # Inputs mirror workflow_dispatch so the job body can use
+  # `inputs.*` regardless of which trigger fired.
+  workflow_call:
+    inputs:
+      test_specs:
+        description: "Comma-separated spec filenames to run."
+        required: false
+        type: string
+        default: ""
+      test_grep:
+        description: "Playwright --grep pattern."
+        required: false
+        type: string
+        default: ""
+      pr_number:
+        description: "PR number for comment posting."
+        required: false
+        type: string
+        default: ""
 
 concurrency:
-  group: mock-llm-e2e-${{ github.event.pull_request.number || github.ref }}
+  group: mock-llm-e2e-${{ github.event.pull_request.number || inputs.pr_number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -21,6 +60,8 @@ jobs:
     env:
       MOCK_LLM_REPORT_PATH: mock-llm-report.md
       MOCK_LLM_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      # Resolve the effective PR number from either trigger type.
+      EFFECTIVE_PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number || '' }}
 
     steps:
       - name: Check out repository
@@ -106,6 +147,31 @@ jobs:
       - name: Build frontend (for agent-canvas binary)
         run: npm run build:app
 
+      - name: Build Playwright command
+        id: pw_command
+        run: |
+          CMD="npx playwright test --config=playwright.mock-llm.config.ts"
+
+          # Append spec file filters from workflow_dispatch input.
+          TEST_SPECS="${{ inputs.test_specs }}"
+          if [ -n "$TEST_SPECS" ]; then
+            # Convert comma-separated filenames to space-separated paths.
+            for spec in $(echo "$TEST_SPECS" | tr ',' ' '); do
+              CMD="$CMD tests/e2e/mock-llm/$spec"
+            done
+            echo "::notice::Running subset: $TEST_SPECS"
+          fi
+
+          # Append --grep filter from workflow_dispatch input.
+          TEST_GREP="${{ inputs.test_grep }}"
+          if [ -n "$TEST_GREP" ]; then
+            CMD="$CMD --grep \"$TEST_GREP\""
+            echo "::notice::Grep filter: $TEST_GREP"
+          fi
+
+          echo "command=$CMD" >> "$GITHUB_OUTPUT"
+          echo "Playwright command: $CMD"
+
       - name: Run mock-LLM E2E tests
         id: run_tests
         env:
@@ -119,7 +185,7 @@ jobs:
 
           # Run Playwright in background so our shell survives if we have
           # to kill it (the webServer teardown can hang indefinitely).
-          npm run test:e2e:mock-llm &
+          ${{ steps.pw_command.outputs.command }} &
           PW_PID=$!
 
           # Wait for tests to complete. Playwright's globalTimeout is 600s
@@ -187,7 +253,7 @@ jobs:
             test-results-mock-llm/
 
       - name: Detect newly added spec files
-        if: always() && github.event.pull_request.number
+        if: always() && env.EFFECTIVE_PR_NUMBER
         id: new_specs
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -195,7 +261,7 @@ jobs:
           # Find mock-LLM spec files added (not just modified) in this PR
           # Uses the GitHub API instead of git diff to avoid shallow-clone issues
           NEW_FILES=$(gh api \
-            "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            "/repos/${{ github.repository }}/pulls/${{ env.EFFECTIVE_PR_NUMBER }}/files" \
             --paginate \
             --jq '[.[] | select(.status == "added") | .filename
                    | select(test("tests/e2e/mock-llm/.*\\.spec\\.ts$"))]
@@ -216,11 +282,11 @@ jobs:
           cat "$MOCK_LLM_REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Save PR number for comment workflow
-        if: always() && github.event.pull_request.number
-        run: echo "${{ github.event.pull_request.number }}" > pr_number.txt
+        if: always() && env.EFFECTIVE_PR_NUMBER
+        run: echo "${{ env.EFFECTIVE_PR_NUMBER }}" > pr_number.txt
 
       - name: Upload PR comment payload
-        if: always() && github.event.pull_request.number
+        if: always() && env.EFFECTIVE_PR_NUMBER
         uses: actions/upload-artifact@v7
         with:
           name: mock-llm-pr-comment-payload
@@ -232,13 +298,14 @@ jobs:
       - name: Post PR comment (same-repo PRs only)
         if: >-
           always() &&
-          github.event.pull_request.number &&
-          github.event.pull_request.head.repo.full_name == github.repository
+          env.EFFECTIVE_PR_NUMBER &&
+          (github.event.pull_request.head.repo.full_name == github.repository ||
+           github.event_name == 'workflow_dispatch')
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          gh pr comment "${{ github.event.pull_request.number }}" \
+          gh pr comment "${{ env.EFFECTIVE_PR_NUMBER }}" \
             --body-file "$MOCK_LLM_REPORT_PATH"
 
       - name: Fail job when tests fail

@@ -1,0 +1,161 @@
+# Agent-powered E2E test selector.
+#
+# Uses the OpenHands SDK LLM to analyze changed files in a PR and
+# determine which mock-LLM E2E test specs are most relevant, then
+# calls the Mock-LLM E2E Tests workflow (via workflow_call) with only
+# that subset.
+#
+# This is the primary entry point for PR-driven E2E testing.
+# mock-llm-e2e.yml no longer triggers on pull_request directly;
+# it only runs when called from here (workflow_call) or via manual
+# dispatch (workflow_dispatch).
+
+name: "Agent E2E Selector"
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to analyze and run E2E subset for"
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: agent-e2e-selector-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Phase 1: analyze changed files and pick the test subset ──
+  select:
+    # Skip fork PRs — secrets are not available.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    outputs:
+      specs: ${{ steps.selector.outputs.specs }}
+      reason: ${{ steps.selector.outputs.reason }}
+      mode: ${{ steps.selector.outputs.mode }}
+      file_count: ${{ steps.changed_files.outputs.count }}
+
+    env:
+      EFFECTIVE_PR: ${{ github.event.pull_request.number || inputs.pr_number }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Read defaults from config/defaults.json
+        id: defaults
+        run: |
+          echo "agent_server_version=$(node -p "require('./config/defaults.json').versions.agentServer")" >> "$GITHUB_OUTPUT"
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install openhands-sdk + tools
+        env:
+          AGENT_SERVER_VERSION: ${{ steps.defaults.outputs.agent_server_version }}
+        run: |
+          uv venv .selector-venv
+          uv pip install -p .selector-venv \
+            "openhands-sdk==$AGENT_SERVER_VERSION" \
+            "openhands-tools==$AGENT_SERVER_VERSION"
+
+      - name: Get changed files from PR
+        id: changed_files
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          FILES=$(gh api \
+            "/repos/${{ github.repository }}/pulls/${{ env.EFFECTIVE_PR }}/files" \
+            --paginate \
+            --jq '.[].filename')
+          echo "$FILES" > changed_files.txt
+          echo "count=$(echo "$FILES" | wc -l)" >> "$GITHUB_OUTPUT"
+          echo "Changed files ($(echo "$FILES" | wc -l)):"
+          echo "$FILES" | head -50
+
+      - name: Run test selector
+        id: selector
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LIVE_E2E_LLM_BASE_URL || 'https://llm-proxy.app.all-hands.dev' }}
+          LLM_MODEL: "openhands/gpt-5.1"
+          OPENHANDS_SUPPRESS_BANNER: "1"
+        run: |
+          RESULT=$(.selector-venv/bin/python3 scripts/select-e2e-tests.py < changed_files.txt)
+          echo "$RESULT" | python3 -m json.tool
+          echo "$RESULT" > selector_result.json
+
+          # Parse outputs for downstream use.
+          SPECS=$(echo "$RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(','.join(d.get('specs',[])))")
+          REASON=$(echo "$RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('reason',''))")
+          MODE=$(echo "$RESULT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('mode','full'))")
+
+          echo "specs=$SPECS" >> "$GITHUB_OUTPUT"
+          echo "reason=$REASON" >> "$GITHUB_OUTPUT"
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+
+      - name: Post selection summary to PR
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          MODE="${{ steps.selector.outputs.mode }}"
+          SPECS="${{ steps.selector.outputs.specs }}"
+          REASON="${{ steps.selector.outputs.reason }}"
+          FILE_COUNT="${{ steps.changed_files.outputs.count }}"
+
+          if [ "$MODE" = "full" ]; then
+            SPEC_DISPLAY="**Full suite** (all specs)"
+          else
+            SPEC_DISPLAY=$(echo "$SPECS" | tr ',' '\n' | sed 's/^/- `/' | sed 's/$/`/')
+          fi
+
+          BODY=$(cat <<'COMMENT_EOF'
+          <!-- agent-e2e-selector -->
+          ### 🤖 Agent E2E Test Selector
+
+          | | |
+          |---|---|
+          | **Mode** | `MODE_PLACEHOLDER` |
+          | **Files analyzed** | FILE_COUNT_PLACEHOLDER |
+          | **Reason** | REASON_PLACEHOLDER |
+
+          **Selected specs:**
+          SPECS_PLACEHOLDER
+
+          _Running via: [Mock-LLM E2E Tests](/${{ github.repository }}/actions/runs/${{ github.run_id }})_
+          COMMENT_EOF
+          )
+
+          BODY="${BODY//MODE_PLACEHOLDER/$MODE}"
+          BODY="${BODY//FILE_COUNT_PLACEHOLDER/$FILE_COUNT}"
+          BODY="${BODY//REASON_PLACEHOLDER/$REASON}"
+          BODY="${BODY//SPECS_PLACEHOLDER/$SPEC_DISPLAY}"
+
+          echo "$BODY" | gh pr comment "${{ env.EFFECTIVE_PR }}" --body-file -
+
+  # ── Phase 2: run the E2E suite via workflow_call ──
+  # Skipped entirely when the agent returns no specs (docs/CI-only changes).
+  run-e2e:
+    needs: select
+    if: needs.select.outputs.specs != ''
+    uses: ./.github/workflows/mock-llm-e2e.yml
+    with:
+      test_specs: ${{ needs.select.outputs.specs }}
+      pr_number: ${{ github.event.pull_request.number && format('{0}', github.event.pull_request.number) || format('{0}', inputs.pr_number) }}
+    permissions:
+      contents: read
+      pull-requests: write
