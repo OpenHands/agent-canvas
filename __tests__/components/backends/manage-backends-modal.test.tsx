@@ -106,7 +106,7 @@ describe("ManageBackendsModal", () => {
     await waitFor(() =>
       expect(
         screen.getByTestId("manage-backends-status-Local"),
-      ).toHaveTextContent("AUTH$INVALID_KEY"),
+      ).toHaveTextContent("BACKEND$STATUS_DISCONNECTED_CHECK_API_KEY"),
     );
     expect(
       row.querySelector('[data-testid="backend-status-dot"]'),
