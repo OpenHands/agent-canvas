@@ -6,7 +6,7 @@ import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_LOCAL_BACKEND_ID } from "#/api/backend-registry/default-backend";
+import { SEEDED_DEFAULT_BACKEND_ID } from "#/api/backend-registry/default-backend";
 import {
   BACKEND_HEALTH_STORAGE_KEY,
   MAX_CONSECUTIVE_FAILURES,
@@ -37,7 +37,7 @@ vi.mock("#/api/cloud/organization-service.api", () => ({
 }));
 
 const localBackend: Backend = {
-  id: DEFAULT_LOCAL_BACKEND_ID,
+  id: SEEDED_DEFAULT_BACKEND_ID,
   name: "Local",
   host: "http://localhost:18000",
   apiKey: "",

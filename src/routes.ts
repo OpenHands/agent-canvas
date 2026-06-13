@@ -25,8 +25,6 @@ export default [
       route("agent", "routes/agent-settings.tsx"),
       route("condenser", "routes/condenser-settings.tsx"),
       route("verification", "routes/verification-settings.tsx"),
-      // Legacy entry: redirects to /mcp (preserves old bookmarks).
-      route("mcp", "routes/mcp-settings-redirect.tsx"),
       route("app", "routes/app-settings.tsx"),
       route("secrets", "routes/secrets-settings.tsx"),
     ]),

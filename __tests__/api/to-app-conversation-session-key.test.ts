@@ -5,7 +5,7 @@ import {
   __resetActiveStoreForTests,
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
-import { DEFAULT_LOCAL_BACKEND_ID } from "#/api/backend-registry/default-backend";
+import { SEEDED_DEFAULT_BACKEND_ID } from "#/api/backend-registry/default-backend";
 
 const directInfo = (id: string) => ({
   id,
@@ -25,7 +25,7 @@ describe("toAppConversation session_api_key hydration", () => {
 
     setRegisteredBackends([
       {
-        id: DEFAULT_LOCAL_BACKEND_ID,
+        id: SEEDED_DEFAULT_BACKEND_ID,
         name: "Local",
         host: window.location.origin,
         apiKey: "stale-session-key",
