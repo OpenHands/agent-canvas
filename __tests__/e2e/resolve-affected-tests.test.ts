@@ -15,6 +15,10 @@ const resolverPath = path.join(
   "tests/e2e/mock-llm/scripts/resolve-affected-tests.mjs",
 );
 const workflowPath = path.join(repoRoot, ".github/workflows/mock-llm-e2e.yml");
+const dockerWorkflowPath = path.join(
+  repoRoot,
+  ".github/workflows/mock-llm-docker-e2e.yml",
+);
 
 function resolveAffectedTests(files: string[]) {
   const output = execFileSync(
@@ -81,5 +85,19 @@ describe("mock-LLM E2E affected test resolver", () => {
     expect(workflow).toContain("if ! RESULT=$(node");
     expect(workflow).toContain("Affected-test resolver failed");
     expect(workflow).not.toContain("2>&1) || true");
+  });
+
+  it("keeps E2E workflows from path-skipping required PR checks", () => {
+    const workflow = readFileSync(workflowPath, "utf-8");
+    const dockerWorkflow = readFileSync(dockerWorkflowPath, "utf-8");
+
+    expect(workflow).not.toContain("\n    paths:\n");
+    expect(workflow).toContain("detect-pr-changes:");
+    expect(workflow).toContain("needs.detect-pr-changes.outputs.should_run");
+    expect(dockerWorkflow).not.toContain("\n    paths:\n");
+    expect(dockerWorkflow).toContain("detect-pr-changes:");
+    expect(dockerWorkflow).toContain(
+      "needs.detect-pr-changes.outputs.should_run",
+    );
   });
 });
