@@ -24,7 +24,6 @@ import {
   type SettingsView,
 } from "#/utils/sdk-settings-schema";
 import { DEFAULT_SETTINGS } from "#/services/settings";
-import { OPENHANDS_LLM_PROXY_BASE_URL } from "#/utils/openhands-llm";
 import {
   LLM_AUTH_TYPE_API_KEY,
   LLM_AUTH_TYPE_KEY,
@@ -56,19 +55,8 @@ const getSchemaFieldDefaultValue = (
     .flatMap((section) => section.fields)
     .find((field) => field.key === fieldKey)?.default ?? null;
 
-// Current SDK versions keep `openhands/*` stored without a proxy base URL.
-// These proxy defaults are recognized so legacy pre-#3548 settings still open
-// in the Basic view instead of forcing users into Advanced settings.
 const KNOWN_PROVIDER_DEFAULT_BASE_URLS: Partial<Record<string, Set<string>>> = {
   openai: new Set(["https://api.openai.com", "https://api.openai.com/v1"]),
-  openhands: new Set([
-    OPENHANDS_LLM_PROXY_BASE_URL,
-    "https://llm-proxy.app.all-hands.dev/v1",
-  ]),
-  litellm_proxy: new Set([
-    OPENHANDS_LLM_PROXY_BASE_URL,
-    "https://llm-proxy.app.all-hands.dev/v1",
-  ]),
 };
 
 const normalizeBaseUrl = (baseUrl: string) => {
@@ -353,7 +341,6 @@ export function LlmSettingsScreen({
                 <>
                   <ModelSelector
                     currentModel={modelValue || undefined}
-                    currentBaseUrl={baseUrlValue || undefined}
                     onChange={(provider, model) => {
                       const nextModel = buildModelId(provider, model);
                       if (nextModel) {

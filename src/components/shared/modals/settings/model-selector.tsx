@@ -15,16 +15,10 @@ import { HelpLink } from "#/ui/help-link";
 import { PRODUCT_URL } from "#/utils/constants";
 import { useSearchProviders } from "#/hooks/query/use-search-providers";
 import { useProviderModels } from "#/hooks/query/use-provider-models";
-import { useOpenhandsVerifiedModels } from "#/hooks/query/use-openhands-verified-models";
-import {
-  needsLegacyOpenHandsDisplayNormalization,
-  normalizeDisplayModel,
-} from "#/utils/normalize-display-model";
 
 interface ModelSelectorProps {
   isDisabled?: boolean;
   currentModel?: string;
-  currentBaseUrl?: string;
   onChange?: (provider: string | null, model: string | null) => void;
   onDefaultValuesChanged?: (
     provider: string | null,
@@ -37,7 +31,6 @@ interface ModelSelectorProps {
 export function ModelSelector({
   isDisabled,
   currentModel,
-  currentBaseUrl,
   onChange,
   onDefaultValuesChanged,
   wrapperClassName,
@@ -50,7 +43,6 @@ export function ModelSelector({
   const [selectedModel, setSelectedModel] = React.useState<string | null>(null);
 
   const { data: providers = [] } = useSearchProviders();
-  const { data: openhandsVerifiedModels } = useOpenhandsVerifiedModels();
   const {
     data: providerModels = [],
     isLoading: isLoadingModels,
@@ -76,35 +68,15 @@ export function ModelSelector({
   );
 
   React.useEffect(() => {
-    if (!currentModel) return;
+    if (currentModel) {
+      const { provider, model } = extractModelAndProvider(currentModel);
 
-    const needsLegacyNormalization = needsLegacyOpenHandsDisplayNormalization(
-      currentModel,
-      currentBaseUrl,
-    );
-
-    // Legacy persisted `litellm_proxy/<m>` + All-Hands proxy configs need the
-    // OpenHands verified list before they can be safely displayed as
-    // `openhands/<m>`. Current SDK settings already return `openhands/*`, so
-    // initialize those immediately instead of waiting on the extra query.
-    if (needsLegacyNormalization && openhandsVerifiedModels === undefined) {
-      return;
+      setLitellmId(currentModel);
+      setSelectedProvider(provider || null);
+      setSelectedModel(model);
+      onDefaultValuesChanged?.(provider || null, model);
     }
-
-    const displayModel = needsLegacyNormalization
-      ? normalizeDisplayModel(
-          currentModel,
-          currentBaseUrl,
-          openhandsVerifiedModels ?? [],
-        )
-      : currentModel;
-    const { provider, model } = extractModelAndProvider(displayModel);
-
-    setLitellmId(displayModel);
-    setSelectedProvider(provider || null);
-    setSelectedModel(model);
-    onDefaultValuesChanged?.(provider || null, model);
-  }, [currentModel, currentBaseUrl, openhandsVerifiedModels]);
+  }, [currentModel]);
 
   const handleChangeProvider = (provider: string) => {
     setSelectedProvider(provider);

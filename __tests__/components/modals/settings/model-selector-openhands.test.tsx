@@ -49,27 +49,6 @@ describe("ModelSelector — OpenHands provider display", () => {
     );
   }
 
-  it("shows OpenHands as the provider for a legacy litellm_proxy/<m> + All-Hands proxy base URL, fetching each LLM endpoint exactly once", async () => {
-    // Arrange — mirrors pre-#3548 persisted settings that stored the LiteLLM
-    // proxy transport model instead of the public OpenHands provider model.
-    renderWithQuery(
-      <ModelSelector
-        currentModel="litellm_proxy/claude-opus-4-7"
-        currentBaseUrl="https://llm-proxy.app.all-hands.dev/"
-      />,
-    );
-
-    // Act / Assert — the legacy bootstrap path must wait for the openhands
-    // verified list to load before resolving the displayed provider.
-    await waitFor(() => {
-      expect(screen.getByLabelText("LLM$PROVIDER")).toHaveValue("OpenHands");
-    });
-
-    expect(providersCount).toBe(1);
-    expect(verifiedCount).toBe(1);
-    expect(modelsCount).toBe(1);
-  });
-
   it("shows OpenHands immediately for current openhands/<m> settings", async () => {
     renderWithQuery(<ModelSelector currentModel="openhands/claude-opus-4-7" />);
 
