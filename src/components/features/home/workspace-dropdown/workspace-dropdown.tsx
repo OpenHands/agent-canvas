@@ -8,7 +8,7 @@ import {
   dropdownMenuListClassName,
 } from "#/utils/dropdown-classes";
 import { formControlFieldClassName } from "#/utils/form-control-classes";
-import { LocalWorkspace } from "#/types/workspace";
+import { LocalWorkspace, LocalWorkspaceParent } from "#/types/workspace";
 import { I18nKey } from "#/i18n/declaration";
 import RepoIcon from "#/icons/repo.svg?react";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
@@ -19,8 +19,21 @@ import { DropdownItem } from "../shared/dropdown-item";
 import { EmptyState } from "../shared/empty-state";
 import { GenericDropdownMenu } from "../shared/generic-dropdown-menu";
 
+// Sentinel group key for standalone workspaces (no parent). Module-scoped so
+// it's a stable reference for hooks and reads clearly as a non-path sentinel.
+const STATIC_GROUP_KEY = "__ungrouped__";
+
 export interface WorkspaceDropdownProps {
   workspaces: LocalWorkspace[];
+  /**
+   * The workspace parents that produced the dynamic children in `workspaces`
+   * (from `useResolvedWorkspaces`, including the implicit `/projects`). Used to
+   * label each folder's group by its parent's `name`. When two or more distinct
+   * groups are present the list renders grouped under headers; with one group
+   * (or omitted) it stays flat. A child whose `parentPath` has no matching
+   * parent here falls back to the path basename.
+   */
+  parents?: LocalWorkspaceParent[];
   value: LocalWorkspace | null;
   placeholder?: string;
   className?: string;
@@ -40,6 +53,7 @@ export interface WorkspaceDropdownProps {
 
 export function WorkspaceDropdown({
   workspaces,
+  parents = [],
   value,
   placeholder,
   className,
@@ -63,6 +77,77 @@ export function WorkspaceDropdown({
         w.path.toLowerCase().includes(trimmed),
     );
   }, [workspaces, inputValue]);
+
+  // Group the filtered list by parent so folders from the same workspace render
+  // contiguously under a header. The grouped array is the SINGLE source for both
+  // downshift's `items` and the menu render, so `highlightedIndex` and keyboard
+  // navigation stay in lockstep with the visible order. Headers are presentational
+  // siblings (see `renderItemPrefix`) and consume no downshift index; each option
+  // carries its group label as an accessible name so screen-reader users get the
+  // grouping the presentational header can't convey.
+  const groupKeyOf = useCallback(
+    (w: LocalWorkspace) => w.parentPath ?? STATIC_GROUP_KEY,
+    [],
+  );
+  const parentNameByPath = useMemo(() => {
+    const map = new Map<string, string>();
+    parents.forEach((p) => map.set(p.path, p.name));
+    return map;
+  }, [parents]);
+
+  const {
+    groupedWorkspaces,
+    isGrouped,
+    headerByFirstIndex,
+    groupLabelByIndex,
+  } = useMemo(() => {
+    const order: string[] = [];
+    const byGroup = new Map<string, LocalWorkspace[]>();
+    filteredWorkspaces.forEach((w) => {
+      const key = groupKeyOf(w);
+      if (!byGroup.has(key)) {
+        byGroup.set(key, []);
+        order.push(key);
+      }
+      byGroup.get(key)?.push(w);
+    });
+
+    // Keep the catch-all "Other" (no-parent) group last, wherever its first
+    // member happened to appear. Stable sort preserves named-group order.
+    order.sort((a, b) => {
+      if (a === STATIC_GROUP_KEY) return 1;
+      if (b === STATIC_GROUP_KEY) return -1;
+      return 0;
+    });
+
+    const grouping = order.length > 1;
+    const grouped: LocalWorkspace[] = [];
+    const headers = new Map<number, string>();
+    const labelByIndex = new Map<number, string>();
+    order.forEach((key) => {
+      // `||` (not `??`) so an empty parent name falls through to the basename.
+      const label =
+        key === STATIC_GROUP_KEY
+          ? t(I18nKey.HOME$WORKSPACE_GROUP_OTHER)
+          : parentNameByPath.get(key) ||
+            key.split("/").filter(Boolean).pop() ||
+            key;
+      if (grouping) {
+        headers.set(grouped.length, label);
+      }
+      (byGroup.get(key) ?? []).forEach((w) => {
+        labelByIndex.set(grouped.length, label);
+        grouped.push(w);
+      });
+    });
+
+    return {
+      groupedWorkspaces: grouped,
+      isGrouped: grouping,
+      headerByFirstIndex: headers,
+      groupLabelByIndex: labelByIndex,
+    };
+  }, [filteredWorkspaces, groupKeyOf, parentNameByPath, t]);
 
   const handleSelectionChange = useCallback(
     (selectedItem: LocalWorkspace | null) => {
@@ -89,7 +174,7 @@ export function WorkspaceDropdown({
     selectedItem,
     closeMenu,
   } = useCombobox<LocalWorkspace>({
-    items: filteredWorkspaces,
+    items: groupedWorkspaces,
     itemToString: (item) => item?.name ?? "",
     selectedItem: value,
     onSelectedItemChange: ({ selectedItem: newSelectedItem }) => {
@@ -128,6 +213,11 @@ export function WorkspaceDropdown({
       getItemProps={itemGetItemProps}
       getDisplayText={(workspace) => workspace.name}
       getItemKey={(workspace) => workspace.id}
+      ariaLabel={
+        isGrouped
+          ? `${groupLabelByIndex.get(index) ?? ""}, ${item.name}`.trim()
+          : undefined
+      }
     />
   );
 
@@ -263,7 +353,7 @@ export function WorkspaceDropdown({
 
       <GenericDropdownMenu<LocalWorkspace>
         isOpen={isOpen}
-        filteredItems={filteredWorkspaces}
+        filteredItems={groupedWorkspaces}
         inputValue={inputValue}
         highlightedIndex={highlightedIndex}
         selectedItem={selectedItem}
@@ -271,6 +361,23 @@ export function WorkspaceDropdown({
         getItemProps={getItemProps}
         menuRef={menuRef}
         renderItem={renderItem}
+        renderItemPrefix={
+          isGrouped
+            ? (_item, index) => {
+                const label = headerByFirstIndex.get(index);
+                if (!label) return null;
+                return (
+                  <li
+                    role="presentation"
+                    data-testid="workspace-group-header"
+                    className="px-2 pt-2 pb-1 text-xs font-medium text-[var(--oh-muted)] select-none"
+                  >
+                    {label}
+                  </li>
+                );
+              }
+            : undefined
+        }
         renderEmptyState={renderEmptyState}
         stickyFooterItem={stickyFooterItem}
         testId="workspace-dropdown-menu"

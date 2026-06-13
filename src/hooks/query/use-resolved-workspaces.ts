@@ -11,6 +11,14 @@ import { LocalWorkspace, LocalWorkspaceParent } from "#/types/workspace";
 
 interface UseResolvedWorkspacesResult {
   workspaces: LocalWorkspace[];
+  /**
+   * The merged workspace parents that produced the dynamic children above:
+   * the user's stored parents plus any implicit built-in parents (currently
+   * `/projects` in dev). Consumers use this to label a child's group by its
+   * parent's `name` — `parentPath` alone only yields a path. Includes the
+   * implicit parents that `useLocalWorkspaces` does not expose on its own.
+   */
+  parents: LocalWorkspaceParent[];
   isLoading: boolean;
   isError: boolean;
   error: unknown;
@@ -124,5 +132,11 @@ export function useResolvedWorkspaces(): UseResolvedWorkspacesResult {
     return Array.from(byPath.values());
   }, [workspaces, workspaceParents, queriesFingerprint]);
 
-  return { workspaces: merged, isLoading, isError, error: listError };
+  return {
+    workspaces: merged,
+    parents: workspaceParents,
+    isLoading,
+    isError,
+    error: listError,
+  };
 }
