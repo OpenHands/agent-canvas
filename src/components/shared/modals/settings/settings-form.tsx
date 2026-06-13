@@ -70,7 +70,6 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
 
   const isLLMKeySet = settings.llm_api_key_set;
   const currentModel = getAgentSettingValue(settings, "llm.model");
-  const currentBaseUrl = getAgentSettingValue(settings, "llm.base_url");
 
   return (
     <div>
@@ -84,9 +83,6 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
           <ModelSelector
             currentModel={
               typeof currentModel === "string" ? currentModel : undefined
-            }
-            currentBaseUrl={
-              typeof currentBaseUrl === "string" ? currentBaseUrl : undefined
             }
             wrapperClassName="!flex-col !gap-[17px]"
             labelClassName={SETTINGS_FORM.LABEL_CLASSNAME}

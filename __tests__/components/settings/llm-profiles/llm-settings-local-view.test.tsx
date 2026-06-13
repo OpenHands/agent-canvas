@@ -593,7 +593,10 @@ describe("LlmSettingsLocalView", () => {
   });
 
   describe("Basic tab save", () => {
-    it("drops hidden base_url values for OpenHands models", async () => {
+    it("drops stale base_url for OpenHands models in Basic mode", async () => {
+      // Arrange — a profile whose stored config pairs an OpenHands model with a
+      // stale base_url. In Basic mode the public provider prefix is enough; the
+      // SDK derives provider transport details when making LLM calls.
       const user = userEvent.setup();
       vi.mocked(ProfilesService.getProfile).mockResolvedValue({
         name: "gpt-4-profile",
@@ -608,6 +611,7 @@ describe("LlmSettingsLocalView", () => {
 
       renderWithProviders(<LlmSettingsLocalView />);
 
+      // Act — open the profile in edit mode, force the Basic tab, and save.
       await user.click(screen.getAllByTestId("profile-menu-trigger")[0]);
       await user.click(screen.getByTestId("profile-edit"));
       await waitFor(() => {
@@ -621,9 +625,52 @@ describe("LlmSettingsLocalView", () => {
       });
       await user.click(screen.getByTestId("save-profile-btn"));
 
+      // Assert — the saved LLM config keeps the OpenHands model and drops the
+      // stale base_url instead of re-stamping a LiteLLM proxy detail.
       await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
       const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
       expect(savedLlm.model).toBe("openhands/claude-opus-4-5-20251101");
+      expect(savedLlm).not.toHaveProperty("base_url");
+    });
+
+    it("drops base_url for stored litellm_proxy profiles in Basic mode", async () => {
+      // Arrange — legacy profiles may still contain a LiteLLM proxy model and
+      // proxy base_url. The SDK migration owns that compatibility; the Basic tab
+      // should not keep re-stamping transport details.
+      const user = userEvent.setup();
+      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
+        name: "gpt-4-profile",
+        api_key_set: true,
+        config: {
+          model: "litellm_proxy/claude-opus-4-8",
+          api_key: "gAAAA_encrypted_key",
+          base_url: "https://llm-proxy.app.all-hands.dev/",
+        },
+      });
+      mockSaveMutateAsync.mockResolvedValueOnce({ success: true });
+
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      // Act — open the profile in edit mode, force the Basic tab, and save
+      // without touching the model dropdown.
+      await user.click(screen.getAllByTestId("profile-menu-trigger")[0]);
+      await user.click(screen.getByTestId("profile-edit"));
+      await waitFor(() => {
+        expect(screen.getByTestId("profile-name-input")).toHaveValue(
+          "gpt-4-profile",
+        );
+      });
+      await user.click(await screen.findByTestId("sdk-section-basic-toggle"));
+      await waitFor(() => {
+        expect(screen.getByTestId("save-profile-btn")).not.toBeDisabled();
+      });
+      await user.click(screen.getByTestId("save-profile-btn"));
+
+      // Assert — the legacy model is preserved, but the Basic tab drops the
+      // base_url instead of reverse-mapping it in the frontend.
+      await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
+      const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
+      expect(savedLlm.model).toBe("litellm_proxy/claude-opus-4-8");
       expect(savedLlm).not.toHaveProperty("base_url");
     });
   });
