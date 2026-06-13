@@ -7,22 +7,22 @@ on:
     # Docs-only, spec-only, or other non-stack PRs skip this workflow.
     # Use workflow_dispatch to force a full run when needed.
     paths:
-      - 'src/**'
-      - 'public/**'
-      - 'scripts/**'
-      - 'bin/**'
-      - 'config/**'
-      - 'tests/e2e/mock-llm/**'
-      - 'tests/e2e/support/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'vite.config.ts'
-      - 'tsconfig.json'
-      - 'react-router.config.ts'
-      - 'playwright.mock-llm.config.ts'
-      - 'tailwind.config.js'
-      - 'hero.ts'
-      - '.github/workflows/mock-llm-e2e.yml'
+      - "src/**"
+      - "public/**"
+      - "scripts/**"
+      - "bin/**"
+      - "config/**"
+      - "tests/e2e/mock-llm/**"
+      - "tests/e2e/support/**"
+      - "package.json"
+      - "package-lock.json"
+      - "vite.config.ts"
+      - "tsconfig.json"
+      - "react-router.config.ts"
+      - "playwright.mock-llm.config.ts"
+      - "tailwind.config.js"
+      - "hero.ts"
+      - ".github/workflows/mock-llm-e2e.yml"
   workflow_dispatch:
 
 concurrency:
@@ -137,9 +137,16 @@ jobs:
             "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
             --paginate --jq '.[].filename' | tr '\n' ',')
 
-          # Resolve which test directories to run
-          RESULT=$(node tests/e2e/mock-llm/scripts/resolve-affected-tests.mjs \
-            --files "$CHANGED_FILES" 2>&1) || true
+          # Resolve which test directories to run. If the resolver fails
+          # (for example malformed test-mapping.json), fail closed by
+          # running the full suite instead of treating stderr as test paths.
+          if ! RESULT=$(node tests/e2e/mock-llm/scripts/resolve-affected-tests.mjs \
+            --files "$CHANGED_FILES"); then
+            echo "::warning::Affected-test resolver failed — running full mock-LLM suite"
+            echo "test_paths=" >> "$GITHUB_OUTPUT"
+            echo "selective=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           if [ -z "$RESULT" ]; then
             echo "No affected test directories — running full suite as fallback"

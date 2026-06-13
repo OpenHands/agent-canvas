@@ -116,6 +116,7 @@
     "src/root.tsx",
     "src/entry.client.tsx",
     "src/stores/event-store.*",
+    "public/**",
     "scripts/**",
     "bin/**",
     "config/**",
@@ -129,6 +130,9 @@
     "vite.config.ts",
     "tsconfig.json",
     "react-router.config.ts",
-    "playwright.mock-llm.config.ts"
+    "playwright.mock-llm.config.ts",
+    "tailwind.config.js",
+    "hero.ts",
+    ".github/workflows/mock-llm-e2e.yml"
   ]
 }
