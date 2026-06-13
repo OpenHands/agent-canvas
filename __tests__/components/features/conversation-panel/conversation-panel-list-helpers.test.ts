@@ -3,6 +3,7 @@ import {
   getGroupConversationPreview,
   groupConversations,
   GROUP_CONVERSATIONS_PREVIEW_LIMIT,
+  isConversationInactive,
   parseConversationTimeMs,
   sortConversationsByField,
 } from "#/components/features/conversation-panel/conversation-panel-list-helpers";
@@ -28,6 +29,32 @@ const base: Omit<AppConversation, "id" | "title" | "workspace"> = {
 };
 
 describe("conversation-panel-list-helpers", () => {
+  it("isConversationInactive identifies stopped/errored conversations by execution_status", () => {
+    // Inactive statuses: PAUSED (user stopped), ERROR (agent failed), STUCK (agent stuck)
+    const inactiveStatuses = [
+      ExecutionStatus.PAUSED,
+      ExecutionStatus.ERROR,
+      ExecutionStatus.STUCK,
+    ];
+    for (const status of inactiveStatuses) {
+      expect(isConversationInactive({ execution_status: status })).toBe(true);
+    }
+
+    // Active statuses: IDLE, RUNNING, WAITING_FOR_CONFIRMATION, FINISHED
+    const activeStatuses = [
+      ExecutionStatus.IDLE,
+      ExecutionStatus.RUNNING,
+      ExecutionStatus.WAITING_FOR_CONFIRMATION,
+      ExecutionStatus.FINISHED,
+    ];
+    for (const status of activeStatuses) {
+      expect(isConversationInactive({ execution_status: status })).toBe(false);
+    }
+
+    // Null status: not considered inactive (unknown state, e.g. brand-new conversation)
+    expect(isConversationInactive({ execution_status: null })).toBe(false);
+  });
+
   it("parseConversationTimeMs returns 0 for missing or unparseable timestamps and ms for ISO strings", () => {
     // Three branches in one assertion: missing input (undefined), malformed
     // string (NaN from Date.parse), and a real ISO timestamp.

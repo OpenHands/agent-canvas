@@ -1309,7 +1309,7 @@ describe("ConversationPanel", () => {
 
       await user.click(screen.getByTestId("older-conversations-filter-toggle"));
 
-      const hideRow = await screen.findByTestId("toggle-older-conversations");
+      const hideRow = await screen.findByTestId("toggle-hide-old-conversations");
       expect(hideRow.querySelector("svg")).toBeInTheDocument();
       expect(hideRow).toHaveClass("group");
 
@@ -1346,16 +1346,18 @@ describe("ConversationPanel", () => {
       expect(cards).toHaveLength(2);
 
       await user.click(screen.getByTestId("older-conversations-filter-toggle"));
-      let toggle = await screen.findByTestId("toggle-older-conversations");
-      expect(toggle).toHaveTextContent("CONVERSATION$HIDE");
+      let toggle = await screen.findByTestId("toggle-hide-old-conversations");
+      // Initially filter is off (old conversations shown): aria-checked=false
+      expect(toggle).toHaveAttribute("aria-checked", "false");
       await user.click(toggle);
 
       cards = await screen.findAllByTestId("conversation-card");
       expect(cards).toHaveLength(1);
 
       await user.click(screen.getByTestId("older-conversations-filter-toggle"));
-      toggle = await screen.findByTestId("toggle-older-conversations");
-      expect(toggle).toHaveTextContent("CONVERSATION$SHOW_ALL");
+      toggle = await screen.findByTestId("toggle-hide-old-conversations");
+      // Filter is now on (old conversations hidden): aria-checked=true
+      expect(toggle).toHaveAttribute("aria-checked", "true");
       await user.click(toggle);
       cards = await screen.findAllByTestId("conversation-card");
       expect(cards).toHaveLength(2);
@@ -1563,6 +1565,100 @@ describe("ConversationPanel", () => {
     });
   });
 
+  describe("hide inactive conversations filter", () => {
+    it("filters out PAUSED, ERROR, and STUCK conversations when hideInactiveConversations is enabled", async () => {
+      vi.spyOn(
+        AgentServerConversationService,
+        "searchConversations",
+      ).mockResolvedValue({
+        items: [
+          createMockConversation({
+            id: "running",
+            title: "Running",
+            execution_status: ExecutionStatus.RUNNING,
+          }),
+          createMockConversation({
+            id: "finished",
+            title: "Finished",
+            execution_status: ExecutionStatus.FINISHED,
+          }),
+          createMockConversation({
+            id: "paused",
+            title: "Paused",
+            execution_status: ExecutionStatus.PAUSED,
+          }),
+          createMockConversation({
+            id: "error",
+            title: "Error",
+            execution_status: ExecutionStatus.ERROR,
+          }),
+        ],
+        next_page_id: null,
+      });
+
+      // Enable the inactive filter before rendering.
+      useConversationPanelPreferencesStore
+        .getState()
+        .setHideInactiveConversations(true);
+
+      renderConversationPanel();
+
+      // Only RUNNING and FINISHED are shown; PAUSED and ERROR are hidden.
+      const cards = await screen.findAllByTestId("conversation-card");
+      expect(cards).toHaveLength(2);
+      expect(screen.queryByText("Running")).toBeInTheDocument();
+      expect(screen.queryByText("Finished")).toBeInTheDocument();
+      expect(screen.queryByText("Paused")).not.toBeInTheDocument();
+      expect(screen.queryByText("Error")).not.toBeInTheDocument();
+
+      // Reset preference for subsequent tests.
+      useConversationPanelPreferencesStore
+        .getState()
+        .setHideInactiveConversations(false);
+    });
+
+    it("toggles inactive conversations visibility via the filter menu", async () => {
+      const user = userEvent.setup();
+      vi.spyOn(
+        AgentServerConversationService,
+        "searchConversations",
+      ).mockResolvedValue({
+        items: [
+          createMockConversation({
+            id: "active",
+            title: "Active",
+            execution_status: ExecutionStatus.IDLE,
+          }),
+          createMockConversation({
+            id: "paused",
+            title: "Paused",
+            execution_status: ExecutionStatus.PAUSED,
+          }),
+        ],
+        next_page_id: null,
+      });
+
+      renderConversationPanel();
+
+      let cards = await screen.findAllByTestId("conversation-card");
+      expect(cards).toHaveLength(2);
+
+      // Open the filter menu and enable "Hide inactive".
+      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
+      const toggle = await screen.findByTestId(
+        "toggle-hide-inactive-conversations",
+      );
+      // Initially filter is off: aria-checked=false
+      expect(toggle).toHaveAttribute("aria-checked", "false");
+      await user.click(toggle);
+
+      // After enabling the filter, only the IDLE conversation is visible.
+      cards = await screen.findAllByTestId("conversation-card");
+      expect(cards).toHaveLength(1);
+      expect(screen.getByText("Active")).toBeInTheDocument();
+    });
+  });
+
   describe("active conversation highlight", () => {
     it("marks the currently active conversation with data-active=true", async () => {
       vi.spyOn(
@@ -1662,7 +1758,7 @@ describe("ConversationPanel", () => {
       // Hide older conversations via the filter dropdown.
       const user = userEvent.setup();
       await user.click(screen.getByTestId("older-conversations-filter-toggle"));
-      await user.click(screen.getByTestId("toggle-older-conversations"));
+      await user.click(screen.getByTestId("toggle-hide-old-conversations"));
 
       // Older conversations are hidden → no load-more.
       expect(
@@ -1671,7 +1767,7 @@ describe("ConversationPanel", () => {
 
       // After showing older conversations again, the link reappears.
       await user.click(screen.getByTestId("older-conversations-filter-toggle"));
-      await user.click(screen.getByTestId("toggle-older-conversations"));
+      await user.click(screen.getByTestId("toggle-hide-old-conversations"));
       expect(
         await screen.findByTestId("load-more-conversations"),
       ).toBeInTheDocument();

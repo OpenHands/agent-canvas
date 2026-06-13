@@ -6,13 +6,11 @@ import {
   Check,
   Clock3,
   ClockArrowDown,
-  Eye,
   EyeOff,
   Folder,
   GitBranch,
   ListFilter,
-  MessageCircle,
-  Star,
+  OctagonX,
   Trash2,
 } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
@@ -86,6 +84,7 @@ function MenuRow({
   icon: Icon,
   label,
   selected,
+  checkbox,
   onClick,
   testId,
   disabled,
@@ -93,17 +92,22 @@ function MenuRow({
   icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
   label: string;
   selected?: boolean;
+  /** When true, uses menuitemcheckbox role instead of menuitemradio. */
+  checkbox?: boolean;
   onClick: () => void;
   testId?: string;
   disabled?: boolean;
 }) {
-  // Rows that show a selection checkmark are toggleable preferences, so
-  // they get `role="menuitemradio"` when they're part of a selectable
-  // group and `role="menuitemcheckbox"` when they're a standalone toggle.
-  // For simplicity we use `menuitemradio` whenever `selected` is provided
-  // (every selectable row in this menu is part of a mutually exclusive
-  // group in practice) and fall back to plain `menuitem` otherwise.
-  const role = selected === undefined ? "menuitem" : "menuitemradio";
+  // Rows that show a selection checkmark are toggleable preferences.
+  // - `menuitemradio` for mutually exclusive options (e.g. organize mode)
+  // - `menuitemcheckbox` for independent boolean toggles (e.g. hide filters)
+  // - plain `menuitem` for actions (e.g. delete all)
+  const role =
+    selected === undefined
+      ? "menuitem"
+      : checkbox
+        ? "menuitemcheckbox"
+        : "menuitemradio";
   return (
     <button
       type="button"
@@ -146,6 +150,8 @@ export interface ConversationPanelFilterMenuProps {
   setThreadScope: (scope: ThreadScope) => void;
   showOlderConversations: boolean;
   toggleShowOlderConversations: () => void;
+  hideInactiveConversations: boolean;
+  toggleHideInactiveConversations: () => void;
   showRepoBranchMetadata: boolean;
   toggleShowRepoBranchMetadata: () => void;
   showLlmProfiles: boolean;
@@ -163,10 +169,12 @@ export function ConversationPanelFilterMenu({
   setOrganizeMode,
   conversationSort,
   setConversationSort,
-  threadScope,
-  setThreadScope,
+  threadScope: _threadScope,
+  setThreadScope: _setThreadScope,
   showOlderConversations,
   toggleShowOlderConversations,
+  hideInactiveConversations,
+  toggleHideInactiveConversations,
   showRepoBranchMetadata,
   toggleShowRepoBranchMetadata,
   showLlmProfiles,
@@ -320,20 +328,24 @@ export function ConversationPanelFilterMenu({
           <MenuSeparator />
           <MenuHeading>{t(I18nKey.CONVERSATION_PANEL$SHOW)}</MenuHeading>
           <MenuRow
-            icon={MessageCircle}
-            label={t(I18nKey.CONVERSATION_PANEL$ALL_THREADS)}
-            selected={threadScope === "all"}
+            testId="toggle-hide-inactive-conversations"
+            icon={OctagonX}
+            label={t(I18nKey.CONVERSATION_PANEL$HIDE_INACTIVE)}
+            selected={hideInactiveConversations}
+            checkbox
             onClick={() => {
-              setThreadScope("all");
+              toggleHideInactiveConversations();
               setFilterMenuOpen(false);
             }}
           />
           <MenuRow
-            icon={Star}
-            label={t(I18nKey.CONVERSATION_PANEL$RELEVANT_THREADS)}
-            selected={threadScope === "relevant"}
+            testId="toggle-hide-old-conversations"
+            icon={EyeOff}
+            label={t(I18nKey.CONVERSATION_PANEL$HIDE_OLD)}
+            selected={!showOlderConversations}
+            checkbox
             onClick={() => {
-              setThreadScope("relevant");
+              toggleShowOlderConversations();
               setFilterMenuOpen(false);
             }}
           />
@@ -357,30 +369,6 @@ export function ConversationPanelFilterMenu({
             testId="toggle-repo-branch-metadata"
             onClick={() => {
               toggleShowRepoBranchMetadata();
-              setFilterMenuOpen(false);
-            }}
-          />
-
-          <MenuSeparator />
-          <MenuHeading
-            suffix={
-              <span className="shrink-0 text-right text-[10px] font-medium normal-case tracking-normal text-[var(--oh-muted)]/70">
-                {t(I18nKey.CONVERSATION_PANEL$OLDER_OVER_ONE_HOUR)}
-              </span>
-            }
-          >
-            {t(I18nKey.CONVERSATION_PANEL$OLDER_SECTION)}
-          </MenuHeading>
-          <MenuRow
-            testId="toggle-older-conversations"
-            icon={showOlderConversations ? EyeOff : Eye}
-            label={
-              showOlderConversations
-                ? capitalizeLabel(t(I18nKey.CONVERSATION$HIDE))
-                : capitalizeLabel(t(I18nKey.CONVERSATION$SHOW_ALL))
-            }
-            onClick={() => {
-              toggleShowOlderConversations();
               setFilterMenuOpen(false);
             }}
           />
