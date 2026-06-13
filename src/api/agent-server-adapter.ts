@@ -208,10 +208,7 @@ export function buildRuntimeServicesSystemSuffix(): string | undefined {
   );
 
   const { agent_server, ingress, automation } = info.services;
-  // Accept `frontend` (current key) or `vite` (legacy key) for the
-  // frontend service entry. The legacy fallback can be removed once all
-  // launchers in this repo emit `frontend`.
-  const frontend = info.services.frontend ?? info.services.vite;
+  const { frontend } = info.services;
 
   if (agent_server?.url_from_agent) {
     lines.push(
