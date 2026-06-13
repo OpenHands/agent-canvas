@@ -16,20 +16,45 @@ import {
 } from "./src/styles/agent-server-ui-style-scope";
 
 const LIB_ENTRY = fileURLToPath(new URL("./src/index.ts", import.meta.url));
-const LIB_EXTERNALS = [
-  "react",
-  "react-dom",
-  "react/jsx-runtime",
-  "react/jsx-dev-runtime",
-  "react-router",
+const _require = createRequire(import.meta.url);
+const PACKAGE_JSON = _require("./package.json") as {
+  dependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+};
+const LIB_EXTERNAL_PACKAGE_NAMES = [
+  ...new Set([
+    ...Object.keys(PACKAGE_JSON.dependencies ?? {}),
+    ...Object.keys(PACKAGE_JSON.optionalDependencies ?? {}),
+    ...Object.keys(PACKAGE_JSON.peerDependencies ?? {}),
+    "react/jsx-runtime",
+    "react/jsx-dev-runtime",
+  ]),
 ];
+const POSTHOG_REACT_IMPORT_ID = "posthog-js/react";
+const POSTHOG_REACT_ESM_ENTRY = "posthog-js/react/dist/esm/index.js";
+
+function isLibraryExternal(id: string) {
+  if (
+    id.startsWith("\0") ||
+    id.startsWith(".") ||
+    id.startsWith("/") ||
+    id.startsWith("#/")
+  ) {
+    return false;
+  }
+
+  return LIB_EXTERNAL_PACKAGE_NAMES.some(
+    (packageName) => id === packageName || id.startsWith(`${packageName}/`),
+  );
+}
+
 const APP_CHUNK_MAX_BYTES = 450 * 1024;
 
 // Absolute path to the bundled extensions skills directory in node_modules.
 // Injected as __EXTENSIONS_SKILLS_DIR__ so agent-server-adapter.ts can pass
 // real filesystem paths to the Python agent-server (which uses them to
 // resolve bundled skill resources like scripts/ and references/).
-const _require = createRequire(import.meta.url);
 const EXTENSIONS_SKILLS_DIR = resolve(
   dirname(_require.resolve("@openhands/extensions/package.json")),
   "skills",
@@ -177,7 +202,7 @@ export default defineConfig(({ mode }) => {
             formats: ["es"],
           },
           rollupOptions: {
-            external: LIB_EXTERNALS,
+            external: isLibraryExternal,
             output: [
               {
                 format: "es",
@@ -186,6 +211,8 @@ export default defineConfig(({ mode }) => {
                 entryFileNames: "[name].js",
                 chunkFileNames: "chunks/[name]-[hash].js",
                 assetFileNames: "assets/[name]-[hash][extname]",
+                paths: (id) =>
+                  id === POSTHOG_REACT_IMPORT_ID ? POSTHOG_REACT_ESM_ENTRY : id,
               },
               {
                 format: "cjs",

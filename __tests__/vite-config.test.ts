@@ -54,7 +54,9 @@ describe("vite app build", () => {
       };
     };
 
-    expect(appBuild.build?.rolldownOptions?.output?.codeSplitting?.groups).toEqual(
+    expect(
+      appBuild.build?.rolldownOptions?.output?.codeSplitting?.groups,
+    ).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           name: "vendor",
@@ -76,9 +78,20 @@ describe("vite library build", () => {
     expect(config.build?.lib).toMatchObject({
       formats: ["es"],
     });
-    expect(config.build?.rollupOptions?.external).toEqual(
-      expect.arrayContaining(["react", "react-dom", "react-router"]),
+    const external = config.build?.rollupOptions?.external;
+    expect(typeof external).toBe("function");
+    if (typeof external !== "function") {
+      throw new Error("Expected library external matcher to be a function");
+    }
+    expect(external("react", undefined, false)).toBe(true);
+    expect(external("react-dom", undefined, false)).toBe(true);
+    expect(external("react-router", undefined, false)).toBe(true);
+    expect(external("@openhands/extensions/skills", undefined, false)).toBe(
+      true,
     );
+    expect(external("react-icons/fa6", undefined, false)).toBe(true);
+    expect(external("#/i18n/declaration", undefined, false)).toBe(false);
+    expect(external("./local-module", undefined, false)).toBe(false);
     expect(config.build?.rollupOptions?.output).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
