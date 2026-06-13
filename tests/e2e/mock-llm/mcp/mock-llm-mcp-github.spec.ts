@@ -4,17 +4,12 @@
  * This test exercises the full MCP install flow — navigating to the MCP page,
  * finding the GitHub marketplace card, opening the install modal, filling in
  * the PAT field, and submitting. The `POST /api/mcp/test` endpoint is
- * intercepted to return a mock success response so the test doesn't need a
- * real `github-mcp-server` binary or Docker daemon.
- *
- * Runs in both npm (`mock-llm.config.ts`) and Docker (`mock-llm-docker.config.ts`)
- * paths. In Docker mode, asserts that `patchGitHubEntry` rewrote the command to
- * the pre-installed native binary (`github-mcp-server stdio`); in npm mode,
- * asserts the original `docker run …` transport is shown.
+ * intercepted to return a mock success response so the test doesn't need to
+ * contact GitHub's hosted MCP endpoint.
  *
  * Verifies:
  *   1. The MCP page renders with the GitHub marketplace card visible
- *   2. Clicking the card opens the install modal with the correct command
+ *   2. Clicking the card opens the install modal with the hosted endpoint
  *   3. Filling in the PAT and submitting succeeds (with mocked test endpoint)
  *   4. After install the GitHub server appears in the installed list
  *   5. The installed server can be deleted via the UI
@@ -29,22 +24,10 @@ import {
   dismissAnalyticsModal,
   waitForTestId,
   ensureMockLLMProfile,
-} from "./utils/mock-llm-helpers";
+} from "../utils/mock-llm-helpers";
 
 const FAKE_PAT = "github_pat_test_1234567890abcdef";
-
-/**
- * When running inside the Docker image (`--mode docker` in runtime services
- * info), `patchGitHubEntry` rewrites the catalog command from `docker run …`
- * to the pre-installed native binary. The Docker Playwright config sets
- * `MOCK_LLM_DOCKER_IMAGE`, so we can use its presence to know which command
- * value to expect.
- */
-const IS_DOCKER_E2E = !!process.env.MOCK_LLM_DOCKER_IMAGE;
-/** Pattern to match inside the read-only command field value. */
-const EXPECTED_COMMAND_PATTERN = IS_DOCKER_E2E
-  ? /github-mcp-server\s+stdio/
-  : /docker/;
+const GITHUB_HOSTED_MCP_URL = "https://api.githubcopilot.com/mcp/";
 
 test.describe.configure({ mode: "serial" });
 
@@ -104,20 +87,15 @@ test.describe("MCP GitHub server install flow", () => {
     // Verify the modal is for the GitHub entry
     await expect(modal).toHaveAttribute("data-marketplace-id", "github");
 
-    // The modal should show the command field (read-only).
-    // In Docker mode the field shows the patched native binary command;
-    // in the npm path it shows the original `docker run …` transport.
-    const commandField = page.getByTestId(
-      "mcp-install-field-command-readonly",
-    );
-    await expect(commandField).toBeVisible();
-    await expect(commandField).toHaveValue(EXPECTED_COMMAND_PATTERN);
+    // The modal should show the hosted streamable HTTP endpoint.
+    const urlField = page.getByTestId("mcp-install-field-url");
+    await expect(urlField).toBeVisible();
+    await expect(urlField).toHaveValue(GITHUB_HOSTED_MCP_URL);
 
-    // The PAT field should be present and empty
-    const patField = page.getByTestId(
-      "mcp-install-field-GITHUB_PERSONAL_ACCESS_TOKEN",
-    );
+    // The PAT field should be present and empty.
+    const patField = page.getByTestId("mcp-install-field-api_key");
     await expect(patField).toBeVisible();
+    await expect(patField).toHaveValue("");
   });
 
   test("step 3: full install flow — fill PAT, submit, verify installed", async ({
@@ -128,8 +106,8 @@ test.describe("MCP GitHub server install flow", () => {
 
     await routeSessionApiKey(page);
 
-    // Intercept the MCP test endpoint to return success — we don't have
-    // the real github-mcp-server binary in the test environment.
+    // Intercept the MCP test endpoint to return success; the test environment
+    // should not contact GitHub's hosted MCP endpoint.
     await page.route("**/api/mcp/test", async (route) => {
       await route.fulfill({
         status: 200,
@@ -148,9 +126,7 @@ test.describe("MCP GitHub server install flow", () => {
     await expect(modal).toBeVisible({ timeout: 5_000 });
 
     // Fill in the PAT — SettingsInput puts data-testid on the <input> directly
-    const patInput = page.getByTestId(
-      "mcp-install-field-GITHUB_PERSONAL_ACCESS_TOKEN",
-    );
+    const patInput = page.getByTestId("mcp-install-field-api_key");
     await patInput.fill(FAKE_PAT);
 
     // Click install
@@ -168,30 +144,22 @@ test.describe("MCP GitHub server install flow", () => {
     await expect(serverItems.first()).toBeVisible();
 
     // Verify via the settings API that the server was actually persisted
-    const settingsResp = await page.request.get(
-      `${BACKEND_URL}/api/settings`,
-      {
-        headers: { "X-Session-API-Key": SESSION_API_KEY },
-      },
-    );
+    const settingsResp = await page.request.get(`${BACKEND_URL}/api/settings`, {
+      headers: { "X-Session-API-Key": SESSION_API_KEY },
+    });
     expect(settingsResp.ok()).toBe(true);
     const settings = await settingsResp.json();
     const mcpConfig = settings?.agent_settings?.mcp_config;
     expect(mcpConfig).toBeTruthy();
 
-    // The GitHub server should be stored as a stdio server named "github"
-    // with the PAT in its env
-    const mcpServers = mcpConfig?.mcpServers ?? mcpConfig?.stdio_servers;
+    // The GitHub server should be stored as a hosted streamable HTTP server
+    // with the PAT saved as its auth credential.
+    const mcpServers = mcpConfig?.mcpServers ?? mcpConfig?.shttp_servers;
     expect(mcpServers).toBeTruthy();
-
-    // Check that there's a server named "github" somewhere in the config
-    const hasGithub =
-      mcpServers?.github != null ||
-      (Array.isArray(mcpServers) &&
-        mcpServers.some(
-          (s: Record<string, unknown>) => s.name === "github",
-        ));
-    expect(hasGithub).toBe(true);
+    expect(mcpServers?.shttp).toMatchObject({
+      url: GITHUB_HOSTED_MCP_URL,
+      auth: FAKE_PAT,
+    });
   });
 
   test("step 4: installed GitHub server can be deleted", async ({ page }) => {
@@ -207,12 +175,9 @@ test.describe("MCP GitHub server install flow", () => {
           agent_settings_diff: {
             mcp_config: {
               mcpServers: {
-                github: {
-                  command: "github-mcp-server",
-                  args: ["stdio"],
-                  env: {
-                    GITHUB_PERSONAL_ACCESS_TOKEN: FAKE_PAT,
-                  },
+                shttp: {
+                  url: GITHUB_HOSTED_MCP_URL,
+                  auth: FAKE_PAT,
                 },
               },
             },
@@ -247,17 +212,14 @@ test.describe("MCP GitHub server install flow", () => {
     await confirmButton.click();
 
     // After deletion the installed list should show the empty state
-    await expect(
-      page.getByTestId("mcp-installed-empty"),
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("mcp-installed-empty")).toBeVisible({
+      timeout: 10_000,
+    });
 
     // Verify via the settings API that the server was removed
-    const settingsResp = await page.request.get(
-      `${BACKEND_URL}/api/settings`,
-      {
-        headers: { "X-Session-API-Key": SESSION_API_KEY },
-      },
-    );
+    const settingsResp = await page.request.get(`${BACKEND_URL}/api/settings`, {
+      headers: { "X-Session-API-Key": SESSION_API_KEY },
+    });
     expect(settingsResp.ok()).toBe(true);
     const settings = await settingsResp.json();
     const mcpConfig = settings?.agent_settings?.mcp_config;

@@ -15,6 +15,7 @@ import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useNavigation } from "#/context/navigation-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
+import { assertAgentServerVersionIsSupported } from "#/api/agent-server-compatibility";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend, BackendKind } from "#/api/backend-registry/types";
@@ -145,13 +146,14 @@ async function testBackendConnection(
   // Cloud backends authenticate via OAuth; preflight GET is not applicable.
   if (backend.kind !== "local") return;
 
-  await new ServerClient(
+  const serverInfo = await new ServerClient(
     getAgentServerClientOptions({
       host: backend.host,
       sessionApiKey: backend.apiKey || null,
       timeout: 5000,
     }),
   ).getServerInfo();
+  assertAgentServerVersionIsSupported(serverInfo);
 }
 
 /**
@@ -345,8 +347,13 @@ export function BackendForm({
   const [nameTouched, setNameTouched] = React.useState(false);
   const [hostTouched, setHostTouched] = React.useState(false);
 
-  // Kind is inferred from the host on every change.
-  const kind: BackendKind = inferKindFromHost(host);
+  // In edit mode preserve the existing backend's kind so that renaming or
+  // rotating the API key on a cloud backend (e.g. an OHE/enterprise instance
+  // on a custom domain) does not silently downgrade it to "local" and switch
+  // the auth header from `Authorization: Bearer` to `X-Session-API-Key`.
+  // Only infer from the host when adding a new backend.
+  const kind: BackendKind =
+    mode === "edit" && backend ? backend.kind : inferKindFromHost(host);
 
   const testIdRoot =
     explicitTestIdRoot ?? (mode === "edit" ? "edit-backend" : "add-backend");

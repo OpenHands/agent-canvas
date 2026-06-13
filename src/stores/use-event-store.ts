@@ -1,6 +1,10 @@
 import { create } from "zustand";
 import { OpenHandsEvent } from "#/types/agent-server/core";
-import { handleEventForUI } from "#/utils/handle-event-for-ui";
+import {
+  handleEventForUI,
+  mergeStreamingDeltaEvent,
+} from "#/utils/handle-event-for-ui";
+import { isStreamingDeltaEvent } from "#/types/agent-server/type-guards";
 
 export type OHEvent = OpenHandsEvent & {
   isFromPlanningAgent?: boolean;
@@ -96,9 +100,22 @@ const appendEvent = (state: EventState, event: OHEvent): EventState => {
       ? new Set(state.eventIds).add(eventId)
       : state.eventIds;
 
+  const lastEventIndex = state.events.length - 1;
+  const lastEvent = state.events[lastEventIndex];
+  const shouldMergeStreamingDelta =
+    lastEvent &&
+    isStreamingDeltaEvent(event) &&
+    isStreamingDeltaEvent(lastEvent);
+  const events = [...state.events];
+  if (shouldMergeStreamingDelta) {
+    events[lastEventIndex] = mergeStreamingDeltaEvent(event, lastEvent);
+  } else {
+    events.push(event);
+  }
+
   return {
     ...state,
-    events: [...state.events, event],
+    events,
     eventIds: newEventIds,
     uiEvents: handleEventForUI(event, state.uiEvents),
   };
@@ -150,7 +167,19 @@ export const useEventStore = create<EventState>()((set) => ({
           if (eventId !== undefined) {
             eventIds.add(eventId);
           }
-          events.push(event);
+
+          const lastEventIndex = events.length - 1;
+          const lastEvent = events[lastEventIndex];
+          if (
+            lastEvent &&
+            isStreamingDeltaEvent(event) &&
+            isStreamingDeltaEvent(lastEvent)
+          ) {
+            events[lastEventIndex] = mergeStreamingDeltaEvent(event, lastEvent);
+          } else {
+            events.push(event);
+          }
+
           uiEvents = handleEventForUI(event, uiEvents);
         }
       }

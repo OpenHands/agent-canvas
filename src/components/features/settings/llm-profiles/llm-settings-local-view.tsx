@@ -17,6 +17,7 @@ import { useSettings } from "#/hooks/query/use-settings";
 import { useAgentSettingsSchema } from "#/hooks/query/use-agent-settings-schema";
 import ProfilesService, {
   ProfileInfo,
+  type SaveProfileRequest,
 } from "#/api/profiles-service/profiles-service.api";
 import {
   displayErrorToast,
@@ -29,16 +30,20 @@ import {
 } from "#/utils/derive-profile-name";
 import { SdkSectionSaveControl } from "../sdk-settings/sdk-section-page";
 import {
+  LLM_AUTH_TYPE_API_KEY,
+  LLM_AUTH_TYPE_KEY,
+  LLM_AUTH_TYPE_SUBSCRIPTION,
+  LLM_SUBSCRIPTION_VENDOR_KEY,
+  OPENAI_SUBSCRIPTION_VENDOR,
+  resolveLlmAuthType,
+} from "#/constants/llm-subscription";
+import {
   normalizeFieldValue,
   SettingsFormValues,
 } from "#/utils/sdk-settings-schema";
 import { BackNavButton } from "#/components/shared/buttons/back-nav-button";
 import { Typography } from "#/ui/typography";
 import { useSettingsSectionHeader } from "#/contexts/settings-section-header-context";
-import {
-  OPENHANDS_LLM_PROXY_BASE_URL,
-  isOpenHandsProxyModel,
-} from "#/utils/openhands-llm";
 
 type ViewMode = "list" | "create" | "edit";
 
@@ -182,6 +187,12 @@ export function LlmSettingsLocalView() {
           initialValues["llm.model"] = (config.model as string) ?? "";
           initialValues["llm.api_key"] = (config.api_key as string) ?? "";
           initialValues["llm.base_url"] = (config.base_url as string) ?? "";
+          initialValues[LLM_AUTH_TYPE_KEY] = resolveLlmAuthType(
+            config.auth_type,
+          );
+          initialValues[LLM_SUBSCRIPTION_VENDOR_KEY] =
+            (config.subscription_vendor as string) ??
+            OPENAI_SUBSCRIPTION_VENDOR;
         }
 
         setEditingProfile({ profile, initialValues, baseConfig: config });
@@ -252,36 +263,38 @@ export function LlmSettingsLocalView() {
         ? { ...editingProfile.baseConfig }
         : {};
     const llmConfig: Record<string, unknown> = { ...baseConfig, ...dirtyLlm };
+    const authType = resolveLlmAuthType(llmConfig.auth_type);
 
-    // The Basic tab has no base_url field; the provider implies it. Persist
-    // the All-Hands proxy explicitly for OpenHands models — including ones the
-    // SDK has already rewritten to `litellm_proxy/*` — because older local
-    // agent-server builds do not infer the LiteLLM proxy api_base on their own,
-    // and dropping it strands the profile as `litellm_proxy/* + base_url:null`
-    // (issue #1146). For other providers, drop any stale custom value and let
-    // the backend use its normal provider defaults.
-    if (saveControl.view === "basic") {
-      if (isOpenHandsProxyModel(llmConfig.model, llmConfig.base_url)) {
-        llmConfig.base_url = OPENHANDS_LLM_PROXY_BASE_URL;
-      } else {
+    if (authType === LLM_AUTH_TYPE_SUBSCRIPTION) {
+      llmConfig.auth_type = LLM_AUTH_TYPE_SUBSCRIPTION;
+      llmConfig.subscription_vendor = OPENAI_SUBSCRIPTION_VENDOR;
+      delete llmConfig.api_key;
+      delete llmConfig.base_url;
+    } else {
+      llmConfig.auth_type = LLM_AUTH_TYPE_API_KEY;
+      llmConfig.subscription_vendor = null;
+
+      // The Basic tab has no base_url field. Provider defaults are handled by
+      // the backend, so drop stale custom values for every provider.
+      if (saveControl.view === "basic") {
         delete llmConfig.base_url;
       }
-    }
 
-    // API key handling: an empty value means "no change" (the UX doesn't
-    // support clearing a key). In edit mode preserve the existing encrypted
-    // key from the profile; in create mode omit api_key entirely. A newly
-    // typed key arrives in `dirtyLlm` and wins.
-    if (
-      typeof llmConfig.api_key !== "string" ||
-      llmConfig.api_key.trim() === ""
-    ) {
-      const existingKey =
-        typeof baseConfig.api_key === "string" ? baseConfig.api_key : "";
-      if (existingKey) {
-        llmConfig.api_key = existingKey;
-      } else {
-        delete llmConfig.api_key;
+      // API key handling: an empty value means "no change" (the UX doesn't
+      // support clearing a key). In edit mode preserve the existing encrypted
+      // key from the profile; in create mode omit api_key entirely. A newly
+      // typed key arrives in `dirtyLlm` and wins.
+      if (
+        typeof llmConfig.api_key !== "string" ||
+        llmConfig.api_key.trim() === ""
+      ) {
+        const existingKey =
+          typeof baseConfig.api_key === "string" ? baseConfig.api_key : "";
+        if (existingKey) {
+          llmConfig.api_key = existingKey;
+        } else {
+          delete llmConfig.api_key;
+        }
       }
     }
 
@@ -311,11 +324,7 @@ export function LlmSettingsLocalView() {
       await saveProfile.mutateAsync({
         name: trimmedName,
         request: {
-          llm: llmConfig as {
-            model: string;
-            api_key?: string;
-            base_url?: string;
-          },
+          llm: llmConfig as SaveProfileRequest["llm"],
           include_secrets: true,
         },
       });
@@ -414,7 +423,13 @@ export function LlmSettingsLocalView() {
             ? // Edit mode: use the existing profile values
               editingProfile.initialValues
             : // Create mode: start with empty fields for a fresh profile
-              { "llm.model": "", "llm.api_key": "", "llm.base_url": "" }
+              {
+                "llm.model": "",
+                "llm.api_key": "",
+                "llm.base_url": "",
+                [LLM_AUTH_TYPE_KEY]: LLM_AUTH_TYPE_API_KEY,
+                [LLM_SUBSCRIPTION_VENDOR_KEY]: OPENAI_SUBSCRIPTION_VENDOR,
+              }
         }
         onSaveControlChange={handleSaveControlChange}
       />

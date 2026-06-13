@@ -30,6 +30,23 @@
       "tests": ["conversations"]
     },
     {
+      "comment": "Files tab, browser tab, git panels and controls",
+      "sources": [
+        "src/components/features/files-tab/**",
+        "src/components/features/files/**",
+        "src/components/features/browser/**",
+        "src/routes/files-tab.tsx",
+        "src/routes/browser-tab.tsx",
+        "src/api/git-service/**",
+        "src/stores/files-tab-store.ts",
+        "src/stores/browser-store.ts",
+        "src/utils/git-*.ts",
+        "src/utils/get-git-path.ts",
+        "src/utils/parse-git-remote-url.ts"
+      ],
+      "tests": ["files"]
+    },
+    {
       "comment": "Automations lifecycle and preset cards",
       "sources": [
         "src/components/features/automations/**",
@@ -71,6 +88,16 @@
         "src/api/skills-service.*"
       ],
       "tests": ["skills"]
+    },
+    {
+      "comment": "MCP marketplace and server management",
+      "sources": [
+        "src/components/features/mcp-page/**",
+        "src/routes/mcp*.tsx",
+        "src/utils/mcp-marketplace-utils.ts",
+        "src/mocks/mcp-handlers.ts"
+      ],
+      "tests": ["mcp"]
     }
   ],
 

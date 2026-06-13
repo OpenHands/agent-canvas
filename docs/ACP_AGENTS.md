@@ -147,11 +147,11 @@ point Canvas at it). In short:
 #    to it directly). The image pre-installs the ACP CLI wrappers. The
 #    canvas_ui tool is mounted so the agent-server can import the module Canvas
 #    references in every start request.
-# Minimum image: 1.25.0-python (first release with software-agent-sdk#3510;
-# older images deadlock the first ACP turn). Override SHA with a newer build.
+# Minimum image: 1.28.0-python (first compatible ACP provider/model protocol
+# surface for current Canvas). Override SHA with a newer build.
 docker run -d --name oh-acp -p 8010:8000 -v acp-data:/workspace \
   -v "$(pwd)/tools:/canvas-tools:ro" -e OH_EXTRA_PYTHON_PATH=/canvas-tools \
-  ghcr.io/openhands/agent-server:1.25.0-python
+  ghcr.io/openhands/agent-server:1.28.0-python
 
 # 2. Canvas pointed at the container.
 VITE_BACKEND_BASE_URL=http://localhost:8010 npm run dev:frontend

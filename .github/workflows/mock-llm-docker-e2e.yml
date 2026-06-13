@@ -20,7 +20,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     # Only run when files that affect the Docker image or full stack change.
-    # Docs-only or snapshot-test-only PRs skip this workflow.
+    # Docs-only or other non-stack PRs skip this workflow.
     # workflow_run (post-Docker-build on main) and workflow_dispatch always run.
     paths:
       - 'src/**'
@@ -85,7 +85,8 @@ jobs:
       (github.event_name == 'pull_request' &&
        !github.event.pull_request.head.repo.fork)
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Give the 20-minute Playwright test budget enough room for setup and reporting.
+    timeout-minutes: 25
 
     env:
       MOCK_LLM_REPORT_PATH: mock-llm-docker-report.md
@@ -270,6 +271,7 @@ jobs:
         env:
           MOCK_LLM_PYTHON: .mock-llm-venv/bin/python3
           MOCK_LLM_DOCKER_IMAGE: ${{ steps.image.outputs.tag }}
+          MOCK_LLM_DOCKER_GLOBAL_TIMEOUT_MS: 1200000
         run: |
           set +e
           MARKER_DIR=".mock-llm-markers"
@@ -282,11 +284,11 @@ jobs:
           npm run test:e2e:mock-llm:docker &
           PW_PID=$!
 
-          # Wait for tests to complete. Playwright's globalTimeout is 600s
-          # (10 min) in CI; we add 60s buffer for container startup/teardown.
+          # Wait for tests to complete. Playwright's globalTimeout is 20 min
+          # in CI; add 60s buffer for container startup/teardown.
           # .results.json is flushed after every single test, so even if we
           # hit the deadline mid-suite the report script still has data.
-          deadline=$((SECONDS + 660))
+          deadline=$((SECONDS + (MOCK_LLM_DOCKER_GLOBAL_TIMEOUT_MS / 1000) + 60))
           while [ "$SECONDS" -lt "$deadline" ]; do
             if ! kill -0 "$PW_PID" 2>/dev/null; then
               break

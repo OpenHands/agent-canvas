@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     # Only run when files that affect the full stack are changed.
-    # Docs-only, spec-only, or snapshot-test-only PRs skip this workflow.
+    # Docs-only, spec-only, or other non-stack PRs skip this workflow.
     # Use workflow_dispatch to force a full run when needed.
     paths:
       - 'src/**'

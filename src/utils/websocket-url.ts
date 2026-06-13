@@ -57,7 +57,10 @@ export function buildHttpBaseUrl(
 ): string {
   const baseHost = extractBaseHost(conversationUrl);
   const pathPrefix = extractPathPrefix(conversationUrl);
-  const protocol = window.location.protocol === "https:" ? "https:" : "http:";
+  const pageIsSecure = window.location.protocol === "https:";
+  const targetIsSecure =
+    getConversationUrlProtocol(conversationUrl) === "https:";
+  const protocol = pageIsSecure || targetIsSecure ? "https:" : "http:";
   return `${protocol}//${baseHost}${pathPrefix}`;
 }
 
