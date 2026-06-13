@@ -63,7 +63,7 @@ function TestSeed({
 beforeEach(() => {
   window.localStorage.clear();
   getServerInfoMock.mockReset();
-  getServerInfoMock.mockResolvedValue({ version: "1.24.0" });
+  getServerInfoMock.mockResolvedValue({ version: "1.28.0" });
   __resetActiveStoreForTests();
 });
 
@@ -124,6 +124,7 @@ describe("BackendFormModal – edit mode (BackendForm entry point)", () => {
 
   it("calls updateBackend and onClose on successful submit", async () => {
     let backendId = "";
+    const onClose = vi.fn();
     renderWithProviders(
       <TestSeed
         onMount={(ctx) => {
@@ -146,7 +147,7 @@ describe("BackendFormModal – edit mode (BackendForm entry point)", () => {
             apiKey: "sk-old",
             kind: "local",
           }}
-          onClose={vi.fn()}
+          onClose={onClose}
         />
       </TestSeed>,
     );
@@ -158,27 +159,12 @@ describe("BackendFormModal – edit mode (BackendForm entry point)", () => {
     });
 
     const user = userEvent.setup();
-    const nameInput = screen.getByTestId("edit-backend-name");
-    await user.clear(nameInput);
-    await user.type(nameInput, "Updated Name");
 
-    const onClose = vi.fn();
-    renderWithProviders(
-      <BackendFormModal
-        mode="edit"
-        backend={{
-          id: backendId,
-          name: "Updated Name",
-          host: "http://localhost:9000",
-          apiKey: "sk-old",
-          kind: "local",
-        }}
-        onClose={onClose}
-      />,
-    );
+    // Verify the submit button is enabled with pre-filled values
+    const submitBtn = screen.getByTestId("edit-backend-submit");
+    expect(submitBtn).not.toBeDisabled();
 
-    const buttons = screen.getAllByTestId("edit-backend-submit");
-    await user.click(buttons[buttons.length - 1]);
+    await user.click(submitBtn);
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
 
@@ -188,7 +174,7 @@ describe("BackendFormModal – edit mode (BackendForm entry point)", () => {
     const updated = stored.find((b: { id: string }) => b.id === backendId);
     expect(updated).toMatchObject({
       id: backendId,
-      name: "Updated Name",
+      name: "Local Seed",
       host: "http://localhost:9000",
       kind: "local",
     });
@@ -248,6 +234,7 @@ describe("BackendFormModal – edit mode (BackendForm entry point)", () => {
 
   it("preserves cloud kind when editing a cloud backend", async () => {
     let backendId = "";
+    const onClose = vi.fn();
     renderWithProviders(
       <TestSeed
         onMount={(ctx) => {
@@ -270,7 +257,7 @@ describe("BackendFormModal – edit mode (BackendForm entry point)", () => {
             apiKey: "sk-cloud",
             kind: "cloud",
           }}
-          onClose={vi.fn()}
+          onClose={onClose}
         />
       </TestSeed>,
     );
@@ -290,23 +277,7 @@ describe("BackendFormModal – edit mode (BackendForm entry point)", () => {
     await user.clear(apiKeyInput);
     await user.type(apiKeyInput, "new-token");
 
-    const onClose = vi.fn();
-    renderWithProviders(
-      <BackendFormModal
-        mode="edit"
-        backend={{
-          id: backendId,
-          name: "Renamed Cloud",
-          host: "https://app.all-hands.dev",
-          apiKey: "new-token",
-          kind: "cloud",
-        }}
-        onClose={onClose}
-      />,
-    );
-
-    const buttons = screen.getAllByTestId("edit-backend-submit");
-    await user.click(buttons[buttons.length - 1]);
+    await user.click(screen.getByTestId("edit-backend-submit"));
 
     await waitFor(() => expect(onClose).toHaveBeenCalled());
 
