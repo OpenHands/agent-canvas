@@ -462,7 +462,7 @@ export function LlmSettingsScreen({
           llm.auth_type = LLM_AUTH_TYPE_API_KEY;
           llm.subscription_vendor = null;
         }
-        if (context.view === "basic") {
+        if (context.view === "basic" && llm.model !== undefined) {
           llm.base_url = getSchemaFieldDefaultValue(schema, "llm.base_url");
         }
       }

@@ -262,6 +262,10 @@ export function LlmSettingsLocalView() {
       viewMode === "edit" && editingProfile?.baseConfig
         ? { ...editingProfile.baseConfig }
         : {};
+    const didChangeModelInBasic =
+      saveControl.view === "basic" &&
+      Object.prototype.hasOwnProperty.call(dirtyLlm, "model") &&
+      dirtyLlm.model !== baseConfig.model;
     const llmConfig: Record<string, unknown> = { ...baseConfig, ...dirtyLlm };
     const authType = resolveLlmAuthType(llmConfig.auth_type);
 
@@ -274,9 +278,10 @@ export function LlmSettingsLocalView() {
       llmConfig.auth_type = LLM_AUTH_TYPE_API_KEY;
       llmConfig.subscription_vendor = null;
 
-      // The Basic tab has no base_url field. Provider defaults are handled by
-      // the backend, so drop stale custom values for every provider.
-      if (saveControl.view === "basic") {
+      // The Basic tab has no base_url field. Preserve an existing hidden value
+      // when the model did not actually change; if the user chooses a new model,
+      // drop the old base URL so provider defaults can apply to that model.
+      if (didChangeModelInBasic) {
         delete llmConfig.base_url;
       }
 
