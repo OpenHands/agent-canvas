@@ -105,7 +105,7 @@
       "prettier --write"
     ],
     "src/**/*.{ts,tsx}": [
-      "bash -c 'npm run typecheck:staged'"
+      "node scripts/run-staged-typecheck.mjs"
     ],
     "src/**/*": [
       "npm run check-translation-completeness"

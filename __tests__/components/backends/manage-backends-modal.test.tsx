@@ -4,7 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DEFAULT_LOCAL_BACKEND_ID } from "#/api/backend-registry/default-backend";
+import { SEEDED_DEFAULT_BACKEND_ID } from "#/api/backend-registry/default-backend";
 import {
   BACKEND_HEALTH_STORAGE_KEY,
   MAX_CONSECUTIVE_FAILURES,
@@ -157,7 +157,7 @@ describe("ManageBackendsModal", () => {
     window.localStorage.setItem(
       BACKEND_HEALTH_STORAGE_KEY,
       JSON.stringify({
-        [DEFAULT_LOCAL_BACKEND_ID]: {
+        [SEEDED_DEFAULT_BACKEND_ID]: {
           consecutiveFailures: MAX_CONSECUTIVE_FAILURES,
           lastError: "Network Error",
           lastFailureAt: Date.now(),

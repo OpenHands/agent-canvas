@@ -20,7 +20,9 @@ describe("ModelSelector — OpenHands provider display", () => {
     server.use(
       http.get("*/api/llm/providers", () => {
         providersCount += 1;
-        return HttpResponse.json({ providers: ["anthropic", "openai"] });
+        return HttpResponse.json({
+          providers: ["openhands", "anthropic", "openai"],
+        });
       }),
       http.get("*/api/llm/models/verified", () => {
         verifiedCount += 1;
@@ -63,9 +65,6 @@ describe("ModelSelector — OpenHands provider display", () => {
       expect(screen.getByLabelText("LLM$PROVIDER")).toHaveValue("OpenHands");
     });
 
-    // Assert — the three queries that all need verified-models data share
-    // a single cache entry, and the bootstrap effect picks the right
-    // provider on its first run, so /models is not fetched twice.
     expect(providersCount).toBe(1);
     expect(verifiedCount).toBe(1);
     expect(modelsCount).toBe(1);
