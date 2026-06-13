@@ -56,9 +56,7 @@
     },
     {
       "comment": "Onboarding modal and first-run flow",
-      "sources": [
-        "src/components/features/onboarding/**"
-      ],
+      "sources": ["src/components/features/onboarding/**"],
       "tests": ["onboarding"]
     },
     {
@@ -101,9 +99,7 @@
     }
   ],
 
-  "alwaysRun": [
-    "regressions"
-  ],
+  "alwaysRun": ["regressions"],
 
   "runAllSources": [
     "src/api/agent-server-adapter.ts",
@@ -123,8 +119,10 @@
     "scripts/**",
     "bin/**",
     "config/**",
+    "tests/e2e/mock-llm/test-mapping.json",
     "tests/e2e/mock-llm/utils/**",
     "tests/e2e/mock-llm/scripts/**",
+    "tests/e2e/mock-llm/reporters/**",
     "tests/e2e/support/**",
     "package.json",
     "package-lock.json",

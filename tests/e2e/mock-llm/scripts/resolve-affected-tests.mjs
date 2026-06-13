@@ -10,7 +10,9 @@
  *
  * Output (stdout):
  *   Space-separated list of test paths relative to the repo root, suitable
- *   for passing directly to `npx playwright test <paths...>`.
+ *   for passing directly to `npx playwright test <paths...>`. Changed
+ *   spec files are resolved to their containing feature directory, so
+ *   test-only PRs that add new specs still execute those new tests.
  *   Prints nothing if no tests are affected (meaning the full suite should
  *   be skipped — the caller should have already used the workflow-level
  *   paths filter).
@@ -47,7 +49,10 @@ if (values["files-stdin"]) {
     .map((l) => l.trim())
     .filter(Boolean);
 } else if (values.files) {
-  changedFiles = values.files.split(",").map((f) => f.trim()).filter(Boolean);
+  changedFiles = values.files
+    .split(",")
+    .map((f) => f.trim())
+    .filter(Boolean);
 } else {
   console.error(
     "Usage: resolve-affected-tests.mjs --files 'file1,file2' | --files-stdin",
@@ -109,7 +114,14 @@ function globToRegex(pattern) {
 
 const testDir = config.testDir;
 const testDirPrefix = testDir + "/";
-const affectedDirs = new Set(config.alwaysRun ?? []);
+const affectedDirs = new Set();
+const affectedFiles = new Set();
+
+function includeAlwaysRunDirs() {
+  for (const dir of config.alwaysRun ?? []) {
+    affectedDirs.add(dir);
+  }
+}
 
 // Check if any changed file triggers "run all" explicitly
 const runAllPatterns = (config.runAllSources ?? []).map(globToRegex);
@@ -122,16 +134,19 @@ if (shouldRunAll) {
   process.exit(0);
 }
 
-// If a changed file IS a test file inside a subdirectory, run that
-// subdirectory directly (e.g. tests/e2e/mock-llm/settings/foo.spec.ts
-// → add "settings").
+// If a changed file IS a test file, run the feature directory containing it.
+// This is what makes test-only PRs that add new specs execute the new tests
+// even when no source files changed. Root-level specs are no longer expected,
+// but include the exact file path as a defensive fallback.
 for (const file of changedFiles) {
   if (file.startsWith(testDirPrefix) && file.endsWith(".spec.ts")) {
     const relative = file.slice(testDirPrefix.length);
-    const subdir = relative.split("/")[0];
     if (relative.includes("/")) {
-      affectedDirs.add(subdir);
+      affectedDirs.add(relative.split("/")[0]);
+    } else {
+      affectedFiles.add(file);
     }
+    includeAlwaysRunDirs();
   }
 }
 
@@ -148,6 +163,7 @@ for (const file of changedFiles) {
       for (const dir of mapping.tests) {
         affectedDirs.add(dir);
       }
+      includeAlwaysRunDirs();
       matched = true;
     }
   }
@@ -159,13 +175,17 @@ for (const file of changedFiles) {
   }
 }
 
-if (affectedDirs.size === 0) {
+if (affectedDirs.size === 0 && affectedFiles.size === 0) {
   // No src/ files, no test files, no runAll triggers. Changed files are
   // outside the E2E-relevant tree (docs, specs, unit tests). Nothing to run.
   process.exit(0);
 }
 
-// Convert dir names to full paths relative to repo root
-const testPaths = [...affectedDirs].sort().map((d) => join(testDir, d));
+// Convert dir names to full paths relative to repo root. File paths are
+// already repo-relative and are only used for defensive root-level spec support.
+const testPaths = [
+  ...[...affectedDirs].sort().map((d) => join(testDir, d)),
+  ...[...affectedFiles].sort(),
+];
 
 console.log(testPaths.join(" "));
