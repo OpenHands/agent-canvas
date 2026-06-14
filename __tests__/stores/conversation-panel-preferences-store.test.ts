@@ -8,12 +8,12 @@ describe("conversation-panel-preferences store", () => {
     window.localStorage.clear();
   });
 
-  it("defaults to showing older conversations, chronological list, and expected toggles", () => {
+  it("defaults to showing older conversations, grouped list, and expected toggles", () => {
     const state = useConversationPanelPreferencesStore.getState();
     expect(state.showOlderConversations).toBe(true);
     expect(state.showRepoBranchMetadata).toBe(false);
     expect(state.showLlmProfiles).toBe(false);
-    expect(state.organizeMode).toBe("chronological");
+    expect(state.organizeMode).toBe("grouped");
     expect(state.conversationSort).toBe("updated");
     expect(state.threadScope).toBe("all");
   });
@@ -142,7 +142,7 @@ describe("conversation-panel-preferences store", () => {
       showRepoBranchMetadata: true,
       // Filled with defaults for missing fields.
       showLlmProfiles: false,
-      organizeMode: "chronological",
+      organizeMode: "grouped",
       conversationSort: "updated",
       threadScope: "all",
     });

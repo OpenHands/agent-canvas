@@ -47,7 +47,7 @@ const initialState: ConversationPanelPreferencesState = {
   showOlderConversations: true,
   showRepoBranchMetadata: false,
   showLlmProfiles: false,
-  organizeMode: "chronological",
+  organizeMode: "grouped",
   conversationSort: "updated",
   threadScope: "all",
 };
