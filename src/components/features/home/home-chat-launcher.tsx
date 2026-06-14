@@ -29,6 +29,7 @@ import { HomeHeaderTitle } from "./home-header/home-header-title";
 import { OpenLauncherButton } from "./open-launcher-button";
 import { OpenWorkspaceDialog } from "./open-workspace-dialog";
 import { OpenRepositoryDialog } from "./open-repository-dialog";
+import { OpenLocalRepositoryCard } from "./open-local-repository-card";
 import { HomeGitControlBarPreview } from "./home-git-control-bar-preview";
 
 export function HomeChatLauncher() {
@@ -217,8 +218,8 @@ export function HomeChatLauncher() {
         />
       </div>
 
-      <div className="flex justify-start">
-        {hasSelection ? (
+      {hasSelection ? (
+        <div className="flex justify-start gap-2">
           <HomeGitControlBarPreview
             workspace={pendingWorkspace}
             repository={pendingRepository}
@@ -229,15 +230,35 @@ export function HomeChatLauncher() {
             onRepoClick={() => setIsDialogOpen(true)}
             onWorkspaceModeChange={setWorkspaceMode}
           />
-        ) : (
-          <OpenLauncherButton
-            kind={isLocal ? "local" : "cloud"}
-            onClick={() => setIsDialogOpen(true)}
-            disabled={isCreating || Boolean(workspacesUnsupportedMessage)}
-            disabledTooltip={workspacesUnsupportedMessage}
-          />
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <div className="flex justify-start gap-2">
+            <OpenLauncherButton
+              kind={isLocal ? "local" : "cloud"}
+              onClick={() => setIsDialogOpen(true)}
+              disabled={isCreating || Boolean(workspacesUnsupportedMessage)}
+              disabledTooltip={workspacesUnsupportedMessage}
+            />
+          </div>
+          {/* Local/self-hosted backends can't browse a Git provider's repos
+              (that search API is cloud-only), so offer a dedicated, themed
+              "Open a Repository" card that clones a repo into the workspace
+              (#976). Cloud has provider-driven repo selection via the button
+              above. */}
+          {isLocal && (
+            <OpenLocalRepositoryCard
+              disabled={isCreating}
+              onConfirm={(workspace) => {
+                setPendingWorkspace(workspace);
+                setPendingRepository(null);
+                setPendingBranch(null);
+                setPendingProvider(null);
+              }}
+            />
+          )}
+        </div>
+      )}
 
       {isLocal ? (
         <OpenWorkspaceDialog
