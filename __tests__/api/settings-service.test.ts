@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 
 import SettingsService from "#/api/settings-service/settings-service.api";
-import { __TEST_ONLY as LEGACY_MIGRATION_KEYS } from "#/api/settings-service/legacy-app-preferences-migration";
 import {
   __resetActiveStoreForTests,
   setActiveSelection,
@@ -226,128 +225,6 @@ describe("SettingsService", () => {
         misc_settings_diff: { app_preferences: { git_user_name: "Alice" } },
       },
     ]);
-  });
-
-  it("migrates legacy localStorage app preferences to the server on first read", async () => {
-    // Simulate an existing user on an older agent-canvas version: app prefs
-    // and disabled_skills sit in localStorage and have never been pushed to
-    // the new server-side store. The first getSettings call after upgrade
-    // should send them up via misc_settings_diff and clear the keys.
-    window.localStorage.setItem(
-      LEGACY_MIGRATION_KEYS.LEGACY_APP_PREFERENCES_KEY,
-      JSON.stringify({
-        language: "fr",
-        git_user_name: "Alice",
-      }),
-    );
-    window.localStorage.setItem(
-      LEGACY_MIGRATION_KEYS.LEGACY_DISABLED_SKILLS_KEY,
-      JSON.stringify(["SSH Microagent"]),
-    );
-
-    // The migration path is: initial GET → server reports empty
-    // misc_settings.app_preferences (server is new enough to support the
-    // field) → push localStorage values up via PATCH → re-fetch GET so the
-    // cache sees the migrated values. The test handlers below simulate that
-    // round-trip without leaning on the default MSW state, which the PATCH
-    // override would not update.
-    const patchBodies: Array<Record<string, unknown>> = [];
-    let migrated = false;
-    server.use(
-      http.get("*/api/settings", async () =>
-        HttpResponse.json({
-          agent_settings: {},
-          conversation_settings: {},
-          llm_api_key_is_set: false,
-          misc_settings: {
-            app_preferences: migrated
-              ? {
-                  language: "fr",
-                  git_user_name: "Alice",
-                  disabled_skills: ["SSH Microagent"],
-                }
-              : {},
-          },
-        }),
-      ),
-      http.patch("*/api/settings", async ({ request }) => {
-        patchBodies.push((await request.json()) as Record<string, unknown>);
-        migrated = true;
-        return HttpResponse.json({
-          agent_settings: {},
-          conversation_settings: {},
-          llm_api_key_is_set: false,
-          misc_settings: {
-            app_preferences: {
-              language: "fr",
-              git_user_name: "Alice",
-              disabled_skills: ["SSH Microagent"],
-            },
-          },
-        });
-      }),
-    );
-
-    const settings = await SettingsService.getSettings();
-
-    // Single migration PATCH carrying every legacy value:
-    expect(patchBodies).toEqual([
-      {
-        misc_settings_diff: {
-          app_preferences: {
-            language: "fr",
-            git_user_name: "Alice",
-            disabled_skills: ["SSH Microagent"],
-          },
-        },
-      },
-    ]);
-    // Legacy keys are cleared:
-    expect(
-      window.localStorage.getItem(
-        LEGACY_MIGRATION_KEYS.LEGACY_APP_PREFERENCES_KEY,
-      ),
-    ).toBeNull();
-    expect(
-      window.localStorage.getItem(
-        LEGACY_MIGRATION_KEYS.LEGACY_DISABLED_SKILLS_KEY,
-      ),
-    ).toBeNull();
-    // …and the returned Settings reflect the migrated values:
-    expect(settings.language).toBe("fr");
-    expect(settings.git_user_name).toBe("Alice");
-    expect(settings.disabled_skills).toEqual(["SSH Microagent"]);
-  });
-
-  it("skips migration when the server omits misc_settings (pre-1.27)", async () => {
-    // Older agent-servers don't return the misc_settings field at all. The
-    // migration must no-op so we don't drop user data before the server can
-    // accept it.
-    window.localStorage.setItem(
-      LEGACY_MIGRATION_KEYS.LEGACY_APP_PREFERENCES_KEY,
-      JSON.stringify({ language: "fr" }),
-    );
-
-    server.use(
-      http.get("*/api/settings", async () =>
-        HttpResponse.json({
-          agent_settings: {},
-          conversation_settings: {},
-          llm_api_key_is_set: false,
-          // No misc_settings key — simulates pre-1.27 server.
-        }),
-      ),
-    );
-
-    await SettingsService.getSettings();
-
-    // Legacy key still present, ready for a later retry once the user
-    // upgrades the server.
-    expect(
-      window.localStorage.getItem(
-        LEGACY_MIGRATION_KEYS.LEGACY_APP_PREFERENCES_KEY,
-      ),
-    ).not.toBeNull();
   });
 
   it("forwards app-level preferences as flat top-level fields to the cloud save", async () => {

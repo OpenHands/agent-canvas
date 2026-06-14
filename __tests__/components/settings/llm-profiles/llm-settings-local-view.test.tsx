@@ -30,14 +30,29 @@ vi.mock("#/routes/llm-settings", async () => {
       }) => void;
     }) => {
       const initialValueOverridesRef = React.useRef(initialValueOverrides);
+      const initialValuesRef = React.useRef({
+        "llm.model": "openai/gpt-4o",
+        "llm.api_key": "test-api-key",
+        "llm.base_url": "",
+        ...(initialValueOverrides ?? {}),
+      });
       const [view, setView] = React.useState<"basic" | "all">("basic");
+      const [model, setModel] = React.useState(
+        String(initialValuesRef.current["llm.model"] ?? ""),
+      );
+      const [apiKey] = React.useState(
+        String(initialValuesRef.current["llm.api_key"] ?? ""),
+      );
+      const [baseUrl] = React.useState(
+        String(initialValuesRef.current["llm.base_url"] ?? ""),
+      );
       const [temperature, setTemperature] = React.useState("0.2");
       React.useEffect(() => {
         const values = {
-          "llm.model": "openai/gpt-4o",
-          "llm.api_key": "test-api-key",
-          "llm.base_url": "",
           ...(initialValueOverridesRef.current ?? {}),
+          "llm.model": model,
+          "llm.api_key": apiKey,
+          "llm.base_url": baseUrl,
         };
         onSaveControlChange?.({
           save: vi.fn(),
@@ -58,7 +73,7 @@ vi.mock("#/routes/llm-settings", async () => {
             };
           },
         });
-      }, [onSaveControlChange, temperature, view]);
+      }, [apiKey, baseUrl, model, onSaveControlChange, temperature, view]);
 
       return (
         <div data-testid="mock-llm-settings-screen">
@@ -76,6 +91,13 @@ vi.mock("#/routes/llm-settings", async () => {
           >
             All
           </button>
+          {view === "basic" ? (
+            <input
+              data-testid="mock-basic-model-input"
+              value={model}
+              onChange={(event) => setModel(event.currentTarget.value)}
+            />
+          ) : null}
           {view === "all" ? (
             <input
               data-testid="sdk-settings-llm.temperature"
@@ -593,7 +615,85 @@ describe("LlmSettingsLocalView", () => {
   });
 
   describe("Basic tab save", () => {
-    it("drops hidden base_url values for OpenHands models", async () => {
+    it("preserves hidden base_url for OpenHands models without a model change", async () => {
+      // Arrange — a profile has an actual advanced base_url value. Switching to
+      // Basic hides it, but saving without changing the model must not wipe it.
+      const user = userEvent.setup();
+      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
+        name: "gpt-4-profile",
+        api_key_set: true,
+        config: {
+          model: "openhands/claude-opus-4-5-20251101",
+          api_key: "gAAAA_encrypted_key",
+          base_url: "https://stale.example.com/v1",
+        },
+      });
+      mockSaveMutateAsync.mockResolvedValueOnce({ success: true });
+
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      // Act — open the profile in edit mode, force the Basic tab, and save.
+      await user.click(screen.getAllByTestId("profile-menu-trigger")[0]);
+      await user.click(screen.getByTestId("profile-edit"));
+      await waitFor(() => {
+        expect(screen.getByTestId("profile-name-input")).toHaveValue(
+          "gpt-4-profile",
+        );
+      });
+      await user.click(await screen.findByTestId("sdk-section-basic-toggle"));
+      await waitFor(() => {
+        expect(screen.getByTestId("save-profile-btn")).not.toBeDisabled();
+      });
+      await user.click(screen.getByTestId("save-profile-btn"));
+
+      // Assert — the hidden base_url survives because the model did not change.
+      await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
+      const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
+      expect(savedLlm.model).toBe("openhands/claude-opus-4-5-20251101");
+      expect(savedLlm.base_url).toBe("https://stale.example.com/v1");
+    });
+
+    it("preserves hidden base_url for stored litellm_proxy profiles without a model change", async () => {
+      // Arrange — legacy/custom proxy profiles may still have a base_url. Basic
+      // view must not erase that invisible value on a same-model save.
+      const user = userEvent.setup();
+      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
+        name: "gpt-4-profile",
+        api_key_set: true,
+        config: {
+          model: "litellm_proxy/claude-opus-4-8",
+          api_key: "gAAAA_encrypted_key",
+          base_url: "https://llm-proxy.app.all-hands.dev/",
+        },
+      });
+      mockSaveMutateAsync.mockResolvedValueOnce({ success: true });
+
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      // Act — open the profile in edit mode, force the Basic tab, and save
+      // without touching the model dropdown.
+      await user.click(screen.getAllByTestId("profile-menu-trigger")[0]);
+      await user.click(screen.getByTestId("profile-edit"));
+      await waitFor(() => {
+        expect(screen.getByTestId("profile-name-input")).toHaveValue(
+          "gpt-4-profile",
+        );
+      });
+      await user.click(await screen.findByTestId("sdk-section-basic-toggle"));
+      await waitFor(() => {
+        expect(screen.getByTestId("save-profile-btn")).not.toBeDisabled();
+      });
+      await user.click(screen.getByTestId("save-profile-btn"));
+
+      // Assert — the legacy model and hidden base_url are both preserved.
+      await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
+      const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
+      expect(savedLlm.model).toBe("litellm_proxy/claude-opus-4-8");
+      expect(savedLlm.base_url).toBe("https://llm-proxy.app.all-hands.dev/");
+    });
+
+    it("drops hidden base_url when the Basic view model changes", async () => {
+      // Arrange — the existing base_url belongs to the old model/provider.
       const user = userEvent.setup();
       vi.mocked(ProfilesService.getProfile).mockResolvedValue({
         name: "gpt-4-profile",
@@ -616,14 +716,18 @@ describe("LlmSettingsLocalView", () => {
         );
       });
       await user.click(await screen.findByTestId("sdk-section-basic-toggle"));
+      const modelInput = await screen.findByTestId("mock-basic-model-input");
+      await user.clear(modelInput);
+      await user.type(modelInput, "openhands/claude-sonnet-4-20250514");
       await waitFor(() => {
         expect(screen.getByTestId("save-profile-btn")).not.toBeDisabled();
       });
       await user.click(screen.getByTestId("save-profile-btn"));
 
+      // Assert — changing the Basic model clears the old hidden base_url.
       await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
       const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
-      expect(savedLlm.model).toBe("openhands/claude-opus-4-5-20251101");
+      expect(savedLlm.model).toBe("openhands/claude-sonnet-4-20250514");
       expect(savedLlm).not.toHaveProperty("base_url");
     });
   });

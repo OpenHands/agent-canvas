@@ -36,7 +36,7 @@ import {
   createProfileViaUI,
   deleteProfileIfExists,
   setChatInput,
-} from "./utils/mock-llm-helpers";
+} from "../utils/mock-llm-helpers";
 
 /** Profile B is the switch target — created via the Settings UI. */
 const PROFILE_B_NAME = "model-switch-profile-b";

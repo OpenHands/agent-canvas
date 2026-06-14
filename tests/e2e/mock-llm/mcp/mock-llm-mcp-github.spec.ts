@@ -24,7 +24,7 @@ import {
   dismissAnalyticsModal,
   waitForTestId,
   ensureMockLLMProfile,
-} from "./utils/mock-llm-helpers";
+} from "../utils/mock-llm-helpers";
 
 const FAKE_PAT = "github_pat_test_1234567890abcdef";
 const GITHUB_HOSTED_MCP_URL = "https://api.githubcopilot.com/mcp/";

@@ -38,7 +38,7 @@ import {
   deleteConversation,
   resetMockLLM,
   setChatInput,
-} from "./utils/mock-llm-helpers";
+} from "../utils/mock-llm-helpers";
 
 const PROFILE_NAME = "mock-llm-e2e";
 const MOCK_MODEL = "openai/mock-test-model";
