@@ -276,7 +276,7 @@ export function FolderBrowserModal({
                 data-testid="folder-browser-up"
                 onClick={() => parent && setCurrentPath(parent)}
                 disabled={!parent}
-                aria-label="Up"
+                aria-label={t(I18nKey.COMMON$UP)}
                 className="p-1 rounded hover:bg-[var(--oh-interactive-hover)] text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 <ChevronLeft width={16} height={16} />

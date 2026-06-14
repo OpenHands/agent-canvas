@@ -448,7 +448,7 @@ export function BackendForm({
             setConnectionError(null);
           }}
           onBlur={() => setNameTouched(true)}
-          placeholder="Production"
+          placeholder={t(I18nKey.BACKEND$NAME_PLACEHOLDER)}
           className="w-full"
           showRequiredTag
           error={nameError}
@@ -624,7 +624,7 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
             setName(value);
             setConnectionError(null);
           }}
-          placeholder="e.g. My Server"
+          placeholder={t(I18nKey.BACKEND$ADD_NAME_PLACEHOLDER)}
           className="w-full"
         />
         <p className="text-xs text-[var(--oh-muted)]">

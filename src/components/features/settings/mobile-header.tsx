@@ -24,7 +24,7 @@ export function MobileHeader({
         type="button"
         onClick={onToggleMenu}
         className="p-2 rounded-md bg-tertiary hover:bg-tertiary transition-colors"
-        aria-label="Toggle settings menu"
+        aria-label={t(I18nKey.SETTINGS$TOGGLE_MENU)}
       >
         <svg
           width={20}

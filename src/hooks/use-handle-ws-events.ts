@@ -1,9 +1,11 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { generateAgentStateChangeEvent } from "#/services/agent-state-service";
 import { AgentState } from "#/types/agent-state";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useEventStore } from "#/stores/use-event-store";
 import { useSendMessage } from "#/hooks/use-send-message";
+import { I18nKey } from "#/i18n/declaration";
 import {
   isAgentErrorEvent,
   isAgentServerEvent,
@@ -23,6 +25,7 @@ const isTypedErrorEvent = (
   "type" in event && event.type === "error";
 
 export const useHandleWSEvents = () => {
+  const { t } = useTranslation("openhands");
   const { send } = useSendMessage();
   const events = useEventStore((state) => state.events);
 
@@ -40,7 +43,7 @@ export const useHandleWSEvents = () => {
 
     if (isServerError(event)) {
       if (event.error_code === 401) {
-        displayErrorToast("Session expired.");
+        displayErrorToast(t(I18nKey.SESSION$EXPIRED));
         return;
       }
 
@@ -59,5 +62,5 @@ export const useHandleWSEvents = () => {
         send(generateAgentStateChangeEvent(AgentState.PAUSED));
       }
     }
-  }, [events.length]);
+  }, [events.length, t]);
 };

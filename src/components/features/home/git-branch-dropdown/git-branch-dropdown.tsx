@@ -73,7 +73,9 @@ export function GitBranchDropdown({
     selectedBranch,
   );
 
-  const error = isError ? new Error("Failed to load branches") : null;
+  const error = isError
+    ? new Error(t(I18nKey.HOME$FAILED_TO_LOAD_BRANCHES))
+    : null;
 
   // Handle clear
   const handleClear = useCallback(() => {

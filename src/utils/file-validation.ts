@@ -1,9 +1,15 @@
+import type { TFunction } from "i18next";
+import { I18nKey } from "#/i18n/declaration";
+
 const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3MB maximum file size
 const MAX_TOTAL_SIZE = 3 * 1024 * 1024; // 3MB maximum total size for all files combined
+const SIZE_LIMIT_MB = 3;
 
 export interface FileValidationResult {
   isValid: boolean;
   errorMessage?: string;
+  errorKey?: I18nKey;
+  errorParams?: Record<string, string | number>;
   oversizedFiles?: string[];
 }
 
@@ -19,7 +25,11 @@ export function validateIndividualFileSizes(
     const fileNames = oversizedFiles.map((f) => f.name);
     return {
       isValid: false,
-      errorMessage: `Files exceeding 3MB are not allowed: ${fileNames.join(", ")}`,
+      errorKey: I18nKey.CHAT_INTERFACE$FILES_EXCEED_SIZE,
+      errorParams: {
+        limit: SIZE_LIMIT_MB,
+        files: fileNames.join(", "),
+      },
       oversizedFiles: fileNames,
     };
   }
@@ -45,7 +55,11 @@ export function validateTotalFileSize(
     const totalSizeMB = (totalSize / (1024 * 1024)).toFixed(1);
     return {
       isValid: false,
-      errorMessage: `Total file size would be ${totalSizeMB}MB, exceeding the 3MB limit. Please select fewer or smaller files.`,
+      errorKey: I18nKey.CHAT_INTERFACE$TOTAL_FILE_SIZE_EXCEEDS_LIMIT,
+      errorParams: {
+        size: totalSizeMB,
+        limit: SIZE_LIMIT_MB,
+      },
     };
   }
 
@@ -67,4 +81,17 @@ export function validateFiles(
 
   // Then check total size
   return validateTotalFileSize(newFiles, existingFiles);
+}
+
+export function formatFileValidationError(
+  validation: FileValidationResult,
+  t: TFunction,
+) {
+  if (validation.errorKey) {
+    return t(validation.errorKey, validation.errorParams);
+  }
+
+  return (
+    validation.errorMessage ?? t(I18nKey.CHAT_INTERFACE$INVALID_ATTACHMENTS)
+  );
 }

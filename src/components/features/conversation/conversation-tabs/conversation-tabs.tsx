@@ -23,6 +23,8 @@ import { AgentState } from "#/types/agent-state";
 import { Typography } from "#/ui/typography";
 import { mobileTopBarIconClassName } from "#/utils/mobile-top-bar-icon-button-classes";
 
+const BUILD_SHORTCUT_LABEL = String.fromCharCode(0x2318, 0x21a9);
+
 export function ConversationTabs({
   variant = "default",
   isPanelResizing = false,
@@ -366,10 +368,11 @@ export function ConversationTabs({
                 : "cursor-pointer hover:opacity-90",
             )}
             data-testid="planner-tab-build-button"
+            aria-label={t(I18nKey.COMMON$BUILD)}
           >
             <Typography.Text className="text-[11px] font-normal leading-5 text-black">
-              {/* eslint-disable-next-line i18next/no-literal-string */}
-              {t(I18nKey.COMMON$BUILD)} ⌘↩
+              {t(I18nKey.COMMON$BUILD)}{" "}
+              <span aria-hidden="true">{BUILD_SHORTCUT_LABEL}</span>
             </Typography.Text>
           </button>
         </div>

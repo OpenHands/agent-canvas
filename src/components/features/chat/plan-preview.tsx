@@ -15,6 +15,7 @@ import {
 import { useScrollContext } from "#/context/scroll-context";
 
 const MAX_CONTENT_LENGTH = 300;
+const BUILD_SHORTCUT_LABEL = String.fromCharCode(0x2318, 0x21a9);
 
 // Shine effect class for streaming text
 const SHINE_TEXT_CLASS = "shine-text";
@@ -31,7 +32,6 @@ interface PlanPreviewProps {
   isBuildDisabled?: boolean;
 }
 
-/* eslint-disable i18next/no-literal-string */
 export function PlanPreview({
   planContent,
   isStreaming,
@@ -128,12 +128,13 @@ export function PlanPreview({
               : "hover:opacity-90 cursor-pointer",
           )}
           data-testid="plan-preview-build-button"
+          aria-label={t(I18nKey.COMMON$BUILD)}
         >
           <Typography.Text className="font-normal text-[14px] text-black leading-5">
             {t(I18nKey.COMMON$BUILD)}{" "}
-            <Typography.Text className="font-normal text-black">
-              ⌘↩
-            </Typography.Text>
+            <span className="font-normal text-black" aria-hidden="true">
+              {BUILD_SHORTCUT_LABEL}
+            </span>
           </Typography.Text>
         </button>
       </div>

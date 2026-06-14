@@ -1,4 +1,6 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
+import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 
 interface ClearButtonProps {
@@ -12,6 +14,8 @@ export function ClearButton({
   onClear,
   testId = "dropdown-clear",
 }: ClearButtonProps) {
+  const { t } = useTranslation("openhands");
+
   return (
     <button
       onClick={(e) => {
@@ -24,7 +28,7 @@ export function ClearButton({
         "cursor-pointer disabled:cursor-not-allowed disabled:opacity-60",
       )}
       type="button"
-      aria-label="Clear selection"
+      aria-label={t(I18nKey.COMMON$CLEAR_SELECTION)}
       data-testid={testId}
     >
       <svg

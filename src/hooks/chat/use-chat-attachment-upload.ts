@@ -1,18 +1,24 @@
 import { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 
 export type ChatAttachmentUploadOptions = {
   fromPaste?: boolean;
 };
 import { isFileImage } from "#/utils/is-file-image";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
-import { validateFiles } from "#/utils/file-validation";
+import {
+  formatFileValidationError,
+  validateFiles,
+} from "#/utils/file-validation";
 import { processFiles, processImages } from "#/utils/file-processing";
 import { useConversationStore } from "#/stores/conversation-store";
+import { I18nKey } from "#/i18n/declaration";
 
 /**
  * Shared attachment pipeline for home and conversation chat inputs.
  */
 export function useChatAttachmentUpload() {
+  const { t } = useTranslation("openhands");
   const {
     images,
     files,
@@ -30,7 +36,7 @@ export function useChatAttachmentUpload() {
       const validation = validateFiles(selectedFiles, [...images, ...files]);
 
       if (!validation.isValid) {
-        displayErrorToast(`Error: ${validation.errorMessage}`);
+        displayErrorToast(formatFileValidationError(validation, t));
         return;
       }
 
@@ -67,27 +73,32 @@ export function useChatAttachmentUpload() {
         fileResults.failed.forEach(({ file, error }) => {
           removeFileLoading(file.name);
           displayErrorToast(
-            `Failed to process file ${file.name}: ${error.message}`,
+            t(I18nKey.CHAT_INTERFACE$FAILED_TO_PROCESS_FILE, {
+              name: file.name,
+              error: error.message,
+            }),
           );
         });
 
         imageResults.failed.forEach(({ file, error }) => {
           removeImageLoading(file.name);
           displayErrorToast(
-            `Failed to process image ${file.name}: ${error.message}`,
+            t(I18nKey.CHAT_INTERFACE$FAILED_TO_PROCESS_IMAGE, {
+              name: file.name,
+              error: error.message,
+            }),
           );
         });
       } catch {
         validFiles.forEach((file) => removeFileLoading(file.name));
         validImages.forEach((image) => removeImageLoading(image.name));
-        displayErrorToast(
-          "An unexpected error occurred while processing files",
-        );
+        displayErrorToast(t(I18nKey.CHAT_INTERFACE$FILE_PROCESSING_UNEXPECTED));
       }
     },
     [
       images,
       files,
+      t,
       addImages,
       addFiles,
       addFileLoading,

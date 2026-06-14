@@ -123,13 +123,13 @@ export function SecretForm({
         testId="name-input"
         name="secret-name"
         type="text"
-        label="Name"
+        label={t(I18nKey.SETTINGS$NAME)}
         className="w-full min-w-0"
         required
         defaultValue={mode === "edit" && selectedSecret ? selectedSecret : ""}
         placeholder={t(I18nKey.SECRETS$API_KEY_EXAMPLE)}
         pattern="^[a-zA-Z][a-zA-Z0-9_]{0,63}$"
-        title="Must start with a letter, contain only letters/numbers/underscores, and be 1-64 characters"
+        title={t(I18nKey.SECRETS$NAME_PATTERN_HELP)}
       />
       {error && <p className="text-red-500 text-sm">{error}</p>}
 
