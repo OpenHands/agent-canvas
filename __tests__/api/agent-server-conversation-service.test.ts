@@ -12,6 +12,7 @@ import {
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
+import { setStoredConversationMetadata } from "#/api/conversation-metadata-store";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 
 vi.mock("axios");
@@ -25,6 +26,7 @@ const {
   mockSettingsClient,
   mockSwitchProfile,
   mockSwitchLLM,
+  mockGetConversation,
   mockGetSettings,
   mockGetSettingsForConversation,
   mockGetProfile,
@@ -38,6 +40,7 @@ const {
   mockSettingsClient: vi.fn(),
   mockSwitchProfile: vi.fn(),
   mockSwitchLLM: vi.fn(),
+  mockGetConversation: vi.fn(),
   mockGetSettings: vi.fn(),
   mockGetSettingsForConversation: vi.fn(),
   mockGetProfile: vi.fn(),
@@ -93,6 +96,7 @@ vi.mock("#/api/settings-service/settings-service.api", () => ({
 
 describe("AgentServerConversationService", () => {
   beforeEach(() => {
+    window.localStorage.clear();
     vi.clearAllMocks();
     mockHttpGet.mockReset();
     mockHttpPost.mockReset();
@@ -101,6 +105,7 @@ describe("AgentServerConversationService", () => {
     mockActivateProfile.mockReset();
     mockSwitchProfile.mockReset();
     mockSwitchLLM.mockReset();
+    mockGetConversation.mockReset();
     vi.mocked(ConversationClient).mockClear();
     vi.mocked(FileClient).mockClear();
     vi.mocked(ProfilesClient).mockClear();
@@ -124,7 +129,7 @@ describe("AgentServerConversationService", () => {
         return response.data;
       },
       searchConversations: vi.fn(),
-      getConversation: vi.fn(),
+      getConversation: mockGetConversation,
       sendEvent: vi.fn(),
       updateConversation: vi.fn(),
       switchProfile: mockSwitchProfile,
@@ -406,6 +411,160 @@ describe("AgentServerConversationService", () => {
       };
       expect(payload.workspace.working_dir).toBe("/Users/jane/projects/foo");
       expect(payload.worktree).toBe(true);
+    });
+
+    it("inherits ACP agent settings from a local parent conversation", async () => {
+      mockGetSettings.mockResolvedValue({
+        agent_settings: {
+          agent_kind: "openhands",
+          llm: {
+            model: "openai/stale-local-model",
+            base_url: "http://127.0.0.1:13306/v1",
+          },
+        },
+        conversation_settings: {},
+      });
+      mockGetSettingsForConversation.mockResolvedValue({
+        agentSettings: {
+          agent_kind: "openhands",
+          llm: {
+            model: "openai/stale-local-model",
+            base_url: "http://127.0.0.1:13306/v1",
+          },
+        },
+        conversationSettings: {},
+        secretsEncrypted: true,
+      });
+      mockGetConversation.mockResolvedValue({
+        id: "parent-acp",
+        created_at: "2024-01-01",
+        updated_at: "2024-01-01",
+        current_model_id: "gpt-5.5/high",
+        tags: { acpserver: "codex" },
+        agent: {
+          kind: "ACPAgent",
+          acp_command: ["npx", "-y", "@zed-industries/codex-acp"],
+          acp_args: ["--experimental"],
+          acp_model: "gpt-5.5/medium",
+          acp_prompt_timeout: 1800,
+        },
+      });
+      mockHttpPost.mockResolvedValue({
+        data: {
+          id: "child-acp",
+          created_at: "2024-01-01",
+          updated_at: "2024-01-01",
+        },
+      });
+
+      await AgentServerConversationService.createConversation(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        "parent-acp",
+        "plan",
+      );
+
+      const [payloadCall] = mockHttpPost.mock.calls;
+      const payload = payloadCall[1] as {
+        agent_settings: Record<string, unknown>;
+        tags?: Record<string, string>;
+      };
+      expect(mockGetConversation).toHaveBeenCalledWith("parent-acp");
+      expect(payload.agent_settings.agent_kind).toBe("acp");
+      expect(payload.agent_settings.acp_command).toEqual([
+        "npx",
+        "-y",
+        "@zed-industries/codex-acp",
+      ]);
+      expect(payload.agent_settings.acp_args).toEqual(["--experimental"]);
+      expect(payload.agent_settings.acp_server).toBe("codex");
+      expect(payload.agent_settings.acp_model).toBe("gpt-5.5/high");
+      expect(payload.agent_settings.acp_prompt_timeout).toBe(1800);
+      expect(payload.agent_settings.llm).toBeUndefined();
+      expect(payload.tags).toEqual({ acpserver: "codex" });
+    });
+
+    it("inherits an OpenHands parent's active profile with encrypted config", async () => {
+      setStoredConversationMetadata("parent-openhands", {
+        selected_repository: null,
+        selected_branch: null,
+        git_provider: null,
+        selected_workspace: null,
+        active_profile: "claude-haiku",
+      });
+      mockGetSettings.mockResolvedValue({
+        agent_settings: {
+          agent_kind: "openhands",
+          llm: { model: "openai/stale-default" },
+        },
+        conversation_settings: {},
+      });
+      mockGetSettingsForConversation.mockResolvedValue({
+        agentSettings: {
+          agent_kind: "openhands",
+          llm: {
+            model: "openai/stale-default",
+            api_key: "encrypted-stale-key",
+          },
+        },
+        conversationSettings: {},
+        secretsEncrypted: true,
+      });
+      mockGetConversation.mockResolvedValue({
+        id: "parent-openhands",
+        created_at: "2024-01-01",
+        updated_at: "2024-01-01",
+        agent: {
+          kind: "Agent",
+          llm: { model: "anthropic/claude-haiku-4-5" },
+        },
+      });
+      mockGetProfile.mockResolvedValue({
+        name: "claude-haiku",
+        config: {
+          model: "anthropic/claude-haiku-4-5",
+          api_key: "encrypted-profile-key",
+          base_url: "https://llm-proxy.app.all-hands.dev/",
+        },
+        api_key_set: true,
+      });
+      mockHttpPost.mockResolvedValue({
+        data: {
+          id: "child-openhands",
+          created_at: "2024-01-01",
+          updated_at: "2024-01-01",
+        },
+      });
+
+      await AgentServerConversationService.createConversation(
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        "parent-openhands",
+      );
+
+      const [payloadCall] = mockHttpPost.mock.calls;
+      const payload = payloadCall[1] as {
+        agent_settings: { llm: Record<string, unknown> };
+      };
+      expect(mockGetProfile).toHaveBeenCalledWith("claude-haiku", {
+        exposeSecrets: "encrypted",
+      });
+      expect(payload.agent_settings.llm).toMatchObject({
+        model: "anthropic/claude-haiku-4-5",
+        api_key: "encrypted-profile-key",
+        base_url: "https://llm-proxy.app.all-hands.dev/",
+      });
+      expect(payload.agent_settings.llm.api_key).not.toBe(
+        "encrypted-stale-key",
+      );
     });
   });
 

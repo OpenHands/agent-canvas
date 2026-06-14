@@ -855,6 +855,14 @@ export interface StartConversationOptions {
   customSecrets?: Array<{ name: string; description?: string }>;
 }
 
+/**
+ * Allows conversation creation to replace the agent settings payload with
+ * settings derived from related conversation context before the request is sent.
+ */
+type ResolveAgentSettings = (
+  agentSettings: Record<string, SettingsValue>,
+) => Promise<Record<string, SettingsValue> | undefined>;
+
 export function buildStartConversationRequest(
   options: StartConversationOptions,
 ): StartConversationPayload {
@@ -1013,6 +1021,7 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   plugins?: PluginSpec[];
   conversationId?: string;
   workingDir?: string;
+  resolveAgentSettings?: ResolveAgentSettings;
   worktree?: boolean;
 }): Promise<Record<string, unknown>> {
   const { SecretsService } = await import("./secrets-service");
@@ -1024,12 +1033,14 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
 
   const { agentSettings, conversationSettings, secretsEncrypted } =
     settingsResult;
+  const resolvedAgentSettings =
+    (await options.resolveAgentSettings?.(agentSettings)) ?? agentSettings;
 
-  await assertSubscriptionAuthReady(agentSettings);
+  await assertSubscriptionAuthReady(resolvedAgentSettings);
 
   return buildStartConversationRequest({
     ...options,
-    encryptedAgentSettings: agentSettings,
+    encryptedAgentSettings: resolvedAgentSettings,
     encryptedConversationSettings: conversationSettings,
     secretsEncrypted,
     customSecrets,
