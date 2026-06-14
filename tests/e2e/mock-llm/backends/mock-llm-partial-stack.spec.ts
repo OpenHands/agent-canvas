@@ -27,12 +27,12 @@ import {
   BACKEND_ONLY_INGRESS_PORT,
   BACKEND_ONLY_URL,
   seedLocalStorage,
-} from "./utils/mock-llm-helpers";
+} from "../utils/mock-llm-helpers";
 
 // ── Paths ──────────────────────────────────────────────────────────────
 const PROJECT_ROOT = resolve(
   dirname(fileURLToPath(import.meta.url)),
-  "../../..",
+  "../../../..",
 );
 const BIN = join(PROJECT_ROOT, "bin/agent-canvas.mjs");
 

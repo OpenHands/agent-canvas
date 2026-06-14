@@ -36,7 +36,7 @@ import {
   setChatInput,
   BACKEND_URL,
   SESSION_API_KEY,
-} from "./utils/mock-llm-helpers";
+} from "../utils/mock-llm-helpers";
 
 const USER_MESSAGE = "Hello ACP agent, please reply.";
 

@@ -141,6 +141,43 @@ describe("LlmSettingsScreen", () => {
     expect(screen.getByTestId("llm-api-key-input")).toHaveValue("");
   });
 
+  it("does not clear an existing base URL on Basic save without a model change", async () => {
+    const saveSettingsSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        llm_model: "openai/gpt-4o",
+        llm_base_url: "https://custom.example/v1",
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          llm: {
+            model: "openai/gpt-4o",
+            api_key: null,
+            base_url: "https://custom.example/v1",
+          },
+        },
+      }),
+    );
+
+    renderLlmSettingsScreen();
+
+    await screen.findByTestId("llm-settings-screen");
+    fireEvent.click(screen.getByTestId("sdk-section-basic-toggle"));
+    fireEvent.change(screen.getByTestId("llm-api-key-input"), {
+      target: { value: "test-api-key" },
+    });
+    fireEvent.click(screen.getByTestId("save-button"));
+
+    await waitFor(() => expect(saveSettingsSpy).toHaveBeenCalled());
+    const payload = saveSettingsSpy.mock.calls[0][0] as Record<string, unknown>;
+    const llmPayload = (
+      payload.agent_settings_diff as Record<string, unknown>
+    ).llm as Record<string, unknown>;
+    expect(llmPayload.api_key).toBe("test-api-key");
+    expect(llmPayload).not.toHaveProperty("base_url");
+  });
+
   it("does not show a 'key set' indicator for a brand-new embedded profile even when a global key exists (bug #640)", async () => {
     // A global key exists, but a fresh profile form must look unset so the user
     // knows they have to enter one — otherwise the profile saves with no key.
