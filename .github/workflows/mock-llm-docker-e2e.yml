@@ -6,11 +6,12 @@ name: Mock-LLM Docker E2E Tests
 # Trigger chain:
 #   1. workflow_run — fires automatically after the "Docker" workflow
 #      completes on main. The image is already built/pushed to GHCR.
-#   2. pull_request — fires on every PR commit. Waits for the Docker
-#      workflow to finish, then pulls the image from GHCR. Fork PRs are
-#      skipped (no GHCR push). (workflow_run doesn't fire for new workflow
-#      files until they're on the default branch, so pull_request is
-#      needed for first-run PRs.)
+#   2. pull_request — fires on every PR commit so required checks are never
+#      left pending by path filters. A lightweight detector skips the heavy
+#      Docker E2E job for docs-only/non-stack PRs. Fork PRs are skipped
+#      (no GHCR push). (workflow_run doesn't fire for new workflow files
+#      until they're on the default branch, so pull_request is needed for
+#      first-run PRs.)
 #   3. workflow_dispatch — manual trigger with a custom image tag.
 
 on:
@@ -22,7 +23,7 @@ on:
   workflow_dispatch:
     inputs:
       docker_image:
-        description: 'Docker image to test (e.g., ghcr.io/openhands/agent-canvas:sha-abc1234-amd64)'
+        description: "Docker image to test (e.g., ghcr.io/openhands/agent-canvas:sha-abc1234-amd64)"
         type: string
         default: ""
 
@@ -47,7 +48,39 @@ permissions:
   actions: read
 
 jobs:
+  detect-pr-changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      should_run: ${{ steps.detect.outputs.should_run }}
+    steps:
+      - name: Detect PR changes relevant to Docker E2E
+        id: detect
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CHANGED_FILES=$(gh api \
+            "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --paginate --jq '.[].filename')
+
+          SHOULD_RUN=false
+          while IFS= read -r file; do
+            case "$file" in
+              src/*|public/*|scripts/*|bin/*|config/*|docker/*|tests/e2e/mock-llm/*|tests/e2e/support/*|package.json|package-lock.json|vite.config.ts|tsconfig.json|react-router.config.ts|playwright.mock-llm.config.ts|playwright.mock-llm-docker.config.ts|tailwind.config.js|hero.ts|.github/workflows/mock-llm-docker-e2e.yml)
+                SHOULD_RUN=true
+                break
+                ;;
+            esac
+          done <<< "$CHANGED_FILES"
+
+          echo "should_run=$SHOULD_RUN" >> "$GITHUB_OUTPUT"
+
   mock-llm-docker-e2e:
+    needs: detect-pr-changes
     # workflow_run: only for main/master — validates the published image.
     #   PR branches are already covered by the pull_request trigger below;
     #   without this guard, both triggers fire for PRs, producing
@@ -55,13 +88,15 @@ jobs:
     # pull_request: skip fork PRs (no GHCR push).
     # workflow_dispatch: always run.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       (github.event.workflow_run.head_branch == 'main' ||
-        github.event.workflow_run.head_branch == 'master')) ||
-      (github.event_name == 'pull_request' &&
-       !github.event.pull_request.head.repo.fork)
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        (github.event.workflow_run.head_branch == 'main' ||
+         github.event.workflow_run.head_branch == 'master')) ||
+       (github.event_name == 'pull_request' &&
+        !github.event.pull_request.head.repo.fork)) &&
+      (github.event_name != 'pull_request' ||
+       needs.detect-pr-changes.outputs.should_run == 'true')
     runs-on: ubuntu-24.04
     # Give the 20-minute Playwright test budget enough room for setup and reporting.
     timeout-minutes: 25
@@ -242,6 +277,13 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"model":"test","messages":[]}' | python3 -m json.tool
           kill $SERVER_PID
+
+      # ── Build frontend (needed by partial-stack tests) ─────────────────
+      # partial-stack tests spawn bin/agent-canvas.mjs directly (not through
+      # Docker) and require build/index.html to exist locally. The regular
+      # mock-llm-e2e workflow builds before running; we do the same here.
+      - name: Build frontend (for partial-stack tests)
+        run: npm run build:app
 
       # ── Run tests ──────────────────────────────────────────────────────
       - name: Run mock-LLM Docker E2E tests

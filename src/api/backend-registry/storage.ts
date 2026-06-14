@@ -1,14 +1,11 @@
 import {
-  DEFAULT_LOCAL_BACKEND_ID,
-  DEFAULT_LOCAL_BACKEND_NAME,
+  SEEDED_DEFAULT_BACKEND_ID,
   makeDefaultLocalBackend,
 } from "./default-backend";
 import type { Backend, BackendKind, BackendSelection } from "./types";
 
 export const BACKENDS_STORAGE_KEY = "openhands-backends";
 export const ACTIVE_BACKEND_STORAGE_KEY = "openhands-active-backend";
-
-const LEGACY_AGENT_SERVER_CONFIG_STORAGE_KEY = "openhands-agent-server-config";
 
 function isValidKind(value: unknown): value is BackendKind {
   return value === "local" || value === "cloud";
@@ -25,52 +22,6 @@ function isValidBackend(value: unknown): value is Backend {
     typeof v.apiKey === "string" &&
     isValidKind(v.kind)
   );
-}
-
-function normalizeLegacyBaseUrl(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim().replace(/\/+$/, "");
-  if (!trimmed) return null;
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  return `http://${trimmed}`;
-}
-
-function readLegacyBackend(): Backend | null {
-  const raw = window.localStorage.getItem(
-    LEGACY_AGENT_SERVER_CONFIG_STORAGE_KEY,
-  );
-  if (!raw) return null;
-
-  try {
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const host = normalizeLegacyBaseUrl(parsed.baseUrl);
-    const apiKey =
-      typeof parsed.sessionApiKey === "string"
-        ? parsed.sessionApiKey.trim()
-        : "";
-
-    if (!host || !apiKey) return null;
-
-    return {
-      id: DEFAULT_LOCAL_BACKEND_ID,
-      name: DEFAULT_LOCAL_BACKEND_NAME,
-      host,
-      apiKey,
-      kind: "local",
-    };
-  } catch {
-    return null;
-  }
-}
-
-function clearLegacyBackendConfig(): void {
-  window.localStorage.removeItem(LEGACY_AGENT_SERVER_CONFIG_STORAGE_KEY);
-}
-
-function seedBackends(backends: Backend[]): Backend[] {
-  writeStoredBackends(backends);
-  clearLegacyBackendConfig();
-  return backends;
 }
 
 function isLoopbackUrl(value: string): boolean {
@@ -91,7 +42,7 @@ function shouldSyncLauncherDefaultLocalBackend(
   backend: Backend,
   defaultBackend: Backend,
 ): boolean {
-  if (backend.id !== DEFAULT_LOCAL_BACKEND_ID || backend.kind !== "local") {
+  if (backend.id !== SEEDED_DEFAULT_BACKEND_ID || backend.kind !== "local") {
     return false;
   }
 
@@ -141,17 +92,14 @@ export function readStoredBackends(): Backend[] {
   try {
     const raw = window.localStorage.getItem(BACKENDS_STORAGE_KEY);
 
-    // First install: migrate one legacy local backend if present, otherwise
-    // seed only when the launcher supplied enough information for a usable
-    // local backend.
+    // First install: seed only when the launcher supplied enough information
+    // for a usable local backend.
     if (raw === null) {
-      const legacyBackend = readLegacyBackend();
-      if (legacyBackend) return seedBackends([legacyBackend]);
-
       const defaultBackend = makeDefaultLocalBackend();
       if (!defaultBackend) return [];
 
-      return seedBackends([defaultBackend]);
+      writeStoredBackends([defaultBackend]);
+      return [defaultBackend];
     }
 
     const parsed = JSON.parse(raw);
@@ -164,11 +112,11 @@ export function readStoredBackends(): Backend[] {
       const defaultBackend = makeDefaultLocalBackend();
       if (!defaultBackend) return [];
 
-      return seedBackends([defaultBackend]);
+      writeStoredBackends([defaultBackend]);
+      return [defaultBackend];
     }
 
     const synced = syncLauncherDefaultLocalBackend(valid);
-    clearLegacyBackendConfig();
     return synced;
   } catch {
     return [];

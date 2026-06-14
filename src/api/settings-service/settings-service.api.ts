@@ -9,7 +9,6 @@ import {
   saveCloudSettings,
 } from "../cloud/settings-service.api";
 import { getAgentServerClientOptions } from "../agent-server-client-options";
-import { migrateLegacyAppPreferences } from "./legacy-app-preferences-migration";
 
 /**
  * Fields the agent-server stores under `misc_settings.app_preferences` (see
@@ -327,23 +326,7 @@ class SettingsService {
     }
 
     try {
-      let response = await this.fetchSettingsFromApi();
-      // One-shot migration: if the user previously stored app preferences in
-      // localStorage (older agent-canvas versions) and the server has no
-      // app_preferences for this user yet, promote the local values to the
-      // server now. Re-fetches so the cache is seeded with the migrated
-      // response. Safe to call repeatedly — clears the legacy keys after a
-      // successful push and no-ops thereafter.
-      const migrated = await migrateLegacyAppPreferences(
-        response,
-        (diff) =>
-          new SettingsClient(getAgentServerClientOptions()).updateSettings({
-            misc_settings_diff: { app_preferences: diff },
-          }) as Promise<unknown>,
-      );
-      if (migrated) {
-        response = await this.fetchSettingsFromApi();
-      }
+      const response = await this.fetchSettingsFromApi();
       settingsCache.redacted = response;
       settingsCache.timestamp = Date.now();
       return syncDerivedSettings(transformApiResponse(response));

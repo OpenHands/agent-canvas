@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ModelSelector } from "#/components/shared/modals/settings/model-selector";
 import { server } from "#/mocks/node";
 
-describe("ModelSelector — OpenHands round-trip", () => {
+describe("ModelSelector — OpenHands provider", () => {
   let providersCount = 0;
   let verifiedCount = 0;
   let modelsCount = 0;
@@ -20,7 +20,9 @@ describe("ModelSelector — OpenHands round-trip", () => {
     server.use(
       http.get("*/api/llm/providers", () => {
         providersCount += 1;
-        return HttpResponse.json({ providers: ["anthropic", "openai"] });
+        return HttpResponse.json({
+          providers: ["openhands", "anthropic", "openai"],
+        });
       }),
       http.get("*/api/llm/models/verified", () => {
         verifiedCount += 1;
@@ -47,25 +49,13 @@ describe("ModelSelector — OpenHands round-trip", () => {
     );
   }
 
-  it("shows OpenHands as the provider for a persisted litellm_proxy/<m> + All-Hands proxy base URL, fetching each LLM endpoint exactly once", async () => {
-    // Arrange — mirrors the post-save state: the SDK rewrote openhands/<m>
-    // to litellm_proxy/<m> on disk and pinned the All-Hands proxy base URL.
-    renderWithQuery(
-      <ModelSelector
-        currentModel="litellm_proxy/claude-opus-4-7"
-        currentBaseUrl="https://llm-proxy.app.all-hands.dev/"
-      />,
-    );
+  it("shows OpenHands as the provider for a public openhands/<m> model", async () => {
+    renderWithQuery(<ModelSelector currentModel="openhands/claude-opus-4-7" />);
 
-    // Act / Assert — the bootstrap effect must wait for the openhands
-    // verified list to load before resolving the displayed provider.
     await waitFor(() => {
       expect(screen.getByLabelText("LLM$PROVIDER")).toHaveValue("OpenHands");
     });
 
-    // Assert — the three queries that all need verified-models data share
-    // a single cache entry, and the bootstrap effect picks the right
-    // provider on its first run, so /models is not fetched twice.
     expect(providersCount).toBe(1);
     expect(verifiedCount).toBe(1);
     expect(modelsCount).toBe(1);
