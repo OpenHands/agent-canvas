@@ -1199,7 +1199,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
           schema_version: 1,
           agent_kind: "acp",
           acp_server: "claude-code",
-          acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+          acp_command: [],
           acp_model: "claude-opus-4-5",
           // These fields are LLM-only and must NOT leak into ACP settings.
           // (mcp_config is handled separately — it IS forwarded for ACP; see
@@ -1460,7 +1460,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
       agent_settings: Record<string, unknown> & { acp_model?: unknown };
     };
 
-    expect(payload.agent_settings.acp_model).toBe("claude-opus-4-7");
+    expect(payload.agent_settings.acp_model).toBe("claude-opus-4-8");
   });
 
   it("omits acp_model for the custom preset when none is configured", () => {
