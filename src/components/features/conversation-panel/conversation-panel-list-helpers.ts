@@ -1,6 +1,7 @@
 import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 import type { BackendKind } from "#/api/backend-registry/types";
 import type { Provider } from "#/types/settings";
+import { ExecutionStatus } from "#/types/agent-server/core";
 
 export type ConversationSortField = "created" | "updated";
 export type ThreadScope = "all" | "relevant";
@@ -100,6 +101,30 @@ function buildGroupLaunch(
   }
 
   return {};
+}
+
+/**
+ * Returns true when a conversation's agent has stopped working — either the
+ * user explicitly paused it, or it errored/got stuck.
+ *
+ * This is execution-status-based (distinct from time-based "old"). It applies
+ * consistently on both cloud and local:
+ * - Cloud: a paused cloud sandbox will surface as execution_status PAUSED.
+ * - Local: the agent is user-paused, errored, or stuck.
+ *
+ * Conversations with IDLE, RUNNING, WAITING_FOR_CONFIRMATION, or FINISHED
+ * status are never considered inactive — they are either actively working or
+ * have completed successfully and are still useful to the user.
+ */
+export function isConversationInactive(
+  conversation: Pick<AppConversation, "execution_status">,
+): boolean {
+  const { execution_status } = conversation;
+  return (
+    execution_status === ExecutionStatus.PAUSED ||
+    execution_status === ExecutionStatus.ERROR ||
+    execution_status === ExecutionStatus.STUCK
+  );
 }
 
 export function parseConversationTimeMs(iso: string | undefined): number {

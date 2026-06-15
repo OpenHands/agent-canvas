@@ -35,6 +35,7 @@ import {
   groupConversations,
   getGroupConversationPreview,
   sortConversationsByField,
+  isConversationInactive,
   type ConversationGroupLaunch,
 } from "./conversation-panel-list-helpers";
 
@@ -102,6 +103,12 @@ export function ConversationPanel({
   );
   const toggleShowOlderConversations = useConversationPanelPreferencesStore(
     (state) => state.toggleShowOlderConversations,
+  );
+  const hideInactiveConversations = useConversationPanelPreferencesStore(
+    (state) => state.hideInactiveConversations,
+  );
+  const toggleHideInactiveConversations = useConversationPanelPreferencesStore(
+    (state) => state.toggleHideInactiveConversations,
   );
   const showRepoBranchMetadata = useConversationPanelPreferencesStore(
     (state) => state.showRepoBranchMetadata,
@@ -205,11 +212,20 @@ export function ConversationPanel({
   );
 
   const scopedConversations = React.useMemo(() => {
+    let result = conversations;
+    // Legacy "Relevant threads" scope (no longer surfaced in the filter menu
+    // but kept for backward-compat with persisted state).
     if (threadScope === "relevant") {
-      return conversations.filter((c) => isExecutionActive(c.execution_status));
+      result = result.filter((c) => isExecutionActive(c.execution_status));
     }
-    return conversations;
-  }, [conversations, threadScope]);
+    // Hide conversations whose agent has stopped (PAUSED, ERROR, or STUCK).
+    // This is execution-status-based and distinct from the time-based older
+    // conversations filter below.
+    if (hideInactiveConversations) {
+      result = result.filter((c) => !isConversationInactive(c));
+    }
+    return result;
+  }, [conversations, threadScope, hideInactiveConversations]);
 
   const { recent: recentScoped, older: olderScoped } = React.useMemo(
     () => partitionByCutoff(scopedConversations),
@@ -550,6 +566,10 @@ export function ConversationPanel({
                 setThreadScope={setThreadScope}
                 showOlderConversations={showOlderConversations}
                 toggleShowOlderConversations={toggleShowOlderConversations}
+                hideInactiveConversations={hideInactiveConversations}
+                toggleHideInactiveConversations={
+                  toggleHideInactiveConversations
+                }
                 showRepoBranchMetadata={showRepoBranchMetadata}
                 toggleShowRepoBranchMetadata={toggleShowRepoBranchMetadata}
                 showLlmProfiles={showLlmProfiles}

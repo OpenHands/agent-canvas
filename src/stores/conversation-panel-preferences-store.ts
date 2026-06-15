@@ -21,6 +21,17 @@ import type {
  */
 interface ConversationPanelPreferencesState {
   showOlderConversations: boolean;
+  /**
+   * When true, hide conversations whose execution has stopped (status is
+   * PAUSED, ERROR, or STUCK). This is execution-status-based and is distinct
+   * from `showOlderConversations` which is purely time-based.
+   *
+   * "Inactive" means the agent has stopped working — either the user
+   * explicitly paused it, or it errored/got stuck. This applies equally to
+   * cloud (where a paused sandbox will have execution_status PAUSED) and
+   * local (where the user stopped or the agent errored).
+   */
+  hideInactiveConversations: boolean;
   showRepoBranchMetadata: boolean;
   showLlmProfiles: boolean;
   organizeMode: OrganizeMode;
@@ -31,6 +42,8 @@ interface ConversationPanelPreferencesState {
 interface ConversationPanelPreferencesActions {
   setShowOlderConversations: (value: boolean) => void;
   toggleShowOlderConversations: () => void;
+  setHideInactiveConversations: (value: boolean) => void;
+  toggleHideInactiveConversations: () => void;
   setShowRepoBranchMetadata: (value: boolean) => void;
   toggleShowRepoBranchMetadata: () => void;
   setShowLlmProfiles: (value: boolean) => void;
@@ -45,6 +58,7 @@ type ConversationPanelPreferencesStore = ConversationPanelPreferencesState &
 
 const initialState: ConversationPanelPreferencesState = {
   showOlderConversations: true,
+  hideInactiveConversations: false,
   showRepoBranchMetadata: false,
   showLlmProfiles: false,
   organizeMode: "chronological",
@@ -63,6 +77,13 @@ export const useConversationPanelPreferencesStore =
         toggleShowOlderConversations: () =>
           set((state) => ({
             showOlderConversations: !state.showOlderConversations,
+          })),
+
+        setHideInactiveConversations: (value) =>
+          set(() => ({ hideInactiveConversations: value })),
+        toggleHideInactiveConversations: () =>
+          set((state) => ({
+            hideInactiveConversations: !state.hideInactiveConversations,
           })),
 
         setShowRepoBranchMetadata: (value) =>
@@ -89,6 +110,7 @@ export const useConversationPanelPreferencesStore =
         // Only persist the data fields — actions are recreated on each load.
         partialize: (state): ConversationPanelPreferencesState => ({
           showOlderConversations: state.showOlderConversations,
+          hideInactiveConversations: state.hideInactiveConversations,
           showRepoBranchMetadata: state.showRepoBranchMetadata,
           showLlmProfiles: state.showLlmProfiles,
           organizeMode: state.organizeMode,
