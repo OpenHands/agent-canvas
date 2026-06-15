@@ -4,7 +4,7 @@ OpenHands Agent Canvas turns your coding agents into a self-hosted, always-on en
 
 It runs locally on your machine by default, but can connect to multiple “agent backends”, e.g. running agents in Docker containers, on VMs, or within your company infrastructure. You can optionally choose to run agents on OpenHands Cloud or OpenHands Enterprise infrastructure.
 
-Agent Canvas runs the open source OpenHands agent out-of-the-box, but configurable to use any third-party agent like Claude Code and Codex.
+Agent Canvas runs the open source OpenHands agent out-of-the-box, but can use any third-party agent like Claude Code and Codex.
 
 |    |    |
 |---|---|
