@@ -33,7 +33,7 @@ import {
   resetMockLLM,
   ensureMockLLMProfile,
   setChatInput,
-} from "./utils/mock-llm-helpers";
+} from "../utils/mock-llm-helpers";
 
 const SLASH_COMMAND = "/standup-digest:setup";
 const AUTOMATION_CARD_ID = "slack-standup-digest";

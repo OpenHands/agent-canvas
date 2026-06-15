@@ -31,7 +31,7 @@ import {
   activateTrajectory,
   resetMockLLM,
   waitForNonUserMessageText,
-} from "./utils/mock-llm-helpers";
+} from "../utils/mock-llm-helpers";
 import {
   showOnboarding,
   waitForOnboardingStep,
@@ -41,7 +41,7 @@ import {
   ONBOARDING_AGENT_STEP,
   ONBOARDING_LLM_STEP,
   ONBOARDING_HELLO_STEP,
-} from "../support/onboarding-helpers";
+} from "../../support/onboarding-helpers";
 
 const MOCK_MODEL = "openai/mock-onboarding-model";
 const REPLY_TOKEN = "ONBOARDING_HAPPY_PATH_REPLY_OK";

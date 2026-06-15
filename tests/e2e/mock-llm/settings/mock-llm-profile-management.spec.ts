@@ -16,10 +16,17 @@
  *      user selected, not the first alphabetical match. The fix
  *      stamps the active profile name on client-side conversation
  *      metadata at creation and on per-conversation switches.
+ *
+ *   3. OpenHands provider hidden base_url preservation:
+ *      A base_url typed in Advanced view is still real profile data after
+ *      switching to Basic. Re-saving from Basic without changing the model
+ *      must preserve that hidden value.
  */
 
 import { test, expect } from "@playwright/test";
 import {
+  BACKEND_URL,
+  SESSION_API_KEY,
   seedLocalStorage,
   routeSessionApiKey,
   dismissAnalyticsModal,
@@ -35,9 +42,31 @@ import {
   createProfileViaUI,
   deleteProfileIfExists,
   activateProfileViaUI,
-} from "./utils/mock-llm-helpers";
+} from "../utils/mock-llm-helpers";
 
 const MOCK_MODEL = "openai/mock-test-model";
+
+/**
+ * Read-only helper: fetch a profile's persisted config via the API.
+ * Used to verify that UI-driven saves persisted the expected values.
+ */
+async function getProfileConfig(
+  request: import("@playwright/test").APIRequestContext,
+  name: string,
+): Promise<Record<string, unknown>> {
+  const resp = await request.get(
+    `${BACKEND_URL}/api/profiles/${encodeURIComponent(name)}`,
+    {
+      headers: {
+        "X-Session-API-Key": SESSION_API_KEY,
+        "X-Expose-Secrets": "encrypted",
+      },
+    },
+  );
+  expect(resp.ok(), `GET /api/profiles/${name}: ${resp.status()}`).toBe(true);
+  const data = await resp.json();
+  return (data.config ?? {}) as Record<string, unknown>;
+}
 
 test.describe.configure({ mode: "serial" });
 
@@ -325,6 +354,124 @@ test.describe("same-model profile identity", () => {
         switchButton,
         "Profile identity should persist across page reloads",
       ).toContainText(PROFILE_BETA, { timeout: 10_000 });
+    });
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════
+// Test 3 — OpenHands provider hidden base_url preservation
+// ═══════════════════════════════════════════════════════════════════════
+
+test.describe("OpenHands provider hidden base_url preservation", () => {
+  // The public OpenHands provider model remains the profile identity, but a
+  // custom Advanced base_url is still user data. A same-model Basic save must
+  // not wipe it just because the field is invisible in that view.
+  const OPENHANDS_PROFILE = "openhands-basic-save-test";
+  const OPENHANDS_MODEL = "openhands/claude-opus-4-5-20251101";
+  const LEGACY_TRANSPORT_MODEL = "litellm_proxy/claude-opus-4-5-20251101";
+  const EXPECTED_OPENHANDS_MODELS = [OPENHANDS_MODEL, LEGACY_TRANSPORT_MODEL];
+  const CUSTOM_BASE_URL = "https://custom-openhands-proxy.example/v1";
+
+  test.beforeEach(async ({ page }) => {
+    await seedLocalStorage(page);
+  });
+
+  test.afterAll(async ({ browser }) => {
+    const page = await browser.newPage();
+    try {
+      await seedLocalStorage(page);
+      await routeSessionApiKey(page);
+      await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
+      await dismissAnalyticsModal(page);
+      await waitForTestId(page, "add-llm-profile");
+      await deleteProfileIfExists(page, OPENHANDS_PROFILE);
+    } catch {
+      // best-effort
+    } finally {
+      await page.close();
+    }
+  });
+
+  test("re-saving an OpenHands profile from Basic view preserves hidden base_url", async ({
+    page,
+    request,
+  }) => {
+    // ── Setup: create a public OpenHands profile with a custom base_url through
+    // Advanced view. The value becomes hidden after switching to Basic, but it
+    // is still part of the profile unless the model changes. ──
+    await routeSessionApiKey(page);
+    await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
+    await dismissAnalyticsModal(page);
+    await waitForTestId(page, "add-llm-profile");
+
+    await deleteProfileIfExists(page, OPENHANDS_PROFILE);
+    await createProfileViaUI(page, {
+      profileName: OPENHANDS_PROFILE,
+      model: OPENHANDS_MODEL,
+      baseUrl: CUSTOM_BASE_URL,
+    });
+
+    await test.step("open profile in edit mode", async () => {
+      const profileRows = page.getByTestId("profile-row");
+      const rowCount = await profileRows.count();
+      let targetRow: ReturnType<typeof profileRows.nth> | null = null;
+
+      for (let i = 0; i < rowCount; i++) {
+        const row = profileRows.nth(i);
+        const text = await row.textContent();
+        if (text?.includes(OPENHANDS_PROFILE)) {
+          targetRow = row;
+          break;
+        }
+      }
+      expect(
+        targetRow,
+        `Could not find profile row for "${OPENHANDS_PROFILE}"`,
+      ).not.toBeNull();
+
+      await targetRow!.getByTestId("profile-menu-trigger").click();
+      await waitForTestId(page, "profile-actions-menu");
+      await page.getByTestId("profile-edit").click();
+
+      await expect(page.getByTestId("profile-name-input")).toHaveValue(
+        OPENHANDS_PROFILE,
+        { timeout: 10_000 },
+      );
+    });
+
+    await test.step("switch to Basic view and save without changing model", async () => {
+      // Click the Basic toggle explicitly so the save path exercises the view
+      // that hides base_url without changing the selected model.
+      const basicToggle = page.getByTestId("sdk-section-basic-toggle");
+      if (await basicToggle.isVisible().catch(() => false)) {
+        await basicToggle.click();
+      }
+
+      const saveButton = page.getByTestId("save-profile-btn");
+      await expect(saveButton).toBeEnabled({ timeout: 10_000 });
+      await saveButton.click();
+
+      await waitForTestId(page, "add-llm-profile");
+    });
+
+    // ── Verify: Basic-tab save preserved the hidden custom base_url ──
+    await test.step("verify base_url is preserved after save", async () => {
+      const config = await getProfileConfig(request, OPENHANDS_PROFILE);
+      expect(
+        config.base_url,
+        "Basic-tab re-save without a model change must not clear hidden base_url",
+      ).toBe(CUSTOM_BASE_URL);
+      expect(EXPECTED_OPENHANDS_MODELS).toContain(config.model);
+    });
+
+    await test.step("profile survives page reload", async () => {
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await waitForTestId(page, "add-llm-profile");
+
+      // Re-read via API to confirm persistence is durable
+      const config = await getProfileConfig(request, OPENHANDS_PROFILE);
+      expect(config.base_url).toBe(CUSTOM_BASE_URL);
+      expect(EXPECTED_OPENHANDS_MODELS).toContain(config.model);
     });
   });
 });

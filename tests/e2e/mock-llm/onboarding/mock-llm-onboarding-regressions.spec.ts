@@ -4,8 +4,8 @@ import {
   ONBOARDING_BACKEND_STEP,
   showOnboarding,
   waitForOnboardingStep,
-} from "../support/onboarding-helpers";
-import { routeSessionApiKey, SESSION_API_KEY } from "./utils/mock-llm-helpers";
+} from "../../support/onboarding-helpers";
+import { routeSessionApiKey, SESSION_API_KEY } from "../utils/mock-llm-helpers";
 
 test.describe.configure({ mode: "serial" });
 

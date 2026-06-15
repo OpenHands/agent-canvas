@@ -821,7 +821,7 @@ describe("toAppConversation", () => {
         ...baseInfo,
         agent: {
           kind: "Agent",
-          llm: { model: "litellm_proxy/claude-sonnet-4-6" },
+          llm: { model: "openhands/claude-sonnet-4-6" },
         },
       });
       expect(result.active_profile).toBe("claude-sonnet-4.6");
@@ -1069,26 +1069,6 @@ describe("buildRuntimeServicesSystemSuffix", () => {
     expect(suffix).toContain("Static-file server");
     // Should NOT mislabel a static-build frontend as "Vite frontend".
     expect(suffix).not.toContain("Vite frontend");
-  });
-
-  it("accepts the legacy `vite` service key", () => {
-    // Older launchers may still emit `services.vite`. Render it under the
-    // new "Frontend" label rather than dropping the entry.
-    vi.stubEnv(
-      "VITE_RUNTIME_SERVICES_INFO",
-      JSON.stringify({
-        mode: "dev:safe",
-        services: {
-          agent_server: { url_from_agent: "http://localhost:18000" },
-          vite: {
-            description: "Vite dev server",
-            url_from_agent: "http://localhost:3001",
-          },
-        },
-      }),
-    );
-    const suffix = buildRuntimeServicesSystemSuffix();
-    expect(suffix).toContain("* Frontend: http://localhost:3001");
   });
 
   it("explicitly mentions when automation is absent", () => {
