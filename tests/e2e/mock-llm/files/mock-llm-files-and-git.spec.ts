@@ -26,7 +26,7 @@ import {
   registerTrajectory,
   activateTrajectory,
   resetMockLLM,
-} from "./utils/mock-llm-helpers";
+} from "../utils/mock-llm-helpers";
 
 const USER_MESSAGE = "Hello, please respond.";
 const WORKSPACE_PATH = "/tmp/e2e-test-project/my-app";

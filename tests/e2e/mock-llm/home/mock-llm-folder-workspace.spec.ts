@@ -7,8 +7,8 @@
  *
  * Flow (serial):
  *   1. Open the folder browser, navigate to a known test directory, click
- *      "Use this folder" — verify the workspace appears in the dropdown
- *   2. Select the workspace, type a message, submit — intercept
+ *      "Use this folder" — verify the workspace is auto-selected
+ *   2. Confirm the workspace, type a message, submit — intercept
  *      POST /api/conversations and assert workspace.working_dir matches
  *      the selected folder path
  *   3. After conversation creation, verify selected_workspace is persisted
@@ -25,14 +25,14 @@ import {
   ensureMockLLMProfile,
   resetMockLLM,
   deleteConversation,
-} from "./utils/mock-llm-helpers";
+} from "../utils/mock-llm-helpers";
 import * as fs from "fs";
 import {
   getFolderBrowserPathSegments,
   getFolderBrowserRootPath,
   resolveFolderWorkspacePaths,
   TEST_DIR_NAME,
-} from "./utils/folder-workspace-paths";
+} from "../utils/folder-workspace-paths";
 
 /**
  * The folder-workspace test creates a directory that the agent-server's folder
@@ -192,33 +192,23 @@ test.describe("mock-LLM folder browser → workspace → conversation", () => {
       });
     });
 
-    // ── Select the workspace in the dropdown and confirm ──
+    // ── Confirm the selected workspace ──
     // The workspace dialog is still open after the folder browser closed.
-    // The folder browser's onAdd adds the workspace to the store, so the
-    // dropdown should now include it.
-    await test.step("select the workspace in the dropdown and confirm", async () => {
-      // The workspace dialog should still be visible
+    // Adding the folder auto-selects the new workspace, so wait for that
+    // selection instead of reopening the dropdown and looking for an option
+    // that is only rendered while the menu is open.
+    await test.step("confirm the auto-selected workspace", async () => {
       await expect(page.getByTestId("open-workspace-dialog-body")).toBeVisible({
         timeout: 10_000,
       });
 
-      // The workspace dropdown should contain our test directory.
       const dropdown = page.getByTestId("workspace-dropdown");
       await expect(dropdown).toBeVisible({ timeout: 10_000 });
-      await dropdown.click();
+      await expect(dropdown).toHaveValue(TEST_DIR_NAME, { timeout: 10_000 });
 
-      // Find and click the entry for our test workspace
-      const workspaceOption = page.getByRole("option", {
-        name: new RegExp(TEST_DIR_NAME),
-      });
-      await expect(workspaceOption).toBeVisible({ timeout: 10_000 });
-      await workspaceOption.click();
-
-      // Click "Confirm" to accept the workspace selection
       const confirmBtn = page.getByRole("button", { name: /confirm/i });
       await confirmBtn.click();
 
-      // The dialog should close
       await expect(page.getByTestId("open-workspace-dialog-body")).toBeHidden({
         timeout: 5_000,
       });

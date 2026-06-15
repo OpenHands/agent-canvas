@@ -41,7 +41,7 @@ import {
   resetMockLLM,
   ensureMockLLMProfile,
   getMockLLMRequests,
-} from "./utils/mock-llm-helpers";
+} from "../utils/mock-llm-helpers";
 
 // Token the test asserts on in the agent's text reply (step 2).
 // The terminal printf breadcrumbs below are NOT asserted — they exist

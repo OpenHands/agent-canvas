@@ -34,6 +34,43 @@ function isDeprecatedLinearSse(
 type SdkMcpServerConfig = Record<string, SettingsValue>;
 type SdkMcpConfig = { mcpServers: Record<string, SdkMcpServerConfig> };
 
+function apiKeyFromAuthorizationHeader(value: unknown): string | undefined {
+  if (Array.isArray(value)) {
+    return value
+      .map(apiKeyFromAuthorizationHeader)
+      .find((apiKey) => apiKey !== undefined);
+  }
+
+  if (typeof value !== "string" || value.length === 0) return undefined;
+  const bearer = value.match(/^Bearer\s+(.+)$/i);
+  return bearer ? bearer[1] : value;
+}
+
+function apiKeyFromServerConfig(
+  serverConfig: Record<string, unknown>,
+): string | undefined {
+  const headers = serverConfig.headers;
+  const authorization =
+    headers && typeof headers === "object"
+      ? ((headers as Record<string, unknown>).Authorization ??
+        (headers as Record<string, unknown>).authorization)
+      : undefined;
+  const headerApiKey = apiKeyFromAuthorizationHeader(authorization);
+  if (headerApiKey) return headerApiKey;
+
+  const auth = serverConfig.auth;
+  return typeof auth === "string" && auth !== "oauth" ? auth : undefined;
+}
+
+function getAuthorizationHeaders(apiKey: string | undefined) {
+  if (!apiKey) return {};
+  return {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+  };
+}
+
 /**
  * Parse an SDK mcp_config value ({ mcpServers: { ... } }) and convert it
  * to the frontend MCPConfig format used by UI components.
@@ -70,9 +107,7 @@ export function parseMcpConfig(value: unknown): MCPConfig {
 
     if (url) {
       const transport = serverConfig.transport as string | undefined;
-      const auth = serverConfig.auth as string | undefined;
-      const apiKey =
-        typeof auth === "string" && auth !== "oauth" ? auth : undefined;
+      const apiKey = apiKeyFromServerConfig(serverConfig);
 
       if (isDeprecatedLinearSse(url, transport)) {
         const server: MCPSHTTPServer = { url: LINEAR_SHTTP_URL };
@@ -149,7 +184,7 @@ export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
       server.url = entry;
     } else {
       server.url = entry.url;
-      if (entry.api_key) server.auth = entry.api_key;
+      Object.assign(server, getAuthorizationHeaders(entry.api_key));
     }
     server.transport = "sse";
     mcpServers[reserve("sse")] = server;
@@ -161,7 +196,7 @@ export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
       server.url = entry;
     } else {
       server.url = entry.url;
-      if (entry.api_key) server.auth = entry.api_key;
+      Object.assign(server, getAuthorizationHeaders(entry.api_key));
       if (entry.timeout != null) server.timeout = entry.timeout;
     }
     mcpServers[reserve("shttp")] = server;

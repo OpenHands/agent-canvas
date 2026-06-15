@@ -24,7 +24,7 @@ import {
   dismissAnalyticsModal,
   waitForTestId,
   ensureMockLLMProfile,
-} from "./utils/mock-llm-helpers";
+} from "../utils/mock-llm-helpers";
 
 const FAKE_PAT = "github_pat_test_1234567890abcdef";
 const GITHUB_HOSTED_MCP_URL = "https://api.githubcopilot.com/mcp/";
@@ -152,13 +152,16 @@ test.describe("MCP GitHub server install flow", () => {
     const mcpConfig = settings?.agent_settings?.mcp_config;
     expect(mcpConfig).toBeTruthy();
 
-    // The GitHub server should be stored as a hosted streamable HTTP server
-    // with the PAT saved as its auth credential.
+    // The GitHub server should be stored as a hosted streamable HTTP server.
+    // The settings API redacts persisted secrets, so the raw PAT must not be
+    // readable after installation.
     const mcpServers = mcpConfig?.mcpServers ?? mcpConfig?.shttp_servers;
     expect(mcpServers).toBeTruthy();
     expect(mcpServers?.shttp).toMatchObject({
       url: GITHUB_HOSTED_MCP_URL,
-      auth: FAKE_PAT,
+      headers: {
+        Authorization: "<redacted>",
+      },
     });
   });
 
@@ -177,7 +180,9 @@ test.describe("MCP GitHub server install flow", () => {
               mcpServers: {
                 shttp: {
                   url: GITHUB_HOSTED_MCP_URL,
-                  auth: FAKE_PAT,
+                  headers: {
+                    Authorization: `Bearer ${FAKE_PAT}`,
+                  },
                 },
               },
             },
