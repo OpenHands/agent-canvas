@@ -13,6 +13,7 @@ import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
 import { useUpdateMcpServer } from "#/hooks/mutation/use-update-mcp-server";
 import { useDeleteMcpServer } from "#/hooks/mutation/use-delete-mcp-server";
 import { useTestMcpServer } from "#/hooks/mutation/use-test-mcp-server";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { ExtendedMCPTestFailure, MCPServerConfig } from "#/types/mcp-server";
 import {
   displayErrorToast,
@@ -51,6 +52,13 @@ export function CustomServerEditor({
     reset: resetTest,
   } = useTestMcpServer();
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+
+  // The MCP connectivity-test endpoint only exists on the local agent-server.
+  // For cloud backends `McpService.testServer` short-circuits with a synthetic
+  // success so the save still completes; we hide the manual "Test connection"
+  // button here so cloud users aren't shown a misleading "0 tools" result.
+  const { backend } = useActiveBackend();
+  const isCloudBackend = backend.kind === "cloud";
 
   const isEditing = !!server.id;
   const isPending = isAdding || isUpdating || isDeleting;
@@ -164,9 +172,9 @@ export function CustomServerEditor({
             onCancel={onClose}
             onDelete={isEditing ? () => setShowDeleteConfirm(true) : undefined}
             isActionDisabled={isPending}
-            onTest={handleTestClick}
+            onTest={isCloudBackend ? undefined : handleTestClick}
             isTestPending={isTesting}
-            testMessage={testMessage}
+            testMessage={isCloudBackend ? null : testMessage}
           />
         </div>
       </ModalBackdrop>

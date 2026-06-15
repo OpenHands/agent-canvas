@@ -1,6 +1,9 @@
 /// <reference types="vitest" />
 /// <reference types="vite-plugin-svgr/client" />
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
+import { readFile } from "node:fs/promises";
+import { resolve, dirname, relative, isAbsolute } from "node:path";
 import { defineConfig, loadEnv } from "vite";
 import svgr from "vite-plugin-svgr";
 import { reactRouter } from "@react-router/dev/vite";
@@ -21,6 +24,17 @@ const LIB_EXTERNALS = [
   "react-router",
 ];
 const APP_CHUNK_MAX_BYTES = 450 * 1024;
+
+// Absolute path to the bundled extensions skills directory in node_modules.
+// Injected as __EXTENSIONS_SKILLS_DIR__ so agent-server-adapter.ts can pass
+// real filesystem paths to the Python agent-server (which uses them to
+// resolve bundled skill resources like scripts/ and references/).
+const _require = createRequire(import.meta.url);
+const EXTENSIONS_SKILLS_DIR = resolve(
+  dirname(_require.resolve("@openhands/extensions/package.json")),
+  "skills",
+);
+const PUBLIC_LOCALES_DIR = resolve(process.cwd(), "public", "locales");
 
 const appBuildConfig = {
   rolldownOptions: {
@@ -59,6 +73,14 @@ export default defineConfig(({ mode }) => {
   const FE_PORT = Number.parseInt(VITE_FRONTEND_PORT, 10);
 
   return {
+    define: {
+      // Empty string for library builds so consumers aren't bound to this
+      // machine's node_modules path; agent-server-adapter falls back to
+      // "public" when the value is falsy.
+      __EXTENSIONS_SKILLS_DIR__: JSON.stringify(
+        isLibraryBuild ? "" : EXTENSIONS_SKILLS_DIR,
+      ),
+    },
     plugins: [
       {
         name: "suppress-chrome-devtools-well-known",
@@ -67,10 +89,55 @@ export default defineConfig(({ mode }) => {
           server.middlewares.use(
             "/.well-known/appspecific/com.chrome.devtools.json",
             (_req, res) => {
-              res.statusCode = 204;
+              res.writeHead(204);
               res.end();
             },
           );
+        },
+      },
+      {
+        name: "serve-generated-i18n-locales",
+        apply: "serve",
+        configureServer(server) {
+          server.middlewares.use(async (req, res, next) => {
+            const method = req.method ?? "GET";
+            if (method !== "GET" && method !== "HEAD") {
+              next();
+              return;
+            }
+
+            const pathname = new URL(req.url ?? "", "http://localhost")
+              .pathname;
+            if (
+              !pathname.startsWith("/locales/") ||
+              !pathname.endsWith(".json")
+            ) {
+              next();
+              return;
+            }
+
+            const requestedPath = decodeURIComponent(
+              pathname.slice("/locales/".length),
+            );
+            const filePath = resolve(PUBLIC_LOCALES_DIR, requestedPath);
+            const relativePath = relative(PUBLIC_LOCALES_DIR, filePath);
+            if (relativePath.startsWith("..") || isAbsolute(relativePath)) {
+              res.writeHead(403);
+              res.end();
+              return;
+            }
+
+            try {
+              const content = await readFile(filePath);
+              res.writeHead(200, {
+                "Content-Type": "application/json; charset=utf-8",
+                "Cache-Control": "no-cache",
+              });
+              res.end(method === "HEAD" ? "" : content);
+            } catch {
+              next();
+            }
+          });
         },
       },
       !process.env.VITEST && !isLibraryBuild && reactRouter(),

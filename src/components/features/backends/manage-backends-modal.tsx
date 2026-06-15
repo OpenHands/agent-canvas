@@ -62,6 +62,11 @@ function BackendVersion({ backend }: { backend: Backend }) {
 
 interface ManageBackendsModalProps {
   onClose: () => void;
+  /**
+   * Recovery mode is used by the root unavailable-backend gate. There is no
+   * app shell behind the modal, so dismiss controls would be misleading.
+   */
+  recoveryMode?: boolean;
 }
 
 interface PendingRemoval {
@@ -72,13 +77,24 @@ interface PendingRemoval {
 interface BackendRowProps {
   backend: Backend;
   health: BackendHealth | undefined;
+  onSelect: () => void;
   onEdit: () => void;
   onRemove: () => void;
 }
 
-function BackendRow({ backend, health, onEdit, onRemove }: BackendRowProps) {
+function BackendRow({
+  backend,
+  health,
+  onSelect,
+  onEdit,
+  onRemove,
+}: BackendRowProps) {
   const { t } = useTranslation("openhands");
   const isInvalidApiKey = isInvalidBackendApiKeyHealthError(health?.lastError);
+  const statusDetail =
+    !isInvalidApiKey && health?.isConnected === false && health.lastError
+      ? health.lastError
+      : null;
   let statusLabel: string;
   let statusClassName = "text-[var(--oh-muted)]";
 
@@ -95,34 +111,56 @@ function BackendRow({ backend, health, onEdit, onRemove }: BackendRowProps) {
     statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_CHECKING);
   }
   const dotStatus = isInvalidApiKey ? false : (health?.isConnected ?? null);
+  const canSelect = health?.isConnected === true && !isInvalidApiKey;
 
   return (
     <li
-      className="flex items-center gap-3 px-3 py-3"
+      className="flex items-stretch"
       data-testid={`manage-backends-row-${backend.name}`}
     >
-      <BackendStatusDot isConnected={dotStatus} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-sm text-white">{backend.name}</span>
-          <BackendVersion backend={backend} />
+      <button
+        type="button"
+        disabled={!canSelect}
+        onClick={onSelect}
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-3 px-3 py-3 text-left",
+          canSelect
+            ? "cursor-pointer transition-colors hover:bg-interactive-hover focus-visible:bg-interactive-hover focus-visible:outline-none"
+            : "cursor-default",
+        )}
+      >
+        <BackendStatusDot isConnected={dotStatus} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-sm text-white">{backend.name}</span>
+            <BackendVersion backend={backend} />
+          </div>
+          <span className="truncate text-xs text-[var(--oh-muted)]">
+            {backend.host}
+          </span>
+          <span
+            data-testid={`manage-backends-status-${backend.name}`}
+            className={cn("truncate text-xs", statusClassName)}
+          >
+            {statusLabel}
+          </span>
+          {statusDetail ? (
+            <span
+              data-testid={`manage-backends-status-detail-${backend.name}`}
+              title={statusDetail}
+              className="text-xs text-red-300/80 whitespace-normal break-words"
+            >
+              {statusDetail}
+            </span>
+          ) : null}
         </div>
-        <span className="truncate text-xs text-[var(--oh-muted)]">
-          {backend.host}
+        <span className="px-2 py-1 rounded-full text-[11px] uppercase tracking-wide text-[var(--oh-text-tertiary)] bg-[var(--oh-surface)] border border-[var(--oh-border)]">
+          {backend.kind === "cloud"
+            ? t(I18nKey.BACKEND$KIND_CLOUD)
+            : t(I18nKey.BACKEND$KIND_LOCAL)}
         </span>
-        <span
-          data-testid={`manage-backends-status-${backend.name}`}
-          className={cn("truncate text-xs", statusClassName)}
-        >
-          {statusLabel}
-        </span>
-      </div>
-      <span className="px-2 py-1 rounded-full text-[11px] uppercase tracking-wide text-[var(--oh-text-tertiary)] bg-[var(--oh-surface)] border border-[var(--oh-border)]">
-        {backend.kind === "cloud"
-          ? t(I18nKey.BACKEND$KIND_CLOUD)
-          : t(I18nKey.BACKEND$KIND_LOCAL)}
-      </span>
-      <div className="flex shrink-0 items-center gap-0.5">
+      </button>
+      <div className="flex shrink-0 items-center gap-0.5 px-3 py-3">
         <button
           type="button"
           onClick={onEdit}
@@ -146,9 +184,13 @@ function BackendRow({ backend, health, onEdit, onRemove }: BackendRowProps) {
   );
 }
 
-export function ManageBackendsModal({ onClose }: ManageBackendsModalProps) {
+export function ManageBackendsModal({
+  onClose,
+  recoveryMode = false,
+}: ManageBackendsModalProps) {
   const { t } = useTranslation("openhands");
-  const { backends, removeBackend } = useActiveBackendContext();
+  const { backends, active, removeBackend, setActive } =
+    useActiveBackendContext();
   const healthByBackendId = useBackendsHealth(backends, {
     probeDisabledOnce: true,
   });
@@ -165,10 +207,22 @@ export function ManageBackendsModal({ onClose }: ManageBackendsModalProps) {
     setPendingRemoval(null);
   };
 
+  const handleSelectBackend = React.useCallback(
+    (backend: Backend) => {
+      if (active.backend.id !== backend.id || active.orgId !== null) {
+        setActive(backend.id);
+      }
+      onClose();
+    },
+    [active.backend.id, active.orgId, onClose, setActive],
+  );
+
   return (
     <>
       <ModalBackdrop
-        onClose={onClose}
+        onClose={recoveryMode ? undefined : onClose}
+        closeOnEscape={!recoveryMode}
+        closeOnBackdropClick={!recoveryMode}
         aria-label={t(I18nKey.BACKEND$MANAGE_TITLE)}
       >
         <div
@@ -180,11 +234,13 @@ export function ManageBackendsModal({ onClose }: ManageBackendsModalProps) {
             "max-h-[70vh]",
           )}
         >
-          <ModalCloseButton
-            onClose={onClose}
-            testId="close-manage-backends-modal"
-          />
-          <div className="p-5 pr-12">
+          {recoveryMode ? null : (
+            <ModalCloseButton
+              onClose={onClose}
+              testId="close-manage-backends-modal"
+            />
+          )}
+          <div className={cn("p-5", !recoveryMode && "pr-12")}>
             <h2 className={modalTitleLgClassName}>
               {t(I18nKey.BACKEND$MANAGE_TITLE)}
             </h2>
@@ -206,6 +262,7 @@ export function ManageBackendsModal({ onClose }: ManageBackendsModalProps) {
                       key={backend.id}
                       backend={backend}
                       health={healthByBackendId[backend.id]}
+                      onSelect={() => handleSelectBackend(backend)}
                       onEdit={() => setEditingBackend(backend)}
                       onRemove={() =>
                         setPendingRemoval({
@@ -223,21 +280,23 @@ export function ManageBackendsModal({ onClose }: ManageBackendsModalProps) {
           <div className="flex justify-end gap-2 p-5">
             <BrandButton
               type="button"
-              variant="secondary"
+              variant={recoveryMode ? "primary" : "secondary"}
               onClick={() => setShowAddForm(true)}
               testId="manage-backends-add"
               startContent={<Plus width={14} height={14} />}
             >
               {t(I18nKey.BACKEND$ADD)}
             </BrandButton>
-            <BrandButton
-              type="button"
-              variant="primary"
-              onClick={onClose}
-              testId="manage-backends-done"
-            >
-              {t(I18nKey.HOME$DONE)}
-            </BrandButton>
+            {recoveryMode ? null : (
+              <BrandButton
+                type="button"
+                variant="primary"
+                onClick={onClose}
+                testId="manage-backends-done"
+              >
+                {t(I18nKey.HOME$DONE)}
+              </BrandButton>
+            )}
           </div>
         </div>
       </ModalBackdrop>

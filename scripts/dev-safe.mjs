@@ -25,6 +25,7 @@ import {
 // Docker entrypoint can run it as a CLI. Re-exported below for back-compat
 // (dev-with-automation.mjs and tests still import it from here).
 import { buildRuntimeServicesInfo } from "./runtime-services-info.mjs";
+import { fileLog, stripAnsi } from "./logger.mjs";
 
 // ── Centralized config (single source of truth for versions, ports, etc.) ───
 const __dev_safe_dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -34,32 +35,6 @@ const SHARED_DEFAULTS = JSON.parse(
     "utf-8",
   ),
 );
-
-/**
- * Extract the pinned commit SHA for @openhands/extensions from package.json.
- * Returns the 40-char hex SHA when the dependency is a git+https URL with a
- * commit hash fragment (e.g. "git+https://…#62594156…"), null otherwise.
- * @returns {string | null}
- */
-function getExtensionsRef() {
-  try {
-    const pkg = JSON.parse(
-      readFileSync(
-        path.join(__dev_safe_dirname, "..", "package.json"),
-        "utf-8",
-      ),
-    );
-    const url =
-      (pkg.dependencies ?? pkg.devDependencies ?? {})["@openhands/extensions"] ??
-      "";
-    return url.match(/#([0-9a-f]{40})$/i)?.[1] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-/** Pinned extensions commit SHA derived from package.json, or null if not pinned. */
-export const DEFAULT_EXTENSIONS_REF = getExtensionsRef();
 
 const DEFAULT_BACKEND_PORT = SHARED_DEFAULTS.ports.agentServer;
 const DEFAULT_VITE_PORT = 3001;
@@ -419,7 +394,7 @@ export function validateFrontendDependencies(
  *   edits are picked up without a manual reinstall. The agent-server itself
  *   is rebuilt from local source on each invocation (--reinstall).
  * - OH_AGENT_SERVER_GIT_REF: Git commit SHA or branch name
- * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.25.0")
+ * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.28.1")
  *
  * If none are set, defaults to the released version specified by
  * DEFAULT_AGENT_SERVER_VERSION. Set OH_AGENT_SERVER_GIT_REF to use a
@@ -462,7 +437,7 @@ export function buildAgentServerCommand(env = process.env) {
     // All four must come from the same ref so inter-package APIs stay in sync.
     //
     // --reinstall is required because the git branch may carry the same version
-    // string as the current PyPI release (e.g. both "1.25.0"). Without it, uv
+    // string as the current PyPI release (e.g. both "1.26.0"). Without it, uv
     // silently reuses the cached PyPI wheels and the git ref is never actually
     // used, even though it was explicitly requested.
     const baseGitUrl = `git+${AGENT_SERVER_GIT_REPO}@${gitRef}`;
@@ -736,13 +711,6 @@ export function buildAgentServerEnv(config) {
     // Make the host tools/ directory importable so the agent-server can
     // resolve modules listed in tool_module_qualnames (e.g. canvas_ui_tool).
     OH_EXTRA_PYTHON_PATH: config.canvasToolsDir,
-    // Tell the agent-server which extensions commit to use for the public
-    // skills catalog. Derived from the @openhands/extensions pin in
-    // package.json; the SDK skips network polling when it already has this
-    // SHA cached. Only injected when the caller has not already set it.
-    ...(DEFAULT_EXTENSIONS_REF && !process.env.EXTENSIONS_REF
-      ? { EXTENSIONS_REF: DEFAULT_EXTENSIONS_REF }
-      : {}),
   };
 }
 
@@ -834,13 +802,16 @@ function spawnProcess(command, args, options = {}) {
 
   child.once("error", (error) => {
     if (isEnoentError(error) && command === "uvx") {
-      console.error(formatMissingUvxGuidance(options?.cwd));
+      const msg = formatMissingUvxGuidance(options?.cwd);
+      console.error(msg);
+      fileLog("error", stripAnsi(msg));
     } else if (isEnoentError(error)) {
-      console.error(
-        `Failed to start ${command}. Make sure it is installed and on your PATH.`,
-      );
+      const msg = `Failed to start ${command}. Make sure it is installed and on your PATH.`;
+      console.error(msg);
+      fileLog("error", msg);
     } else {
       console.error(`Failed to start ${command}:`, error);
+      fileLog("error", `Failed to start ${command}: ${error.message}`);
     }
   });
 
@@ -849,9 +820,12 @@ function spawnProcess(command, args, options = {}) {
 
 async function main() {
   console.log("Starting isolated agent-server + frontend dev stack...");
+  fileLog("info", "Starting isolated agent-server + frontend dev stack...");
   validateFrontendDependencies();
   console.log("Frontend dependencies found.");
+  fileLog("info", "Frontend dependencies found.");
   console.log("Allocating ports...");
+  fileLog("info", "Allocating ports...");
 
   // Use async config builder with dynamic port allocation
   const config = await buildSafeDevConfigAsync();
@@ -890,6 +864,16 @@ async function main() {
   console.log(`- secret key: ${secretKeySource}`);
   console.log(`- session API key: ${sessionKeySource}`);
   console.log("");
+  fileLog(
+    "info",
+    [
+      "Agent-server stack config:",
+      `  agent-server: ${agentServerCmd.source}`,
+      `  backend:      ${config.backendBaseUrl}`,
+      `  working dir:  ${config.workingDir}`,
+      `  state dir:    ${config.stateDir}`,
+    ].join("\n"),
+  );
 
   const backend = spawnProcess(
     agentServerCmd.command,
@@ -990,7 +974,9 @@ async function main() {
 
   backend.once("exit", (code) => {
     if (!shuttingDown) {
-      console.error(`agent-server exited unexpectedly with code ${code ?? 0}`);
+      const msg = `agent-server exited unexpectedly with code ${code ?? 0}`;
+      console.error(msg);
+      fileLog("error", msg);
       shutdown();
       process.exitCode = code ?? 1;
     }
@@ -1077,7 +1063,12 @@ if (
   import.meta.url === pathToFileURL(process.argv[1]).href
 ) {
   main().catch((error) => {
-    console.error(error instanceof Error ? error.message : error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(msg);
+    fileLog("error", `Fatal error: ${msg}`);
+    if (error instanceof Error && error.stack) {
+      fileLog("error", error.stack);
+    }
     process.exit(1);
   });
 }

@@ -6,7 +6,7 @@ import {
   __resetActiveStoreForTests,
   NO_BACKEND_ID,
 } from "#/api/backend-registry/active-store";
-import { DEFAULT_LOCAL_BACKEND_ID } from "#/api/backend-registry/default-backend";
+import { SEEDED_DEFAULT_BACKEND_ID } from "#/api/backend-registry/default-backend";
 import { MAX_CONSECUTIVE_FAILURES } from "#/api/backend-registry/health-storage";
 import {
   __resetHealthStoreForTests,
@@ -50,10 +50,10 @@ describe("ActiveBackendProvider", () => {
       wrapper: makeWrapper(),
     });
 
-    expect(result.current.active.backend.id).toBe(DEFAULT_LOCAL_BACKEND_ID);
+    expect(result.current.active.backend.id).toBe(SEEDED_DEFAULT_BACKEND_ID);
     expect(result.current.backends).toHaveLength(1);
     expect(result.current.backends[0]).toMatchObject({
-      id: DEFAULT_LOCAL_BACKEND_ID,
+      id: SEEDED_DEFAULT_BACKEND_ID,
       kind: "local",
     });
   });
@@ -88,7 +88,7 @@ describe("ActiveBackendProvider", () => {
       wrapper: makeWrapper(),
     });
 
-    expect(result.current.active.backend.id).toBe(DEFAULT_LOCAL_BACKEND_ID);
+    expect(result.current.active.backend.id).toBe(SEEDED_DEFAULT_BACKEND_ID);
 
     let added: { id: string } | null = null;
     act(() => {
@@ -104,7 +104,7 @@ describe("ActiveBackendProvider", () => {
     // Previous backends remain in the registry.
     expect(result.current.backends).toHaveLength(2);
     expect(
-      result.current.backends.find((b) => b.id === DEFAULT_LOCAL_BACKEND_ID),
+      result.current.backends.find((b) => b.id === SEEDED_DEFAULT_BACKEND_ID),
     ).toBeDefined();
   });
 
@@ -163,9 +163,9 @@ describe("ActiveBackendProvider", () => {
     act(() => {
       result.current.removeBackend(id);
     });
-    expect(result.current.active.backend.id).toBe(DEFAULT_LOCAL_BACKEND_ID);
+    expect(result.current.active.backend.id).toBe(SEEDED_DEFAULT_BACKEND_ID);
     expect(result.current.backends).toHaveLength(1);
-    expect(result.current.backends[0].id).toBe(DEFAULT_LOCAL_BACKEND_ID);
+    expect(result.current.backends[0].id).toBe(SEEDED_DEFAULT_BACKEND_ID);
   });
 
   // @spec BM-003 — Fallback on active backend removal
@@ -177,7 +177,7 @@ describe("ActiveBackendProvider", () => {
     expect(result.current.backends).toHaveLength(1);
 
     act(() => {
-      result.current.removeBackend(DEFAULT_LOCAL_BACKEND_ID);
+      result.current.removeBackend(SEEDED_DEFAULT_BACKEND_ID);
     });
 
     expect(result.current.backends).toEqual([]);

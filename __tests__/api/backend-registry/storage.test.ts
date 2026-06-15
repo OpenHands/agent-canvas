@@ -11,6 +11,7 @@ import type { Backend } from "#/api/backend-registry/types";
 
 afterEach(() => {
   window.localStorage.clear();
+  window.sessionStorage.clear();
   vi.unstubAllEnvs();
 });
 
@@ -66,32 +67,6 @@ describe("backend-registry storage", () => {
     });
     expect(window.localStorage.getItem(BACKENDS_STORAGE_KEY)).not.toBeNull();
     expect(readStoredBackends()).toEqual(result);
-  });
-
-  it("migrates legacy agent-server config into the backend registry on first read", () => {
-    window.localStorage.setItem(
-      "openhands-agent-server-config",
-      JSON.stringify({
-        baseUrl: "localhost:18000/",
-        sessionApiKey: "legacy-session-key",
-      }),
-    );
-
-    const result = readStoredBackends();
-
-    expect(result).toEqual([
-      {
-        id: "default-local",
-        name: "Local",
-        host: "http://localhost:18000",
-        apiKey: "legacy-session-key",
-        kind: "local",
-      },
-    ]);
-    expect(window.localStorage.getItem(BACKENDS_STORAGE_KEY)).not.toBeNull();
-    expect(
-      window.localStorage.getItem("openhands-agent-server-config"),
-    ).toBeNull();
   });
 
   it("re-seeds the default Local backend when storage holds an empty array and launcher details are available", () => {
@@ -253,10 +228,41 @@ describe("backend-registry storage", () => {
     });
   });
 
+  it("prefers the tab-scoped active selection over the global fallback", () => {
+    window.localStorage.setItem(
+      ACTIVE_BACKEND_STORAGE_KEY,
+      JSON.stringify({ backendId: "global-backend", orgId: null }),
+    );
+    window.sessionStorage.setItem(
+      ACTIVE_BACKEND_STORAGE_KEY,
+      JSON.stringify({ backendId: "tab-backend", orgId: "org-1" }),
+    );
+
+    expect(readStoredActiveBackend()).toEqual({
+      backendId: "tab-backend",
+      orgId: "org-1",
+    });
+  });
+
+  it("falls back to the global active selection for new tabs", () => {
+    window.localStorage.setItem(
+      ACTIVE_BACKEND_STORAGE_KEY,
+      JSON.stringify({ backendId: "global-backend", orgId: null }),
+    );
+
+    expect(readStoredActiveBackend()).toEqual({
+      backendId: "global-backend",
+      orgId: null,
+    });
+  });
+
   it("clears storage when active selection is set to null", () => {
     writeStoredActiveBackend({ backendId: "xyz", orgId: "o" });
     writeStoredActiveBackend(null);
 
+    expect(
+      window.sessionStorage.getItem(ACTIVE_BACKEND_STORAGE_KEY),
+    ).toBeNull();
     expect(window.localStorage.getItem(ACTIVE_BACKEND_STORAGE_KEY)).toBeNull();
     expect(readStoredActiveBackend()).toBeNull();
   });

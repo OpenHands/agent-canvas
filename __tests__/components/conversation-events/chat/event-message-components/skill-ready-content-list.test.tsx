@@ -2,6 +2,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect } from "vitest";
 import { renderWithProviders } from "test-utils";
+import { I18nKey } from "#/i18n/declaration";
 import { SkillReadyContentList } from "#/components/conversation-events/chat/event-message-components/skill-ready-content-list";
 import { SkillReadyItem } from "#/components/conversation-events/chat/event-content-helpers/create-skill-ready-event";
 
@@ -28,6 +29,24 @@ describe("SkillReadyContentList", () => {
     expect(
       screen.getByText("SKILLS$TRIGGERED_SKILL_KNOWLEDGE"),
     ).toBeInTheDocument();
+  });
+
+  it("renders a custom header label when titleKey is provided", () => {
+    const items = makeItems(["docker", "content"]);
+
+    renderWithProviders(
+      <SkillReadyContentList
+        items={items}
+        titleKey={I18nKey.SKILLS$INVOKED_SKILL_KNOWLEDGE}
+      />,
+    );
+
+    expect(
+      screen.getByText("SKILLS$INVOKED_SKILL_KNOWLEDGE"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("SKILLS$TRIGGERED_SKILL_KNOWLEDGE"),
+    ).not.toBeInTheDocument();
   });
 
   it("does not show content before clicking", () => {

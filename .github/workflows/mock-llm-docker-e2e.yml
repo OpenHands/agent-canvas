@@ -6,10 +6,12 @@ name: Mock-LLM Docker E2E Tests
 # Trigger chain:
 #   1. workflow_run — fires automatically after the "Docker" workflow
 #      completes on main. The image is already built/pushed to GHCR.
-#   2. pull_request — fires on PRs with the 'e2e-tests' label. Waits for
-#      the Docker workflow to finish, then pulls the image from GHCR.
-#      (workflow_run doesn't fire for new workflow files until they're on
-#      the default branch, so pull_request is needed for first-run PRs.)
+#   2. pull_request — fires on every PR commit so required checks are never
+#      left pending by path filters. A lightweight detector skips the heavy
+#      Docker E2E job for docs-only/non-stack PRs. Fork PRs are skipped
+#      (no GHCR push). (workflow_run doesn't fire for new workflow files
+#      until they're on the default branch, so pull_request is needed for
+#      first-run PRs.)
 #   3. workflow_dispatch — manual trigger with a custom image tag.
 
 on:
@@ -17,11 +19,11 @@ on:
     workflows: ["Docker"]
     types: [completed]
   pull_request:
-    types: [opened, synchronize, reopened, labeled]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
       docker_image:
-        description: 'Docker image to test (e.g., ghcr.io/openhands/agent-canvas:sha-abc1234-amd64)'
+        description: "Docker image to test (e.g., ghcr.io/openhands/agent-canvas:sha-abc1234-amd64)"
         type: string
         default: ""
 
@@ -46,24 +48,58 @@ permissions:
   actions: read
 
 jobs:
+  detect-pr-changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      should_run: ${{ steps.detect.outputs.should_run }}
+    steps:
+      - name: Detect PR changes relevant to Docker E2E
+        id: detect
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CHANGED_FILES=$(gh api \
+            "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --paginate --jq '.[].filename')
+
+          SHOULD_RUN=false
+          while IFS= read -r file; do
+            case "$file" in
+              src/*|public/*|scripts/*|bin/*|config/*|docker/*|tests/e2e/mock-llm/*|tests/e2e/support/*|package.json|package-lock.json|vite.config.ts|tsconfig.json|react-router.config.ts|playwright.mock-llm.config.ts|playwright.mock-llm-docker.config.ts|tailwind.config.js|hero.ts|.github/workflows/mock-llm-docker-e2e.yml)
+                SHOULD_RUN=true
+                break
+                ;;
+            esac
+          done <<< "$CHANGED_FILES"
+
+          echo "should_run=$SHOULD_RUN" >> "$GITHUB_OUTPUT"
+
   mock-llm-docker-e2e:
+    needs: detect-pr-changes
     # workflow_run: only for main/master — validates the published image.
     #   PR branches are already covered by the pull_request trigger below;
-    #   without this guard, both triggers fire for e2e-tests PRs, producing
+    #   without this guard, both triggers fire for PRs, producing
     #   duplicate (and potentially contradictory) comment pairs.
-    # pull_request: only run with the 'e2e-tests' label, skip fork PRs (no GHCR push).
+    # pull_request: skip fork PRs (no GHCR push).
     # workflow_dispatch: always run.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       (github.event.workflow_run.head_branch == 'main' ||
-        github.event.workflow_run.head_branch == 'master')) ||
-      (github.event_name == 'pull_request' &&
-       contains(github.event.pull_request.labels.*.name, 'e2e-tests') &&
-       !github.event.pull_request.head.repo.fork)
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        (github.event.workflow_run.head_branch == 'main' ||
+         github.event.workflow_run.head_branch == 'master')) ||
+       (github.event_name == 'pull_request' &&
+        !github.event.pull_request.head.repo.fork)) &&
+      (github.event_name != 'pull_request' ||
+       needs.detect-pr-changes.outputs.should_run == 'true')
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Give the 20-minute Playwright test budget enough room for setup and reporting.
+    timeout-minutes: 25
 
     env:
       MOCK_LLM_REPORT_PATH: mock-llm-docker-report.md
@@ -242,12 +278,20 @@ jobs:
             -d '{"model":"test","messages":[]}' | python3 -m json.tool
           kill $SERVER_PID
 
+      # ── Build frontend (needed by partial-stack tests) ─────────────────
+      # partial-stack tests spawn bin/agent-canvas.mjs directly (not through
+      # Docker) and require build/index.html to exist locally. The regular
+      # mock-llm-e2e workflow builds before running; we do the same here.
+      - name: Build frontend (for partial-stack tests)
+        run: npm run build:app
+
       # ── Run tests ──────────────────────────────────────────────────────
       - name: Run mock-LLM Docker E2E tests
         id: run_tests
         env:
           MOCK_LLM_PYTHON: .mock-llm-venv/bin/python3
           MOCK_LLM_DOCKER_IMAGE: ${{ steps.image.outputs.tag }}
+          MOCK_LLM_DOCKER_GLOBAL_TIMEOUT_MS: 1200000
         run: |
           set +e
           MARKER_DIR=".mock-llm-markers"
@@ -260,8 +304,11 @@ jobs:
           npm run test:e2e:mock-llm:docker &
           PW_PID=$!
 
-          # Wait up to 5 min for tests to complete.
-          deadline=$((SECONDS + 300))
+          # Wait for tests to complete. Playwright's globalTimeout is 20 min
+          # in CI; add 60s buffer for container startup/teardown.
+          # .results.json is flushed after every single test, so even if we
+          # hit the deadline mid-suite the report script still has data.
+          deadline=$((SECONDS + (MOCK_LLM_DOCKER_GLOBAL_TIMEOUT_MS / 1000) + 60))
           while [ "$SECONDS" -lt "$deadline" ]; do
             if ! kill -0 "$PW_PID" 2>/dev/null; then
               break
@@ -273,12 +320,16 @@ jobs:
             sleep 2
           done
 
-          # If Playwright is still running (teardown hang), give it 5s
-          # grace then force-kill.
+          # If Playwright is still running (teardown hang or deadline hit),
+          # give it 5s grace then force-kill.
           if kill -0 "$PW_PID" 2>/dev/null; then
             sleep 5
             if kill -0 "$PW_PID" 2>/dev/null; then
-              echo "::warning::Killing lingering Playwright process (teardown hung)"
+              if [ -f "$DONE_MARKER" ]; then
+                echo "::warning::Killing lingering Playwright process (teardown hung)"
+              else
+                echo "::warning::Killing Playwright process (deadline reached, tests still running)"
+              fi
               kill "$PW_PID" 2>/dev/null
               sleep 5
               kill -9 "$PW_PID" 2>/dev/null
@@ -318,6 +369,21 @@ jobs:
             playwright-report-mock-llm-docker/
             test-results-mock-llm-docker/
 
+      - name: Detect newly added spec files
+        if: always() && github.event.pull_request.number
+        id: new_specs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          # Find mock-LLM spec files added (not just modified) in this PR
+          NEW_FILES=$(gh api \
+            "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --paginate \
+            --jq '[.[] | select(.status == "added") | .filename
+                   | select(test("tests/e2e/mock-llm/.*\\.spec\\.ts$"))]
+                   | join(",")')
+          echo "files=$NEW_FILES" >> "$GITHUB_OUTPUT"
+
       - name: Render test report
         if: always()
         run: |
@@ -327,7 +393,9 @@ jobs:
             --workflow-url "$MOCK_LLM_WORKFLOW_URL" \
             --commit "${{ steps.ctx.outputs.sha }}" \
             --artifact-url "${{ steps.upload_artifacts.outputs.artifact-url || '' }}" \
-            --title "Mock-LLM Docker E2E Test Results"
+            --title "Mock-LLM Docker E2E Test Results" \
+            --exit-code "${{ steps.run_tests.outputs.exit_code }}" \
+            --new-files "${{ steps.new_specs.outputs.files || '' }}"
           cat "$MOCK_LLM_REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Post PR comment

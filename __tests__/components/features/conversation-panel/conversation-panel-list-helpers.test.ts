@@ -246,21 +246,16 @@ describe("conversation-panel-list-helpers", () => {
       expanded: false,
       activeConversationId: "c-5",
     });
-    expect(withActiveBeyondPreview.visibleConversations.map((c) => c.id)).toEqual([
-      "c-0",
-      "c-1",
-      "c-2",
-      "c-3",
-      "c-5",
-    ]);
+    expect(
+      withActiveBeyondPreview.visibleConversations.map((c) => c.id),
+    ).toEqual(["c-0", "c-1", "c-2", "c-3", "c-5"]);
     expect(GROUP_CONVERSATIONS_PREVIEW_LIMIT).toBe(5);
   });
 
   it("groups local conversations by selected_workspace, collapsing per-conversation worktree paths", () => {
-    // Two conversations launched against the same workspace but with
-    // different per-conversation worktree dirs (the agent-server runs
-    // with worktree: true). They must end up in a single group keyed
-    // off the user-selected workspace, not split by the worktree dir.
+    // Two worktree-mode conversations launched against the same workspace must
+    // end up in a single group keyed off the user-selected workspace, not split
+    // by the runtime worktree dir.
     const sameWsA: AppConversation = {
       ...base,
       id: "1",

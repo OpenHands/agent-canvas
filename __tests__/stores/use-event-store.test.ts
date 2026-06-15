@@ -7,6 +7,7 @@ import {
   ObservationEvent,
   SecurityRisk,
 } from "#/types/agent-server/core";
+import { StreamingDeltaEvent } from "#/types/agent-server/core/events/streaming-delta-event";
 
 const mockUserMessageEvent: MessageEvent = {
   id: "test-event-1",
@@ -74,6 +75,24 @@ const mockObservationEvent: ObservationEvent = {
   action_id: "test-action-1",
 };
 
+const makeStreamingDeltaEvent = (
+  id: string,
+  content: string,
+): StreamingDeltaEvent => ({
+  id,
+  timestamp: `2024-03-01T00:00:0${id.at(-1) ?? "0"}Z`,
+  source: "agent",
+  kind: "StreamingDeltaEvent",
+  content,
+  reasoning_content: null,
+});
+
+const makeUserMessageEvent = (id: string, timestamp: string): MessageEvent => ({
+  ...mockUserMessageEvent,
+  id,
+  timestamp,
+});
+
 describe("useEventStore", () => {
   it("should render initial state correctly", () => {
     const { result } = renderHook(() => useEventStore());
@@ -108,21 +127,9 @@ describe("useEventStore", () => {
   it("should bulk-add events and sort them chronologically", () => {
     const { result } = renderHook(() => useEventStore());
 
-    const newest = {
-      id: "evt-newest",
-      timestamp: "2024-03-01T00:00:00Z",
-      source: "user",
-    } as any;
-    const middle = {
-      id: "evt-middle",
-      timestamp: "2024-02-01T00:00:00Z",
-      source: "user",
-    } as any;
-    const oldest = {
-      id: "evt-oldest",
-      timestamp: "2024-01-01T00:00:00Z",
-      source: "user",
-    } as any;
+    const newest = makeUserMessageEvent("evt-newest", "2024-03-01T00:00:00Z");
+    const middle = makeUserMessageEvent("evt-middle", "2024-02-01T00:00:00Z");
+    const oldest = makeUserMessageEvent("evt-oldest", "2024-01-01T00:00:00Z");
 
     // Seed with the newest event, then bulk-prepend older ones (the
     // pagination-on-scroll case). The store should re-sort chronologically.
@@ -131,7 +138,7 @@ describe("useEventStore", () => {
       result.current.addEvents([oldest, middle]);
     });
 
-    expect(result.current.events.map((e) => (e as any).id)).toEqual([
+    expect(result.current.events.map((event) => event.id)).toEqual([
       "evt-oldest",
       "evt-middle",
       "evt-newest",
@@ -147,6 +154,50 @@ describe("useEventStore", () => {
     });
 
     expect(result.current.events).toHaveLength(2);
+  });
+
+  it("should compact consecutive streaming deltas in the raw event store", () => {
+    const { result } = renderHook(() => useEventStore());
+    const first = makeStreamingDeltaEvent("delta-1", "hello ");
+    const second = makeStreamingDeltaEvent("delta-2", "world");
+
+    act(() => {
+      result.current.addEvent(first);
+      result.current.addEvent(second);
+    });
+
+    expect(result.current.events).toEqual([
+      {
+        ...first,
+        content: "hello world",
+      },
+    ]);
+    expect(result.current.uiEvents).toEqual([
+      {
+        ...first,
+        content: "hello world",
+      },
+    ]);
+    expect(result.current.eventIds.has("delta-1")).toBe(true);
+    expect(result.current.eventIds.has("delta-2")).toBe(true);
+  });
+
+  it("should compact streaming deltas during bulk add", () => {
+    const { result } = renderHook(() => useEventStore());
+    const first = makeStreamingDeltaEvent("delta-1", "hello ");
+    const second = makeStreamingDeltaEvent("delta-2", "world");
+
+    act(() => {
+      result.current.addEvents([first, second]);
+    });
+
+    expect(result.current.events).toHaveLength(1);
+    expect(result.current.events[0]).toMatchObject({
+      id: "delta-1",
+      content: "hello world",
+    });
+    expect(result.current.eventIds.has("delta-1")).toBe(true);
+    expect(result.current.eventIds.has("delta-2")).toBe(true);
   });
 
   it("should apply action-to-observation UI replacement during bulk add", () => {

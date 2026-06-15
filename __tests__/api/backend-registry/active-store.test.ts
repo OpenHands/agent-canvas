@@ -8,16 +8,18 @@ import {
   setRegisteredBackends,
   subscribeActiveBackend,
 } from "#/api/backend-registry/active-store";
-import { DEFAULT_LOCAL_BACKEND_ID } from "#/api/backend-registry/default-backend";
+import { SEEDED_DEFAULT_BACKEND_ID } from "#/api/backend-registry/default-backend";
 import type { Backend } from "#/api/backend-registry/types";
 
 beforeEach(() => {
   window.localStorage.clear();
+  window.sessionStorage.clear();
   __resetActiveStoreForTests();
 });
 
 afterEach(() => {
   window.localStorage.clear();
+  window.sessionStorage.clear();
   vi.unstubAllEnvs();
   __resetActiveStoreForTests();
 });
@@ -41,6 +43,7 @@ const localBackend: Backend = {
 describe("active-store", () => {
   it("uses the no-backend sentinel when no backend details are available", () => {
     window.localStorage.clear();
+    window.sessionStorage.clear();
     vi.stubEnv("VITE_SESSION_API_KEY", "");
     __resetActiveStoreForTests();
 
@@ -55,7 +58,7 @@ describe("active-store", () => {
     __resetActiveStoreForTests();
 
     const { backend, orgId } = getActiveBackend();
-    expect(backend.id).toBe(DEFAULT_LOCAL_BACKEND_ID);
+    expect(backend.id).toBe(SEEDED_DEFAULT_BACKEND_ID);
     expect(backend.kind).toBe("local");
     expect(orgId).toBeNull();
   });

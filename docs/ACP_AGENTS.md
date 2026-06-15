@@ -100,15 +100,26 @@ First-time users get a four-step onboarding modal. To onboard an ACP agent:
 1. **Choose agent** — pick Claude Code, Codex, or Gemini CLI instead of
    OpenHands. The choice is saved immediately to your backend's settings.
 2. **Check backend** — confirms Agent Canvas can reach the Agent Server.
-3. **Set up credentials** — enter the provider's API key (and, optionally, a
-   custom base URL for a proxy or gateway). All three providers — Claude Code,
-   Codex, and Gemini CLI — collect these here, and every field is optional.
+3. **Set up credentials** — enter the provider's credentials. Beyond the API
+   key (+ optional base URL), this step also collects the credentials a
+   *containerized* backend needs, since a fresh container has no host login:
+   - **Codex** — `CODEX_AUTH_JSON` (the contents of `~/.codex/auth.json`).
+   - **Claude Code** — `CLAUDE_CODE_OAUTH_TOKEN` (a Pro/Max OAuth token).
+   - **Gemini CLI** — `GOOGLE_APPLICATION_CREDENTIALS_JSON` (Vertex SA / ADC JSON)
+     plus `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, and
+     `GOOGLE_GENAI_USE_VERTEXAI`.
+
+   On a **local** backend the step is optional (a host login is reused
+   automatically); on a **Docker / cloud** backend it's **required**, because
+   there's no host login to fall back on. When the login probe detects an
+   existing session, the step shows a "you're already signed in" banner and
+   stays skippable.
 4. **Say hello** — creates your first conversation and closes the modal.
 
 > [!NOTE]
-> Every credential field is optional and the step is skippable. Leave a field
-> blank to reuse a key already set on the backend, or to authenticate the agent
-> through a subscription / OAuth login instead.
+> On a local backend every credential field is optional and the step is
+> skippable. Leave a field blank to reuse a key already set on the backend, or to
+> authenticate the agent through a subscription / OAuth login instead.
 
 ### How credentials reach the agent
 
@@ -118,6 +129,87 @@ the environment variable the Agent Server exports into the ACP subprocess (e.g.
 under **Settings → Secrets**, where you can edit or remove it anytime. Keeping
 the secret name equal to the env var is what makes a saved key actually reach the
 provider CLI.
+
+## Running ACP agents in a Docker container
+
+The walkthrough above assumes the Agent Server runs on your own machine, where
+the provider CLIs reuse a host login. You can also run the Agent Server **in a
+container** — Canvas drives it the same way, but since a fresh container has no
+host login, you supply credentials through the UI and Canvas sends them inline
+on the conversation start request.
+
+A ready-to-run setup lives in
+[`examples/acp-docker/`](../examples/acp-docker/) (`docker compose up`, then
+point Canvas at it). In short:
+
+```bash
+# 1. Agent Server in a container (CORS allows localhost, so the browser talks
+#    to it directly). The image pre-installs the ACP CLI wrappers. The
+#    canvas_ui tool is mounted so the agent-server can import the module Canvas
+#    references in every start request.
+# Minimum image: 1.28.0-python (first compatible ACP provider/model protocol
+# surface for current Canvas). Override SHA with a newer build.
+docker run -d --name oh-acp -p 8010:8000 -v acp-data:/workspace \
+  -v "$(pwd)/tools:/canvas-tools:ro" -e OH_EXTRA_PYTHON_PATH=/canvas-tools \
+  ghcr.io/openhands/agent-server:1.28.0-python
+
+# 2. Canvas pointed at the container.
+VITE_BACKEND_BASE_URL=http://localhost:8010 npm run dev:frontend
+```
+
+### How credentials reach a containerized agent
+
+In onboarding's **Set up credentials** step, the credentials you enter are saved
+as global secrets in the agent-server's secret store (as usual). The start
+request then references each as a **`LookupSecret`** — uniformly for ACP and
+non-ACP — and the agent-server resolves the value back from its own store at
+spawn time. For ACP this resolution runs **off the event loop**
+(software-agent-sdk#3510), so the loopback fetch does not self-deadlock. The
+SDK's `acp_file_secrets` defaults then:
+
+- materialise `CODEX_AUTH_JSON` back to `auth.json` under `CODEX_HOME` and point
+  Codex at it;
+- materialise `GOOGLE_APPLICATION_CREDENTIALS_JSON` to a file referenced by
+  `GOOGLE_APPLICATION_CREDENTIALS` and route Gemini through Vertex AI;
+- export the rest (`CLAUDE_CODE_OAUTH_TOKEN`, project/location, API keys) as env
+  vars for the CLI.
+
+Canvas just sends the secrets — it does **not** hand-roll the file
+materialisation. The `npx -y <pkg>` command is rewritten to the pinned
+pre-installed binary inside the container by the SDK, so no command change is
+needed.
+
+> [!IMPORTANT]
+> **Do not set `ANTHROPIC_BASE_URL` alongside the Claude OAuth token.** An
+> inherited LiteLLM base URL silently breaks the token's bearer auth (it routes
+> the request away from Anthropic). Canvas never derives a base-URL secret from
+> your LLM settings — but a base URL you save yourself rides along on every
+> start request like any other saved secret, which is why the credential forms
+> warn when both are set. Only set it deliberately, and not with the OAuth path.
+
+> [!IMPORTANT]
+> **Gemini Vertex needs a fresh ADC.** Run `gcloud auth application-default login`
+> before copying `~/.config/gcloud/application_default_credentials.json` — a stale
+> token surfaces as `invalid_rapt`, which is a credential problem, not a Canvas
+> bug.
+
+> [!NOTE]
+> **Pick a non-flash Gemini model.** gemini-cli 0.45.x re-resolves any `*-flash`
+> model id at generation time to its *current default* flash (e.g.
+> `gemini-2.5-flash` silently ran `gemini-3-flash`, which 404s on projects that
+> don't serve it — software-agent-sdk#3532). Only a non-flash id sticks, so
+> Canvas preselects `gemini-2.5-pro`. If a Gemini turn fails with
+> `Publisher Model … was not found`, check the selected model isn't a flash id.
+
+### Per-conversation isolation
+
+Concurrent same-provider conversations in one container share a HOME, so they can
+race on the CLI's auth/config/lock files. The SDK supports opting into a
+per-conversation data dir (`acp_isolate_data_dir`, software-agent-sdk#3492), but
+the released `@openhands/typescript-client` does not yet expose it on
+`ACPAgentSettings`, so Canvas can't send it without risking a validation error on
+older servers. This is tracked as a follow-up (agent-canvas#1019); cloud
+grouping isolation is separate (agent-canvas#1016).
 
 ## Switching agent or model later
 

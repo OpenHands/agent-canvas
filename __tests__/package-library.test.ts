@@ -53,11 +53,18 @@ describe("package library metadata", () => {
 
   // Git dependencies break `npm install -g` because npm clones the repo and
   // runs the prepare script without devDependencies. All packages should be
-  // referenced from a registry; only @openhands/extensions is allowed as a git
-  // dep until it is published to npm.
-  it("does not use git dependencies (except @openhands/extensions)", () => {
-    const GIT_DEP_PATTERN = /^(git[+:]|github:|bitbucket:|gitlab:|[a-zA-Z0-9_-]+\/)/;
-    const ALLOWED_GIT_DEPS = new Set(["@openhands/extensions"]);
+  // referenced from a registry. @openhands/extensions is allowed until it is
+  // published to npm; @openhands/typescript-client is temporarily allowed while
+  // this stacked PR waits for the subscription client branch to merge/release.
+  // TODO(#917): remove @openhands/typescript-client exemption once
+  // OpenHands/typescript-client#178 merges and publishes to npm.
+  it("does not use git dependencies except approved stack pins", () => {
+    const GIT_DEP_PATTERN =
+      /^(git[+:]|github:|bitbucket:|gitlab:|[a-zA-Z0-9_-]+\/)/;
+    const ALLOWED_GIT_DEPS = new Set([
+      "@openhands/extensions",
+      "@openhands/typescript-client",
+    ]);
 
     const allDeps = {
       ...packageJson.dependencies,
@@ -72,6 +79,17 @@ describe("package library metadata", () => {
       .map(([name, version]) => `${name}: ${version}`);
 
     expect(violations).toEqual([]);
+  });
+
+  it("ships runtime logger dependencies for the published CLI", () => {
+    expect(packageJson.dependencies).toMatchObject({
+      winston: "^3.19.0",
+      "winston-daily-rotate-file": "^5.0.0",
+    });
+    expect(packageJson.devDependencies?.winston).toBeUndefined();
+    expect(
+      packageJson.devDependencies?.["winston-daily-rotate-file"],
+    ).toBeUndefined();
   });
 
   it("uses local dev commands without Docker", () => {

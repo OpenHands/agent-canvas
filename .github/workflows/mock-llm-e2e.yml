@@ -2,7 +2,7 @@ name: Mock-LLM E2E Tests
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 concurrency:
@@ -14,12 +14,40 @@ permissions:
   pull-requests: write
 
 jobs:
+  detect-pr-changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      should_run: ${{ steps.detect.outputs.should_run }}
+    steps:
+      - name: Detect PR changes relevant to mock-LLM E2E
+        id: detect
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CHANGED_FILES=$(gh api \
+            "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --paginate --jq '.[].filename')
+
+          SHOULD_RUN=false
+          while IFS= read -r file; do
+            case "$file" in
+              src/*|public/*|scripts/*|bin/*|config/*|tests/e2e/mock-llm/*|tests/e2e/support/*|package.json|package-lock.json|vite.config.ts|tsconfig.json|react-router.config.ts|playwright.mock-llm.config.ts|tailwind.config.js|hero.ts|.github/workflows/mock-llm-e2e.yml)
+                SHOULD_RUN=true
+                break
+                ;;
+            esac
+          done <<< "$CHANGED_FILES"
+
+          echo "should_run=$SHOULD_RUN" >> "$GITHUB_OUTPUT"
+
   mock-llm-e2e:
-    # Run when the PR has the 'e2e-tests' label, or on manual dispatch.
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' &&
-       contains(github.event.pull_request.labels.*.name, 'e2e-tests'))
+    needs: detect-pr-changes
+    if: github.event_name != 'pull_request' || needs.detect-pr-changes.outputs.should_run == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
 
@@ -111,10 +139,48 @@ jobs:
       - name: Build frontend (for agent-canvas binary)
         run: npm run build:app
 
+      - name: Resolve affected test directories
+        id: affected_tests
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          # Get changed files from the PR
+          CHANGED_FILES=$(gh api \
+            "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --paginate --jq '.[].filename' | tr '\n' ',')
+
+          # Resolve which test directories to run. If the resolver fails
+          # (for example malformed test-mapping.json), fail closed by
+          # running the full suite instead of treating stderr as test paths.
+          if ! RESULT=$(node tests/e2e/mock-llm/scripts/resolve-affected-tests.mjs \
+            --files "$CHANGED_FILES"); then
+            echo "::warning::Affected-test resolver failed — running full mock-LLM suite"
+            echo "test_paths=" >> "$GITHUB_OUTPUT"
+            echo "selective=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ -z "$RESULT" ]; then
+            echo "No affected test directories — running full suite as fallback"
+            echo "test_paths=" >> "$GITHUB_OUTPUT"
+            echo "selective=false" >> "$GITHUB_OUTPUT"
+          elif [ "$RESULT" = "__ALL__" ]; then
+            echo "Cross-cutting change detected — running full suite"
+            echo "test_paths=" >> "$GITHUB_OUTPUT"
+            echo "selective=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Running selective tests: $RESULT"
+            echo "test_paths=$RESULT" >> "$GITHUB_OUTPUT"
+            echo "selective=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run mock-LLM E2E tests
         id: run_tests
         env:
           MOCK_LLM_PYTHON: .mock-llm-venv/bin/python3
+          AFFECTED_TEST_PATHS: ${{ steps.affected_tests.outputs.test_paths }}
+          SELECTIVE_TESTS: ${{ steps.affected_tests.outputs.selective }}
         run: |
           set +e
           MARKER_DIR=".mock-llm-markers"
@@ -122,16 +188,27 @@ jobs:
           PASS_MARKER="$MARKER_DIR/.all-passed"
           rm -rf "$MARKER_DIR"
 
+          # Build the Playwright command — either selective or full suite.
+          # workflow_dispatch always runs the full suite (SELECTIVE_TESTS is empty).
+          if [ "$SELECTIVE_TESTS" = "true" ] && [ -n "$AFFECTED_TEST_PATHS" ]; then
+            echo "::notice::Running selective E2E tests: $AFFECTED_TEST_PATHS"
+            PW_CMD="npx playwright test --config=playwright.mock-llm.config.ts $AFFECTED_TEST_PATHS"
+          else
+            PW_CMD="npm run test:e2e:mock-llm"
+          fi
+
           # Run Playwright in background so our shell survives if we have
           # to kill it (the webServer teardown can hang indefinitely).
-          npm run test:e2e:mock-llm &
+          $PW_CMD &
           PW_PID=$!
 
-          # Wait up to 5 min for tests to complete. The custom reporter
-          # writes .tests-done (content: "passed" or "failed") in onEnd()
-          # — which fires BEFORE webServer teardown starts. This lets us
-          # detect completion immediately on both pass AND fail.
-          deadline=$((SECONDS + 300))
+          # Wait for tests to complete. Playwright's globalTimeout is 600s
+          # (10 min) in CI; we add 60s buffer for webServer startup/teardown.
+          # The custom DoneMarkerReporter writes .tests-done only after ALL
+          # tests finish (pass or fail), before webServer teardown begins.
+          # .results.json is flushed after every single test, so even if we
+          # hit the deadline mid-suite the report script still has data.
+          deadline=$((SECONDS + 660))
           while [ "$SECONDS" -lt "$deadline" ]; do
             if ! kill -0 "$PW_PID" 2>/dev/null; then
               break
@@ -143,15 +220,16 @@ jobs:
             sleep 2
           done
 
-          # If Playwright is still running (teardown hang), give it 5s
-          # grace then force-kill. The hang is expected: Playwright's
-          # webServer teardown waits for the multi-process agent-server
-          # tree (node → uvx → Python → uvicorn workers) to fully exit,
-          # which takes longer than our marker-based detection.
+          # If Playwright is still running (teardown hang or deadline hit),
+          # give it 5s grace then force-kill.
           if kill -0 "$PW_PID" 2>/dev/null; then
             sleep 5
             if kill -0 "$PW_PID" 2>/dev/null; then
-              echo "::warning::Killing lingering Playwright process (teardown hung)"
+              if [ -f "$DONE_MARKER" ]; then
+                echo "::warning::Killing lingering Playwright process (teardown hung)"
+              else
+                echo "::warning::Killing Playwright process (deadline reached, tests still running)"
+              fi
               kill "$PW_PID" 2>/dev/null
               sleep 5
               kill -9 "$PW_PID" 2>/dev/null
@@ -188,6 +266,22 @@ jobs:
             playwright-report-mock-llm/
             test-results-mock-llm/
 
+      - name: Detect newly added spec files
+        if: always() && github.event.pull_request.number
+        id: new_specs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          # Find mock-LLM spec files added (not just modified) in this PR
+          # Uses the GitHub API instead of git diff to avoid shallow-clone issues
+          NEW_FILES=$(gh api \
+            "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --paginate \
+            --jq '[.[] | select(.status == "added") | .filename
+                   | select(test("tests/e2e/mock-llm/.*\\.spec\\.ts$"))]
+                   | join(",")')
+          echo "files=$NEW_FILES" >> "$GITHUB_OUTPUT"
+
       - name: Render test report
         if: always()
         run: |
@@ -196,7 +290,9 @@ jobs:
             --output "$MOCK_LLM_REPORT_PATH" \
             --workflow-url "$MOCK_LLM_WORKFLOW_URL" \
             --commit "${{ github.event.pull_request.head.sha || github.sha }}" \
-            --artifact-url "${{ steps.upload_artifacts.outputs.artifact-url || '' }}"
+            --artifact-url "${{ steps.upload_artifacts.outputs.artifact-url || '' }}" \
+            --exit-code "${{ steps.run_tests.outputs.exit_code }}" \
+            --new-files "${{ steps.new_specs.outputs.files || '' }}"
           cat "$MOCK_LLM_REPORT_PATH" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Save PR number for comment workflow

@@ -1,4 +1,6 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
+import { I18nKey } from "#/i18n/declaration";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useSendMessage } from "#/hooks/use-send-message";
@@ -21,6 +23,7 @@ import { ChatMessage } from "./chat-message";
  * bubbles over.
  */
 export function PendingUserMessages() {
+  const { t } = useTranslation("openhands");
   const { conversationId } = useOptionalConversationId();
   const pendingMessages = useOptimisticUserMessageStore(
     (state) => state.pendingMessages,
@@ -72,11 +75,13 @@ export function PendingUserMessages() {
         );
       } catch (error) {
         const errorMessage =
-          error instanceof Error ? error.message : "Failed to send message";
+          error instanceof Error
+            ? error.message
+            : t(I18nKey.CHAT_INTERFACE$FAILED_TO_SEND_MESSAGE);
         markPendingMessageError(id, errorMessage);
       }
     },
-    [send, markPendingMessageError, markPendingMessageSending],
+    [send, markPendingMessageError, markPendingMessageSending, t],
   );
 
   const handleStop = React.useCallback(
