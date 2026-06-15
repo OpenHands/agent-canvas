@@ -490,10 +490,12 @@ describe("ConversationPanel", () => {
     expect(newCards).toHaveLength(3);
   });
 
-  it("keeps invalid timestamps recent and shows older conversations by default", async () => {
+  it("keeps invalid timestamps visible and shows all conversations when showRecentOnly is off", async () => {
     const now = Date.now();
     const minutesAgo = (minutes: number) =>
       new Date(now - minutes * 60 * 1000).toISOString();
+
+    useConversationPanelPreferencesStore.setState({ showRecentOnly: false });
 
     const user = userEvent.setup();
     const searchConversationsSpy = vi.spyOn(
@@ -574,7 +576,7 @@ describe("ConversationPanel", () => {
     useConversationPanelPreferencesStore.setState({
       conversationSort: "updated",
       organizeMode: "chronological",
-      showOlderConversations: true,
+      showRecentOnly: false,
     });
 
     vi.spyOn(
@@ -1228,12 +1230,13 @@ describe("ConversationPanel", () => {
     ).not.toBeInTheDocument();
   });
 
-  describe("older conversations cutoff", () => {
+  describe("show recent / all conversations filter", () => {
     const recentIso = () => new Date().toISOString();
     const olderIso = () =>
       new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
 
-    it("shows conversations older than 1h and includes a summary line", async () => {
+    it("hides old conversations by default (showRecentOnly=true) and shows all when toggled", async () => {
+      const user = userEvent.setup();
       vi.spyOn(
         AgentServerConversationService,
         "searchConversations",
@@ -1261,16 +1264,22 @@ describe("ConversationPanel", () => {
       renderConversationPanel();
 
       const cards = await screen.findAllByTestId("conversation-card");
-      expect(cards).toHaveLength(3);
+      expect(cards).toHaveLength(1);
       expect(screen.getByText("Recent")).toBeInTheDocument();
+      expect(screen.queryByText("Old 1")).not.toBeInTheDocument();
+
+      // Switch to "All conversations"
+      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
+      await user.click(
+        screen.getByRole("menuitemradio", {
+          name: /CONVERSATION_PANEL\$ALL_CONVERSATIONS/,
+        }),
+      );
+
+      const allCards = await screen.findAllByTestId("conversation-card");
+      expect(allCards).toHaveLength(3);
       expect(screen.getByText("Old 1")).toBeInTheDocument();
       expect(screen.getByText("Old 2")).toBeInTheDocument();
-
-      const summary = screen.getByTestId("older-conversations-summary");
-      expect(summary).toHaveTextContent("SIDEBAR$CONVERSATIONS");
-      expect(
-        within(summary).getByTestId("older-conversations-filter-toggle"),
-      ).toBeInTheDocument();
     });
 
     it("always renders the conversations header with the filter control", async () => {
@@ -1303,23 +1312,7 @@ describe("ConversationPanel", () => {
       ).toBeInTheDocument();
     });
 
-    it("shows icons on hide and delete-all filter menu actions", async () => {
-      const user = userEvent.setup();
-      renderConversationPanel();
-
-      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
-
-      const hideRow = await screen.findByTestId("toggle-older-conversations");
-      expect(hideRow.querySelector("svg")).toBeInTheDocument();
-      expect(hideRow).toHaveClass("group");
-
-      const deleteAllRow = screen.getByTestId("delete-all-conversations");
-      expect(deleteAllRow.querySelector("svg")).toBeInTheDocument();
-      expect(deleteAllRow).toHaveClass("text-[var(--oh-foreground)]");
-      expect(deleteAllRow).not.toHaveClass("text-danger");
-    });
-
-    it("toggles older conversations visibility via the filter dropdown", async () => {
+    it("switches between Recent and All conversations via the filter menu", async () => {
       const user = userEvent.setup();
       vi.spyOn(
         AgentServerConversationService,
@@ -1343,25 +1336,38 @@ describe("ConversationPanel", () => {
       renderConversationPanel();
 
       let cards = await screen.findAllByTestId("conversation-card");
-      expect(cards).toHaveLength(2);
+      expect(cards).toHaveLength(1);
 
+      // Switch to All conversations
       await user.click(screen.getByTestId("older-conversations-filter-toggle"));
-      let toggle = await screen.findByTestId("toggle-older-conversations");
-      expect(toggle).toHaveTextContent("CONVERSATION$HIDE");
-      await user.click(toggle);
+      await user.click(
+        screen.getByRole("menuitemradio", {
+          name: /CONVERSATION_PANEL\$ALL_CONVERSATIONS/,
+        }),
+      );
+
+      cards = await screen.findAllByTestId("conversation-card");
+      expect(cards).toHaveLength(2);
+      expect(screen.getByText("Recent")).toBeInTheDocument();
+      expect(screen.getByText("Old 1")).toBeInTheDocument();
+
+      // Switch back to Recent only
+      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
+      await user.click(
+        screen.getByRole("menuitemradio", {
+          name: /CONVERSATION_PANEL\$RECENT_CONVERSATIONS/,
+        }),
+      );
 
       cards = await screen.findAllByTestId("conversation-card");
       expect(cards).toHaveLength(1);
-
-      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
-      toggle = await screen.findByTestId("toggle-older-conversations");
-      expect(toggle).toHaveTextContent("CONVERSATION$SHOW_ALL");
-      await user.click(toggle);
-      cards = await screen.findAllByTestId("conversation-card");
-      expect(cards).toHaveLength(2);
+      expect(screen.getByText("Recent")).toBeInTheDocument();
+      expect(screen.queryByText("Old 1")).not.toBeInTheDocument();
     });
 
     it("keeps repo/branch metadata hidden by default and toggles it from the filter dropdown", async () => {
+      useConversationPanelPreferencesStore.setState({ showRecentOnly: false });
+
       const user = userEvent.setup();
       vi.spyOn(
         AgentServerConversationService,
@@ -1406,161 +1412,6 @@ describe("ConversationPanel", () => {
       ).toHaveTextContent("main");
     });
 
-    it("delete-all is enabled when no conversations are older than the cutoff and deletes every loaded conversation", async () => {
-      const user = userEvent.setup();
-      const deleteSpy = vi
-        .spyOn(AgentServerConversationService, "deleteConversation")
-        .mockResolvedValue();
-
-      // Fixture: only recent conversations (none older than 1h). Before the
-      // fix the "Delete all" button was disabled in this state.
-      vi.spyOn(
-        AgentServerConversationService,
-        "searchConversations",
-      ).mockResolvedValue({
-        items: [
-          createMockConversation({
-            id: "recent-1",
-            title: "Recent 1",
-            updated_at: recentIso(),
-          }),
-          createMockConversation({
-            id: "recent-2",
-            title: "Recent 2",
-            updated_at: recentIso(),
-          }),
-        ],
-        next_page_id: null,
-      });
-
-      renderConversationPanel();
-      await screen.findAllByTestId("conversation-card");
-
-      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
-      const deleteAllButton = await screen.findByTestId(
-        "delete-all-conversations",
-      );
-      expect(deleteAllButton).toBeEnabled();
-
-      await user.click(deleteAllButton);
-      await user.click(await screen.findByRole("button", { name: /confirm/i }));
-
-      await waitFor(() => {
-        expect(deleteSpy).toHaveBeenCalledTimes(2);
-      });
-      expect(deleteSpy).toHaveBeenCalledWith("recent-1");
-      expect(deleteSpy).toHaveBeenCalledWith("recent-2");
-    });
-
-    it("navigates away after the active conversation is deleted successfully even when another deletion fails", async () => {
-      const user = userEvent.setup();
-      const navigate = vi.fn();
-      const deleteSpy = vi
-        .spyOn(AgentServerConversationService, "deleteConversation")
-        .mockImplementation(async (conversationId: string) => {
-          if (conversationId === "old2") {
-            throw new Error("delete failed");
-          }
-        });
-
-      vi.spyOn(
-        AgentServerConversationService,
-        "searchConversations",
-      ).mockResolvedValue({
-        items: [
-          createMockConversation({
-            id: "recent",
-            title: "Recent",
-            updated_at: recentIso(),
-          }),
-          createMockConversation({
-            id: "old1",
-            title: "Old 1",
-            updated_at: olderIso(),
-          }),
-          createMockConversation({
-            id: "old2",
-            title: "Old 2",
-            updated_at: olderIso(),
-          }),
-        ],
-        next_page_id: null,
-      });
-
-      // Active conversation is "old1" — it is among the conversations that
-      // get deleted successfully, so we should navigate away.
-      renderConversationPanel({
-        navigation: { conversationId: "old1", navigate },
-      });
-      await screen.findAllByTestId("conversation-card");
-
-      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
-      await user.click(screen.getByTestId("delete-all-conversations"));
-      await user.click(await screen.findByRole("button", { name: /confirm/i }));
-
-      await waitFor(() => {
-        expect(deleteSpy).toHaveBeenCalledTimes(3);
-      });
-      expect(displayErrorToast).toHaveBeenCalledWith(
-        "1 conversation could not be deleted.",
-      );
-      expect(navigate).toHaveBeenCalledWith("/conversations");
-    });
-
-    it("does not navigate away when the active conversation fails to delete", async () => {
-      const user = userEvent.setup();
-      const navigate = vi.fn();
-      const deleteSpy = vi
-        .spyOn(AgentServerConversationService, "deleteConversation")
-        .mockImplementation(async (conversationId: string) => {
-          if (conversationId === "old1") {
-            throw new Error("delete failed");
-          }
-        });
-
-      vi.spyOn(
-        AgentServerConversationService,
-        "searchConversations",
-      ).mockResolvedValue({
-        items: [
-          createMockConversation({
-            id: "recent",
-            title: "Recent",
-            updated_at: recentIso(),
-          }),
-          createMockConversation({
-            id: "old1",
-            title: "Old 1",
-            updated_at: olderIso(),
-          }),
-          createMockConversation({
-            id: "old2",
-            title: "Old 2",
-            updated_at: olderIso(),
-          }),
-        ],
-        next_page_id: null,
-      });
-
-      // Active conversation is "old1" — its deletion fails, so we must
-      // not navigate away from it.
-      renderConversationPanel({
-        navigation: { conversationId: "old1", navigate },
-      });
-      await screen.findAllByTestId("conversation-card");
-
-      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
-      await user.click(screen.getByTestId("delete-all-conversations"));
-      await user.click(await screen.findByRole("button", { name: /confirm/i }));
-
-      await waitFor(() => {
-        expect(deleteSpy).toHaveBeenCalledTimes(3);
-      });
-      expect(displayErrorToast).toHaveBeenCalledWith(
-        "1 conversation could not be deleted.",
-      );
-      expect(navigate).not.toHaveBeenCalled();
-    });
   });
 
   describe("active conversation highlight", () => {
@@ -1633,49 +1484,6 @@ describe("ConversationPanel", () => {
       expect(loadMore).toHaveTextContent("CONVERSATION$LOAD_MORE");
     });
 
-    it("hides the load-more link after older conversations are hidden from the filter dropdown", async () => {
-      vi.spyOn(
-        AgentServerConversationService,
-        "searchConversations",
-      ).mockResolvedValue({
-        items: [
-          createMockConversation({
-            id: "recent",
-            title: "Recent",
-            updated_at: recentIso(),
-          }),
-          createMockConversation({
-            id: "old1",
-            title: "Old 1",
-            updated_at: olderIso(),
-          }),
-        ],
-        next_page_id: "page-2",
-      });
-
-      renderConversationPanel();
-
-      await screen.findAllByTestId("conversation-card");
-      // Older conversations are visible by default, so load-more is visible.
-      expect(screen.getByTestId("load-more-conversations")).toBeInTheDocument();
-
-      // Hide older conversations via the filter dropdown.
-      const user = userEvent.setup();
-      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
-      await user.click(screen.getByTestId("toggle-older-conversations"));
-
-      // Older conversations are hidden → no load-more.
-      expect(
-        screen.queryByTestId("load-more-conversations"),
-      ).not.toBeInTheDocument();
-
-      // After showing older conversations again, the link reappears.
-      await user.click(screen.getByTestId("older-conversations-filter-toggle"));
-      await user.click(screen.getByTestId("toggle-older-conversations"));
-      expect(
-        await screen.findByTestId("load-more-conversations"),
-      ).toBeInTheDocument();
-    });
 
     it("fetches the next page when the load-more link is clicked", async () => {
       const user = userEvent.setup();
