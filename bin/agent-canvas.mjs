@@ -38,6 +38,9 @@ Default stack versions:
   agent-server:    ${defaults.versions.agentServer}
   automation:      ${defaults.versions.automation}
 
+Compatibility:
+  agent-server:    >= ${defaults.compatibility.minimumAgentServer}
+
 Default ports:
   ingress:         ${defaults.ports.proxy}
   agent-server:    ${defaults.ports.agentServer}

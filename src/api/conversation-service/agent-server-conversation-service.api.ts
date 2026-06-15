@@ -34,6 +34,7 @@ import {
 } from "../cloud/conversation-service.api";
 import {
   DirectConversationInfo,
+  assertSubscriptionAuthReady,
   buildStartConversationRequestWithEncryptedSettings,
   emptyHooksResponse,
   getDefaultConversationTitle,
@@ -710,6 +711,7 @@ class AgentServerConversationService {
     const model =
       typeof profile.config.model === "string" ? profile.config.model : "";
     if (!model) throw new Error(`Profile '${profileName}' has no model.`);
+    await assertSubscriptionAuthReady({ llm: profile.config });
     await conversationClient.switchLLM(conversationId, {
       ...profile.config,
       model,

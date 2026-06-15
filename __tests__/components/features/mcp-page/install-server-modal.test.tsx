@@ -251,7 +251,10 @@ describe("InstallServerModal", () => {
       mcp_config: { mcpServers: Record<string, unknown> };
     };
     expect(sent.mcp_config.mcpServers).toMatchObject({
-      shttp: { url: "https://mcp.linear.app/mcp", auth: "lin_api_secret" },
+      shttp: {
+        url: "https://mcp.linear.app/mcp",
+        headers: { Authorization: "Bearer lin_api_secret" },
+      },
     });
   });
 
@@ -333,6 +336,37 @@ describe("InstallServerModal", () => {
     // Modal must stay open.
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByTestId("mcp-install-modal")).toBeInTheDocument();
+  });
+
+  it("shows the credential-specific message when the pre-flight test reports invalid credentials", async () => {
+    // Arrange: installing Slack with credentials its verification call
+    // rejects (the service maps Slack's invalid_auth to "credentials").
+    const slack = MCP_MARKETPLACE.find((e) => e.id === "slack")!;
+    vi.spyOn(McpService, "testServer").mockResolvedValue({
+      ok: false,
+      error: "invalid_auth",
+      error_kind: "credentials",
+    });
+
+    renderWith(<InstallServerModal entry={slack} onClose={vi.fn()} />);
+    await screen.findByTestId("mcp-install-modal");
+
+    // Act: fill the required fields and install.
+    fireEvent.change(screen.getByTestId("mcp-install-field-SLACK_BOT_TOKEN"), {
+      target: { value: "xoxb-invalid" },
+    });
+    fireEvent.change(screen.getByTestId("mcp-install-field-SLACK_TEAM_ID"), {
+      target: { value: "T-INVALID" },
+    });
+    fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+    // Assert: the credentials message is rendered (i18n keys are returned
+    // as-is in tests), not the generic connection/unknown wording.
+    await waitFor(() =>
+      expect(screen.getByTestId("mcp-install-modal-error")).toHaveTextContent(
+        "MCP$TEST_ERROR_CREDENTIALS",
+      ),
+    );
   });
 
   it("calls save and closes the modal when the pre-flight test succeeds", async () => {

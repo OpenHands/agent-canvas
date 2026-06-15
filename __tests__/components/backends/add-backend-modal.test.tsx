@@ -44,7 +44,7 @@ function renderWithProviders(
 beforeEach(() => {
   window.localStorage.clear();
   getServerInfoMock.mockReset();
-  getServerInfoMock.mockResolvedValue({ version: "1.24.0" });
+  getServerInfoMock.mockResolvedValue({ version: "1.28.0" });
   __resetActiveStoreForTests();
 });
 
@@ -199,6 +199,26 @@ describe("AddBackendModal – two-column layout", () => {
     );
     expect(screen.getByTestId("add-backend-error")).toHaveTextContent(
       "Failed to fetch",
+    );
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("keeps the modal open when the local backend is below the compatible version floor", async () => {
+    getServerInfoMock.mockResolvedValueOnce({ version: "1.27.1" });
+    const onClose = vi.fn();
+    renderWithProviders(<AddBackendModal onClose={onClose} />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByTestId("add-backend-name"), "Old Tunnel");
+    await user.type(
+      screen.getByTestId("add-backend-host"),
+      "https://127.0.0.1:8000",
+    );
+    await user.type(screen.getByTestId("add-backend-api-key"), "session-key");
+    await user.click(screen.getByTestId("add-backend-submit"));
+
+    expect(await screen.findByTestId("add-backend-error")).toHaveTextContent(
+      "Agent Canvas requires agent-server 1.28.0 or newer",
     );
     expect(onClose).not.toHaveBeenCalled();
   });

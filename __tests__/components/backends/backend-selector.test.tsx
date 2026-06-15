@@ -126,7 +126,7 @@ beforeEach(() => {
   vi.mocked(ServerClient).mockReset();
   vi.mocked(ServerClient).mockImplementation(function ServerClientMock() {
     return {
-      getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
+      getServerInfo: vi.fn().mockResolvedValue({ version: "1.28.0" }),
     } as unknown as ServerClient;
   });
   vi.mocked(SettingsClient).mockReset();
