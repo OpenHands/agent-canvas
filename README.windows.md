@@ -21,7 +21,7 @@ docker run -it --rm `
   -p 8000:8000 `
   -v "$($env:USERPROFILE)\.openhands:/home/openhands/.openhands" `
   -v "$($env:PROJECTS_PATH):/projects" `
-  ghcr.io/openhands/agent-canvas:1.0.0-rc.6
+  ghcr.io/openhands/agent-canvas:1.0.0-rc.11
 ```
 
 The agent will be able to access any project under `PROJECTS_PATH`.
