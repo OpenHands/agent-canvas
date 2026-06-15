@@ -14466,6 +14466,23 @@
     "tr": "Bağlantı başarısız: {{-error}}",
     "uk": "Помилка з'єднання: {{-error}}"
   },
+  "MCP$TEST_ERROR_CREDENTIALS": {
+    "en": "Credential check failed: {{-error}}",
+    "ja": "認証情報の確認に失敗しました: {{-error}}",
+    "zh-CN": "凭据检查失败：{{-error}}",
+    "zh-TW": "憑證檢查失敗：{{-error}}",
+    "ko-KR": "자격 증명 확인에 실패했습니다: {{-error}}",
+    "no": "Kontroll av påloggingsinformasjon mislyktes: {{-error}}",
+    "ar": "فشل التحقق من بيانات الاعتماد: {{-error}}",
+    "de": "Überprüfung der Anmeldedaten fehlgeschlagen: {{-error}}",
+    "fr": "Échec de la vérification des identifiants : {{-error}}",
+    "it": "Verifica delle credenziali non riuscita: {{-error}}",
+    "pt": "Falha na verificação das credenciais: {{-error}}",
+    "es": "Error en la verificación de credenciales: {{-error}}",
+    "ca": "Ha fallat la verificació de credencials: {{-error}}",
+    "tr": "Kimlik bilgisi denetimi başarısız: {{-error}}",
+    "uk": "Помилка перевірки облікових даних: {{-error}}"
+  },
   "MCP$EDIT_SERVER_ARIA": {
     "en": "Edit {{name}}",
     "ja": "{{name}} を編集",
