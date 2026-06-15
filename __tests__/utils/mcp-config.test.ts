@@ -107,6 +107,49 @@ describe("toSdkMcpConfig", () => {
     ).toBeNull();
   });
 
+  it("serializes remote API keys as authorization headers for SDK/ACP forwarding", () => {
+    const config: MCPConfig = {
+      sse_servers: [{ url: "https://sse.example", api_key: "sse-secret" }],
+      shttp_servers: [
+        { url: "https://shttp.example", api_key: "shttp-secret" },
+      ],
+      stdio_servers: [],
+    };
+
+    const out = toSdkMcpConfig(config);
+
+    expect(out).toEqual({
+      mcpServers: {
+        sse: {
+          url: "https://sse.example",
+          transport: "sse",
+          headers: { Authorization: "Bearer sse-secret" },
+        },
+        shttp: {
+          url: "https://shttp.example",
+          headers: { Authorization: "Bearer shttp-secret" },
+        },
+      },
+    });
+  });
+
+  it("round-trips persisted authorization headers back to frontend api_key fields", () => {
+    const persisted = {
+      mcpServers: {
+        shttp: {
+          url: "https://shttp.example",
+          headers: { Authorization: "Bearer shttp-secret" },
+        },
+      },
+    };
+
+    const parsed = parseMcpConfig(persisted);
+
+    expect(parsed.shttp_servers).toEqual([
+      { url: "https://shttp.example", api_key: "shttp-secret" },
+    ]);
+  });
+
   it("keeps names stable across a parse → write round trip", () => {
     // Simulates loading the user's persisted settings, parsing them,
     // and re-serializing on save (which is what happens on every edit).
@@ -247,6 +290,29 @@ describe("parseMcpConfig — deprecated Linear SSE migration", () => {
     // so the backend connects via streamable HTTP to the new endpoint.
     expect(written).toEqual({
       mcpServers: { shttp: { url: "https://mcp.linear.app/mcp" } },
+    });
+  });
+
+  it("persists migrated legacy Linear credentials as authorization headers", () => {
+    const persisted = {
+      mcpServers: {
+        sse: {
+          url: "https://mcp.linear.app/sse",
+          transport: "sse",
+          auth: "lin_api_secret",
+        },
+      },
+    };
+
+    const written = toSdkMcpConfig(parseMcpConfig(persisted));
+
+    expect(written).toEqual({
+      mcpServers: {
+        shttp: {
+          url: "https://mcp.linear.app/mcp",
+          headers: { Authorization: "Bearer lin_api_secret" },
+        },
+      },
     });
   });
 });

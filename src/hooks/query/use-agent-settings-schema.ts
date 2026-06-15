@@ -1,8 +1,10 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { isNoBackend } from "#/api/backend-registry/active-store";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { SettingsSchema } from "#/types/settings";
+import { withLlmSubscriptionSchemaFields } from "#/utils/llm-subscription-schema";
 import { useIsAuthed } from "./use-is-authed";
 
 const useSettingsSchema = (
@@ -36,9 +38,22 @@ const useSettingsSchema = (
     },
   });
 
+  const fallbackData = useMemo(
+    () =>
+      type === "agent"
+        ? withLlmSubscriptionSchemaFields(fallbackSchema)
+        : fallbackSchema,
+    [fallbackSchema, type],
+  );
+
+  const queryData = useMemo(
+    () => (type === "agent" ? withLlmSubscriptionSchemaFields(data) : data),
+    [data, type],
+  );
+
   if (fallbackSchema) {
     return {
-      data: fallbackSchema,
+      data: fallbackData,
       error: null,
       isLoading: false,
       isFetching: false,
@@ -46,7 +61,7 @@ const useSettingsSchema = (
   }
 
   return {
-    data,
+    data: queryData,
     error,
     isLoading,
     isFetching,

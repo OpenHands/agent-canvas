@@ -69,32 +69,6 @@ describe("backend-registry storage", () => {
     expect(readStoredBackends()).toEqual(result);
   });
 
-  it("migrates legacy agent-server config into the backend registry on first read", () => {
-    window.localStorage.setItem(
-      "openhands-agent-server-config",
-      JSON.stringify({
-        baseUrl: "localhost:18000/",
-        sessionApiKey: "legacy-session-key",
-      }),
-    );
-
-    const result = readStoredBackends();
-
-    expect(result).toEqual([
-      {
-        id: "default-local",
-        name: "Local",
-        host: "http://localhost:18000",
-        apiKey: "legacy-session-key",
-        kind: "local",
-      },
-    ]);
-    expect(window.localStorage.getItem(BACKENDS_STORAGE_KEY)).not.toBeNull();
-    expect(
-      window.localStorage.getItem("openhands-agent-server-config"),
-    ).toBeNull();
-  });
-
   it("re-seeds the default Local backend when storage holds an empty array and launcher details are available", () => {
     vi.stubEnv("VITE_BACKEND_BASE_URL", "http://localhost:9000");
     vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");

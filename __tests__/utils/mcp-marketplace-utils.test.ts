@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   findCatalogEntryForServer,
   findInstalledMatch,
@@ -9,14 +9,7 @@ import {
   isMarketplaceEntryAvailable,
   marketplaceEntryMatchesQuery,
 } from "#/utils/mcp-marketplace-utils";
-import * as agentServerAdapter from "#/api/agent-server-adapter";
 import { INTEGRATION_CATALOG as MCP_MARKETPLACE } from "@openhands/extensions/integrations";
-
-vi.mock("#/api/agent-server-adapter", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("#/api/agent-server-adapter")>();
-  return { ...actual, getDeploymentMode: vi.fn(() => null) };
-});
 
 const mcpMarketplace = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
 const slackEntry = mcpMarketplace.find((e) => e.id === "slack")!;
@@ -106,32 +99,36 @@ describe("getInstallableMcpConnectionOption", () => {
   });
 
   it("returns undefined for an OAuth-only entry (no locally installable option)", () => {
-    const oauthOnlyEntry: Parameters<typeof getInstallableMcpConnectionOption>[0] =
-      {
-        ...slackEntry,
-        id: "oauth-only",
-        defaultConnectionOptionId: "oauth",
-        connectionOptions: [
-          {
-            id: "oauth",
-            provider: "mcp",
-            auth: { strategy: "oauth2" },
-            transport: { kind: "shttp", url: "https://example.com/mcp" },
-          } as Parameters<typeof getInstallableMcpConnectionOption>[0]["connectionOptions"][number],
-        ],
-      };
+    const oauthOnlyEntry: Parameters<
+      typeof getInstallableMcpConnectionOption
+    >[0] = {
+      ...slackEntry,
+      id: "oauth-only",
+      defaultConnectionOptionId: "oauth",
+      connectionOptions: [
+        {
+          id: "oauth",
+          provider: "mcp",
+          auth: { strategy: "oauth2" },
+          transport: { kind: "shttp", url: "https://example.com/mcp" },
+        } as Parameters<
+          typeof getInstallableMcpConnectionOption
+        >[0]["connectionOptions"][number],
+      ],
+    };
     const option = getInstallableMcpConnectionOption(oauthOnlyEntry);
     expect(option).toBeUndefined();
   });
 
   it("returns undefined when the entry has no MCP connection options", () => {
-    const noOptionsEntry: Parameters<typeof getInstallableMcpConnectionOption>[0] =
-      {
-        ...slackEntry,
-        id: "no-mcp",
-        defaultConnectionOptionId: undefined,
-        connectionOptions: [],
-      };
+    const noOptionsEntry: Parameters<
+      typeof getInstallableMcpConnectionOption
+    >[0] = {
+      ...slackEntry,
+      id: "no-mcp",
+      defaultConnectionOptionId: undefined,
+      connectionOptions: [],
+    };
     const option = getInstallableMcpConnectionOption(noOptionsEntry);
     expect(option).toBeUndefined();
   });
@@ -262,50 +259,37 @@ describe("findCatalogEntryForServer", () => {
   });
 });
 
-describe("patchGitHubEntry (via getMcpMarketplaceCatalog)", () => {
-  const mockedGetDeploymentMode = vi.mocked(
-    agentServerAdapter.getDeploymentMode,
-  );
-
-  function getGitHubStdioTransport(catalog: ReturnType<typeof getMcpMarketplaceCatalog>) {
+describe("GitHub hosted MCP entry", () => {
+  function getGitHubTransport(
+    catalog: ReturnType<typeof getMcpMarketplaceCatalog>,
+  ) {
     const github = catalog.find((e) => e.id === "github");
     expect(github).toBeDefined();
-    const option = github!.connectionOptions.find(
-      (o) => o.transport?.kind === "stdio",
-    );
-    expect(option?.transport?.kind).toBe("stdio");
-    const transport = option!.transport!;
-    if (transport.kind !== "stdio") throw new Error("expected stdio");
+    const transport = getDefaultMcpTransport(github!);
+    expect(transport?.kind).toBe("shttp");
+    if (transport?.kind !== "shttp") throw new Error("expected shttp");
     return transport;
   }
 
-  it("leaves the GitHub entry unchanged when not in docker mode", () => {
-    mockedGetDeploymentMode.mockReturnValue(null);
-    const transport = getGitHubStdioTransport(
+  it("uses GitHub's hosted streamable HTTP endpoint", () => {
+    const transport = getGitHubTransport(
       getMcpMarketplaceCatalog(MCP_MARKETPLACE),
     );
-    expect(transport.command).toBe("docker");
-    expect(transport.args[0]).toBe("run");
+    expect(transport.url).toBe("https://api.githubcopilot.com/mcp/");
   });
 
-  it("rewrites the GitHub command to native binary in docker mode", () => {
-    mockedGetDeploymentMode.mockReturnValue("docker");
-    const transport = getGitHubStdioTransport(
-      getMcpMarketplaceCatalog(MCP_MARKETPLACE),
+  it("matches installed hosted GitHub servers by URL", () => {
+    const github = getMcpMarketplaceCatalog(MCP_MARKETPLACE).find(
+      (e) => e.id === "github",
+    )!;
+    const match = findCatalogEntryForServer(
+      {
+        id: "shttp-0",
+        type: "shttp",
+        url: "https://api.githubcopilot.com/mcp/",
+      },
+      [github],
     );
-    expect(transport.command).toBe("github-mcp-server");
-    expect(transport.args).toEqual(["stdio"]);
-  });
-
-  it("does not affect other entries in docker mode", () => {
-    mockedGetDeploymentMode.mockReturnValue("docker");
-    const catalog = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
-    const tavily = catalog.find((e) => e.id === "tavily");
-    const stdioOption = tavily?.connectionOptions.find(
-      (o) => o.transport?.kind === "stdio",
-    );
-    expect(stdioOption?.transport?.kind).toBe("stdio");
-    if (stdioOption?.transport?.kind !== "stdio") throw new Error("expected stdio");
-    expect(stdioOption.transport.command).not.toBe("github-mcp-server");
+    expect(match?.id).toBe("github");
   });
 });

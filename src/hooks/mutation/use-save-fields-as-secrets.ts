@@ -17,11 +17,13 @@ function formatKeyList(keys: string[]): string {
 }
 
 /**
- * Returns a stable, fire-and-forget function that upserts checked envFields
- * into the Secrets store. MCP server config and the Secrets store are
- * separate — this bridges the gap so Automation Server can access credentials
- * without a separate manual step. Internally, `SecretsService.createSecret`
- * is an upsert, so existing secrets with the same name are overwritten safely.
+ * Returns a stable function that upserts checked envFields into the Secrets
+ * store. Callers may ignore the returned promise for background saves or await
+ * it when later work depends on the secret being present. MCP server config
+ * and the Secrets store are separate — this bridges the gap so Automation
+ * Server can access credentials without a separate manual step. Internally,
+ * `SecretsService.createSecret` is an upsert, so existing secrets with the
+ * same name are overwritten safely.
  */
 export function useSaveFieldsAsSecrets() {
   const { t } = useTranslation("openhands");
@@ -32,13 +34,13 @@ export function useSaveFieldsAsSecrets() {
       envFields: MarketplaceField[],
       values: Record<string, string>,
       savedAsSecret: Record<string, boolean>,
-    ): void => {
+    ): Promise<void> => {
       const fieldsToSave = envFields.filter(
         (field) => savedAsSecret[field.key] && (values[field.key] ?? "").trim(),
       );
-      if (fieldsToSave.length === 0) return;
+      if (fieldsToSave.length === 0) return Promise.resolve();
 
-      Promise.allSettled(
+      return Promise.allSettled(
         fieldsToSave.map((field) =>
           SecretsService.createSecret(
             field.key,

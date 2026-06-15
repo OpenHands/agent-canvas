@@ -23,7 +23,7 @@
     "@heroui/react": "2.8.10",
     "@microlink/react-json-view": "1.31.20",
     "@monaco-editor/react": "4.7.0",
-    "@openhands/extensions": "0.4.2",
+    "@openhands/extensions": "0.5.0",
     "@openhands/typescript-client": "1.24.3",
     "@react-router/node": "7.17.0",
     "@react-router/serve": "7.17.0",
@@ -84,8 +84,6 @@
     "test:e2e:live": "node --env-file-if-exists=.env tests/e2e/live/scripts/run-live-e2e.mjs",
     "test:e2e:mock-llm": "playwright test --config=playwright.mock-llm.config.ts",
     "test:e2e:mock-llm:docker": "playwright test --config=playwright.mock-llm-docker.config.ts",
-    "test:e2e:snapshots": "playwright test tests/e2e/snapshots --project=chromium --retries=0",
-    "test:e2e:snapshots:update": "playwright test tests/e2e/snapshots --project=chromium --update-snapshots",
     "test:coverage": "npm run make-i18n && vitest run --coverage",
     "dev_wsl": "VITE_WATCH_USE_POLLING=true vite",
     "preview": "vite preview",
@@ -107,7 +105,7 @@
       "prettier --write"
     ],
     "src/**/*.{ts,tsx}": [
-      "bash -c 'npm run typecheck:staged'"
+      "node scripts/run-staged-typecheck.mjs"
     ],
     "src/**/*": [
       "npm run check-translation-completeness"
