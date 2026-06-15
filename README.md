@@ -1,4 +1,33 @@
-# Agent Canvas
+<a name="readme-top"></a>
+<div align="center">
+  <img src="https://assets.openhands.dev/logo-whitebackground.png" alt="OpenHands logo" width="340">
+  <h1 align="center" style="border-bottom: none">Agent Canvas</h1>
+  <p align="center">
+    <strong>The self-hosted developer control center for coding agents and automations.</strong>
+  </p>
+  <p align="center">
+    Run OpenHands, Claude Code, Codex, Gemini, or any ACP-compatible agent across local, remote, and cloud backends.
+  </p>
+</div>
+<div align="center">
+  <a href="https://github.com/OpenHands/incubator-program"><img src="https://img.shields.io/badge/status-beta-blue?style=for-the-badge" alt="Project status beta"></a>
+  <a href="https://github.com/OpenHands/agent-canvas/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/OpenHands/agent-canvas/ci.yml?branch=main&style=for-the-badge" alt="CI status"></a>
+  <a href="https://www.npmjs.com/package/@openhands/agent-canvas"><img src="https://img.shields.io/npm/v/%40openhands%2Fagent-canvas?style=for-the-badge&logo=npm" alt="npm version"></a>
+  <a href="https://docs.openhands.dev/openhands/usage/agent-canvas/backends"><img src="https://img.shields.io/badge/Documentation-000?logo=googledocs&logoColor=FFE165&style=for-the-badge" alt="Documentation"></a>
+  <a href="https://go.openhands.dev/slack"><img src="https://img.shields.io/badge/Slack-Join%20the%20community-611f69?logo=slack&logoColor=white&style=for-the-badge" alt="Join us on Slack"></a>
+</div>
+<div align="center">
+  <a href="#quickstart">Quickstart</a> |
+  <a href="./docs/README.md">Docs</a> |
+  <a href="./docs/SELF_HOSTING.md">Self-Hosting</a> |
+  <a href="https://docs.openhands.dev/openhands/usage/agent-canvas/acp-agents">ACP Agents</a> |
+  <a href="https://docs.openhands.dev/openhands/usage/agent-canvas/prebuilt-automations">Automations</a> |
+  <a href="https://go.openhands.dev/slack">Slack</a>
+</div>
+<p align="center">
+  <img src="https://assets.openhands.dev/screenshot/automation-preview.png" alt="Agent Canvas automation preview" width="100%">
+</p>
+<hr>
 
 OpenHands Agent Canvas turns your coding agents into a self-hosted, always-on engineering team. It's a developer control center for starting conversations and automating everyday tasks — like generating reports that publish to Slack or automatically decomposing GitHub issues into tasks.
 
@@ -18,13 +47,6 @@ Agent Canvas runs the open source OpenHands agent out-of-the-box, but can use an
 
 If you have questions or feedback, please open a GitHub issue or join the [#proj-agent-canvas channel in Slack](https://openhands.dev/joinslack).
 
-<img width="1509" height="826" alt="Screenshot 2026-05-11 at 10 13 19 AM" src="https://github.com/user-attachments/assets/71ef41ae-8f6d-4fbf-990f-d672175d93d1" />
-
-## Project ownership and support
-
-- **Current status**: Beta.
-- **Support channel**: [#proj-agent-canvas](https://openhands.dev/joinslack).
-- **Support level**: Best effort while the project remains in Beta.
 
 ## Quickstart
 
@@ -75,7 +97,7 @@ docker run -it --rm \
   -p 8000:8000 \
   -v "$HOME/.openhands:/home/openhands/.openhands" \
   -v "${PROJECTS_PATH}:/projects" \
-  ghcr.io/openhands/agent-canvas:1.0.0-rc.6
+  ghcr.io/openhands/agent-canvas:1.0.0-rc.11
 ```
 
 **Windows (PowerShell / Windows Terminal):** See [README.windows.md](./README.windows.md) for the equivalent commands.
