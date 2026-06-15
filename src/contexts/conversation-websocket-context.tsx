@@ -619,7 +619,7 @@ export function ConversationWebSocketProvider({
           // executes server-side as a no-op; the actual UI change happens
           // here on the client.
           if (isCanvasUIActionEvent(event)) {
-            handleCanvasUIAction(event.action);
+            handleCanvasUIAction(event.action, conversationId ?? null);
           }
         }
       } catch (error) {
