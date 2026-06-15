@@ -1,16 +1,25 @@
 import { MCPServerConfig } from "#/types/mcp-server";
 import type {
+  IntegrationAuthConfig,
   IntegrationCatalogEntry as MarketplaceEntry,
   IntegrationConnectionOption,
   IntegrationTransport,
 } from "@openhands/extensions/integrations";
-import { getDeploymentMode } from "#/api/agent-server-adapter";
 
 export type { MarketplaceEntry };
 
-export type McpMarketplaceConnectionOption = IntegrationConnectionOption & {
+type McpIntegrationAuthConfig = IntegrationAuthConfig & {
+  credentialSecretName?: string;
+  saveCredentialAsSecretByDefault?: boolean;
+};
+
+export type McpMarketplaceConnectionOption = Omit<
+  IntegrationConnectionOption,
+  "auth" | "provider" | "transport"
+> & {
   provider: "mcp";
   transport: IntegrationTransport;
+  auth: McpIntegrationAuthConfig;
 };
 
 export function getMcpConnectionOptions(
@@ -104,52 +113,11 @@ function patchLinearEntry(entry: MarketplaceEntry): MarketplaceEntry {
   };
 }
 
-/**
- * The upstream catalog ships the GitHub MCP server with `command: "docker"`
- * (`docker run … ghcr.io/github/github-mcp-server`). This requires Docker-
- * in-Docker when agent-canvas itself runs inside the Docker image, which
- * isn't available. The Docker image pre-installs the native Go binary at
- * `/usr/local/bin/github-mcp-server`, so we rewrite the transport to use
- * it directly.
- *
- * Only applied when `getDeploymentMode()` returns `"docker"`.
- */
-function patchGitHubEntry(entry: MarketplaceEntry): MarketplaceEntry {
-  if (entry.id !== "github") return entry;
-  if (getDeploymentMode() !== "docker") return entry;
-  return {
-    ...entry,
-    installHint:
-      "Requires a GitHub Personal Access Token (classic or fine-grained).",
-    // The upstream @openhands/extensions catalog defines the GitHub entry
-    // with `command: "docker"` (i.e. `docker run …`). We match on that
-    // exact value to replace it with the pre-installed native binary.
-    // If the upstream ever changes the command string, this patch becomes
-    // a no-op and the original transport is preserved — the worst case is
-    // the user falls back to the Docker-based transport (which still works
-    // outside the Docker image).
-    connectionOptions: entry.connectionOptions.map((option) =>
-      option.transport?.kind === "stdio" &&
-      option.transport.command === "docker"
-        ? {
-            ...option,
-            transport: {
-              ...option.transport,
-              command: "github-mcp-server",
-              args: ["stdio"],
-            },
-          }
-        : option,
-    ),
-  };
-}
-
 export function getMcpMarketplaceCatalog(
   catalog: MarketplaceEntry[],
 ): MarketplaceEntry[] {
   return catalog
     .map(patchLinearEntry)
-    .map(patchGitHubEntry)
     .filter((entry) => !!getDefaultMcpConnectionOption(entry));
 }
 

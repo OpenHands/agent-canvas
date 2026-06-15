@@ -4,7 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DEFAULT_LOCAL_BACKEND_ID } from "#/api/backend-registry/default-backend";
+import { SEEDED_DEFAULT_BACKEND_ID } from "#/api/backend-registry/default-backend";
 import {
   BACKEND_HEALTH_STORAGE_KEY,
   MAX_CONSECUTIVE_FAILURES,
@@ -17,7 +17,7 @@ import {
 } from "#/contexts/active-backend-context";
 import { ManageBackendsModal } from "#/components/features/backends/manage-backends-modal";
 
-const getServerInfoMock = vi.fn().mockResolvedValue({ version: "1.18.0" });
+const getServerInfoMock = vi.fn().mockResolvedValue({ version: "1.28.0" });
 const getSettingsMock = vi.fn().mockResolvedValue({});
 
 vi.mock("@openhands/typescript-client/clients", () => ({
@@ -65,7 +65,7 @@ function TestSeed({
 beforeEach(() => {
   window.localStorage.clear();
   getServerInfoMock.mockReset();
-  getServerInfoMock.mockResolvedValue({ version: "1.18.0" });
+  getServerInfoMock.mockResolvedValue({ version: "1.28.0" });
   getSettingsMock.mockReset();
   getSettingsMock.mockResolvedValue({});
   __resetActiveStoreForTests();
@@ -113,6 +113,25 @@ describe("ManageBackendsModal", () => {
     ).toHaveAttribute("data-status", "disconnected");
   });
 
+  it("shows disconnected for a reachable backend below the compatible version floor", async () => {
+    getServerInfoMock.mockResolvedValue({ version: "1.27.1" });
+
+    renderWithProviders(<ManageBackendsModal onClose={vi.fn()} />);
+
+    expect(
+      await screen.findByTestId("manage-backends-version-Local"),
+    ).toBeInTheDocument();
+    expect(getServerInfoMock).toHaveBeenCalled();
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("manage-backends-status-Local"),
+      ).toHaveTextContent("ONBOARDING$BACKEND_STATUS_DISCONNECTED"),
+    );
+    expect(
+      screen.getByTestId("manage-backends-status-detail-Local"),
+    ).toHaveTextContent("Agent Canvas requires agent-server 1.28.0 or newer");
+  });
+
   it("closes when the header close button is clicked", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
@@ -138,7 +157,7 @@ describe("ManageBackendsModal", () => {
     window.localStorage.setItem(
       BACKEND_HEALTH_STORAGE_KEY,
       JSON.stringify({
-        [DEFAULT_LOCAL_BACKEND_ID]: {
+        [SEEDED_DEFAULT_BACKEND_ID]: {
           consecutiveFailures: MAX_CONSECUTIVE_FAILURES,
           lastError: "Network Error",
           lastFailureAt: Date.now(),

@@ -7,6 +7,10 @@ import {
   SettingsValue,
 } from "#/types/settings";
 import { getSettingsFieldConstraints } from "#/utils/sdk-settings-field-metadata";
+import {
+  LLM_AUTH_TYPE_KEY,
+  LLM_SUBSCRIPTION_VENDOR_KEY,
+} from "#/constants/llm-subscription";
 
 export type SettingsFormValues = Record<string, string | boolean>;
 export type SettingsDirtyState = Record<string, boolean>;
@@ -21,6 +25,8 @@ export const SPECIALLY_RENDERED_KEYS = new Set([
   "llm.model",
   "llm.api_key",
   "llm.base_url",
+  LLM_AUTH_TYPE_KEY,
+  LLM_SUBSCRIPTION_VENDOR_KEY,
 ]);
 
 /** Prominence tiers visible at each view level. */
