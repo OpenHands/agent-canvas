@@ -277,6 +277,13 @@ interface UseBackendFormOptions {
   onTestConnection: (payload: BackendFormSubmitPayload) => Promise<void>;
   /** Called after a successful connection test and persistence. */
   onSuccess: () => void;
+  /**
+   * When provided, completely replaces the default submit flow
+   * (onTestConnection + onSuccess). The hook still manages form state
+   * and canSubmit validation, but the caller owns error handling and
+   * success side effects. Should throw on failure.
+   */
+  onSubmitOverride?: (payload: BackendFormSubmitPayload) => Promise<void>;
 }
 
 /**
@@ -291,6 +298,7 @@ function useBackendForm({
   initialApiKey = "",
   onTestConnection,
   onSuccess,
+  onSubmitOverride,
 }: UseBackendFormOptions) {
   const { t } = useTranslation("openhands");
 
@@ -324,8 +332,14 @@ function useBackendForm({
       setIsSubmitting(true);
 
       try {
-        await onTestConnection(payload);
-        onSuccess();
+        // When onSubmitOverride is provided, it completely replaces the
+        // default flow (onTestConnection + onSuccess).
+        if (onSubmitOverride) {
+          await onSubmitOverride(payload);
+        } else {
+          await onTestConnection(payload);
+          onSuccess();
+        }
       } catch (error) {
         setConnectionError(
           getConnectionTestFailedMessage(
@@ -346,6 +360,7 @@ function useBackendForm({
       kind,
       onTestConnection,
       onSuccess,
+      onSubmitOverride,
       t,
     ],
   );
@@ -461,11 +476,8 @@ export function BackendForm({
     initialName: backend?.name ?? "",
     initialHost: backend?.host ?? "",
     initialApiKey: backend?.apiKey ?? "",
-    onTestConnection: onSubmitOverride
-      ? async () => {} // override owns the full submit; skip connection test
-      : testBackendConnection,
+    onTestConnection: testBackendConnection,
     onSuccess: async () => {
-      if (onSubmitOverride) return; // caller is responsible for onSubmitted
       const payload: BackendFormSubmitPayload = {
         name: name.trim(),
         host: normalizeHost(host),
@@ -479,6 +491,7 @@ export function BackendForm({
       }
       onSubmitted();
     },
+    onSubmitOverride,
   });
 
   // Inline validation: only show errors after the user has left a field.
