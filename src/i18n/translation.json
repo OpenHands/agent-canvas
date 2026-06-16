@@ -22116,6 +22116,23 @@
     "uk": "Перейменувати",
     "ca": "Canvia el nom"
   },
+  "BUTTON$DUPLICATE": {
+    "en": "Duplicate",
+    "ja": "複製",
+    "zh-CN": "复制",
+    "zh-TW": "複製",
+    "ko-KR": "복제",
+    "no": "Dupliser",
+    "it": "Duplica",
+    "pt": "Duplicar",
+    "es": "Duplicar",
+    "ar": "تكرار",
+    "fr": "Dupliquer",
+    "tr": "Çoğalt",
+    "de": "Duplizieren",
+    "uk": "Дублювати",
+    "ca": "Duplica"
+  },
   "COMMON$APP": {
     "en": "App",
     "ja": "アプリ",
@@ -28745,6 +28762,23 @@
     "de": "Profil umbenannt in \"{{name}}\"",
     "uk": "Профіль перейменовано на \"{{name}}\"",
     "ca": "Perfil reanomenat a \"{{name}}\""
+  },
+  "SETTINGS$PROFILE_DUPLICATED": {
+    "en": "Profile duplicated as \"{{name}}\"",
+    "ja": "プロファイルを「{{name}}」として複製しました",
+    "zh-CN": "配置文件已复制为「{{name}}」",
+    "zh-TW": "設定檔已複製為「{{name}}」",
+    "ko-KR": "프로필이 \"{{name}}\"(으)로 복제됨",
+    "no": "Profilen ble duplisert som \"{{name}}\"",
+    "it": "Profilo duplicato come \"{{name}}\"",
+    "pt": "Perfil duplicado como \"{{name}}\"",
+    "es": "Perfil duplicado como \"{{name}}\"",
+    "ar": "تم تكرار الملف الشخصي باسم \"{{name}}\"",
+    "fr": "Profil dupliqué en \"{{name}}\"",
+    "tr": "Profil \"{{name}}\" olarak çoğaltıldı",
+    "de": "Profil dupliziert als \"{{name}}\"",
+    "uk": "Профіль дубльовано як \"{{name}}\"",
+    "ca": "Perfil duplicat com a \"{{name}}\""
   },
   "SETTINGS$PROFILES_LOAD_ERROR": {
     "en": "Failed to load profiles",
