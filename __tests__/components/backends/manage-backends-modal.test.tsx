@@ -432,7 +432,8 @@ describe("BackendRow", () => {
     expect(loginButton).toHaveAccessibleName("BACKEND$LOG_BACK_IN");
     expect(loginButton).not.toHaveTextContent("BACKEND$LOG_BACK_IN");
     expect(loginButton.querySelector("svg")).toBeInTheDocument();
-    expect(loginButton).toHaveClass("border");
+    expect(loginButton).toHaveClass("hover:bg-interactive-hover");
+    expect(loginButton).not.toHaveClass("border");
     expect(loginButton).not.toHaveClass("bg-primary");
   });
 

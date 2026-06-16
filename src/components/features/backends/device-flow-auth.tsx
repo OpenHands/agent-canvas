@@ -7,7 +7,11 @@ import { useDeviceFlow, type DeviceFlowStatus } from "#/hooks/use-device-flow";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 
-type DeviceFlowButtonVariant = "primary" | "secondary" | "tertiary";
+type DeviceFlowButtonVariant =
+  | "primary"
+  | "secondary"
+  | "tertiary"
+  | "unstyled";
 type DeviceFlowStatusDisplay = "inline" | "modal";
 
 interface DeviceFlowAuthProps {
@@ -172,7 +176,20 @@ export function DeviceFlowAuth({
       data-testid={`${testIdRoot}-device-flow`}
       className={cn("flex flex-col gap-3", className)}
     >
-      {deviceFlow.status === "idle" && (
+      {deviceFlow.status === "idle" && buttonVariant === "unstyled" && (
+        <button
+          type="button"
+          onClick={handleStartAuth}
+          data-testid={`${testIdRoot}-login-button`}
+          className={buttonClassName}
+          disabled={isDisabled}
+          aria-label={idleButtonContent ? idleLabel : undefined}
+        >
+          {idleButtonContent ?? idleLabel}
+        </button>
+      )}
+
+      {deviceFlow.status === "idle" && buttonVariant !== "unstyled" && (
         <BrandButton
           type="button"
           variant={buttonVariant}
