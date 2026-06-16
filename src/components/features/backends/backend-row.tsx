@@ -120,8 +120,10 @@ export function BackendRow({
             onSuccess={onLogin}
             testIdRoot={`manage-backends-login-${backend.id}`}
             idleButtonLabel={t(I18nKey.BACKEND$LOG_BACK_IN)}
-            className="w-32"
-            buttonClassName="min-h-8 px-3 py-1 text-xs"
+            className="w-auto"
+            buttonVariant="secondary"
+            buttonClassName="min-h-8 px-3 py-1 text-xs font-normal"
+            statusDisplay="modal"
           />
         ) : null}
         <button

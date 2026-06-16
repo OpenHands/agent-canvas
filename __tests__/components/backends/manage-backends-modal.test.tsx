@@ -21,6 +21,11 @@ import { BackendRow } from "#/components/features/backends/backend-row";
 import { type Backend } from "#/api/backend-registry/types";
 import { CLOUD_BACKEND_LOGGED_OUT_ERROR } from "#/hooks/query/use-backends-health";
 
+const deviceFlowMocks = vi.hoisted(() => ({
+  startDeviceFlow: vi.fn(),
+  pollForToken: vi.fn(),
+}));
+
 const getServerInfoMock = vi.fn().mockResolvedValue({ version: "1.28.0" });
 const getSettingsMock = vi.fn().mockResolvedValue({});
 
@@ -38,6 +43,19 @@ vi.mock("#/api/cloud/organization-service.api", () => ({
     orgId: null,
     isLegacyKey: true,
   }),
+}));
+
+vi.mock("#/api/device-flow-client", () => ({
+  startDeviceFlow: deviceFlowMocks.startDeviceFlow,
+  pollForToken: deviceFlowMocks.pollForToken,
+  DeviceFlowError: class DeviceFlowError extends Error {
+    code: string;
+
+    constructor(message: string, code: string) {
+      super(message);
+      this.code = code;
+    }
+  },
 }));
 
 function renderWithProviders(ui: React.ReactElement) {
@@ -72,12 +90,25 @@ beforeEach(() => {
   getServerInfoMock.mockResolvedValue({ version: "1.28.0" });
   getSettingsMock.mockReset();
   getSettingsMock.mockResolvedValue({});
+  deviceFlowMocks.startDeviceFlow.mockReset();
+  deviceFlowMocks.startDeviceFlow.mockResolvedValue({
+    device_code: "device-code",
+    user_code: "ABCD-EFGH",
+    verification_uri: "https://app.all-hands.dev/device",
+    verification_uri_complete:
+      "https://app.all-hands.dev/device?user_code=ABCD-EFGH",
+    expires_in: 600,
+    interval: 5,
+  });
+  deviceFlowMocks.pollForToken.mockReset();
+  deviceFlowMocks.pollForToken.mockImplementation(() => new Promise(() => {}));
   __resetActiveStoreForTests();
   __resetHealthStoreForTests();
 });
 
 afterEach(() => {
   window.localStorage.clear();
+  vi.restoreAllMocks();
   __resetActiveStoreForTests();
   __resetHealthStoreForTests();
 });
@@ -395,10 +426,63 @@ describe("BackendRow", () => {
         `manage-backends-status-detail-${cloudBackend.name}`,
       ),
     ).not.toBeInTheDocument();
-    expect(
+    const loginButton = screen.getByTestId(
+      `manage-backends-login-${cloudBackend.id}-login-button`,
+    );
+    expect(loginButton).toHaveTextContent("BACKEND$LOG_BACK_IN");
+    expect(loginButton).toHaveClass("border");
+    expect(loginButton).not.toHaveClass("bg-primary");
+  });
+
+  it("shows device authorization in a modal instead of expanding the row", async () => {
+    const user = userEvent.setup();
+    const popup = {
+      closed: false,
+      close: vi.fn(),
+      location: { href: "" },
+    } as unknown as Window;
+    vi.spyOn(window, "open").mockReturnValue(popup);
+
+    renderInQueryClient(
+      <ul>
+        <BackendRow
+          backend={cloudBackend}
+          health={{
+            isConnected: false,
+            consecutiveFailures: 1,
+            lastError: CLOUD_BACKEND_LOGGED_OUT_ERROR,
+            disabled: false,
+          }}
+          onSelect={vi.fn()}
+          onEdit={vi.fn()}
+          onRemove={vi.fn()}
+          onLogin={vi.fn()}
+        />
+      </ul>,
+    );
+
+    const row = screen.getByTestId(`manage-backends-row-${cloudBackend.name}`);
+    await user.click(
       screen.getByTestId(
         `manage-backends-login-${cloudBackend.id}-login-button`,
       ),
-    ).toHaveTextContent("BACKEND$LOG_BACK_IN");
+    );
+
+    const modal = await screen.findByTestId(
+      `manage-backends-login-${cloudBackend.id}-auth-modal`,
+    );
+    expect(
+      await within(modal).findByTestId(
+        `manage-backends-login-${cloudBackend.id}-auth-awaiting`,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(row).queryByTestId(
+        `manage-backends-login-${cloudBackend.id}-auth-awaiting`,
+      ),
+    ).not.toBeInTheDocument();
+    expect(deviceFlowMocks.startDeviceFlow).toHaveBeenCalledWith(
+      cloudBackend.host,
+    );
   });
 });

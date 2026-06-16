@@ -1,9 +1,14 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { BrandButton } from "#/components/features/settings/brand-button";
-import { useDeviceFlow } from "#/hooks/use-device-flow";
+import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
+import { ModalBody } from "#/components/shared/modals/modal-body";
+import { useDeviceFlow, type DeviceFlowStatus } from "#/hooks/use-device-flow";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
+
+type DeviceFlowButtonVariant = "primary" | "secondary" | "tertiary";
+type DeviceFlowStatusDisplay = "inline" | "modal";
 
 interface DeviceFlowAuthProps {
   /** The host URL for the cloud backend */
@@ -20,6 +25,10 @@ interface DeviceFlowAuthProps {
   className?: string;
   /** Optional classes for the idle button. */
   buttonClassName?: string;
+  /** Visual variant for the idle button. */
+  buttonVariant?: DeviceFlowButtonVariant;
+  /** Whether in-progress auth content should render inline or in a modal. */
+  statusDisplay?: DeviceFlowStatusDisplay;
 }
 
 /**
@@ -50,6 +59,8 @@ export function DeviceFlowAuth({
   idleButtonLabel,
   className,
   buttonClassName,
+  buttonVariant = "primary",
+  statusDisplay = "inline",
 }: DeviceFlowAuthProps) {
   const { t } = useTranslation("openhands");
   const deviceFlow = useDeviceFlow();
@@ -134,6 +145,24 @@ export function DeviceFlowAuth({
     deviceFlow.start(fullHost);
   };
 
+  const handleCancel = () => {
+    deviceFlow.cancel();
+    popupRef.current?.close();
+  };
+
+  const statusContent = (
+    <DeviceFlowStatusContent
+      status={deviceFlow.status}
+      error={deviceFlow.error}
+      verificationUrl={deviceFlow.verificationUrl}
+      testIdRoot={testIdRoot}
+      onCancel={handleCancel}
+      onRetry={handleStartAuth}
+    />
+  );
+  const showStatusModal =
+    statusDisplay === "modal" && deviceFlow.status !== "idle";
+
   return (
     <div
       data-testid={`${testIdRoot}-device-flow`}
@@ -142,7 +171,7 @@ export function DeviceFlowAuth({
       {deviceFlow.status === "idle" && (
         <BrandButton
           type="button"
-          variant="primary"
+          variant={buttonVariant}
           onClick={handleStartAuth}
           testId={`${testIdRoot}-login-button`}
           className={cn("w-full", buttonClassName)}
@@ -152,80 +181,128 @@ export function DeviceFlowAuth({
         </BrandButton>
       )}
 
-      {deviceFlow.status === "starting" && (
-        <div
-          className="flex items-center gap-2 p-3 bg-base-tertiary rounded-lg"
-          data-testid={`${testIdRoot}-auth-starting`}
-          role="status"
-          aria-live="polite"
+      {statusDisplay === "inline" ? statusContent : null}
+
+      {showStatusModal ? (
+        <ModalBackdrop
+          onClose={handleCancel}
+          aria-label={t(I18nKey.BACKEND$LOGIN_WITH_OPENHANDS)}
+          closeOnBackdropClick={false}
         >
+          <ModalBody
+            testID={`${testIdRoot}-auth-modal`}
+            width="sm"
+            className="items-stretch border border-[var(--oh-border)]"
+          >
+            {statusContent}
+          </ModalBody>
+        </ModalBackdrop>
+      ) : null}
+    </div>
+  );
+}
+
+interface DeviceFlowStatusContentProps {
+  status: DeviceFlowStatus;
+  error: string | null;
+  verificationUrl: string | null;
+  testIdRoot: string;
+  onCancel: () => void;
+  onRetry: () => void;
+}
+
+function DeviceFlowStatusContent({
+  status,
+  error,
+  verificationUrl,
+  testIdRoot,
+  onCancel,
+  onRetry,
+}: DeviceFlowStatusContentProps) {
+  const { t } = useTranslation("openhands");
+
+  if (status === "idle" || status === "success") return null;
+
+  if (status === "starting") {
+    return (
+      <div
+        className="flex items-center gap-2 rounded-lg bg-base-tertiary p-3"
+        data-testid={`${testIdRoot}-auth-starting`}
+        role="status"
+        aria-live="polite"
+      >
+        <LoadingSpinner />
+        <span className="text-sm text-[var(--oh-text-tertiary)]">
+          {t(I18nKey.BACKEND$AUTH_STARTING)}
+        </span>
+      </div>
+    );
+  }
+
+  if (status === "awaiting_authorization") {
+    const validVerificationUrl =
+      verificationUrl && isValidVerificationUrl(verificationUrl)
+        ? verificationUrl
+        : null;
+
+    return (
+      <div
+        className="flex flex-col gap-4 rounded-lg bg-base-tertiary p-4"
+        data-testid={`${testIdRoot}-auth-awaiting`}
+        role="status"
+        aria-live="polite"
+      >
+        <div className="flex items-center gap-2">
           <LoadingSpinner />
-          <span className="text-sm text-[var(--oh-text-tertiary)]">
-            {t(I18nKey.BACKEND$AUTH_STARTING)}
+          <span className="text-sm font-medium text-white">
+            {t(I18nKey.BACKEND$AUTH_AWAITING)}
           </span>
         </div>
-      )}
-
-      {deviceFlow.status === "awaiting_authorization" && (
-        <div
-          className="flex flex-col gap-3 p-4 bg-base-tertiary rounded-lg"
-          data-testid={`${testIdRoot}-auth-awaiting`}
-          role="status"
-          aria-live="polite"
-        >
-          <div className="flex items-center gap-2">
-            <LoadingSpinner />
-            <span className="text-sm font-medium text-white">
-              {t(I18nKey.BACKEND$AUTH_AWAITING)}
-            </span>
+        <p className="text-sm leading-5 text-[var(--oh-text-tertiary)]">
+          {t(I18nKey.BACKEND$AUTH_BROWSER_OPENED)}
+        </p>
+        {validVerificationUrl ? (
+          <div className="flex flex-col gap-1 rounded-md border border-[var(--oh-border)] bg-[var(--oh-surface)] p-3 text-xs text-[var(--oh-muted)]">
+            <p>{t(I18nKey.BACKEND$AUTH_OPEN_MANUALLY)}</p>
+            <a
+              href={validVerificationUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="max-h-16 overflow-auto break-all text-blue-400 hover:underline"
+            >
+              {validVerificationUrl}
+            </a>
           </div>
-          <p className="text-sm text-[var(--oh-text-tertiary)]">
-            {t(I18nKey.BACKEND$AUTH_BROWSER_OPENED)}
-          </p>
-          {deviceFlow.verificationUrl &&
-            isValidVerificationUrl(deviceFlow.verificationUrl) && (
-              <div className="text-xs text-[var(--oh-muted)]">
-                <p>{t(I18nKey.BACKEND$AUTH_OPEN_MANUALLY)}</p>
-                <a
-                  href={deviceFlow.verificationUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 hover:underline break-all"
-                >
-                  {deviceFlow.verificationUrl}
-                </a>
-              </div>
-            )}
-          <BrandButton
-            type="button"
-            variant="secondary"
-            onClick={deviceFlow.cancel}
-            testId={`${testIdRoot}-auth-cancel`}
-            className="w-full mt-2"
-          >
-            {t(I18nKey.BACKEND$AUTH_CANCEL)}
-          </BrandButton>
-        </div>
-      )}
-
-      {deviceFlow.status === "error" && (
-        <div
-          className="flex flex-col gap-3 p-4 bg-red-900/20 border border-red-700 rounded-lg"
-          data-testid={`${testIdRoot}-auth-error`}
-          role="alert"
+        ) : null}
+        <BrandButton
+          type="button"
+          variant="secondary"
+          onClick={onCancel}
+          testId={`${testIdRoot}-auth-cancel`}
+          className="w-full"
         >
-          <p className="text-sm text-red-400">{deviceFlow.error}</p>
-          <BrandButton
-            type="button"
-            variant="secondary"
-            onClick={handleStartAuth}
-            testId={`${testIdRoot}-auth-retry`}
-            className="w-full"
-          >
-            {t(I18nKey.BACKEND$AUTH_RETRY)}
-          </BrandButton>
-        </div>
-      )}
+          {t(I18nKey.BACKEND$AUTH_CANCEL)}
+        </BrandButton>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="flex flex-col gap-3 rounded-lg border border-red-700 bg-red-900/20 p-4"
+      data-testid={`${testIdRoot}-auth-error`}
+      role="alert"
+    >
+      <p className="text-sm text-red-400">{error}</p>
+      <BrandButton
+        type="button"
+        variant="secondary"
+        onClick={onRetry}
+        testId={`${testIdRoot}-auth-retry`}
+        className="w-full"
+      >
+        {t(I18nKey.BACKEND$AUTH_RETRY)}
+      </BrandButton>
     </div>
   );
 }
