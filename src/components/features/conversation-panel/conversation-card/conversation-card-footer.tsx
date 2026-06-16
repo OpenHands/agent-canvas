@@ -9,6 +9,7 @@ import {
   getAcpProviderDisplayName,
   labelForAcpModel,
   resolveAcpProviderIcon,
+  formatNativeModelString,
 } from "#/constants/acp-providers";
 import {
   AgentBrandIcon,
@@ -93,7 +94,12 @@ export function ConversationCardFooter({
         tooltip: modelLabel ? `${providerName} · ${modelLabel}` : providerName,
       };
     } else if (llmModel) {
-      chip = { kind: "openhands", text: llmModel, tooltip: llmModel };
+      const formattedModel = formatNativeModelString(llmModel);
+      chip = {
+        kind: "openhands",
+        text: formattedModel ?? llmModel,
+        tooltip: llmModel,
+      };
     }
   }
 

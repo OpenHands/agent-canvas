@@ -32,10 +32,27 @@ export const useSwitchAcpModel = () => {
   return useMutation({
     mutationFn: async ({ conversationId, model }: SwitchAcpModelVars) => {
       if (conversationId) {
-        await AgentServerConversationService.switchAcpModel(
-          conversationId,
-          model,
-        );
+        try {
+          await AgentServerConversationService.switchAcpModel(
+            conversationId,
+            model,
+          );
+        } catch (error: unknown) {
+          // Before the first message, there's no live ACP session yet, so the
+          // agent-server returns 409. Fall back to persisting the model as the
+          // agent-settings default so the next run inherits it.
+          const isConflictError =
+            error instanceof Error &&
+            "status" in error &&
+            (error as { status: number }).status === 409;
+          if (isConflictError) {
+            await SettingsService.saveSettings({
+              agent_settings_diff: { acp_model: model },
+            });
+            return;
+          }
+          throw error;
+        }
         return;
       }
       // Home page / no session: persist as the agent-settings default. The
