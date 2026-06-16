@@ -119,4 +119,33 @@ describe("useSwitchAcpModel", () => {
       queryKey: ["user", "conversation", "conv-1"],
     });
   });
+
+  it("errors (does not silently persist to settings) on a pre-session 409 in-conversation switch", async () => {
+    // Before the first message there's no ACP session → agent-server 409.
+    // The switch can't apply to this conversation, and persisting to settings
+    // would only change the next conversation's default — so surface an error
+    // instead of a misleading success (until software-agent-sdk#3763).
+    const conflict = Object.assign(new Error("Conflict"), { status: 409 });
+    vi.mocked(AgentServerConversationService.switchAcpModel).mockRejectedValue(
+      conflict,
+    );
+
+    const { result, invalidateQueriesSpy } = renderSwitchHook();
+
+    result.current.mutate({
+      conversationId: "conv-1",
+      model: "claude-opus-4-8",
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    // No silent fallback to the agent-settings default for an existing
+    // conversation, and no cache invalidation (nothing changed).
+    expect(SettingsService.saveSettings).not.toHaveBeenCalled();
+    expect(invalidateQueriesSpy).not.toHaveBeenCalledWith({
+      queryKey: ["user", "conversation", "conv-1"],
+    });
+  });
 });

@@ -2,6 +2,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import { SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
+import i18n from "#/i18n";
+import { I18nKey } from "#/i18n/declaration";
 import { invalidateConversationQueries } from "./conversation-mutation-utils";
 
 interface SwitchAcpModelVars {
@@ -17,11 +19,14 @@ interface SwitchAcpModelVars {
 }
 
 /**
- * ACP analog of {@link useSwitchLlmProfile}. Switches the ACP model
- * per-conversation when called from inside a conversation (live in-place model
- * switch); persists it as the agent-settings default when called from the home
- * page (no live session to switch — the agent-server returns 409 before the
- * first message, so we write the default the next conversation inherits).
+ * ACP analog of {@link useSwitchLlmProfile}.
+ * - In-conversation with a live ACP session: live in-place switch via
+ *   ``session/set_model``.
+ * - Home page (``conversationId === null``): persist as the agent-settings
+ *   default so the next conversation inherits it.
+ * - In-conversation before the first message (no session → 409): surface a
+ *   clear error — the model can't be applied to this conversation yet
+ *   (temporary until OpenHands/software-agent-sdk#3763).
  *
  * Invalidates the same conversation/settings query keys the profile hook does
  * so the chat-input model chip + conversation chip refresh with the new model.
@@ -38,18 +43,22 @@ export const useSwitchAcpModel = () => {
             model,
           );
         } catch (error: unknown) {
-          // Before the first message, there's no live ACP session yet, so the
-          // agent-server returns 409. Fall back to persisting the model as the
-          // agent-settings default so the next run inherits it.
+          // Before the first message there's no live ACP session, so the
+          // agent-server returns 409. The switch can't be applied to *this*
+          // conversation: its agent's ``acp_model`` is baked at creation and
+          // ``session/set_model`` needs a live session. Persisting to
+          // agent-settings would only change the *next* conversation's default,
+          // not this one — a silent no-op here. Surface an honest error
+          // instead. Temporary until the SDK persists a pre-session switch
+          // (OpenHands/software-agent-sdk#3763), after which the 409 goes away.
           const isConflictError =
             error instanceof Error &&
             "status" in error &&
             (error as { status: number }).status === 409;
           if (isConflictError) {
-            await SettingsService.saveSettings({
-              agent_settings_diff: { acp_model: model },
-            });
-            return;
+            throw new Error(
+              i18n.t(I18nKey.CHAT_INTERFACE$ACP_MODEL_SWITCH_REQUIRES_SESSION),
+            );
           }
           throw error;
         }
