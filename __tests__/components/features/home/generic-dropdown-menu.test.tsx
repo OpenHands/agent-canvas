@@ -56,13 +56,15 @@ describe("GenericDropdownMenu list structure", () => {
   it("keeps the recent-items divider out of the accessibility tree", () => {
     renderMenu({ numberOfRecentItems: 1 });
 
-    // The divider is the only non-option <li>; it must be presentational so
-    // screen readers don't announce a phantom list item.
+    // The divider must be presentational so screen readers don't announce a
+    // phantom list item. Match it by its role directly (not "not an option")
+    // so the assertion stays pinned if another non-option child is added.
     const list = screen.getByTestId("generic-menu");
     const divider = Array.from(list.children).find(
-      (el) => el.getAttribute("role") !== "option",
+      (el) => el.getAttribute("role") === "presentation",
     );
     expect(divider).toBeDefined();
+    expect(divider).toHaveAttribute("role", "presentation");
     expect(divider).toHaveAttribute("aria-hidden", "true");
   });
 });
