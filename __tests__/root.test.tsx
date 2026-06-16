@@ -173,7 +173,9 @@ describe("App root agent-server availability guard", () => {
     });
     expect(screen.getByTestId("manage-backends-modal")).toBeInTheDocument();
     expect(screen.getByText("Logged out")).toBeInTheDocument();
-    expect(screen.getByText("Log back in")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Log back in" }),
+    ).toBeInTheDocument();
     expect(screen.queryByTestId("app-outlet")).not.toBeInTheDocument();
   });
 
