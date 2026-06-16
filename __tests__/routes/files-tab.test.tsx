@@ -7,6 +7,7 @@ import { MemoryRouter } from "react-router";
 
 import FilesTab from "#/routes/files-tab";
 import { useFilesTabStore } from "#/stores/files-tab-store";
+import { NavigationProvider } from "#/context/navigation-context";
 
 // Mocks must be declared before the SUT is imported.
 const useHasAttachedSourceMock = vi.fn();
@@ -44,15 +45,24 @@ vi.mock("#/routes/changes-tab", () => ({
   default: () => <div data-testid="changes-tab-content">Diff View</div>,
 }));
 
-function renderTab() {
+function renderTab(conversationId: string | null = null) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   return render(
     <MemoryRouter>
-      <QueryClientProvider client={client}>
-        <FilesTab />
-      </QueryClientProvider>
+      <NavigationProvider
+        value={{
+          currentPath: "/",
+          conversationId,
+          isNavigating: false,
+          navigate: () => {},
+        }}
+      >
+        <QueryClientProvider client={client}>
+          <FilesTab />
+        </QueryClientProvider>
+      </NavigationProvider>
     </MemoryRouter>,
   );
 }
@@ -65,7 +75,10 @@ describe("FilesTab", () => {
     // store polluted with the previous test's path. Resetting here, after
     // the previous test's cleanup() has unmounted any FilesTab, defeats
     // that race so each test starts with a clean selection.
-    useFilesTabStore.setState({ selectedPath: null });
+    useFilesTabStore.setState({
+      selectedPath: null,
+      selectedConversationId: null,
+    });
 
     useHasAttachedSourceMock.mockReset();
     useHasGitCommitsMock.mockReset();
@@ -465,5 +478,115 @@ describe("FilesTab", () => {
     expect(refresh).toHaveAttribute("aria-label", "FILES$REFRESH");
     await user.click(refresh);
     expect(refetchGitChangesMock).toHaveBeenCalledTimes(1);
+  });
+
+  // Regression coverage for issue #1350: a file selected in one conversation
+  // must not survive into another. The selection is global (Zustand) but
+  // scoped to its conversation; the files tab ignores a path owned by a
+  // different conversation so it never tries to open a file that only exists
+  // in the previous conversation's workspace.
+  describe("conversation switching", () => {
+    beforeEach(() => {
+      useHasAttachedSourceMock.mockReturnValue({
+        hasAttachedSource: false,
+        isLoading: false,
+      });
+    });
+
+    it("ignores a stale selection from another conversation and auto-selects this conversation's file", async () => {
+      // demo.html was opened in conversation A and only exists there.
+      useFilesTabStore.setState({
+        selectedPath: "demo.html",
+        selectedConversationId: "conv-a",
+      });
+      // Conversation B's workspace does not contain demo.html.
+      useWorkspaceFilesMock.mockReturnValue({
+        data: ["app.html"],
+        isLoading: false,
+      });
+
+      renderTab("conv-b");
+
+      // The stale demo.html is never requested; B auto-selects its own file.
+      await waitFor(() => {
+        expect(useWorkspaceFileContentMock).toHaveBeenCalledWith("app.html");
+      });
+      expect(useWorkspaceFileContentMock).not.toHaveBeenCalledWith("demo.html");
+
+      // The store ownership flips to the active conversation.
+      await waitFor(() => {
+        const state = useFilesTabStore.getState();
+        expect(state.selectedPath).toBe("app.html");
+        expect(state.selectedConversationId).toBe("conv-b");
+      });
+    });
+
+    it("preserves a selection that belongs to the current conversation (explicit navigate_to_file)", async () => {
+      // canvas_ui navigated this conversation to report.html outside React.
+      useFilesTabStore.setState({
+        selectedPath: "report.html",
+        selectedConversationId: "conv-b",
+      });
+      useWorkspaceFilesMock.mockReturnValue({
+        data: ["report.html", "app.html"],
+        isLoading: false,
+      });
+
+      renderTab("conv-b");
+
+      // The explicit selection is honored and auto-select does not override it.
+      await waitFor(() => {
+        expect(useWorkspaceFileContentMock).toHaveBeenCalledWith("report.html");
+      });
+      expect(useFilesTabStore.getState().selectedPath).toBe("report.html");
+    });
+
+    it("drops the selection when the tab switches to a different conversation", async () => {
+      useWorkspaceFilesMock.mockReturnValue({
+        data: ["demo.html"],
+        isLoading: false,
+      });
+
+      const { rerender } = renderTab("conv-a");
+
+      // Conversation A auto-selects and owns demo.html.
+      await waitFor(() => {
+        expect(useFilesTabStore.getState().selectedPath).toBe("demo.html");
+      });
+      expect(useFilesTabStore.getState().selectedConversationId).toBe("conv-a");
+
+      // Switch the mounted tab to conversation B, whose workspace has app.html.
+      useWorkspaceFileContentMock.mockClear();
+      useWorkspaceFilesMock.mockReturnValue({
+        data: ["app.html"],
+        isLoading: false,
+      });
+      const client = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      });
+      rerender(
+        <MemoryRouter>
+          <NavigationProvider
+            value={{
+              currentPath: "/",
+              conversationId: "conv-b",
+              isNavigating: false,
+              navigate: () => {},
+            }}
+          >
+            <QueryClientProvider client={client}>
+              <FilesTab />
+            </QueryClientProvider>
+          </NavigationProvider>
+        </MemoryRouter>,
+      );
+
+      // After the switch the tab follows B and never re-requests demo.html.
+      await waitFor(() => {
+        expect(useFilesTabStore.getState().selectedPath).toBe("app.html");
+      });
+      expect(useFilesTabStore.getState().selectedConversationId).toBe("conv-b");
+      expect(useWorkspaceFileContentMock).not.toHaveBeenCalledWith("demo.html");
+    });
   });
 });
