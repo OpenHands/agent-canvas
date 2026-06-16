@@ -5,6 +5,7 @@ import { isNoBackend } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
 import {
   getAgentServerFormDefaults,
+  getLockedCloudHost,
   isAuthRequired,
 } from "#/api/agent-server-config";
 import { DEFAULT_LOCAL_BACKEND_NAME } from "#/api/backend-registry/default-backend";
@@ -134,6 +135,7 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
   }, [isConnected]);
 
   const hideConfigurationFields = isConnected === true && !configurationOpen;
+  const lockedCloudHost = getLockedCloudHost();
 
   const handleConnected = React.useCallback(
     (payload: BackendFormSubmitPayload) => {
@@ -152,7 +154,9 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
     onBack ? "justify-between" : "justify-end",
   );
   const titleKey = noBackendSelected
-    ? I18nKey.BACKEND$ADD_TITLE
+    ? lockedCloudHost
+      ? I18nKey.ONBOARDING$LOGIN_TO_CLOUD_TITLE
+      : I18nKey.BACKEND$ADD_TITLE
     : I18nKey.ONBOARDING$BACKEND_TITLE;
 
   return (

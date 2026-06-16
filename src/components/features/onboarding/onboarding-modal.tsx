@@ -1,5 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { isNoBackend } from "#/api/backend-registry/active-store";
 import { getLockedCloudHost } from "#/api/agent-server-config";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import {
@@ -8,6 +9,8 @@ import {
 } from "#/components/shared/modals/modal-body";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
+import { useActiveBackendContext } from "#/contexts/active-backend-context";
+import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { OnboardingProgressBar } from "./onboarding-progress-bar";
 import {
   ChooseAgentStep,
@@ -18,13 +21,8 @@ import { SetupLlmStep } from "./steps/setup-llm-step";
 import { SetupAcpSecretsStep } from "./steps/setup-acp-secrets-step";
 import { SayHelloStep } from "./steps/say-hello-step";
 
-const TOTAL_STEPS = 4;
-
-// Index of the per-provider setup slide (LLM form for OpenHands, ACP
-// credentials for Claude Code / Codex). Named so the slide and the
-// ``isActive`` gate that drives the ACP login probe move together — inserting
-// a slide before it can't silently fire the probe on the wrong step.
-const SETUP_SLIDE_INDEX = 2;
+const TOTAL_STEPS_WITH_BACKEND = 4;
+const TOTAL_STEPS_WITHOUT_BACKEND = 3;
 
 interface SlideProps {
   /** Index of this slide in the step sequence. */
@@ -82,15 +80,17 @@ interface OnboardingModalProps {
 /**
  * Top-level onboarding modal for first-time users.
  *
- * The flow is a fixed sequence of four steps:
- *   0. Check backend
+ * The flow starts with backend setup only when the active backend is missing
+ * or cannot be reached. If an already configured backend is healthy, the user
+ * starts directly on agent selection:
+ *   0. Check/add backend (only when needed)
  *   1. Choose agent
  *   2. Set up LLM
  *   3. Say hello (creates a fresh conversation, then closes)
  *
- * Each step lives in its own slide; all four are mounted at once and
- * the rail is translated horizontally by step index, so transitioning
- * between steps animates the new step in from the right.
+ * Each visible step lives in its own slide and the rail is translated
+ * horizontally by step index, so transitioning between steps animates the new
+ * step in from the right.
  */
 export function OnboardingModal({
   onClose,
@@ -98,21 +98,39 @@ export function OnboardingModal({
   isPreview = false,
 }: OnboardingModalProps) {
   const { t } = useTranslation("openhands");
+  const { active } = useActiveBackendContext();
+  const { backend } = active;
+  const noBackendSelected = isNoBackend(backend);
+  const healthByBackendId = useBackendsHealth(
+    noBackendSelected ? [] : [backend],
+  );
+  const skipBackendStep =
+    !noBackendSelected && healthByBackendId[backend.id]?.isConnected === true;
+  const totalSteps = skipBackendStep
+    ? TOTAL_STEPS_WITHOUT_BACKEND
+    : TOTAL_STEPS_WITH_BACKEND;
+  const agentStepIndex = skipBackendStep ? 0 : 1;
+  const setupStepIndex = skipBackendStep ? 1 : 2;
+  const helloStepIndex = skipBackendStep ? 2 : 3;
   const [currentStep, setCurrentStep] = React.useState(() =>
-    Math.min(Math.max(initialStep, 0), TOTAL_STEPS - 1),
+    Math.min(Math.max(initialStep, 0), TOTAL_STEPS_WITH_BACKEND - 1),
   );
   const [selectedAgentId, setSelectedAgentId] =
     React.useState<OnboardingAgentId>("openhands");
 
-  // Slide index 2 is the "provider credentials" slot:
+  React.useEffect(() => {
+    setCurrentStep((step) => Math.min(step, totalSteps - 1));
+  }, [totalSteps]);
+
+  // The setup slide is the "provider credentials" slot:
   //   * OpenHands → the LLM-setup form (its own LLM config).
   //   * Any ACP provider (Claude Code / Codex / Gemini) → the ACP credentials
   //     form: API key + optional base URL, with a login-detection banner.
   const isOpenHands = selectedAgentId === "openhands";
   const hideSkip = currentStep === 0 && getLockedCloudHost() !== null;
   const goNext = React.useCallback(
-    () => setCurrentStep((step) => Math.min(step + 1, TOTAL_STEPS - 1)),
-    [],
+    () => setCurrentStep((step) => Math.min(step + 1, totalSteps - 1)),
+    [totalSteps],
   );
   const goBack = React.useCallback(
     () => setCurrentStep((step) => Math.max(step - 1, 0)),
@@ -139,7 +157,7 @@ export function OnboardingModal({
           <header className="flex flex-col gap-3 px-7 pt-7 shrink-0">
             <OnboardingProgressBar
               currentStep={currentStep}
-              totalSteps={TOTAL_STEPS}
+              totalSteps={totalSteps}
             />
           </header>
 
@@ -152,30 +170,32 @@ export function OnboardingModal({
               data-current-step={currentStep}
               className="relative overflow-clip"
             >
-              <Slide index={0} currentStep={currentStep}>
-                <CheckBackendStep onNext={goNext} />
-              </Slide>
-              <Slide index={1} currentStep={currentStep}>
+              {skipBackendStep ? null : (
+                <Slide index={0} currentStep={currentStep}>
+                  <CheckBackendStep onNext={goNext} />
+                </Slide>
+              )}
+              <Slide index={agentStepIndex} currentStep={currentStep}>
                 <ChooseAgentStep
                   selectedAgentId={selectedAgentId}
                   onSelect={setSelectedAgentId}
-                  onBack={goBack}
+                  onBack={skipBackendStep ? undefined : goBack}
                   onNext={goNext}
                 />
               </Slide>
-              <Slide index={SETUP_SLIDE_INDEX} currentStep={currentStep}>
+              <Slide index={setupStepIndex} currentStep={currentStep}>
                 {isOpenHands ? (
                   <SetupLlmStep onBack={goBack} onNext={goNext} />
                 ) : (
                   <SetupAcpSecretsStep
                     providerKey={selectedAgentId}
-                    isActive={currentStep === SETUP_SLIDE_INDEX}
+                    isActive={currentStep === setupStepIndex}
                     onBack={goBack}
                     onNext={goNext}
                   />
                 )}
               </Slide>
-              <Slide index={3} currentStep={currentStep}>
+              <Slide index={helloStepIndex} currentStep={currentStep}>
                 <SayHelloStep
                   onBack={goBack}
                   onClose={onClose}
@@ -186,7 +206,7 @@ export function OnboardingModal({
           </div>
         </section>
 
-        {currentStep < TOTAL_STEPS - 1 && !hideSkip ? (
+        {currentStep < totalSteps - 1 && !hideSkip ? (
           <button
             type="button"
             data-testid="onboarding-skip"

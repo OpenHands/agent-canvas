@@ -28270,6 +28270,23 @@
     "tr": "Sunucu tarafını kontrol edin",
     "uk": "Перевірте бекенд"
   },
+  "ONBOARDING$LOGIN_TO_CLOUD_TITLE": {
+    "en": "Login to cloud",
+    "ja": "クラウドにログイン",
+    "zh-CN": "登录云端",
+    "zh-TW": "登入雲端",
+    "ko-KR": "클라우드에 로그인",
+    "no": "Logg inn på skyen",
+    "ar": "تسجيل الدخول إلى السحابة",
+    "de": "Bei der Cloud anmelden",
+    "fr": "Se connecter au cloud",
+    "it": "Accedi al cloud",
+    "pt": "Entrar na nuvem",
+    "es": "Iniciar sesión en la nube",
+    "ca": "Inicia sessió al núvol",
+    "tr": "Buluta giriş yap",
+    "uk": "Увійти в хмару"
+  },
   "ONBOARDING$BACKEND_SUBTITLE": {
     "en": "OpenHands talks to an agent server. Make sure the default backend is reachable.",
     "ja": "OpenHands はエージェントサーバーと通信します。デフォルトのバックエンドに接続できることを確認してください。",
