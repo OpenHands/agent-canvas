@@ -47,13 +47,13 @@ const profiles = [
 const sameModelProfiles = [
   {
     name: "broken",
-    model: "litellm_proxy/claude-sonnet-4-6",
+    model: "openhands/claude-sonnet-4-6",
     base_url: null,
     api_key_set: true,
   },
   {
     name: "claude-sonnet-4.6",
-    model: "litellm_proxy/claude-sonnet-4-6",
+    model: "openhands/claude-sonnet-4-6",
     base_url: null,
     api_key_set: true,
   },
@@ -191,7 +191,7 @@ describe("SwitchProfileButton", () => {
       data: {
         id: "conv-1",
         agent_kind: "openhands",
-        llm_model: "litellm_proxy/claude-sonnet-4-6",
+        llm_model: "openhands/claude-sonnet-4-6",
         active_profile: "claude-sonnet-4.6",
       },
     });
@@ -211,7 +211,7 @@ describe("SwitchProfileButton", () => {
       data: {
         id: "conv-1",
         agent_kind: "openhands",
-        llm_model: "litellm_proxy/claude-sonnet-4-6",
+        llm_model: "openhands/claude-sonnet-4-6",
       },
     });
 
@@ -232,7 +232,7 @@ describe("SwitchProfileButton", () => {
       data: {
         id: "conv-1",
         agent_kind: "openhands",
-        llm_model: "litellm_proxy/claude-sonnet-4-6",
+        llm_model: "openhands/claude-sonnet-4-6",
         active_profile: "deleted-profile",
       },
     });

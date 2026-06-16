@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ModelSelector } from "#/components/shared/modals/settings/model-selector";
 import { server } from "#/mocks/node";
 
-describe("ModelSelector — OpenHands provider", () => {
+describe("ModelSelector — OpenHands provider display", () => {
   let providersCount = 0;
   let verifiedCount = 0;
   let modelsCount = 0;
@@ -49,7 +49,7 @@ describe("ModelSelector — OpenHands provider", () => {
     );
   }
 
-  it("shows OpenHands as the provider for a public openhands/<m> model", async () => {
+  it("shows OpenHands immediately for current openhands/<m> settings", async () => {
     renderWithQuery(<ModelSelector currentModel="openhands/claude-opus-4-7" />);
 
     await waitFor(() => {
