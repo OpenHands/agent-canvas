@@ -47,6 +47,10 @@ Agent Canvas runs the open source OpenHands agent out-of-the-box, but can use an
 
 If you have questions or feedback, please open a GitHub issue or join the [#proj-agent-canvas channel in Slack](https://openhands.dev/joinslack).
 
+> [!NOTE]
+> The code in this repo is moving! See [Agent Canvas transition FAQ](https://github.com/OpenHands/OpenHands/issues/14841)
+>
+> The source code for Agent Canvas lives in [OpenHands/agent-canvas](https://github.com/OpenHands/agent-canvas) for now.
 
 ## Quickstart
 
