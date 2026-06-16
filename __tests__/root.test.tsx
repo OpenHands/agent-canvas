@@ -37,7 +37,7 @@ vi.mock("react-i18next", () => ({
 vi.mock("#/components/features/onboarding/onboarding-modal", () => ({
   OnboardingModal: () => (
     <div data-testid="onboarding-modal">
-      <div data-testid="onboarding-step-choose-agent" />
+      <div data-testid="onboarding-step-check-backend" />
     </div>
   ),
 }));
@@ -99,7 +99,7 @@ describe("App root agent-server availability guard", () => {
     });
     expect(await screen.findByTestId("onboarding-modal")).toBeInTheDocument();
     expect(
-      await screen.findByTestId("onboarding-step-choose-agent"),
+      await screen.findByTestId("onboarding-step-check-backend"),
     ).toBeInTheDocument();
     expect(
       screen.queryByTestId("api-key-entry-screen"),
