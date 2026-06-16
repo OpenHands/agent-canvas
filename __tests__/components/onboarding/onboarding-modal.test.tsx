@@ -259,6 +259,7 @@ describe("OnboardingModal", () => {
     expect(
       screen.queryByTestId("onboarding-backend-cloud-host"),
     ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("onboarding-skip")).not.toBeInTheDocument();
   });
 
   it("shows a connection error when saving an unreachable backend", async () => {

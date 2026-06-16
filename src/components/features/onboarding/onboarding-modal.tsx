@@ -1,5 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { getLockedCloudHost } from "#/api/agent-server-config";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import {
   MODAL_MAX_WIDTH_VIEWPORT,
@@ -108,6 +109,7 @@ export function OnboardingModal({
   //   * Any ACP provider (Claude Code / Codex / Gemini) → the ACP credentials
   //     form: API key + optional base URL, with a login-detection banner.
   const isOpenHands = selectedAgentId === "openhands";
+  const hideSkip = currentStep === 0 && getLockedCloudHost() !== null;
   const goNext = React.useCallback(
     () => setCurrentStep((step) => Math.min(step + 1, TOTAL_STEPS - 1)),
     [],
@@ -184,7 +186,7 @@ export function OnboardingModal({
           </div>
         </section>
 
-        {currentStep < TOTAL_STEPS - 1 ? (
+        {currentStep < TOTAL_STEPS - 1 && !hideSkip ? (
           <button
             type="button"
             data-testid="onboarding-skip"
