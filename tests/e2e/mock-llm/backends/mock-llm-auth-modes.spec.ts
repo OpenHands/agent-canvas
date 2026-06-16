@@ -196,13 +196,19 @@ test.describe("auth mode: public gate", () => {
     });
   });
 
-  test("shows the auth screen when no key is configured", async ({ page }) => {
+  test("shows first-run onboarding before the auth screen when no key is configured", async ({
+    page,
+  }) => {
     // Navigate to the public-mode static server (--auth-required, no
     // baked session key). The browser has a clean context (no localStorage)
-    // so isAuthRequiredAndMissing() should return true.
+    // so first-run users should see onboarding before the auth fallback.
     await page.goto(PUBLIC_MODE_URL, { waitUntil: "domcontentloaded" });
 
-    // The ApiKeyEntryScreen should be visible.
+    await waitForTestId(page, "first-run-onboarding-screen");
+    await waitForTestId(page, "onboarding-modal");
+    await waitForTestId(page, "onboarding-step-check-backend");
+
+    await page.getByTestId("onboarding-skip").click();
     await waitForTestId(page, "api-key-entry-screen");
 
     // The main app UI should NOT be visible.
