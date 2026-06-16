@@ -1,11 +1,8 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react";
 
-import { ServerClient } from "@openhands/typescript-client/clients";
 import { type Backend } from "#/api/backend-registry/types";
-import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
@@ -15,50 +12,12 @@ import {
 } from "#/components/shared/modals/modal-body";
 import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
-import {
-  isInvalidBackendApiKeyHealthError,
-  useBackendsHealth,
-  type BackendHealth,
-} from "#/hooks/query/use-backends-health";
+import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import { modalTitleLgClassName } from "#/utils/modal-classes";
 import { BackendFormModal } from "./backend-form-modal";
-import { BackendStatusDot } from "./backend-status-dot";
-
-const ROW_ACTION_BUTTON_CLASS =
-  "inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-muted transition-colors hover:bg-interactive-hover hover:text-white";
-
-function BackendVersion({ backend }: { backend: Backend }) {
-  const { t } = useTranslation("openhands");
-  const { data: version } = useQuery({
-    queryKey: ["backend-version", backend.host, backend.apiKey],
-    queryFn: async () => {
-      const info = await new ServerClient(
-        getAgentServerClientOptions({
-          host: backend.host,
-          sessionApiKey: backend.apiKey || null,
-          timeout: 5000,
-        }),
-      ).getServerInfo();
-      return info.version ?? null;
-    },
-    retry: false,
-    staleTime: 60_000,
-    enabled: backend.kind === "local",
-  });
-
-  if (!version) return null;
-
-  return (
-    <span
-      className="inline-flex shrink-0 items-center rounded-full border border-[var(--oh-border)] bg-[var(--oh-surface)] px-1.5 py-0.5 text-[10px] font-medium leading-none text-[var(--oh-text-dim)]"
-      data-testid={`manage-backends-version-${backend.name}`}
-    >
-      {t(I18nKey.BACKEND$VERSION_LABEL, { version })}
-    </span>
-  );
-}
+import { BackendRow } from "./backend-row";
 
 interface ManageBackendsModalProps {
   onClose: () => void;
@@ -72,116 +31,6 @@ interface ManageBackendsModalProps {
 interface PendingRemoval {
   id: string;
   name: string;
-}
-
-interface BackendRowProps {
-  backend: Backend;
-  health: BackendHealth | undefined;
-  onSelect: () => void;
-  onEdit: () => void;
-  onRemove: () => void;
-}
-
-function BackendRow({
-  backend,
-  health,
-  onSelect,
-  onEdit,
-  onRemove,
-}: BackendRowProps) {
-  const { t } = useTranslation("openhands");
-  const isInvalidApiKey = isInvalidBackendApiKeyHealthError(health?.lastError);
-  const statusDetail =
-    !isInvalidApiKey && health?.isConnected === false && health.lastError
-      ? health.lastError
-      : null;
-  let statusLabel: string;
-  let statusClassName = "text-[var(--oh-muted)]";
-
-  if (isInvalidApiKey) {
-    statusLabel = t(I18nKey.AUTH$INVALID_KEY);
-    statusClassName = "text-red-300";
-  } else if (health?.isConnected === true) {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_CONNECTED);
-    statusClassName = "text-green-300";
-  } else if (health?.isConnected === false) {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_DISCONNECTED);
-    statusClassName = "text-red-300";
-  } else {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_CHECKING);
-  }
-  const dotStatus = isInvalidApiKey ? false : (health?.isConnected ?? null);
-  const canSelect = health?.isConnected === true && !isInvalidApiKey;
-
-  return (
-    <li
-      className="flex items-stretch"
-      data-testid={`manage-backends-row-${backend.name}`}
-    >
-      <button
-        type="button"
-        disabled={!canSelect}
-        onClick={onSelect}
-        className={cn(
-          "flex min-w-0 flex-1 items-center gap-3 px-3 py-3 text-left",
-          canSelect
-            ? "cursor-pointer transition-colors hover:bg-interactive-hover focus-visible:bg-interactive-hover focus-visible:outline-none"
-            : "cursor-default",
-        )}
-      >
-        <BackendStatusDot isConnected={dotStatus} />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-sm text-white">{backend.name}</span>
-            <BackendVersion backend={backend} />
-          </div>
-          <span className="truncate text-xs text-[var(--oh-muted)]">
-            {backend.host}
-          </span>
-          <span
-            data-testid={`manage-backends-status-${backend.name}`}
-            className={cn("truncate text-xs", statusClassName)}
-          >
-            {statusLabel}
-          </span>
-          {statusDetail ? (
-            <span
-              data-testid={`manage-backends-status-detail-${backend.name}`}
-              title={statusDetail}
-              className="text-xs text-red-300/80 whitespace-normal break-words"
-            >
-              {statusDetail}
-            </span>
-          ) : null}
-        </div>
-        <span className="px-2 py-1 rounded-full text-[11px] uppercase tracking-wide text-[var(--oh-text-tertiary)] bg-[var(--oh-surface)] border border-[var(--oh-border)]">
-          {backend.kind === "cloud"
-            ? t(I18nKey.BACKEND$KIND_CLOUD)
-            : t(I18nKey.BACKEND$KIND_LOCAL)}
-        </span>
-      </button>
-      <div className="flex shrink-0 items-center gap-0.5 px-3 py-3">
-        <button
-          type="button"
-          onClick={onEdit}
-          aria-label={t(I18nKey.BACKEND$EDIT)}
-          data-testid={`manage-backends-edit-${backend.name}`}
-          className={ROW_ACTION_BUTTON_CLASS}
-        >
-          <Pencil aria-hidden className="size-4" strokeWidth={2} />
-        </button>
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label={t(I18nKey.BACKEND$REMOVE)}
-          data-testid={`manage-backends-remove-${backend.name}`}
-          className={ROW_ACTION_BUTTON_CLASS}
-        >
-          <Trash2 aria-hidden className="size-4" strokeWidth={2} />
-        </button>
-      </div>
-    </li>
-  );
 }
 
 export function ManageBackendsModal({

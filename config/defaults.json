@@ -3,9 +3,8 @@
 
   "versions": {
     "agentServer": "1.28.1",
-    "agentCanvas": "1.0.0-rc.6",
-    "automation": "1.0.0a9",
-    "automationSdk": "1.28.1"
+    "agentCanvas": "1.0.0-rc.11",
+    "automation": "1.0.0a9"
   },
 
   "compatibility": {
