@@ -26,7 +26,7 @@
  * @spec BM-002 — Key rotation recovery via syncLauncherDefaultLocalBackend
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import {
   BACKEND_URL,
   SESSION_API_KEY,
@@ -196,9 +196,7 @@ test.describe("auth mode: public gate", () => {
     });
   });
 
-  test("shows first-run onboarding before the auth screen when no key is configured", async ({
-    page,
-  }) => {
+  async function openPublicAuthScreenFromFirstRun(page: Page) {
     // Navigate to the public-mode static server (--auth-required, no
     // baked session key). The browser has a clean context (no localStorage)
     // so first-run users should see onboarding before the auth fallback.
@@ -210,6 +208,12 @@ test.describe("auth mode: public gate", () => {
 
     await page.getByTestId("onboarding-skip").click();
     await waitForTestId(page, "api-key-entry-screen");
+  }
+
+  test("shows first-run onboarding before the auth screen when no key is configured", async ({
+    page,
+  }) => {
+    await openPublicAuthScreenFromFirstRun(page);
 
     // The main app UI should NOT be visible.
     const homeLauncher = page.getByTestId("home-chat-launcher");
@@ -217,8 +221,7 @@ test.describe("auth mode: public gate", () => {
   });
 
   test("rejects an incorrect key with an inline error", async ({ page }) => {
-    await page.goto(PUBLIC_MODE_URL, { waitUntil: "domcontentloaded" });
-    await waitForTestId(page, "api-key-entry-screen");
+    await openPublicAuthScreenFromFirstRun(page);
 
     // Focus → fill pattern needed for React controlled inputs (see
     // mock-llm-conversation.spec.ts for the established pattern).
@@ -240,8 +243,7 @@ test.describe("auth mode: public gate", () => {
   });
 
   test("allows access after pasting the correct key", async ({ page }) => {
-    await page.goto(PUBLIC_MODE_URL, { waitUntil: "domcontentloaded" });
-    await waitForTestId(page, "api-key-entry-screen");
+    await openPublicAuthScreenFromFirstRun(page);
 
     // Focus → fill pattern needed for React controlled inputs.
     const nameInput = page.getByTestId("api-key-entry-name");
