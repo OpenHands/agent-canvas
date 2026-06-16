@@ -5,6 +5,8 @@ export interface AgentServerFormDefaults {
   sessionApiKey: string;
 }
 
+export const LOCK_TO_CLOUD_WINDOW_KEY = "__AGENT_CANVAS_LOCK_TO_CLOUD__";
+
 function trimToNull(value?: string | null): string | null {
   return value?.trim() || null;
 }
@@ -24,6 +26,19 @@ function normalizeBaseUrl(value?: string | null): string | null {
   }
 
   return `http://${trimmed}`;
+}
+
+function normalizeCloudHost(value?: string | null): string | null {
+  if (!value) return null;
+
+  const trimmed = value.trim().replace(/\/+$/, "");
+  if (!trimmed) return null;
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  return `https://${trimmed}`;
 }
 
 function getConfiguredBaseUrl(): string | null {
@@ -67,6 +82,26 @@ export function getAgentServerFormDefaults(): AgentServerFormDefaults {
     baseUrl: getAgentServerBaseUrl() ?? "",
     sessionApiKey: getAgentServerSessionApiKey() ?? "",
   };
+}
+
+export function getLockedCloudHost(): string | null {
+  const envHost = normalizeCloudHost(import.meta.env.VITE_LOCK_TO_CLOUD);
+  if (envHost) return envHost;
+
+  if (typeof window !== "undefined") {
+    const injected = (window as unknown as Record<string, unknown>)[
+      LOCK_TO_CLOUD_WINDOW_KEY
+    ];
+    if (typeof injected === "string") {
+      return normalizeCloudHost(injected);
+    }
+  }
+
+  return null;
+}
+
+export function isLockedToCloud(): boolean {
+  return getLockedCloudHost() !== null;
 }
 
 export function getAgentServerBaseUrl(): string | null {

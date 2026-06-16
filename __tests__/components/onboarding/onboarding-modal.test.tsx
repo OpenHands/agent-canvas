@@ -234,6 +234,33 @@ describe("OnboardingModal", () => {
     expect(screen.getByTestId("onboarding-backend-login-button")).toBeVisible();
   });
 
+  it("locks no-backend onboarding to Cloud login when VITE_LOCK_TO_CLOUD is set", () => {
+    window.localStorage.clear();
+    vi.stubEnv("VITE_BACKEND_BASE_URL", "");
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://cloud.example.com");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_SESSION_API_KEY__;
+    __resetActiveStoreForTests();
+
+    renderModal();
+
+    expect(screen.getByTestId("onboarding-backend-cloud-title")).toBeVisible();
+    expect(screen.getByTestId("onboarding-backend-login-button")).toBeVisible();
+    expect(
+      screen.queryByTestId("onboarding-backend-host"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("onboarding-backend-api-key"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("onboarding-backend-advanced-toggle"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("onboarding-backend-cloud-host"),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows a connection error when saving an unreachable backend", async () => {
     renderModal();
     const user = userEvent.setup();
