@@ -56,6 +56,59 @@ describe("MCPServerForm validation", () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
+  it("includes an optional server name for sse/shttp servers", () => {
+    const onSubmit = vi.fn();
+
+    render(
+      <MCPServerForm
+        mode="add"
+        server={{ id: "tmp", type: "sse" }}
+        existingServers={[]}
+        onSubmit={onSubmit}
+        onCancel={noop}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId("server-name-input"), {
+      target: { value: "my-search" },
+    });
+    fireEvent.change(screen.getByTestId("url-input"), {
+      target: { value: "https://api.example.com" },
+    });
+
+    fireEvent.click(screen.getByTestId("submit-button"));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      type: "sse",
+      name: "my-search",
+      url: "https://api.example.com",
+    });
+  });
+
+  it("omits the name when the sse/shttp name field is left blank", () => {
+    const onSubmit = vi.fn();
+
+    render(
+      <MCPServerForm
+        mode="add"
+        server={{ id: "tmp", type: "shttp" }}
+        existingServers={[]}
+        onSubmit={onSubmit}
+        onCancel={noop}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId("url-input"), {
+      target: { value: "https://api.example.com" },
+    });
+
+    fireEvent.click(screen.getByTestId("submit-button"));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit.mock.calls[0][0].name).toBeUndefined();
+  });
+
   it("rejects duplicate URLs across sse/shttp types", () => {
     const onSubmit = vi.fn();
 
