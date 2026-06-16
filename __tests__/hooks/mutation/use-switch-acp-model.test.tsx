@@ -148,4 +148,33 @@ describe("useSwitchAcpModel", () => {
       queryKey: ["user", "conversation", "conv-1"],
     });
   });
+
+  it("detects the 409 from the axios cloud-proxy error shape (response.status)", async () => {
+    // The cloud backend routes through axios, which exposes the status as
+    // ``error.response.status`` (not a top-level ``status``). getErrorStatus
+    // handles both, so the friendly pre-session error fires here too.
+    const conflict = Object.assign(new Error("Request failed"), {
+      isAxiosError: true,
+      response: { status: 409 },
+    });
+    vi.mocked(AgentServerConversationService.switchAcpModel).mockRejectedValue(
+      conflict,
+    );
+
+    const { result } = renderSwitchHook();
+
+    result.current.mutate({
+      conversationId: "conv-1",
+      model: "claude-opus-4-8",
+    });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    // Surfaced as the friendly "requires session" message, not the raw axios
+    // error — and never persisted to settings.
+    expect(result.current.error?.message).not.toBe("Request failed");
+    expect(SettingsService.saveSettings).not.toHaveBeenCalled();
+  });
 });

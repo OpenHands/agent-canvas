@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import { SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
+import { getErrorStatus } from "#/hooks/query/use-settings";
 import i18n from "#/i18n";
 import { I18nKey } from "#/i18n/declaration";
 import { invalidateConversationQueries } from "./conversation-mutation-utils";
@@ -51,11 +52,9 @@ export const useSwitchAcpModel = () => {
           // not this one — a silent no-op here. Surface an honest error
           // instead. Temporary until the SDK persists a pre-session switch
           // (OpenHands/software-agent-sdk#3763), after which the 409 goes away.
-          const isConflictError =
-            error instanceof Error &&
-            "status" in error &&
-            (error as { status: number }).status === 409;
-          if (isConflictError) {
+          // getErrorStatus reads both the SDK client's ``status`` and axios's
+          // ``response.status`` so the cloud-proxy path is covered too.
+          if (getErrorStatus(error) === 409) {
             throw new Error(
               i18n.t(I18nKey.CHAT_INTERFACE$ACP_MODEL_SWITCH_REQUIRES_SESSION),
             );

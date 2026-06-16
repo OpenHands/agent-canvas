@@ -470,24 +470,6 @@ export function labelForAcpModel(
 }
 
 /**
- * Format a native OpenHands routing model string for display in the chip.
- * Strips the routing prefix (e.g. ``"anthropic/claude-sonnet-4-5-20250929"``
- * → ``"claude-sonnet-4-5-20250929"``) so the chip shows a meaningful model
- * name rather than the full routing path. Falls back to the raw string if
- * there's no prefix to strip.
- */
-export function formatNativeModelString(
-  modelString: string | null | undefined,
-): string | null {
-  if (!modelString) return null;
-  const lastSlash = modelString.lastIndexOf("/");
-  if (lastSlash > 0) {
-    return modelString.substring(lastSlash + 1);
-  }
-  return modelString;
-}
-
-/**
  * Build the ``agent_settings_diff`` payload PATCH /api/settings expects
  * for the agent-kind/provider choice the user just made.
  *
