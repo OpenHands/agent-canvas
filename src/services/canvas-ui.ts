@@ -29,13 +29,18 @@ function isValidTab(value: string): value is ConversationTab {
   return VALID_TABS.has(value as ConversationTab);
 }
 
-export function handleCanvasUIAction(action: CanvasUIAction): void {
+export function handleCanvasUIAction(
+  action: CanvasUIAction,
+  conversationId: string | null = null,
+): void {
   switch (action.command) {
     case "navigate_to_file":
     case "show_preview":
       navigateToTab("files");
       if (action.path) {
-        useFilesTabStore.getState().setSelectedPath(action.path);
+        useFilesTabStore
+          .getState()
+          .setSelectedPath(action.path, conversationId);
       }
       return;
     case "open_tab":

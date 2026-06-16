@@ -216,10 +216,10 @@ describe("ChatInputModel", () => {
     renderWithProviders(<ChatInputModel />);
 
     const model = screen.getByTestId("chat-input-llm-model");
-    // Claude Code's registered default (``claude-opus-4-7``), shown as its
+    // Claude Code's registered default (``claude-opus-4-8``), shown as its
     // human label to match the conversation list chip. See CLAUDE_MODELS in
     // acp-providers.ts.
-    expect(model).toHaveAttribute("title", "Claude Opus 4.7");
+    expect(model).toHaveAttribute("title", "Claude Opus 4.8");
     fireEvent.click(model);
     expect(screen.getByRole("link")).toHaveAttribute("href", "/settings/agent");
   });
@@ -246,7 +246,7 @@ describe("ChatInputModel", () => {
     expect(selectedRow).toBeInTheDocument();
     expect(selectedRow).toHaveTextContent("Claude Sonnet 4.6");
     expect(
-      screen.getByTestId("chat-input-acp-model-option-claude-opus-4-7"),
+      screen.getByTestId("chat-input-acp-model-option-claude-opus-4-8"),
     ).toBeInTheDocument();
   });
 
@@ -264,14 +264,14 @@ describe("ChatInputModel", () => {
 
     fireEvent.click(screen.getByTestId("chat-input-llm-model"));
     fireEvent.click(
-      screen.getByTestId("chat-input-acp-model-option-claude-opus-4-7"),
+      screen.getByTestId("chat-input-acp-model-option-claude-opus-4-8"),
     );
 
     // Active conversation → live switch keyed by the conversation id from the
     // navigation context (test-conversation-id), default-write NOT used.
     expect(switchAcpModelMutate).toHaveBeenCalledWith({
       conversationId: "test-conversation-id",
-      model: "claude-opus-4-7",
+      model: "claude-opus-4-8",
     });
     // Popover closes after a selection.
     expect(
@@ -326,7 +326,7 @@ describe("ChatInputModel", () => {
     expect(selectedRow).toBeInTheDocument();
     expect(selectedRow).toHaveTextContent("Claude Sonnet 4.6");
     expect(
-      screen.getByTestId("chat-input-acp-model-option-claude-opus-4-7"),
+      screen.getByTestId("chat-input-acp-model-option-claude-opus-4-8"),
     ).toBeInTheDocument();
     const popover = screen.getByTestId("chat-input-llm-model-popover");
     expect(popover).toHaveTextContent("Claude Sonnet 4.6");

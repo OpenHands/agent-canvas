@@ -231,7 +231,7 @@ describe("AgentSettingsScreen", () => {
 
     await screen.findByTestId("agent-command-input");
     expect(screen.getByLabelText("SETTINGS$AGENT_MODEL")).toHaveValue(
-      "Claude Opus 4.7",
+      "Claude Opus 4.8",
     );
   });
 
@@ -289,7 +289,7 @@ describe("AgentSettingsScreen", () => {
     await screen.findByTestId("agent-command-input");
     // Form loads with the Claude Code default visible.
     expect(screen.getByLabelText("SETTINGS$AGENT_MODEL")).toHaveValue(
-      "Claude Opus 4.7",
+      "Claude Opus 4.8",
     );
 
     // Switch to the Custom preset, then enter a different command — the
@@ -345,14 +345,14 @@ describe("AgentSettingsScreen", () => {
     renderAgentSettingsScreen();
     await screen.findByTestId("agent-command-input");
     expect(screen.getByLabelText("SETTINGS$AGENT_MODEL")).toHaveValue(
-      "Claude Opus 4.7",
+      "Claude Opus 4.8",
     );
 
     const commandInput = screen.getByTestId(
       "agent-command-input",
     ) as HTMLTextAreaElement;
     await user.clear(commandInput);
-    await user.type(commandInput, "npx -y @zed-industries/codex-acp");
+    await user.type(commandInput, "npx -y @zed-industries/codex-acp@0.15.0");
 
     // The model field now reflects the Codex default, not the stale Claude one.
     expect(screen.getByLabelText("SETTINGS$AGENT_MODEL")).toHaveValue(
@@ -397,10 +397,10 @@ describe("AgentSettingsScreen", () => {
       "agent-command-input",
     )) as HTMLTextAreaElement;
     expect(commandInput.value).toBe(
-      "npx -y @agentclientprotocol/claude-agent-acp",
+      "npx -y @agentclientprotocol/claude-agent-acp@0.30.0",
     );
     expect(screen.getByLabelText("SETTINGS$AGENT_MODEL")).toHaveValue(
-      "Claude Opus 4.7",
+      "Claude Opus 4.8",
     );
 
     await user.click(screen.getByTestId("agent-save-button"));
@@ -422,7 +422,7 @@ describe("AgentSettingsScreen", () => {
       // ``acp_args`` can't survive and concatenate onto the spawn
       // command at conversation-create time.
       acp_args: [],
-      acp_model: "claude-opus-4-7",
+      acp_model: "claude-opus-4-8",
     });
   });
 
@@ -589,7 +589,7 @@ describe("AgentSettingsScreen", () => {
       "agent-command-input",
     )) as HTMLTextAreaElement;
     expect(cmd.value).toBe(
-      "npx -y @agentclientprotocol/claude-agent-acp --extra-arg",
+      "npx -y @agentclientprotocol/claude-agent-acp@0.30.0 --extra-arg",
     );
 
     // Touch the form to mark it dirty (Save is disabled until isDirty),
@@ -611,7 +611,7 @@ describe("AgentSettingsScreen", () => {
     expect(call.agent_settings_diff?.acp_command).toEqual([
       "npx",
       "-y",
-      "@agentclientprotocol/claude-agent-acp",
+      "@agentclientprotocol/claude-agent-acp@0.30.0",
       "--extra-arg",
     ]);
     // ``acp_args: []`` resets the API-set args so they don't double up
@@ -783,7 +783,7 @@ describe("AgentSettingsScreen", () => {
           schema_version: 1,
           agent_kind: "acp",
           acp_server: "claude-code",
-          acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+          acp_command: [],
         },
       }),
     );
@@ -822,7 +822,7 @@ describe("AgentSettingsScreen", () => {
           schema_version: 1,
           agent_kind: "acp",
           acp_server: "claude-code",
-          acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+          acp_command: [],
         },
       }),
     );
