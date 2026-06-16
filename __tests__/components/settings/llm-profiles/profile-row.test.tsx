@@ -33,6 +33,7 @@ const defaultProps = {
   onActivate: vi.fn(),
   onEdit: vi.fn(),
   onRename: vi.fn(),
+  onDuplicate: vi.fn(),
   onDelete: vi.fn(),
   isActivating: false,
 };
