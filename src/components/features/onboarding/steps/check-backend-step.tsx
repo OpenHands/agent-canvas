@@ -120,7 +120,7 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
     noBackendSelected ? [] : [backend],
   );
   const isConnected = noBackendSelected
-    ? false
+    ? null
     : (healthByBackendId[backend.id]?.isConnected ?? null);
   const lastError = noBackendSelected
     ? null
@@ -151,6 +151,12 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
     "sticky bottom-0 mt-2 flex items-center gap-2 bg-base-secondary pt-4 pb-7",
     onBack ? "justify-between" : "justify-end",
   );
+  const titleKey = noBackendSelected
+    ? I18nKey.BACKEND$ADD_TITLE
+    : I18nKey.ONBOARDING$BACKEND_TITLE;
+  const subtitleKey = noBackendSelected
+    ? I18nKey.ONBOARDING$ADD_BACKEND_SUBTITLE
+    : I18nKey.ONBOARDING$BACKEND_SUBTITLE;
 
   return (
     <div
@@ -158,19 +164,17 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
       className="flex flex-col gap-6"
     >
       <header className="flex flex-col gap-2">
-        <h2 className="text-2xl font-medium text-white">
-          {t(I18nKey.ONBOARDING$BACKEND_TITLE)}
-        </h2>
-        <p className="text-sm text-[var(--oh-muted)]">
-          {t(I18nKey.ONBOARDING$BACKEND_SUBTITLE)}
-        </p>
+        <h2 className="text-2xl font-medium text-white">{t(titleKey)}</h2>
+        <p className="text-sm text-[var(--oh-muted)]">{t(subtitleKey)}</p>
       </header>
 
-      <ConnectionBanner
-        backend={backendForForm}
-        isConnected={isConnected}
-        lastError={lastError}
-      />
+      {noBackendSelected ? null : (
+        <ConnectionBanner
+          backend={backendForForm}
+          isConnected={isConnected}
+          lastError={lastError}
+        />
+      )}
 
       {isConnected === true ? (
         <button

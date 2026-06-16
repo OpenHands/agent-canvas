@@ -210,6 +210,30 @@ describe("OnboardingModal", () => {
     );
   });
 
+  it("starts first-run no-backend onboarding as Add a backend without an error banner", () => {
+    window.localStorage.clear();
+    vi.stubEnv("VITE_BACKEND_BASE_URL", "");
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_SESSION_API_KEY__;
+    __resetActiveStoreForTests();
+
+    renderModal();
+
+    expect(screen.getByText("BACKEND$ADD_TITLE")).toBeInTheDocument();
+    expect(
+      screen.getByText("ONBOARDING$ADD_BACKEND_SUBTITLE"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("onboarding-backend-disconnected"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("onboarding-backend-checking"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-backend-cloud-title")).toBeVisible();
+    expect(screen.getByTestId("onboarding-backend-login-button")).toBeVisible();
+  });
+
   it("shows a connection error when saving an unreachable backend", async () => {
     renderModal();
     const user = userEvent.setup();
