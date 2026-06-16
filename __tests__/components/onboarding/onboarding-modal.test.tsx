@@ -102,7 +102,7 @@ vi.mock("#/hooks/query/use-acp-auth-status", () => ({
 async function completeBackendStep(user: ReturnType<typeof userEvent.setup>) {
   await waitFor(
     () =>
-      expect(screen.getByTestId("onboarding-backend-next")).not.toBeDisabled(),
+      expect(screen.getByTestId("onboarding-backend-connected")).toBeVisible(),
     { timeout: 3000 },
   );
   await user.click(screen.getByTestId("onboarding-backend-next"));
@@ -214,6 +214,13 @@ describe("OnboardingModal", () => {
     renderModal();
     const user = userEvent.setup();
 
+    await waitFor(() =>
+      expect(screen.getByTestId("onboarding-backend-connected")).toBeVisible(),
+    );
+    await user.click(
+      screen.getByTestId("onboarding-backend-show-configuration"),
+    );
+
     await user.clear(screen.getByTestId("onboarding-backend-host"));
     await user.type(
       screen.getByTestId("onboarding-backend-host"),
@@ -268,6 +275,8 @@ describe("OnboardingModal", () => {
     expect(
       screen.getByTestId("onboarding-backend-configuration-fields"),
     ).not.toHaveClass("hidden");
+    expect(screen.getByTestId("onboarding-backend-cloud-title")).toBeVisible();
+    expect(screen.getByTestId("onboarding-backend-login-button")).toBeVisible();
   });
 
   it("advances each step via the per-step Next button and reframes slide offsets", async () => {
