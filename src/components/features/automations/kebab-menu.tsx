@@ -4,35 +4,15 @@ import { useTranslation } from "react-i18next";
 import KebabVerticalIcon from "#/icons/kebab-vertical.svg?react";
 import { ContextMenuListItem } from "#/components/features/context-menu/context-menu-list-item";
 import { I18nKey } from "#/i18n/declaration";
-import { cn } from "#/utils/utils";
 import { ContextMenu } from "#/ui/context-menu";
-import { dropdownMenuRowIconWrapperClassName } from "#/utils/dropdown-classes";
 import { automationIconActionButtonClassName } from "./automation-action-button-classes";
+import { KebabMenuItemContent } from "./kebab-menu-item-content";
 
 export interface KebabMenuItem {
   label: string;
   icon: React.ReactNode;
   onClick: () => void;
   disabled?: boolean;
-}
-
-interface KebabMenuItemContentProps {
-  icon: React.ReactNode;
-  label: string;
-}
-
-function KebabMenuItemContent({ icon, label }: KebabMenuItemContentProps) {
-  return (
-    <span className="flex min-w-0 w-full items-center gap-2">
-      <span
-        className={cn("[&_svg]:size-4", dropdownMenuRowIconWrapperClassName)}
-        aria-hidden
-      >
-        {icon}
-      </span>
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-    </span>
-  );
 }
 
 interface KebabMenuProps {
