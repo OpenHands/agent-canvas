@@ -124,7 +124,11 @@ export function GenericDropdownMenu<T>({
                     )}
                     {numberOfRecentItems > 0 &&
                       index === numberOfRecentItems - 1 && (
-                        <div className="border-b border-[var(--oh-border-input)] bg-tertiary pb-1 mb-1 h-[1px]" />
+                        <li
+                          role="presentation"
+                          aria-hidden="true"
+                          className="border-b border-[var(--oh-border-input)] bg-tertiary pb-1 mb-1 h-[1px]"
+                        />
                       )}
                   </React.Fragment>
                 );
