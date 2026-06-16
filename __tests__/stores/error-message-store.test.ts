@@ -5,7 +5,11 @@ const getState = () => useErrorMessageStore.getState();
 
 describe("error message store", () => {
   beforeEach(() => {
-    useErrorMessageStore.setState({ errorMessage: null, errorType: null });
+    useErrorMessageStore.setState({
+      errorMessage: null,
+      errorType: null,
+      errorCode: null,
+    });
   });
 
   it("defaults to a sticky conversation error", () => {
@@ -44,5 +48,25 @@ describe("error message store", () => {
     getState().clearConnectionError();
     expect(getState().errorMessage).toBeNull();
     expect(getState().errorType).toBeNull();
+  });
+
+  it("stores the optional error code and defaults it to null", () => {
+    getState().setErrorMessage("boom");
+    expect(getState().errorCode).toBeNull();
+
+    getState().setErrorMessage("auth failed", "conversation", "ACPAuthRequired");
+    expect(getState().errorCode).toBe("ACPAuthRequired");
+  });
+
+  it("removeErrorMessage clears the error code too", () => {
+    getState().setErrorMessage("auth failed", "conversation", "ACPAuthRequired");
+    getState().removeErrorMessage();
+    expect(getState().errorCode).toBeNull();
+  });
+
+  it("clearConnectionError clears the code for a connection error", () => {
+    getState().setErrorMessage("offline", "connection", "SomeCode");
+    getState().clearConnectionError();
+    expect(getState().errorCode).toBeNull();
   });
 });
