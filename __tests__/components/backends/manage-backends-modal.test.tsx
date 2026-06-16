@@ -19,6 +19,7 @@ import { ManageBackendsModal } from "#/components/features/backends/manage-backe
 import { BackendVersion } from "#/components/features/backends/backend-version";
 import { BackendRow } from "#/components/features/backends/backend-row";
 import { type Backend } from "#/api/backend-registry/types";
+import { CLOUD_BACKEND_LOGGED_OUT_ERROR } from "#/hooks/query/use-backends-health";
 
 const getServerInfoMock = vi.fn().mockResolvedValue({ version: "1.28.0" });
 const getSettingsMock = vi.fn().mockResolvedValue({});
@@ -140,9 +141,7 @@ describe("ManageBackendsModal", () => {
     const onClose = vi.fn();
     renderWithProviders(<ManageBackendsModal onClose={onClose} />);
 
-    await user.click(
-      await screen.findByTestId("close-manage-backends-modal"),
-    );
+    await user.click(await screen.findByTestId("close-manage-backends-modal"));
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -271,9 +270,7 @@ describe("ManageBackendsModal", () => {
     const stored = JSON.parse(
       window.localStorage.getItem("openhands-backends") ?? "[]",
     );
-    const updated = stored.find(
-      (b: { id: string }) => b.id === backendId,
-    );
+    const updated = stored.find((b: { id: string }) => b.id === backendId);
     expect(updated).toMatchObject({
       name: "OHE Prod Renamed",
       kind: "cloud",
@@ -367,5 +364,41 @@ describe("BackendRow", () => {
       .getByText(cloudBackend.name)
       .closest("button");
     expect(selectButton).toBeDisabled();
+  });
+
+  it("shows a logged-out cloud status with a log back in button", () => {
+    const onLogin = vi.fn();
+
+    renderInQueryClient(
+      <ul>
+        <BackendRow
+          backend={cloudBackend}
+          health={{
+            isConnected: false,
+            consecutiveFailures: 1,
+            lastError: CLOUD_BACKEND_LOGGED_OUT_ERROR,
+            disabled: false,
+          }}
+          onSelect={vi.fn()}
+          onEdit={vi.fn()}
+          onRemove={vi.fn()}
+          onLogin={onLogin}
+        />
+      </ul>,
+    );
+
+    expect(
+      screen.getByTestId(`manage-backends-status-${cloudBackend.name}`),
+    ).toHaveTextContent("BACKEND$LOGGED_OUT");
+    expect(
+      screen.queryByTestId(
+        `manage-backends-status-detail-${cloudBackend.name}`,
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId(
+        `manage-backends-login-${cloudBackend.id}-login-button`,
+      ),
+    ).toHaveTextContent("BACKEND$LOG_BACK_IN");
   });
 });

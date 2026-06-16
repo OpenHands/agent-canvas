@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { useDeviceFlow } from "#/hooks/use-device-flow";
 import { I18nKey } from "#/i18n/declaration";
+import { cn } from "#/utils/utils";
 
 interface DeviceFlowAuthProps {
   /** The host URL for the cloud backend */
@@ -13,6 +14,12 @@ interface DeviceFlowAuthProps {
   testIdRoot: string;
   /** Whether the login button should be disabled (e.g., when no host is entered) */
   isDisabled?: boolean;
+  /** Override for the idle button label. */
+  idleButtonLabel?: string;
+  /** Optional classes for the root wrapper. */
+  className?: string;
+  /** Optional classes for the idle button. */
+  buttonClassName?: string;
 }
 
 /**
@@ -40,6 +47,9 @@ export function DeviceFlowAuth({
   onSuccess,
   testIdRoot,
   isDisabled = false,
+  idleButtonLabel,
+  className,
+  buttonClassName,
 }: DeviceFlowAuthProps) {
   const { t } = useTranslation("openhands");
   const deviceFlow = useDeviceFlow();
@@ -127,7 +137,7 @@ export function DeviceFlowAuth({
   return (
     <div
       data-testid={`${testIdRoot}-device-flow`}
-      className="flex flex-col gap-3"
+      className={cn("flex flex-col gap-3", className)}
     >
       {deviceFlow.status === "idle" && (
         <BrandButton
@@ -135,10 +145,10 @@ export function DeviceFlowAuth({
           variant="primary"
           onClick={handleStartAuth}
           testId={`${testIdRoot}-login-button`}
-          className="w-full"
+          className={cn("w-full", buttonClassName)}
           isDisabled={isDisabled}
         >
-          {t(I18nKey.BACKEND$LOGIN_WITH_OPENHANDS)}
+          {idleButtonLabel ?? t(I18nKey.BACKEND$LOGIN_WITH_OPENHANDS)}
         </BrandButton>
       )}
 
