@@ -15,7 +15,10 @@ import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useNavigation } from "#/context/navigation-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
-import { assertAgentServerVersionIsSupported } from "#/api/agent-server-compatibility";
+import {
+  assertAgentServerVersionIsSupported,
+  getDisplayAgentServerVersion,
+} from "#/api/agent-server-compatibility";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend, BackendKind } from "#/api/backend-registry/types";
@@ -187,7 +190,7 @@ function BackendStatusBadge({
           timeout: 5000,
         }),
       ).getServerInfo();
-      return info.version ?? null;
+      return getDisplayAgentServerVersion(info);
     },
     retry: false,
     staleTime: 60_000,
