@@ -1,6 +1,6 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,6 +16,9 @@ import {
   useActiveBackendContext,
 } from "#/contexts/active-backend-context";
 import { ManageBackendsModal } from "#/components/features/backends/manage-backends-modal";
+import { BackendVersion } from "#/components/features/backends/backend-version";
+import { BackendRow } from "#/components/features/backends/backend-row";
+import { type Backend } from "#/api/backend-registry/types";
 
 const getServerInfoMock = vi.fn().mockResolvedValue({ version: "1.28.0" });
 const getSettingsMock = vi.fn().mockResolvedValue({});
@@ -308,5 +311,61 @@ describe("ManageBackendsModal", () => {
       ).not.toBeInTheDocument();
     });
     expect(screen.getByTestId("manage-backends-modal")).toBeInTheDocument();
+  });
+});
+
+function renderInQueryClient(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}
+
+const cloudBackend: Backend = {
+  id: "backend-cloud",
+  name: "Acme Cloud",
+  host: "https://app.acme.com",
+  apiKey: "sk-test",
+  kind: "cloud",
+};
+
+// Focused coverage for the two components extracted out of this file. The
+// ManageBackendsModal suite above already exercises them through the modal;
+// these assert behavior unique to each extracted component, rendered without
+// ActiveBackendProvider so no seeded-backend health probe interferes.
+describe("BackendVersion", () => {
+  it("renders no version badge and skips the probe for a non-local backend", () => {
+    // The version probe is gated on `kind === "local"`, so a cloud backend
+    // never fetches or shows a version.
+    renderInQueryClient(<BackendVersion backend={cloudBackend} />);
+
+    expect(
+      screen.queryByTestId(`manage-backends-version-${cloudBackend.name}`),
+    ).not.toBeInTheDocument();
+    expect(getServerInfoMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("BackendRow", () => {
+  it("disables row selection when the backend is not connected", () => {
+    renderInQueryClient(
+      <ul>
+        <BackendRow
+          backend={cloudBackend}
+          health={undefined}
+          onSelect={vi.fn()}
+          onEdit={vi.fn()}
+          onRemove={vi.fn()}
+        />
+      </ul>,
+    );
+
+    const row = screen.getByTestId(`manage-backends-row-${cloudBackend.name}`);
+    const selectButton = within(row)
+      .getByText(cloudBackend.name)
+      .closest("button");
+    expect(selectButton).toBeDisabled();
   });
 });
