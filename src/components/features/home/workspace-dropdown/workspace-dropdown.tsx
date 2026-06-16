@@ -369,6 +369,7 @@ export function WorkspaceDropdown({
                 return (
                   <li
                     role="presentation"
+                    aria-hidden="true"
                     data-testid="workspace-group-header"
                     className="px-2 pt-2 pb-1 text-xs font-medium text-[var(--oh-muted)] select-none"
                   >
