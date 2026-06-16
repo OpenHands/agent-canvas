@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Pencil, Trash2 } from "lucide-react";
+import OpenHandsLogoWhite from "#/assets/branding/openhands-logo-white.svg?react";
 
 import { type Backend } from "#/api/backend-registry/types";
 import {
@@ -120,9 +121,12 @@ export function BackendRow({
             onSuccess={onLogin}
             testIdRoot={`manage-backends-login-${backend.id}`}
             idleButtonLabel={t(I18nKey.BACKEND$LOG_BACK_IN)}
+            idleButtonContent={
+              <OpenHandsLogoWhite className="size-4" aria-hidden />
+            }
             className="w-auto"
             buttonVariant="secondary"
-            buttonClassName="min-h-8 px-3 py-1 text-xs font-normal"
+            buttonClassName="h-8 min-h-8 w-8 px-0 py-0"
             statusDisplay="modal"
           />
         ) : null}

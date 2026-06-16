@@ -429,7 +429,9 @@ describe("BackendRow", () => {
     const loginButton = screen.getByTestId(
       `manage-backends-login-${cloudBackend.id}-login-button`,
     );
-    expect(loginButton).toHaveTextContent("BACKEND$LOG_BACK_IN");
+    expect(loginButton).toHaveAccessibleName("BACKEND$LOG_BACK_IN");
+    expect(loginButton).not.toHaveTextContent("BACKEND$LOG_BACK_IN");
+    expect(loginButton.querySelector("svg")).toBeInTheDocument();
     expect(loginButton).toHaveClass("border");
     expect(loginButton).not.toHaveClass("bg-primary");
   });

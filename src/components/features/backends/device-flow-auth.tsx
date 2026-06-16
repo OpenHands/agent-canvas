@@ -19,8 +19,10 @@ interface DeviceFlowAuthProps {
   testIdRoot: string;
   /** Whether the login button should be disabled (e.g., when no host is entered) */
   isDisabled?: boolean;
-  /** Override for the idle button label. */
+  /** Override for the idle button label and icon-only accessible name. */
   idleButtonLabel?: string;
+  /** Optional visible content for the idle button. Defaults to the idle label. */
+  idleButtonContent?: React.ReactNode;
   /** Optional classes for the root wrapper. */
   className?: string;
   /** Optional classes for the idle button. */
@@ -57,6 +59,7 @@ export function DeviceFlowAuth({
   testIdRoot,
   isDisabled = false,
   idleButtonLabel,
+  idleButtonContent,
   className,
   buttonClassName,
   buttonVariant = "primary",
@@ -162,6 +165,7 @@ export function DeviceFlowAuth({
   );
   const showStatusModal =
     statusDisplay === "modal" && deviceFlow.status !== "idle";
+  const idleLabel = idleButtonLabel ?? t(I18nKey.BACKEND$LOGIN_WITH_OPENHANDS);
 
   return (
     <div
@@ -176,8 +180,9 @@ export function DeviceFlowAuth({
           testId={`${testIdRoot}-login-button`}
           className={cn("w-full", buttonClassName)}
           isDisabled={isDisabled}
+          ariaLabel={idleButtonContent ? idleLabel : undefined}
         >
-          {idleButtonLabel ?? t(I18nKey.BACKEND$LOGIN_WITH_OPENHANDS)}
+          {idleButtonContent ?? idleLabel}
         </BrandButton>
       )}
 
