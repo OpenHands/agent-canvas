@@ -28270,23 +28270,6 @@
     "tr": "Sunucu tarafını kontrol edin",
     "uk": "Перевірте бекенд"
   },
-  "ONBOARDING$ADD_BACKEND_SUBTITLE": {
-    "en": "Connect OpenHands to an agent server or OpenHands Cloud to get started.",
-    "ja": "開始するには、OpenHands をエージェントサーバーまたは OpenHands Cloud に接続してください。",
-    "zh-CN": "将 OpenHands 连接到智能体服务器或 OpenHands Cloud 即可开始。",
-    "zh-TW": "將 OpenHands 連線到代理伺服器或 OpenHands Cloud 即可開始。",
-    "ko-KR": "시작하려면 OpenHands를 에이전트 서버 또는 OpenHands Cloud에 연결하세요.",
-    "no": "Koble OpenHands til en agentserver eller OpenHands Cloud for å komme i gang.",
-    "ar": "وصّل OpenHands بخادم وكيل أو OpenHands Cloud للبدء.",
-    "de": "Verbinden Sie OpenHands mit einem Agent-Server oder OpenHands Cloud, um zu starten.",
-    "fr": "Connectez OpenHands à un serveur d’agent ou à OpenHands Cloud pour commencer.",
-    "it": "Collega OpenHands a un server agente o a OpenHands Cloud per iniziare.",
-    "pt": "Conecte o OpenHands a um servidor de agente ou ao OpenHands Cloud para começar.",
-    "es": "Conecta OpenHands a un servidor de agente o a OpenHands Cloud para empezar.",
-    "ca": "Connecteu OpenHands a un servidor d’agent o a OpenHands Cloud per començar.",
-    "tr": "Başlamak için OpenHands’i bir aracı sunucusuna veya OpenHands Cloud’a bağlayın.",
-    "uk": "Підключіть OpenHands до сервера агента або OpenHands Cloud, щоб почати."
-  },
   "ONBOARDING$BACKEND_SUBTITLE": {
     "en": "OpenHands talks to an agent server. Make sure the default backend is reachable.",
     "ja": "OpenHands はエージェントサーバーと通信します。デフォルトのバックエンドに接続できることを確認してください。",

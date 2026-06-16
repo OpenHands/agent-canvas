@@ -222,8 +222,8 @@ describe("OnboardingModal", () => {
 
     expect(screen.getByText("BACKEND$ADD_TITLE")).toBeInTheDocument();
     expect(
-      screen.getByText("ONBOARDING$ADD_BACKEND_SUBTITLE"),
-    ).toBeInTheDocument();
+      screen.queryByTestId("onboarding-backend-subtitle"),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("onboarding-backend-disconnected"),
     ).not.toBeInTheDocument();

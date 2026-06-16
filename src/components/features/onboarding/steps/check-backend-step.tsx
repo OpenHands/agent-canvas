@@ -154,9 +154,6 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
   const titleKey = noBackendSelected
     ? I18nKey.BACKEND$ADD_TITLE
     : I18nKey.ONBOARDING$BACKEND_TITLE;
-  const subtitleKey = noBackendSelected
-    ? I18nKey.ONBOARDING$ADD_BACKEND_SUBTITLE
-    : I18nKey.ONBOARDING$BACKEND_SUBTITLE;
 
   return (
     <div
@@ -165,7 +162,14 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
     >
       <header className="flex flex-col gap-2">
         <h2 className="text-2xl font-medium text-white">{t(titleKey)}</h2>
-        <p className="text-sm text-[var(--oh-muted)]">{t(subtitleKey)}</p>
+        {noBackendSelected ? null : (
+          <p
+            data-testid="onboarding-backend-subtitle"
+            className="text-sm text-[var(--oh-muted)]"
+          >
+            {t(I18nKey.ONBOARDING$BACKEND_SUBTITLE)}
+          </p>
+        )}
       </header>
 
       {noBackendSelected ? null : (
