@@ -8,6 +8,7 @@ import {
 import type { Backend } from "#/api/backend-registry/types";
 import {
   AgentServerUnavailableError,
+  AgentServerUnknownVersionError,
   AgentServerUnsupportedVersionError,
   loadAgentServerInfo,
   MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
@@ -86,14 +87,14 @@ describe("loadAgentServerInfo", () => {
     });
   });
 
-  it("throws AgentServerUnsupportedVersionError when the local backend omits its version", async () => {
+  it("throws AgentServerUnknownVersionError when the local backend omits its version", async () => {
     setRegisteredBackends([localBackend]);
     setActiveSelection({ backendId: localBackend.id });
     getServerInfoMock.mockResolvedValue({});
 
     await expect(loadAgentServerInfo()).rejects.toMatchObject({
-      name: AgentServerUnsupportedVersionError.name,
-      actualVersion: "unknown",
+      name: AgentServerUnknownVersionError.name,
+      actualVersion: null,
       requiredVersion: MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
     });
   });

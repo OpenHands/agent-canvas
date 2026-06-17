@@ -1,8 +1,9 @@
 import { useTranslation } from "react-i18next";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, RefreshCw, Trash2 } from "lucide-react";
 
 import { type Backend } from "#/api/backend-registry/types";
 import {
+  isCloudBackendLoggedOutHealthError,
   isInvalidBackendApiKeyHealthError,
   type BackendHealth,
 } from "#/hooks/query/use-backends-health";
@@ -10,6 +11,8 @@ import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import { BackendStatusDot } from "./backend-status-dot";
 import { BackendVersion } from "./backend-version";
+import { DeviceFlowAuth } from "./device-flow-auth";
+import { getBackendStatusLabel } from "./backend-status-label";
 
 const ROW_ACTION_BUTTON_CLASS =
   "inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-muted transition-colors hover:bg-interactive-hover hover:text-white";
@@ -20,6 +23,7 @@ interface BackendRowProps {
   onSelect: () => void;
   onEdit: () => void;
   onRemove: () => void;
+  onLogin?: (apiKey: string) => void;
 }
 
 export function BackendRow({
@@ -28,28 +32,29 @@ export function BackendRow({
   onSelect,
   onEdit,
   onRemove,
+  onLogin,
 }: BackendRowProps) {
   const { t } = useTranslation("openhands");
   const isInvalidApiKey = isInvalidBackendApiKeyHealthError(health?.lastError);
+  const isCloudLoggedOut =
+    backend.kind === "cloud" &&
+    isCloudBackendLoggedOutHealthError(health?.lastError);
   const statusDetail =
-    !isInvalidApiKey && health?.isConnected === false && health.lastError
+    !isInvalidApiKey &&
+    !isCloudLoggedOut &&
+    health?.isConnected === false &&
+    health.lastError
       ? health.lastError
       : null;
-  let statusLabel: string;
-  let statusClassName = "text-[var(--oh-muted)]";
-
-  if (isInvalidApiKey) {
-    statusLabel = t(I18nKey.AUTH$INVALID_KEY);
-    statusClassName = "text-red-300";
-  } else if (health?.isConnected === true) {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_CONNECTED);
-    statusClassName = "text-green-300";
-  } else if (health?.isConnected === false) {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_DISCONNECTED);
-    statusClassName = "text-red-300";
-  } else {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_CHECKING);
-  }
+  const statusLabel = isCloudLoggedOut
+    ? t(I18nKey.BACKEND$LOGGED_OUT)
+    : getBackendStatusLabel(t, backend, health);
+  const statusClassName =
+    health?.isConnected === true
+      ? "text-green-300"
+      : health?.isConnected === false
+        ? "text-red-300"
+        : "text-[var(--oh-muted)]";
   const dotStatus = isInvalidApiKey ? false : (health?.isConnected ?? null);
   const canSelect = health?.isConnected === true && !isInvalidApiKey;
 
@@ -100,7 +105,22 @@ export function BackendRow({
             : t(I18nKey.BACKEND$KIND_LOCAL)}
         </span>
       </button>
-      <div className="flex shrink-0 items-center gap-0.5 px-3 py-3">
+      <div className="flex shrink-0 items-center gap-2 px-3 py-3">
+        {isCloudLoggedOut && onLogin ? (
+          <DeviceFlowAuth
+            host={backend.host}
+            onSuccess={onLogin}
+            testIdRoot={`manage-backends-login-${backend.id}`}
+            idleButtonLabel={t(I18nKey.BACKEND$LOG_BACK_IN)}
+            idleButtonContent={
+              <RefreshCw className="size-4" strokeWidth={2} aria-hidden />
+            }
+            className="w-auto"
+            buttonVariant="unstyled"
+            buttonClassName={ROW_ACTION_BUTTON_CLASS}
+            statusDisplay="modal"
+          />
+        ) : null}
         <button
           type="button"
           onClick={onEdit}
