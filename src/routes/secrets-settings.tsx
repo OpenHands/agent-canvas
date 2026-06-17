@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import React from "react";
+import React, { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { BackNavButton } from "#/components/shared/buttons/back-nav-button";
 import { useSearchSecrets } from "#/hooks/query/use-get-secrets";
@@ -14,8 +14,10 @@ import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal
 import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
+import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import {
-  settingsListContainerClassName,
+  settingsListScrollContainerClassName,
+  settingsListTableHeadClassName,
   settingsListTableHeaderCellClassName,
 } from "#/utils/settings-list-classes";
 import { extensionModuleEmptyStateClassName } from "#/utils/extension-module-card-classes";
@@ -25,7 +27,15 @@ export const handle = { hideTitle: true };
 export function SecretsSettingsScreen() {
   const queryClient = useQueryClient();
   const { t } = useTranslation("openhands");
-  const { data: secrets, isLoading: isLoadingSecrets } = useSearchSecrets();
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  const {
+    data: secrets,
+    isLoading: isLoadingSecrets,
+    hasNextPage,
+    isFetchingNextPage,
+    onLoadMore,
+  } = useSearchSecrets();
 
   const { mutate: deleteSecret } = useDeleteSecret();
 
@@ -37,6 +47,19 @@ export function SecretsSettingsScreen() {
   );
   const [confirmationModalIsVisible, setConfirmationModalIsVisible] =
     React.useState(false);
+
+  const handleScroll = useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const target = e.currentTarget;
+      const isNearBottom =
+        target.scrollHeight - target.scrollTop <= target.clientHeight + 100;
+
+      if (isNearBottom && hasNextPage && !isFetchingNextPage) {
+        onLoadMore();
+      }
+    },
+    [hasNextPage, isFetchingNextPage, onLoadMore],
+  );
 
   const invalidateSecrets = () => {
     queryClient.invalidateQueries({
@@ -133,9 +156,13 @@ export function SecretsSettingsScreen() {
       )}
 
       {view === "list" && !isLoadingSecrets && (secrets?.length ?? 0) > 0 && (
-        <div className={settingsListContainerClassName}>
+        <div
+          ref={tableContainerRef}
+          className={settingsListScrollContainerClassName}
+          onScroll={handleScroll}
+        >
           <table className="w-full min-w-full table-fixed">
-            <thead className="border-b border-[var(--oh-border)]">
+            <thead className={settingsListTableHeadClassName}>
               <tr>
                 <th
                   className={cn(settingsListTableHeaderCellClassName, "w-1/4")}
@@ -176,6 +203,11 @@ export function SecretsSettingsScreen() {
             </tbody>
           </table>
 
+          {isFetchingNextPage && (
+            <div className="flex justify-center p-4">
+              <LoadingSpinner size="small" />
+            </div>
+          )}
         </div>
       )}
 
