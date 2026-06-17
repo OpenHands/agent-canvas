@@ -250,8 +250,11 @@ describe("InstallServerModal", () => {
       .agent_settings_diff as {
       mcp_config: { mcpServers: Record<string, unknown> };
     };
+    // Remote installs are now keyed by the catalog slug ("linear") rather
+    // than the auto-generated "shttp" fallback, so the server is
+    // referenceable by name in mcp_server_refs.
     expect(sent.mcp_config.mcpServers).toMatchObject({
-      shttp: {
+      linear: {
         url: "https://mcp.linear.app/mcp",
         headers: { Authorization: "Bearer lin_api_secret" },
       },

@@ -1733,6 +1733,23 @@
     "uk": "Назва",
     "ca": "Nom"
   },
+  "SETTINGS$MCP_SERVER_NAME": {
+    "en": "Server name",
+    "ja": "サーバー名",
+    "zh-CN": "服务器名称",
+    "zh-TW": "伺服器名稱",
+    "ko-KR": "서버 이름",
+    "no": "Servernavn",
+    "it": "Nome del server",
+    "pt": "Nome do servidor",
+    "es": "Nombre del servidor",
+    "ar": "اسم الخادم",
+    "fr": "Nom du serveur",
+    "tr": "Sunucu adı",
+    "de": "Servername",
+    "uk": "Назва сервера",
+    "ca": "Nom del servidor"
+  },
   "SETTINGS$MCP_URL": {
     "en": "URL",
     "ja": "URL",
