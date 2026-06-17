@@ -29,6 +29,8 @@ interface RunLogsModalProps {
   conversationId: string | null;
   /** Bash command id to fetch logs for. */
   bashCommandId: string | null;
+  /** Error detail recorded on the automation run by the automation backend. */
+  errorDetail?: string | null;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -50,6 +52,7 @@ function concatStream(outputs: BashOutput[], key: "stdout" | "stderr"): string {
 export function RunLogsModal({
   conversationId,
   bashCommandId,
+  errorDetail,
   isOpen,
   onClose,
 }: RunLogsModalProps) {
@@ -97,6 +100,8 @@ export function RunLogsModal({
   const loading = isResolvingConversation || (isFetching && !outputs);
   const noBashCommand = !bashCommandId;
   const activeBody = activeTab === "stdout" ? stdout : stderr;
+  const normalizedErrorDetail = errorDetail?.trim() ?? "";
+  const hasErrorDetail = normalizedErrorDetail.length > 0;
 
   const tabBaseClass =
     "border-b-2 px-3 py-2 text-sm font-normal transition-colors focus:outline-none";
@@ -229,6 +234,20 @@ export function RunLogsModal({
                 </span>
               )}
             </pre>
+          )}
+
+          {hasErrorDetail && (
+            <section
+              data-testid="run-logs-error-detail"
+              className="mt-4 border-t border-[var(--oh-border)] pt-4"
+            >
+              <h3 className="mb-2 text-xs font-medium uppercase text-muted">
+                {t(I18nKey.AUTOMATIONS$DETAIL$LOGS_ERROR_DETAIL)}
+              </h3>
+              <pre className="whitespace-pre-wrap break-words text-danger">
+                {normalizedErrorDetail}
+              </pre>
+            </section>
           )}
         </div>
       </div>

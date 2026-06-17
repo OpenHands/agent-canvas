@@ -13565,6 +13565,23 @@
     "uk": "Пісочниця недоступна — її могли зупинити або зменшити масштаб.",
     "ca": "El sandbox no és accessible — pot haver-se aturat o reduït."
   },
+  "AUTOMATIONS$DETAIL$LOGS_ERROR_DETAIL": {
+    "en": "Automation error detail",
+    "ja": "自動化エラー詳細",
+    "zh-CN": "自动化错误详情",
+    "zh-TW": "自動化錯誤詳細",
+    "ko-KR": "자동화 오류 세부 정보",
+    "no": "Feildetaljer for automatisering",
+    "it": "Dettagli errore automazione",
+    "pt": "Detalhes do erro da automação",
+    "es": "Detalle del error de automatización",
+    "ar": "تفاصيل خطأ الأتمتة",
+    "fr": "Détail de l’erreur d’automatisation",
+    "tr": "Otomasyon hata ayrıntısı",
+    "de": "Details zum Automatisierungsfehler",
+    "uk": "Деталі помилки автоматизації",
+    "ca": "Detall de l'error d'automatització"
+  },
   "AUTOMATIONS$DETAIL$TIME_JUST_NOW": {
     "en": "Just now",
     "ja": "たった今",
