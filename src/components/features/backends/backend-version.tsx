@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ServerClient } from "@openhands/typescript-client/clients";
 import { type Backend } from "#/api/backend-registry/types";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
+import { getDisplayAgentServerVersion } from "#/api/agent-server-compatibility";
 import { I18nKey } from "#/i18n/declaration";
 
 export function BackendVersion({ backend }: { backend: Backend }) {
@@ -18,7 +19,7 @@ export function BackendVersion({ backend }: { backend: Backend }) {
           timeout: 5000,
         }),
       ).getServerInfo();
-      return info.version ?? null;
+      return getDisplayAgentServerVersion(info);
     },
     retry: false,
     staleTime: 60_000,
