@@ -1,8 +1,8 @@
 import React from "react";
-import { ArrowLeft } from "lucide-react";
 import { NavigationLink } from "#/components/shared/navigation-link";
 import { cn } from "#/utils/utils";
 import { formControlBackNavButtonClassName } from "#/utils/form-control-classes";
+import { BackNavButtonContent } from "./back-nav-button-content";
 
 type BackNavButtonBaseProps = {
   children: React.ReactNode;
@@ -22,17 +22,6 @@ type BackNavButtonAsLinkProps = BackNavButtonBaseProps & {
 export type BackNavButtonProps =
   | BackNavButtonAsButtonProps
   | BackNavButtonAsLinkProps;
-
-function BackNavButtonContent({
-  children,
-}: Pick<BackNavButtonBaseProps, "children">) {
-  return (
-    <>
-      <ArrowLeft size={20} aria-hidden />
-      {children}
-    </>
-  );
-}
 
 export function BackNavButton(
   props: BackNavButtonAsLinkProps,

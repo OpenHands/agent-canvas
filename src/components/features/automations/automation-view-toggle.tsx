@@ -1,13 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom";
-import { Check, Grid2x2, Rows3 } from "lucide-react";
+import { Grid2x2, Rows3 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ContextMenuListItem } from "#/components/features/context-menu/context-menu-list-item";
 import { I18nKey } from "#/i18n/declaration";
 import { ContextMenu } from "#/ui/context-menu";
 import { cn } from "#/utils/utils";
-import { dropdownMenuRowIconWrapperClassName } from "#/utils/dropdown-classes";
 import type { AutomationViewMode } from "./automation-view-mode";
+import { ViewMenuItemContent } from "./view-menu-item-content";
 
 interface AutomationViewToggleProps {
   view: AutomationViewMode;
@@ -34,26 +34,6 @@ const VIEW_OPTIONS: {
     testId: "automations-view-toggle-list",
   },
 ];
-
-function ViewMenuItemContent({
-  icon: Icon,
-  label,
-  isSelected,
-}: {
-  icon: typeof Grid2x2;
-  label: string;
-  isSelected: boolean;
-}) {
-  return (
-    <span className="flex min-w-0 w-full items-center gap-2">
-      <span className={dropdownMenuRowIconWrapperClassName} aria-hidden>
-        <Icon />
-      </span>
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {isSelected ? <Check className="size-4 shrink-0" aria-hidden /> : null}
-    </span>
-  );
-}
 
 export function AutomationViewToggle({
   view,
