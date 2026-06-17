@@ -421,5 +421,32 @@ test.describe("mock-LLM agent-server conversation", () => {
       const errorBanner = page.getByTestId("error-message-banner");
       await expect(errorBanner).not.toBeVisible({ timeout: 2_000 });
     });
+
+    await test.step("resume conversation from collapsed sidebar", async () => {
+      await page.goto("/", { waitUntil: "domcontentloaded" });
+      await dismissAnalyticsModal(page);
+
+      const expandedConversationLink = page.locator(
+        `a[href*="/conversations/${step3ConversationId}"]`,
+      );
+      await expect(expandedConversationLink.first()).toBeVisible({
+        timeout: 10_000,
+      });
+
+      const collapseToggle = page.getByTestId("sidebar-collapse-toggle").first();
+      await expect(collapseToggle).toBeVisible({ timeout: 5_000 });
+      if ((await collapseToggle.getAttribute("aria-pressed")) !== "true") {
+        await collapseToggle.click();
+      }
+
+      const compactConversationRow = page.locator(
+        `[data-testid="compact-conversation-row"][data-conversation-id="${step3ConversationId}"]`,
+      );
+      await expect(compactConversationRow).toBeVisible({ timeout: 10_000 });
+      await compactConversationRow.click();
+
+      await waitForPath(page, /\/conversations\/.+/, 15_000);
+      expect(page.url()).toContain(step3ConversationId);
+    });
   });
 });
