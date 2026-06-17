@@ -9043,23 +9043,6 @@
     "uk": "Налаштування оновлено",
     "ca": "Configuració actualitzada"
   },
-  "CHAT_INTERFACE$ACP_MODEL_SWITCH_REQUIRES_SESSION": {
-    "en": "The model can only be changed after the conversation has started — send a message first, then switch.",
-    "ja": "モデルは会話の開始後にのみ変更できます。まずメッセージを送信してから切り替えてください。",
-    "zh-CN": "只能在会话开始后更改模型——请先发送一条消息，然后再切换。",
-    "zh-TW": "只能在對話開始後變更模型——請先傳送一則訊息，然後再切換。",
-    "ko-KR": "모델은 대화가 시작된 후에만 변경할 수 있습니다. 먼저 메시지를 보낸 다음 전환하세요.",
-    "no": "Modellen kan bare endres etter at samtalen har startet – send en melding først, og bytt deretter.",
-    "it": "Il modello può essere cambiato solo dopo l'avvio della conversazione: invia prima un messaggio, poi cambialo.",
-    "pt": "O modelo só pode ser alterado depois que a conversa começar — envie uma mensagem primeiro e depois troque.",
-    "es": "El modelo solo se puede cambiar después de que la conversación haya comenzado: envía un mensaje primero y luego cámbialo.",
-    "ar": "لا يمكن تغيير النموذج إلا بعد بدء المحادثة — أرسل رسالة أولاً، ثم بدّل النموذج.",
-    "fr": "Le modèle ne peut être changé qu'une fois la conversation démarrée — envoyez d'abord un message, puis changez.",
-    "tr": "Model yalnızca konuşma başladıktan sonra değiştirilebilir — önce bir mesaj gönderin, sonra değiştirin.",
-    "de": "Das Modell kann erst geändert werden, nachdem die Unterhaltung begonnen hat – sende zuerst eine Nachricht und wechsle dann.",
-    "uk": "Модель можна змінити лише після початку розмови — спочатку надішліть повідомлення, а потім перемкніть.",
-    "ca": "El model només es pot canviar després que la conversa hagi començat: envia un missatge primer i després canvia'l."
-  },
   "CHAT_INTERFACE$BTW_PREFIX": {
     "en": "BTW:",
     "ja": "ところで：",
