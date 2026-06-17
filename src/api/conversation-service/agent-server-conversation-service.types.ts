@@ -160,6 +160,7 @@ export interface AppConversation {
    */
   sandbox_status?: SandboxStatus | null;
   conversation_url: string | null;
+  websocket_url?: string | null;
   session_api_key: string | null;
   sandbox_id: string | null;
   workspace?: ConversationWorkspace | null;
