@@ -49,6 +49,7 @@ export function useUpdateMcpServer() {
 
       if (serverType === "sse") {
         const sseServer: MCPSSEServer = {
+          ...(server.name && { name: server.name }),
           url: server.url!,
           ...(server.api_key && { api_key: server.api_key }),
         };
@@ -63,6 +64,7 @@ export function useUpdateMcpServer() {
         newConfig.stdio_servers[index] = stdioServer;
       } else if (serverType === "shttp") {
         const shttpServer: MCPSHTTPServer = {
+          ...(server.name && { name: server.name }),
           url: server.url!,
           ...(server.api_key && { api_key: server.api_key }),
           ...(server.timeout !== undefined && { timeout: server.timeout }),
