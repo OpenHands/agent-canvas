@@ -18,6 +18,7 @@ interface ProfilesBodyProps {
   onActivate: (name: string) => void;
   onEdit: (profile: ProfileInfo) => void;
   onRename: (profile: ProfileInfo) => void;
+  onDuplicate: (profile: ProfileInfo) => void;
   onDelete: (profile: ProfileInfo) => void;
   isActivating: boolean;
 }
@@ -30,6 +31,7 @@ export function ProfilesBody({
   onActivate,
   onEdit,
   onRename,
+  onDuplicate,
   onDelete,
   isActivating,
 }: ProfilesBodyProps) {
@@ -84,6 +86,7 @@ export function ProfilesBody({
           onActivate={onActivate}
           onEdit={onEdit}
           onRename={onRename}
+          onDuplicate={onDuplicate}
           onDelete={onDelete}
           isActivating={isActivating}
         />

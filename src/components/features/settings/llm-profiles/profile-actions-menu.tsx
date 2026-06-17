@@ -7,7 +7,7 @@ import {
 } from "react";
 import ReactDOM from "react-dom";
 import { useTranslation } from "react-i18next";
-import { TextCursor } from "lucide-react";
+import { TextCursor, Copy } from "lucide-react";
 import { cn } from "#/utils/utils";
 import { dropdownMenuListClassName } from "#/utils/dropdown-classes";
 import { I18nKey } from "#/i18n/declaration";
@@ -63,6 +63,7 @@ function MenuItem({
 interface ProfileActionsMenuProps {
   onEdit: () => void;
   onRename: () => void;
+  onDuplicate: () => void;
   onSetActive: () => void;
   onDelete: () => void;
   isActive: boolean;
@@ -80,6 +81,7 @@ interface ProfileActionsMenuProps {
 export function ProfileActionsMenu({
   onEdit,
   onRename,
+  onDuplicate,
   onSetActive,
   onDelete,
   isActive,
@@ -208,6 +210,15 @@ export function ProfileActionsMenu({
       />
       <MenuItem
         index={2}
+        icon={<Copy aria-hidden className="size-4" strokeWidth={2} />}
+        label={t(I18nKey.BUTTON$DUPLICATE)}
+        onClick={() => handleAction(onDuplicate)}
+        onKeyDown={handleKeyDown}
+        menuItemsRef={menuItemsRef}
+        testId="profile-duplicate"
+      />
+      <MenuItem
+        index={3}
         icon={<CheckCircleIcon width={16} height={16} />}
         label={t(I18nKey.SETTINGS$PROFILE_SET_ACTIVE)}
         onClick={() => handleAction(onSetActive)}
@@ -219,7 +230,7 @@ export function ProfileActionsMenu({
       {/* The active profile can be deleted: useEnsureActiveProfile then promotes
           another remaining profile so a profile is always active in local mode. */}
       <MenuItem
-        index={3}
+        index={4}
         icon={<DeleteIcon width={16} height={16} />}
         label={t(I18nKey.BUTTON$DELETE)}
         onClick={() => handleAction(onDelete)}
