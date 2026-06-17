@@ -2,6 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { isNoBackend } from "#/api/backend-registry/active-store";
+import type { Backend } from "#/api/backend-registry/types";
 import {
   getAgentServerFormDefaults,
   isAuthRequired,
@@ -14,13 +15,22 @@ import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { I18nKey } from "#/i18n/declaration";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { cn } from "#/utils/utils";
+import { getBackendStatusLabel } from "#/components/features/backends/backend-status-label";
 
 interface CheckBackendStepProps {
   onBack?: () => void;
   onNext: () => void;
 }
 
-function ConnectionBanner({ isConnected }: { isConnected: boolean | null }) {
+function ConnectionBanner({
+  backend,
+  isConnected,
+  lastError,
+}: {
+  backend: Backend;
+  isConnected: boolean | null;
+  lastError: string | null;
+}) {
   const { t } = useTranslation("openhands");
 
   if (isConnected === true) {
@@ -46,6 +56,10 @@ function ConnectionBanner({ isConnected }: { isConnected: boolean | null }) {
   }
 
   if (isConnected === false) {
+    const statusLabel = getBackendStatusLabel(t, backend, {
+      isConnected,
+      lastError,
+    });
     return (
       <div
         role="alert"
@@ -55,7 +69,7 @@ function ConnectionBanner({ isConnected }: { isConnected: boolean | null }) {
         <AlertCircle className="mt-0.5 size-5 shrink-0 text-red-400" />
         <div className="flex flex-col gap-1">
           <span className="text-sm font-medium text-red-200">
-            {t(I18nKey.ONBOARDING$BACKEND_DISCONNECTED_TITLE)}
+            {statusLabel}
           </span>
           <span className="text-xs text-red-200/80">
             {t(I18nKey.ONBOARDING$BACKEND_DISCONNECTED_BODY)}
@@ -105,6 +119,9 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
   const isConnected = noBackendSelected
     ? false
     : (healthByBackendId[backend.id]?.isConnected ?? null);
+  const lastError = noBackendSelected
+    ? null
+    : (healthByBackendId[backend.id]?.lastError ?? null);
   const [configurationOpen, setConfigurationOpen] = React.useState(false);
 
   React.useEffect(() => {
@@ -129,7 +146,11 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
         </p>
       </header>
 
-      <ConnectionBanner isConnected={isConnected} />
+      <ConnectionBanner
+        backend={backendForForm}
+        isConnected={isConnected}
+        lastError={lastError}
+      />
 
       {isConnected === true ? (
         <button
