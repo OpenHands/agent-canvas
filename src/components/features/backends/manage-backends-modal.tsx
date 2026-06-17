@@ -38,7 +38,7 @@ export function ManageBackendsModal({
   recoveryMode = false,
 }: ManageBackendsModalProps) {
   const { t } = useTranslation("openhands");
-  const { backends, active, removeBackend, setActive } =
+  const { backends, active, removeBackend, setActive, updateBackend } =
     useActiveBackendContext();
   const healthByBackendId = useBackendsHealth(backends, {
     probeDisabledOnce: true,
@@ -64,6 +64,13 @@ export function ManageBackendsModal({
       onClose();
     },
     [active.backend.id, active.orgId, onClose, setActive],
+  );
+
+  const handleCloudLogin = React.useCallback(
+    (backend: Backend, apiKey: string) => {
+      updateBackend(backend.id, { apiKey });
+    },
+    [updateBackend],
   );
 
   return (
@@ -119,6 +126,7 @@ export function ManageBackendsModal({
                           name: backend.name,
                         })
                       }
+                      onLogin={(apiKey) => handleCloudLogin(backend, apiKey)}
                     />
                   ))}
                 </ul>

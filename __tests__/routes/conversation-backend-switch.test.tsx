@@ -30,6 +30,11 @@ vi.mock(
   "#/components/features/conversation/conversation-main/conversation-main",
   () => ({
     ConversationMain: () => <div data-testid="conversation-main" />,
+  }),
+);
+vi.mock(
+  "#/components/features/conversation/conversation-main/conversation-mobile-panel-page",
+  () => ({
     ConversationMobilePanelPage: () => <div data-testid="conversation-panel" />,
   }),
 );
