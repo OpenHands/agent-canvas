@@ -12,6 +12,7 @@ import { cn } from "#/utils/utils";
 import { BackendStatusDot } from "./backend-status-dot";
 import { BackendVersion } from "./backend-version";
 import { DeviceFlowAuth } from "./device-flow-auth";
+import { getBackendStatusLabel } from "./backend-status-label";
 
 const ROW_ACTION_BUTTON_CLASS =
   "inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-muted transition-colors hover:bg-interactive-hover hover:text-white";
@@ -45,24 +46,15 @@ export function BackendRow({
     health.lastError
       ? health.lastError
       : null;
-  let statusLabel: string;
-  let statusClassName = "text-[var(--oh-muted)]";
-
-  if (isCloudLoggedOut) {
-    statusLabel = t(I18nKey.BACKEND$LOGGED_OUT);
-    statusClassName = "text-red-300";
-  } else if (isInvalidApiKey) {
-    statusLabel = t(I18nKey.AUTH$INVALID_KEY);
-    statusClassName = "text-red-300";
-  } else if (health?.isConnected === true) {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_CONNECTED);
-    statusClassName = "text-green-300";
-  } else if (health?.isConnected === false) {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_DISCONNECTED);
-    statusClassName = "text-red-300";
-  } else {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_CHECKING);
-  }
+  const statusLabel = isCloudLoggedOut
+    ? t(I18nKey.BACKEND$LOGGED_OUT)
+    : getBackendStatusLabel(t, backend, health);
+  const statusClassName =
+    health?.isConnected === true
+      ? "text-green-300"
+      : health?.isConnected === false
+        ? "text-red-300"
+        : "text-[var(--oh-muted)]";
   const dotStatus = isInvalidApiKey ? false : (health?.isConnected ?? null);
   const canSelect = health?.isConnected === true && !isInvalidApiKey;
 

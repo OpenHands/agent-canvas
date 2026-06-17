@@ -6,6 +6,10 @@ import { calculateToastDuration } from "./toast-duration";
 import { cn } from "#/utils/utils";
 import i18n from "#/i18n";
 import { I18nKey } from "#/i18n/declaration";
+import {
+  isBackendRequestTimeoutMessage,
+  isCorsOrNetworkErrorMessage,
+} from "./user-facing-error";
 
 // react-hot-toast accepts only CSSProperties via the style option — cannot use className
 const TOAST_STYLE: CSSProperties = {
@@ -90,7 +94,12 @@ export const ERROR_TOAST_OPTIONS: ToastOptions = {
 };
 
 export const displayErrorToast = (error: string | null | undefined) => {
-  const errorMessage = error || i18n.t(I18nKey.STATUS$ERROR);
+  let errorMessage = error || i18n.t(I18nKey.STATUS$ERROR);
+  if (isCorsOrNetworkErrorMessage(errorMessage)) {
+    errorMessage = i18n.t(I18nKey.ERROR$CORS_OR_NETWORK);
+  } else if (isBackendRequestTimeoutMessage(errorMessage)) {
+    errorMessage = i18n.t(I18nKey.ERROR$BACKEND_REQUEST_TIMEOUT);
+  }
   const duration = calculateToastDuration(errorMessage, 4000);
   toast(<ErrorToastContent message={errorMessage} />, {
     ...ERROR_TOAST_OPTIONS,
