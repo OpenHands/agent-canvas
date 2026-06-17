@@ -1,4 +1,5 @@
 import React from "react";
+import axios from "axios";
 import { useQueries } from "@tanstack/react-query";
 import {
   ServerClient,
@@ -22,11 +23,18 @@ import { MAX_CONSECUTIVE_FAILURES } from "#/api/backend-registry/health-storage"
 const REFRESH_INTERVAL_MS = 10000;
 const PROBE_TIMEOUT_MS = 4000;
 export const INVALID_BACKEND_API_KEY_ERROR = "Invalid API key";
+export const CLOUD_BACKEND_LOGGED_OUT_ERROR = "Logged out";
 
 export function isInvalidBackendApiKeyHealthError(
   error: string | null | undefined,
 ): boolean {
   return error === INVALID_BACKEND_API_KEY_ERROR;
+}
+
+export function isCloudBackendLoggedOutHealthError(
+  error: string | null | undefined,
+): boolean {
+  return error === CLOUD_BACKEND_LOGGED_OUT_ERROR;
 }
 
 /**
@@ -48,7 +56,14 @@ export function isInvalidBackendApiKeyHealthError(
  */
 async function probeBackend(backend: Backend): Promise<true> {
   if (backend.kind === "cloud") {
-    await getCurrentCloudApiKey(backend);
+    try {
+      await getCurrentCloudApiKey(backend);
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        throw new Error(CLOUD_BACKEND_LOGGED_OUT_ERROR);
+      }
+      throw error;
+    }
     return true;
   }
 
