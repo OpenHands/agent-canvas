@@ -19,6 +19,8 @@ export const MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION =
   defaults.compatibility.minimumAgentServer;
 export const AGENT_SERVER_UNSUPPORTED_VERSION_ERROR_CODE =
   "AGENT_SERVER_UNSUPPORTED_VERSION";
+export const AGENT_SERVER_UNKNOWN_VERSION_ERROR_CODE =
+  "AGENT_SERVER_UNKNOWN_VERSION";
 
 export interface AgentServerInfo extends BaseServerInfo {
   usable_tools?: string[] | null;
@@ -76,6 +78,25 @@ export class AgentServerUnsupportedVersionError extends AgentServerUnavailableEr
   }
 }
 
+export class AgentServerUnknownVersionError extends AgentServerUnavailableError {
+  readonly code = AGENT_SERVER_UNKNOWN_VERSION_ERROR_CODE;
+  readonly actualVersion: string | null;
+  readonly requiredVersion = MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION;
+
+  constructor(actualVersion: string | null) {
+    const reported = actualVersion ? ` It reported "${actualVersion}".` : "";
+    const message =
+      `Could not determine this backend's agent-server version.${reported} ` +
+      `Agent Canvas requires agent-server ${MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION} ` +
+      "or newer, but this backend did not return a valid version from " +
+      "/server_info. Restart or rebuild the agent-server backend, then try again.";
+    super(message);
+    this.name = "AgentServerUnknownVersionError";
+    this.message = message;
+    this.actualVersion = actualVersion;
+  }
+}
+
 export const isAgentServerUnsupportedVersionError = (
   error: unknown,
 ): error is AgentServerUnsupportedVersionError =>
@@ -84,6 +105,15 @@ export const isAgentServerUnsupportedVersionError = (
     error !== null &&
     "code" in error &&
     error.code === AGENT_SERVER_UNSUPPORTED_VERSION_ERROR_CODE);
+
+export const isAgentServerUnknownVersionError = (
+  error: unknown,
+): error is AgentServerUnknownVersionError =>
+  error instanceof AgentServerUnknownVersionError ||
+  (typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === AGENT_SERVER_UNKNOWN_VERSION_ERROR_CODE);
 
 /**
  * Returns true when the agent-server probe failed with HTTP 401.
@@ -128,10 +158,30 @@ export function isSdkHttpStatusError(error: unknown, status: number): boolean {
   );
 }
 
-function getReportedAgentServerVersion(serverInfo: AgentServerInfo) {
-  return typeof serverInfo.version === "string" && serverInfo.version.trim()
-    ? serverInfo.version.trim()
-    : UNKNOWN_AGENT_SERVER_VERSION;
+function getRawAgentServerVersion(serverInfo: AgentServerInfo): string | null {
+  if (typeof serverInfo.version !== "string") return null;
+  const trimmed = serverInfo.version.trim();
+  return trimmed || null;
+}
+
+function getComparableAgentServerVersion(
+  serverInfo: AgentServerInfo,
+): string | null {
+  const version = getRawAgentServerVersion(serverInfo);
+  if (!version || version.toLowerCase() === UNKNOWN_AGENT_SERVER_VERSION) {
+    return null;
+  }
+  return version;
+}
+
+export function getDisplayAgentServerVersion(
+  serverInfo: AgentServerInfo,
+): string | null {
+  const version = getComparableAgentServerVersion(serverInfo);
+  if (!version || !parseAgentServerVersion(version)) {
+    return null;
+  }
+  return version;
 }
 
 function compareAgentServerVersions(actual: string, required: string) {
@@ -187,13 +237,25 @@ function parseAgentServerVersion(version: string) {
 export function assertAgentServerVersionIsSupported(
   serverInfo: AgentServerInfo,
 ) {
-  const actualVersion = getReportedAgentServerVersion(serverInfo);
+  const actualVersion = getComparableAgentServerVersion(serverInfo);
+  if (!actualVersion) {
+    clearCachedAgentServerInfo();
+    throw new AgentServerUnknownVersionError(
+      getRawAgentServerVersion(serverInfo),
+    );
+  }
+
   const comparison = compareAgentServerVersions(
     actualVersion,
     MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
   );
 
-  if (comparison === null || comparison < 0) {
+  if (comparison === null) {
+    clearCachedAgentServerInfo();
+    throw new AgentServerUnknownVersionError(actualVersion);
+  }
+
+  if (comparison < 0) {
     clearCachedAgentServerInfo();
     throw new AgentServerUnsupportedVersionError(actualVersion);
   }

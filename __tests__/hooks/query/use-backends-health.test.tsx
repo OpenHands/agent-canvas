@@ -6,7 +6,7 @@ import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_LOCAL_BACKEND_ID } from "#/api/backend-registry/default-backend";
+import { SEEDED_DEFAULT_BACKEND_ID } from "#/api/backend-registry/default-backend";
 import {
   BACKEND_HEALTH_STORAGE_KEY,
   MAX_CONSECUTIVE_FAILURES,
@@ -16,7 +16,10 @@ import {
   resetBackendHealth,
 } from "#/api/backend-registry/health-store";
 import type { Backend } from "#/api/backend-registry/types";
-import { useBackendsHealth } from "#/hooks/query/use-backends-health";
+import {
+  CLOUD_BACKEND_LOGGED_OUT_ERROR,
+  useBackendsHealth,
+} from "#/hooks/query/use-backends-health";
 
 const getSettingsMock = vi.fn();
 const getServerInfoMock = vi.fn();
@@ -37,7 +40,7 @@ vi.mock("#/api/cloud/organization-service.api", () => ({
 }));
 
 const localBackend: Backend = {
-  id: DEFAULT_LOCAL_BACKEND_ID,
+  id: SEEDED_DEFAULT_BACKEND_ID,
   name: "Local",
   host: "http://localhost:18000",
   apiKey: "",
@@ -160,7 +163,7 @@ describe("useBackendsHealth", () => {
   });
 
   it("reports disconnected when the cloud probe throws", async () => {
-    getCurrentCloudApiKeyMock.mockRejectedValue(new Error("401"));
+    getCurrentCloudApiKeyMock.mockRejectedValue(new Error("Network Error"));
 
     const { result } = renderHook(() => useBackendsHealth([cloudBackend]), {
       wrapper,
@@ -168,6 +171,26 @@ describe("useBackendsHealth", () => {
 
     await waitFor(() =>
       expect(result.current[cloudBackend.id].isConnected).toBe(false),
+    );
+  });
+
+  it("reports logged out when the cloud probe returns 401", async () => {
+    getCurrentCloudApiKeyMock.mockRejectedValue(
+      Object.assign(new Error("Unauthorized"), {
+        isAxiosError: true,
+        response: { status: 401 },
+      }),
+    );
+
+    const { result } = renderHook(() => useBackendsHealth([cloudBackend]), {
+      wrapper,
+    });
+
+    await waitFor(() =>
+      expect(result.current[cloudBackend.id]).toMatchObject({
+        isConnected: false,
+        lastError: CLOUD_BACKEND_LOGGED_OUT_ERROR,
+      }),
     );
   });
 

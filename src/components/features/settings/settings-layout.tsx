@@ -1,4 +1,4 @@
-import { SettingsDesktopSidebar } from "./settings-navigation";
+import { SettingsDesktopSidebar } from "./settings-desktop-sidebar";
 import { SettingsNavRenderedItem } from "#/hooks/use-settings-nav-items";
 import { settingsLayoutMainScrollClassName } from "#/utils/settings-like-page-layout-classes";
 

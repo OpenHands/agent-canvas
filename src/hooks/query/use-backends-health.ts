@@ -1,6 +1,6 @@
 import React from "react";
-import { useQueries } from "@tanstack/react-query";
 import axios from "axios";
+import { useQueries } from "@tanstack/react-query";
 import {
   ServerClient,
   SettingsClient,
@@ -30,6 +30,7 @@ export const INVALID_BACKEND_API_KEY_ERROR = "Invalid API key";
 export const MISSING_BACKEND_API_KEY_ERROR = "API key required";
 export const CLOUD_BACKEND_API_KEY_OR_NETWORK_ERROR =
   "Cloud API key or network issue";
+export const CLOUD_BACKEND_LOGGED_OUT_ERROR = "Logged out";
 
 export function isInvalidBackendApiKeyHealthError(
   error: string | null | undefined,
@@ -51,6 +52,12 @@ export function isCloudBackendApiKeyOrNetworkHealthError(
 
 function hasMissingBackendApiKey(backend: Backend): boolean {
   return backend.kind === "cloud" && !backend.apiKey.trim();
+}
+
+export function isCloudBackendLoggedOutHealthError(
+  error: string | null | undefined,
+): boolean {
+  return error === CLOUD_BACKEND_LOGGED_OUT_ERROR;
 }
 
 /**
@@ -79,7 +86,7 @@ async function probeBackend(backend: Backend): Promise<true> {
       await getCurrentCloudApiKey(backend);
     } catch (error) {
       if (axios.isAxiosError(error) && error.response?.status === 401) {
-        throw new Error(INVALID_BACKEND_API_KEY_ERROR);
+        throw new Error(CLOUD_BACKEND_LOGGED_OUT_ERROR);
       }
       if (isCorsOrNetworkError(error)) {
         throw new Error(CLOUD_BACKEND_API_KEY_OR_NETWORK_ERROR);

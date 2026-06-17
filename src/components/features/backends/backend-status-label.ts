@@ -1,6 +1,7 @@
 import type { TFunction } from "i18next";
 import {
   isCloudBackendApiKeyOrNetworkHealthError,
+  isCloudBackendLoggedOutHealthError,
   isInvalidBackendApiKeyHealthError,
   isMissingBackendApiKeyHealthError,
 } from "#/hooks/query/use-backends-health";
@@ -38,6 +39,10 @@ export function getBackendStatusLabel(
 
   if (isInvalidBackendApiKeyHealthError(lastError)) {
     return t(I18nKey.BACKEND$STATUS_DISCONNECTED_CHECK_API_KEY);
+  }
+
+  if (isCloudBackendLoggedOutHealthError(lastError)) {
+    return t(I18nKey.BACKEND$LOGGED_OUT);
   }
 
   if (health?.isConnected === true) {

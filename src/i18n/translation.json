@@ -14500,6 +14500,23 @@
     "tr": "Bağlantı başarısız: {{-error}}",
     "uk": "Помилка з'єднання: {{-error}}"
   },
+  "MCP$TEST_ERROR_CREDENTIALS": {
+    "en": "Credential check failed: {{-error}}",
+    "ja": "認証情報の確認に失敗しました: {{-error}}",
+    "zh-CN": "凭据检查失败：{{-error}}",
+    "zh-TW": "憑證檢查失敗：{{-error}}",
+    "ko-KR": "자격 증명 확인에 실패했습니다: {{-error}}",
+    "no": "Kontroll av påloggingsinformasjon mislyktes: {{-error}}",
+    "ar": "فشل التحقق من بيانات الاعتماد: {{-error}}",
+    "de": "Überprüfung der Anmeldedaten fehlgeschlagen: {{-error}}",
+    "fr": "Échec de la vérification des identifiants : {{-error}}",
+    "it": "Verifica delle credenziali non riuscita: {{-error}}",
+    "pt": "Falha na verificação das credenciais: {{-error}}",
+    "es": "Error en la verificación de credenciales: {{-error}}",
+    "ca": "Ha fallat la verificació de credencials: {{-error}}",
+    "tr": "Kimlik bilgisi denetimi başarısız: {{-error}}",
+    "uk": "Помилка перевірки облікових даних: {{-error}}"
+  },
   "MCP$EDIT_SERVER_ARIA": {
     "en": "Edit {{name}}",
     "ja": "{{name}} を編集",
@@ -22133,6 +22150,23 @@
     "uk": "Перейменувати",
     "ca": "Canvia el nom"
   },
+  "BUTTON$DUPLICATE": {
+    "en": "Duplicate",
+    "ja": "複製",
+    "zh-CN": "复制",
+    "zh-TW": "複製",
+    "ko-KR": "복제",
+    "no": "Dupliser",
+    "it": "Duplica",
+    "pt": "Duplicar",
+    "es": "Duplicar",
+    "ar": "تكرار",
+    "fr": "Dupliquer",
+    "tr": "Çoğalt",
+    "de": "Duplizieren",
+    "uk": "Дублювати",
+    "ca": "Duplica"
+  },
   "COMMON$APP": {
     "en": "App",
     "ja": "アプリ",
@@ -27420,6 +27454,40 @@
     "uk": "Увійти через OpenHands Cloud",
     "ca": "Inicia sessió amb OpenHands Cloud"
   },
+  "BACKEND$LOG_BACK_IN": {
+    "en": "Log back in",
+    "ar": "تسجيل الدخول مجددًا",
+    "ca": "Torna a iniciar sessió",
+    "de": "Erneut anmelden",
+    "es": "Volver a iniciar sesión",
+    "fr": "Se reconnecter",
+    "it": "Accedi di nuovo",
+    "ja": "再ログイン",
+    "ko-KR": "다시 로그인",
+    "no": "Logg inn igjen",
+    "pt": "Entrar novamente",
+    "tr": "Tekrar giriş yap",
+    "uk": "Увійти знову",
+    "zh-CN": "重新登录",
+    "zh-TW": "重新登入"
+  },
+  "BACKEND$LOGGED_OUT": {
+    "en": "Logged out",
+    "ar": "تم تسجيل الخروج",
+    "ca": "Sessió tancada",
+    "de": "Abgemeldet",
+    "es": "Sesión cerrada",
+    "fr": "Déconnecté",
+    "it": "Disconnesso",
+    "ja": "ログアウト済み",
+    "ko-KR": "로그아웃됨",
+    "no": "Logget ut",
+    "pt": "Desconectado",
+    "tr": "Oturum kapatıldı",
+    "uk": "Вийшли з системи",
+    "zh-CN": "已退出登录",
+    "zh-TW": "已登出"
+  },
   "BACKEND$LOGIN_CLOUD_HINT": {
     "en": "Works with OpenHands Cloud or your self-hosted OpenHands Cloud deployment.",
     "ja": "OpenHands Cloud またはセルフホスト型 OpenHands Cloud デプロイメントで使用できます。",
@@ -28847,6 +28915,23 @@
     "de": "Profil umbenannt in \"{{name}}\"",
     "uk": "Профіль перейменовано на \"{{name}}\"",
     "ca": "Perfil reanomenat a \"{{name}}\""
+  },
+  "SETTINGS$PROFILE_DUPLICATED": {
+    "en": "Profile duplicated as \"{{name}}\"",
+    "ja": "プロファイルを「{{name}}」として複製しました",
+    "zh-CN": "配置文件已复制为「{{name}}」",
+    "zh-TW": "設定檔已複製為「{{name}}」",
+    "ko-KR": "프로필이 \"{{name}}\"(으)로 복제됨",
+    "no": "Profilen ble duplisert som \"{{name}}\"",
+    "it": "Profilo duplicato come \"{{name}}\"",
+    "pt": "Perfil duplicado como \"{{name}}\"",
+    "es": "Perfil duplicado como \"{{name}}\"",
+    "ar": "تم تكرار الملف الشخصي باسم \"{{name}}\"",
+    "fr": "Profil dupliqué en \"{{name}}\"",
+    "tr": "Profil \"{{name}}\" olarak çoğaltıldı",
+    "de": "Profil dupliziert als \"{{name}}\"",
+    "uk": "Профіль дубльовано як \"{{name}}\"",
+    "ca": "Perfil duplicat com a \"{{name}}\""
   },
   "SETTINGS$PROFILES_LOAD_ERROR": {
     "en": "Failed to load profiles",
