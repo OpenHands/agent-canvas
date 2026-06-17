@@ -86,6 +86,36 @@ describe("MCPServerForm validation", () => {
     });
   });
 
+  it("rejects an sse/shttp server name with unsafe characters", () => {
+    const onSubmit = vi.fn();
+
+    render(
+      <MCPServerForm
+        mode="add"
+        server={{ id: "tmp", type: "sse" }}
+        existingServers={[]}
+        onSubmit={onSubmit}
+        onCancel={noop}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId("server-name-input"), {
+      target: { value: "my server" },
+    });
+    fireEvent.change(screen.getByTestId("url-input"), {
+      target: { value: "https://api.example.com" },
+    });
+
+    fireEvent.click(screen.getByTestId("submit-button"));
+
+    // A name with a space can't be a safe mcp_config key, so submission is
+    // blocked rather than persisted under a malformed key.
+    expect(
+      screen.getByText("SETTINGS$MCP_ERROR_NAME_INVALID"),
+    ).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it("omits the name when the sse/shttp name field is left blank", () => {
     const onSubmit = vi.fn();
 
