@@ -76,6 +76,8 @@ describe("App root agent-server availability guard", () => {
     vi.unstubAllEnvs();
     delete (window as unknown as Record<string, unknown>)
       .__AGENT_CANVAS_AUTH_REQUIRED__;
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_LOCK_TO_CLOUD__;
     (
       window as unknown as Record<string, unknown>
     ).__AGENT_CANVAS_SESSION_API_KEY__ = "test-session-key";
@@ -103,6 +105,30 @@ describe("App root agent-server availability guard", () => {
     ).toBeInTheDocument();
     expect(
       screen.queryByTestId("api-key-entry-screen"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows first-run onboarding before the recovery modal when locked to Cloud with no backend", async () => {
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_SESSION_API_KEY__;
+    window.localStorage.clear();
+    __resetActiveStoreForTests();
+
+    renderApp(["/"]);
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("first-run-onboarding-screen"),
+      ).toBeInTheDocument();
+    });
+    expect(await screen.findByTestId("onboarding-modal")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("agent-server-onboarding-screen"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("manage-backends-modal"),
     ).not.toBeInTheDocument();
   });
 

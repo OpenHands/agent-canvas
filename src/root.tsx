@@ -17,8 +17,14 @@ import {
   isAgentServerUnavailableError,
   isAgentServerAuthError,
 } from "#/api/agent-server-compatibility";
-import { isAuthRequiredAndMissing } from "#/api/agent-server-config";
-import { getEffectiveLocalBackend } from "#/api/backend-registry/active-store";
+import {
+  getLockedCloudHost,
+  isAuthRequiredAndMissing,
+} from "#/api/agent-server-config";
+import {
+  getEffectiveLocalBackend,
+  isNoBackend,
+} from "#/api/backend-registry/active-store";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import {
   isCloudBackendLoggedOutHealthError,
@@ -171,14 +177,19 @@ export default function App() {
   const bakedKeyMissing = isAuthRequiredAndMissing();
   const hasRegisteredKey = Boolean(getEffectiveLocalBackend()?.apiKey);
   const authMissing = bakedKeyMissing && !hasRegisteredKey;
+  const { active } = useActiveBackendContext();
+  const lockedNoBackend =
+    Boolean(getLockedCloudHost()) && isNoBackend(active.backend);
   const { isCompleted: onboardingCompleted, markCompleted } =
     useOnboardingCompletion();
+  const shouldShowFirstRunOnboarding =
+    (authMissing || lockedNoBackend) && !onboardingCompleted;
   const [showFirstRunOnboarding, setShowFirstRunOnboarding] = React.useState(
-    () => authMissing && !onboardingCompleted,
+    () => shouldShowFirstRunOnboarding,
   );
 
   React.useEffect(() => {
-    if (authMissing && !onboardingCompleted) {
+    if (shouldShowFirstRunOnboarding) {
       setShowFirstRunOnboarding(true);
       return;
     }
@@ -186,7 +197,7 @@ export default function App() {
     if (onboardingCompleted) {
       setShowFirstRunOnboarding(false);
     }
-  }, [authMissing, onboardingCompleted]);
+  }, [onboardingCompleted, shouldShowFirstRunOnboarding]);
 
   // Skip the /server_info probe entirely when we already know auth is
   // required and missing — it would just 401 and waste time. Also keep the
@@ -195,7 +206,6 @@ export default function App() {
   const config = useConfig({
     enabled: !authMissing && !showFirstRunOnboarding,
   });
-  const { active } = useActiveBackendContext();
   const activeCloudHealth = useBackendsHealth(
     active.backend.kind === "cloud" ? [active.backend] : [],
   )[active.backend.id];
