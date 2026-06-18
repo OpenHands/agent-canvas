@@ -171,11 +171,66 @@ describe("LlmSettingsScreen", () => {
 
     await waitFor(() => expect(saveSettingsSpy).toHaveBeenCalled());
     const payload = saveSettingsSpy.mock.calls[0][0] as Record<string, unknown>;
-    const llmPayload = (
-      payload.agent_settings_diff as Record<string, unknown>
-    ).llm as Record<string, unknown>;
+    const llmPayload = (payload.agent_settings_diff as Record<string, unknown>)
+      .llm as Record<string, unknown>;
     expect(llmPayload.api_key).toBe("test-api-key");
     expect(llmPayload).not.toHaveProperty("base_url");
+  });
+
+  it("does not save an invalid LLM base URL", async () => {
+    const saveSettingsSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        llm_model: "openai/gpt-4o",
+        llm_base_url: "",
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          llm: {
+            model: "openai/gpt-4o",
+            api_key: null,
+            base_url: "",
+          },
+        },
+      }),
+    );
+
+    renderLlmSettingsScreen();
+
+    await screen.findByTestId("llm-settings-screen");
+    fireEvent.click(screen.getByTestId("sdk-section-advanced-toggle"));
+    fireEvent.change(screen.getByTestId("base-url-input"), {
+      target: { value: "not a url" },
+    });
+    fireEvent.click(screen.getByTestId("save-button"));
+
+    expect(await screen.findByTestId("base-url-input-error")).toHaveTextContent(
+      "Enter a valid base URL.",
+    );
+    expect(saveSettingsSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not save an API key that is too short", async () => {
+    const saveSettingsSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({ llm_model: "openai/gpt-4o", llm_api_key_set: false }),
+    );
+
+    renderLlmSettingsScreen();
+
+    await screen.findByTestId("llm-settings-screen");
+    fireEvent.change(screen.getByTestId("llm-api-key-input"), {
+      target: { value: "short" },
+    });
+    fireEvent.click(screen.getByTestId("save-button"));
+
+    expect(
+      await screen.findByTestId("llm-api-key-input-error"),
+    ).toHaveTextContent("API key must be at least 8 characters.");
+    expect(saveSettingsSpy).not.toHaveBeenCalled();
   });
 
   it("does not show a 'key set' indicator for a brand-new embedded profile even when a global key exists (bug #640)", async () => {
