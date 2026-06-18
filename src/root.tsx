@@ -19,6 +19,11 @@ import {
 } from "#/api/agent-server-compatibility";
 import { isAuthRequiredAndMissing } from "#/api/agent-server-config";
 import { getEffectiveLocalBackend } from "#/api/backend-registry/active-store";
+import { useActiveBackendContext } from "#/contexts/active-backend-context";
+import {
+  isCloudBackendLoggedOutHealthError,
+  useBackendsHealth,
+} from "#/hooks/query/use-backends-health";
 import { TOAST_OPTIONS } from "#/utils/custom-toast-handlers";
 import { TelemetryConsentBanner } from "#/components/features/analytics/telemetry-consent-banner";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
@@ -149,6 +154,14 @@ export default function App() {
   // Skip the /server_info probe entirely when we already know auth is
   // required and missing — it would just 401 and waste time.
   const config = useConfig({ enabled: !authMissing });
+  const { active } = useActiveBackendContext();
+  const activeCloudHealth = useBackendsHealth(
+    active.backend.kind === "cloud" ? [active.backend] : [],
+  )[active.backend.id];
+  const activeCloudLoggedOut =
+    active.backend.kind === "cloud" &&
+    activeCloudHealth?.isConnected === false &&
+    isCloudBackendLoggedOutHealthError(activeCloudHealth.lastError);
 
   // No key at all → instant auth screen (no network).
   // Stale key → /server_info 401 → auth screen (public mode only).
@@ -164,7 +177,7 @@ export default function App() {
     return <AgentServerBootstrapLoading />;
   }
 
-  if (isAgentServerUnavailableError(config.error)) {
+  if (activeCloudLoggedOut || isAgentServerUnavailableError(config.error)) {
     return <MissingAgentServerScreen />;
   }
 

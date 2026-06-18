@@ -7,6 +7,8 @@ import {
 } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ConversationLoading } from "../../conversation-loading";
+import { TabReadyNotifier } from "./tab-ready-notifier";
+import { SuspensePendingFallback } from "./suspense-pending-fallback";
 
 const CROSSFADE_DURATION_SECONDS = 0.35;
 
@@ -14,28 +16,6 @@ const crossfadeTransition = {
   duration: CROSSFADE_DURATION_SECONDS,
   ease: "easeInOut" as const,
 };
-
-function TabReadyNotifier({
-  children,
-  onReady,
-}: {
-  children: ReactNode;
-  onReady: () => void;
-}) {
-  useLayoutEffect(() => {
-    onReady();
-  }, [onReady]);
-
-  return children;
-}
-
-function SuspensePendingFallback({ onPending }: { onPending: () => void }) {
-  useLayoutEffect(() => {
-    onPending();
-  }, [onPending]);
-
-  return <ConversationLoading />;
-}
 
 type ConversationTabContentCrossfadeProps = {
   showAgentLoading: boolean;

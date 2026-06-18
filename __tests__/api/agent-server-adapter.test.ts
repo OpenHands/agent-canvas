@@ -821,7 +821,7 @@ describe("toAppConversation", () => {
         ...baseInfo,
         agent: {
           kind: "Agent",
-          llm: { model: "litellm_proxy/claude-sonnet-4-6" },
+          llm: { model: "openhands/claude-sonnet-4-6" },
         },
       });
       expect(result.active_profile).toBe("claude-sonnet-4.6");
@@ -870,7 +870,12 @@ describe("toAppConversation", () => {
     expect(result.llm_model).toBe("Claude Sonnet 4.6");
   });
 
-  it("does not surface ACP default placeholders when a configured model exists", () => {
+  it("surfaces the runtime ACP default model over a configured acp_model", () => {
+    // claude-agent-acp 0.44+ exposes ``default`` ("Default (recommended)")
+    // as a real, selectable model in its configOptions select. The runtime
+    // ``current_model_*`` fields take precedence over the configured
+    // ``acp_model``, so a session actually running on ``default`` must
+    // surface that on the chip instead of the stale configured value.
     const result = toAppConversation({
       ...baseInfo,
       current_model_id: "default",
@@ -882,7 +887,7 @@ describe("toAppConversation", () => {
       },
     });
     expect(result.agent_kind).toBe("acp");
-    expect(result.llm_model).toBe("claude-sonnet-4-6");
+    expect(result.llm_model).toBe("Default (recommended)");
   });
 
   it("falls back to a non-sentinel ACP llm.model for SDKs that mirror acp_model there", () => {
@@ -894,11 +899,10 @@ describe("toAppConversation", () => {
     expect(result.llm_model).toBe("claude-sonnet-4-6");
   });
 
-  it("filters ACP default placeholders surfaced via the configured acp_model", () => {
-    // Older settings may have persisted the SDK's literal "default" string
-    // into ``acp_model``. Surfacing it on the chip would lie about what's
-    // running — the placeholder filter is applied to every candidate, not
-    // just the runtime fields.
+  it("surfaces ACP default model surfaced via the configured acp_model", () => {
+    // ``default`` / ``Default (recommended)`` is a real claude-agent-acp
+    // model id (not an SDK placeholder), so it must surface like any other
+    // configured model.
     const result = toAppConversation({
       ...baseInfo,
       agent: {
@@ -908,17 +912,18 @@ describe("toAppConversation", () => {
       },
     });
     expect(result.agent_kind).toBe("acp");
-    expect(result.llm_model).toBeNull();
+    expect(result.llm_model).toBe("Default (recommended)");
   });
 
-  it("filters ACP default placeholders surfaced via agent.llm.model", () => {
-    // Same defense, one rung lower in the precedence chain.
+  it("surfaces ACP default model surfaced via agent.llm.model", () => {
+    // Same as above, one rung lower in the precedence chain: ``default`` is
+    // a real model id and should surface as-is.
     const result = toAppConversation({
       ...baseInfo,
       agent: { kind: "ACPAgent", llm: { model: "default" } },
     });
     expect(result.agent_kind).toBe("acp");
-    expect(result.llm_model).toBeNull();
+    expect(result.llm_model).toBe("default");
   });
 
   it("surfaces acp_server from tags.acpserver for ACP conversations", () => {
@@ -1199,7 +1204,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
           schema_version: 1,
           agent_kind: "acp",
           acp_server: "claude-code",
-          acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+          acp_command: [],
           acp_model: "claude-opus-4-5",
           // These fields are LLM-only and must NOT leak into ACP settings.
           // (mcp_config is handled separately — it IS forwarded for ACP; see
@@ -1224,7 +1229,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     expect(payload.agent_settings.acp_command).toEqual([
       "npx",
       "-y",
-      "@agentclientprotocol/claude-agent-acp",
+      "@agentclientprotocol/claude-agent-acp@0.30.0",
     ]);
     expect(payload.agent_settings.acp_model).toBe("claude-opus-4-5");
     // LLM-only fields must not leak into the ACP settings payload.
@@ -1373,7 +1378,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     expect(payload.agent_settings.acp_command).toEqual([
       "npx",
       "-y",
-      "@agentclientprotocol/claude-agent-acp",
+      "@agentclientprotocol/claude-agent-acp@0.30.0",
     ]);
   });
 
@@ -1395,7 +1400,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     expect(payload.agent_settings.acp_command).toEqual([
       "npx",
       "-y",
-      "@zed-industries/codex-acp",
+      "@zed-industries/codex-acp@0.15.0",
     ]);
   });
 
@@ -1460,7 +1465,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
       agent_settings: Record<string, unknown> & { acp_model?: unknown };
     };
 
-    expect(payload.agent_settings.acp_model).toBe("claude-opus-4-7");
+    expect(payload.agent_settings.acp_model).toBe("claude-opus-4-8");
   });
 
   it("omits acp_model for the custom preset when none is configured", () => {
@@ -1542,7 +1547,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     expect(acpPayload.agent_settings.acp_command).toEqual([
       "npx",
       "-y",
-      "@agentclientprotocol/claude-agent-acp",
+      "@agentclientprotocol/claude-agent-acp@0.30.0",
     ]);
     expect(acpPayload.agent_settings.acp_model).toBe("claude-opus-4-5");
     // acp_env is no longer a forwarded ACP setting — a stale value on saved

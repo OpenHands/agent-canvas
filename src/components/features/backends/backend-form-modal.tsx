@@ -15,15 +15,20 @@ import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useNavigation } from "#/context/navigation-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
-import { assertAgentServerVersionIsSupported } from "#/api/agent-server-compatibility";
+import {
+  assertAgentServerVersionIsSupported,
+  getDisplayAgentServerVersion,
+} from "#/api/agent-server-compatibility";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend, BackendKind } from "#/api/backend-registry/types";
+import { getUserFacingConnectionErrorMessage } from "#/utils/user-facing-error";
 import { cn } from "#/utils/utils";
 import {
   modalTitleLgClassName,
   modalTitleLgMediumClassName,
 } from "#/utils/modal-classes";
+import { getBackendStatusLabel } from "./backend-status-label";
 import { BackendStatusDot } from "./backend-status-dot";
 import { DeviceFlowAuth } from "./device-flow-auth";
 
@@ -130,9 +135,7 @@ function getConnectionTestFailedTitle(
 }
 
 function getConnectionErrorDetail(error: unknown): string | null {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return null;
+  return getUserFacingConnectionErrorMessage(error);
 }
 
 function getConnectionTestFailedMessage(title: string, error: unknown): string {
@@ -187,21 +190,14 @@ function BackendStatusBadge({
           timeout: 5000,
         }),
       ).getServerInfo();
-      return info.version ?? null;
+      return getDisplayAgentServerVersion(info);
     },
     retry: false,
     staleTime: 60_000,
     enabled: backend.kind === "local" && !disabled,
   });
 
-  let statusLabel: string;
-  if (isConnected === true) {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_CONNECTED);
-  } else if (isConnected === false) {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_DISCONNECTED);
-  } else {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_CHECKING);
-  }
+  const statusLabel = getBackendStatusLabel(t, backend, health);
 
   const kindLabel =
     backend.kind === "cloud"
@@ -262,6 +258,123 @@ export interface BackendFormSubmitPayload {
   host: string;
   apiKey: string;
   kind: BackendKind;
+}
+
+interface UseBackendFormOptions {
+  initialName?: string;
+  initialHost?: string;
+  initialApiKey?: string;
+  /**
+   * Called to test the connection. The hook does NOT call
+   * `testBackendConnection` directly so callers can inject a
+   * wrapped version (e.g. with extra logging or different timeout).
+   * Should throw on failure.
+   */
+  onTestConnection: (payload: BackendFormSubmitPayload) => Promise<void>;
+  /** Called after a successful connection test and persistence. */
+  onSuccess: () => void;
+  /**
+   * When provided, completely replaces the default submit flow
+   * (onTestConnection + onSuccess). The hook still manages form state
+   * and canSubmit validation, but the caller owns error handling and
+   * success side effects. Should throw on failure.
+   */
+  onSubmitOverride?: (payload: BackendFormSubmitPayload) => Promise<void>;
+}
+
+/**
+ * Shared hook for the backend-form state used by both `BackendForm`
+ * (edit/add mode) and `ManualConnectionColumn` (add-mode-only column).
+ * Encapsulates name / host / apiKey fields, `connectionError`,
+ * `isSubmitting`, and the shared `handleSubmit` flow.
+ */
+function useBackendForm({
+  initialName = "",
+  initialHost = "",
+  initialApiKey = "",
+  onTestConnection,
+  onSuccess,
+  onSubmitOverride,
+}: UseBackendFormOptions) {
+  const { t } = useTranslation("openhands");
+
+  const [name, setName] = React.useState(initialName);
+  const [host, setHost] = React.useState(initialHost);
+  const [apiKey, setApiKey] = React.useState(initialApiKey);
+  const [connectionError, setConnectionError] = React.useState<string | null>(
+    null,
+  );
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  const kind = inferKindFromHost(host);
+  const canSubmit =
+    name.trim().length > 0 &&
+    isValidHostUrl(host) &&
+    (kind === "local" || apiKey.trim().length > 0);
+
+  const handleSubmit = React.useCallback(
+    async (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      if (!canSubmit || isSubmitting) return;
+
+      const payload: BackendFormSubmitPayload = {
+        name: name.trim(),
+        host: normalizeHost(host),
+        apiKey: apiKey.trim(),
+        kind,
+      };
+
+      setConnectionError(null);
+      setIsSubmitting(true);
+
+      try {
+        // When onSubmitOverride is provided, it completely replaces the
+        // default flow (onTestConnection + onSuccess).
+        if (onSubmitOverride) {
+          await onSubmitOverride(payload);
+        } else {
+          await onTestConnection(payload);
+          onSuccess();
+        }
+      } catch (error) {
+        setConnectionError(
+          getConnectionTestFailedMessage(
+            getConnectionTestFailedTitle(t, payload.host),
+            error,
+          ),
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [
+      canSubmit,
+      isSubmitting,
+      name,
+      host,
+      apiKey,
+      kind,
+      onTestConnection,
+      onSuccess,
+      onSubmitOverride,
+      t,
+    ],
+  );
+
+  return {
+    name,
+    setName,
+    host,
+    setHost,
+    apiKey,
+    setApiKey,
+    connectionError,
+    setConnectionError,
+    isSubmitting,
+    kind,
+    canSubmit,
+    handleSubmit,
+  };
 }
 
 export interface BackendFormProps {
@@ -335,26 +448,53 @@ export function BackendForm({
   const { t } = useTranslation("openhands");
   const { addBackend, updateBackend } = useActiveBackendContext();
 
-  const [name, setName] = React.useState(backend?.name ?? "");
-  const [host, setHost] = React.useState(backend?.host ?? "");
-  const [apiKey, setApiKey] = React.useState(backend?.apiKey ?? "");
-  const [connectionError, setConnectionError] = React.useState<string | null>(
-    null,
-  );
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
-
-  // Inline validation: only show errors after the user has left a field.
-  const [nameTouched, setNameTouched] = React.useState(false);
-  const [hostTouched, setHostTouched] = React.useState(false);
-
   // In edit mode preserve the existing backend's kind so that renaming or
   // rotating the API key on a cloud backend (e.g. an OHE/enterprise instance
   // on a custom domain) does not silently downgrade it to "local" and switch
   // the auth header from `Authorization: Bearer` to `X-Session-API-Key`.
   // Only infer from the host when adding a new backend.
-  const kind: BackendKind =
-    mode === "edit" && backend ? backend.kind : inferKindFromHost(host);
+  const fixedKind: BackendKind | null =
+    mode === "edit" && backend ? backend.kind : null;
 
+  const {
+    name,
+    setName,
+    host,
+    setHost,
+    apiKey,
+    setApiKey,
+    connectionError,
+    setConnectionError,
+    isSubmitting,
+    kind: inferredKind,
+    handleSubmit: runSubmit,
+  } = useBackendForm({
+    initialName: backend?.name ?? "",
+    initialHost: backend?.host ?? "",
+    initialApiKey: backend?.apiKey ?? "",
+    onTestConnection: testBackendConnection,
+    onSuccess: async () => {
+      const payload: BackendFormSubmitPayload = {
+        name: name.trim(),
+        host: normalizeHost(host),
+        apiKey: apiKey.trim(),
+        kind: fixedKind ?? inferredKind,
+      };
+      if (mode === "edit" && backend) {
+        updateBackend(backend.id, payload);
+      } else {
+        addBackend(payload);
+      }
+      onSubmitted();
+    },
+    onSubmitOverride,
+  });
+
+  // Inline validation: only show errors after the user has left a field.
+  const [nameTouched, setNameTouched] = React.useState(false);
+  const [hostTouched, setHostTouched] = React.useState(false);
+
+  const kind = fixedKind ?? inferredKind;
   const testIdRoot =
     explicitTestIdRoot ?? (mode === "edit" ? "edit-backend" : "add-backend");
 
@@ -376,9 +516,6 @@ export function BackendForm({
     : undefined;
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (isSubmitting) return;
-
     if (!canSubmit) {
       // Mark all validated fields as touched so inline errors become visible
       // (e.g. user pressed Enter before filling required fields).
@@ -386,42 +523,7 @@ export function BackendForm({
       setHostTouched(true);
       return;
     }
-
-    const payload: BackendFormSubmitPayload = {
-      name: name.trim(),
-      host: normalizeHost(host),
-      apiKey: apiKey.trim(),
-      kind,
-    };
-
-    setConnectionError(null);
-    setIsSubmitting(true);
-
-    try {
-      if (onSubmitOverride) {
-        await onSubmitOverride(payload);
-        return;
-      }
-
-      await testBackendConnection(payload);
-
-      if (mode === "edit" && backend) {
-        updateBackend(backend.id, payload);
-      } else {
-        addBackend(payload);
-      }
-
-      onSubmitted();
-    } catch (error) {
-      setConnectionError(
-        getConnectionTestFailedMessage(
-          getConnectionTestFailedTitle(t, payload.host),
-          error,
-        ),
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
+    await runSubmit(event);
   };
 
   return (
@@ -562,50 +664,32 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
   const { addBackend } = useActiveBackendContext();
   const redirectAfterAdd = useRedirectAfterAddBackend();
 
-  const [name, setName] = React.useState("");
-  const [host, setHost] = React.useState("");
-  const [apiKey, setApiKey] = React.useState("");
-  const [connectionError, setConnectionError] = React.useState<string | null>(
-    null,
-  );
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
-
-  const kind: BackendKind = inferKindFromHost(host);
-  const canSubmit =
-    name.trim().length > 0 &&
-    isValidHostUrl(host) &&
-    (kind === "local" || apiKey.trim().length > 0);
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!canSubmit || isSubmitting) return;
-
-    const payload = {
-      name: name.trim(),
-      host: normalizeHost(host),
-      apiKey: apiKey.trim(),
-      kind,
-    };
-
-    setConnectionError(null);
-    setIsSubmitting(true);
-
-    try {
-      await testBackendConnection(payload);
-      addBackend(payload);
+  const {
+    name,
+    setName,
+    host,
+    setHost,
+    apiKey,
+    setApiKey,
+    connectionError,
+    setConnectionError,
+    isSubmitting,
+    kind,
+    canSubmit,
+    handleSubmit,
+  } = useBackendForm({
+    onTestConnection: testBackendConnection,
+    onSuccess: () => {
+      addBackend({
+        name: name.trim(),
+        host: normalizeHost(host),
+        apiKey: apiKey.trim(),
+        kind,
+      });
       redirectAfterAdd();
       onClose();
-    } catch (error) {
-      setConnectionError(
-        getConnectionTestFailedMessage(
-          getConnectionTestFailedTitle(t, payload.host),
-          error,
-        ),
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    },
+  });
 
   return (
     <form

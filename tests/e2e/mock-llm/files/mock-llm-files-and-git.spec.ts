@@ -22,7 +22,7 @@ import {
   getConversationIdFromURL,
   waitForNonUserMessageText,
   deleteConversation,
-  ensureMockLLMProfileViaAPI,
+  ensureMockLLMProfile,
   registerTrajectory,
   activateTrajectory,
   resetMockLLM,
@@ -94,8 +94,18 @@ test.describe("files tab, git control bar, and browser tab", () => {
 
   // ── Step 1: Setup LLM profile ──────────────────────────────────────
 
-  test("step 1: ensure mock LLM profile is configured", async ({ request }) => {
-    await ensureMockLLMProfileViaAPI(request);
+  test("step 1: ensure mock LLM profile is configured", async ({
+    page,
+    request,
+  }) => {
+    // Create AND activate a real LLM profile through the Settings UI.
+    // In local mode the home launcher gates sending on an active LLM profile
+    // (profiles are the source of truth — see `useLlmConfigured`), so the
+    // settings-only `ensureMockLLMProfileViaAPI` path leaves the chat input
+    // and submit button disabled and step 2 can never submit. Other
+    // conversation-starting mock-LLM specs create a profile for this reason;
+    // under selective E2E runs no earlier spec leaves an active profile behind.
+    await ensureMockLLMProfile(page);
 
     // Register a trajectory that ensures the workspace has a git remote.
     // The npm path inherits the host repo; the Docker path bootstraps one.
