@@ -370,13 +370,12 @@ test.describe("UI regressions", () => {
     await routeSessionApiKey(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
 
-    await expect(page.locator("[data-agent-server-ui]").first()).toBeVisible({
-      timeout: 15_000,
-    });
+    const shell = page.locator("[data-agent-server-ui]").first();
+    await expect(shell).toBeVisible({ timeout: 15_000 });
     const layout = page.getByTestId("root-layout");
     await expect(layout).toBeVisible();
 
-    const insideBackground = await layout.evaluate(
+    const insideBackground = await shell.evaluate(
       (el) => getComputedStyle(el).backgroundColor,
     );
 
