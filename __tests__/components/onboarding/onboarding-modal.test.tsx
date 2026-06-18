@@ -302,6 +302,13 @@ describe("OnboardingModal", () => {
     renderModal();
     const user = userEvent.setup();
 
+    await waitFor(() =>
+      expect(screen.getByTestId("onboarding-backend-connected")).toBeVisible(),
+    );
+    await user.click(
+      screen.getByTestId("onboarding-backend-show-configuration"),
+    );
+
     await user.clear(screen.getByTestId("onboarding-backend-host"));
     await user.type(
       screen.getByTestId("onboarding-backend-host"),
