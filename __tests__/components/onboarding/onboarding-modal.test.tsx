@@ -287,8 +287,10 @@ describe("OnboardingModal", () => {
     );
 
     expect(
-      screen.getByTestId("onboarding-backend-configuration-fields"),
-    ).toHaveClass("hidden");
+      within(
+        screen.getByTestId("onboarding-backend-configuration-fields"),
+      ).queryByTestId("onboarding-backend-connection-options"),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByTestId("onboarding-backend-show-configuration"),
     ).toBeInTheDocument();
@@ -297,8 +299,10 @@ describe("OnboardingModal", () => {
       screen.getByTestId("onboarding-backend-show-configuration"),
     );
     expect(
-      screen.getByTestId("onboarding-backend-configuration-fields"),
-    ).not.toHaveClass("hidden");
+      within(
+        screen.getByTestId("onboarding-backend-configuration-fields"),
+      ).getByTestId("onboarding-backend-connection-options"),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("onboarding-backend-cloud-title")).toBeVisible();
     expect(screen.getByTestId("onboarding-backend-login-button")).toBeVisible();
   });
