@@ -98,9 +98,8 @@ function ConnectionBanner({
 }
 
 /**
- * Step 1: embed the "edit backend" form pre-populated with the
- * default/active backend, plus a contextual success/error banner that
- * reacts to the live health probe.
+ * First onboarding step: add the initial backend when none is selected,
+ * or edit/check the active backend with a contextual health banner.
  */
 export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
   const { t } = useTranslation("openhands");
@@ -207,10 +206,7 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
         </button>
       ) : null}
 
-      <div
-        data-testid="onboarding-backend-configuration-fields"
-        className={cn(hideConfigurationFields && "hidden")}
-      >
+      <div data-testid="onboarding-backend-configuration-fields">
         {!hideConfigurationFields ? (
           <BackendConnectionOptions
             onConnected={handleConnected}
