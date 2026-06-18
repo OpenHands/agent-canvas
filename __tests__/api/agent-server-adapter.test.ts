@@ -870,7 +870,12 @@ describe("toAppConversation", () => {
     expect(result.llm_model).toBe("Claude Sonnet 4.6");
   });
 
-  it("does not surface ACP default placeholders when a configured model exists", () => {
+  it("surfaces the runtime ACP default model over a configured acp_model", () => {
+    // claude-agent-acp 0.44+ exposes ``default`` ("Default (recommended)")
+    // as a real, selectable model in its configOptions select. The runtime
+    // ``current_model_*`` fields take precedence over the configured
+    // ``acp_model``, so a session actually running on ``default`` must
+    // surface that on the chip instead of the stale configured value.
     const result = toAppConversation({
       ...baseInfo,
       current_model_id: "default",
@@ -882,7 +887,7 @@ describe("toAppConversation", () => {
       },
     });
     expect(result.agent_kind).toBe("acp");
-    expect(result.llm_model).toBe("claude-sonnet-4-6");
+    expect(result.llm_model).toBe("Default (recommended)");
   });
 
   it("falls back to a non-sentinel ACP llm.model for SDKs that mirror acp_model there", () => {
@@ -894,11 +899,10 @@ describe("toAppConversation", () => {
     expect(result.llm_model).toBe("claude-sonnet-4-6");
   });
 
-  it("filters ACP default placeholders surfaced via the configured acp_model", () => {
-    // Older settings may have persisted the SDK's literal "default" string
-    // into ``acp_model``. Surfacing it on the chip would lie about what's
-    // running — the placeholder filter is applied to every candidate, not
-    // just the runtime fields.
+  it("surfaces ACP default model surfaced via the configured acp_model", () => {
+    // ``default`` / ``Default (recommended)`` is a real claude-agent-acp
+    // model id (not an SDK placeholder), so it must surface like any other
+    // configured model.
     const result = toAppConversation({
       ...baseInfo,
       agent: {
@@ -908,17 +912,18 @@ describe("toAppConversation", () => {
       },
     });
     expect(result.agent_kind).toBe("acp");
-    expect(result.llm_model).toBeNull();
+    expect(result.llm_model).toBe("Default (recommended)");
   });
 
-  it("filters ACP default placeholders surfaced via agent.llm.model", () => {
-    // Same defense, one rung lower in the precedence chain.
+  it("surfaces ACP default model surfaced via agent.llm.model", () => {
+    // Same as above, one rung lower in the precedence chain: ``default`` is
+    // a real model id and should surface as-is.
     const result = toAppConversation({
       ...baseInfo,
       agent: { kind: "ACPAgent", llm: { model: "default" } },
     });
     expect(result.agent_kind).toBe("acp");
-    expect(result.llm_model).toBeNull();
+    expect(result.llm_model).toBe("default");
   });
 
   it("surfaces acp_server from tags.acpserver for ACP conversations", () => {
