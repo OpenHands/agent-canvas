@@ -158,29 +158,6 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
       : I18nKey.BACKEND$ADD_TITLE
     : I18nKey.ONBOARDING$BACKEND_TITLE;
 
-  const handleConnected = React.useCallback(
-    (payload: BackendFormSubmitPayload) => {
-      if (noBackendSelected) {
-        addBackend(payload);
-      } else {
-        updateBackend(backend.id, payload);
-      }
-      onNext();
-    },
-    [addBackend, backend.id, noBackendSelected, onNext, updateBackend],
-  );
-
-  const actionRowClassName = cn(
-    "sticky bottom-0 mt-2 flex items-center gap-2 bg-base-secondary pt-4 pb-7",
-    onBack ? "justify-between" : "justify-end",
-  );
-  const titleKey = noBackendSelected
-    ? I18nKey.BACKEND$ADD_TITLE
-    : I18nKey.ONBOARDING$BACKEND_TITLE;
-  const subtitleKey = noBackendSelected
-    ? I18nKey.ONBOARDING$ADD_BACKEND_SUBTITLE
-    : I18nKey.ONBOARDING$BACKEND_SUBTITLE;
-
   return (
     <div
       data-testid="onboarding-step-check-backend"
