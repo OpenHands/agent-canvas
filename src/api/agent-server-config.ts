@@ -100,10 +100,6 @@ export function getLockedCloudHost(): string | null {
   return null;
 }
 
-export function isLockedToCloud(): boolean {
-  return getLockedCloudHost() !== null;
-}
-
 export function getAgentServerBaseUrl(): string | null {
   const configuredUrl = getConfiguredBaseUrl();
   if (configuredUrl) return configuredUrl;
