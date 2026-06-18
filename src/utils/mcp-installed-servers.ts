@@ -6,6 +6,7 @@ export function flattenMcpConfig(config: MCPConfig): MCPServerConfig[] {
     ...config.sse_servers.map((server, index) => ({
       id: `sse-${index}`,
       type: "sse" as const,
+      name: typeof server === "object" ? server.name : undefined,
       url: typeof server === "string" ? server : server.url,
       api_key: typeof server === "object" ? server.api_key : undefined,
     })),
@@ -20,6 +21,7 @@ export function flattenMcpConfig(config: MCPConfig): MCPServerConfig[] {
     ...config.shttp_servers.map((server, index) => ({
       id: `shttp-${index}`,
       type: "shttp" as const,
+      name: typeof server === "object" ? server.name : undefined,
       url: typeof server === "string" ? server : server.url,
       api_key: typeof server === "object" ? server.api_key : undefined,
       timeout: typeof server === "object" ? server.timeout : undefined,
