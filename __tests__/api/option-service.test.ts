@@ -2,8 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import {
   AgentServerUnavailableError,
+  AgentServerUnknownVersionError,
+  AgentServerUnsupportedVersionError,
   clearCachedAgentServerInfo,
   isAgentServerToolAvailable,
+  MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
 } from "#/api/agent-server-compatibility";
 import OptionService from "#/api/option-service/option-service.api";
 import { server } from "#/mocks/node";
@@ -21,10 +24,14 @@ describe("OptionService", () => {
     expect(config.updated_at).toBeTruthy();
   });
 
-  it("loads config regardless of agent server version", async () => {
+  it("loads config when the agent server is compatible", async () => {
     server.use(
       http.get("*/server_info", () =>
-        HttpResponse.json({ uptime: 0, idle_time: 0, version: "1.0.0" }),
+        HttpResponse.json({
+          uptime: 0,
+          idle_time: 0,
+          version: MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
+        }),
       ),
     );
 
@@ -33,15 +40,30 @@ describe("OptionService", () => {
     });
   });
 
-  it("loads config even when the server does not advertise a version", async () => {
+  it("throws when the agent server is too old", async () => {
+    server.use(
+      http.get("*/server_info", () =>
+        HttpResponse.json({ uptime: 0, idle_time: 0, version: "1.27.1" }),
+      ),
+    );
+
+    await expect(OptionService.getConfig()).rejects.toMatchObject({
+      name: AgentServerUnsupportedVersionError.name,
+      actualVersion: "1.27.1",
+      requiredVersion: MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
+    });
+  });
+
+  it("throws when the server does not advertise a version", async () => {
     server.use(
       http.get("*/server_info", () =>
         HttpResponse.json({ uptime: 0, idle_time: 0 }),
       ),
     );
 
-    await expect(OptionService.getConfig()).resolves.toMatchObject({
-      feature_flags: expect.objectContaining({ hide_llm_settings: false }),
+    await expect(OptionService.getConfig()).rejects.toMatchObject({
+      name: AgentServerUnknownVersionError.name,
+      actualVersion: null,
     });
   });
 
@@ -61,7 +83,7 @@ describe("OptionService", () => {
         HttpResponse.json({
           uptime: 0,
           idle_time: 0,
-          version: "1.21.1",
+          version: MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
           usable_tools: ["terminal", "file_editor", "task_tracker"],
         }),
       ),
@@ -79,7 +101,7 @@ describe("OptionService", () => {
         HttpResponse.json({
           uptime: 0,
           idle_time: 0,
-          version: "1.21.1",
+          version: MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
         }),
       ),
     );

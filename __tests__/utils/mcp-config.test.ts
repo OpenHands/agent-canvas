@@ -101,10 +101,145 @@ describe("toSdkMcpConfig", () => {
     expect(Object.keys(out!.mcpServers)).toEqual(["stdio", "stdio_1"]);
   });
 
+  it("uses a user-given name as the sse/shttp dict key", () => {
+    const config: MCPConfig = {
+      sse_servers: [{ name: "my-search", url: "https://sse.example" }],
+      shttp_servers: [{ name: "my-docs", url: "https://shttp.example" }],
+      stdio_servers: [],
+    };
+
+    const out = toSdkMcpConfig(config);
+
+    expect(Object.keys(out!.mcpServers)).toEqual(["my-search", "my-docs"]);
+    expect(out!.mcpServers["my-search"]).toMatchObject({
+      url: "https://sse.example",
+      transport: "sse",
+    });
+  });
+
+  it("falls back to the base name for unnamed sse/shttp entries", () => {
+    const config: MCPConfig = {
+      sse_servers: [{ name: "named", url: "https://a" }, { url: "https://b" }],
+      shttp_servers: [{ url: "https://c" }],
+      stdio_servers: [],
+    };
+
+    const out = toSdkMcpConfig(config);
+
+    expect(Object.keys(out!.mcpServers)).toEqual(["named", "sse", "shttp"]);
+  });
+
+  it("de-dups colliding user-given sse/shttp names with a suffix", () => {
+    const config: MCPConfig = {
+      sse_servers: [
+        { name: "search", url: "https://a" },
+        { name: "search", url: "https://b" },
+      ],
+      shttp_servers: [],
+      stdio_servers: [],
+    };
+
+    const out = toSdkMcpConfig(config);
+
+    expect(Object.keys(out!.mcpServers)).toEqual(["search", "search_1"]);
+  });
+
+  it("round-trips a user-given sse/shttp name through parse → write", () => {
+    const persisted = {
+      mcpServers: {
+        "my-search": { url: "https://x", transport: "sse" },
+        "my-docs": { url: "https://y" },
+      },
+    };
+
+    const parsed = parseMcpConfig(persisted);
+
+    expect(parsed.sse_servers).toEqual([
+      { name: "my-search", url: "https://x" },
+    ]);
+    expect(parsed.shttp_servers).toEqual([
+      { name: "my-docs", url: "https://y" },
+    ]);
+
+    const written = toSdkMcpConfig(parsed);
+    expect(Object.keys(written!.mcpServers).sort()).toEqual([
+      "my-docs",
+      "my-search",
+    ]);
+  });
+
+  it("does not surface auto-generated sse/shttp keys as user names", () => {
+    // Keys matching the fallback pattern carry no user intent, so parsing
+    // must leave `name` unset — otherwise the auto key would become a
+    // sticky, user-facing name on the next edit.
+    const persisted = {
+      mcpServers: {
+        sse: { url: "https://a", transport: "sse" },
+        sse_1: { url: "https://b", transport: "sse" },
+        shttp: { url: "https://c" },
+        shttp_2: { url: "https://d" },
+      },
+    };
+
+    const parsed = parseMcpConfig(persisted);
+
+    expect(parsed.sse_servers).toEqual([
+      { url: "https://a" },
+      { url: "https://b" },
+    ]);
+    expect(parsed.shttp_servers).toEqual([
+      { url: "https://c" },
+      { url: "https://d" },
+    ]);
+  });
+
   it("returns null when there are no servers", () => {
     expect(
       toSdkMcpConfig({ sse_servers: [], shttp_servers: [], stdio_servers: [] }),
     ).toBeNull();
+  });
+
+  it("serializes remote API keys as authorization headers for SDK/ACP forwarding", () => {
+    const config: MCPConfig = {
+      sse_servers: [{ url: "https://sse.example", api_key: "sse-secret" }],
+      shttp_servers: [
+        { url: "https://shttp.example", api_key: "shttp-secret" },
+      ],
+      stdio_servers: [],
+    };
+
+    const out = toSdkMcpConfig(config);
+
+    expect(out).toEqual({
+      mcpServers: {
+        sse: {
+          url: "https://sse.example",
+          transport: "sse",
+          headers: { Authorization: "Bearer sse-secret" },
+        },
+        shttp: {
+          url: "https://shttp.example",
+          headers: { Authorization: "Bearer shttp-secret" },
+        },
+      },
+    });
+  });
+
+  it("round-trips persisted authorization headers back to frontend api_key fields", () => {
+    const persisted = {
+      mcpServers: {
+        shttp: {
+          url: "https://shttp.example",
+          headers: { Authorization: "Bearer shttp-secret" },
+        },
+      },
+    };
+
+    const parsed = parseMcpConfig(persisted);
+
+    expect(parsed.shttp_servers).toEqual([
+      { url: "https://shttp.example", api_key: "shttp-secret" },
+    ]);
   });
 
   it("keeps names stable across a parse → write round trip", () => {
@@ -247,6 +382,29 @@ describe("parseMcpConfig — deprecated Linear SSE migration", () => {
     // so the backend connects via streamable HTTP to the new endpoint.
     expect(written).toEqual({
       mcpServers: { shttp: { url: "https://mcp.linear.app/mcp" } },
+    });
+  });
+
+  it("persists migrated legacy Linear credentials as authorization headers", () => {
+    const persisted = {
+      mcpServers: {
+        sse: {
+          url: "https://mcp.linear.app/sse",
+          transport: "sse",
+          auth: "lin_api_secret",
+        },
+      },
+    };
+
+    const written = toSdkMcpConfig(parseMcpConfig(persisted));
+
+    expect(written).toEqual({
+      mcpServers: {
+        shttp: {
+          url: "https://mcp.linear.app/mcp",
+          headers: { Authorization: "Bearer lin_api_secret" },
+        },
+      },
     });
   });
 });

@@ -10,8 +10,17 @@ import {
   getEffectiveLocalBackend,
   isNoBackend,
 } from "#/api/backend-registry/active-store";
+import defaults from "../../config/defaults.json";
 
 const AGENT_SERVER_INFO_TIMEOUT_MS = 5000;
+const UNKNOWN_AGENT_SERVER_VERSION = "unknown";
+
+export const MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION =
+  defaults.compatibility.minimumAgentServer;
+export const AGENT_SERVER_UNSUPPORTED_VERSION_ERROR_CODE =
+  "AGENT_SERVER_UNSUPPORTED_VERSION";
+export const AGENT_SERVER_UNKNOWN_VERSION_ERROR_CODE =
+  "AGENT_SERVER_UNKNOWN_VERSION";
 
 export interface AgentServerInfo extends BaseServerInfo {
   usable_tools?: string[] | null;
@@ -55,6 +64,57 @@ export const isAgentServerUnavailableError = (
     "name" in error &&
     error.name === "AgentServerUnavailableError");
 
+export class AgentServerUnsupportedVersionError extends AgentServerUnavailableError {
+  readonly code = AGENT_SERVER_UNSUPPORTED_VERSION_ERROR_CODE;
+  readonly actualVersion: string;
+  readonly requiredVersion = MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION;
+
+  constructor(actualVersion: string) {
+    const message = `Agent Canvas requires agent-server ${MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION} or newer; this backend is running ${actualVersion}. Please upgrade the agent-server backend.`;
+    super(message);
+    this.name = "AgentServerUnsupportedVersionError";
+    this.message = message;
+    this.actualVersion = actualVersion;
+  }
+}
+
+export class AgentServerUnknownVersionError extends AgentServerUnavailableError {
+  readonly code = AGENT_SERVER_UNKNOWN_VERSION_ERROR_CODE;
+  readonly actualVersion: string | null;
+  readonly requiredVersion = MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION;
+
+  constructor(actualVersion: string | null) {
+    const reported = actualVersion ? ` It reported "${actualVersion}".` : "";
+    const message =
+      `Could not determine this backend's agent-server version.${reported} ` +
+      `Agent Canvas requires agent-server ${MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION} ` +
+      "or newer, but this backend did not return a valid version from " +
+      "/server_info. Restart or rebuild the agent-server backend, then try again.";
+    super(message);
+    this.name = "AgentServerUnknownVersionError";
+    this.message = message;
+    this.actualVersion = actualVersion;
+  }
+}
+
+export const isAgentServerUnsupportedVersionError = (
+  error: unknown,
+): error is AgentServerUnsupportedVersionError =>
+  error instanceof AgentServerUnsupportedVersionError ||
+  (typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === AGENT_SERVER_UNSUPPORTED_VERSION_ERROR_CODE);
+
+export const isAgentServerUnknownVersionError = (
+  error: unknown,
+): error is AgentServerUnknownVersionError =>
+  error instanceof AgentServerUnknownVersionError ||
+  (typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === AGENT_SERVER_UNKNOWN_VERSION_ERROR_CODE);
+
 /**
  * Returns true when the agent-server probe failed with HTTP 401.
  * In public mode this means the stored key is stale (server restarted
@@ -96,6 +156,109 @@ export function isSdkHttpStatusError(error: unknown, status: number): boolean {
   return (
     isSdkHttpError(error) && (error as { status: number }).status === status
   );
+}
+
+function getRawAgentServerVersion(serverInfo: AgentServerInfo): string | null {
+  if (typeof serverInfo.version !== "string") return null;
+  const trimmed = serverInfo.version.trim();
+  return trimmed || null;
+}
+
+function getComparableAgentServerVersion(
+  serverInfo: AgentServerInfo,
+): string | null {
+  const version = getRawAgentServerVersion(serverInfo);
+  if (!version || version.toLowerCase() === UNKNOWN_AGENT_SERVER_VERSION) {
+    return null;
+  }
+  return version;
+}
+
+export function getDisplayAgentServerVersion(
+  serverInfo: AgentServerInfo,
+): string | null {
+  const version = getComparableAgentServerVersion(serverInfo);
+  if (!version || !parseAgentServerVersion(version)) {
+    return null;
+  }
+  return version;
+}
+
+function compareAgentServerVersions(actual: string, required: string) {
+  const parsedActual = parseAgentServerVersion(actual);
+  const parsedRequired = parseAgentServerVersion(required);
+
+  if (!parsedActual || !parsedRequired) {
+    return null;
+  }
+
+  for (const key of ["major", "minor", "patch"] as const) {
+    if (parsedActual[key] > parsedRequired[key]) {
+      return 1;
+    }
+    if (parsedActual[key] < parsedRequired[key]) {
+      return -1;
+    }
+  }
+
+  if (parsedActual.prerelease && !parsedRequired.prerelease) {
+    return -1;
+  }
+  if (!parsedActual.prerelease && parsedRequired.prerelease) {
+    return 1;
+  }
+  if (parsedActual.prerelease && parsedRequired.prerelease) {
+    return parsedActual.prerelease.localeCompare(parsedRequired.prerelease);
+  }
+
+  return 0;
+}
+
+function parseAgentServerVersion(version: string) {
+  const trimmed = version.trim().replace(/^v/, "");
+  const [withoutBuild] = trimmed.split("+");
+  const [core, prerelease] = withoutBuild.split("-", 2);
+  const parts = core.split(".");
+
+  if (parts.length !== 3) {
+    return null;
+  }
+
+  const [major, minor, patch] = parts.map((part) => Number(part));
+  if (
+    ![major, minor, patch].every((part) => Number.isInteger(part) && part >= 0)
+  ) {
+    return null;
+  }
+
+  return { major, minor, patch, prerelease };
+}
+
+export function assertAgentServerVersionIsSupported(
+  serverInfo: AgentServerInfo,
+) {
+  const actualVersion = getComparableAgentServerVersion(serverInfo);
+  if (!actualVersion) {
+    clearCachedAgentServerInfo();
+    throw new AgentServerUnknownVersionError(
+      getRawAgentServerVersion(serverInfo),
+    );
+  }
+
+  const comparison = compareAgentServerVersions(
+    actualVersion,
+    MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
+  );
+
+  if (comparison === null) {
+    clearCachedAgentServerInfo();
+    throw new AgentServerUnknownVersionError(actualVersion);
+  }
+
+  if (comparison < 0) {
+    clearCachedAgentServerInfo();
+    throw new AgentServerUnsupportedVersionError(actualVersion);
+  }
 }
 
 export async function loadAgentServerInfo() {
@@ -143,6 +306,8 @@ export async function loadAgentServerInfo() {
     const details = error instanceof Error ? error.message : null;
     throw new AgentServerUnavailableError(details);
   }
+
+  assertAgentServerVersionIsSupported(serverInfo);
 
   // /server_info is unprotected, so a stale session key still gets 200.
   // In public mode, validate the key against a protected endpoint so a

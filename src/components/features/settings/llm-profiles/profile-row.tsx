@@ -17,6 +17,7 @@ interface ProfileRowProps {
   onActivate: (name: string) => void;
   onEdit: (profile: ProfileInfo) => void;
   onRename: (profile: ProfileInfo) => void;
+  onDuplicate: (profile: ProfileInfo) => void;
   onDelete: (profile: ProfileInfo) => void;
   isActivating: boolean;
 }
@@ -27,6 +28,7 @@ export function ProfileRow({
   onActivate,
   onEdit,
   onRename,
+  onDuplicate,
   onDelete,
   isActivating,
 }: ProfileRowProps) {
@@ -76,6 +78,7 @@ export function ProfileRow({
             anchorRef={triggerRef}
             onEdit={() => onEdit(profile)}
             onRename={() => onRename(profile)}
+            onDuplicate={() => onDuplicate(profile)}
             onSetActive={() => onActivate(profile.name)}
             onDelete={() => onDelete(profile)}
             isActive={isActive}

@@ -10,6 +10,7 @@ import {
   labelForAcpModel,
   resolveAcpProviderIcon,
 } from "#/constants/acp-providers";
+import { formatNativeModelName } from "#/utils/format-model-name";
 import {
   AgentBrandIcon,
   type AgentBrandIconKind,
@@ -93,7 +94,13 @@ export function ConversationCardFooter({
         tooltip: modelLabel ? `${providerName} · ${modelLabel}` : providerName,
       };
     } else if (llmModel) {
-      chip = { kind: "openhands", text: llmModel, tooltip: llmModel };
+      // Strip the routing prefix (e.g. "anthropic/claude-…" → "claude-…") for
+      // the chip text; keep the full routing string in the tooltip.
+      chip = {
+        kind: "openhands",
+        text: formatNativeModelName(llmModel) ?? llmModel,
+        tooltip: llmModel,
+      };
     }
   }
 

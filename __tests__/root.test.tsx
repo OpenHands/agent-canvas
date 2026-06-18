@@ -9,14 +9,16 @@ import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store"
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 
 const TRANSLATIONS: Record<string, string> = {
-  "BACKEND$MANAGE_TITLE": "Manage backends",
-  "BACKEND$MANAGE_EMPTY": "No backends yet.",
-  "BACKEND$ADD": "+ Add Backend",
-  "BACKEND$KIND_LOCAL": "Local",
-  "BACKEND$KIND_CLOUD": "Cloud",
-  "BACKEND$EDIT": "Edit",
-  "BACKEND$REMOVE": "Remove",
-  "HOME$DONE": "Done",
+  BACKEND$MANAGE_TITLE: "Manage backends",
+  BACKEND$MANAGE_EMPTY: "No backends yet.",
+  BACKEND$ADD: "+ Add Backend",
+  BACKEND$LOG_BACK_IN: "Log back in",
+  BACKEND$LOGGED_OUT: "Logged out",
+  BACKEND$KIND_LOCAL: "Local",
+  BACKEND$KIND_CLOUD: "Cloud",
+  BACKEND$EDIT: "Edit",
+  BACKEND$REMOVE: "Remove",
+  HOME$DONE: "Done",
 };
 
 vi.mock("react-i18next", () => ({
@@ -65,26 +67,28 @@ describe("App root agent-server availability guard", () => {
     __resetActiveStoreForTests();
   });
 
-
-  it("renders the routed page even when the connected server reports an old version", async () => {
+  it("shows the manage-backends modal when the connected server reports an old version", async () => {
     server.use(
       http.get("/server_info", () =>
-        HttpResponse.json({ uptime: 0, idle_time: 0, version: "1.0.0" }),
+        HttpResponse.json({ uptime: 0, idle_time: 0, version: "1.27.1" }),
       ),
     );
 
     renderApp(["/"]);
 
     await waitFor(() => {
-      expect(screen.getByTestId("app-outlet")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("agent-server-onboarding-screen"),
+      ).toBeInTheDocument();
     });
 
-    expect(
-      screen.queryByTestId("agent-server-onboarding-screen"),
-    ).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByTestId("manage-backends-modal")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("app-outlet")).not.toBeInTheDocument();
   });
 
-  it("renders the routed page when the server omits a version field", async () => {
+  it("shows the manage-backends modal when the server omits a version field", async () => {
     server.use(
       http.get("/server_info", () =>
         HttpResponse.json({ uptime: 0, idle_time: 0 }),
@@ -94,8 +98,11 @@ describe("App root agent-server availability guard", () => {
     renderApp(["/"]);
 
     await waitFor(() => {
-      expect(screen.getByTestId("app-outlet")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("agent-server-onboarding-screen"),
+      ).toBeInTheDocument();
     });
+    expect(screen.queryByTestId("app-outlet")).not.toBeInTheDocument();
   });
 
   it("shows the manage-backends modal when the backend is unreachable", async () => {
@@ -127,6 +134,48 @@ describe("App root agent-server availability guard", () => {
       expect(screen.getByTestId("manage-backends-modal")).toBeInTheDocument();
     });
     expect(serverInfoRequests).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByTestId("app-outlet")).not.toBeInTheDocument();
+  });
+
+  it("shows the manage-backends recovery modal when the active cloud backend is logged out", async () => {
+    const cloudBackend = {
+      id: "cloud-expired",
+      name: "OpenHands Cloud",
+      host: "https://app.all-hands.dev",
+      apiKey: "expired-token",
+      kind: "cloud",
+    };
+    window.localStorage.setItem(
+      "openhands-backends",
+      JSON.stringify([cloudBackend]),
+    );
+    window.localStorage.setItem(
+      "openhands-active-backend",
+      JSON.stringify({ backendId: cloudBackend.id, orgId: null }),
+    );
+    window.sessionStorage.setItem(
+      "openhands-active-backend",
+      JSON.stringify({ backendId: cloudBackend.id, orgId: null }),
+    );
+    __resetActiveStoreForTests();
+    server.use(
+      http.get("https://app.all-hands.dev/api/keys/current", () =>
+        HttpResponse.json({ detail: "NoCredentialsError" }, { status: 401 }),
+      ),
+    );
+
+    renderApp(["/"]);
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("agent-server-onboarding-screen"),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("manage-backends-modal")).toBeInTheDocument();
+    expect(screen.getByText("Logged out")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Log back in" }),
+    ).toBeInTheDocument();
     expect(screen.queryByTestId("app-outlet")).not.toBeInTheDocument();
   });
 

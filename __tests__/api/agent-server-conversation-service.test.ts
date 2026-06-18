@@ -757,9 +757,8 @@ describe("AgentServerConversationService", () => {
       mockGetProfile.mockResolvedValue({
         name: "haiku",
         config: {
-          model: "litellm_proxy/claude-haiku-4-5",
+          model: "openhands/claude-haiku-4-5",
           api_key: "encrypted-key",
-          base_url: "https://llm-proxy.app.all-hands.dev/",
         },
         api_key_set: true,
       });
@@ -773,9 +772,8 @@ describe("AgentServerConversationService", () => {
       expect(mockSwitchLLM).toHaveBeenCalledWith(
         "conv-1",
         expect.objectContaining({
-          model: "litellm_proxy/claude-haiku-4-5",
+          model: "openhands/claude-haiku-4-5",
           api_key: "encrypted-key",
-          base_url: "https://llm-proxy.app.all-hands.dev/",
           usage_id: expect.stringMatching(/^profile:haiku:/),
         }),
       );

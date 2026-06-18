@@ -163,7 +163,7 @@ beforeEach(() => {
     if (options?.host?.startsWith("https://127.0.0.1:8000")) {
       return Promise.reject(new Error("Failed to fetch"));
     }
-    return Promise.resolve({ version: "1.18.0" });
+    return Promise.resolve({ version: "1.28.0" });
   });
   // ChooseAgentStep's Next button now persists the selection via
   // saveSettings before advancing. Stub it so the rest of the flow
@@ -230,7 +230,7 @@ describe("OnboardingModal", () => {
       await screen.findByTestId("onboarding-backend-error"),
     ).toHaveTextContent("BACKEND$CONNECTION_TEST_FAILED");
     expect(screen.getByTestId("onboarding-backend-error")).toHaveTextContent(
-      "Failed to fetch",
+      "Disconnected",
     );
   });
 

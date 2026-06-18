@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, GitBranch } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import type { BackendKind } from "#/api/backend-registry/types";
 import type { WorkspaceMode } from "#/api/conversation-metadata-store";
 import { getWorkspaceModeI18nKey } from "#/utils/workspace-mode";
@@ -10,7 +10,7 @@ import {
   dropdownMenuRowClassName,
   dropdownMenuRowIconWrapperClassName,
 } from "#/utils/dropdown-classes";
-import RepoForkedIcon from "#/icons/repo-forked.svg?react";
+import { WorkspaceModeIcon } from "./workspace-mode-icon";
 
 interface WorkspaceModeSelectorProps {
   value: WorkspaceMode;
@@ -21,14 +21,6 @@ interface WorkspaceModeSelectorProps {
 }
 
 const WORKSPACE_MODE_OPTIONS: WorkspaceMode[] = ["local_repo", "new_worktree"];
-
-function WorkspaceModeIcon({ mode }: { mode: WorkspaceMode }) {
-  if (mode === "new_worktree") {
-    return <GitBranch className="size-3" strokeWidth={2} aria-hidden />;
-  }
-
-  return <RepoForkedIcon width={12} height={12} color="white" aria-hidden />;
-}
 
 export function WorkspaceModeSelector({
   value,

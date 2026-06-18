@@ -1,6 +1,8 @@
 import React from "react";
+import { useNavigate } from "react-router";
 import { useTracking } from "#/hooks/use-tracking";
 import { useTranslation } from "react-i18next";
+import { isAcpAuthErrorCode } from "#/utils/acp-error-codes";
 import { convertImageToBase64 } from "#/utils/convert-image-to-base-64";
 import { createChatMessage } from "#/services/chat-service";
 import { BtwMessages } from "./btw-messages";
@@ -58,8 +60,9 @@ function getEntryPoint(
 export function ChatInterface() {
   const { trackInitialQuerySubmitted, trackUserMessageSent } = useTracking();
   const { setMessageToSend } = useConversationStore();
-  const { errorMessage, removeErrorMessage, setErrorMessage } =
+  const { errorMessage, errorCode, removeErrorMessage, setErrorMessage } =
     useErrorMessageStore();
+  const navigate = useNavigate();
   const { isTask, taskStatus, taskDetail } = useTaskPolling();
   // Hide empty-state chrome for the entire `/conversations/task-{uuid}` route,
   // including the brief READY window before redirect completes.
@@ -358,7 +361,7 @@ export function ChatInterface() {
       const sendErrorMessage =
         sendError instanceof Error
           ? sendError.message
-          : "Failed to send message";
+          : t(I18nKey.CHAT_INTERFACE$FAILED_TO_SEND_MESSAGE);
       markPendingMessageError(pendingId, sendErrorMessage);
     }
   };
@@ -538,10 +541,16 @@ export function ChatInterface() {
           {errorMessage && (
             <ErrorMessageBanner
               message={errorMessage}
+              code={errorCode}
               onDismiss={removeErrorMessage}
               onRetry={
                 errorMessage === SERVER_CONNECTION_ERROR_MESSAGE
                   ? () => conversationWebSocket?.reconnect()
+                  : undefined
+              }
+              onReauth={
+                isAcpAuthErrorCode(errorCode)
+                  ? () => navigate("/settings/agent")
                   : undefined
               }
             />

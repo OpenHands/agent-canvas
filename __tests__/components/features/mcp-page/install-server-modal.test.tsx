@@ -250,8 +250,14 @@ describe("InstallServerModal", () => {
       .agent_settings_diff as {
       mcp_config: { mcpServers: Record<string, unknown> };
     };
+    // Remote installs are now keyed by the catalog slug ("linear") rather
+    // than the auto-generated "shttp" fallback, so the server is
+    // referenceable by name in mcp_server_refs.
     expect(sent.mcp_config.mcpServers).toMatchObject({
-      shttp: { url: "https://mcp.linear.app/mcp", auth: "lin_api_secret" },
+      linear: {
+        url: "https://mcp.linear.app/mcp",
+        headers: { Authorization: "Bearer lin_api_secret" },
+      },
     });
   });
 
@@ -318,9 +324,7 @@ describe("InstallServerModal", () => {
     await screen.findByTestId("mcp-install-modal");
 
     // Wait for settings to load so the mutation isn't a no-op.
-    await waitFor(() =>
-      expect(SettingsService.getSettings).toHaveBeenCalled(),
-    );
+    await waitFor(() => expect(SettingsService.getSettings).toHaveBeenCalled());
 
     fireEvent.click(screen.getByTestId("mcp-install-submit"));
 
@@ -335,6 +339,37 @@ describe("InstallServerModal", () => {
     // Modal must stay open.
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByTestId("mcp-install-modal")).toBeInTheDocument();
+  });
+
+  it("shows the credential-specific message when the pre-flight test reports invalid credentials", async () => {
+    // Arrange: installing Slack with credentials its verification call
+    // rejects (the service maps Slack's invalid_auth to "credentials").
+    const slack = MCP_MARKETPLACE.find((e) => e.id === "slack")!;
+    vi.spyOn(McpService, "testServer").mockResolvedValue({
+      ok: false,
+      error: "invalid_auth",
+      error_kind: "credentials",
+    });
+
+    renderWith(<InstallServerModal entry={slack} onClose={vi.fn()} />);
+    await screen.findByTestId("mcp-install-modal");
+
+    // Act: fill the required fields and install.
+    fireEvent.change(screen.getByTestId("mcp-install-field-SLACK_BOT_TOKEN"), {
+      target: { value: "xoxb-invalid" },
+    });
+    fireEvent.change(screen.getByTestId("mcp-install-field-SLACK_TEAM_ID"), {
+      target: { value: "T-INVALID" },
+    });
+    fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+    // Assert: the credentials message is rendered (i18n keys are returned
+    // as-is in tests), not the generic connection/unknown wording.
+    await waitFor(() =>
+      expect(screen.getByTestId("mcp-install-modal-error")).toHaveTextContent(
+        "MCP$TEST_ERROR_CREDENTIALS",
+      ),
+    );
   });
 
   it("calls save and closes the modal when the pre-flight test succeeds", async () => {
@@ -371,9 +406,7 @@ describe("InstallServerModal", () => {
     renderWith(<InstallServerModal entry={entry} onClose={onClose} />);
     await screen.findByTestId("mcp-install-modal");
 
-    await waitFor(() =>
-      expect(SettingsService.getSettings).toHaveBeenCalled(),
-    );
+    await waitFor(() => expect(SettingsService.getSettings).toHaveBeenCalled());
 
     fireEvent.click(screen.getByTestId("mcp-install-submit"));
 
@@ -414,9 +447,7 @@ describe("InstallServerModal", () => {
     renderWith(<InstallServerModal entry={entry} onClose={vi.fn()} />);
     await screen.findByTestId("mcp-install-modal");
 
-    await waitFor(() =>
-      expect(SettingsService.getSettings).toHaveBeenCalled(),
-    );
+    await waitFor(() => expect(SettingsService.getSettings).toHaveBeenCalled());
 
     fireEvent.click(screen.getByTestId("mcp-install-submit"));
 
@@ -478,6 +509,33 @@ describe("InstallServerModal", () => {
           ],
         },
         auth: { strategy: "api_key", apiKeyOptional: true },
+      },
+    ],
+  } as unknown as MarketplaceEntry;
+
+  const SHTTP_ENTRY = {
+    id: "synthetic-shttp-secret",
+    kind: "mcp",
+    name: "Synthetic Hosted Server",
+    description: "Hosted server used to test credential secret saving.",
+    iconBg: "#000000",
+    defaultConnectionOptionId: "api",
+    connectionOptions: [
+      {
+        id: "api",
+        provider: "mcp",
+        transport: {
+          kind: "shttp",
+          url: "https://example.com/mcp",
+        },
+        auth: {
+          strategy: "api_key",
+          credentialLabel: "Personal access token",
+          credentialPlaceholder: "pat_...",
+          credentialHelp: "Token from the provider settings.",
+          credentialSecretName: "PROVIDER_PERSONAL_ACCESS_TOKEN",
+          saveCredentialAsSecretByDefault: true,
+        },
       },
     ],
   } as unknown as MarketplaceEntry;
@@ -548,7 +606,9 @@ describe("InstallServerModal", () => {
       const onClose = vi.fn();
       renderWith(<InstallServerModal entry={STDIO_ENTRY} onClose={onClose} />);
       await screen.findByTestId("mcp-install-modal");
-      await waitFor(() => expect(SettingsService.getSettings).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(SettingsService.getSettings).toHaveBeenCalled(),
+      );
 
       // Fill in the required password field (API_KEY is pre-checked as secret).
       fireEvent.change(screen.getByTestId("mcp-install-field-API_KEY"), {
@@ -572,12 +632,97 @@ describe("InstallServerModal", () => {
       );
     });
 
+    it("saves hosted MCP credentials as named secrets when configured", async () => {
+      vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
+      const onClose = vi.fn();
+      renderWith(<InstallServerModal entry={SHTTP_ENTRY} onClose={onClose} />);
+      await screen.findByTestId("mcp-install-modal");
+      await waitFor(() =>
+        expect(SettingsService.getSettings).toHaveBeenCalled(),
+      );
+
+      expect(screen.getByTestId("mcp-install-field-url")).toHaveValue(
+        "https://example.com/mcp",
+      );
+      expect(screen.getByLabelText("Personal access token")).toHaveAttribute(
+        "placeholder",
+        "pat_...",
+      );
+      expect(
+        screen.getByText("Token from the provider settings."),
+      ).toBeInTheDocument();
+
+      const toggle = screen.getByTestId(
+        "mcp-install-save-secret-PROVIDER_PERSONAL_ACCESS_TOKEN",
+      );
+      expect(toggle.querySelector("input[type='checkbox']")).toBeChecked();
+
+      fireEvent.change(screen.getByTestId("mcp-install-field-api_key"), {
+        target: { value: "hosted-token" },
+      });
+      fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+      await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+      await waitFor(() =>
+        expect(SecretsService.createSecret).toHaveBeenCalledWith(
+          "PROVIDER_PERSONAL_ACCESS_TOKEN",
+          "hosted-token",
+          "Personal access token",
+        ),
+      );
+    });
+
+    it("waits for hosted credential secrets before reporting install success", async () => {
+      vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
+      let resolveSecret!: () => void;
+      const secretSaved = new Promise<void>((resolve) => {
+        resolveSecret = resolve;
+      });
+      vi.spyOn(SecretsService, "createSecret").mockReturnValue(secretSaved);
+      const onClose = vi.fn();
+      const onSuccess = vi.fn();
+
+      renderWith(
+        <InstallServerModal
+          entry={SHTTP_ENTRY}
+          onClose={onClose}
+          onSuccess={onSuccess}
+        />,
+      );
+      await screen.findByTestId("mcp-install-modal");
+      await waitFor(() =>
+        expect(SettingsService.getSettings).toHaveBeenCalled(),
+      );
+
+      fireEvent.change(screen.getByTestId("mcp-install-field-api_key"), {
+        target: { value: "hosted-token" },
+      });
+      fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+      await waitFor(() =>
+        expect(SecretsService.createSecret).toHaveBeenCalledWith(
+          "PROVIDER_PERSONAL_ACCESS_TOKEN",
+          "hosted-token",
+          "Personal access token",
+        ),
+      );
+      expect(onSuccess).not.toHaveBeenCalled();
+      expect(onClose).not.toHaveBeenCalled();
+
+      resolveSecret();
+
+      await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
     it("does not call createSecret when all toggles are unchecked before install", async () => {
       vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
       const onClose = vi.fn();
       renderWith(<InstallServerModal entry={STDIO_ENTRY} onClose={onClose} />);
       await screen.findByTestId("mcp-install-modal");
-      await waitFor(() => expect(SettingsService.getSettings).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(SettingsService.getSettings).toHaveBeenCalled(),
+      );
 
       fireEvent.change(screen.getByTestId("mcp-install-field-API_KEY"), {
         target: { value: "my-api-key" },
@@ -596,7 +741,7 @@ describe("InstallServerModal", () => {
       expect(SecretsService.createSecret).not.toHaveBeenCalled();
     });
 
-    it("closes the modal even when the background secret save fails", async () => {
+    it("closes the modal even when the secret save fails", async () => {
       vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
       vi.spyOn(SecretsService, "createSecret").mockRejectedValue(
         new Error("forbidden"),
@@ -604,7 +749,9 @@ describe("InstallServerModal", () => {
       const onClose = vi.fn();
       renderWith(<InstallServerModal entry={STDIO_ENTRY} onClose={onClose} />);
       await screen.findByTestId("mcp-install-modal");
-      await waitFor(() => expect(SettingsService.getSettings).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(SettingsService.getSettings).toHaveBeenCalled(),
+      );
 
       fireEvent.change(screen.getByTestId("mcp-install-field-API_KEY"), {
         target: { value: "my-api-key" },
@@ -619,5 +766,4 @@ describe("InstallServerModal", () => {
       ).not.toBeInTheDocument();
     });
   });
-
 });

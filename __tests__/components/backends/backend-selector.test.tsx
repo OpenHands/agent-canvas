@@ -126,7 +126,7 @@ beforeEach(() => {
   vi.mocked(ServerClient).mockReset();
   vi.mocked(ServerClient).mockImplementation(function ServerClientMock() {
     return {
-      getServerInfo: vi.fn().mockResolvedValue({ version: "1.18.0" }),
+      getServerInfo: vi.fn().mockResolvedValue({ version: "1.28.0" }),
     } as unknown as ServerClient;
   });
   vi.mocked(SettingsClient).mockReset();
@@ -519,6 +519,37 @@ describe("BackendSelector", () => {
       screen.queryByTestId("manage-backends-modal"),
     ).not.toBeInTheDocument();
   });
+
+  it.each([
+    {
+      itemTestId: "add-backend-menu-item",
+      modalTestId: "add-backend-modal",
+    },
+    {
+      itemTestId: "manage-backends-menu-item",
+      modalTestId: "manage-backends-modal",
+    },
+  ])(
+    "opens $modalTestId from touch without bubbling to surrounding menus",
+    async ({ itemTestId, modalTestId }) => {
+      const outsideTouchEnd = vi.fn();
+
+      renderWithProviders(
+        <div onTouchEnd={outsideTouchEnd}>
+          <BackendSelector />
+        </div>,
+      );
+
+      await openDropdown();
+      const action = screen.getByTestId(itemTestId);
+
+      fireEvent.touchStart(action);
+      fireEvent.touchEnd(action);
+
+      expect(outsideTouchEnd).not.toHaveBeenCalled();
+      expect(await screen.findByTestId(modalTestId)).toBeInTheDocument();
+    },
+  );
 
   it("renders the backend footer actions and opens/closes the add modal", async () => {
     renderWithProviders(<BackendSelector />);

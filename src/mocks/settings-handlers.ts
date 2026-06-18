@@ -3,6 +3,14 @@ import { WebClientConfig } from "#/api/option-service/option.types";
 import type { SaveProfileRequest } from "#/api/profiles-service/profiles-service.api";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { Settings, SettingsValue } from "#/types/settings";
+import {
+  OPENAI_SUBSCRIPTION_DEVICE_POLL_PATH,
+  OPENAI_SUBSCRIPTION_DEVICE_START_PATH,
+  OPENAI_SUBSCRIPTION_LOGOUT_PATH,
+  OPENAI_SUBSCRIPTION_MODELS_PATH,
+  OPENAI_SUBSCRIPTION_STATUS_PATH,
+  OPENAI_SUBSCRIPTION_VENDOR,
+} from "#/constants/llm-subscription";
 
 /** Simple recursive merge — objects merge, scalars overwrite. */
 function deepMerge(
@@ -444,6 +452,8 @@ const MOCK_LLM_PROFILES: {
   activeProfile: null,
 };
 
+let mockOpenAISubscriptionConnected = false;
+
 const getProfileNameParam = (value: unknown): string =>
   decodeURIComponent(
     Array.isArray(value) ? String(value[0] ?? "") : String(value ?? ""),
@@ -526,6 +536,7 @@ export const resetTestHandlersMockSettings = () => {
   MOCK_USER_PREFERENCES.settings = structuredClone(MOCK_DEFAULT_USER_SETTINGS);
   MOCK_LLM_PROFILES.profiles.clear();
   MOCK_LLM_PROFILES.activeProfile = null;
+  mockOpenAISubscriptionConnected = false;
 };
 
 // Mock model data used by provider/model endpoints
@@ -547,6 +558,8 @@ const MOCK_MODELS = [
   "openhands/minimax-m2.7",
   "sambanova/Meta-Llama-3.1-8B-Instruct",
 ];
+
+const MOCK_OPENAI_SUBSCRIPTION_MODELS = ["gpt-5.2", "gpt-5.3-codex"];
 
 const MOCK_VERIFIED_MODELS = new Set([
   "anthropic/claude-opus-4-5-20251101",
@@ -590,7 +603,7 @@ const MOCK_VERIFIED_MODELS_BY_PROVIDER = MOCK_MODELS.reduce<
   return acc;
 }, {});
 
-const MOCK_AGENT_SERVER_VERSION = "1.24.0";
+const MOCK_AGENT_SERVER_VERSION = "1.28.1";
 
 // --- Handlers for options/config/settings ---
 // Uses wildcard "*" prefix to match both relative paths and absolute URLs
@@ -627,6 +640,49 @@ export const SETTINGS_HANDLERS = [
   http.get("*/api/llm/providers", async () =>
     HttpResponse.json({ providers: MOCK_MODEL_PROVIDERS }),
   ),
+
+  http.get(`*${OPENAI_SUBSCRIPTION_MODELS_PATH}`, async () =>
+    HttpResponse.json({
+      vendor: OPENAI_SUBSCRIPTION_VENDOR,
+      models: MOCK_OPENAI_SUBSCRIPTION_MODELS,
+    }),
+  ),
+
+  http.get(`*${OPENAI_SUBSCRIPTION_STATUS_PATH}`, async () =>
+    HttpResponse.json({
+      connected: mockOpenAISubscriptionConnected,
+      account_email: mockOpenAISubscriptionConnected
+        ? "mock-chatgpt@example.com"
+        : null,
+      expires_at: null,
+    }),
+  ),
+
+  http.post(`*${OPENAI_SUBSCRIPTION_DEVICE_START_PATH}`, async () =>
+    HttpResponse.json({
+      device_code: "mock-device-code",
+      user_code: "MOCK-CODE",
+      verification_uri: "https://auth.openai.com/activate",
+      verification_uri_complete:
+        "https://auth.openai.com/activate?user_code=MOCK-CODE",
+      interval: 1,
+      expires_in: 900,
+    }),
+  ),
+
+  http.post(`*${OPENAI_SUBSCRIPTION_DEVICE_POLL_PATH}`, async () => {
+    mockOpenAISubscriptionConnected = true;
+    return HttpResponse.json({
+      connected: true,
+      account_email: "mock-chatgpt@example.com",
+      expires_at: null,
+    });
+  }),
+
+  http.post(`*${OPENAI_SUBSCRIPTION_LOGOUT_PATH}`, async () => {
+    mockOpenAISubscriptionConnected = false;
+    return HttpResponse.json({ connected: false });
+  }),
 
   // V0 (legacy) models endpoint – still used for default_model
   http.get("*/api/options/models", async () =>
