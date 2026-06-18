@@ -317,10 +317,10 @@ export function toAppConversation(
     pr_number: [],
     agent_kind: isAcp ? "acp" : "openhands",
     acp_server: acpServer,
-    // Chip path: no ``providerDefault`` — the chip must distinguish
-    // "no concrete model" (fall back to the provider display name in
-    // ConversationCardFooter) from "default" (would lie about what's
-    // running on the subprocess).
+    // Chip path: omit ``providerDefault`` so that when no concrete model
+    // resolves, the chip falls back to the provider display name in
+    // ConversationCardFooter rather than a registry default the session may
+    // not actually be running.
     llm_model: isAcp
       ? resolveEffectiveAcpModel({
           runtimeName: info.current_model_name,
