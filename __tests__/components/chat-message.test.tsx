@@ -4,6 +4,30 @@ import { describe, it, expect, vi } from "vitest";
 import { ChatMessage } from "#/components/features/chat/chat-message";
 
 describe("ChatMessage", () => {
+  it("does not update the parent message while measuring user-message truncation", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const longMessage = `${"Here's a long message. ".repeat(40)}`.trim();
+
+    try {
+      render(<ChatMessage type="user" message={longMessage} />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("chat-message-truncation-gradient"),
+        ).toBeInTheDocument();
+      });
+      expect(
+        consoleError.mock.calls.some(([message]) =>
+          String(message).includes(
+            "Cannot update a component (`ChatMessage`) while rendering a different component (`UserMessageBody`)",
+          ),
+        ),
+      ).toBe(false);
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it("should render a user message", () => {
     render(<ChatMessage type="user" message="Hello, World!" />);
     expect(screen.getByTestId("user-message")).toBeInTheDocument();
