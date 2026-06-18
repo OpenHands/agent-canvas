@@ -3,22 +3,30 @@ import { Trans, useTranslation } from "react-i18next";
 import { CircleX, X } from "lucide-react";
 import { OH_STATUS_ERROR_COLOR } from "#/constants/status-colors";
 import { I18nKey } from "#/i18n/declaration";
+import { getAcpErrorHeaderKey } from "#/utils/acp-error-codes";
 import { cn } from "#/utils/utils";
 
 interface ErrorMessageBannerProps {
   message: string;
+  /** Structured error code (e.g. "ACPAuthRequired") used to pick a header. */
+  code?: string | null;
   onDismiss?: () => void;
   onRetry?: () => void;
+  /** Recovery action (e.g. re-authenticate) shown for credential failures. */
+  onReauth?: () => void;
 }
 
 const DEFAULT_MAX_COLLAPSED_CHARS = 220;
 
 export function ErrorMessageBanner({
   message,
+  code,
   onDismiss,
   onRetry,
+  onReauth,
 }: ErrorMessageBannerProps) {
   const { t, i18n } = useTranslation("openhands");
+  const headerKey = getAcpErrorHeaderKey(code);
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [isMultiLine, setIsMultiLine] = React.useState(false);
   const contentRef = React.useRef<HTMLDivElement>(null);
@@ -72,6 +80,14 @@ export function ErrorMessageBanner({
         data-testid="error-message-banner-icon"
       />
       <div className="min-w-0 flex-1">
+        {headerKey && (
+          <div
+            className="text-sm font-medium text-[var(--oh-foreground)]"
+            data-testid="error-message-banner-header"
+          >
+            {t(headerKey)}
+          </div>
+        )}
         <div
           ref={contentRef}
           className={cn(
@@ -82,6 +98,17 @@ export function ErrorMessageBanner({
         >
           {isI18nKey ? <Trans ns="openhands" i18nKey={message} /> : message}
         </div>
+
+        {onReauth && (
+          <button
+            type="button"
+            onClick={onReauth}
+            className="mt-2 cursor-pointer rounded-md border border-[var(--oh-border)] px-2 py-1 text-xs font-normal text-[var(--oh-foreground)] hover:bg-[var(--oh-interactive-hover)]"
+            data-testid="error-message-banner-reauth"
+          >
+            {t(I18nKey.ERROR$ACP_UPDATE_CREDENTIALS)}
+          </button>
+        )}
 
         {shouldShowToggle && (
           <button
