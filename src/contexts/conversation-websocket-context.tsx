@@ -489,7 +489,7 @@ export function ConversationWebSocketProvider({
               },
               posthog,
             });
-            setErrorMessage(errorEvent.detail);
+            setErrorMessage(errorEvent.detail, "conversation", errorEvent.code);
           } else {
             handleNonErrorEvent();
           }
@@ -683,7 +683,7 @@ export function ConversationWebSocketProvider({
               },
               posthog,
             });
-            setErrorMessage(errorEvent.detail);
+            setErrorMessage(errorEvent.detail, "conversation", errorEvent.code);
           } else {
             handleNonErrorEvent();
           }
