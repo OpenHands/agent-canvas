@@ -7,62 +7,19 @@ import {
 } from "react";
 import ReactDOM from "react-dom";
 import { useTranslation } from "react-i18next";
-import { TextCursor } from "lucide-react";
+import { TextCursor, Copy } from "lucide-react";
 import { cn } from "#/utils/utils";
 import { dropdownMenuListClassName } from "#/utils/dropdown-classes";
 import { I18nKey } from "#/i18n/declaration";
-import { ConversationNameContextMenuIconText } from "#/components/features/conversation/conversation-name-context-menu-icon-text";
 import EditIcon from "#/icons/u-edit.svg?react";
 import CheckCircleIcon from "#/icons/u-check-circle.svg?react";
 import DeleteIcon from "#/icons/u-delete.svg?react";
-
-interface MenuItemProps {
-  index: number;
-  icon: React.ReactNode;
-  label: string;
-  onClick: () => void;
-  onKeyDown: (e: React.KeyboardEvent, index: number) => void;
-  menuItemsRef: React.MutableRefObject<(HTMLButtonElement | null)[]>;
-  disabled?: boolean;
-  testId: string;
-}
-
-function MenuItem({
-  index,
-  icon,
-  label,
-  onClick,
-  onKeyDown,
-  menuItemsRef,
-  disabled,
-  testId,
-}: MenuItemProps) {
-  return (
-    <button
-      ref={(el) => {
-        // eslint-disable-next-line no-param-reassign
-        menuItemsRef.current[index] = el;
-      }}
-      type="button"
-      onClick={onClick}
-      onKeyDown={(e) => onKeyDown(e, index)}
-      disabled={disabled}
-      className={cn(
-        "group w-full cursor-pointer rounded px-2 py-2 text-start text-nowrap text-sm font-normal",
-        "text-[var(--oh-foreground)] hover:bg-[var(--oh-interactive-hover)]",
-        "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent",
-      )}
-      role="menuitem"
-      data-testid={testId}
-    >
-      <ConversationNameContextMenuIconText icon={icon} text={label} />
-    </button>
-  );
-}
+import { MenuItem } from "./profile-actions-menu-item";
 
 interface ProfileActionsMenuProps {
   onEdit: () => void;
   onRename: () => void;
+  onDuplicate: () => void;
   onSetActive: () => void;
   onDelete: () => void;
   isActive: boolean;
@@ -80,6 +37,7 @@ interface ProfileActionsMenuProps {
 export function ProfileActionsMenu({
   onEdit,
   onRename,
+  onDuplicate,
   onSetActive,
   onDelete,
   isActive,
@@ -208,6 +166,15 @@ export function ProfileActionsMenu({
       />
       <MenuItem
         index={2}
+        icon={<Copy aria-hidden className="size-4" strokeWidth={2} />}
+        label={t(I18nKey.BUTTON$DUPLICATE)}
+        onClick={() => handleAction(onDuplicate)}
+        onKeyDown={handleKeyDown}
+        menuItemsRef={menuItemsRef}
+        testId="profile-duplicate"
+      />
+      <MenuItem
+        index={3}
         icon={<CheckCircleIcon width={16} height={16} />}
         label={t(I18nKey.SETTINGS$PROFILE_SET_ACTIVE)}
         onClick={() => handleAction(onSetActive)}
@@ -219,7 +186,7 @@ export function ProfileActionsMenu({
       {/* The active profile can be deleted: useEnsureActiveProfile then promotes
           another remaining profile so a profile is always active in local mode. */}
       <MenuItem
-        index={3}
+        index={4}
         icon={<DeleteIcon width={16} height={16} />}
         label={t(I18nKey.BUTTON$DELETE)}
         onClick={() => handleAction(onDelete)}
