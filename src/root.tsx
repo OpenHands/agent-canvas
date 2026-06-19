@@ -19,12 +19,18 @@ import {
 } from "#/api/agent-server-compatibility";
 import { isAuthRequiredAndMissing } from "#/api/agent-server-config";
 import { getEffectiveLocalBackend } from "#/api/backend-registry/active-store";
+import { useActiveBackendContext } from "#/contexts/active-backend-context";
+import {
+  isCloudBackendLoggedOutHealthError,
+  useBackendsHealth,
+} from "#/hooks/query/use-backends-health";
 import { TOAST_OPTIONS } from "#/utils/custom-toast-handlers";
 import { TelemetryConsentBanner } from "#/components/features/analytics/telemetry-consent-banner";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useConfig } from "#/hooks/query/use-config";
 import { QUERY_KEYS } from "#/hooks/query/query-keys";
 import { AgentServerUIRoot } from "#/components/providers";
+import { useOnboardingCompletion } from "#/components/features/onboarding/use-onboarding-completion";
 import {
   applyColorTheme,
   readPersistedColorTheme,
@@ -49,6 +55,14 @@ const ManageBackendsModal = React.lazy(() =>
 // Rendered when the backend returns 401 (public mode — user must paste key).
 const ApiKeyEntryScreen = React.lazy(
   () => import("#/components/features/backends/api-key-entry-screen"),
+);
+
+// Rendered only for first-run public/frontend-only bootstraps; keep the
+// onboarding flow out of the root bundle until this rare gate is active.
+const OnboardingModal = React.lazy(() =>
+  import("#/components/features/onboarding/onboarding-modal").then((m) => ({
+    default: m.OnboardingModal,
+  })),
 );
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -120,6 +134,18 @@ function MissingAgentServerScreen() {
     </main>
   );
 }
+function FirstRunOnboardingScreen({ onClose }: { onClose: () => void }) {
+  return (
+    <main
+      data-testid="first-run-onboarding-screen"
+      className="min-h-screen bg-base"
+    >
+      <React.Suspense fallback={<AgentServerBootstrapLoading />}>
+        <OnboardingModal onClose={onClose} />
+      </React.Suspense>
+    </main>
+  );
+}
 
 export const links: LinksFunction = () => [
   { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
@@ -145,12 +171,44 @@ export default function App() {
   const bakedKeyMissing = isAuthRequiredAndMissing();
   const hasRegisteredKey = Boolean(getEffectiveLocalBackend()?.apiKey);
   const authMissing = bakedKeyMissing && !hasRegisteredKey;
+  const { isCompleted: onboardingCompleted, markCompleted } =
+    useOnboardingCompletion();
+  const [showFirstRunOnboarding, setShowFirstRunOnboarding] = React.useState(
+    () => authMissing && !onboardingCompleted,
+  );
+
+  React.useEffect(() => {
+    if (authMissing && !onboardingCompleted) {
+      setShowFirstRunOnboarding(true);
+      return;
+    }
+
+    if (onboardingCompleted) {
+      setShowFirstRunOnboarding(false);
+    }
+  }, [authMissing, onboardingCompleted]);
 
   // Skip the /server_info probe entirely when we already know auth is
-  // required and missing — it would just 401 and waste time.
-  const config = useConfig({ enabled: !authMissing });
+  // required and missing — it would just 401 and waste time. Also keep the
+  // root bootstrap quiet while the first-run onboarding modal owns backend
+  // collection; the onboarding steps issue their own backend-specific queries.
+  const config = useConfig({
+    enabled: !authMissing && !showFirstRunOnboarding,
+  });
+  const { active } = useActiveBackendContext();
+  const activeCloudHealth = useBackendsHealth(
+    active.backend.kind === "cloud" ? [active.backend] : [],
+  )[active.backend.id];
+  const activeCloudLoggedOut =
+    active.backend.kind === "cloud" &&
+    activeCloudHealth?.isConnected === false &&
+    isCloudBackendLoggedOutHealthError(activeCloudHealth.lastError);
 
-  // No key at all → instant auth screen (no network).
+  if (showFirstRunOnboarding) {
+    return <FirstRunOnboardingScreen onClose={markCompleted} />;
+  }
+
+  // No key at all after onboarding was skipped/completed → auth screen.
   // Stale key → /server_info 401 → auth screen (public mode only).
   if (authMissing || isAgentServerAuthError(config.error)) {
     return (
@@ -164,7 +222,7 @@ export default function App() {
     return <AgentServerBootstrapLoading />;
   }
 
-  if (isAgentServerUnavailableError(config.error)) {
+  if (activeCloudLoggedOut || isAgentServerUnavailableError(config.error)) {
     return <MissingAgentServerScreen />;
   }
 

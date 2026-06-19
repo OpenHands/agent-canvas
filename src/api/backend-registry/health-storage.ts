@@ -1,3 +1,5 @@
+import { getUserFacingConnectionErrorMessage } from "#/utils/user-facing-error";
+
 export const BACKEND_HEALTH_STORAGE_KEY = "openhands-backend-health";
 
 /**
@@ -73,14 +75,7 @@ export function writeStoredHealth(map: BackendHealthMap): void {
 }
 
 export function truncateErrorMessage(error: unknown): string {
-  let message: string;
-  if (error instanceof Error) {
-    message = error.message || error.name || "Unknown error";
-  } else if (typeof error === "string") {
-    message = error;
-  } else {
-    message = "Unknown error";
-  }
+  const message = getUserFacingConnectionErrorMessage(error) ?? "Unknown error";
   return message.length > MAX_ERROR_MESSAGE_LENGTH
     ? `${message.slice(0, MAX_ERROR_MESSAGE_LENGTH)}…`
     : message;

@@ -1,9 +1,12 @@
-import { SettingsClient } from "@openhands/typescript-client/clients";
+import {
+  ServerClient,
+  SettingsClient,
+} from "@openhands/typescript-client/clients";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_LOCAL_BACKEND_ID } from "#/api/backend-registry/default-backend";
+import { SEEDED_DEFAULT_BACKEND_ID } from "#/api/backend-registry/default-backend";
 import {
   BACKEND_HEALTH_STORAGE_KEY,
   MAX_CONSECUTIVE_FAILURES,
@@ -13,12 +16,19 @@ import {
   resetBackendHealth,
 } from "#/api/backend-registry/health-store";
 import type { Backend } from "#/api/backend-registry/types";
-import { useBackendsHealth } from "#/hooks/query/use-backends-health";
+import {
+  CLOUD_BACKEND_LOGGED_OUT_ERROR,
+  useBackendsHealth,
+} from "#/hooks/query/use-backends-health";
 
 const getSettingsMock = vi.fn();
+const getServerInfoMock = vi.fn();
 const getCurrentCloudApiKeyMock = vi.fn();
 
 vi.mock("@openhands/typescript-client/clients", () => ({
+  ServerClient: vi.fn(function ServerClientMock() {
+    return { getServerInfo: getServerInfoMock };
+  }),
   SettingsClient: vi.fn(function SettingsClientMock() {
     return { getSettings: getSettingsMock };
   }),
@@ -30,7 +40,7 @@ vi.mock("#/api/cloud/organization-service.api", () => ({
 }));
 
 const localBackend: Backend = {
-  id: DEFAULT_LOCAL_BACKEND_ID,
+  id: SEEDED_DEFAULT_BACKEND_ID,
   name: "Local",
   host: "http://localhost:18000",
   apiKey: "",
@@ -54,7 +64,10 @@ function wrapper({ children }: { children: React.ReactNode }) {
 
 beforeEach(() => {
   getSettingsMock.mockReset();
+  getServerInfoMock.mockReset();
+  getServerInfoMock.mockResolvedValue({ version: "1.28.0" });
   getCurrentCloudApiKeyMock.mockReset();
+  vi.mocked(ServerClient).mockClear();
   vi.mocked(SettingsClient).mockClear();
   window.localStorage.clear();
   __resetHealthStoreForTests();
@@ -67,7 +80,7 @@ afterEach(() => {
 });
 
 describe("useBackendsHealth", () => {
-  it("probes local backends via authenticated settings and reports connected", async () => {
+  it("probes local backends via authenticated settings and compatible server info", async () => {
     getSettingsMock.mockResolvedValue({});
 
     const { result } = renderHook(() => useBackendsHealth([localBackend]), {
@@ -78,7 +91,25 @@ describe("useBackendsHealth", () => {
       expect(result.current[localBackend.id].isConnected).toBe(true),
     );
     expect(getSettingsMock).toHaveBeenCalled();
+    expect(getServerInfoMock).toHaveBeenCalled();
     expect(getCurrentCloudApiKeyMock).not.toHaveBeenCalled();
+  });
+
+  it("reports disconnected when the local backend is below the compatible version floor", async () => {
+    getSettingsMock.mockResolvedValue({});
+    getServerInfoMock.mockResolvedValue({ version: "1.27.1" });
+
+    const { result } = renderHook(() => useBackendsHealth([localBackend]), {
+      wrapper,
+    });
+
+    await waitFor(() =>
+      expect(result.current[localBackend.id]).toMatchObject({
+        isConnected: false,
+        lastError:
+          "Agent Canvas requires agent-server 1.28.0 or newer; this backend is running 1.27.1. Please upgrade the agent-server backend.",
+      }),
+    );
   });
 
   it("reports disconnected when the local probe throws", async () => {
@@ -111,6 +142,7 @@ describe("useBackendsHealth", () => {
         lastError: "Invalid API key",
       }),
     );
+    expect(getServerInfoMock).not.toHaveBeenCalled();
   });
 
   it("probes cloud backends via getCurrentCloudApiKey", async () => {
@@ -131,7 +163,7 @@ describe("useBackendsHealth", () => {
   });
 
   it("reports disconnected when the cloud probe throws", async () => {
-    getCurrentCloudApiKeyMock.mockRejectedValue(new Error("401"));
+    getCurrentCloudApiKeyMock.mockRejectedValue(new Error("Network Error"));
 
     const { result } = renderHook(() => useBackendsHealth([cloudBackend]), {
       wrapper,
@@ -139,6 +171,26 @@ describe("useBackendsHealth", () => {
 
     await waitFor(() =>
       expect(result.current[cloudBackend.id].isConnected).toBe(false),
+    );
+  });
+
+  it("reports logged out when the cloud probe returns 401", async () => {
+    getCurrentCloudApiKeyMock.mockRejectedValue(
+      Object.assign(new Error("Unauthorized"), {
+        isAxiosError: true,
+        response: { status: 401 },
+      }),
+    );
+
+    const { result } = renderHook(() => useBackendsHealth([cloudBackend]), {
+      wrapper,
+    });
+
+    await waitFor(() =>
+      expect(result.current[cloudBackend.id]).toMatchObject({
+        isConnected: false,
+        lastError: CLOUD_BACKEND_LOGGED_OUT_ERROR,
+      }),
     );
   });
 

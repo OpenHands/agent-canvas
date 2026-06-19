@@ -99,8 +99,13 @@ vi.mock("#/hooks/query/use-acp-auth-status", () => ({
   }),
 }));
 
-async function completeAgentStep(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByTestId("onboarding-agent-next"));
+async function completeBackendStep(user: ReturnType<typeof userEvent.setup>) {
+  await waitFor(
+    () =>
+      expect(screen.getByTestId("onboarding-backend-connected")).toBeVisible(),
+    { timeout: 3000 },
+  );
+  await user.click(screen.getByTestId("onboarding-backend-next"));
   await waitFor(
     () =>
       expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
@@ -111,13 +116,8 @@ async function completeAgentStep(user: ReturnType<typeof userEvent.setup>) {
   );
 }
 
-async function completeBackendStep(user: ReturnType<typeof userEvent.setup>) {
-  await waitFor(
-    () =>
-      expect(screen.getByTestId("onboarding-backend-next")).not.toBeDisabled(),
-    { timeout: 3000 },
-  );
-  await user.click(screen.getByTestId("onboarding-backend-next"));
+async function completeAgentStep(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByTestId("onboarding-agent-next"));
   await waitFor(
     () =>
       expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
@@ -163,7 +163,7 @@ beforeEach(() => {
     if (options?.host?.startsWith("https://127.0.0.1:8000")) {
       return Promise.reject(new Error("Failed to fetch"));
     }
-    return Promise.resolve({ version: "1.18.0" });
+    return Promise.resolve({ version: "1.28.0" });
   });
   // ChooseAgentStep's Next button now persists the selection via
   // saveSettings before advancing. Stub it so the rest of the flow
@@ -183,7 +183,7 @@ afterEach(() => {
 });
 
 describe("OnboardingModal", () => {
-  it("starts on the choose-agent step with each slide offset by its index", () => {
+  it("starts on the backend step with each slide offset by its index", () => {
     renderModal();
 
     expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
@@ -191,7 +191,7 @@ describe("OnboardingModal", () => {
       "0",
     );
     expect(
-      screen.getByTestId("onboarding-step-choose-agent"),
+      screen.getByTestId("onboarding-step-check-backend"),
     ).toBeInTheDocument();
 
     expect(screen.getByTestId("onboarding-slide-0")).toHaveAttribute(
@@ -210,9 +210,40 @@ describe("OnboardingModal", () => {
     );
   });
 
+  it("starts first-run no-backend onboarding as Add a backend without an error banner", () => {
+    window.localStorage.clear();
+    vi.stubEnv("VITE_BACKEND_BASE_URL", "");
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_SESSION_API_KEY__;
+    __resetActiveStoreForTests();
+
+    renderModal();
+
+    expect(screen.getByText("BACKEND$ADD_TITLE")).toBeInTheDocument();
+    expect(
+      screen.getByText("ONBOARDING$ADD_BACKEND_SUBTITLE"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("onboarding-backend-disconnected"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("onboarding-backend-checking"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-backend-cloud-title")).toBeVisible();
+    expect(screen.getByTestId("onboarding-backend-login-button")).toBeVisible();
+  });
+
   it("shows a connection error when saving an unreachable backend", async () => {
     renderModal();
     const user = userEvent.setup();
+
+    await waitFor(() =>
+      expect(screen.getByTestId("onboarding-backend-connected")).toBeVisible(),
+    );
+    await user.click(
+      screen.getByTestId("onboarding-backend-show-configuration"),
+    );
 
     await user.clear(screen.getByTestId("onboarding-backend-host"));
     await user.type(
@@ -230,7 +261,7 @@ describe("OnboardingModal", () => {
       await screen.findByTestId("onboarding-backend-error"),
     ).toHaveTextContent("BACKEND$CONNECTION_TEST_FAILED");
     expect(screen.getByTestId("onboarding-backend-error")).toHaveTextContent(
-      "Failed to fetch",
+      "Disconnected",
     );
   });
 
@@ -251,37 +282,44 @@ describe("OnboardingModal", () => {
     renderModal();
     const user = userEvent.setup();
 
-    await completeAgentStep(user);
     await waitFor(() =>
       expect(screen.getByTestId("onboarding-backend-connected")).toBeVisible(),
     );
 
     expect(
-      screen.getByTestId("onboarding-backend-configuration-fields"),
-    ).toHaveClass("hidden");
+      within(
+        screen.getByTestId("onboarding-backend-configuration-fields"),
+      ).queryByTestId("onboarding-backend-connection-options"),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByTestId("onboarding-backend-show-configuration"),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByTestId("onboarding-backend-show-configuration"));
+    await user.click(
+      screen.getByTestId("onboarding-backend-show-configuration"),
+    );
     expect(
-      screen.getByTestId("onboarding-backend-configuration-fields"),
-    ).not.toHaveClass("hidden");
+      within(
+        screen.getByTestId("onboarding-backend-configuration-fields"),
+      ).getByTestId("onboarding-backend-connection-options"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("onboarding-backend-cloud-title")).toBeVisible();
+    expect(screen.getByTestId("onboarding-backend-login-button")).toBeVisible();
   });
 
   it("advances each step via the per-step Next button and reframes slide offsets", async () => {
     renderModal();
     const user = userEvent.setup();
 
-    // Step 0 → 1. ChooseAgentStep does an async save before advancing.
-    await completeAgentStep(user);
+    // Step 0 → 1. Once the backend health probe resolves, step 0's Next is enabled.
+    await completeBackendStep(user);
     expect(screen.getByTestId("onboarding-slide-1")).toHaveAttribute(
       "data-active",
       "true",
     );
 
-    // Step 1 → 2. Once the backend health probe resolves, step 1's Next is enabled.
-    await completeBackendStep(user);
+    // Step 1 → 2. ChooseAgentStep does an async save before advancing.
+    await completeAgentStep(user);
     expect(screen.getByTestId("onboarding-slide-2")).toHaveAttribute(
       "data-active",
       "true",
@@ -345,8 +383,8 @@ describe("OnboardingModal", () => {
     // Arrange: render the modal and walk through to the LLM step.
     renderModal();
     const user = userEvent.setup();
-    await completeAgentStep(user);
     await completeBackendStep(user);
+    await completeAgentStep(user);
     // Wait for the LLM slide to become the active one before querying
     // by role — otherwise the heading is `aria-hidden` from inside a
     // not-yet-active slide and getByRole filters it out.
@@ -382,9 +420,9 @@ describe("OnboardingModal", () => {
 
     // Pick Gemini CLI: its key/base-URL come from the SDK registry like the
     // other providers, so the slide shows the GEMINI_API_KEY field.
+    await completeBackendStep(user);
     await user.click(screen.getByTestId("onboarding-agent-option-gemini-cli"));
     await completeAgentStep(user);
-    await completeBackendStep(user);
 
     // Lands on slide 2 (the ACP step) — not jumped past to Say Hello.
     await waitFor(
@@ -422,10 +460,10 @@ describe("OnboardingModal", () => {
     renderModal();
     const user = userEvent.setup();
 
-    // Pick Claude Code → Check Backend.
+    // Pick Claude Code after configuring the backend.
+    await completeBackendStep(user);
     await user.click(screen.getByTestId("onboarding-agent-option-claude-code"));
     await completeAgentStep(user);
-    await completeBackendStep(user);
 
     // Slide 2 is the ACP credentials step (not skipped), so the flow keeps
     // all 4 progress segments and slide 2 — not Say Hello — is now active.
@@ -483,9 +521,9 @@ describe("OnboardingModal", () => {
     renderModal();
     const user = userEvent.setup();
 
+    await completeBackendStep(user);
     await user.click(screen.getByTestId("onboarding-agent-option-codex"));
     await completeAgentStep(user);
-    await completeBackendStep(user);
     await waitFor(
       () =>
         expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
@@ -513,8 +551,8 @@ describe("OnboardingModal", () => {
     renderModal();
     const user = userEvent.setup();
 
-    await completeAgentStep(user);
     await completeBackendStep(user);
+    await completeAgentStep(user);
     await user.click(screen.getByTestId("onboarding-llm-next"));
 
     const helloInput = screen.getByTestId(
@@ -532,8 +570,8 @@ describe("OnboardingModal", () => {
     renderModal(onClose);
     const user = userEvent.setup();
 
-    await completeAgentStep(user);
     await completeBackendStep(user);
+    await completeAgentStep(user);
     await waitFor(() =>
       expect(screen.getByTestId("onboarding-slide-2")).toHaveAttribute(
         "data-active",

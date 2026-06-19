@@ -8,7 +8,10 @@ import {
 import type { Backend } from "#/api/backend-registry/types";
 import {
   AgentServerUnavailableError,
+  AgentServerUnknownVersionError,
+  AgentServerUnsupportedVersionError,
   loadAgentServerInfo,
+  MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
 } from "#/api/agent-server-compatibility";
 
 const { getServerInfoMock } = vi.hoisted(() => ({
@@ -19,6 +22,11 @@ vi.mock("@openhands/typescript-client/clients", () => ({
   ServerClient: vi.fn(function ServerClientMock() {
     return {
       getServerInfo: getServerInfoMock,
+    };
+  }),
+  SettingsClient: vi.fn(function SettingsClientMock() {
+    return {
+      getSettings: vi.fn(),
     };
   }),
 }));
@@ -44,7 +52,9 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   getServerInfoMock.mockReset();
   vi.mocked(ServerClient).mockClear();
-  getServerInfoMock.mockResolvedValue({ version: "1.0.0" });
+  getServerInfoMock.mockResolvedValue({
+    version: MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
+  });
 });
 
 afterEach(() => {
@@ -53,6 +63,42 @@ afterEach(() => {
 });
 
 describe("loadAgentServerInfo", () => {
+  it("returns server info when the local backend reports the minimum compatible version", async () => {
+    setRegisteredBackends([localBackend]);
+    setActiveSelection({ backendId: localBackend.id });
+
+    const result = await loadAgentServerInfo();
+
+    expect(result).toMatchObject({
+      version: MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
+    });
+    expect(ServerClient).toHaveBeenCalled();
+  });
+
+  it("throws AgentServerUnsupportedVersionError when the local backend is too old", async () => {
+    setRegisteredBackends([localBackend]);
+    setActiveSelection({ backendId: localBackend.id });
+    getServerInfoMock.mockResolvedValue({ version: "1.27.1" });
+
+    await expect(loadAgentServerInfo()).rejects.toMatchObject({
+      name: AgentServerUnsupportedVersionError.name,
+      actualVersion: "1.27.1",
+      requiredVersion: MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
+    });
+  });
+
+  it("throws AgentServerUnknownVersionError when the local backend omits its version", async () => {
+    setRegisteredBackends([localBackend]);
+    setActiveSelection({ backendId: localBackend.id });
+    getServerInfoMock.mockResolvedValue({});
+
+    await expect(loadAgentServerInfo()).rejects.toMatchObject({
+      name: AgentServerUnknownVersionError.name,
+      actualVersion: null,
+      requiredVersion: MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
+    });
+  });
+
   it("does not borrow a registered local backend when the active backend is cloud", async () => {
     setRegisteredBackends([localBackend, cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });

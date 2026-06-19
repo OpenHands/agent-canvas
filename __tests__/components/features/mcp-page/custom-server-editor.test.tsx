@@ -181,4 +181,32 @@ describe("CustomServerEditor", () => {
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it("surfaces a credential failure from Test connection in the edit modal", async () => {
+    // Arrange: editing an installed server whose stored credentials the
+    // verification call rejects — previously this path always reported
+    // "Connected" because only tools/list was exercised.
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettingsWithMcp(),
+    );
+    vi.spyOn(McpService, "testServer").mockResolvedValue({
+      ok: false,
+      error: "invalid_auth",
+      error_kind: "credentials",
+    });
+
+    renderWith(<EditEditorOnceSettingsLoaded onClose={vi.fn()} />);
+    await screen.findByTestId("mcp-custom-editor");
+
+    // Act: run the connection test from the edit form.
+    fireEvent.click(screen.getByTestId("mcp-test-connection"));
+
+    // Assert: the credentials-specific message is shown inline (i18n keys
+    // are returned as-is in tests).
+    await waitFor(() =>
+      expect(screen.getByTestId("mcp-test-message")).toHaveTextContent(
+        "MCP$TEST_ERROR_CREDENTIALS",
+      ),
+    );
+  });
 });

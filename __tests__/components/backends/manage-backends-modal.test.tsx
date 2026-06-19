@@ -1,10 +1,10 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DEFAULT_LOCAL_BACKEND_ID } from "#/api/backend-registry/default-backend";
+import { SEEDED_DEFAULT_BACKEND_ID } from "#/api/backend-registry/default-backend";
 import {
   BACKEND_HEALTH_STORAGE_KEY,
   MAX_CONSECUTIVE_FAILURES,
@@ -16,8 +16,17 @@ import {
   useActiveBackendContext,
 } from "#/contexts/active-backend-context";
 import { ManageBackendsModal } from "#/components/features/backends/manage-backends-modal";
+import { BackendVersion } from "#/components/features/backends/backend-version";
+import { BackendRow } from "#/components/features/backends/backend-row";
+import { type Backend } from "#/api/backend-registry/types";
+import { CLOUD_BACKEND_LOGGED_OUT_ERROR } from "#/hooks/query/use-backends-health";
 
-const getServerInfoMock = vi.fn().mockResolvedValue({ version: "1.18.0" });
+const deviceFlowMocks = vi.hoisted(() => ({
+  startDeviceFlow: vi.fn(),
+  pollForToken: vi.fn(),
+}));
+
+const getServerInfoMock = vi.fn().mockResolvedValue({ version: "1.28.0" });
 const getSettingsMock = vi.fn().mockResolvedValue({});
 
 vi.mock("@openhands/typescript-client/clients", () => ({
@@ -34,6 +43,19 @@ vi.mock("#/api/cloud/organization-service.api", () => ({
     orgId: null,
     isLegacyKey: true,
   }),
+}));
+
+vi.mock("#/api/device-flow-client", () => ({
+  startDeviceFlow: deviceFlowMocks.startDeviceFlow,
+  pollForToken: deviceFlowMocks.pollForToken,
+  DeviceFlowError: class DeviceFlowError extends Error {
+    code: string;
+
+    constructor(message: string, code: string) {
+      super(message);
+      this.code = code;
+    }
+  },
 }));
 
 function renderWithProviders(ui: React.ReactElement) {
@@ -65,15 +87,28 @@ function TestSeed({
 beforeEach(() => {
   window.localStorage.clear();
   getServerInfoMock.mockReset();
-  getServerInfoMock.mockResolvedValue({ version: "1.18.0" });
+  getServerInfoMock.mockResolvedValue({ version: "1.28.0" });
   getSettingsMock.mockReset();
   getSettingsMock.mockResolvedValue({});
+  deviceFlowMocks.startDeviceFlow.mockReset();
+  deviceFlowMocks.startDeviceFlow.mockResolvedValue({
+    device_code: "device-code",
+    user_code: "ABCD-EFGH",
+    verification_uri: "https://app.all-hands.dev/device",
+    verification_uri_complete:
+      "https://app.all-hands.dev/device?user_code=ABCD-EFGH",
+    expires_in: 600,
+    interval: 5,
+  });
+  deviceFlowMocks.pollForToken.mockReset();
+  deviceFlowMocks.pollForToken.mockImplementation(() => new Promise(() => {}));
   __resetActiveStoreForTests();
   __resetHealthStoreForTests();
 });
 
 afterEach(() => {
   window.localStorage.clear();
+  vi.restoreAllMocks();
   __resetActiveStoreForTests();
   __resetHealthStoreForTests();
 });
@@ -106,11 +141,30 @@ describe("ManageBackendsModal", () => {
     await waitFor(() =>
       expect(
         screen.getByTestId("manage-backends-status-Local"),
-      ).toHaveTextContent("AUTH$INVALID_KEY"),
+      ).toHaveTextContent("BACKEND$STATUS_DISCONNECTED_CHECK_API_KEY"),
     );
     expect(
       row.querySelector('[data-testid="backend-status-dot"]'),
     ).toHaveAttribute("data-status", "disconnected");
+  });
+
+  it("shows disconnected for a reachable backend below the compatible version floor", async () => {
+    getServerInfoMock.mockResolvedValue({ version: "1.27.1" });
+
+    renderWithProviders(<ManageBackendsModal onClose={vi.fn()} />);
+
+    expect(
+      await screen.findByTestId("manage-backends-version-Local"),
+    ).toBeInTheDocument();
+    expect(getServerInfoMock).toHaveBeenCalled();
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("manage-backends-status-Local"),
+      ).toHaveTextContent("ONBOARDING$BACKEND_STATUS_DISCONNECTED"),
+    );
+    expect(
+      screen.getByTestId("manage-backends-status-detail-Local"),
+    ).toHaveTextContent("Agent Canvas requires agent-server 1.28.0 or newer");
   });
 
   it("closes when the header close button is clicked", async () => {
@@ -118,9 +172,7 @@ describe("ManageBackendsModal", () => {
     const onClose = vi.fn();
     renderWithProviders(<ManageBackendsModal onClose={onClose} />);
 
-    await user.click(
-      await screen.findByTestId("close-manage-backends-modal"),
-    );
+    await user.click(await screen.findByTestId("close-manage-backends-modal"));
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -138,7 +190,7 @@ describe("ManageBackendsModal", () => {
     window.localStorage.setItem(
       BACKEND_HEALTH_STORAGE_KEY,
       JSON.stringify({
-        [DEFAULT_LOCAL_BACKEND_ID]: {
+        [SEEDED_DEFAULT_BACKEND_ID]: {
           consecutiveFailures: MAX_CONSECUTIVE_FAILURES,
           lastError: "Network Error",
           lastFailureAt: Date.now(),
@@ -207,6 +259,55 @@ describe("ManageBackendsModal", () => {
     expect(backendId).not.toBe("");
   });
 
+  it("preserves kind:cloud when renaming a cloud backend on a custom domain", async () => {
+    const user = userEvent.setup();
+
+    let backendId = "";
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          backendId = ctx.addBackend({
+            name: "OHE Prod",
+            host: "https://app.company.com",
+            apiKey: "sk-oh-test",
+            kind: "cloud",
+          }).id;
+        }}
+      >
+        <ManageBackendsModal onClose={vi.fn()} />
+      </TestSeed>,
+    );
+
+    await user.click(
+      await screen.findByTestId("manage-backends-edit-OHE Prod"),
+    );
+    await screen.findByTestId("edit-backend-modal");
+
+    // Rename only -- host and kind are untouched
+    const nameInput = screen.getByTestId(
+      "edit-backend-name",
+    ) as HTMLInputElement;
+    await user.clear(nameInput);
+    await user.type(nameInput, "OHE Prod Renamed");
+
+    await user.click(screen.getByTestId("edit-backend-submit"));
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("edit-backend-modal"),
+      ).not.toBeInTheDocument();
+    });
+
+    const stored = JSON.parse(
+      window.localStorage.getItem("openhands-backends") ?? "[]",
+    );
+    const updated = stored.find((b: { id: string }) => b.id === backendId);
+    expect(updated).toMatchObject({
+      name: "OHE Prod Renamed",
+      kind: "cloud",
+    });
+  });
+
   it("closes the edit form when the header close button is clicked", async () => {
     const user = userEvent.setup();
 
@@ -238,5 +339,153 @@ describe("ManageBackendsModal", () => {
       ).not.toBeInTheDocument();
     });
     expect(screen.getByTestId("manage-backends-modal")).toBeInTheDocument();
+  });
+});
+
+function renderInQueryClient(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}
+
+const cloudBackend: Backend = {
+  id: "backend-cloud",
+  name: "Acme Cloud",
+  host: "https://app.acme.com",
+  apiKey: "sk-test",
+  kind: "cloud",
+};
+
+// Focused coverage for the two components extracted out of this file. The
+// ManageBackendsModal suite above already exercises them through the modal;
+// these assert behavior unique to each extracted component, rendered without
+// ActiveBackendProvider so no seeded-backend health probe interferes.
+describe("BackendVersion", () => {
+  it("renders no version badge and skips the probe for a non-local backend", () => {
+    // The version probe is gated on `kind === "local"`, so a cloud backend
+    // never fetches or shows a version.
+    renderInQueryClient(<BackendVersion backend={cloudBackend} />);
+
+    expect(
+      screen.queryByTestId(`manage-backends-version-${cloudBackend.name}`),
+    ).not.toBeInTheDocument();
+    expect(getServerInfoMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("BackendRow", () => {
+  it("disables row selection when the backend is not connected", () => {
+    renderInQueryClient(
+      <ul>
+        <BackendRow
+          backend={cloudBackend}
+          health={undefined}
+          onSelect={vi.fn()}
+          onEdit={vi.fn()}
+          onRemove={vi.fn()}
+        />
+      </ul>,
+    );
+
+    const row = screen.getByTestId(`manage-backends-row-${cloudBackend.name}`);
+    const selectButton = within(row)
+      .getByText(cloudBackend.name)
+      .closest("button");
+    expect(selectButton).toBeDisabled();
+  });
+
+  it("shows a logged-out cloud status with a log back in button", () => {
+    const onLogin = vi.fn();
+
+    renderInQueryClient(
+      <ul>
+        <BackendRow
+          backend={cloudBackend}
+          health={{
+            isConnected: false,
+            consecutiveFailures: 1,
+            lastError: CLOUD_BACKEND_LOGGED_OUT_ERROR,
+            disabled: false,
+          }}
+          onSelect={vi.fn()}
+          onEdit={vi.fn()}
+          onRemove={vi.fn()}
+          onLogin={onLogin}
+        />
+      </ul>,
+    );
+
+    expect(
+      screen.getByTestId(`manage-backends-status-${cloudBackend.name}`),
+    ).toHaveTextContent("BACKEND$LOGGED_OUT");
+    expect(
+      screen.queryByTestId(
+        `manage-backends-status-detail-${cloudBackend.name}`,
+      ),
+    ).not.toBeInTheDocument();
+    const loginButton = screen.getByTestId(
+      `manage-backends-login-${cloudBackend.id}-login-button`,
+    );
+    expect(loginButton).toHaveAccessibleName("BACKEND$LOG_BACK_IN");
+    expect(loginButton).not.toHaveTextContent("BACKEND$LOG_BACK_IN");
+    expect(loginButton.querySelector("svg")).toBeInTheDocument();
+    expect(loginButton).toHaveClass("hover:bg-interactive-hover");
+    expect(loginButton).not.toHaveClass("border");
+    expect(loginButton).not.toHaveClass("bg-primary");
+  });
+
+  it("shows device authorization in a modal instead of expanding the row", async () => {
+    const user = userEvent.setup();
+    const popup = {
+      closed: false,
+      close: vi.fn(),
+      location: { href: "" },
+    } as unknown as Window;
+    vi.spyOn(window, "open").mockReturnValue(popup);
+
+    renderInQueryClient(
+      <ul>
+        <BackendRow
+          backend={cloudBackend}
+          health={{
+            isConnected: false,
+            consecutiveFailures: 1,
+            lastError: CLOUD_BACKEND_LOGGED_OUT_ERROR,
+            disabled: false,
+          }}
+          onSelect={vi.fn()}
+          onEdit={vi.fn()}
+          onRemove={vi.fn()}
+          onLogin={vi.fn()}
+        />
+      </ul>,
+    );
+
+    const row = screen.getByTestId(`manage-backends-row-${cloudBackend.name}`);
+    await user.click(
+      screen.getByTestId(
+        `manage-backends-login-${cloudBackend.id}-login-button`,
+      ),
+    );
+
+    const modal = await screen.findByTestId(
+      `manage-backends-login-${cloudBackend.id}-auth-modal`,
+    );
+    expect(
+      await within(modal).findByTestId(
+        `manage-backends-login-${cloudBackend.id}-auth-awaiting`,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(row).queryByTestId(
+        `manage-backends-login-${cloudBackend.id}-auth-awaiting`,
+      ),
+    ).not.toBeInTheDocument();
+    expect(deviceFlowMocks.startDeviceFlow).toHaveBeenCalledWith(
+      cloudBackend.host,
+    );
   });
 });

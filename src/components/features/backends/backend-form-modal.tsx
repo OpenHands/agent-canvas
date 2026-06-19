@@ -15,14 +15,20 @@ import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useNavigation } from "#/context/navigation-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
+import {
+  assertAgentServerVersionIsSupported,
+  getDisplayAgentServerVersion,
+} from "#/api/agent-server-compatibility";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { I18nKey } from "#/i18n/declaration";
 import type { Backend, BackendKind } from "#/api/backend-registry/types";
+import { getUserFacingConnectionErrorMessage } from "#/utils/user-facing-error";
 import { cn } from "#/utils/utils";
 import {
   modalTitleLgClassName,
   modalTitleLgMediumClassName,
 } from "#/utils/modal-classes";
+import { getBackendStatusLabel } from "./backend-status-label";
 import { BackendStatusDot } from "./backend-status-dot";
 import { DeviceFlowAuth } from "./device-flow-auth";
 
@@ -129,9 +135,7 @@ function getConnectionTestFailedTitle(
 }
 
 function getConnectionErrorDetail(error: unknown): string | null {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return null;
+  return getUserFacingConnectionErrorMessage(error);
 }
 
 function getConnectionTestFailedMessage(title: string, error: unknown): string {
@@ -145,13 +149,14 @@ async function testBackendConnection(
   // Cloud backends authenticate via OAuth; preflight GET is not applicable.
   if (backend.kind !== "local") return;
 
-  await new ServerClient(
+  const serverInfo = await new ServerClient(
     getAgentServerClientOptions({
       host: backend.host,
       sessionApiKey: backend.apiKey || null,
       timeout: 5000,
     }),
   ).getServerInfo();
+  assertAgentServerVersionIsSupported(serverInfo);
 }
 
 /**
@@ -185,21 +190,14 @@ function BackendStatusBadge({
           timeout: 5000,
         }),
       ).getServerInfo();
-      return info.version ?? null;
+      return getDisplayAgentServerVersion(info);
     },
     retry: false,
     staleTime: 60_000,
     enabled: backend.kind === "local" && !disabled,
   });
 
-  let statusLabel: string;
-  if (isConnected === true) {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_CONNECTED);
-  } else if (isConnected === false) {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_DISCONNECTED);
-  } else {
-    statusLabel = t(I18nKey.ONBOARDING$BACKEND_STATUS_CHECKING);
-  }
+  const statusLabel = getBackendStatusLabel(t, backend, health);
 
   const kindLabel =
     backend.kind === "cloud"
@@ -260,6 +258,128 @@ export interface BackendFormSubmitPayload {
   host: string;
   apiKey: string;
   kind: BackendKind;
+}
+
+interface UseBackendFormOptions {
+  initialName?: string;
+  initialHost?: string;
+  initialApiKey?: string;
+  /**
+   * Called to test the connection. The hook does NOT call
+   * `testBackendConnection` directly so callers can inject a
+   * wrapped version (e.g. with extra logging or different timeout).
+   * Should throw on failure.
+   */
+  onTestConnection: (payload: BackendFormSubmitPayload) => Promise<void>;
+  /** Called after a successful connection test and persistence. */
+  onSuccess: () => void;
+  /** Require a non-empty API key even when the host looks local. */
+  requireApiKey?: boolean;
+  /**
+   * When provided, completely replaces the default submit flow
+   * (onTestConnection + onSuccess). The hook still manages form state
+   * and canSubmit validation, but the caller owns error handling and
+   * success side effects. Should throw on failure.
+   */
+  onSubmitOverride?: (payload: BackendFormSubmitPayload) => Promise<void>;
+}
+
+/**
+ * Shared hook for the backend-form state used by both `BackendForm`
+ * (edit/add mode) and `ManualConnectionColumn` (add-mode-only column).
+ * Encapsulates name / host / apiKey fields, `connectionError`,
+ * `isSubmitting`, and the shared `handleSubmit` flow.
+ */
+function useBackendForm({
+  initialName = "",
+  initialHost = "",
+  initialApiKey = "",
+  onTestConnection,
+  onSuccess,
+  requireApiKey = false,
+  onSubmitOverride,
+}: UseBackendFormOptions) {
+  const { t } = useTranslation("openhands");
+
+  const [name, setName] = React.useState(initialName);
+  const [host, setHost] = React.useState(initialHost);
+  const [apiKey, setApiKey] = React.useState(initialApiKey);
+  const [connectionError, setConnectionError] = React.useState<string | null>(
+    null,
+  );
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  const kind = inferKindFromHost(host);
+  const needsApiKey = requireApiKey || kind !== "local";
+  const canSubmit =
+    name.trim().length > 0 &&
+    isValidHostUrl(host) &&
+    (!needsApiKey || apiKey.trim().length > 0);
+
+  const handleSubmit = React.useCallback(
+    async (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      if (!canSubmit || isSubmitting) return;
+
+      const payload: BackendFormSubmitPayload = {
+        name: name.trim(),
+        host: normalizeHost(host),
+        apiKey: apiKey.trim(),
+        kind,
+      };
+
+      setConnectionError(null);
+      setIsSubmitting(true);
+
+      try {
+        // When onSubmitOverride is provided, it completely replaces the
+        // default flow (onTestConnection + onSuccess).
+        if (onSubmitOverride) {
+          await onSubmitOverride(payload);
+        } else {
+          await onTestConnection(payload);
+          onSuccess();
+        }
+      } catch (error) {
+        setConnectionError(
+          getConnectionTestFailedMessage(
+            getConnectionTestFailedTitle(t, payload.host),
+            error,
+          ),
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [
+      canSubmit,
+      isSubmitting,
+      name,
+      host,
+      apiKey,
+      kind,
+      onTestConnection,
+      onSuccess,
+      requireApiKey,
+      onSubmitOverride,
+      t,
+    ],
+  );
+
+  return {
+    name,
+    setName,
+    host,
+    setHost,
+    apiKey,
+    setApiKey,
+    connectionError,
+    setConnectionError,
+    isSubmitting,
+    kind,
+    canSubmit,
+    handleSubmit,
+  };
 }
 
 export interface BackendFormProps {
@@ -333,21 +453,54 @@ export function BackendForm({
   const { t } = useTranslation("openhands");
   const { addBackend, updateBackend } = useActiveBackendContext();
 
-  const [name, setName] = React.useState(backend?.name ?? "");
-  const [host, setHost] = React.useState(backend?.host ?? "");
-  const [apiKey, setApiKey] = React.useState(backend?.apiKey ?? "");
-  const [connectionError, setConnectionError] = React.useState<string | null>(
-    null,
-  );
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  // In edit mode preserve the existing backend's kind so that renaming or
+  // rotating the API key on a cloud backend (e.g. an OHE/enterprise instance
+  // on a custom domain) does not silently downgrade it to "local" and switch
+  // the auth header from `Authorization: Bearer` to `X-Session-API-Key`.
+  // Only infer from the host when adding a new backend.
+  const fixedKind: BackendKind | null =
+    mode === "edit" && backend ? backend.kind : null;
+
+  const {
+    name,
+    setName,
+    host,
+    setHost,
+    apiKey,
+    setApiKey,
+    connectionError,
+    setConnectionError,
+    isSubmitting,
+    kind: inferredKind,
+    handleSubmit: runSubmit,
+  } = useBackendForm({
+    initialName: backend?.name ?? "",
+    initialHost: backend?.host ?? "",
+    initialApiKey: backend?.apiKey ?? "",
+    onTestConnection: testBackendConnection,
+    onSuccess: async () => {
+      const payload: BackendFormSubmitPayload = {
+        name: name.trim(),
+        host: normalizeHost(host),
+        apiKey: apiKey.trim(),
+        kind: fixedKind ?? inferredKind,
+      };
+      if (mode === "edit" && backend) {
+        updateBackend(backend.id, payload);
+      } else {
+        addBackend(payload);
+      }
+      onSubmitted();
+    },
+    requireApiKey,
+    onSubmitOverride,
+  });
 
   // Inline validation: only show errors after the user has left a field.
   const [nameTouched, setNameTouched] = React.useState(false);
   const [hostTouched, setHostTouched] = React.useState(false);
 
-  // Kind is inferred from the host on every change.
-  const kind: BackendKind = inferKindFromHost(host);
-
+  const kind = fixedKind ?? inferredKind;
   const testIdRoot =
     explicitTestIdRoot ?? (mode === "edit" ? "edit-backend" : "add-backend");
 
@@ -369,9 +522,6 @@ export function BackendForm({
     : undefined;
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (isSubmitting) return;
-
     if (!canSubmit) {
       // Mark all validated fields as touched so inline errors become visible
       // (e.g. user pressed Enter before filling required fields).
@@ -379,42 +529,7 @@ export function BackendForm({
       setHostTouched(true);
       return;
     }
-
-    const payload: BackendFormSubmitPayload = {
-      name: name.trim(),
-      host: normalizeHost(host),
-      apiKey: apiKey.trim(),
-      kind,
-    };
-
-    setConnectionError(null);
-    setIsSubmitting(true);
-
-    try {
-      if (onSubmitOverride) {
-        await onSubmitOverride(payload);
-        return;
-      }
-
-      await testBackendConnection(payload);
-
-      if (mode === "edit" && backend) {
-        updateBackend(backend.id, payload);
-      } else {
-        addBackend(payload);
-      }
-
-      onSubmitted();
-    } catch (error) {
-      setConnectionError(
-        getConnectionTestFailedMessage(
-          getConnectionTestFailedTitle(t, payload.host),
-          error,
-        ),
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
+    await runSubmit(event);
   };
 
   return (
@@ -545,71 +660,135 @@ function useRedirectAfterAddBackend() {
   }, [currentPath, navigate]);
 }
 
+interface BackendConnectionOptionsProps {
+  onConnected: (payload: BackendFormSubmitPayload) => void;
+  testIdRoot?: string;
+  initialManualBackend?: Partial<
+    Pick<BackendFormSubmitPayload, "name" | "host" | "apiKey">
+  >;
+  requireManualApiKey?: boolean;
+  manualSubmitLabel?: React.ReactNode;
+  manualSubmittingLabel?: React.ReactNode;
+  manualSubmitTestId?: string;
+}
+
 /**
- * Left column of the "Add a Backend" modal: manual connection via
- * Host + API Key. Designed for self-hosted agent servers and
- * self-hosted OpenHands Cloud with API key auth.
+ * Manual agent-server connection plus OpenHands Cloud OAuth login.
+ * Used by both the Add Backend modal and the onboarding backend step so
+ * supported backend choices stay consistent across first-run and settings UI.
  */
-function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
+export function BackendConnectionOptions({
+  onConnected,
+  testIdRoot = "add-backend",
+  initialManualBackend,
+  requireManualApiKey = false,
+  manualSubmitLabel,
+  manualSubmittingLabel,
+  manualSubmitTestId,
+}: BackendConnectionOptionsProps) {
   const { t } = useTranslation("openhands");
-  const { addBackend } = useActiveBackendContext();
-  const redirectAfterAdd = useRedirectAfterAddBackend();
 
-  const [name, setName] = React.useState("");
-  const [host, setHost] = React.useState("");
-  const [apiKey, setApiKey] = React.useState("");
-  const [connectionError, setConnectionError] = React.useState<string | null>(
-    null,
+  return (
+    <div
+      data-testid={`${testIdRoot}-connection-options`}
+      className="flex flex-col gap-6 md:flex-row"
+    >
+      <div className="flex-1 min-w-0">
+        <ManualConnectionColumn
+          onConnected={onConnected}
+          testIdRoot={testIdRoot}
+          initialBackend={initialManualBackend}
+          requireApiKey={requireManualApiKey}
+          submitLabel={manualSubmitLabel ?? t(I18nKey.BACKEND$CONNECT)}
+          submittingLabel={
+            manualSubmittingLabel ??
+            t(I18nKey.ONBOARDING$BACKEND_STATUS_CHECKING)
+          }
+          submitTestId={manualSubmitTestId}
+        />
+      </div>
+
+      <div className="flex shrink-0 flex-row items-center md:flex-col">
+        <div className="h-px flex-1 bg-[var(--oh-border)] md:h-auto md:w-px" />
+        <span className="px-3 py-0 text-xs uppercase text-[var(--oh-muted)] md:px-0 md:py-3">
+          {t(I18nKey.BACKEND$LOGIN_OR)}
+        </span>
+        <div className="h-px flex-1 bg-[var(--oh-border)] md:h-auto md:w-px" />
+      </div>
+
+      <div className="flex-1 min-w-0">
+        <CloudLoginColumn onConnected={onConnected} testIdRoot={testIdRoot} />
+      </div>
+    </div>
   );
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
+}
 
-  const kind: BackendKind = inferKindFromHost(host);
-  const canSubmit =
-    name.trim().length > 0 &&
-    isValidHostUrl(host) &&
-    (kind === "local" || apiKey.trim().length > 0);
+interface ManualConnectionColumnProps {
+  onConnected: (payload: BackendFormSubmitPayload) => void;
+  testIdRoot: string;
+  initialBackend?: Partial<
+    Pick<BackendFormSubmitPayload, "name" | "host" | "apiKey">
+  >;
+  requireApiKey: boolean;
+  submitLabel: React.ReactNode;
+  submittingLabel: React.ReactNode;
+  submitTestId?: string;
+}
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!canSubmit || isSubmitting) return;
+/**
+ * Manual connection via Host + API Key. Designed for self-hosted agent servers
+ * and self-hosted OpenHands Cloud with API key auth.
+ */
+function ManualConnectionColumn({
+  onConnected,
+  testIdRoot,
+  initialBackend,
+  requireApiKey,
+  submitLabel,
+  submittingLabel,
+  submitTestId,
+}: ManualConnectionColumnProps) {
+  const { t } = useTranslation("openhands");
 
-    const payload = {
-      name: name.trim(),
-      host: normalizeHost(host),
-      apiKey: apiKey.trim(),
-      kind,
-    };
-
-    setConnectionError(null);
-    setIsSubmitting(true);
-
-    try {
-      await testBackendConnection(payload);
-      addBackend(payload);
-      redirectAfterAdd();
-      onClose();
-    } catch (error) {
-      setConnectionError(
-        getConnectionTestFailedMessage(
-          getConnectionTestFailedTitle(t, payload.host),
-          error,
-        ),
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const {
+    name,
+    setName,
+    host,
+    setHost,
+    apiKey,
+    setApiKey,
+    connectionError,
+    setConnectionError,
+    isSubmitting,
+    kind,
+    canSubmit,
+    handleSubmit,
+  } = useBackendForm({
+    initialName: initialBackend?.name ?? "",
+    initialHost: initialBackend?.host ?? "",
+    initialApiKey: initialBackend?.apiKey ?? "",
+    onTestConnection: testBackendConnection,
+    onSuccess: () => {
+      onConnected({
+        name: name.trim(),
+        host: normalizeHost(host),
+        apiKey: apiKey.trim(),
+        kind,
+      });
+    },
+    requireApiKey,
+  });
 
   return (
     <form
-      data-testid="add-backend-form"
+      data-testid={`${testIdRoot}-form`}
       onSubmit={handleSubmit}
       className="flex flex-col gap-4 flex-1 min-w-0"
     >
       <div className="flex flex-col gap-1">
         <SettingsInput
-          testId="add-backend-name"
-          name="add-backend-name"
+          testId={`${testIdRoot}-name`}
+          name={`${testIdRoot}-name`}
           type="text"
           label={t(I18nKey.BACKEND$NAME_LABEL)}
           value={name}
@@ -627,8 +806,8 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
 
       <div className="flex flex-col gap-1">
         <SettingsInput
-          testId="add-backend-host"
-          name="add-backend-host"
+          testId={`${testIdRoot}-host`}
+          name={`${testIdRoot}-host`}
           type="text"
           label={t(I18nKey.BACKEND$HOST_LABEL)}
           value={host}
@@ -641,15 +820,15 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
         />
         <p
           className="text-xs text-[var(--oh-muted)]"
-          data-testid="add-backend-host-helper"
+          data-testid={`${testIdRoot}-host-helper`}
         >
           {t(I18nKey.BACKEND$HOST_HELPER)}
         </p>
       </div>
 
       <SettingsInput
-        testId="add-backend-api-key"
-        name="add-backend-api-key"
+        testId={`${testIdRoot}-api-key`}
+        name={`${testIdRoot}-api-key`}
         type="password"
         label={t(I18nKey.BACKEND$KEY_LABEL)}
         value={apiKey}
@@ -664,7 +843,7 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
       {connectionError ? (
         <div
           role="alert"
-          data-testid="add-backend-error"
+          data-testid={`${testIdRoot}-error`}
           className="rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300 whitespace-pre-wrap break-words"
         >
           {connectionError}
@@ -675,26 +854,27 @@ function ManualConnectionColumn({ onClose }: { onClose: () => void }) {
         type="submit"
         variant="secondary"
         isDisabled={!canSubmit || isSubmitting}
-        testId="add-backend-submit"
+        testId={submitTestId ?? `${testIdRoot}-submit`}
         className="w-full text-center"
       >
-        {isSubmitting
-          ? t(I18nKey.ONBOARDING$BACKEND_STATUS_CHECKING)
-          : t(I18nKey.BACKEND$CONNECT)}
+        {isSubmitting ? submittingLabel : submitLabel}
       </BrandButton>
     </form>
   );
 }
 
+interface CloudLoginColumnProps {
+  onConnected: (payload: BackendFormSubmitPayload) => void;
+  testIdRoot: string;
+}
+
 /**
- * Right column of the "Add a Backend" modal: one-click OAuth login
- * with OpenHands Cloud. Includes an "Advanced" disclosure for
- * users who self-host OpenHands Cloud and need to override the host.
+ * One-click OAuth login with OpenHands Cloud. Includes an "Advanced"
+ * disclosure for users who self-host OpenHands Cloud and need to override the
+ * host.
  */
-function CloudLoginColumn({ onClose }: { onClose: () => void }) {
+function CloudLoginColumn({ onConnected, testIdRoot }: CloudLoginColumnProps) {
   const { t } = useTranslation("openhands");
-  const { addBackend } = useActiveBackendContext();
-  const redirectAfterAdd = useRedirectAfterAddBackend();
 
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [customHost, setCustomHost] = React.useState("");
@@ -702,14 +882,12 @@ function CloudLoginColumn({ onClose }: { onClose: () => void }) {
   const effectiveHost = customHost.trim() || DEFAULT_OPENHANDS_CLOUD_HOST;
 
   const handleLoginSuccess = (apiKey: string) => {
-    addBackend({
+    onConnected({
       name: "OpenHands Cloud",
       host: normalizeHost(effectiveHost),
       apiKey,
       kind: "cloud",
     });
-    redirectAfterAdd();
-    onClose();
   };
 
   return (
@@ -719,7 +897,7 @@ function CloudLoginColumn({ onClose }: { onClose: () => void }) {
 
         <h4
           className={modalTitleLgMediumClassName}
-          data-testid="add-backend-cloud-title"
+          data-testid={`${testIdRoot}-cloud-title`}
         >
           {t(I18nKey.BACKEND$CLOUD_TITLE)}
         </h4>
@@ -732,7 +910,7 @@ function CloudLoginColumn({ onClose }: { onClose: () => void }) {
       <DeviceFlowAuth
         host={effectiveHost}
         onSuccess={handleLoginSuccess}
-        testIdRoot="add-backend"
+        testIdRoot={testIdRoot}
       />
 
       <div className="w-full">
@@ -740,7 +918,7 @@ function CloudLoginColumn({ onClose }: { onClose: () => void }) {
           type="button"
           onClick={() => setAdvancedOpen((open) => !open)}
           aria-expanded={advancedOpen}
-          data-testid="add-backend-advanced-toggle"
+          data-testid={`${testIdRoot}-advanced-toggle`}
           className="flex w-full cursor-pointer items-center justify-center gap-1 text-center text-xs text-[var(--oh-muted)] transition-colors hover:text-content-2"
         >
           <span>{t(I18nKey.BACKEND$ADVANCED)}</span>
@@ -760,8 +938,8 @@ function CloudLoginColumn({ onClose }: { onClose: () => void }) {
           aria-hidden={!advancedOpen}
         >
           <SettingsInput
-            testId="add-backend-cloud-host"
-            name="add-backend-cloud-host"
+            testId={`${testIdRoot}-cloud-host`}
+            name={`${testIdRoot}-cloud-host`}
             type="text"
             label={t(I18nKey.BACKEND$HOST_LABEL)}
             value={customHost}
@@ -776,6 +954,22 @@ function CloudLoginColumn({ onClose }: { onClose: () => void }) {
       </div>
     </div>
   );
+}
+
+function AddBackendConnectionOptions({ onClose }: { onClose: () => void }) {
+  const { addBackend } = useActiveBackendContext();
+  const redirectAfterAdd = useRedirectAfterAddBackend();
+
+  const handleConnected = React.useCallback(
+    (payload: BackendFormSubmitPayload) => {
+      addBackend(payload);
+      redirectAfterAdd();
+      onClose();
+    },
+    [addBackend, redirectAfterAdd, onClose],
+  );
+
+  return <BackendConnectionOptions onConnected={handleConnected} />;
 }
 
 // ── Modal wrappers ──────────────────────────────────────────────────
@@ -815,26 +1009,8 @@ export function BackendFormModal({
             </h2>
           </div>
 
-          {/* Two-column body */}
-          <div className="flex gap-6 px-6 pb-6 pt-2">
-            {/* Left: manual connection */}
-            <div className="flex-1 min-w-0">
-              <ManualConnectionColumn onClose={onClose} />
-            </div>
-
-            {/* Vertical OR divider */}
-            <div className="flex shrink-0 flex-col items-center">
-              <div className="flex-1 w-px bg-[var(--oh-border)]" />
-              <span className="py-3 text-xs uppercase text-[var(--oh-muted)]">
-                {t(I18nKey.BACKEND$LOGIN_OR)}
-              </span>
-              <div className="flex-1 w-px bg-[var(--oh-border)]" />
-            </div>
-
-            {/* Right: cloud login */}
-            <div className="flex-1 min-w-0">
-              <CloudLoginColumn onClose={onClose} />
-            </div>
+          <div className="px-6 pb-6 pt-2">
+            <AddBackendConnectionOptions onClose={onClose} />
           </div>
         </div>
       </ModalBackdrop>

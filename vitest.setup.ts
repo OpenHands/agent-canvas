@@ -60,6 +60,33 @@ if (typeof requestAnimationFrame === "undefined") {
   );
 }
 
+if (typeof ProgressEvent === "undefined") {
+  class MockProgressEvent extends Event {
+    readonly lengthComputable: boolean;
+
+    readonly loaded: number;
+
+    readonly total: number;
+
+    constructor(type: string, eventInitDict: ProgressEventInit = {}) {
+      super(type, eventInitDict);
+      this.lengthComputable = eventInitDict.lengthComputable ?? false;
+      this.loaded = eventInitDict.loaded ?? 0;
+      this.total = eventInitDict.total ?? 0;
+    }
+  }
+
+  // MSW's XMLHttpRequest interceptor may dispatch progress events while
+  // Vitest is tearing down globals between files. Keep this process-level
+  // fallback outside `vi.stubGlobal()` so `vi.unstubAllGlobals()` does not
+  // remove it before late interceptor callbacks settle.
+  Object.defineProperty(globalThis, "ProgressEvent", {
+    configurable: true,
+    writable: true,
+    value: MockProgressEvent,
+  });
+}
+
 // Mock ResizeObserver for test environment
 class MockResizeObserver {
   observe = vi.fn();
