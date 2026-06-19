@@ -3,6 +3,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { Check, CircleX, Copy, X } from "lucide-react";
 import { OH_STATUS_ERROR_COLOR } from "#/constants/status-colors";
 import { I18nKey } from "#/i18n/declaration";
+import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { getAcpErrorHeaderKey } from "#/utils/acp-error-codes";
 import { cn } from "#/utils/utils";
 
@@ -40,8 +41,12 @@ export function ErrorMessageBanner({
   const isCollapsed = shouldShowToggle && !isExpanded;
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(displayTextForLength);
-    setIsCopied(true);
+    try {
+      await navigator.clipboard.writeText(displayTextForLength);
+      setIsCopied(true);
+    } catch {
+      displayErrorToast(t(I18nKey.CHAT_INTERFACE$CHAT_MESSAGE_COPY_FAILED));
+    }
   };
 
   React.useEffect(() => {

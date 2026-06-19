@@ -1,9 +1,22 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ErrorMessageBanner } from "#/components/features/chat/error-message-banner";
 
+const toastMocks = vi.hoisted(() => ({
+  displayErrorToast: vi.fn(),
+}));
+
+vi.mock("#/utils/custom-toast-handlers", () => ({
+  displayErrorToast: toastMocks.displayErrorToast,
+}));
+
 describe("ErrorMessageBanner", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    toastMocks.displayErrorToast.mockClear();
+  });
+
   it("calls onDismiss when the close button is clicked", async () => {
     const user = userEvent.setup();
     const onDismiss = vi.fn();
@@ -80,6 +93,24 @@ describe("ErrorMessageBanner", () => {
         screen.getByTestId("error-message-banner-copy"),
       ).toHaveAccessibleName("BUTTON$COPIED"),
     );
+  });
+
+  it("shows an error toast when the copy button cannot write to the clipboard", async () => {
+    const user = userEvent.setup();
+    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+    vi.spyOn(navigator.clipboard, "writeText").mockImplementation(writeText);
+
+    render(<ErrorMessageBanner message="copy failed" />);
+
+    await user.click(screen.getByTestId("error-message-banner-copy"));
+
+    expect(writeText).toHaveBeenCalledWith("copy failed");
+    expect(toastMocks.displayErrorToast).toHaveBeenCalledWith(
+      "CHAT_INTERFACE$CHAT_MESSAGE_COPY_FAILED",
+    );
+    expect(
+      screen.getByTestId("error-message-banner-copy"),
+    ).toHaveAccessibleName("BUTTON$COPY");
   });
 
   it("renders a code-specific header for a known ACP error code", () => {
