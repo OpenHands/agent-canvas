@@ -696,7 +696,7 @@ export function BackendConnectionOptions({
         data-testid={`${testIdRoot}-connection-options`}
         className="flex justify-center"
       >
-        <div className="w-full max-w-sm">
+        <div className="w-full">
           <CloudLoginColumn
             onConnected={onConnected}
             testIdRoot={testIdRoot}
