@@ -112,6 +112,27 @@ docker run -it --rm \
   ghcr.io/openhands/agent-canvas:1.0.0-rc.11
 ```
 
+For Docker Compose on rootful Linux, export your host UID/GID before starting
+the service and reference them from the compose file:
+
+```sh
+export HOST_UID="$(id -u)"
+export HOST_GID="$(id -g)"
+docker compose up
+```
+
+```yaml
+services:
+  openhands:
+    image: ghcr.io/openhands/agent-canvas:1.0.0-rc.11
+    user: "${HOST_UID}:${HOST_GID}"
+    ports:
+      - "8000:8000"
+    volumes:
+      - "${HOME}/.openhands:/home/openhands/.openhands"
+      - "${PROJECTS_PATH}:/projects"
+```
+
 **Windows (PowerShell / Windows Terminal):** See [README.windows.md](./README.windows.md) for the equivalent commands.
 
 The agent will be able to access any project under `PROJECTS_PATH`.
