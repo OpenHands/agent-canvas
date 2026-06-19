@@ -50,7 +50,15 @@ export function renderEnvLine(config) {
  * @returns {string} the updated .env contents
  */
 export function upsertEnvLine(existing, line) {
-  const key = line.slice(0, line.indexOf("=") + 1); // "AGENT_SERVER_IMAGE="
+  const eq = line.indexOf("=");
+  if (eq <= 0) {
+    // A keyless line ("", "novalue", "=value") would make `key` empty and
+    // match every line — refuse rather than silently rewrite the whole file.
+    throw new Error(
+      `upsertEnvLine: expected a "KEY=value" line, got "${line}"`,
+    );
+  }
+  const key = line.slice(0, eq + 1); // "AGENT_SERVER_IMAGE="
   const lines = existing.length ? existing.replace(/\n+$/, "").split("\n") : [];
   let replaced = false;
   const next = lines.map((l) => {
