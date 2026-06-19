@@ -7,9 +7,10 @@ import {
   MODAL_MAX_WIDTH_VIEWPORT,
   modalWidthClassName,
 } from "#/components/shared/modals/modal-body";
+import { LoadingSpinner } from "#/components/shared/loading-spinner";
+import { useConversationSearch } from "#/hooks/query/use-conversation-search";
 import { cn } from "#/utils/utils";
 import { formatTimeDelta } from "#/utils/format-time-delta";
-import { filterConversationsByQuery } from "./filter-conversations-by-query";
 import { HighlightSearchMatch } from "./highlight-search-match";
 import { ConversationPanelSearchInput } from "./conversation-panel-search-toggle";
 
@@ -34,14 +35,12 @@ function getConversationContextLabel(
 interface ConversationPanelSearchModalProps {
   isOpen: boolean;
   onClose: () => void;
-  conversations: readonly AppConversation[];
   onSelectConversation: (conversationId: string) => void;
 }
 
 export function ConversationPanelSearchModal({
   isOpen,
   onClose,
-  conversations,
   onSelectConversation,
 }: ConversationPanelSearchModalProps) {
   const { t } = useTranslation("openhands");
@@ -49,10 +48,11 @@ export function ConversationPanelSearchModal({
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const itemRefs = React.useRef<(HTMLButtonElement | null)[]>([]);
 
-  const filteredConversations = React.useMemo(
-    () => filterConversationsByQuery(conversations, query),
-    [conversations, query],
-  );
+  const {
+    data: searchResults = [],
+    isFetching,
+    isError,
+  } = useConversationSearch(query, isOpen);
 
   React.useEffect(() => {
     if (!isOpen) {
@@ -63,14 +63,14 @@ export function ConversationPanelSearchModal({
 
   React.useEffect(() => {
     setSelectedIndex(0);
-  }, [query]);
+  }, [query, searchResults.length]);
 
   React.useEffect(() => {
     const selectedItem = itemRefs.current[selectedIndex];
     if (typeof selectedItem?.scrollIntoView === "function") {
       selectedItem.scrollIntoView({ block: "nearest" });
     }
-  }, [selectedIndex, filteredConversations.length]);
+  }, [selectedIndex, searchResults.length]);
 
   const handleClose = React.useCallback(() => {
     setQuery("");
@@ -87,29 +87,27 @@ export function ConversationPanelSearchModal({
   );
 
   const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (filteredConversations.length === 0) {
+    if (searchResults.length === 0) {
       return;
     }
 
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setSelectedIndex((prev) => (prev + 1) % filteredConversations.length);
+      setSelectedIndex((prev) => (prev + 1) % searchResults.length);
       return;
     }
 
     if (event.key === "ArrowUp") {
       event.preventDefault();
       setSelectedIndex(
-        (prev) =>
-          (prev - 1 + filteredConversations.length) %
-          filteredConversations.length,
+        (prev) => (prev - 1 + searchResults.length) % searchResults.length,
       );
       return;
     }
 
     if (event.key === "Enter") {
       event.preventDefault();
-      const selected = filteredConversations[selectedIndex];
+      const selected = searchResults[selectedIndex];
       if (selected) {
         handleSelect(selected.id);
       }
@@ -121,6 +119,8 @@ export function ConversationPanelSearchModal({
   }
 
   const showMostRecentLabel = !query.trim();
+  const showNoResults =
+    query.trim().length > 0 && !isFetching && searchResults.length === 0;
 
   return (
     <ModalBackdrop
@@ -151,7 +151,22 @@ export function ConversationPanelSearchModal({
           aria-label={t(I18nKey.CONVERSATION_PANEL$SEARCH_ARIA)}
           className="min-h-0 flex-1 overflow-y-auto px-2 pb-2 custom-scrollbar-always"
         >
-          {showMostRecentLabel ? (
+          {isFetching && searchResults.length === 0 ? (
+            <div
+              className="flex justify-center px-2 py-8"
+              data-testid="conversation-panel-search-loading"
+            >
+              <LoadingSpinner size="small" />
+            </div>
+          ) : null}
+
+          {isError ? (
+            <p className="px-2 py-6 text-center text-xs text-[var(--oh-muted)]">
+              {t(I18nKey.COMMON$ERROR)}
+            </p>
+          ) : null}
+
+          {showMostRecentLabel && !isFetching ? (
             <div
               data-testid="conversation-panel-search-section-label"
               className="px-2 pb-1 pt-3 text-xs text-[var(--oh-text-dim)]"
@@ -160,7 +175,7 @@ export function ConversationPanelSearchModal({
             </div>
           ) : null}
 
-          {query.trim() && filteredConversations.length === 0 ? (
+          {showNoResults ? (
             <p
               data-testid="conversation-panel-search-no-results"
               className="px-2 py-6 text-center text-xs text-[var(--oh-muted)]"
@@ -168,7 +183,7 @@ export function ConversationPanelSearchModal({
               {t(I18nKey.CONVERSATION_PANEL$SEARCH_NO_RESULTS)}
             </p>
           ) : (
-            filteredConversations.map((conversation, index) => {
+            searchResults.map((conversation, index) => {
               const title = conversation.title?.trim() || conversation.id;
               const contextLabel = getConversationContextLabel(conversation);
               const timestamp =
