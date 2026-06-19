@@ -32,6 +32,8 @@ function renderFilterMenu(
     toggleShowRepoBranchMetadata: vi.fn(),
     showLlmProfiles: false,
     toggleShowLlmProfiles: vi.fn(),
+    showHoverMetadata: false,
+    toggleShowHoverMetadata: vi.fn(),
     totalConversationsCount: 5,
     onRequestDeleteAll: vi.fn(),
     ...overrides,
