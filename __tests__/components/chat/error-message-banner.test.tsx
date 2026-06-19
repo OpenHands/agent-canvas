@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ErrorMessageBanner } from "#/components/features/chat/error-message-banner";
@@ -64,6 +64,24 @@ describe("ErrorMessageBanner", () => {
     expect(toggle).toHaveTextContent("COMMON$VIEW_LESS");
   });
 
+  it("copies the full error message when the copy button is clicked", async () => {
+    const user = userEvent.setup();
+    const longMessage = `first line\n${"long error detail ".repeat(40)}`;
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.spyOn(navigator.clipboard, "writeText").mockImplementation(writeText);
+
+    render(<ErrorMessageBanner message={longMessage} onDismiss={vi.fn()} />);
+
+    await user.click(screen.getByTestId("error-message-banner-copy"));
+
+    expect(writeText).toHaveBeenCalledWith(longMessage);
+    await waitFor(() =>
+      expect(
+        screen.getByTestId("error-message-banner-copy"),
+      ).toHaveAccessibleName("BUTTON$COPIED"),
+    );
+  });
+
   it("renders a code-specific header for a known ACP error code", () => {
     render(
       <ErrorMessageBanner
@@ -75,9 +93,9 @@ describe("ErrorMessageBanner", () => {
     const header = screen.getByTestId("error-message-banner-header");
     expect(header).toHaveTextContent("ERROR$ACP_AUTH_REQUIRED_TITLE");
     // The detail is still shown verbatim below the header.
-    expect(screen.getByTestId("error-message-banner-content")).toHaveTextContent(
-      "invalid x-api-key",
-    );
+    expect(
+      screen.getByTestId("error-message-banner-content"),
+    ).toHaveTextContent("invalid x-api-key");
   });
 
   it("renders no header for an unknown or absent code", () => {

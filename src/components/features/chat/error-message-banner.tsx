@@ -1,6 +1,6 @@
 import React from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { CircleX, X } from "lucide-react";
+import { Check, CircleX, Copy, X } from "lucide-react";
 import { OH_STATUS_ERROR_COLOR } from "#/constants/status-colors";
 import { I18nKey } from "#/i18n/declaration";
 import { getAcpErrorHeaderKey } from "#/utils/acp-error-codes";
@@ -29,6 +29,7 @@ export function ErrorMessageBanner({
   const headerKey = getAcpErrorHeaderKey(code);
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [isMultiLine, setIsMultiLine] = React.useState(false);
+  const [isCopied, setIsCopied] = React.useState(false);
   const contentRef = React.useRef<HTMLDivElement>(null);
 
   const isI18nKey = i18n.exists(message, { ns: "openhands" });
@@ -37,6 +38,25 @@ export function ErrorMessageBanner({
     displayTextForLength.length > DEFAULT_MAX_COLLAPSED_CHARS;
 
   const isCollapsed = shouldShowToggle && !isExpanded;
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(displayTextForLength);
+    setIsCopied(true);
+  };
+
+  React.useEffect(() => {
+    if (!isCopied) return undefined;
+
+    const timeout = setTimeout(() => {
+      setIsCopied(false);
+    }, 2000);
+
+    return () => clearTimeout(timeout);
+  }, [isCopied]);
+
+  React.useEffect(() => {
+    setIsCopied(false);
+  }, [displayTextForLength]);
 
   React.useLayoutEffect(() => {
     const content = contentRef.current;
@@ -140,6 +160,20 @@ export function ErrorMessageBanner({
             {t(I18nKey.CHAT_INTERFACE$MESSAGE_RETRY)}
           </button>
         )}
+
+        <button
+          type="button"
+          onClick={handleCopy}
+          className="shrink-0 cursor-pointer rounded-md p-1 text-[var(--oh-muted)] hover:bg-[var(--oh-interactive-hover)] hover:text-[var(--oh-foreground)]"
+          aria-label={t(isCopied ? I18nKey.BUTTON$COPIED : I18nKey.BUTTON$COPY)}
+          data-testid="error-message-banner-copy"
+        >
+          {isCopied ? (
+            <Check className="h-4 w-4" aria-hidden />
+          ) : (
+            <Copy className="h-4 w-4" aria-hidden />
+          )}
+        </button>
 
         {onDismiss && (
           <button
