@@ -8,6 +8,12 @@ import { sanitizeQuery } from "#/utils/sanitize-query";
 import { PRODUCT_URL } from "#/utils/constants";
 import { AgentState } from "#/types/agent-state";
 import { I18nKey } from "#/i18n/declaration";
+import { getTaskStatusI18nKey } from "#/utils/status";
+import type { AppConversationStartTaskStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
+import {
+  OH_STATUS_ERROR_COLOR,
+  OH_STATUS_SUCCESS_COLOR,
+} from "#/constants/status-colors";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -56,18 +62,24 @@ export const setStyleHeightPx = (el: HTMLElement, height: number): void => {
 };
 
 /**
+ * Detect a phone/tablet user agent (Android, iPhone, iPad, …).
+ * Unlike isMobileDevice, this ignores touch capability, so a desktop OS with
+ * a touchscreen (e.g. a Windows 2-in-1) is NOT matched. Use this when the
+ * decision depends on having a physical keyboard rather than on touch input.
+ */
+export const isMobileUserAgent = (): boolean =>
+  /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent,
+  );
+
+/**
  * Detect if the user is on a mobile device.
  * Touch support alone is not sufficient — touchscreen laptops have touch
  * but use a mouse/trackpad as primary input. We check that the primary
  * pointing device is coarse (finger) to avoid false positives.
  */
 export const isMobileDevice = (): boolean => {
-  if (
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent,
-    )
-  )
-    return true;
+  if (isMobileUserAgent()) return true;
 
   const hasTouch = "ontouchstart" in window || navigator.maxTouchPoints > 0;
   if (!hasTouch) return false;
@@ -727,7 +739,7 @@ export const isTaskPolling = (taskStatus: string | null | undefined): boolean =>
  *   isStartingStatus: false,
  *   isStopStatus: false,
  *   curAgentState: AgentState.RUNNING
- * }) // Returns "#BCFF8C"
+ * }) // Returns "var(--oh-status-success)"
  */
 export const getStatusColor = (options: {
   isPausing: boolean;
@@ -754,7 +766,7 @@ export const getStatusColor = (options: {
   // Show task status if we're polling a task
   if (isTask && taskStatus) {
     if (taskStatus === "ERROR") {
-      return "#FF684E";
+      return OH_STATUS_ERROR_COLOR;
     }
     return "#FFD600";
   }
@@ -766,15 +778,15 @@ export const getStatusColor = (options: {
     return "#ffffff";
   }
   if (curAgentState === AgentState.ERROR) {
-    return "#FF684E";
+    return OH_STATUS_ERROR_COLOR;
   }
-  return "#BCFF8C";
+  return OH_STATUS_SUCCESS_COLOR;
 };
 
 interface GetStatusTextArgs {
   isPausing: boolean;
   isTask: boolean;
-  taskStatus?: string | null;
+  taskStatus?: AppConversationStartTaskStatus | null;
   taskDetail?: string | null;
   isStartingStatus: boolean;
   isStopStatus: boolean;
@@ -834,13 +846,7 @@ export function getStatusText({
       return t(I18nKey.CONVERSATION$READY);
     }
 
-    return (
-      taskDetail ||
-      taskStatus
-        .toLowerCase()
-        .replace(/_/g, " ")
-        .replace(/^\w/, (c) => c.toUpperCase())
-    );
+    return taskDetail || t(getTaskStatusI18nKey(taskStatus));
   }
 
   if (isStartingStatus) {

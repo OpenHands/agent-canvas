@@ -1,4 +1,4 @@
-import { Typography } from "#/ui/typography";
+import { Pre } from "#/ui/pre";
 
 interface SystemMessageContentProps {
   content: string;
@@ -6,8 +6,14 @@ interface SystemMessageContentProps {
 
 export function SystemMessageContent({ content }: SystemMessageContentProps) {
   return (
-    <div className="p-4 shadow-inner">
-      <Typography.CodeBlock>{content}</Typography.CodeBlock>
-    </div>
+    <Pre
+      size="small"
+      font="mono"
+      lineHeight="relaxed"
+      padding="medium"
+      className="text-[var(--oh-text-tertiary)]"
+    >
+      {content}
+    </Pre>
   );
 }

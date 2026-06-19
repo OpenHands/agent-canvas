@@ -310,7 +310,7 @@ describe("Sidebar", () => {
     const { navigate } = renderSidebar("/conversations");
 
     fireEvent.click(screen.getByTestId("collapsed-settings-link"));
-    expect(navigate).toHaveBeenCalledWith("/settings");
+    expect(navigate).toHaveBeenCalledWith("/settings", { replace: false });
   });
 
   it("opens the backend popover when hovering the collapsed backend icon", async () => {

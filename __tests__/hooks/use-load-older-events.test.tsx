@@ -6,7 +6,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLoadOlderEvents } from "#/hooks/use-load-older-events";
 import EventService from "#/api/event-service/event-service.api";
 import { useUserConversation } from "#/hooks/query/use-user-conversation";
+import { useConversationHistory } from "#/hooks/query/use-conversation-history";
 import { useEventStore } from "#/stores/use-event-store";
+import { useModelStore } from "#/stores/model-store";
 import { INITIAL_HISTORY_PAGE_SIZE } from "#/hooks/query/use-conversation-history";
 import type { Conversation } from "#/api/open-hands.types";
 import type { OpenHandsEvent } from "#/types/agent-server/core";
@@ -14,6 +16,13 @@ import type { EventSearchPage } from "#/api/event-service/event-service.types";
 
 vi.mock("#/api/event-service/event-service.api");
 vi.mock("#/hooks/query/use-user-conversation");
+vi.mock("#/hooks/query/use-conversation-history", () => ({
+  INITIAL_HISTORY_PAGE_SIZE: 50,
+  useConversationHistory: vi.fn(() => ({
+    data: undefined,
+    isFetched: false,
+  })),
+}));
 
 function makeConversation(): Conversation {
   // Cast: `useUserConversation` actually returns an `AppConversation` whose
@@ -70,6 +79,7 @@ describe("useLoadOlderEvents", () => {
     // Reset event store between tests so prior tests don't leak state.
     act(() => {
       useEventStore.getState().clearEvents();
+      useModelStore.getState().clearAll();
     });
 
     vi.mocked(useUserConversation).mockReturnValue({
@@ -80,6 +90,11 @@ describe("useLoadOlderEvents", () => {
       error: null,
       refetch: vi.fn(),
     } as any);
+
+    vi.mocked(useConversationHistory).mockReturnValue({
+      data: undefined,
+      isFetched: false,
+    } as ReturnType<typeof useConversationHistory>);
   });
 
   afterEach(() => {
@@ -146,6 +161,68 @@ describe("useLoadOlderEvents", () => {
     await waitFor(() => {
       expect(result.current.hasMore).toBe(false);
     });
+  });
+
+  it("seeds inline model-switch messages for switches in a paginated older page", async () => {
+    // A successful SwitchLLMObservation is hidden as a card and surfaced via an
+    // inline "Switched to" message seeded from history. The initial preload only
+    // seeds the tail page; a switch in an older page must be seeded when that
+    // page paginates in, or it vanishes from the transcript entirely.
+    const recent = makeEvent("evt-recent", "2024-06-01T00:00:00Z");
+    act(() => {
+      useEventStore.getState().addEvent(recent);
+    });
+
+    // Older page (server returns TIMESTAMP_DESC; the hook reverses it): a user
+    // message followed by the agent's successful model switch.
+    const userMsg = {
+      id: "evt-user-old",
+      timestamp: "2024-05-01T00:00:00Z",
+      source: "user",
+      llm_message: { role: "user", content: [{ type: "text", text: "hi" }] },
+      activated_microagents: [],
+      extended_content: [],
+    } as unknown as OpenHandsEvent;
+    const switchObs = {
+      id: "evt-switch-old",
+      timestamp: "2024-05-02T00:00:00Z",
+      source: "environment",
+      action_id: "action-switch-old",
+      tool_name: "switch_llm",
+      tool_call_id: "call-switch-old",
+      observation: {
+        kind: "SwitchLLMObservation",
+        content: [{ type: "text", text: "Switched to fast-opus" }],
+        is_error: false,
+        profile_name: "fast-opus",
+        reason: null,
+        active_model: null,
+      },
+    } as unknown as OpenHandsEvent;
+
+    vi.spyOn(EventService, "searchEvents").mockResolvedValue(
+      // Descending order, as the server returns it.
+      makePage([switchObs, userMsg], null),
+    );
+
+    const { result } = renderHook(() => useLoadOlderEvents("conv-1"), {
+      wrapper,
+    });
+
+    await act(async () => {
+      await result.current.loadOlder();
+    });
+
+    // The switch is seeded (idempotent id derived from the observation event),
+    // anchored to the renderable user message that precedes it.
+    const entries = useModelStore.getState().entriesByConversation["conv-1"];
+    expect(entries).toEqual([
+      expect.objectContaining({
+        id: "history-switch:evt-switch-old",
+        switchedTo: "fast-opus",
+        anchorEventId: "evt-user-old",
+      }),
+    ]);
   });
 
   it("keeps paginating while the server keeps returning full pages", async () => {
@@ -284,7 +361,7 @@ describe("useLoadOlderEvents", () => {
     expect(result.current.hasMore).toBe(true);
   });
 
-  it("stops paginating and throws when the oldest loaded event is missing a timestamp", async () => {
+  it("stops paginating silently when the oldest loaded event is missing a timestamp", async () => {
     act(() => {
       useEventStore
         .getState()
@@ -296,22 +373,66 @@ describe("useLoadOlderEvents", () => {
       wrapper,
     });
 
-    let thrown: unknown;
     await act(async () => {
-      try {
-        await result.current.loadOlder();
-      } catch (error) {
-        thrown = error;
-      }
+      await result.current.loadOlder();
     });
 
     expect(spy).not.toHaveBeenCalled();
-    expect(thrown).toBeInstanceOf(Error);
-    expect((thrown as Error).message).toContain(
-      "oldest loaded event has no timestamp",
-    );
     await waitFor(() => {
       expect(result.current.hasMore).toBe(false);
     });
+  });
+
+  it("does not paginate on start-task placeholder conversation ids", async () => {
+    act(() => {
+      useEventStore
+        .getState()
+        .addEvent(makeEvent("evt-recent", "2024-06-01T00:00:00Z"));
+    });
+
+    const spy = vi.spyOn(EventService, "searchEvents");
+    const { result } = renderHook(() => useLoadOlderEvents("task-abc"), {
+      wrapper,
+    });
+
+    expect(result.current.hasMore).toBe(false);
+
+    await act(async () => {
+      await result.current.loadOlder();
+    });
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("mirrors initial REST history hasMore=false so short chats do not backfill", async () => {
+    vi.mocked(useConversationHistory).mockReturnValue({
+      data: {
+        events: [makeEvent("evt-only", "2024-06-01T00:00:00Z")],
+        hasMore: false,
+        nextPageId: null,
+      },
+      isFetched: true,
+    } as ReturnType<typeof useConversationHistory>);
+
+    act(() => {
+      useEventStore
+        .getState()
+        .addEvent(makeEvent("evt-only", "2024-06-01T00:00:00Z"));
+    });
+
+    const spy = vi.spyOn(EventService, "searchEvents");
+    const { result } = renderHook(() => useLoadOlderEvents("conv-1"), {
+      wrapper,
+    });
+
+    await waitFor(() => {
+      expect(result.current.hasMore).toBe(false);
+    });
+
+    await act(async () => {
+      await result.current.loadOlder();
+    });
+
+    expect(spy).not.toHaveBeenCalled();
   });
 });

@@ -15,7 +15,7 @@ export default function SkillsPluginsScreen() {
       <main className={settingsLikeMainScrollClassName}>
         <div className="mx-auto w-full min-w-0 max-w-[800px]">
           <div className="mb-4 min-w-0 space-y-1">
-            <h2 className="text-xl font-semibold leading-6 text-foreground">
+            <h2 className="text-xl font-medium leading-6 text-foreground">
               {t(I18nKey.SETTINGS$PLUGINS_TITLE)}
             </h2>
             <div className="max-w-2xl text-sm text-tertiary-light">

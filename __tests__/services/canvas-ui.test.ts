@@ -22,18 +22,23 @@ describe("handleCanvasUIAction", () => {
       isRightPanelShown: false,
       hasRightPanelToggled: false,
     });
-    useFilesTabStore.setState({ selectedPath: null });
+    useFilesTabStore.setState({
+      selectedPath: null,
+      selectedConversationId: null,
+    });
   });
 
   it("navigate_to_file selects the files tab, reveals the panel, and sets selectedPath", () => {
     handleCanvasUIAction(
       action({ command: "navigate_to_file", path: "docs/intro.html" }),
+      "conv-1",
     );
 
     const conv = useConversationStore.getState();
     expect(conv.selectedTab).toBe("files");
     expect(conv.isRightPanelShown).toBe(true);
     expect(useFilesTabStore.getState().selectedPath).toBe("docs/intro.html");
+    expect(useFilesTabStore.getState().selectedConversationId).toBe("conv-1");
   });
 
   it("show_preview selects the files tab and the requested path", () => {
@@ -66,6 +71,14 @@ describe("handleCanvasUIAction", () => {
     } finally {
       warnSpy.mockRestore();
     }
+  });
+
+  it("open_tab routes the removed vscode tab to files", () => {
+    handleCanvasUIAction(action({ command: "open_tab", tab: "vscode" }));
+
+    expect(useConversationStore.getState().selectedTab).toBe("files");
+    expect(useConversationStore.getState().isRightPanelShown).toBe(true);
+    expect(useFilesTabStore.getState().selectedPath).toBeNull();
   });
 
   it("navigate_to_file leaves selectedPath alone when no path is supplied", () => {

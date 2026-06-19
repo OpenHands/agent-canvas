@@ -2,12 +2,20 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 
 import ConversationService from "#/api/conversation-service/conversation-service.api";
+import { clearAgentServerHomeDirCache } from "#/api/agent-server-home";
 
 const fileUploadMock = vi.fn();
+const getHomeMock = vi.fn();
 
 vi.mock("@openhands/typescript-client/workspace/remote-workspace", () => ({
   RemoteWorkspace: vi.fn(function RemoteWorkspaceMock() {
     return { fileUpload: fileUploadMock };
+  }),
+}));
+
+vi.mock("@openhands/typescript-client/clients", () => ({
+  FileClient: vi.fn(function FileClientMock() {
+    return { getHome: getHomeMock };
   }),
 }));
 
@@ -19,9 +27,14 @@ describe("ConversationService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     ConversationService.setCurrentConversation(null);
+    clearAgentServerHomeDirCache();
+    getHomeMock.mockResolvedValue({ home: "/Users/agent" });
   });
 
   describe("uploadFiles", () => {
+    // @spec WUP-001 — The default fallback working dir is relative
+    // (`workspace/project`); the upload path is resolved against the
+    // agent-server's home directory via /api/file/home.
     it("uploads files through RemoteWorkspace and reports successes", async () => {
       fileUploadMock.mockResolvedValue(undefined);
 
@@ -38,11 +51,11 @@ describe("ConversationService", () => {
       );
       expect(fileUploadMock).toHaveBeenCalledWith(
         expect.objectContaining({ name: "a.txt" }),
-        "/workspace/a.txt",
+        "/Users/agent/workspace/project/a.txt",
       );
       expect(fileUploadMock).toHaveBeenCalledWith(
         expect.objectContaining({ name: "b.txt" }),
-        "/workspace/b.txt",
+        "/Users/agent/workspace/project/b.txt",
       );
       expect(result).toEqual({
         uploaded_files: ["a.txt", "b.txt"],
@@ -59,12 +72,27 @@ describe("ConversationService", () => {
 
       expect(fileUploadMock).toHaveBeenCalledWith(
         expect.objectContaining({ name: "../../evil.txt" }),
-        "/workspace/evil.txt",
+        "/Users/agent/workspace/project/evil.txt",
       );
       expect(result).toEqual({
         uploaded_files: ["evil.txt"],
         skipped_files: [],
       });
+    });
+
+    it("uploads into the active conversation workspace when set", async () => {
+      ConversationService.setCurrentConversation({
+        id: "conv-1",
+        workspace: { working_dir: "/workspace/project/my-app" },
+      } as never);
+      fileUploadMock.mockResolvedValue(undefined);
+
+      await ConversationService.uploadFiles("conv-1", [makeFile("doc.txt")]);
+
+      expect(fileUploadMock).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "doc.txt" }),
+        "/workspace/project/my-app/doc.txt",
+      );
     });
 
     it("uses the current conversation session key and reports per-file failures", async () => {

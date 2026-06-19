@@ -13,7 +13,7 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./tests/e2e",
-  testIgnore: "**/e2e/live/**",
+  testIgnore: ["**/e2e/live/**", "**/e2e/mock-llm/**"],
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -25,19 +25,6 @@ export default defineConfig({
   workers: process.env.CI ? 2 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: "html",
-
-  /* Snapshot configuration for visual regression tests */
-  snapshotDir: "./tests/e2e/__snapshots__",
-  snapshotPathTemplate:
-    "{snapshotDir}/{testFilePath}/{projectName}/{arg}{ext}",
-  expect: {
-    toHaveScreenshot: {
-      /* Threshold for pixel comparison (0-1, lower = stricter) */
-      threshold: 0.01,
-      /* Maximum allowed different pixels */
-      maxDiffPixels: 100,
-    },
-  },
 
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {

@@ -15,6 +15,7 @@ import {
   HookExecutionEvent,
   PauseEvent,
   ServerErrorEvent,
+  StreamingDeltaEvent,
 } from "./events/index";
 
 /**
@@ -41,4 +42,5 @@ export type OpenHandsEvent =
   | ConversationErrorEvent
   // Control events
   | PauseEvent
-  | ServerErrorEvent;
+  | ServerErrorEvent
+  | StreamingDeltaEvent;

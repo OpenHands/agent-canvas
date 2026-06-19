@@ -12,14 +12,14 @@
  *
  * This script checks the RELEASED PyPI version of openhands-automation (as specified
  * by versions.automation in config/defaults.json), not the main branch.
- * versions.automationSdk records the SDK dependency version for that
- * released automation package and may intentionally lag versions.agentServer.
+ * The expected SDK dependency version is versions.agentServer — the two must
+ * always match, so this script catches any drift.
  *
  * This script is run in CI to catch version drift between projects.
  *
  * Usage:
  *   node scripts/check-sdk-version-sync.mjs
- *   EXPECTED_SDK_VERSION=1.23.0 node scripts/check-sdk-version-sync.mjs
+ *   EXPECTED_SDK_VERSION=1.28.1 node scripts/check-sdk-version-sync.mjs
  *   node scripts/check-sdk-version-sync.mjs --check-pypi
  *
  * Environment variables:
@@ -57,8 +57,7 @@ Verifies that the released openhands-automation package on PyPI uses the
 SDK version expected for that automation release.
 
 The automation version is read from config/defaults.json (versions.automation).
-The expected SDK dependency version is read from versions.automationSdk,
-falling back to versions.agentServer for older configs.
+The expected SDK dependency version is read from versions.agentServer.
 
 Usage:
   node scripts/check-sdk-version-sync.mjs [options]
@@ -79,7 +78,7 @@ Triggering from other repos:
     -H "Authorization: token \$GITHUB_TOKEN" \\
     -H "Accept: application/vnd.github.v3+json" \\
     https://api.github.com/repos/OpenHands/agent-canvas/dispatches \\
-    -d '{"event_type": "sdk-version-check", "client_payload": {"version": "1.23.0"}}'
+    -d '{"event_type": "sdk-version-check", "client_payload": {"version": "1.28.1"}}'
 `);
   process.exit(0);
 }
@@ -148,20 +147,13 @@ try {
   SHARED_DEFAULTS = JSON.parse(
     readFileSync(join(projectRoot, "config", "defaults.json"), "utf-8"),
   );
-  if (!SHARED_DEFAULTS.versions?.agentServer || !SHARED_DEFAULTS.versions?.automationSdk) {
-    throw new Error("missing required fields: versions.agentServer, versions.automationSdk");
+  if (!SHARED_DEFAULTS.versions?.agentServer) {
+    throw new Error("missing required field: versions.agentServer");
   }
 } catch (err) {
   console.error(`${colors.red}Failed to load config/defaults.json: ${err.message}${colors.reset}`);
   console.error("Ensure the file exists and contains valid JSON with required fields.");
   process.exit(1);
-}
-
-/**
- * Read the default agent-server SDK version from config/defaults.json.
- */
-function getDefaultAgentServerVersion() {
-  return { version: SHARED_DEFAULTS.versions.agentServer, source: "config/defaults.json" };
 }
 
 /**
@@ -176,8 +168,8 @@ function getExpectedVersion() {
   }
 
   return {
-    version: SHARED_DEFAULTS.versions.automationSdk,
-    source: "config/defaults.json (versions.automationSdk)",
+    version: SHARED_DEFAULTS.versions.agentServer,
+    source: "config/defaults.json (versions.agentServer)",
   };
 }
 
@@ -268,9 +260,9 @@ async function fetchPyPIDependencies(packageName, version) {
  * Parse PyPI requires_dist array and extract SDK package versions
  *
  * PyPI returns dependencies in PEP 508 format like:
- *   "openhands-sdk>=1.23.0,<2.0.0"
- *   "openhands-tools==1.23.0"
- *   "openhands-workspace (>=1.23.0)"
+ *   "openhands-sdk>=1.28.1,<2.0.0"
+ *   "openhands-tools==1.28.1"
+ *   "openhands-workspace (>=1.28.1)"
  */
 function parseSdkVersionsFromRequiresDist(requiresDist) {
   const versions = {};
@@ -284,7 +276,7 @@ function parseSdkVersionsFromRequiresDist(requiresDist) {
       }
 
       // Extract the version number - look for patterns like:
-      // ">=1.23.0", "==1.23.0", "(>=1.23.0)", "~=1.23.0"
+      // ">=1.28.1", "==1.28.1", "(>=1.28.1)", "~=1.28.1"
       // After the package name and before any comma or closing paren
       const versionPattern = /[><=~!]+\s*([0-9]+(?:\.[0-9]+)*)/;
       const match = dep.match(versionPattern);
@@ -315,13 +307,6 @@ async function main() {
     console.log(
       `Expected automation SDK version: ${colors.green}${expectedVersion}${colors.reset} (from ${versionSource})`,
     );
-
-    const { version: agentServerVersion } = getDefaultAgentServerVersion();
-    if (!versionsEqual(agentServerVersion, expectedVersion)) {
-      console.log(
-        `${colors.yellow}Note:${colors.reset} DEFAULT_AGENT_SERVER_VERSION is ${agentServerVersion}; automation release dependencies may lag while a compatible automation package is pending.`,
-      );
-    }
 
     // Get automation version from env var or config/defaults.json
     const { version: automationVersion, source: automationSource } = getAutomationVersion();
@@ -413,13 +398,10 @@ async function main() {
       console.log("");
       console.log("To fix, update one of the following:");
       console.log(
-        `  1. Update versions.automationSdk in config/defaults.json to match the automation release`,
+        `  1. Release a new version of ${AUTOMATION_PACKAGE_NAME} with SDK dependencies pinned to ${expectedVersion}`,
       );
       console.log(
-        `  2. Release a new version of ${AUTOMATION_PACKAGE_NAME} with SDK dependencies pinned to ${expectedVersion}`,
-      );
-      console.log(
-        `  3. Update versions.automation in config/defaults.json to a newer release`,
+        `  2. Update versions.automation in config/defaults.json to a newer release`,
       );
       console.log("");
       process.exit(1);

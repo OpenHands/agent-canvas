@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyGroupFolderOrder,
+  getGroupConversationPreview,
   groupConversations,
+  GROUP_CONVERSATIONS_PREVIEW_LIMIT,
   parseConversationTimeMs,
+  moveGroupFolderOrder,
+  resolvePinnedConversations,
   sortConversationsByField,
 } from "#/components/features/conversation-panel/conversation-panel-list-helpers";
 import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
@@ -212,11 +217,62 @@ describe("conversation-panel-list-helpers", () => {
     ]);
   });
 
+  it("limits grouped folder previews to five conversations with an expand path", () => {
+    const conversations = Array.from({ length: 6 }, (_, index) => ({
+      ...base,
+      id: `c-${index}`,
+      title: `Conversation ${index}`,
+      updated_at: `2024-01-0${index + 1}T00:00:00.000Z`,
+    }));
+
+    const truncated = getGroupConversationPreview(conversations, {
+      expanded: false,
+    });
+    expect(truncated.visibleConversations.map((c) => c.id)).toEqual([
+      "c-0",
+      "c-1",
+      "c-2",
+      "c-3",
+      "c-4",
+    ]);
+    expect(truncated.isPreviewTruncated).toBe(true);
+    expect(truncated.isShowingAll).toBe(false);
+
+    const expanded = getGroupConversationPreview(conversations, {
+      expanded: true,
+    });
+    expect(expanded.visibleConversations).toHaveLength(6);
+    expect(expanded.isPreviewTruncated).toBe(true);
+    expect(expanded.isShowingAll).toBe(true);
+
+    const withActiveBeyondPreview = getGroupConversationPreview(conversations, {
+      expanded: false,
+      activeConversationId: "c-5",
+    });
+    expect(
+      withActiveBeyondPreview.visibleConversations.map((c) => c.id),
+    ).toEqual(["c-0", "c-1", "c-2", "c-3", "c-5"]);
+    expect(GROUP_CONVERSATIONS_PREVIEW_LIMIT).toBe(5);
+  });
+
+  it("resolvePinnedConversations preserves pin order and drops missing ids", () => {
+    const conversations = [
+      { ...base, id: "a", title: "A" },
+      { ...base, id: "b", title: "B" },
+      { ...base, id: "c", title: "C" },
+    ] as AppConversation[];
+
+    expect(
+      resolvePinnedConversations(["c", "missing", "a"], conversations).map(
+        (conversation) => conversation.id,
+      ),
+    ).toEqual(["c", "a"]);
+  });
+
   it("groups local conversations by selected_workspace, collapsing per-conversation worktree paths", () => {
-    // Two conversations launched against the same workspace but with
-    // different per-conversation worktree dirs (the agent-server runs
-    // with worktree: true). They must end up in a single group keyed
-    // off the user-selected workspace, not split by the worktree dir.
+    // Two worktree-mode conversations launched against the same workspace must
+    // end up in a single group keyed off the user-selected workspace, not split
+    // by the runtime worktree dir.
     const sameWsA: AppConversation = {
       ...base,
       id: "1",
@@ -325,5 +381,37 @@ describe("conversation-panel-list-helpers", () => {
         branch: "main",
       },
     });
+  });
+
+  it("applies a persisted folder order and moves folders via drag-and-drop", () => {
+    const groups = [
+      { id: "ws:/workspace/alpha", label: "alpha" },
+      { id: "ws:/workspace/beta", label: "beta" },
+      { id: "ws:/workspace/gamma", label: "gamma" },
+    ];
+
+    expect(
+      applyGroupFolderOrder(groups, [
+        "ws:/workspace/gamma",
+        "ws:/workspace/alpha",
+      ]).map((group) => group.id),
+    ).toEqual([
+      "ws:/workspace/gamma",
+      "ws:/workspace/alpha",
+      "ws:/workspace/beta",
+    ]);
+
+    expect(
+      moveGroupFolderOrder(
+        ["ws:/workspace/gamma", "ws:/workspace/alpha"],
+        groups.map((group) => group.id),
+        "ws:/workspace/alpha",
+        "ws:/workspace/beta",
+      ),
+    ).toEqual([
+      "ws:/workspace/gamma",
+      "ws:/workspace/beta",
+      "ws:/workspace/alpha",
+    ]);
   });
 });

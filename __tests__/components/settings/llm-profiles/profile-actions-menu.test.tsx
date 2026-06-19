@@ -9,6 +9,7 @@ vi.mock("react-i18next", () => ({
       const translations: Record<string, string> = {
         "SETTINGS$PROFILE_EDIT": "Edit",
         "BUTTON$RENAME": "Rename",
+        "BUTTON$DUPLICATE": "Duplicate",
         "SETTINGS$PROFILE_SET_ACTIVE": "Set as active",
         "BUTTON$DELETE": "Delete",
       };
@@ -20,6 +21,7 @@ vi.mock("react-i18next", () => ({
 const defaultProps = {
   onEdit: vi.fn(),
   onRename: vi.fn(),
+  onDuplicate: vi.fn(),
   onSetActive: vi.fn(),
   onDelete: vi.fn(),
   isActive: false,
@@ -28,13 +30,50 @@ const defaultProps = {
 };
 
 describe("ProfileActionsMenu", () => {
-  it("renders Edit, Rename, Set Active, and Delete buttons", () => {
+  it("renders Edit, Rename, Duplicate, Set Active, and Delete buttons", () => {
     render(<ProfileActionsMenu {...defaultProps} />);
 
     expect(screen.getByTestId("profile-edit")).toHaveTextContent("Edit");
     expect(screen.getByTestId("profile-rename")).toHaveTextContent("Rename");
+    expect(screen.getByTestId("profile-duplicate")).toHaveTextContent(
+      "Duplicate",
+    );
     expect(screen.getByTestId("profile-set-active")).toHaveTextContent("Set as active");
     expect(screen.getByTestId("profile-delete")).toHaveTextContent("Delete");
+  });
+
+  it("renders Duplicate between Rename and Set as active", () => {
+    render(<ProfileActionsMenu {...defaultProps} />);
+
+    const items = screen.getAllByRole("menuitem");
+    const testIds = items.map((item) => item.getAttribute("data-testid"));
+
+    expect(testIds).toEqual([
+      "profile-edit",
+      "profile-rename",
+      "profile-duplicate",
+      "profile-set-active",
+      "profile-delete",
+    ]);
+  });
+
+  it("calls onDuplicate and onClose when Duplicate is clicked", async () => {
+    const user = userEvent.setup();
+    const handleDuplicate = vi.fn();
+    const handleClose = vi.fn();
+
+    render(
+      <ProfileActionsMenu
+        {...defaultProps}
+        onDuplicate={handleDuplicate}
+        onClose={handleClose}
+      />,
+    );
+
+    await user.click(screen.getByTestId("profile-duplicate"));
+
+    expect(handleDuplicate).toHaveBeenCalledTimes(1);
+    expect(handleClose).toHaveBeenCalledTimes(1);
   });
 
   it("calls onEdit and onClose when Edit is clicked", async () => {
@@ -108,6 +147,20 @@ describe("ProfileActionsMenu", () => {
     expect(setActiveButton).toBeDisabled();
   });
 
+  it("keeps Delete enabled even when isActive is true", () => {
+    // The active profile is deletable; useEnsureActiveProfile promotes another
+    // profile to active afterwards so one is always active in local mode.
+    render(<ProfileActionsMenu {...defaultProps} isActive />);
+
+    expect(screen.getByTestId("profile-delete")).not.toBeDisabled();
+  });
+
+  it("enables Delete button when isActive is false", () => {
+    render(<ProfileActionsMenu {...defaultProps} isActive={false} />);
+
+    expect(screen.getByTestId("profile-delete")).not.toBeDisabled();
+  });
+
   it("calls onDelete and onClose when Delete is clicked", async () => {
     const user = userEvent.setup();
     const handleDelete = vi.fn();
@@ -170,14 +223,15 @@ describe("ProfileActionsMenu", () => {
     expect(menu).toHaveAttribute("aria-orientation", "vertical");
 
     const menuItems = screen.getAllByRole("menuitem");
-    expect(menuItems).toHaveLength(4);
+    expect(menuItems).toHaveLength(5);
   });
 
-  it("marks the Delete menu item as destructive", () => {
+  it("styles Delete like other menu items", () => {
     render(<ProfileActionsMenu {...defaultProps} />);
 
     const deleteButton = screen.getByTestId("profile-delete");
-    expect(deleteButton).toHaveAttribute("data-destructive", "true");
+    expect(deleteButton).not.toHaveAttribute("data-destructive");
+    expect(deleteButton.className).not.toMatch(/text-red/);
   });
 
   it("does not call onClose when clicking inside the menu container", () => {
@@ -221,6 +275,7 @@ describe("ProfileActionsMenu", () => {
 
       // Navigate to the last item (Delete)
       await user.keyboard("{ArrowDown}"); // Rename
+      await user.keyboard("{ArrowDown}"); // Duplicate
       await user.keyboard("{ArrowDown}"); // Set Active
       await user.keyboard("{ArrowDown}"); // Delete
       expect(screen.getByTestId("profile-delete")).toHaveFocus();

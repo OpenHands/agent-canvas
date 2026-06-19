@@ -1,13 +1,115 @@
 import { describe, expect, it, vi, beforeEach, type Mock } from "vitest";
 import { AxiosError } from "axios";
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "test-utils";
-import { LlmSettingsLocalView } from "#/components/features/settings/llm-profiles/llm-settings-local-view";
+import {
+  LlmSettingsLocalView,
+  shouldReapplyProfileAfterSave,
+} from "#/components/features/settings/llm-profiles/llm-settings-local-view";
 import * as useLlmProfilesHook from "#/hooks/query/use-llm-profiles";
 import * as useActivateLlmProfileHook from "#/hooks/mutation/use-activate-llm-profile";
 import * as useSaveLlmProfileHook from "#/hooks/mutation/use-save-llm-profile";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
+
+vi.mock("#/routes/llm-settings", async () => {
+  const React = await vi.importActual<typeof import("react")>("react");
+  return {
+    LlmSettingsScreen: ({
+      initialValueOverrides,
+      onSaveControlChange,
+    }: {
+      initialValueOverrides?: Record<string, string | boolean>;
+      onSaveControlChange?: (control: {
+        save: () => void;
+        isSaving: boolean;
+        isDirty: boolean;
+        view: "basic" | "all";
+        values: Record<string, string | boolean>;
+        getDirtyPayload: () => { llm: Record<string, unknown> };
+      }) => void;
+    }) => {
+      const initialValueOverridesRef = React.useRef(initialValueOverrides);
+      const initialValuesRef = React.useRef({
+        "llm.model": "openai/gpt-4o",
+        "llm.api_key": "test-api-key",
+        "llm.base_url": "",
+        ...(initialValueOverrides ?? {}),
+      });
+      const [view, setView] = React.useState<"basic" | "all">("basic");
+      const [model, setModel] = React.useState(
+        String(initialValuesRef.current["llm.model"] ?? ""),
+      );
+      const [apiKey] = React.useState(
+        String(initialValuesRef.current["llm.api_key"] ?? ""),
+      );
+      const [baseUrl] = React.useState(
+        String(initialValuesRef.current["llm.base_url"] ?? ""),
+      );
+      const [temperature, setTemperature] = React.useState("0.2");
+      React.useEffect(() => {
+        const values = {
+          ...(initialValueOverridesRef.current ?? {}),
+          "llm.model": model,
+          "llm.api_key": apiKey,
+          "llm.base_url": baseUrl,
+        };
+        onSaveControlChange?.({
+          save: vi.fn(),
+          isSaving: false,
+          isDirty: true,
+          view,
+          values,
+          getDirtyPayload: () => {
+            if (view === "all") {
+              return { llm: { temperature: Number(temperature) } };
+            }
+            return {
+              llm: {
+                model: values["llm.model"],
+                api_key: values["llm.api_key"],
+                base_url: values["llm.base_url"],
+              },
+            };
+          },
+        });
+      }, [apiKey, baseUrl, model, onSaveControlChange, temperature, view]);
+
+      return (
+        <div data-testid="mock-llm-settings-screen">
+          <button
+            data-testid="sdk-section-basic-toggle"
+            type="button"
+            onClick={() => setView("basic")}
+          >
+            Basic
+          </button>
+          <button
+            data-testid="sdk-section-all-toggle"
+            type="button"
+            onClick={() => setView("all")}
+          >
+            All
+          </button>
+          {view === "basic" ? (
+            <input
+              data-testid="mock-basic-model-input"
+              value={model}
+              onChange={(event) => setModel(event.currentTarget.value)}
+            />
+          ) : null}
+          {view === "all" ? (
+            <input
+              data-testid="sdk-settings-llm.temperature"
+              value={temperature}
+              onChange={(event) => setTemperature(event.currentTarget.value)}
+            />
+          ) : null}
+        </div>
+      );
+    },
+  };
+});
 
 vi.mock("#/hooks/query/use-llm-profiles");
 vi.mock("#/hooks/mutation/use-activate-llm-profile");
@@ -128,7 +230,9 @@ describe("LlmSettingsLocalView", () => {
     expect(
       screen.getByText(/Add LLM Profile|SETTINGS\$ADD_LLM_PROFILE/),
     ).toBeInTheDocument();
-    expect(screen.getByTestId("profile-editor-description")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("profile-editor-description"),
+    ).toBeInTheDocument();
   });
 
   it("returns to list view when back button clicked", async () => {
@@ -189,55 +293,28 @@ describe("LlmSettingsLocalView", () => {
     renderWithProviders(<LlmSettingsLocalView />);
 
     // Error message component should be rendered (text is a translation key)
-    expect(screen.getByText("SETTINGS$PROFILES_LOAD_ERROR")).toBeInTheDocument();
+    expect(
+      screen.getByText("SETTINGS$PROFILES_LOAD_ERROR"),
+    ).toBeInTheDocument();
   });
 
-  /**
-   * Integration test verifying the actual save flow:
-   * 1. Renders the component
-   * 2. Navigates to create view
-   * 3. Fills in profile name
-   * 4. Clicks save
-   * 5. Verifies the save mutation was called with correct payload
-   * 6. Verifies the view switches back to list mode
-   */
-  it("calls save mutation with correct payload and returns to list", async () => {
-    const user = userEvent.setup();
+  it("keeps the create view stable when save controls are incomplete", () => {
     mockSaveMutateAsync.mockResolvedValueOnce({ success: true });
 
     renderWithProviders(<LlmSettingsLocalView />);
 
-    // Navigate to create view
-    await user.click(screen.getByTestId("add-llm-profile"));
+    fireEvent.click(screen.getByTestId("add-llm-profile"));
 
-    // Should be in create view
     expect(screen.getByTestId("profile-name-input")).toBeInTheDocument();
 
-    // Fill in profile name
     const nameInput = screen.getByTestId("profile-name-input");
-    await user.clear(nameInput);
-    await user.type(nameInput, "my-new-profile");
+    fireEvent.change(nameInput, { target: { value: "my-new-profile" } });
+    expect(nameInput).toHaveValue("my-new-profile");
 
-    // The save button should be enabled after name is entered
-    // (model is handled by the embedded LlmSettingsScreen which we mock)
     const saveButton = screen.getByTestId("save-profile-btn");
+    fireEvent.click(saveButton);
 
-    // Click save - the actual form submission requires the embedded
-    // LlmSettingsScreen to provide form values via onSaveControlChange.
-    // Since we mock that component's behavior, we verify the mutation hook
-    // was set up correctly and the UI state transitions work.
-    await user.click(saveButton);
-
-    // After successful save, should return to list view
-    // Note: The actual save flow depends on the embedded LlmSettingsScreen
-    // providing a saveControl with form values. This test verifies the
-    // component correctly wires the mutation hook and handles UI transitions.
-    await waitFor(() => {
-      // Either we're back at list view or the save button interaction completed
-      const profileList = screen.queryByText("gpt-4-profile");
-      const createView = screen.queryByTestId("profile-name-input");
-      expect(profileList || createView).toBeTruthy();
-    });
+    expect(screen.getByTestId("profile-name-input")).toBeInTheDocument();
   });
 
   describe("create mode form initialization", () => {
@@ -340,9 +417,9 @@ describe("LlmSettingsLocalView", () => {
       expect(
         screen.getByText(/Edit LLM Profile|SETTINGS\$EDIT_LLM_PROFILE/),
       ).toBeInTheDocument();
-      expect(screen.getByTestId("profile-editor-description")).toHaveTextContent(
-        /gpt-4-profile|SETTINGS\$PROFILE_LOADED/,
-      );
+      expect(
+        screen.getByTestId("profile-editor-description"),
+      ).toHaveTextContent(/gpt-4-profile|SETTINGS\$PROFILE_LOADED/);
 
       // Verify getProfile was called with the correct profile name
       expect(ProfilesService.getProfile).toHaveBeenCalledWith(
@@ -487,8 +564,7 @@ describe("LlmSettingsLocalView", () => {
         message: "Profile renamed",
       });
 
-      // Mock activateProfile
-      vi.mocked(ProfilesService.activateProfile).mockResolvedValue({
+      mockActivateMutateAsync.mockResolvedValue({
         name: "my-renamed-profile",
         message: "Profile activated",
         llm_applied: true,
@@ -516,9 +592,9 @@ describe("LlmSettingsLocalView", () => {
       // Click save
       await user.click(screen.getByTestId("save-profile-btn"));
 
-      // Verify activateProfile was called after rename and save
+      // Verify activation mutation was called after rename and save
       await waitFor(() => {
-        expect(ProfilesService.activateProfile).toHaveBeenCalledWith(
+        expect(mockActivateMutateAsync).toHaveBeenCalledWith(
           "my-renamed-profile",
         );
       });
@@ -536,5 +612,215 @@ describe("LlmSettingsLocalView", () => {
       // The rename API mock would fail if unexpectedly called since it's not set up.
       expect(true).toBe(true);
     });
+  });
+
+  describe("Basic tab save", () => {
+    it("preserves hidden base_url for OpenHands models without a model change", async () => {
+      // Arrange — a profile has an actual advanced base_url value. Switching to
+      // Basic hides it, but saving without changing the model must not wipe it.
+      const user = userEvent.setup();
+      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
+        name: "gpt-4-profile",
+        api_key_set: true,
+        config: {
+          model: "openhands/claude-opus-4-5-20251101",
+          api_key: "gAAAA_encrypted_key",
+          base_url: "https://stale.example.com/v1",
+        },
+      });
+      mockSaveMutateAsync.mockResolvedValueOnce({ success: true });
+
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      // Act — open the profile in edit mode, force the Basic tab, and save.
+      await user.click(screen.getAllByTestId("profile-menu-trigger")[0]);
+      await user.click(screen.getByTestId("profile-edit"));
+      await waitFor(() => {
+        expect(screen.getByTestId("profile-name-input")).toHaveValue(
+          "gpt-4-profile",
+        );
+      });
+      await user.click(await screen.findByTestId("sdk-section-basic-toggle"));
+      await waitFor(() => {
+        expect(screen.getByTestId("save-profile-btn")).not.toBeDisabled();
+      });
+      await user.click(screen.getByTestId("save-profile-btn"));
+
+      // Assert — the hidden base_url survives because the model did not change.
+      await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
+      const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
+      expect(savedLlm.model).toBe("openhands/claude-opus-4-5-20251101");
+      expect(savedLlm.base_url).toBe("https://stale.example.com/v1");
+    });
+
+    it("preserves hidden base_url for stored litellm_proxy profiles without a model change", async () => {
+      // Arrange — legacy/custom proxy profiles may still have a base_url. Basic
+      // view must not erase that invisible value on a same-model save.
+      const user = userEvent.setup();
+      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
+        name: "gpt-4-profile",
+        api_key_set: true,
+        config: {
+          model: "litellm_proxy/claude-opus-4-8",
+          api_key: "gAAAA_encrypted_key",
+          base_url: "https://llm-proxy.app.all-hands.dev/",
+        },
+      });
+      mockSaveMutateAsync.mockResolvedValueOnce({ success: true });
+
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      // Act — open the profile in edit mode, force the Basic tab, and save
+      // without touching the model dropdown.
+      await user.click(screen.getAllByTestId("profile-menu-trigger")[0]);
+      await user.click(screen.getByTestId("profile-edit"));
+      await waitFor(() => {
+        expect(screen.getByTestId("profile-name-input")).toHaveValue(
+          "gpt-4-profile",
+        );
+      });
+      await user.click(await screen.findByTestId("sdk-section-basic-toggle"));
+      await waitFor(() => {
+        expect(screen.getByTestId("save-profile-btn")).not.toBeDisabled();
+      });
+      await user.click(screen.getByTestId("save-profile-btn"));
+
+      // Assert — the legacy model and hidden base_url are both preserved.
+      await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
+      const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
+      expect(savedLlm.model).toBe("litellm_proxy/claude-opus-4-8");
+      expect(savedLlm.base_url).toBe("https://llm-proxy.app.all-hands.dev/");
+    });
+
+    it("drops hidden base_url when the Basic view model changes", async () => {
+      // Arrange — the existing base_url belongs to the old model/provider.
+      const user = userEvent.setup();
+      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
+        name: "gpt-4-profile",
+        api_key_set: true,
+        config: {
+          model: "openhands/claude-opus-4-5-20251101",
+          api_key: "gAAAA_encrypted_key",
+          base_url: "https://stale.example.com/v1",
+        },
+      });
+      mockSaveMutateAsync.mockResolvedValueOnce({ success: true });
+
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      await user.click(screen.getAllByTestId("profile-menu-trigger")[0]);
+      await user.click(screen.getByTestId("profile-edit"));
+      await waitFor(() => {
+        expect(screen.getByTestId("profile-name-input")).toHaveValue(
+          "gpt-4-profile",
+        );
+      });
+      await user.click(await screen.findByTestId("sdk-section-basic-toggle"));
+      const modelInput = await screen.findByTestId("mock-basic-model-input");
+      await user.clear(modelInput);
+      await user.type(modelInput, "openhands/claude-sonnet-4-20250514");
+      await waitFor(() => {
+        expect(screen.getByTestId("save-profile-btn")).not.toBeDisabled();
+      });
+      await user.click(screen.getByTestId("save-profile-btn"));
+
+      // Assert — changing the Basic model clears the old hidden base_url.
+      await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
+      const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
+      expect(savedLlm.model).toBe("openhands/claude-sonnet-4-20250514");
+      expect(savedLlm).not.toHaveProperty("base_url");
+    });
+  });
+
+  describe("All tab save", () => {
+    it("persists a changed minor field without wiping untouched fields", async () => {
+      // Arrange — a profile with a minor field (temperature) plus fields the
+      // user will not touch. Saving the All tab must persist the edited minor
+      // field (typed → coerced to a number) while preserving the rest, instead
+      // of resetting everything to LLM defaults via the full-replace save.
+      const user = userEvent.setup();
+      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
+        name: "gpt-4-profile",
+        api_key_set: true,
+        config: {
+          model: "anthropic/claude-opus-4-5-20251101",
+          api_key: "gAAAA_encrypted_key",
+          base_url: null,
+          temperature: 0.2,
+        },
+      });
+      mockSaveMutateAsync.mockResolvedValueOnce({ success: true });
+
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      // Act — open the profile, switch to the All tab, edit temperature, save.
+      await user.click(screen.getAllByTestId("profile-menu-trigger")[0]);
+      await user.click(screen.getByTestId("profile-edit"));
+      await waitFor(() => {
+        expect(screen.getByTestId("profile-name-input")).toHaveValue(
+          "gpt-4-profile",
+        );
+      });
+      await user.click(await screen.findByTestId("sdk-section-all-toggle"));
+      const temperatureInput = await screen.findByTestId(
+        "sdk-settings-llm.temperature",
+      );
+      await user.clear(temperatureInput);
+      await user.type(temperatureInput, "0.7");
+      await waitFor(() => {
+        expect(screen.getByTestId("save-profile-btn")).not.toBeDisabled();
+      });
+      await user.click(screen.getByTestId("save-profile-btn"));
+
+      // Assert — the edited minor field is persisted as a number, and the
+      // untouched model and API key survive.
+      await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
+      const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
+      expect(savedLlm.temperature).toBe(0.7);
+      expect(savedLlm.model).toBe("anthropic/claude-opus-4-5-20251101");
+      expect(savedLlm.api_key).toBe("gAAAA_encrypted_key");
+    });
+  });
+});
+
+describe("shouldReapplyProfileAfterSave", () => {
+  it("reapplies when saving the active profile without renaming", () => {
+    expect(
+      shouldReapplyProfileAfterSave({
+        activeProfileName: "gpt-4-profile",
+        originalName: "gpt-4-profile",
+        savedName: "gpt-4-profile",
+      }),
+    ).toBe(true);
+  });
+
+  it("reapplies when the active profile was renamed", () => {
+    expect(
+      shouldReapplyProfileAfterSave({
+        activeProfileName: "gpt-4-profile",
+        originalName: "gpt-4-profile",
+        savedName: "my-renamed-profile",
+      }),
+    ).toBe(true);
+  });
+
+  it("reapplies when creating a profile with the active profile name", () => {
+    expect(
+      shouldReapplyProfileAfterSave({
+        activeProfileName: "gpt-4-profile",
+        originalName: null,
+        savedName: "gpt-4-profile",
+      }),
+    ).toBe(true);
+  });
+
+  it("does not reapply inactive profiles", () => {
+    expect(
+      shouldReapplyProfileAfterSave({
+        activeProfileName: "claude-profile",
+        originalName: "gpt-4-profile",
+        savedName: "gpt-4-profile",
+      }),
+    ).toBe(false);
   });
 });

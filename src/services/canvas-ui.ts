@@ -8,7 +8,6 @@ import type { CanvasUIAction } from "#/types/agent-server/core";
 const VALID_TABS: ReadonlySet<ConversationTab> = new Set<ConversationTab>([
   "files",
   "browser",
-  "vscode",
   "terminal",
   "planner",
   "tasklist",
@@ -30,17 +29,27 @@ function isValidTab(value: string): value is ConversationTab {
   return VALID_TABS.has(value as ConversationTab);
 }
 
-export function handleCanvasUIAction(action: CanvasUIAction): void {
+export function handleCanvasUIAction(
+  action: CanvasUIAction,
+  conversationId: string | null = null,
+): void {
   switch (action.command) {
     case "navigate_to_file":
     case "show_preview":
       navigateToTab("files");
       if (action.path) {
-        useFilesTabStore.getState().setSelectedPath(action.path);
+        useFilesTabStore
+          .getState()
+          .setSelectedPath(action.path, conversationId);
       }
       return;
     case "open_tab":
-      if (action.tab && isValidTab(action.tab)) {
+      if (action.tab === "vscode") {
+        // The in-app VS Code tab was removed — on cloud backends VS Code
+        // now opens in a new browser window via the link in the drawer tab
+        // row. Route agent requests to Files so the drawer still opens.
+        navigateToTab("files");
+      } else if (action.tab && isValidTab(action.tab)) {
         navigateToTab(action.tab);
       } else if (action.tab) {
         // Surface unknown tab names so they're diagnosable from the browser

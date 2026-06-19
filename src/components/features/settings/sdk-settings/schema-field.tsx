@@ -5,60 +5,27 @@ import { SettingsDropdownInput } from "#/components/features/settings/settings-d
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { SettingsSwitch } from "#/components/features/settings/settings-switch";
 import { SettingsFieldSchema } from "#/types/settings";
-import { HelpLink } from "#/ui/help-link";
-import { Typography } from "#/ui/typography";
 import {
   getSettingsFieldConstraints,
   resolveSchemaChoiceLabel,
-  resolveSchemaFieldDescription,
   resolveSchemaFieldLabel,
 } from "#/utils/sdk-settings-field-metadata";
 import { cn } from "#/utils/utils";
+import {
+  formControlMultilineFieldClassName,
+  formControlSwitchDescriptionClassName,
+} from "#/utils/form-control-classes";
+import { FieldHelp } from "./field-help";
 
-// ---------------------------------------------------------------------------
-// Help links – UI-only mapping from field keys to user-facing guidance.
-// Keys use conventional i18n pattern: SCHEMA$<PATH>$HELP_TEXT / HELP_LINK_TEXT
-// ---------------------------------------------------------------------------
-export const FIELD_HELP_LINKS: Record<
-  string,
-  { textKey: string; linkTextKey: string; href: string }
-> = {
-  "llm.api_key": {
-    textKey: "SCHEMA$LLM$API_KEY$HELP_TEXT",
-    linkTextKey: "SCHEMA$LLM$API_KEY$HELP_LINK_TEXT",
-    href: "https://docs.openhands.dev/usage/local-setup#getting-an-api-key",
-  },
-};
-
-function FieldHelp({ field }: { field: SettingsFieldSchema }) {
-  const { t } = useTranslation("openhands");
-  const helpLink = FIELD_HELP_LINKS[field.key];
-  const description = resolveSchemaFieldDescription(
-    t,
-    field.key,
-    field.description,
-  );
-
-  return (
-    <>
-      {description ? (
-        <Typography.Paragraph className="text-tertiary-alt text-xs leading-5">
-          {description}
-        </Typography.Paragraph>
-      ) : null}
-      {helpLink ? (
-        <HelpLink
-          testId={`help-link-${field.key}`}
-          text={t(helpLink.textKey)}
-          linkText={t(helpLink.linkTextKey)}
-          href={helpLink.href}
-          size="settings"
-          linkColor="white"
-        />
-      ) : null}
-    </>
-  );
-}
+/**
+ * Field keys that should span the full settings grid (both columns on xl
+ * screens) instead of sharing a row with the next field. Used for inputs
+ * whose label + value + help link need horizontal room so they don't
+ * sit awkwardly opposite a single toggle.
+ */
+export const FIELD_FULL_WIDTH_KEYS: ReadonlySet<string> = new Set([
+  "verification.critic_api_key",
+]);
 
 function isSelectField(field: SettingsFieldSchema): boolean {
   return field.choices.length > 0;
@@ -117,7 +84,9 @@ export function SchemaField({
         >
           {label}
         </SettingsSwitch>
-        <FieldHelp field={field} />
+        <div className={formControlSwitchDescriptionClassName}>
+          <FieldHelp field={field} />
+        </div>
       </div>
     );
   }
@@ -167,9 +136,9 @@ export function SchemaField({
           disabled={isDisabled}
           onChange={(event) => onChange(event.target.value)}
           className={cn(
-            "bg-tertiary border border-[var(--oh-border-input)] min-h-32 w-full min-w-0 rounded-sm p-2 font-mono text-sm",
-            "placeholder:italic placeholder:text-tertiary-alt",
-            "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)] disabled:cursor-not-allowed",
+            formControlMultilineFieldClassName,
+            "min-h-32 font-mono placeholder:italic",
+            "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)]",
           )}
         />
         <FieldHelp field={field} />

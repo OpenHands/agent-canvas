@@ -186,6 +186,7 @@ describe("LocalNewConversationMenu", () => {
         "/workspace/project/repo1",
         undefined,
         undefined,
+        undefined,
       );
     });
     await waitFor(() => {

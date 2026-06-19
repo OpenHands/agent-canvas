@@ -1,24 +1,20 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { Trash2 } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import { SettingsInput } from "../settings-input";
 import { SettingsDropdownInput } from "../settings-dropdown-input";
 import { BrandButton } from "../brand-button";
 import { OptionalTag } from "../optional-tag";
 import { cn } from "#/utils/utils";
+import { formControlMultilineFieldClassName } from "#/utils/form-control-classes";
+import type { MCPServerConfig } from "#/types/mcp-server";
 
 type MCPServerType = "sse" | "stdio" | "shttp";
 
-interface MCPServerConfig {
-  id: string;
-  type: MCPServerType;
-  name?: string;
-  url?: string;
-  api_key?: string;
-  timeout?: number;
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
+export interface TestMessage {
+  ok: boolean;
+  text: string;
 }
 
 interface MCPServerFormProps {
@@ -27,6 +23,11 @@ interface MCPServerFormProps {
   existingServers?: MCPServerConfig[];
   onSubmit: (server: MCPServerConfig) => void;
   onCancel: () => void;
+  onDelete?: () => void;
+  isActionDisabled?: boolean;
+  onTest?: (server: MCPServerConfig) => void;
+  isTestPending?: boolean;
+  testMessage?: TestMessage | null;
 }
 
 export function MCPServerForm({
@@ -35,12 +36,18 @@ export function MCPServerForm({
   existingServers,
   onSubmit,
   onCancel,
+  onDelete,
+  isActionDisabled = false,
+  onTest,
+  isTestPending = false,
+  testMessage = null,
 }: MCPServerFormProps) {
   const { t } = useTranslation("openhands");
   const [serverType, setServerType] = React.useState<MCPServerType>(
     server?.type || "sse",
   );
   const [error, setError] = React.useState<string | null>(null);
+  const formRef = React.useRef<HTMLFormElement>(null);
 
   const serverTypeOptions = [
     { key: "sse", label: t(I18nKey.SETTINGS$MCP_SERVER_TYPE_SSE) },
@@ -166,6 +173,14 @@ export function MCPServerForm({
       const urlDupError = validateUrlUniqueness(url);
       if (urlDupError) return urlDupError;
 
+      // The name is optional, but when provided it becomes the mcp_config
+      // key (and the reference used in mcp_server_refs), so hold it to the
+      // same safe-identifier rule as stdio names.
+      const name = formData.get("name")?.toString().trim() || "";
+      if (name && !/^[a-zA-Z0-9_-]+$/.test(name)) {
+        return t(I18nKey.SETTINGS$MCP_ERROR_NAME_INVALID);
+      }
+
       // Validate timeout for SHTTP servers only
       if (serverType === "shttp") {
         const timeoutStr = formData.get("timeout")?.toString() || "";
@@ -208,30 +223,21 @@ export function MCPServerForm({
       .join("\n");
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError(null);
-
-    const formData = new FormData(event.currentTarget);
-    const validationError = validateForm(formData);
-
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
+  const buildConfig = (formData: FormData): MCPServerConfig => {
     const baseConfig = {
       id: server?.id || `${serverType}-${Date.now()}`,
       type: serverType,
     };
 
     if (serverType === "sse" || serverType === "shttp") {
+      const name = formData.get("name")?.toString().trim();
       const url = formData.get("url")?.toString().trim();
       const apiKey = formData.get("api_key")?.toString().trim();
       const timeoutStr = formData.get("timeout")?.toString().trim();
 
       const serverConfig: MCPServerConfig = {
         ...baseConfig,
+        ...(name && { name }),
         url: url!,
         ...(apiKey && { api_key: apiKey }),
       };
@@ -244,29 +250,57 @@ export function MCPServerForm({
         }
       }
 
-      onSubmit(serverConfig);
-    } else if (serverType === "stdio") {
-      const name = formData.get("name")?.toString().trim();
-      const command = formData.get("command")?.toString().trim();
-      const argsString = formData.get("args")?.toString().trim();
-      const envString = formData.get("env")?.toString().trim();
-
-      const args = argsString
-        ? argsString
-            .split("\n")
-            .map((arg) => arg.trim())
-            .filter(Boolean)
-        : [];
-      const env = parseEnvironmentVariables(envString || "");
-
-      onSubmit({
-        ...baseConfig,
-        name: name!,
-        command: command!,
-        ...(args.length > 0 && { args }),
-        ...(Object.keys(env).length > 0 && { env }),
-      });
+      return serverConfig;
     }
+
+    // stdio
+    const name = formData.get("name")?.toString().trim();
+    const command = formData.get("command")?.toString().trim();
+    const argsString = formData.get("args")?.toString().trim();
+    const envString = formData.get("env")?.toString().trim();
+
+    const args = argsString
+      ? argsString
+          .split("\n")
+          .map((arg) => arg.trim())
+          .filter(Boolean)
+      : [];
+    const env = parseEnvironmentVariables(envString || "");
+
+    return {
+      ...baseConfig,
+      name: name!,
+      command: command!,
+      ...(args.length > 0 && { args }),
+      ...(Object.keys(env).length > 0 && { env }),
+    };
+  };
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+
+    const formData = new FormData(event.currentTarget);
+    const validationError = validateForm(formData);
+
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
+    onSubmit(buildConfig(formData));
+  };
+
+  const handleTestClick = () => {
+    if (!onTest || !formRef.current) return;
+    setError(null);
+    const formData = new FormData(formRef.current);
+    const validationError = validateForm(formData);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    onTest(buildConfig(formData));
   };
 
   const formTestId =
@@ -274,6 +308,7 @@ export function MCPServerForm({
 
   return (
     <form
+      ref={formRef}
       data-testid={formTestId}
       onSubmit={handleSubmit}
       className="flex flex-col items-start gap-6"
@@ -298,6 +333,17 @@ export function MCPServerForm({
 
       {(serverType === "sse" || serverType === "shttp") && (
         <>
+          <SettingsInput
+            testId="server-name-input"
+            name="name"
+            type="text"
+            label={t(I18nKey.SETTINGS$MCP_SERVER_NAME)}
+            className="w-full min-w-0"
+            showOptionalTag
+            defaultValue={server?.name || ""}
+            placeholder="my-search-server"
+          />
+
           <SettingsInput
             testId="url-input"
             name="url"
@@ -376,8 +422,9 @@ export function MCPServerForm({
               defaultValue={server?.args?.join("\n") || ""}
               placeholder="arg1&#10;arg2&#10;arg3"
               className={cn(
-                "bg-tertiary border border-[var(--oh-border-input)] w-full rounded-sm p-2 placeholder:italic placeholder:text-tertiary-alt resize-none",
-                "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)] disabled:cursor-not-allowed",
+                formControlMultilineFieldClassName,
+                "resize-none placeholder:italic",
+                "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)]",
               )}
             />
             <p className="text-xs text-tertiary-alt">
@@ -399,28 +446,81 @@ export function MCPServerForm({
               defaultValue={formatEnvironmentVariables(server?.env)}
               placeholder="KEY1=value1&#10;KEY2=value2"
               className={cn(
-                "resize-none",
-                "bg-tertiary border border-[var(--oh-border-input)] rounded-sm p-2 placeholder:italic placeholder:text-tertiary-alt",
-                "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)] disabled:cursor-not-allowed",
+                formControlMultilineFieldClassName,
+                "resize-none placeholder:italic",
+                "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)]",
               )}
             />
           </label>
         </>
       )}
 
-      <div className="flex items-center justify-end gap-2 w-full">
-        <BrandButton
-          testId="cancel-button"
-          type="button"
-          variant="secondary"
-          onClick={onCancel}
+      {testMessage && (
+        <p
+          data-testid="mcp-test-message"
+          className={
+            testMessage.ok
+              ? "text-sm text-green-500 whitespace-pre-wrap"
+              : "text-sm text-red-500 whitespace-pre-wrap"
+          }
         >
-          {t(I18nKey.BUTTON$CANCEL)}
-        </BrandButton>
-        <BrandButton testId="submit-button" type="submit" variant="primary">
-          {mode === "add" && t(I18nKey.SETTINGS$MCP_ADD_SERVER)}
-          {mode === "edit" && t(I18nKey.SETTINGS$MCP_SAVE_SERVER)}
-        </BrandButton>
+          {testMessage.text}
+        </p>
+      )}
+
+      <div
+        className={cn(
+          "flex w-full items-center gap-2",
+          onDelete ? "justify-between" : "justify-end",
+        )}
+      >
+        {onDelete ? (
+          <BrandButton
+            testId="mcp-custom-editor-delete"
+            type="button"
+            variant="secondary"
+            onClick={onDelete}
+            isDisabled={isActionDisabled}
+            startContent={
+              <Trash2 aria-hidden className="size-4" strokeWidth={2} />
+            }
+          >
+            {t(I18nKey.BUTTON$DELETE)}
+          </BrandButton>
+        ) : null}
+        <div className="flex items-center gap-2">
+          <BrandButton
+            testId="cancel-button"
+            type="button"
+            variant="secondary"
+            onClick={onCancel}
+            isDisabled={isActionDisabled}
+          >
+            {t(I18nKey.BUTTON$CANCEL)}
+          </BrandButton>
+          {onTest && (
+            <BrandButton
+              testId="mcp-test-connection"
+              type="button"
+              variant="secondary"
+              onClick={handleTestClick}
+              isDisabled={isActionDisabled || isTestPending}
+            >
+              {isTestPending
+                ? t(I18nKey.MCP$VERIFYING)
+                : t(I18nKey.MCP$TEST_BUTTON)}
+            </BrandButton>
+          )}
+          <BrandButton
+            testId="submit-button"
+            type="submit"
+            variant="primary"
+            isDisabled={isActionDisabled || isTestPending}
+          >
+            {mode === "add" && t(I18nKey.SETTINGS$MCP_ADD_SERVER)}
+            {mode === "edit" && t(I18nKey.SETTINGS$MCP_SAVE_SERVER)}
+          </BrandButton>
+        </div>
       </div>
     </form>
   );

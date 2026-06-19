@@ -1,8 +1,13 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "#/utils/utils";
+import {
+  dropdownInstantColorClassName,
+  dropdownMenuListClassName,
+} from "#/utils/dropdown-classes";
 import { Text } from "#/ui/typography";
 import { SlashCommandItem } from "#/hooks/chat/use-slash-command";
+import { I18nKey } from "#/i18n/declaration";
 
 /**
  * Strip common inline Markdown syntax so descriptions render as plain text.
@@ -85,11 +90,11 @@ function SlashCommandMenuItem({
   ref,
 }: SlashCommandMenuItemProps) {
   const description = useMemo(() => {
-    if ("content" in item.skill && item.skill.content) {
-      return getSkillDescription(item.skill.content);
-    }
     if ("description" in item.skill && item.skill.description) {
       return stripMarkdown(item.skill.description);
+    }
+    if ("content" in item.skill && item.skill.content) {
+      return getSkillDescription(item.skill.content);
     }
     return null;
   }, [item.skill]);
@@ -101,7 +106,8 @@ function SlashCommandMenuItem({
       ref={ref}
       type="button"
       className={cn(
-        "w-full px-3 py-2.5 text-left transition-colors",
+        "w-full px-3 py-2.5 text-left",
+        dropdownInstantColorClassName,
         isSelected ? "bg-tertiary" : "hover:bg-[var(--oh-surface-raised)]",
       )}
       onMouseDown={(e) => {
@@ -110,7 +116,7 @@ function SlashCommandMenuItem({
         onSelect(item);
       }}
     >
-      <Text className="font-semibold">{item.command}</Text>
+      <Text className="font-normal">{item.command}</Text>
       {description && (
         <Text className="text-xs text-[var(--oh-muted)] mt-0.5 truncate block">
           {description}
@@ -152,24 +158,26 @@ export function SlashCommandMenu({
   return (
     <div
       role="listbox"
-      aria-label={t("CHAT_INTERFACE$COMMANDS")}
+      aria-label={t(I18nKey.CHAT_INTERFACE$COMMANDS)}
       className="absolute bottom-full left-0 w-full mb-1 bg-[var(--oh-surface)] border border-[var(--oh-border-subtle)] rounded-lg shadow-lg max-h-[300px] overflow-y-auto custom-scrollbar z-50"
       data-testid="slash-command-menu"
     >
       <div className="px-3 py-2 text-xs text-[var(--oh-muted)] border-b border-[var(--oh-border-subtle)]">
-        {t("CHAT_INTERFACE$COMMANDS")}
+        {t(I18nKey.CHAT_INTERFACE$COMMANDS)}
       </div>
-      {items.map((item, index) => (
-        <SlashCommandMenuItem
-          key={item.command}
-          item={item}
-          isSelected={index === selectedIndex}
-          onSelect={onSelect}
-          ref={(el) => {
-            itemRefs.current[index] = el;
-          }}
-        />
-      ))}
+      <div className={dropdownMenuListClassName}>
+        {items.map((item, index) => (
+          <SlashCommandMenuItem
+            key={item.command}
+            item={item}
+            isSelected={index === selectedIndex}
+            onSelect={onSelect}
+            ref={(el) => {
+              itemRefs.current[index] = el;
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { ChatMessage } from "#/components/features/chat/chat-message";
 
 describe("ChatMessage", () => {
@@ -64,5 +64,41 @@ describe("ChatMessage", () => {
 
     expect(codeElement.tagName.toLowerCase()).toBe("code");
     expect(codeElement.closest("article")).not.toBeNull();
+  });
+
+  it("truncates long sent user messages to three lines with view more on hover", async () => {
+    const longMessage = `${"Here's a long message. ".repeat(40)}`.trim();
+    render(<ChatMessage type="user" message={longMessage} />);
+
+    expect(screen.getByTestId("chat-message-truncation-gradient")).toBeInTheDocument();
+    expect(screen.getByTestId("chat-message-view-more")).toHaveClass("opacity-0");
+
+    fireEvent.mouseEnter(screen.getByTestId("user-message"));
+    expect(screen.getByTestId("chat-message-view-more")).toHaveClass("opacity-100");
+
+    fireEvent.click(screen.getByTestId("chat-message-expand"));
+    expect(screen.queryByTestId("chat-message-truncation-gradient")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("chat-message-view-more")).not.toBeInTheDocument();
+  });
+
+  it("shows a stop control for a sending user message and calls onStop when clicked", () => {
+    const onStop = vi.fn();
+    render(
+      <ChatMessage
+        type="user"
+        message="Working on it"
+        pendingStatus="sending"
+        onStop={onStop}
+      />,
+    );
+
+    expect(screen.getByTestId("chat-message-sending")).toBeInTheDocument();
+    const stopButton = screen.getByTestId("chat-message-stop");
+
+    // The stop control only becomes interactive once the bubble is hovered.
+    fireEvent.mouseEnter(screen.getByTestId("user-message"));
+    fireEvent.click(stopButton);
+
+    expect(onStop).toHaveBeenCalledTimes(1);
   });
 });

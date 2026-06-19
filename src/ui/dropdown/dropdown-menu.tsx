@@ -2,6 +2,11 @@ import React from "react";
 import { Divider } from "#/ui/divider";
 import { cn } from "#/utils/utils";
 import { DropdownOption } from "./types";
+import {
+  dropdownMenuListClassName,
+  dropdownMenuRowClassName,
+  dropdownMenuRowIconWrapperClassName,
+} from "#/utils/dropdown-classes";
 
 interface DropdownMenuProps {
   isOpen: boolean;
@@ -16,6 +21,7 @@ interface DropdownMenuProps {
   }) => object;
   footer?: React.ReactNode;
   openUpward?: boolean;
+  fitContent?: boolean;
 }
 
 export function DropdownMenu({
@@ -27,18 +33,22 @@ export function DropdownMenu({
   getItemProps,
   footer,
   openUpward = false,
+  fitContent = false,
 }: DropdownMenuProps) {
   return (
     <div
       className={cn(
-        "absolute z-50 w-full overflow-hidden text-white",
+        "absolute z-50 overflow-hidden text-white",
+        fitContent ? "min-w-full w-max" : "w-full",
         openUpward ? "bottom-full mb-1" : "mt-1",
         "bg-tertiary rounded-[6px] context-menu-box-shadow p-1",
         "max-h-60 overflow-auto",
         !isOpen && "hidden",
       )}
     >
-      <ul {...getMenuProps({ className: "p-0" })}>
+      <ul
+        {...getMenuProps({ className: cn("p-0", dropdownMenuListClassName) })}
+      >
         {isOpen && filteredOptions.length === 0 && (
           <li className="px-2 py-2 text-sm text-[var(--oh-muted)] italic">
             {emptyMessage}
@@ -52,16 +62,18 @@ export function DropdownMenu({
                 item: option,
                 index,
                 className: cn(
-                  "px-2 py-2 cursor-pointer text-sm rounded",
-                  "text-white focus:outline-none font-normal",
-                  "flex items-center gap-2",
-                  selectedItem?.value === option.value
-                    ? "bg-[var(--oh-interactive-selected)] text-white"
-                    : "hover:bg-[var(--oh-interactive-hover)]",
+                  dropdownMenuRowClassName,
+                  "focus:outline-none",
+                  selectedItem?.value === option.value &&
+                    "bg-[var(--oh-interactive-selected)] text-white",
                 ),
               })}
             >
-              {option.prefix}
+              {option.prefix ? (
+                <span className={dropdownMenuRowIconWrapperClassName}>
+                  {option.prefix}
+                </span>
+              ) : null}
               <span className="min-w-0 truncate">{option.label}</span>
             </li>
           ))}

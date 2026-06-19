@@ -38,7 +38,7 @@ const MOBILE_DRAWER_TRANSITION_MS = 250;
 
 export function Sidebar() {
   const { t } = useTranslation("openhands");
-  const { currentPath, navigate } = useNavigation();
+  const { currentPath } = useNavigation();
   const { data: config } = useConfig();
   const {
     data: settings,
@@ -64,6 +64,8 @@ export function Sidebar() {
   const [manageBackendsModalOpen, setManageBackendsModalOpen] =
     React.useState(false);
   const [collapsedRailHovered, setCollapsedRailHovered] = React.useState(false);
+  const suppressCollapsedExpandRef = React.useRef(false);
+  const [, refreshCollapsedExpandGate] = React.useReducer((n) => n + 1, 0);
   const { isOpen: isMobileNavOpen, close: closeMobileNav } =
     useSidebarMobileNav();
   const [mobileDrawerMounted, setMobileDrawerMounted] = React.useState(false);
@@ -118,9 +120,7 @@ export function Sidebar() {
     ) {
       // We don't show toast errors for settings in the global error handler
       // because we have a special case for 404 errors
-      displayErrorToast(
-        "Something went wrong while fetching settings. Please reload the page.",
-      );
+      displayErrorToast(t(I18nKey.SETTINGS$FETCH_ERROR));
     } else if (
       settingsErrorStatus === 404 &&
       !config?.feature_flags?.hide_llm_settings
@@ -133,6 +133,7 @@ export function Sidebar() {
     settingsIsError,
     settingsErrorStatus,
     config?.feature_flags?.hide_llm_settings,
+    t,
   ]);
 
   const linkDisabled = settings?.email_verified === false;
@@ -165,7 +166,18 @@ export function Sidebar() {
     },
     [collapsed, setCollapsed],
   );
-  const showCollapsedExpandButton = collapsed && collapsedRailHovered;
+  const handleCollapse = React.useCallback(() => {
+    setCollapsedRailHovered(false);
+    suppressCollapsedExpandRef.current = true;
+    refreshCollapsedExpandGate();
+    setCollapsed(true);
+    window.setTimeout(() => {
+      suppressCollapsedExpandRef.current = false;
+      refreshCollapsedExpandGate();
+    }, 250);
+  }, [setCollapsed]);
+  const showCollapsedExpandButton =
+    collapsed && collapsedRailHovered && !suppressCollapsedExpandRef.current;
 
   const isExtensionsActive =
     currentPath === "/customize" ||
@@ -176,12 +188,11 @@ export function Sidebar() {
   const railBodyProps = {
     linkDisabled,
     collapseToggleLabel,
-    onCollapse: () => setCollapsed(true),
+    onCollapse: handleCollapse,
     onExpand: () => setCollapsed(false),
     showCollapsedExpandButton,
     isExtensionsActive,
     currentPath,
-    navigate,
     activeBackendHealth,
     collapsedBackendPopoverOpen,
     setCollapsedBackendPopoverOpen,

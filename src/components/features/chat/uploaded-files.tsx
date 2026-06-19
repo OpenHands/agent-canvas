@@ -1,6 +1,5 @@
 import { UploadedFile } from "./uploaded-file";
 import { UploadedImage } from "./uploaded-image";
-import { UploadAsFileCheckbox } from "./upload-as-file-checkbox";
 import { useConversationStore } from "#/stores/conversation-store";
 
 export function UploadedFiles() {
@@ -9,11 +8,11 @@ export function UploadedFiles() {
     files,
     loadingFiles,
     loadingImages,
+    imagesMarkedUploadAsFile,
     removeFile,
     removeImage,
+    toggleImageUploadAsFile,
   } = useConversationStore();
-
-  const hasImages = images.length > 0 || loadingImages.length > 0;
 
   const handleRemoveFile = (index: number) => {
     removeFile(index);
@@ -34,8 +33,8 @@ export function UploadedFiles() {
   }
 
   return (
-    <div className="flex flex-col gap-2 w-full">
-      <div className="flex items-center gap-4 w-full overflow-x-auto custom-scrollbar">
+    <div className="flex w-full flex-col gap-2 pb-4">
+      <div className="flex w-full items-center gap-4 overflow-x-auto custom-scrollbar">
         {/* Regular files */}
         {files.map((file, index) => (
           <UploadedFile
@@ -67,6 +66,9 @@ export function UploadedFiles() {
             image={image}
             onRemove={() => handleRemoveImage(index)}
             isLoading={loadingImages.includes(image.name)}
+            showUploadAsFileToggle
+            uploadAsFileActive={imagesMarkedUploadAsFile.includes(image.name)}
+            onToggleUploadAsFile={() => toggleImageUploadAsFile(image.name)}
           />
         ))}
 
@@ -80,12 +82,13 @@ export function UploadedFiles() {
               image={tempImage}
               onRemove={() => {}} // No remove action during loading
               isLoading
+              showUploadAsFileToggle
+              uploadAsFileActive={imagesMarkedUploadAsFile.includes(imageName)}
+              onToggleUploadAsFile={() => toggleImageUploadAsFile(imageName)}
             />
           );
         })}
       </div>
-
-      {hasImages && <UploadAsFileCheckbox />}
     </div>
   );
 }

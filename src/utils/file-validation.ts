@@ -1,5 +1,5 @@
-export const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3MB maximum file size
-export const MAX_TOTAL_SIZE = 3 * 1024 * 1024; // 3MB maximum total size for all files combined
+const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3MB maximum file size
+const MAX_TOTAL_SIZE = 3 * 1024 * 1024; // 3MB maximum total size for all files combined
 
 export interface FileValidationResult {
   isValid: boolean;

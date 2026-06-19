@@ -1,53 +1,8 @@
-export const AGENT_SERVER_CONFIG_STORAGE_KEY = "openhands-agent-server-config";
 export const DEFAULT_WORKING_DIR = "workspace/project";
-
-interface StoredAgentServerConfig {
-  baseUrl?: string | null;
-  sessionApiKey?: string | null;
-  workingDir?: string | null;
-}
 
 export interface AgentServerFormDefaults {
   baseUrl: string;
   sessionApiKey: string;
-}
-
-function readStoredConfig(): StoredAgentServerConfig {
-  if (typeof window === "undefined") return {};
-
-  try {
-    const raw = window.localStorage.getItem(AGENT_SERVER_CONFIG_STORAGE_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as StoredAgentServerConfig;
-    return parsed ?? {};
-  } catch {
-    return {};
-  }
-}
-
-function writeStoredConfig(config: StoredAgentServerConfig): void {
-  if (typeof window === "undefined") return;
-
-  const nextConfig = Object.fromEntries(
-    Object.entries(config).flatMap(([key, value]) => {
-      if (typeof value !== "string") return [];
-
-      const trimmed = value.trim();
-      if (!trimmed) return [];
-
-      return [[key, trimmed]];
-    }),
-  ) as StoredAgentServerConfig;
-
-  if (Object.keys(nextConfig).length === 0) {
-    window.localStorage.removeItem(AGENT_SERVER_CONFIG_STORAGE_KEY);
-    return;
-  }
-
-  window.localStorage.setItem(
-    AGENT_SERVER_CONFIG_STORAGE_KEY,
-    JSON.stringify(nextConfig),
-  );
 }
 
 function trimToNull(value?: string | null): string | null {
@@ -72,87 +27,66 @@ function normalizeBaseUrl(value?: string | null): string | null {
 }
 
 function getConfiguredBaseUrl(): string | null {
-  const storedUrl = normalizeBaseUrl(readStoredConfig().baseUrl);
-  if (storedUrl) return storedUrl;
-
   return normalizeBaseUrl(import.meta.env.VITE_BACKEND_BASE_URL);
 }
 
-function getConfiguredSessionApiKey(): string | null {
-  const storedKey = trimToNull(readStoredConfig().sessionApiKey);
-  if (storedKey) return storedKey;
+/**
+ * Return the session API key supplied by the deployment host.
+ *
+ * Two sources are consulted, in order:
+ *   1. `VITE_SESSION_API_KEY` — baked into the bundle at build time (used by
+ *      `npm run dev` so the dev server has the key without a round-trip).
+ *   2. `window.__AGENT_CANVAS_SESSION_API_KEY__` — injected into `index.html`
+ *      at serve time by `scripts/static-server.mjs --session-api-key <key>`.
+ *      This is the path used by the published `agent-canvas` binary, where
+ *      `VITE_SESSION_API_KEY` is empty in the prebuilt bundle and the
+ *      runtime key is generated when the user launches the CLI.
+ *
+ * Without the window-global fallback, the published binary cannot construct a
+ * default local backend (`makeDefaultLocalBackend()` returns null), the
+ * registry is left empty, and the user sees the Manage Backends modal
+ * instead of the onboarding flow.
+ */
+export function getBakedSessionApiKey(): string | null {
+  const envKey = trimToNull(import.meta.env.VITE_SESSION_API_KEY);
+  if (envKey) return envKey;
 
-  return trimToNull(import.meta.env.VITE_SESSION_API_KEY);
-}
-
-function shouldUseProxyOrigin(baseUrl: string): boolean {
-  if (typeof window === "undefined") {
-    return false;
+  if (typeof window !== "undefined") {
+    const injected = (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_SESSION_API_KEY__;
+    if (typeof injected === "string") {
+      return trimToNull(injected);
+    }
   }
 
-  try {
-    const configuredUrl = new URL(baseUrl);
-    const localHosts = new Set(["127.0.0.1", "localhost", "0.0.0.0"]);
-    const browserHostname = window.location.hostname;
-
-    return (
-      localHosts.has(configuredUrl.hostname) && !localHosts.has(browserHostname)
-    );
-  } catch {
-    return false;
-  }
-}
-
-function resolveAgentServerBaseUrl(baseUrl: string | null): string | null {
-  if (!baseUrl) {
-    return null;
-  }
-
-  if (shouldUseProxyOrigin(baseUrl)) {
-    return window.location.origin;
-  }
-
-  return baseUrl;
+  return null;
 }
 
 export function getAgentServerFormDefaults(): AgentServerFormDefaults {
   return {
-    baseUrl: getConfiguredBaseUrl() ?? "",
-    sessionApiKey: getConfiguredSessionApiKey() ?? "",
+    baseUrl: getAgentServerBaseUrl() ?? "",
+    sessionApiKey: getAgentServerSessionApiKey() ?? "",
   };
 }
 
-export function saveAgentServerConfig(config: AgentServerFormDefaults): void {
-  const currentConfig = readStoredConfig();
-
-  writeStoredConfig({
-    ...currentConfig,
-    baseUrl: normalizeBaseUrl(config.baseUrl),
-    sessionApiKey: trimToNull(config.sessionApiKey),
-  });
-}
-
-export function getAgentServerBaseUrl(): string {
-  const configuredUrl = resolveAgentServerBaseUrl(getConfiguredBaseUrl());
+export function getAgentServerBaseUrl(): string | null {
+  const configuredUrl = getConfiguredBaseUrl();
   if (configuredUrl) return configuredUrl;
 
   if (typeof window !== "undefined") {
     return window.location.origin;
   }
 
-  return "http://127.0.0.1:8000";
+  return null;
 }
 
 export function getAgentServerSessionApiKey(): string | null {
-  return getConfiguredSessionApiKey();
+  return getBakedSessionApiKey();
 }
 
 export function getAgentServerWorkingDir(): string {
   const envDir = import.meta.env.VITE_WORKING_DIR?.trim();
   if (envDir) return envDir;
-
-  const storedDir = readStoredConfig().workingDir?.trim();
-  if (storedDir) return storedDir;
 
   return DEFAULT_WORKING_DIR;
 }
@@ -163,27 +97,21 @@ export function buildConversationWorkingDir(conversationId: string): string {
   return `${base}/${hex}`;
 }
 
-export function getConfiguredWorkerUrls(): string[] {
-  const raw = import.meta.env.VITE_WORKER_URLS?.trim();
-  if (!raw) return [];
-
-  return raw
-    .split(",")
-    .map((url: string) => normalizeBaseUrl(url))
-    .filter((url: string | null): url is string => Boolean(url));
-}
-
 export function getAgentServerHeaders(): Record<string, string> {
   const sessionApiKey = getAgentServerSessionApiKey();
   return sessionApiKey ? { "X-Session-API-Key": sessionApiKey } : {};
 }
 
-/**
- * Returns whether public skills from the OpenHands extensions marketplace
- * (https://github.com/OpenHands/extensions) should be loaded.
- *
- * Defaults to false. Set VITE_LOAD_PUBLIC_SKILLS=true to enable.
- */
-export function shouldLoadPublicSkills(): boolean {
-  return import.meta.env.VITE_LOAD_PUBLIC_SKILLS === "true";
+export function isAuthRequired(): boolean {
+  return (
+    import.meta.env.VITE_AUTH_REQUIRED === "true" ||
+    (typeof window !== "undefined" &&
+      (window as unknown as Record<string, unknown>)
+        .__AGENT_CANVAS_AUTH_REQUIRED__ === true)
+  );
+}
+
+export function isAuthRequiredAndMissing(): boolean {
+  if (!isAuthRequired()) return false;
+  return !getAgentServerSessionApiKey();
 }

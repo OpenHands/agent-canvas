@@ -7,12 +7,23 @@ import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useTaskPolling } from "#/hooks/query/use-task-polling";
 import { useLocalGitInfo } from "#/hooks/query/use-local-git-info";
 import { useUnifiedWebSocketStatus } from "#/hooks/use-unified-websocket-status";
+import { useConversationWebSocket } from "#/contexts/conversation-websocket-context";
 import { useSendMessage } from "#/hooks/use-send-message";
 import { useUpdateConversationRepository } from "#/hooks/mutation/use-update-conversation-repository";
 import { useHomeStore } from "#/stores/home-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { getStoredConversationMetadata } from "#/api/conversation-metadata-store";
 import { GitControlBar } from "#/components/features/chat/git-control-bar";
+import { ScrollProvider } from "#/context/scroll-context";
+
+// Holder so the OpenRepositoryModal mock can hand its `onLaunch` prop back
+// to the test — the modal renders null but the parent's launch flow is the
+// only way to drive handleLaunchRepository.
+const mocks = vi.hoisted(() => ({
+  modalLaunchHandler: {
+    current: null as ((repo: unknown, branch: unknown) => void) | null,
+  },
+}));
 
 vi.mock("#/hooks/use-conversation-id", () => ({
   useOptionalConversationId: () => ({ conversationId: "test-conversation-id" }),
@@ -23,6 +34,7 @@ vi.mock("#/hooks/query/use-active-conversation");
 vi.mock("#/hooks/query/use-task-polling");
 vi.mock("#/hooks/query/use-local-git-info");
 vi.mock("#/hooks/use-unified-websocket-status");
+vi.mock("#/contexts/conversation-websocket-context");
 vi.mock("#/hooks/use-send-message");
 vi.mock("#/hooks/mutation/use-update-conversation-repository");
 vi.mock("#/stores/home-store");
@@ -55,7 +67,12 @@ vi.mock("#/components/features/chat/git-control-bar-tooltip-wrapper", () => ({
     children,
 }));
 vi.mock("#/components/features/chat/open-repository-modal", () => ({
-  OpenRepositoryModal: () => null,
+  OpenRepositoryModal: (props: {
+    onLaunch?: (repo: unknown, branch: unknown) => void;
+  }) => {
+    mocks.modalLaunchHandler.current = props.onLaunch ?? null;
+    return null;
+  },
 }));
 
 const makeBackend = (kind: "local" | "cloud") => ({
@@ -127,6 +144,9 @@ describe("GitControlBar repo button visibility", () => {
       data: null,
     } as unknown as ReturnType<typeof useLocalGitInfo>);
     vi.mocked(useUnifiedWebSocketStatus).mockReturnValue("OPEN");
+    vi.mocked(useConversationWebSocket).mockReturnValue({
+      isLoadingHistory: false,
+    } as ReturnType<typeof useConversationWebSocket>);
     vi.mocked(useSendMessage).mockReturnValue({
       send: vi.fn(),
     } as unknown as ReturnType<typeof useSendMessage>);
@@ -176,5 +196,88 @@ describe("GitControlBar repo button visibility", () => {
 
     const button = screen.getByTestId("git-control-bar-repo-button");
     expect(button).toHaveAttribute("data-disabled", "true");
+  });
+
+  it("renders the repo button as disabled while conversation history is loading", () => {
+    vi.mocked(useActiveBackend).mockReturnValue(makeBackend("cloud"));
+    vi.mocked(useConversationWebSocket).mockReturnValue({
+      isLoadingHistory: true,
+    } as ReturnType<typeof useConversationWebSocket>);
+
+    renderWithProviders(<GitControlBar onSuggestionsClick={vi.fn()} />);
+
+    const button = screen.getByTestId("git-control-bar-repo-button");
+    expect(button).toHaveAttribute("data-disabled", "true");
+  });
+});
+
+describe("GitControlBar - Auto-scroll on clone (issue #817)", () => {
+  beforeEach(() => {
+    mocks.modalLaunchHandler.current = null;
+    vi.mocked(useActiveBackend).mockReturnValue(makeBackend("cloud"));
+    vi.mocked(useActiveConversation).mockReturnValue({
+      data: { id: "test-conversation-id" },
+    } as ReturnType<typeof useActiveConversation>);
+    vi.mocked(useTaskPolling).mockReturnValue({
+      repositoryInfo: null,
+    } as unknown as ReturnType<typeof useTaskPolling>);
+    vi.mocked(useLocalGitInfo).mockReturnValue({
+      data: null,
+    } as unknown as ReturnType<typeof useLocalGitInfo>);
+    vi.mocked(useUnifiedWebSocketStatus).mockReturnValue("OPEN");
+    vi.mocked(useSendMessage).mockReturnValue({
+      send: vi.fn().mockResolvedValue(undefined),
+    } as unknown as ReturnType<typeof useSendMessage>);
+    // updateRepository mocked to invoke onSuccess synchronously so the
+    // post-update branch (where the scroll now lives) runs deterministically.
+    vi.mocked(useUpdateConversationRepository).mockReturnValue({
+      mutate: (_args: unknown, options: { onSuccess?: () => void }) => {
+        options?.onSuccess?.();
+      },
+    } as unknown as ReturnType<typeof useUpdateConversationRepository>);
+    vi.mocked(useHomeStore).mockReturnValue({
+      addRecentRepository: vi.fn(),
+    } as unknown as ReturnType<typeof useHomeStore>);
+    vi.mocked(useOptimisticUserMessageStore).mockImplementation(((
+      selector: (s: unknown) => unknown,
+    ) =>
+      selector({
+        enqueuePendingMessage: vi.fn().mockReturnValue("pending-id"),
+        markPendingMessageError: vi.fn(),
+      })) as unknown as typeof useOptimisticUserMessageStore);
+    vi.mocked(getStoredConversationMetadata).mockReturnValue(null);
+  });
+
+  it("scrolls the chat to bottom after a successful clone is enqueued", () => {
+    // Arrange: provide a spy via ScrollProvider so we can observe the
+    // scroll callback the bar pulls out of useOptionalScrollContext.
+    const scrollDomToBottom = vi.fn();
+    const scrollValue = {
+      scrollRef: { current: null },
+      autoScroll: true,
+      setAutoScroll: vi.fn(),
+      scrollDomToBottom,
+      hitBottom: true,
+      setHitBottom: vi.fn(),
+      onChatBodyScroll: vi.fn(),
+    };
+
+    renderWithProviders(
+      <ScrollProvider value={scrollValue}>
+        <GitControlBar onSuggestionsClick={vi.fn()} />
+      </ScrollProvider>,
+    );
+
+    expect(typeof mocks.modalLaunchHandler.current).toBe("function");
+
+    // Act: drive handleLaunchRepository the same way the modal does.
+    mocks.modalLaunchHandler.current?.(
+      { full_name: "user/repo", git_provider: "github" },
+      { name: "main" },
+    );
+
+    // Assert: the optimistic clone bubble must pull the chat back to the
+    // bottom even if the user had scrolled up.
+    expect(scrollDomToBottom).toHaveBeenCalledTimes(1);
   });
 });

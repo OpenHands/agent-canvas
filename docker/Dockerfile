@@ -39,14 +39,19 @@ COPY . .
 # VITE_APP_ENV controls the PostHog telemetry key baked into the bundle:
 #   "production" → prod key (set by CI for tagged releases)
 #   anything else → staging key (default for PR / main / local builds)
+# VITE_POSTHOG_CLIENT_KEY is the PostHog project key exposed via the web client
+# config (option-service). Not a secret — it's a public, client-side key. CI
+# passes the prod key for tagged releases and the staging key otherwise.
 ARG VITE_APP_ENV=""
+ARG VITE_POSTHOG_CLIENT_KEY=""
 ENV VITE_APP_ENV=${VITE_APP_ENV}
+ENV VITE_POSTHOG_CLIENT_KEY=${VITE_POSTHOG_CLIENT_KEY}
 RUN npm run build
 
 # ── Stage 1b: Generate shell-sourceable defaults from config/defaults.json ──
 # This avoids needing jq/python at container runtime to parse the JSON.
 FROM node:24-slim AS config-gen
-COPY config/defaults.json /tmp/defaults.json
+COPY config/defaults.json /tmp/
 RUN node -e " \
   const c = JSON.parse(require('fs').readFileSync('/tmp/defaults.json','utf-8')); \
   const lines = [ \
@@ -68,9 +73,11 @@ ARG AUTOMATION_VERSION
 ARG OPENHANDS_BUILD_GIT_SHA=unknown
 ARG OPENHANDS_BUILD_GIT_REF=unknown
 
+ARG AGENT_CANVAS_VERSION=dev
 LABEL org.opencontainers.image.title="agent-canvas"
 LABEL org.opencontainers.image.description="All-in-one agent-canvas: Agent Server + Automation + Frontend"
 LABEL org.opencontainers.image.source="https://github.com/OpenHands/agent-canvas"
+LABEL org.opencontainers.image.version="${AGENT_CANVAS_VERSION}"
 LABEL org.opencontainers.image.revision="${OPENHANDS_BUILD_GIT_SHA}"
 
 ENV AGENT_CANVAS_BUILD_GIT_SHA=${OPENHANDS_BUILD_GIT_SHA}
@@ -99,6 +106,10 @@ COPY --from=frontend-build /build/build /opt/agent-canvas/frontend
 
 # Copy the static-server script (serves frontend + proxies to backends)
 COPY scripts/static-server.mjs /opt/agent-canvas/static-server.mjs
+
+# Copy the runtime-services-info builder (entrypoint.sh runs it as a CLI to
+# emit the agent's <RUNTIME_SERVICES> block; same builder the dev stack uses).
+COPY scripts/runtime-services-info.mjs /opt/agent-canvas/runtime-services-info.mjs
 
 # Copy custom tools (e.g. canvas_ui_tool.py) so the agent-server can import
 # them via tool_module_qualnames. OH_EXTRA_PYTHON_PATH is set in entrypoint.sh.

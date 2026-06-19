@@ -6,10 +6,13 @@ import React, {
   useEffect,
 } from "react";
 import { useCombobox } from "downshift";
+import { useTranslation } from "react-i18next";
 import { Branch } from "#/types/git";
 import { Provider } from "#/types/settings";
+import { I18nKey } from "#/i18n/declaration";
 import { useDebounce } from "#/hooks/use-debounce";
 import { cn } from "#/utils/utils";
+import { formControlFieldClassName } from "#/utils/form-control-classes";
 import { useBranchData } from "#/hooks/query/use-branch-data";
 
 import { ClearButton } from "../shared/clear-button";
@@ -35,10 +38,11 @@ export function GitBranchDropdown({
   selectedBranch,
   onBranchSelect,
   defaultBranch,
-  placeholder = "Select branch...",
+  placeholder,
   disabled = false,
   className,
 }: GitBranchDropdownProps) {
+  const { t } = useTranslation("openhands");
   const [inputValue, setInputValue] = useState("");
   const [userManuallyCleared, setUserManuallyCleared] = useState(false);
   const debouncedInputValue = useDebounce(inputValue, 300);
@@ -183,10 +187,10 @@ export function GitBranchDropdown({
 
   return (
     <div className={cn("relative", className)}>
-      <div className="relative">
+      <div className="group relative text-[var(--oh-muted)] hover:text-white">
         <div className="absolute left-2 top-1/2 transform -translate-y-1/2 z-10">
           {isLoadingState ? (
-            <div className="animate-spin h-4 w-4 border-2 border-white/20 border-t-white rounded-full" />
+            <div className="animate-spin h-4 w-4 border-2 border-transparent border-t-white rounded-full" />
           ) : (
             <BranchIcon width={16} height={16} />
           )}
@@ -194,13 +198,13 @@ export function GitBranchDropdown({
         <input
           {...getInputProps({
             disabled: disabled || !repository,
-            placeholder,
+            placeholder:
+              placeholder ?? t(I18nKey.COMMON$SELECT_BRANCH_PLACEHOLDER),
             className: cn(
-              "w-full px-3 py-2 border border-[var(--oh-border-input)] rounded-sm shadow-none h-[42px] min-h-[42px] max-h-[42px]",
-              "bg-tertiary text-[var(--oh-muted)] placeholder:text-[var(--oh-muted)]",
-              "focus:outline-none focus:ring-0 focus:border-[var(--oh-border-input)]",
-              "disabled:bg-tertiary disabled:cursor-not-allowed disabled:opacity-60",
-              "pl-7 pr-16 text-sm font-normal leading-5", // Space for clear and toggle buttons
+              formControlFieldClassName,
+              "text-inherit shadow-none pl-7 pr-16 text-sm font-normal leading-5",
+              "placeholder:text-[var(--oh-muted)]",
+              "disabled:cursor-not-allowed disabled:opacity-60",
             ),
             // Direct onChange for cursor position preservation
             onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -219,7 +223,6 @@ export function GitBranchDropdown({
             isOpen={isOpen}
             disabled={disabled || !repository}
             getToggleButtonProps={getToggleButtonProps}
-            iconClassName="w-10 h-10"
           />
         </div>
       </div>

@@ -1,6 +1,7 @@
 import axios from "axios";
 import type {
   Automation,
+  AutomationRun,
   AutomationsResponse,
   AutomationRunsResponse,
 } from "#/types/automation";
@@ -8,6 +9,7 @@ import {
   getActiveBackend,
   getEffectiveLocalBackend,
 } from "../backend-registry/active-store";
+import { NoBackendAvailableError } from "../agent-server-client-options";
 import { callCloudProxy } from "../cloud/proxy";
 
 const AUTOMATION_BASE_PATH = "/api/automation";
@@ -19,22 +21,27 @@ export interface AutomationHealthResponse {
 
 // Local automation calls go to the automation sidecar that
 // `scripts/dev-with-automation.mjs` mounts behind the local agent-server.
-// That sidecar authenticates via its own `VITE_AUTOMATION_API_KEY` Bearer
-// token — NOT the agent-server's `X-Session-API-Key` — so we cannot reuse
-// the default local agent-server client for these calls.
+// Both backends use the same session API key and the same `X-Session-API-Key`
+// header for consistency.
 const localAutomationAxios = axios.create();
 
 localAutomationAxios.interceptors.request.use((config) => {
-  // Resolve the local backend host on every call so it tracks the
-  // currently-active local backend (and any host edits made via the
+  // Resolve the local backend on every call so it tracks the
+  // currently-active local backend (and any host/key edits made via the
   // manage-backends UI), rather than freezing whatever value the
   // agent-server-config produced at module load time.
+  // Using the backend registry (rather than the build-time VITE_SESSION_API_KEY
+  // env var) ensures the published npm package picks up the runtime-injected
+  // session key that scripts/static-server.mjs seeds into localStorage, fixing
+  // the 401 errors reported in issue #829.
+  const backend = getEffectiveLocalBackend();
+  if (!backend) throw new NoBackendAvailableError();
   // eslint-disable-next-line no-param-reassign
-  if (!config.baseURL) config.baseURL = getEffectiveLocalBackend().host;
+  if (!config.baseURL) config.baseURL = backend.host;
 
-  const apiKey = import.meta.env.VITE_AUTOMATION_API_KEY?.trim();
+  const apiKey = backend.apiKey?.trim();
   if (apiKey) {
-    config.headers.set("Authorization", `Bearer ${apiKey}`);
+    config.headers.set("X-Session-API-Key", apiKey);
   }
   return config;
 });
@@ -127,6 +134,22 @@ class AutomationService {
     await localAutomationAxios.delete(path);
   }
 
+  static async dispatchAutomation(id: string): Promise<AutomationRun> {
+    const active = getActiveBackend().backend;
+    const path = `${AUTOMATION_BASE_PATH}/v1/${encodeURIComponent(id)}/dispatch`;
+
+    if (active.kind === "cloud") {
+      return callCloudProxy<AutomationRun>({
+        backend: active,
+        method: "POST",
+        path,
+      });
+    }
+
+    const { data } = await localAutomationAxios.post<AutomationRun>(path);
+    return data;
+  }
+
   static async listAutomationRuns(
     id: string,
     params: { limit?: number; offset?: number } = {},
@@ -165,6 +188,33 @@ class AutomationService {
     return AutomationService.updateAutomation(id, { enabled });
   }
 
+  static async downloadTarball(id: string, name: string): Promise<void> {
+    const active = getActiveBackend().backend;
+    const path = `${AUTOMATION_BASE_PATH}/v1/${encodeURIComponent(id)}/tarball`;
+
+    let blob: Blob;
+    if (active.kind === "cloud") {
+      blob = await callCloudProxy<Blob>({
+        backend: active,
+        method: "GET",
+        path,
+        responseType: "blob",
+      });
+    } else {
+      const { data } = await localAutomationAxios.get<Blob>(path, {
+        responseType: "blob",
+      });
+      blob = data;
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${name}.tar`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   static async checkHealth(): Promise<AutomationHealthResponse> {
     const active = getActiveBackend().backend;
     const path = `${AUTOMATION_BASE_PATH}/health`;
@@ -175,6 +225,8 @@ class AutomationService {
           backend: active,
           method: "GET",
           path,
+          // Fail fast, matching the local branch's 5s timeout below.
+          timeoutSeconds: 5,
         });
         return response;
       }

@@ -1,10 +1,11 @@
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "test-utils";
 import { PendingUserMessages } from "#/components/features/chat/pending-user-messages";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { useConversationStore } from "#/stores/conversation-store";
 
 const ACTIVE_CONVO = "conv-active";
 
@@ -22,6 +23,10 @@ describe("PendingUserMessages", () => {
   beforeEach(() => {
     mockSend.mockReset();
     useOptimisticUserMessageStore.setState({ pendingMessages: [] });
+    useConversationStore.setState({
+      messageRestoreIfEmpty: null,
+      messageToSend: null,
+    });
   });
 
   afterEach(() => {
@@ -33,7 +38,7 @@ describe("PendingUserMessages", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("renders each queued message with the faded 'sending' treatment", () => {
+  it("renders each queued message with the sending treatment", () => {
     useOptimisticUserMessageStore.getState().enqueuePendingMessage({
       conversationId: ACTIVE_CONVO,
       text: "first message",
@@ -71,6 +76,43 @@ describe("PendingUserMessages", () => {
     expect(messages).toHaveLength(1);
     expect(messages[0]).toHaveTextContent("mine");
     expect(screen.queryByText("from another conversation")).toBeNull();
+  });
+
+  it("removes a sending message when stop is clicked", async () => {
+    useOptimisticUserMessageStore.getState().enqueuePendingMessage({
+      conversationId: ACTIVE_CONVO,
+      text: "cancel me",
+    });
+
+    renderWithProviders(<PendingUserMessages />);
+
+    const message = screen.getByTestId("user-message");
+    fireEvent.mouseEnter(message);
+    await waitFor(() => {
+      expect(screen.getByTestId("chat-message-stop")).toBeVisible();
+    });
+    fireEvent.click(screen.getByTestId("chat-message-stop"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("user-message")).not.toBeInTheDocument();
+    });
+    expect(useOptimisticUserMessageStore.getState().pendingMessages).toHaveLength(
+      0,
+    );
+    expect(useConversationStore.getState().messageRestoreIfEmpty).toEqual(
+      expect.objectContaining({ text: "cancel me" }),
+    );
+  });
+
+  it("keeps the stop button out of the bubble layout while sending", () => {
+    useOptimisticUserMessageStore.getState().enqueuePendingMessage({
+      conversationId: ACTIVE_CONVO,
+      text: "hold my spot",
+    });
+
+    renderWithProviders(<PendingUserMessages />);
+
+    expect(screen.getByTestId("chat-message-stop")).toHaveClass("opacity-0");
   });
 
   it("shows an error state with a retry link when the message is in 'error'", () => {

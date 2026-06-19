@@ -41,6 +41,24 @@ const profiles = [
   { name: "gpt", model: "openai/gpt-4o", base_url: null, api_key_set: true },
 ];
 
+// Two profiles that resolve to the SAME underlying model but differ by name
+// — the #1082 scenario. "broken" is listed first (alphabetical) so a
+// model-only match would wrongly pick it over the user's actual choice.
+const sameModelProfiles = [
+  {
+    name: "broken",
+    model: "openhands/claude-sonnet-4-6",
+    base_url: null,
+    api_key_set: true,
+  },
+  {
+    name: "claude-sonnet-4.6",
+    model: "openhands/claude-sonnet-4-6",
+    base_url: null,
+    api_key_set: true,
+  },
+];
+
 describe("SwitchProfileButton", () => {
   const switchAndLog = vi.fn();
 
@@ -123,7 +141,7 @@ describe("SwitchProfileButton", () => {
     expect(screen.getByTestId("switch-profile-button")).toBeDisabled();
   });
 
-  it("renders nothing for ACP conversations even when profiles exist", () => {
+  it("renders nothing for ACP conversations even when profiles and a display model exist", () => {
     // ACPAgent conversations route prompts to a CLI subprocess whose model is
     // set via ``acp_model`` in Settings → Agent, not by the LLM-profile
     // picker. Letting the user "switch the LLM" here would silently no-op
@@ -133,7 +151,7 @@ describe("SwitchProfileButton", () => {
       data: {
         id: "conv-1",
         agent_kind: "acp",
-        llm_model: null,
+        llm_model: "claude-sonnet-4-6",
       },
     });
 
@@ -163,5 +181,66 @@ describe("SwitchProfileButton", () => {
     expect(
       screen.queryByTestId("switch-profile-button"),
     ).not.toBeInTheDocument();
+  });
+
+  it("labels the button with the conversation's stamped profile when several profiles share a model (#1082)", () => {
+    useLlmProfilesMock.mockReturnValue({
+      data: { profiles: sameModelProfiles, active_profile: "broken" },
+    });
+    useActiveConversationMock.mockReturnValue({
+      data: {
+        id: "conv-1",
+        agent_kind: "openhands",
+        llm_model: "openhands/claude-sonnet-4-6",
+        active_profile: "claude-sonnet-4.6",
+      },
+    });
+
+    renderWithProviders(<SwitchProfileButton />);
+
+    const button = screen.getByTestId("switch-profile-button");
+    expect(button).toHaveTextContent("claude-sonnet-4.6");
+    expect(button).not.toHaveTextContent("broken");
+  });
+
+  it("falls back to model-matching when the conversation has no stamped profile", () => {
+    useLlmProfilesMock.mockReturnValue({
+      data: { profiles: sameModelProfiles, active_profile: "broken" },
+    });
+    useActiveConversationMock.mockReturnValue({
+      data: {
+        id: "conv-1",
+        agent_kind: "openhands",
+        llm_model: "openhands/claude-sonnet-4-6",
+      },
+    });
+
+    renderWithProviders(<SwitchProfileButton />);
+
+    // No stamp (e.g. created by an older client) → first profile whose model
+    // matches, preserving today's behavior.
+    expect(screen.getByTestId("switch-profile-button")).toHaveTextContent(
+      "broken",
+    );
+  });
+
+  it("ignores a stamped profile that no longer exists and falls back to model-matching", () => {
+    useLlmProfilesMock.mockReturnValue({
+      data: { profiles: sameModelProfiles, active_profile: "broken" },
+    });
+    useActiveConversationMock.mockReturnValue({
+      data: {
+        id: "conv-1",
+        agent_kind: "openhands",
+        llm_model: "openhands/claude-sonnet-4-6",
+        active_profile: "deleted-profile",
+      },
+    });
+
+    renderWithProviders(<SwitchProfileButton />);
+
+    expect(screen.getByTestId("switch-profile-button")).toHaveTextContent(
+      "broken",
+    );
   });
 });

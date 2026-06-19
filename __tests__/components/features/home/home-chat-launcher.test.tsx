@@ -6,9 +6,46 @@ import toast from "react-hot-toast";
 
 import { HomeChatLauncher } from "#/components/features/home/home-chat-launcher";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import WorkspacesService from "#/api/workspaces-service/workspaces-service.api";
 
 const mockNavigate = vi.fn();
 const mockUseActiveBackend = vi.fn();
+const sendMessageWithAttachments = vi.fn();
+const mockClearAllFiles = vi.fn();
+const enqueueHomeTaskPendingMessage = vi.fn();
+const mockDisplayErrorToast = vi.fn();
+const mockUseLlmConfigured = vi.fn();
+
+let mockImages: File[] = [];
+let mockFiles: File[] = [];
+
+vi.mock("#/utils/send-message-with-attachments", () => ({
+  sendMessageWithAttachments: (...args: unknown[]) =>
+    sendMessageWithAttachments(...args),
+}));
+
+vi.mock("#/utils/enqueue-home-task-pending-message", () => ({
+  enqueueHomeTaskPendingMessage: (...args: unknown[]) =>
+    enqueueHomeTaskPendingMessage(...args),
+}));
+
+vi.mock("#/stores/conversation-store", () => ({
+  useConversationStore: () => ({
+    images: mockImages,
+    files: mockFiles,
+    imagesMarkedUploadAsFile: [],
+    clearAllFiles: mockClearAllFiles,
+  }),
+}));
+
+vi.mock("#/utils/custom-toast-handlers", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("#/utils/custom-toast-handlers")>();
+  return {
+    ...actual,
+    displayErrorToast: (...args: unknown[]) => mockDisplayErrorToast(...args),
+  };
+});
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -25,6 +62,10 @@ vi.mock("#/context/navigation-context", () => ({
 
 vi.mock("#/contexts/active-backend-context", () => ({
   useActiveBackend: () => mockUseActiveBackend(),
+}));
+
+vi.mock("#/hooks/use-llm-configured", () => ({
+  useLlmConfigured: () => mockUseLlmConfigured(),
 }));
 
 vi.mock("#/hooks/use-is-creating-conversation", () => ({
@@ -133,8 +174,27 @@ vi.mock("#/components/features/home/open-repository-dialog", () => ({
 // about for these tests. It's purely presentational once a selection is
 // confirmed, so a thin stub is sufficient.
 vi.mock("#/components/features/home/home-git-control-bar-preview", () => ({
-  HomeGitControlBarPreview: () => (
-    <div data-testid="stub-git-control-bar-preview" />
+  HomeGitControlBarPreview: ({
+    workspaceMode,
+    backendKind,
+    onWorkspaceModeChange,
+  }: {
+    workspaceMode: "local_repo" | "new_worktree";
+    backendKind: "local" | "cloud";
+    onWorkspaceModeChange: (mode: "local_repo" | "new_worktree") => void;
+  }) => (
+    <div data-testid="stub-git-control-bar-preview">
+      <span data-testid="stub-workspace-mode">
+        {backendKind}:{workspaceMode}
+      </span>
+      <button
+        type="button"
+        data-testid="stub-workspace-mode-new-worktree"
+        onClick={() => onWorkspaceModeChange("new_worktree")}
+      >
+        New Worktree
+      </button>
+    </div>
   ),
 }));
 
@@ -197,8 +257,27 @@ const cloudBackend = {
 
 describe("HomeChatLauncher", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
+    mockImages = [];
+    mockFiles = [];
     mockUseActiveBackend.mockReturnValue(localBackend);
+    mockUseLlmConfigured.mockReturnValue({
+      isConfigured: true,
+      isLoading: false,
+    });
+    enqueueHomeTaskPendingMessage.mockResolvedValue(undefined);
+    sendMessageWithAttachments.mockResolvedValue({
+      text: "hello world",
+      content: "hello world",
+      imageUrls: ["data:image/png;base64,abc"],
+      fileUrls: [],
+      timestamp: "2020-01-01T00:00:00.000Z",
+    });
+    vi.spyOn(WorkspacesService, "listWorkspaces").mockResolvedValue({
+      workspaces: [],
+      workspaceParents: [],
+    });
   });
 
   afterEach(() => {
@@ -224,10 +303,27 @@ describe("HomeChatLauncher", () => {
       undefined,
       undefined,
       undefined,
+      undefined,
     );
     await waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith("/conversations/conv-abc"),
     );
+  });
+
+  it("disables the chat input and won't create a conversation when no LLM is configured", async () => {
+    mockUseLlmConfigured.mockReturnValue({
+      isConfigured: false,
+      isLoading: false,
+    });
+    const createSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue(makeConversationResponse());
+
+    renderLauncher();
+
+    // The send is disabled, so the agent can't be handed a request it can't run.
+    expect(screen.getByTestId("stub-chat-submit")).toBeDisabled();
+    expect(createSpy).not.toHaveBeenCalled();
   });
 
   it("passes the picked workspace path as working_dir on a local backend", async () => {
@@ -241,7 +337,9 @@ describe("HomeChatLauncher", () => {
     const user = userEvent.setup();
 
     await user.click(screen.getByTestId("open-workspace-button"));
-    await user.click(await screen.findByTestId("stub-workspace-dialog-confirm"));
+    await user.click(
+      await screen.findByTestId("stub-workspace-dialog-confirm"),
+    );
     await user.click(screen.getByTestId("stub-chat-submit"));
 
     await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
@@ -251,12 +349,74 @@ describe("HomeChatLauncher", () => {
       undefined,
       null,
       "/p/app",
+      "local_repo",
       undefined,
       undefined,
     );
     await waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith("/conversations/conv-ws"),
     );
+  });
+
+  it("passes the picked workspace path with new-worktree mode when selected", async () => {
+    const createSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue(
+        makeConversationResponse({ app_conversation_id: "conv-wt" }),
+      );
+
+    renderLauncher();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("open-workspace-button"));
+    await user.click(
+      await screen.findByTestId("stub-workspace-dialog-confirm"),
+    );
+    expect(screen.getByTestId("stub-workspace-mode")).toHaveTextContent(
+      "local:local_repo",
+    );
+
+    await user.click(screen.getByTestId("stub-workspace-mode-new-worktree"));
+    expect(screen.getByTestId("stub-workspace-mode")).toHaveTextContent(
+      "local:new_worktree",
+    );
+    await user.click(screen.getByTestId("stub-chat-submit"));
+
+    await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+    expect(createSpy).toHaveBeenCalledWith(
+      "hello world",
+      undefined,
+      undefined,
+      null,
+      "/p/app",
+      "new_worktree",
+      undefined,
+      undefined,
+    );
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith("/conversations/conv-wt"),
+    );
+  });
+
+  it("disables the local workspace launcher when the agent server is too old", async () => {
+    vi.spyOn(WorkspacesService, "listWorkspaces").mockRejectedValue({
+      code: "AGENT_SERVER_VERSION_TOO_OLD",
+      feature: "workspaces",
+      requiredVersion: "1.23.0",
+      actualVersion: "1.22.1",
+    });
+
+    renderLauncher();
+    const user = userEvent.setup();
+    await waitFor(() =>
+      expect(screen.getByTestId("open-workspace-button")).toBeDisabled(),
+    );
+    const button = screen.getByTestId("open-workspace-button");
+    await user.hover(button.parentElement ?? button);
+
+    expect(
+      await screen.findByText("HOME$WORKSPACES_UNSUPPORTED_AGENT_SERVER"),
+    ).toBeInTheDocument();
   });
 
   it("passes the picked repository + branch payload on a cloud backend", async () => {
@@ -287,23 +447,128 @@ describe("HomeChatLauncher", () => {
       undefined,
       undefined,
       undefined,
+      undefined,
     );
     await waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith("/conversations/conv-repo"),
     );
   });
 
-  it("surfaces a toast and skips navigation when conversation creation fails", async () => {
-    const toastErrorSpy = vi.spyOn(toast, "error");
-    vi.spyOn(AgentServerConversationService, "createConversation").mockRejectedValue(
-      new Error("Network down"),
-    );
+  it("does not pass query to createConversation when attachments are present", async () => {
+    mockImages = [new File(["x"], "shot.png", { type: "image/png" })];
+    const createSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue(makeConversationResponse());
 
     renderLauncher();
     const user = userEvent.setup();
     await user.click(screen.getByTestId("stub-chat-submit"));
 
-    await waitFor(() => expect(toastErrorSpy).toHaveBeenCalled());
+    await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+    expect(createSpy).toHaveBeenCalledWith(
+      undefined,
+      undefined,
+      undefined,
+      null,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    );
+    await waitFor(() =>
+      expect(sendMessageWithAttachments).toHaveBeenCalledTimes(1),
+    );
+    expect(mockClearAllFiles).toHaveBeenCalled();
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith("/conversations/conv-abc"),
+    );
+  });
+
+  it("surfaces a toast and skips navigation when conversation creation fails", async () => {
+    vi.spyOn(
+      AgentServerConversationService,
+      "createConversation",
+    ).mockRejectedValue(new Error("Network down"));
+
+    renderLauncher();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("stub-chat-submit"));
+
+    await waitFor(() => expect(mockDisplayErrorToast).toHaveBeenCalled());
     expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("enqueues an optimistic pending message when cloud returns a start task", async () => {
+    mockUseActiveBackend.mockReturnValue(cloudBackend);
+    const createSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue(
+        makeConversationResponse({
+          id: "start-task-1",
+          app_conversation_id: null,
+        }),
+      );
+
+    renderLauncher();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("stub-chat-submit"));
+
+    await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(enqueueHomeTaskPendingMessage).toHaveBeenCalledWith({
+        conversationId: "task-start-task-1",
+        text: "hello world",
+        images: [],
+        imagesMarkedUploadAsFile: [],
+      }),
+    );
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith(
+        "/conversations/task-start-task-1",
+      ),
+    );
+  });
+
+  it("defers attachments and enqueues an optimistic pending message for cloud start tasks", async () => {
+    mockUseActiveBackend.mockReturnValue(cloudBackend);
+    mockImages = [new File(["x"], "shot.png", { type: "image/png" })];
+    const createSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue(
+        makeConversationResponse({
+          id: "start-task-2",
+          app_conversation_id: null,
+        }),
+      );
+
+    renderLauncher();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("stub-chat-submit"));
+
+    await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+    expect(createSpy).toHaveBeenCalledWith(
+      undefined,
+      undefined,
+      undefined,
+      null,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    );
+    expect(sendMessageWithAttachments).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(enqueueHomeTaskPendingMessage).toHaveBeenCalledWith({
+        conversationId: "task-start-task-2",
+        text: "hello world",
+        images: mockImages,
+        imagesMarkedUploadAsFile: [],
+      }),
+    );
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith(
+        "/conversations/task-start-task-2",
+      ),
+    );
   });
 });

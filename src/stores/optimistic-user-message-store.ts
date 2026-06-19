@@ -84,6 +84,14 @@ interface OptimisticUserMessageActions {
   ) => PendingUserMessage | null;
   /** Wipe all queued messages (e.g., when changing conversations). */
   clearPendingMessages: () => void;
+  /**
+   * Move pending entries from a provisional task URL (`task-{uuid}`) to the
+   * real conversation id once cloud provisioning finishes.
+   */
+  reassignPendingMessages: (
+    fromConversationId: string,
+    toConversationId: string,
+  ) => void;
 }
 
 type OptimisticUserMessageStore = OptimisticUserMessageState &
@@ -190,5 +198,14 @@ export const useOptimisticUserMessageStore = create<OptimisticUserMessageStore>(
     },
 
     clearPendingMessages: () => set(() => ({ ...initialState })),
+
+    reassignPendingMessages: (fromConversationId, toConversationId) =>
+      set((state) => ({
+        pendingMessages: state.pendingMessages.map((message) =>
+          message.conversationId === fromConversationId
+            ? { ...message, conversationId: toConversationId }
+            : message,
+        ),
+      })),
   }),
 );

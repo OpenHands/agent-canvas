@@ -6,6 +6,10 @@ import { useCreateSecret } from "#/hooks/mutation/use-create-secret";
 import { useUpdateSecret } from "#/hooks/mutation/use-update-secret";
 import { SettingsInput } from "../settings-input";
 import { cn } from "#/utils/utils";
+import {
+  formControlMultilineFieldClassName,
+  formControlSettingsFieldClassName,
+} from "#/utils/form-control-classes";
 import { BrandButton } from "../brand-button";
 import { useSearchSecrets } from "#/hooks/query/use-get-secrets";
 import { OptionalTag } from "../optional-tag";
@@ -90,13 +94,13 @@ export function SecretForm({
         (secret) => secret.name === name && secret.name !== selectedSecret,
       );
       if (isNameAlreadyUsed) {
-        setError(t("SECRETS$SECRET_ALREADY_EXISTS"));
+        setError(t(I18nKey.SECRETS$SECRET_ALREADY_EXISTS));
         return;
       }
 
       if (mode === "add") {
         if (!value) {
-          setError(t("SECRETS$SECRET_VALUE_REQUIRED"));
+          setError(t(I18nKey.SECRETS$SECRET_VALUE_REQUIRED));
           return;
         }
 
@@ -123,7 +127,7 @@ export function SecretForm({
         className="w-full min-w-0"
         required
         defaultValue={mode === "edit" && selectedSecret ? selectedSecret : ""}
-        placeholder={t("SECRETS$API_KEY_EXAMPLE")}
+        placeholder={t(I18nKey.SECRETS$API_KEY_EXAMPLE)}
         pattern="^[a-zA-Z][a-zA-Z0-9_]{0,63}$"
         title="Must start with a letter, contain only letters/numbers/underscores, and be 1-64 characters"
       />
@@ -138,7 +142,8 @@ export function SecretForm({
             required
             className={cn(
               "resize-none",
-              "bg-tertiary border border-[var(--oh-border-input)] rounded-sm p-2 placeholder:italic placeholder:text-tertiary-alt",
+              formControlMultilineFieldClassName,
+              "placeholder:italic",
               "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)] disabled:cursor-not-allowed",
             )}
             rows={8}
@@ -156,9 +161,8 @@ export function SecretForm({
           name="secret-description"
           defaultValue={secretDescription}
           className={cn(
-            "resize-none",
-            "bg-tertiary border border-[var(--oh-border-input)] rounded-sm p-2 placeholder:italic placeholder:text-tertiary-alt",
-            "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)] disabled:cursor-not-allowed",
+            formControlSettingsFieldClassName,
+            "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)]",
           )}
         />
       </label>
@@ -173,8 +177,8 @@ export function SecretForm({
           {t(I18nKey.BUTTON$CANCEL)}
         </BrandButton>
         <BrandButton testId="submit-button" type="submit" variant="primary">
-          {mode === "add" && t("SECRETS$ADD_SECRET")}
-          {mode === "edit" && t("SECRETS$EDIT_SECRET")}
+          {mode === "add" && t(I18nKey.SECRETS$ADD_SECRET)}
+          {mode === "edit" && t(I18nKey.SECRETS$EDIT_SECRET)}
         </BrandButton>
       </div>
     </form>

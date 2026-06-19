@@ -18,7 +18,6 @@ export const useWebSocket = <T = string>(
 ) => {
   const [isConnected, setIsConnected] = React.useState(false);
   const [lastMessage, setLastMessage] = React.useState<T | null>(null);
-  const [messages, setMessages] = React.useState<T[]>([]);
   const [error, setError] = React.useState<Error | null>(null);
   const [isReconnecting, setIsReconnecting] = React.useState(false);
   const wsRef = React.useRef<WebSocket | null>(null);
@@ -66,7 +65,6 @@ export const useWebSocket = <T = string>(
 
     ws.onmessage = (event) => {
       setLastMessage(event.data);
-      setMessages((prev) => [...prev, event.data]);
       optionsRef.current?.onMessage?.(event);
     };
 
@@ -178,15 +176,41 @@ export const useWebSocket = <T = string>(
     }
   }, []);
 
+  const reconnect = React.useCallback(() => {
+    shouldReconnectRef.current = true;
+    attemptCountRef.current = 0;
+    setIsReconnecting(true);
+    setError(null);
+
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
+    if (wsRef.current) {
+      const ws = wsRef.current;
+      allowedToReconnectRef.current.delete(ws);
+      wsRef.current = null;
+      if (
+        ws.readyState === WebSocket.CONNECTING ||
+        ws.readyState === WebSocket.OPEN
+      ) {
+        ws.close();
+      }
+    }
+
+    connectWebSocket();
+  }, [connectWebSocket]);
+
   return {
     isConnected,
     lastMessage,
-    messages,
     error,
     socket: wsRef.current,
     sendMessage,
     isReconnecting,
     attemptCount: attemptCountRef.current,
     disconnect,
+    reconnect,
   };
 };

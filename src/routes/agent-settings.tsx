@@ -7,9 +7,13 @@ import { useAgentSettingsSchema } from "#/hooks/query/use-agent-settings-schema"
 import { SettingsDropdownInput } from "#/components/features/settings/settings-dropdown-input";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { SettingsSwitch } from "#/components/features/settings/settings-switch";
+import { AcpCredentialsSection } from "#/components/features/settings/acp-credentials-section";
+import { useAcpCredentialForm } from "#/hooks/use-acp-credential-form";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
+import { formControlSwitchDescriptionClassName } from "#/utils/form-control-classes";
+import { cn } from "#/utils/utils";
 import { SettingsFieldSchema } from "#/types/settings";
 import {
   displayErrorToast,
@@ -24,6 +28,8 @@ import {
   ACP_PROVIDERS,
   ACP_CUSTOM_PRESET_KEY,
   buildAcpAgentSettingsDiff,
+  getAcpPreferredDefaultModel,
+  getAcpProvider,
   type ACPProviderConfig,
 } from "#/constants/acp-providers";
 import { parseCommand, formatCommand } from "#/utils/acp-command";
@@ -34,6 +40,7 @@ type AgentType = "openhands" | "acp";
 
 const ENABLE_SUB_AGENTS_FIELD_KEY = "enable_sub_agents";
 const COMMAND_PLACEHOLDER_FALLBACK = "npx -y <package-name>";
+const ACP_CUSTOM_MODEL_KEY = "__custom_model__";
 
 function toStringArray(value: unknown): string[] {
   return Array.isArray(value)
@@ -68,6 +75,15 @@ function getEnableSubAgentsValue(
   return field?.default === true;
 }
 
+function isKnownAcpModel(
+  provider: ACPProviderConfig | undefined,
+  model: string,
+): boolean {
+  return (
+    provider?.available_models?.some(({ id }) => id === model.trim()) ?? false
+  );
+}
+
 function AgentSettingsScreen() {
   const { t } = useTranslation("openhands");
   const { data: settings, isLoading } = useSettings();
@@ -98,7 +114,21 @@ function AgentSettingsScreen() {
   const [agentType, setAgentType] = useState<AgentType>("openhands");
   const [commandText, setCommandText] = useState("");
   const [acpModel, setAcpModel] = useState("");
+  const [isCustomAcpModel, setIsCustomAcpModel] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+
+  // ACP credentials live alongside the agent spec, so the page owns the
+  // credential form and a single Save persists both. Called unconditionally
+  // (no-ops to empty fields for a non-ACP / custom command) to keep hook order
+  // stable across the ``isLoading`` early-return below; ``detectPreset`` is a
+  // cheap pure lookup.
+  const acpPresetForCreds =
+    agentType === "acp" ? detectPreset(commandText, ACP_PROVIDERS) : null;
+  const acpCredentialForm = useAcpCredentialForm(
+    acpPresetForCreds && acpPresetForCreds !== ACP_CUSTOM_PRESET_KEY
+      ? acpPresetForCreds
+      : null,
+  );
 
   const lastInitializedSettingsRef = useRef<unknown>(null);
   const loadedAcpServerRef = useRef<string | null>(null);
@@ -117,7 +147,7 @@ function AgentSettingsScreen() {
       const rawAcpServer = settings.agent_settings?.acp_server;
       const acpServer =
         typeof rawAcpServer === "string" ? rawAcpServer : undefined;
-      const provider = ACP_PROVIDERS.find(({ key }) => key === acpServer);
+      const provider = getAcpProvider(acpServer);
       const storedCommand = toStringArray(settings.agent_settings?.acp_command);
       const effectiveBaseCommand =
         storedCommand.length > 0
@@ -134,13 +164,22 @@ function AgentSettingsScreen() {
       loadedCommandTextRef.current = renderedCommandText;
 
       const savedModel = settings.agent_settings?.acp_model;
-      setAcpModel(typeof savedModel === "string" ? savedModel : "");
+      const normalizedSavedModel =
+        typeof savedModel === "string" ? savedModel.trim() : "";
+      setAcpModel(
+        normalizedSavedModel || getAcpPreferredDefaultModel(acpServer) || "",
+      );
+      setIsCustomAcpModel(
+        !!normalizedSavedModel &&
+          (!provider || !isKnownAcpModel(provider, normalizedSavedModel)),
+      );
     } else {
       setAgentType("openhands");
       setCommandText("");
       setAcpModel("");
       loadedAcpServerRef.current = null;
       loadedCommandTextRef.current = "";
+      setIsCustomAcpModel(false);
     }
     setIsDirty(false);
   }, [settings]);
@@ -156,9 +195,14 @@ function AgentSettingsScreen() {
   const commandTokens = parseCommand(commandText);
   const isAcpInvalid = isAcp && commandTokens.length === 0;
   const selectedPreset = detectPreset(commandText, ACP_PROVIDERS);
-  const selectedProvider = ACP_PROVIDERS.find(
-    ({ key }) => key === selectedPreset,
-  );
+  const selectedProvider = getAcpProvider(selectedPreset);
+  const modelSuggestions = selectedProvider?.available_models ?? [];
+  const hasModelSuggestions = modelSuggestions.length > 0;
+  const selectedModelIsSuggestion = isKnownAcpModel(selectedProvider, acpModel);
+  const selectedModelKey =
+    isCustomAcpModel || !selectedModelIsSuggestion
+      ? ACP_CUSTOM_MODEL_KEY
+      : acpModel;
   const isDefaultProviderCommand =
     !!selectedProvider &&
     commandTokens.join(" ") === selectedProvider.default_command.join(" ");
@@ -169,9 +213,31 @@ function AgentSettingsScreen() {
   // Dirty tracking: for OpenHands path, also check sub-agents toggle
   const isOpenHandsDirty =
     !isAcp && subAgentsEnabled !== initialSubAgentsEnabled;
-  const effectiveIsDirty = isDirty || isOpenHandsDirty;
+  const settingsDirty = isDirty || isOpenHandsDirty;
+  // The single Save covers both the agent spec and ACP credentials, so it is
+  // active when either changed, and shows "Saving…" while either is in flight.
+  // ``isDirty`` is already false off the ACP path (no credential fields), so no
+  // ``isAcp`` guard is needed.
+  const credentialsDirty = acpCredentialForm.isDirty;
+  const isAnyDirty = settingsDirty || credentialsDirty;
+  const isSavingAny = isSaving || acpCredentialForm.isSaving;
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    // Persist ACP credentials first (if any were typed) so they exist when the
+    // agent spec is applied. When the spec is also changing, save silently so
+    // the settings save below owns the single "Saved" toast (otherwise the user
+    // sees it twice); a credentials-only save shows its own toast. Errors always
+    // toast and abort.
+    if (acpCredentialForm.isDirty) {
+      const ok = await acpCredentialForm.save({ silent: settingsDirty });
+      if (!ok) return;
+      acpCredentialForm.reset();
+    }
+
+    // Only write the agent spec when it actually changed — a credentials-only
+    // edit must not re-push unchanged settings (or double-toast).
+    if (!settingsDirty) return;
+
     if (isAcp) {
       const useDefault = !!(selectedProvider && isDefaultProviderCommand);
       const loadedServer = loadedAcpServerRef.current;
@@ -187,9 +253,12 @@ function AgentSettingsScreen() {
         : selectedProvider && isDefaultProviderCommand
           ? selectedProvider.key
           : ACP_CUSTOM_PRESET_KEY;
+      // ``model: undefined`` lets buildAcpAgentSettingsDiff seed the
+      // provider's preferred default for built-in keys; for the custom preset
+      // it falls through to ``null`` since custom has no default.
       const agentSettingsDiff = buildAcpAgentSettingsDiff(providerKey, {
         command: useDefault ? [] : commandTokens,
-        model: acpModel.trim() || null,
+        model: acpModel.trim() || undefined,
         allowUnknownServer: preserveUnknownServer,
       });
 
@@ -277,7 +346,11 @@ function AgentSettingsScreen() {
             const preferred = ACP_PROVIDERS[0];
             if (preferred) {
               setCommandText(formatCommand(preferred.default_command));
+              setAcpModel(getAcpPreferredDefaultModel(preferred.key) ?? "");
+              setIsCustomAcpModel(false);
             }
+          } else if (newType === "openhands") {
+            setIsCustomAcpModel(false);
           }
           setIsDirty(true);
         }}
@@ -295,7 +368,12 @@ function AgentSettingsScreen() {
             {subAgentsLabel}
           </SettingsSwitch>
           {subAgentsDescription ? (
-            <Typography.Paragraph className="text-tertiary-alt text-xs leading-5">
+            <Typography.Paragraph
+              className={cn(
+                formControlSwitchDescriptionClassName,
+                "text-tertiary-alt text-xs leading-5",
+              )}
+            >
               {subAgentsDescription}
             </Typography.Paragraph>
           ) : null}
@@ -322,9 +400,21 @@ function AgentSettingsScreen() {
             onSelectionChange={(key) => {
               if (!key) return;
               const preset = String(key);
-              const provider = ACP_PROVIDERS.find(({ key: k }) => k === preset);
+              const provider = getAcpProvider(preset);
               if (provider) {
                 setCommandText(formatCommand(provider.default_command));
+                setAcpModel(getAcpPreferredDefaultModel(preset) ?? "");
+                setIsCustomAcpModel(false);
+              } else if (preset === ACP_CUSTOM_PRESET_KEY) {
+                // Clear command + model: the previous provider's default
+                // command would otherwise make detectPreset(commandText)
+                // re-match it on the next render and snap the dropdown back
+                // off "Custom". Clearing model also prevents leaking e.g.
+                // ``claude-opus-4-7`` into ``acp_model`` for an unrelated
+                // wrapper.
+                setCommandText("");
+                setAcpModel("");
+                setIsCustomAcpModel(true);
               }
               setIsDirty(true);
             }}
@@ -336,11 +426,28 @@ function AgentSettingsScreen() {
             </Typography.Text>
             <textarea
               data-testid="agent-command-input"
-              className="bg-tertiary border border-[#717888] rounded-sm p-2 text-sm font-mono text-white placeholder:italic placeholder:text-[#717888] min-h-[60px] resize-y focus:outline-none focus:border-white"
+              className="bg-tertiary border border-[#717888] rounded-sm p-2 text-sm font-mono text-white placeholder:text-[#717888] min-h-[60px] resize-y focus:outline-none focus:border-white"
               value={commandText}
               placeholder={commandPlaceholder}
               onChange={(e) => {
-                setCommandText(e.target.value);
+                const nextCommandText = e.target.value;
+                // Keep the model selector in sync with the command being
+                // typed. Editing the command into a *different* provider — or
+                // into a custom command — must drop the previous provider's
+                // model, or Save would silently persist e.g.
+                // ``claude-opus-4-7`` against a Codex / custom wrapper. The
+                // preset dropdown already does this; the textarea is the other
+                // way a user changes provider, so it needs the same
+                // reconciliation. Gated on the *detected preset* actually
+                // changing, so it never clobbers a model the user is editing
+                // within the same provider.
+                const prevPreset = detectPreset(commandText, ACP_PROVIDERS);
+                const nextPreset = detectPreset(nextCommandText, ACP_PROVIDERS);
+                if (nextPreset !== prevPreset) {
+                  setAcpModel(getAcpPreferredDefaultModel(nextPreset) ?? "");
+                  setIsCustomAcpModel(false);
+                }
+                setCommandText(nextCommandText);
                 setIsDirty(true);
               }}
             />
@@ -350,22 +457,68 @@ function AgentSettingsScreen() {
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <SettingsInput
-              testId="agent-model-input"
-              label={t(I18nKey.SETTINGS$AGENT_MODEL)}
-              type="text"
-              className="w-full"
-              value={acpModel}
-              showOptionalTag
-              onChange={(value) => {
-                setAcpModel(value);
-                setIsDirty(true);
-              }}
-            />
+            {hasModelSuggestions && (
+              <SettingsDropdownInput
+                testId="agent-model-selector"
+                name="agent-model"
+                label={t(I18nKey.SETTINGS$AGENT_MODEL)}
+                items={[
+                  ...modelSuggestions.map((model) => ({
+                    key: model.id,
+                    label: model.label,
+                  })),
+                  {
+                    key: ACP_CUSTOM_MODEL_KEY,
+                    label: t(I18nKey.SETTINGS$AGENT_PRESET_CUSTOM),
+                  },
+                ]}
+                selectedKey={selectedModelKey}
+                onSelectionChange={(key) => {
+                  if (!key) return;
+                  const modelKey = String(key);
+                  if (modelKey === ACP_CUSTOM_MODEL_KEY) {
+                    setIsCustomAcpModel(true);
+                    setAcpModel("");
+                  } else {
+                    setIsCustomAcpModel(false);
+                    setAcpModel(modelKey);
+                  }
+                  setIsDirty(true);
+                }}
+              />
+            )}
+            {selectedModelKey === ACP_CUSTOM_MODEL_KEY && (
+              <SettingsInput
+                testId="agent-model-input"
+                label={
+                  hasModelSuggestions
+                    ? t(I18nKey.SETTINGS$AGENT_CUSTOM_MODEL)
+                    : t(I18nKey.SETTINGS$AGENT_MODEL)
+                }
+                type="text"
+                className="w-full"
+                value={acpModel}
+                showOptionalTag
+                onChange={(value) => {
+                  setAcpModel(value);
+                  setIsDirty(true);
+                }}
+              />
+            )}
             <Typography.Text className="text-xs text-[#717888]">
               {t(I18nKey.SETTINGS$AGENT_MODEL_HINT)}
             </Typography.Text>
           </div>
+        </>
+      )}
+
+      {isAcp && selectedPreset !== ACP_CUSTOM_PRESET_KEY && (
+        <>
+          <hr className="border-[#3D4046]" />
+          <AcpCredentialsSection
+            form={acpCredentialForm}
+            providerKey={selectedPreset}
+          />
         </>
       )}
 
@@ -374,10 +527,10 @@ function AgentSettingsScreen() {
           testId="agent-save-button"
           type="button"
           variant="primary"
-          isDisabled={isSaving || !effectiveIsDirty || isAcpInvalid}
+          isDisabled={isSavingAny || !isAnyDirty || isAcpInvalid}
           onClick={handleSave}
         >
-          {isSaving
+          {isSavingAny
             ? t(I18nKey.SETTINGS$SAVING)
             : t(I18nKey.SETTINGS$SAVE_CHANGES)}
         </BrandButton>

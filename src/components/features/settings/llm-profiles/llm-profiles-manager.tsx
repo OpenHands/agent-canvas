@@ -4,9 +4,13 @@ import { BrandButton } from "#/components/features/settings/brand-button";
 import { RenameProfileModal } from "./rename-profile-modal";
 import { DeleteProfileModal } from "./delete-profile-modal";
 import { ProfilesBody } from "./profiles-body";
-import { ProfileInfo } from "#/api/profiles-service/profiles-service.api";
+import ProfilesService, {
+  ProfileInfo,
+  type SaveProfileRequest,
+} from "#/api/profiles-service/profiles-service.api";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useActivateLlmProfile } from "#/hooks/mutation/use-activate-llm-profile";
+import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -25,6 +29,7 @@ export function LlmProfilesManager({
   const { t } = useTranslation("openhands");
   const { data, isLoading, error } = useLlmProfiles();
   const activateProfile = useActivateLlmProfile();
+  const saveProfile = useSaveLlmProfile();
   const [profileToRename, setProfileToRename] = useState<ProfileInfo | null>(
     null,
   );
@@ -49,11 +54,46 @@ export function LlmProfilesManager({
     onEditProfile?.(profile);
   };
 
+  const handleDuplicate = async (profile: ProfileInfo) => {
+    try {
+      // Fetch the full config with encrypted secrets so the API key is
+      // preserved on the duplicate (same approach as the edit flow).
+      const detail = await ProfilesService.getProfile(
+        profile.name,
+        "encrypted",
+      );
+
+      // Find an available name: "{name}-copy", then "{name}-copy-1", etc.
+      const existingNames = new Set(profiles.map((p) => p.name));
+      let newName = `${profile.name}-copy`;
+      let counter = 1;
+      while (existingNames.has(newName)) {
+        newName = `${profile.name}-copy-${counter}`;
+        counter += 1;
+      }
+
+      await saveProfile.mutateAsync({
+        name: newName,
+        request: {
+          llm: detail.config as SaveProfileRequest["llm"],
+          include_secrets: true,
+        },
+      });
+
+      displaySuccessToast(
+        t(I18nKey.SETTINGS$PROFILE_DUPLICATED, { name: newName }),
+      );
+    } catch (err) {
+      console.error("Failed to duplicate profile:", err);
+      displayErrorToast(t(I18nKey.ERROR$GENERIC));
+    }
+  };
+
   return (
     <>
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-base font-semibold text-white">
+          <h2 className="text-base font-medium text-white">
             {t(I18nKey.SETTINGS$AVAILABLE_PROFILES)}
           </h2>
           {onAddProfile ? (
@@ -77,6 +117,7 @@ export function LlmProfilesManager({
           onActivate={handleActivate}
           onEdit={handleEdit}
           onRename={setProfileToRename}
+          onDuplicate={handleDuplicate}
           onDelete={setProfileToDelete}
           isActivating={activateProfile.isPending}
         />

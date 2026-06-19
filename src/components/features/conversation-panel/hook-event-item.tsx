@@ -20,6 +20,11 @@ const EVENT_TYPE_I18N_KEYS: Record<string, I18nKey> = {
   stop: I18nKey.HOOKS_MODAL$EVENT_STOP,
 };
 
+const HOOK_PILL_CLASS =
+  "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium leading-4 border border-[var(--oh-border)] bg-[var(--oh-surface)] text-tertiary-light";
+
+const HOOK_COUNT_I18N_KEY = "HOOKS_MODAL$HOOK_COUNT";
+
 export function HookEventItem({
   hookEvent,
   isExpanded,
@@ -35,21 +40,21 @@ export function HookEventItem({
   );
 
   return (
-    <div className="rounded-md overflow-hidden">
+    <div>
       <button
         type="button"
         onClick={() => onToggle(hookEvent.event_type)}
-        className="w-full py-3 px-2 text-left flex items-center justify-between hover:bg-tertiary transition-colors"
+        className="w-full py-3 px-3 text-left flex items-center justify-between hover:bg-tertiary transition-colors"
       >
         <div className="flex items-center">
           <Typography.Text className="font-bold text-content-2">
             {eventTypeLabel}
           </Typography.Text>
         </div>
-        <div className="flex items-center">
-          <Typography.Text className="px-2 py-1 text-xs rounded-full bg-[var(--oh-surface)] mr-2">
-            {t(I18nKey.HOOKS_MODAL$HOOK_COUNT, { count: totalHooks })}
-          </Typography.Text>
+        <div className="flex items-center gap-2">
+          <span className={HOOK_PILL_CLASS}>
+            {t(HOOK_COUNT_I18N_KEY, { count: totalHooks })}
+          </span>
           <Typography.Text className="text-[var(--oh-text-tertiary)]">
             {isExpanded ? (
               <ChevronDown size={18} />
@@ -61,13 +66,15 @@ export function HookEventItem({
       </button>
 
       {isExpanded && (
-        <div className="px-2 pb-3 pt-1">
-          {hookEvent.matchers.map((matcher, index) => (
-            <HookMatcherContent
-              key={`${hookEvent.event_type}-${matcher.matcher}-${index}`}
-              matcher={matcher}
-            />
-          ))}
+        <div className="border-t border-[var(--oh-border)] px-3 pt-3 pb-3">
+          <div className="divide-y divide-[var(--oh-border)]">
+            {hookEvent.matchers.map((matcher, index) => (
+              <HookMatcherContent
+                key={`${hookEvent.event_type}-${matcher.matcher}-${index}`}
+                matcher={matcher}
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>

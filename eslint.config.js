@@ -143,6 +143,18 @@ export default [
       "i18next/no-literal-string": "error",
       "unused-imports/no-unused-imports": "error",
       "@typescript-eslint/prefer-optional-chain": "error",
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@openhands/typescript-client/client/http-client",
+              message:
+                "Use typed @openhands/typescript-client clients instead of constructing HttpClient directly.",
+            },
+          ],
+        },
+      ],
 
       // Allow `interface Foo extends Bar<"foo"> {}` — the codebase uses this
       // discriminated-union pattern in `src/types/agent-server/**` and the
@@ -229,6 +241,16 @@ export default [
             "Property[key.name='queryKey'] > ArrayExpression[elements.0.value='settings']",
           message:
             "Use SETTINGS_QUERY_KEYS helpers instead of raw settings query key arrays.",
+        },
+        {
+          selector:
+            "CallExpression[callee.name='t'] > Literal:first-child[value=/^[A-Z0-9_]+\\$/]",
+          message: "Use I18nKey instead of raw translation key strings.",
+        },
+        {
+          selector:
+            "CallExpression[callee.property.name='t'] > Literal:first-child[value=/^[A-Z0-9_]+\\$/]",
+          message: "Use I18nKey instead of raw translation key strings.",
         },
       ],
       "react/require-default-props": "off",

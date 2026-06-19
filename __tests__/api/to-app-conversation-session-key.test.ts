@@ -5,7 +5,7 @@ import {
   __resetActiveStoreForTests,
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
-import { DEFAULT_LOCAL_BACKEND_ID } from "#/api/backend-registry/default-backend";
+import { SEEDED_DEFAULT_BACKEND_ID } from "#/api/backend-registry/default-backend";
 
 const directInfo = (id: string) => ({
   id,
@@ -20,12 +20,12 @@ afterEach(() => {
 });
 
 describe("toAppConversation session_api_key hydration", () => {
-  it("prefers the configured VITE_SESSION_API_KEY over a stale stored default-local apiKey", () => {
+  it("uses the active backend registry apiKey instead of VITE_SESSION_API_KEY", () => {
     vi.stubEnv("VITE_SESSION_API_KEY", "fresh-session-key");
 
     setRegisteredBackends([
       {
-        id: DEFAULT_LOCAL_BACKEND_ID,
+        id: SEEDED_DEFAULT_BACKEND_ID,
         name: "Local",
         host: window.location.origin,
         apiKey: "stale-session-key",
@@ -34,6 +34,6 @@ describe("toAppConversation session_api_key hydration", () => {
     ]);
 
     const conversation = toAppConversation(directInfo("conv-1"));
-    expect(conversation.session_api_key).toBe("fresh-session-key");
+    expect(conversation.session_api_key).toBe("stale-session-key");
   });
 });

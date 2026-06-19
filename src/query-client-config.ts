@@ -4,6 +4,8 @@ import i18n from "#/i18n";
 import { I18nKey } from "./i18n/declaration";
 import { retrieveAxiosErrorMessage } from "./utils/retrieve-axios-error-message";
 import { displayErrorToast } from "./utils/custom-toast-handlers";
+import { getActiveBackend } from "#/api/backend-registry/active-store";
+import { recordBackendSuccess } from "#/api/backend-registry/health-store";
 
 const handle401Error = (error: AxiosError, client: QueryClient) => {
   if (error?.response?.status === 401 || error?.status === 401) {
@@ -11,11 +13,31 @@ const handle401Error = (error: AxiosError, client: QueryClient) => {
   }
 };
 
+const isActiveCloudBackendAuthError = (error: unknown) => {
+  if (!(error instanceof AxiosError)) return false;
+  if (error.response?.status !== 401 && error.status !== 401) return false;
+
+  const activeBackend = getActiveBackend().backend;
+  if (activeBackend.kind !== "cloud") return false;
+
+  const requestUrl = error.config?.url;
+  return (
+    !requestUrl || requestUrl.startsWith(activeBackend.host.replace(/\/+$/, ""))
+  );
+};
+
 const shownErrors = new Set<string>();
 
 export const createAgentServerQueryClient = () => {
   const client = new QueryClient({
     queryCache: new QueryCache({
+      onSuccess: (_data, query) => {
+        const backendId =
+          query.meta?.backendId ?? query.options.meta?.backendId;
+        if (typeof backendId === "string") {
+          recordBackendSuccess(backendId);
+        }
+      },
       onError: (error, query) => {
         const isAuthQuery =
           query.queryKey[0] === "user" && query.queryKey[1] === "authenticated";
@@ -26,7 +48,7 @@ export const createAgentServerQueryClient = () => {
         const disableToast =
           query.meta?.disableToast ?? query.options.meta?.disableToast;
 
-        if (!disableToast) {
+        if (!disableToast && !isActiveCloudBackendAuthError(error)) {
           const errorMessage = retrieveAxiosErrorMessage(error);
 
           if (!shownErrors.has(errorMessage || "")) {
@@ -47,7 +69,7 @@ export const createAgentServerQueryClient = () => {
         const disableToast =
           mutation?.meta?.disableToast ?? mutation?.options.meta?.disableToast;
 
-        if (!disableToast) {
+        if (!disableToast && !isActiveCloudBackendAuthError(error)) {
           const message = retrieveAxiosErrorMessage(error);
           displayErrorToast(message || i18n.t(I18nKey.ERROR$GENERIC));
         }

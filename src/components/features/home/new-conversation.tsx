@@ -51,10 +51,10 @@ export function NewConversation() {
           )
         }
         isDisabled={isCreatingConversation}
-        className="w-auto absolute bottom-5 left-5 right-5 font-semibold"
+        className="w-auto absolute bottom-5 left-5 right-5"
       >
-        {!isCreatingConversation && t("COMMON$NEW_CONVERSATION")}
-        {isCreatingConversation && t("HOME$LOADING")}
+        {!isCreatingConversation && t(I18nKey.COMMON$NEW_CONVERSATION)}
+        {isCreatingConversation && t(I18nKey.HOME$LOADING)}
       </BrandButton>
     </section>
   );

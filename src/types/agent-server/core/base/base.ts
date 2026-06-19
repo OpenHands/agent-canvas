@@ -8,7 +8,8 @@ type EventType =
   | "StrReplaceEditor"
   | "TaskTracker"
   | "PlanningFileEditor"
-  | "InvokeSkill";
+  | "InvokeSkill"
+  | "SwitchLLM";
 
 type ActionOnlyType =
   | "BrowserNavigate"
@@ -32,13 +33,19 @@ type ActionEventType =
   | `${ActionOnlyType}Action`
   | `${EventType}Action`
   | "GlobAction"
-  | "GrepAction";
+  | "GrepAction"
+  // The `task` tool delegating work to a spawned subagent.
+  | "TaskAction";
 type ObservationEventType =
   | `${ObservationOnlyType}Observation`
   | `${EventType}Observation`
   | "TerminalObservation"
   | "GlobObservation"
-  | "GrepObservation";
+  | "GrepObservation"
+  // Result of the `task` tool, which delegates work to a spawned subagent.
+  | "TaskObservation"
+  // Acknowledgement emitted after a `canvas_ui` command is dispatched.
+  | "CanvasUIObservation";
 
 export interface ActionBase<T extends ActionEventType = ActionEventType> {
   kind: T;

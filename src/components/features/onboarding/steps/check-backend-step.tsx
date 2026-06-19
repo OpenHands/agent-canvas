@@ -1,19 +1,39 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, Loader2, AlertCircle } from "lucide-react";
-import { BackendForm } from "#/components/features/backends/backend-form-modal";
+import { isNoBackend } from "#/api/backend-registry/active-store";
+import type { Backend } from "#/api/backend-registry/types";
+import {
+  getAgentServerFormDefaults,
+  isAuthRequired,
+} from "#/api/agent-server-config";
+import { DEFAULT_LOCAL_BACKEND_NAME } from "#/api/backend-registry/default-backend";
+import {
+  BackendConnectionOptions,
+  type BackendFormSubmitPayload,
+} from "#/components/features/backends/backend-form-modal";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { I18nKey } from "#/i18n/declaration";
+import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { cn } from "#/utils/utils";
+import { getBackendStatusLabel } from "#/components/features/backends/backend-status-label";
 
 interface CheckBackendStepProps {
-  onBack: () => void;
+  onBack?: () => void;
   onNext: () => void;
 }
 
-function ConnectionBanner({ isConnected }: { isConnected: boolean | null }) {
+function ConnectionBanner({
+  backend,
+  isConnected,
+  lastError,
+}: {
+  backend: Backend;
+  isConnected: boolean | null;
+  lastError: string | null;
+}) {
   const { t } = useTranslation("openhands");
 
   if (isConnected === true) {
@@ -39,6 +59,10 @@ function ConnectionBanner({ isConnected }: { isConnected: boolean | null }) {
   }
 
   if (isConnected === false) {
+    const statusLabel = getBackendStatusLabel(t, backend, {
+      isConnected,
+      lastError,
+    });
     return (
       <div
         role="alert"
@@ -48,7 +72,7 @@ function ConnectionBanner({ isConnected }: { isConnected: boolean | null }) {
         <AlertCircle className="mt-0.5 size-5 shrink-0 text-red-400" />
         <div className="flex flex-col gap-1">
           <span className="text-sm font-medium text-red-200">
-            {t(I18nKey.ONBOARDING$BACKEND_DISCONNECTED_TITLE)}
+            {statusLabel}
           </span>
           <span className="text-xs text-red-200/80">
             {t(I18nKey.ONBOARDING$BACKEND_DISCONNECTED_BODY)}
@@ -73,16 +97,65 @@ function ConnectionBanner({ isConnected }: { isConnected: boolean | null }) {
 }
 
 /**
- * Step 1: embed the "edit backend" form pre-populated with the
- * default/active backend, plus a contextual success/error banner that
- * reacts to the live health probe.
+ * First onboarding step: add the initial backend when none is selected,
+ * or edit/check the active backend with a contextual health banner.
  */
 export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
   const { t } = useTranslation("openhands");
-  const { active } = useActiveBackendContext();
+  const { active, addBackend, updateBackend } = useActiveBackendContext();
   const { backend } = active;
-  const healthByBackendId = useBackendsHealth([backend]);
-  const isConnected = healthByBackendId[backend.id]?.isConnected ?? null;
+  const noBackendSelected = isNoBackend(backend);
+  const defaults = React.useMemo(() => getAgentServerFormDefaults(), []);
+  const backendForForm = noBackendSelected
+    ? {
+        id: "onboarding-local-backend-draft",
+        name: DEFAULT_LOCAL_BACKEND_NAME,
+        host: defaults.baseUrl,
+        apiKey: defaults.sessionApiKey,
+        kind: "local" as const,
+      }
+    : backend;
+  const healthByBackendId = useBackendsHealth(
+    noBackendSelected ? [] : [backend],
+  );
+  const isConnected = noBackendSelected
+    ? null
+    : (healthByBackendId[backend.id]?.isConnected ?? null);
+  const lastError = noBackendSelected
+    ? null
+    : (healthByBackendId[backend.id]?.lastError ?? null);
+  const [configurationOpen, setConfigurationOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (isConnected === true) {
+      setConfigurationOpen(false);
+    }
+  }, [isConnected]);
+
+  const hideConfigurationFields = isConnected === true && !configurationOpen;
+
+  const handleConnected = React.useCallback(
+    (payload: BackendFormSubmitPayload) => {
+      if (noBackendSelected) {
+        addBackend(payload);
+      } else {
+        updateBackend(backend.id, payload);
+      }
+      onNext();
+    },
+    [addBackend, backend.id, noBackendSelected, onNext, updateBackend],
+  );
+
+  const actionRowClassName = cn(
+    "sticky bottom-0 mt-2 flex items-center gap-2 bg-base-secondary pt-4 pb-7",
+    onBack ? "justify-between" : "justify-end",
+  );
+  const titleKey = noBackendSelected
+    ? I18nKey.BACKEND$ADD_TITLE
+    : I18nKey.ONBOARDING$BACKEND_TITLE;
+  const subtitleKey = noBackendSelected
+    ? I18nKey.ONBOARDING$ADD_BACKEND_SUBTITLE
+    : I18nKey.ONBOARDING$BACKEND_SUBTITLE;
 
   return (
     <div
@@ -90,23 +163,58 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
       className="flex flex-col gap-6"
     >
       <header className="flex flex-col gap-2">
-        <h2 className="text-2xl font-semibold text-white">
-          {t(I18nKey.ONBOARDING$BACKEND_TITLE)}
-        </h2>
-        <p className="text-sm text-[var(--oh-muted)]">
-          {t(I18nKey.ONBOARDING$BACKEND_SUBTITLE)}
-        </p>
+        <h2 className="text-2xl font-medium text-white">{t(titleKey)}</h2>
+        <p className="text-sm text-[var(--oh-muted)]">{t(subtitleKey)}</p>
       </header>
 
-      <ConnectionBanner isConnected={isConnected} />
+      {noBackendSelected ? null : (
+        <ConnectionBanner
+          backend={backendForForm}
+          isConnected={isConnected}
+          lastError={lastError}
+        />
+      )}
 
-      <BackendForm
-        mode="edit"
-        backend={backend}
-        onSubmitted={() => {}}
-        testIdRoot="onboarding-backend"
-        renderActions={({ canSubmit, testIdRoot }) => (
-          <div className="sticky bottom-0 flex items-center justify-end gap-2 mt-2 bg-base-secondary pt-4 pb-7">
+      {isConnected === true ? (
+        <button
+          type="button"
+          onClick={() => setConfigurationOpen((open) => !open)}
+          aria-expanded={configurationOpen}
+          data-testid="onboarding-backend-show-configuration"
+          className="flex w-full cursor-pointer items-center justify-center gap-1 text-center text-xs text-[var(--oh-muted)] transition-colors hover:text-content-2"
+        >
+          <span>
+            {configurationOpen
+              ? t(I18nKey.ONBOARDING$BACKEND_HIDE_CONFIGURATION)
+              : t(I18nKey.ONBOARDING$BACKEND_SHOW_CONFIGURATION)}
+          </span>
+          <ChevronDownSmallIcon
+            className={cn(
+              "h-4 w-4 shrink-0 text-muted transition-transform",
+              configurationOpen && "rotate-180",
+            )}
+            aria-hidden
+          />
+        </button>
+      ) : null}
+
+      <div data-testid="onboarding-backend-configuration-fields">
+        {!hideConfigurationFields ? (
+          <BackendConnectionOptions
+            onConnected={handleConnected}
+            testIdRoot="onboarding-backend"
+            initialManualBackend={backendForForm}
+            requireManualApiKey={isAuthRequired()}
+            manualSubmitLabel={t(I18nKey.ONBOARDING$NEXT)}
+            manualSubmittingLabel={t(I18nKey.SETTINGS$SAVING)}
+            manualSubmitTestId="onboarding-backend-next"
+          />
+        ) : null}
+      </div>
+
+      {hideConfigurationFields ? (
+        <div className={actionRowClassName}>
+          {onBack ? (
             <BrandButton
               testId="onboarding-backend-back"
               type="button"
@@ -115,26 +223,17 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
             >
               {t(I18nKey.ONBOARDING$BACK)}
             </BrandButton>
-            <BrandButton
-              testId={`${testIdRoot}-submit`}
-              type="submit"
-              variant="secondary"
-              isDisabled={!canSubmit}
-            >
-              {t(I18nKey.BACKEND$SAVE)}
-            </BrandButton>
-            <BrandButton
-              testId="onboarding-backend-next"
-              type="button"
-              variant="primary"
-              isDisabled={isConnected !== true}
-              onClick={onNext}
-            >
-              {t(I18nKey.ONBOARDING$NEXT)}
-            </BrandButton>
-          </div>
-        )}
-      />
+          ) : null}
+          <BrandButton
+            testId="onboarding-backend-next"
+            type="button"
+            variant="primary"
+            onClick={onNext}
+          >
+            {t(I18nKey.ONBOARDING$NEXT)}
+          </BrandButton>
+        </div>
+      ) : null}
     </div>
   );
 }

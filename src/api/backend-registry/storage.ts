@@ -1,4 +1,7 @@
-import { makeDefaultLocalBackend } from "./default-backend";
+import {
+  SEEDED_DEFAULT_BACKEND_ID,
+  makeDefaultLocalBackend,
+} from "./default-backend";
 import type { Backend, BackendKind, BackendSelection } from "./types";
 
 export const BACKENDS_STORAGE_KEY = "openhands-backends";
@@ -21,35 +24,57 @@ function isValidBackend(value: unknown): value is Backend {
   );
 }
 
-function normalizeHostForComparison(host: string): string {
+function isLoopbackUrl(value: string): boolean {
   try {
-    return new URL(host).origin;
+    const { hostname } = new URL(value);
+    return (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1" ||
+      hostname === "[::1]"
+    );
   } catch {
-    return host.replace(/\/+$/, "");
+    return false;
   }
 }
 
-function syncDefaultLocalBackendAuth(backend: Backend): Backend {
+function shouldSyncLauncherDefaultLocalBackend(
+  backend: Backend,
+  defaultBackend: Backend,
+): boolean {
+  if (backend.id !== SEEDED_DEFAULT_BACKEND_ID || backend.kind !== "local") {
+    return false;
+  }
+
+  return (
+    backend.host === defaultBackend.host ||
+    (isLoopbackUrl(backend.host) && isLoopbackUrl(defaultBackend.host))
+  );
+}
+
+function syncLauncherDefaultLocalBackend(backends: Backend[]): Backend[] {
   const defaultBackend = makeDefaultLocalBackend();
+  if (!defaultBackend) return backends;
 
-  if (
-    backend.id !== defaultBackend.id ||
-    backend.kind !== "local" ||
-    !defaultBackend.apiKey ||
-    normalizeHostForComparison(backend.host) !==
-      normalizeHostForComparison(defaultBackend.host)
-  ) {
-    return backend;
-  }
+  let didSync = false;
+  const syncedBackends = backends.map((backend) => {
+    if (!shouldSyncLauncherDefaultLocalBackend(backend, defaultBackend)) {
+      return backend;
+    }
 
-  if (backend.apiKey === defaultBackend.apiKey) {
-    return backend;
-  }
+    if (backend.apiKey === defaultBackend.apiKey) return backend;
 
-  return {
-    ...backend,
-    apiKey: defaultBackend.apiKey,
-  };
+    didSync = true;
+    return {
+      ...backend,
+      apiKey: defaultBackend.apiKey,
+    };
+  });
+
+  if (!didSync) return backends;
+
+  writeStoredBackends(syncedBackends);
+  return syncedBackends;
 }
 
 export function writeStoredBackends(backends: Backend[]): void {
@@ -63,17 +88,18 @@ export function writeStoredBackends(backends: Backend[]): void {
 
 export function readStoredBackends(): Backend[] {
   if (typeof window === "undefined") return [];
+
   try {
     const raw = window.localStorage.getItem(BACKENDS_STORAGE_KEY);
 
-    // First install: the storage key has never been written. Seed the
-    // registry with one default local backend derived from the env /
-    // agent-server-config so the user has something to talk to out of
-    // the box.
+    // First install: seed only when the launcher supplied enough information
+    // for a usable local backend.
     if (raw === null) {
-      const seeded = [makeDefaultLocalBackend()];
-      writeStoredBackends(seeded);
-      return seeded;
+      const defaultBackend = makeDefaultLocalBackend();
+      if (!defaultBackend) return [];
+
+      writeStoredBackends([defaultBackend]);
+      return [defaultBackend];
     }
 
     const parsed = JSON.parse(raw);
@@ -81,33 +107,26 @@ export function readStoredBackends(): Backend[] {
     const valid = parsed.filter(isValidBackend);
 
     // If the stored array is empty (or everything in it failed validation),
-    // re-seed with the default Local backend so the user always has a
-    // working entry pointing at VITE_SESSION_API_KEY. With the dev scripts
-    // persisting that key to ~/.openhands/agent-canvas/session-api-key.txt,
-    // re-seeding is safe — the seeded entry will keep working across
-    // restarts instead of going stale.
+    // only re-seed when the launcher supplied both a host and API key.
     if (valid.length === 0) {
-      const seeded = [makeDefaultLocalBackend()];
-      writeStoredBackends(seeded);
-      return seeded;
+      const defaultBackend = makeDefaultLocalBackend();
+      if (!defaultBackend) return [];
+
+      writeStoredBackends([defaultBackend]);
+      return [defaultBackend];
     }
 
-    const synced = valid.map(syncDefaultLocalBackendAuth);
-    if (synced.some((backend, index) => backend !== valid[index])) {
-      writeStoredBackends(synced);
-    }
-
+    const synced = syncLauncherDefaultLocalBackend(valid);
     return synced;
   } catch {
     return [];
   }
 }
 
-export function readStoredActiveBackend(): BackendSelection | null {
-  if (typeof window === "undefined") return null;
+function parseBackendSelection(raw: string | null): BackendSelection | null {
+  if (!raw) return null;
+
   try {
-    const raw = window.localStorage.getItem(ACTIVE_BACKEND_STORAGE_KEY);
-    if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (
       typeof parsed !== "object" ||
@@ -127,23 +146,74 @@ export function readStoredActiveBackend(): BackendSelection | null {
   }
 }
 
+function readStorageItem(
+  storage: Storage | undefined,
+  key: string,
+): string | null {
+  try {
+    return storage?.getItem(key) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStorageItem(
+  storage: Storage | undefined,
+  key: string,
+  value: string,
+): void {
+  try {
+    storage?.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+}
+
+function removeStorageItem(storage: Storage | undefined, key: string): void {
+  try {
+    storage?.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function readStoredActiveBackend(): BackendSelection | null {
+  if (typeof window === "undefined") return null;
+
+  // Active backend is tab-scoped so reloading tab A does not adopt tab B's
+  // backend. localStorage remains a last-used fallback for fresh tabs and old
+  // persisted state.
+  const sessionSelection = parseBackendSelection(
+    readStorageItem(window.sessionStorage, ACTIVE_BACKEND_STORAGE_KEY),
+  );
+  if (sessionSelection) return sessionSelection;
+
+  return parseBackendSelection(
+    readStorageItem(window.localStorage, ACTIVE_BACKEND_STORAGE_KEY),
+  );
+}
+
 export function writeStoredActiveBackend(
   selection: BackendSelection | null,
 ): void {
   if (typeof window === "undefined") return;
-  try {
-    if (!selection) {
-      window.localStorage.removeItem(ACTIVE_BACKEND_STORAGE_KEY);
-      return;
-    }
-    window.localStorage.setItem(
-      ACTIVE_BACKEND_STORAGE_KEY,
-      JSON.stringify({
-        backendId: selection.backendId,
-        orgId: selection.orgId ?? null,
-      }),
-    );
-  } catch {
-    /* ignore */
+
+  if (!selection) {
+    removeStorageItem(window.sessionStorage, ACTIVE_BACKEND_STORAGE_KEY);
+    removeStorageItem(window.localStorage, ACTIVE_BACKEND_STORAGE_KEY);
+    return;
   }
+
+  const serialized = JSON.stringify({
+    backendId: selection.backendId,
+    orgId: selection.orgId ?? null,
+  });
+  // Mirror to localStorage only as the default for new tabs/backward
+  // compatibility; reads in existing tabs prefer sessionStorage.
+  writeStorageItem(
+    window.sessionStorage,
+    ACTIVE_BACKEND_STORAGE_KEY,
+    serialized,
+  );
+  writeStorageItem(window.localStorage, ACTIVE_BACKEND_STORAGE_KEY, serialized);
 }

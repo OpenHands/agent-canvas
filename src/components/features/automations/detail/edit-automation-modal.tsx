@@ -11,13 +11,20 @@ import {
   displaySuccessToast,
   displayErrorToast,
 } from "#/utils/custom-toast-handlers";
+import { modalTitleLgMediumClassName } from "#/utils/modal-classes";
 import {
   parseCronSchedule,
   buildCronSchedule,
   formatTimeOfDay,
   parseTimeOfDay,
+  formatEventOn,
   type SchedulePresetKind,
 } from "#/utils/automation-schedule";
+import { cn } from "#/utils/utils";
+import {
+  formControlMultilineFieldClassName,
+  formControlSettingsFieldClassName,
+} from "#/utils/form-control-classes";
 import XMarkIcon from "#/icons/x-mark.svg?react";
 
 interface EditAutomationModalProps {
@@ -49,6 +56,17 @@ interface FormState {
 }
 
 function buildInitialState(automation: Automation): FormState {
+  if (automation.trigger.type === "event") {
+    return {
+      name: automation.name,
+      prompt: automation.prompt ?? "",
+      frequency: "custom",
+      weekday: 1,
+      timeOfDay: "",
+      isCustomSchedule: true,
+      rawSchedule: "",
+    };
+  }
   const parsed = parseCronSchedule(automation.trigger.schedule);
   if (parsed.kind === "custom") {
     return {
@@ -214,7 +232,7 @@ export function EditAutomationModal({
           <XMarkIcon className="size-5" />
         </button>
 
-        <h2 className="text-lg font-semibold text-white">
+        <h2 className={modalTitleLgMediumClassName}>
           {t(I18nKey.AUTOMATIONS$EDIT_TITLE)}
         </h2>
 
@@ -244,77 +262,128 @@ export function EditAutomationModal({
                 setForm((f) => ({ ...f, prompt: e.target.value }))
               }
               rows={4}
-              className="bg-tertiary border border-[var(--oh-border-input)] w-full min-w-0 rounded-sm p-2 text-sm placeholder:italic placeholder:text-tertiary-alt"
+              className={cn(
+                formControlMultilineFieldClassName,
+                "placeholder:italic",
+              )}
             />
             <span className="text-xs text-muted">
               {t(I18nKey.AUTOMATIONS$EDIT_PROMPT_HINT)}
             </span>
           </label>
 
-          <SettingsDropdownInput
-            testId="edit-automation-frequency"
-            name="frequency"
-            label={t(I18nKey.AUTOMATIONS$FREQUENCY)}
-            items={frequencyItems}
-            selectedKey={form.frequency}
-            isDisabled={form.isCustomSchedule}
-            onSelectionChange={(key) => {
-              if (!key || form.isCustomSchedule) return;
-              setForm((f) => ({ ...f, frequency: key as FrequencyKey }));
-            }}
-          />
-
-          {form.frequency === "weekly" && !form.isCustomSchedule && (
-            <SettingsDropdownInput
-              testId="edit-automation-weekday"
-              name="weekday"
-              label={t(I18nKey.AUTOMATIONS$WEEKDAY)}
-              items={weekdayItems}
-              selectedKey={String(form.weekday)}
-              onSelectionChange={(key) => {
-                if (key === null) return;
-                setForm((f) => ({ ...f, weekday: Number(key) }));
-              }}
-            />
-          )}
-
-          <label className="flex flex-col gap-2.5 w-full min-w-0">
-            <span className="text-sm">
-              {t(I18nKey.AUTOMATIONS$TIME_OF_DAY)}
-            </span>
-            <input
-              data-testid="edit-automation-time"
-              name="timeOfDay"
-              type="time"
-              value={form.timeOfDay}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, timeOfDay: e.target.value }))
-              }
-              disabled={form.isCustomSchedule && !isTimeEditable}
-              className="bg-tertiary border border-[var(--oh-border-input)] h-10 w-full min-w-0 rounded-sm p-2 disabled:bg-[var(--oh-surface-raised)] disabled:cursor-not-allowed"
-            />
-            {automation.timezone && (
-              <span className="text-xs text-muted">
-                {t(I18nKey.AUTOMATIONS$TIMEZONE)}: {automation.timezone}
-              </span>
-            )}
-          </label>
-
-          {form.isCustomSchedule && (
-            <p
-              className="text-xs text-muted"
-              data-testid="custom-schedule-hint"
-            >
-              {t(I18nKey.AUTOMATIONS$CUSTOM_SCHEDULE_HINT)}
-              {form.rawSchedule && (
-                <>
-                  {" "}
-                  <code className="text-xs text-content">
-                    {form.rawSchedule}
-                  </code>
-                </>
+          {automation.trigger.type === "event" ? (
+            <div className="flex flex-col gap-3 rounded-lg bg-[var(--oh-surface-raised)] p-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-muted">
+                  {t(I18nKey.AUTOMATIONS$DETAIL$TRIGGER)}
+                </span>
+                <span className="text-sm text-content">
+                  {t(I18nKey.AUTOMATIONS$DETAIL$TRIGGER_EVENT)}
+                </span>
+              </div>
+              {automation.trigger.source && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-muted">
+                    {t(I18nKey.AUTOMATIONS$DETAIL$EVENT_SOURCE)}
+                  </span>
+                  <span className="text-sm text-content">
+                    {automation.trigger.source}
+                  </span>
+                </div>
               )}
-            </p>
+              {automation.trigger.on && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-muted">
+                    {t(I18nKey.AUTOMATIONS$DETAIL$EVENT_TYPE)}
+                  </span>
+                  <code className="text-xs font-mono text-content">
+                    {formatEventOn(automation.trigger.on)}
+                  </code>
+                </div>
+              )}
+              {automation.trigger.filter && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-medium text-muted">
+                    {t(I18nKey.AUTOMATIONS$DETAIL$EVENT_FILTER)}
+                  </span>
+                  <code className="text-xs font-mono text-content break-all">
+                    {automation.trigger.filter}
+                  </code>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <SettingsDropdownInput
+                testId="edit-automation-frequency"
+                name="frequency"
+                label={t(I18nKey.AUTOMATIONS$FREQUENCY)}
+                items={frequencyItems}
+                selectedKey={form.frequency}
+                isDisabled={form.isCustomSchedule}
+                onSelectionChange={(key) => {
+                  if (!key || form.isCustomSchedule) return;
+                  setForm((f) => ({ ...f, frequency: key as FrequencyKey }));
+                }}
+              />
+
+              {form.frequency === "weekly" && !form.isCustomSchedule && (
+                <SettingsDropdownInput
+                  testId="edit-automation-weekday"
+                  name="weekday"
+                  label={t(I18nKey.AUTOMATIONS$WEEKDAY)}
+                  items={weekdayItems}
+                  selectedKey={String(form.weekday)}
+                  onSelectionChange={(key) => {
+                    if (key === null) return;
+                    setForm((f) => ({ ...f, weekday: Number(key) }));
+                  }}
+                />
+              )}
+
+              <label className="flex flex-col gap-2.5 w-full min-w-0">
+                <span className="text-sm">
+                  {t(I18nKey.AUTOMATIONS$TIME_OF_DAY)}
+                </span>
+                <input
+                  data-testid="edit-automation-time"
+                  name="timeOfDay"
+                  type="time"
+                  value={form.timeOfDay}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, timeOfDay: e.target.value }))
+                  }
+                  disabled={form.isCustomSchedule && !isTimeEditable}
+                  className={cn(
+                    formControlSettingsFieldClassName,
+                    "disabled:bg-[var(--oh-surface-raised)]",
+                  )}
+                />
+                {automation.timezone && (
+                  <span className="text-xs text-muted">
+                    {t(I18nKey.AUTOMATIONS$TIMEZONE)}: {automation.timezone}
+                  </span>
+                )}
+              </label>
+
+              {form.isCustomSchedule && (
+                <p
+                  className="text-xs text-muted"
+                  data-testid="custom-schedule-hint"
+                >
+                  {t(I18nKey.AUTOMATIONS$CUSTOM_SCHEDULE_HINT)}
+                  {form.rawSchedule && (
+                    <>
+                      {" "}
+                      <code className="text-xs text-content">
+                        {form.rawSchedule}
+                      </code>
+                    </>
+                  )}
+                </p>
+              )}
+            </>
           )}
 
           <div className="mt-2 flex justify-end gap-3">

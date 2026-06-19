@@ -1,6 +1,10 @@
 import { create } from "zustand";
 import { OpenHandsEvent } from "#/types/agent-server/core";
-import { handleEventForUI } from "#/utils/handle-event-for-ui";
+import {
+  handleEventForUI,
+  mergeStreamingDeltaEvent,
+} from "#/utils/handle-event-for-ui";
+import { isStreamingDeltaEvent } from "#/types/agent-server/type-guards";
 
 export type OHEvent = OpenHandsEvent & {
   isFromPlanningAgent?: boolean;
@@ -51,6 +55,14 @@ export interface EventState {
   events: OHEvent[];
   eventIds: Set<string | number>;
   uiEvents: OHEvent[];
+  /**
+   * The conversation whose events currently populate the store. The store is
+   * global (not keyed by conversation), so the conversation route uses this to
+   * tell a genuine conversation switch apart from a remount of the *same*
+   * conversation (e.g. navigating to Settings and back) — only the former
+   * should clear the accumulated events.
+   */
+  loadedConversationId: string | null;
   addEvent: (event: OHEvent) => void;
   /**
    * Bulk-insert events. Used for the initial REST history load and for
@@ -59,7 +71,21 @@ export interface EventState {
    * timestamp so older pages drop into the correct position.
    */
   addEvents: (events: OHEvent[]) => void;
+  /**
+   * Clear all events. Also resets `loadedConversationId` to `null` so the
+   * store never claims to hold a conversation whose events have been wiped —
+   * the invariant (`loadedConversationId` reflects the conversation whose
+   * events are in the arrays) holds even for a standalone clear.
+   */
   clearEvents: () => void;
+  /**
+   * Atomically clear all events and record which conversation is now loaded.
+   * Collapsing the reset and the bookkeeping into a single `set` keeps the
+   * store invariant enforced at the boundary, rather than relying on every
+   * call-site to invoke a clear and a `loadedConversationId` setter in the
+   * right order.
+   */
+  clearEventsForConversation: (conversationId: string | null) => void;
 }
 
 const appendEvent = (state: EventState, event: OHEvent): EventState => {
@@ -74,9 +100,22 @@ const appendEvent = (state: EventState, event: OHEvent): EventState => {
       ? new Set(state.eventIds).add(eventId)
       : state.eventIds;
 
+  const lastEventIndex = state.events.length - 1;
+  const lastEvent = state.events[lastEventIndex];
+  const shouldMergeStreamingDelta =
+    lastEvent &&
+    isStreamingDeltaEvent(event) &&
+    isStreamingDeltaEvent(lastEvent);
+  const events = [...state.events];
+  if (shouldMergeStreamingDelta) {
+    events[lastEventIndex] = mergeStreamingDeltaEvent(event, lastEvent);
+  } else {
+    events.push(event);
+  }
+
   return {
     ...state,
-    events: [...state.events, event],
+    events,
     eventIds: newEventIds,
     uiEvents: handleEventForUI(event, state.uiEvents),
   };
@@ -108,6 +147,7 @@ export const useEventStore = create<EventState>()((set) => ({
   events: [],
   eventIds: new Set(),
   uiEvents: [],
+  loadedConversationId: null,
   addEvent: (event: OHEvent) => set((state) => applyAddEvent(state, event)),
   addEvents: (incoming: OHEvent[]) =>
     set((state) => {
@@ -127,7 +167,19 @@ export const useEventStore = create<EventState>()((set) => ({
           if (eventId !== undefined) {
             eventIds.add(eventId);
           }
-          events.push(event);
+
+          const lastEventIndex = events.length - 1;
+          const lastEvent = events[lastEventIndex];
+          if (
+            lastEvent &&
+            isStreamingDeltaEvent(event) &&
+            isStreamingDeltaEvent(lastEvent)
+          ) {
+            events[lastEventIndex] = mergeStreamingDeltaEvent(event, lastEvent);
+          } else {
+            events.push(event);
+          }
+
           uiEvents = handleEventForUI(event, uiEvents);
         }
       }
@@ -148,6 +200,14 @@ export const useEventStore = create<EventState>()((set) => ({
       events: [],
       eventIds: new Set(),
       uiEvents: [],
+      loadedConversationId: null,
+    })),
+  clearEventsForConversation: (conversationId: string | null) =>
+    set(() => ({
+      events: [],
+      eventIds: new Set(),
+      uiEvents: [],
+      loadedConversationId: conversationId,
     })),
 }));
 

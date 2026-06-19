@@ -7,59 +7,19 @@ import {
 } from "react";
 import ReactDOM from "react-dom";
 import { useTranslation } from "react-i18next";
+import { TextCursor, Copy } from "lucide-react";
 import { cn } from "#/utils/utils";
+import { dropdownMenuListClassName } from "#/utils/dropdown-classes";
 import { I18nKey } from "#/i18n/declaration";
-
-interface MenuItemProps {
-  index: number;
-  label: string;
-  onClick: () => void;
-  onKeyDown: (e: React.KeyboardEvent, index: number) => void;
-  menuItemsRef: React.MutableRefObject<(HTMLButtonElement | null)[]>;
-  disabled?: boolean;
-  className?: string;
-  testId: string;
-  destructive?: boolean;
-}
-
-function MenuItem({
-  index,
-  label,
-  onClick,
-  onKeyDown,
-  menuItemsRef,
-  disabled,
-  className,
-  testId,
-  destructive,
-}: MenuItemProps) {
-  return (
-    <button
-      ref={(el) => {
-        // eslint-disable-next-line no-param-reassign
-        menuItemsRef.current[index] = el;
-      }}
-      type="button"
-      onClick={onClick}
-      onKeyDown={(e) => onKeyDown(e, index)}
-      disabled={disabled}
-      className={cn(
-        "w-full text-left px-4 py-2 text-sm text-white hover:bg-tertiary cursor-pointer",
-        "disabled:opacity-50 disabled:cursor-not-allowed",
-        className,
-      )}
-      role="menuitem"
-      data-testid={testId}
-      data-destructive={destructive ? "true" : undefined}
-    >
-      {label}
-    </button>
-  );
-}
+import EditIcon from "#/icons/u-edit.svg?react";
+import CheckCircleIcon from "#/icons/u-check-circle.svg?react";
+import DeleteIcon from "#/icons/u-delete.svg?react";
+import { MenuItem } from "./profile-actions-menu-item";
 
 interface ProfileActionsMenuProps {
   onEdit: () => void;
   onRename: () => void;
+  onDuplicate: () => void;
   onSetActive: () => void;
   onDelete: () => void;
   isActive: boolean;
@@ -77,6 +37,7 @@ interface ProfileActionsMenuProps {
 export function ProfileActionsMenu({
   onEdit,
   onRename,
+  onDuplicate,
   onSetActive,
   onDelete,
   isActive,
@@ -97,13 +58,13 @@ export function ProfileActionsMenu({
     const updatePosition = () => {
       const rect = anchorElement.getBoundingClientRect();
       if (!rect) return;
-      // 4px gap matches the previous `mt-1` spacing.
-      const gap = 4;
+      const gap = 8;
       setPortalStyle({
         position: "fixed",
         zIndex: 9999,
         top: rect.bottom + gap,
         right: window.innerWidth - rect.right,
+        width: "max-content",
       });
     };
 
@@ -176,11 +137,8 @@ export function ProfileActionsMenu({
     <div
       ref={menuRef}
       className={cn(
-        "absolute right-0 top-full mt-1 z-10 bg-base-secondary border border-[var(--oh-border)] rounded-md shadow-lg py-1 w-[160px]",
-        // When portaled the menu is positioned via the wrapper's inline
-        // `style` (fixed coords from the anchor rect), so we must neutralize
-        // the Tailwind absolute positioning that would otherwise pin it to
-        // its now-irrelevant offset parent.
+        "absolute right-0 top-full z-10 mt-2 w-[160px] rounded-md border border-[var(--oh-border-subtle)] bg-tertiary px-1 py-1 shadow-lg",
+        dropdownMenuListClassName,
         isPortaled &&
           "!static !top-auto !bottom-auto !left-auto !right-auto !mt-0",
       )}
@@ -190,6 +148,7 @@ export function ProfileActionsMenu({
     >
       <MenuItem
         index={0}
+        icon={<EditIcon width={16} height={16} />}
         label={t(I18nKey.SETTINGS$PROFILE_EDIT)}
         onClick={() => handleAction(onEdit)}
         onKeyDown={handleKeyDown}
@@ -198,6 +157,7 @@ export function ProfileActionsMenu({
       />
       <MenuItem
         index={1}
+        icon={<TextCursor aria-hidden className="size-4" strokeWidth={2} />}
         label={t(I18nKey.BUTTON$RENAME)}
         onClick={() => handleAction(onRename)}
         onKeyDown={handleKeyDown}
@@ -206,6 +166,16 @@ export function ProfileActionsMenu({
       />
       <MenuItem
         index={2}
+        icon={<Copy aria-hidden className="size-4" strokeWidth={2} />}
+        label={t(I18nKey.BUTTON$DUPLICATE)}
+        onClick={() => handleAction(onDuplicate)}
+        onKeyDown={handleKeyDown}
+        menuItemsRef={menuItemsRef}
+        testId="profile-duplicate"
+      />
+      <MenuItem
+        index={3}
+        icon={<CheckCircleIcon width={16} height={16} />}
         label={t(I18nKey.SETTINGS$PROFILE_SET_ACTIVE)}
         onClick={() => handleAction(onSetActive)}
         onKeyDown={handleKeyDown}
@@ -213,15 +183,16 @@ export function ProfileActionsMenu({
         disabled={setActiveDisabled}
         testId="profile-set-active"
       />
+      {/* The active profile can be deleted: useEnsureActiveProfile then promotes
+          another remaining profile so a profile is always active in local mode. */}
       <MenuItem
-        index={3}
+        index={4}
+        icon={<DeleteIcon width={16} height={16} />}
         label={t(I18nKey.BUTTON$DELETE)}
         onClick={() => handleAction(onDelete)}
         onKeyDown={handleKeyDown}
         menuItemsRef={menuItemsRef}
-        className="text-red-400"
         testId="profile-delete"
-        destructive
       />
     </div>
   );

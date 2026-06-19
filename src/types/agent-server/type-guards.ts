@@ -9,6 +9,7 @@ import {
   TerminalObservation,
   BrowserObservation,
   BrowserNavigateAction,
+  SwitchLLMObservation,
   CanvasUIAction,
 } from "./core";
 import { AgentErrorEvent } from "./core/events/observation-event";
@@ -24,6 +25,7 @@ import {
 } from "./core/events/conversation-state-event";
 import { HookExecutionEvent } from "./core/events/hook-execution-event";
 import { ACPToolCallEvent } from "./core/events/acp-tool-call-event";
+import { StreamingDeltaEvent } from "./core/events/streaming-delta-event";
 import { SystemPromptEvent } from "./core/events/system-event";
 
 /**
@@ -147,6 +149,15 @@ export const isBrowserObservationEvent = (
   isObservationEvent(event) && event.observation.kind === "BrowserObservation";
 
 /**
+ * Type guard function to check if an observation event is a SwitchLLMObservation
+ */
+export const isSwitchLLMObservationEvent = (
+  event: OpenHandsEvent,
+): event is ObservationEvent<SwitchLLMObservation> =>
+  isObservationEvent(event) &&
+  event.observation.kind === "SwitchLLMObservation";
+
+/**
  * Type guard function to check if an action event is a BrowserNavigateAction
  */
 export const isBrowserNavigateActionEvent = (
@@ -238,6 +249,11 @@ export const isACPToolCallEvent = (
   event: OpenHandsEvent,
 ): event is ACPToolCallEvent =>
   "kind" in event && event.kind === "ACPToolCallEvent";
+
+export const isStreamingDeltaEvent = (
+  event: OpenHandsEvent,
+): event is StreamingDeltaEvent =>
+  "kind" in event && event.kind === "StreamingDeltaEvent";
 
 // =============================================================================
 // COMPATIBILITY TYPE GUARDS

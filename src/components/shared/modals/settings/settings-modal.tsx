@@ -1,10 +1,13 @@
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { ModalBackdrop } from "../modal-backdrop";
+import { MODAL_MAX_WIDTH_VIEWPORT, modalWidthClassName } from "../modal-body";
+import { cn } from "#/utils/utils";
 import { SettingsForm } from "./settings-form";
 import { Settings } from "#/types/settings";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { HelpLink } from "#/ui/help-link";
+import { modalTitleClassName } from "#/utils/modal-classes";
 
 interface SettingsModalProps {
   settings?: Settings;
@@ -18,9 +21,13 @@ export function SettingsModal({ onClose, settings }: SettingsModalProps) {
     <ModalBackdrop>
       <div
         data-testid="ai-config-modal"
-        className="bg-[var(--oh-surface)] min-w-full max-w-[475px] m-4 p-6 rounded-xl flex flex-col gap-[17px] border border-[var(--oh-border)] api-configuration-modal"
+        className={cn(
+          "bg-[var(--oh-surface)] m-4 p-6 rounded-xl flex flex-col gap-[17px] border border-[var(--oh-border)] api-configuration-modal",
+          modalWidthClassName("md"),
+          MODAL_MAX_WIDTH_VIEWPORT,
+        )}
       >
-        <span className="text-5 leading-6 font-semibold -tracking-[0.2px]">
+        <span className={modalTitleClassName}>
           {t(I18nKey.AI_SETTINGS$TITLE)}
         </span>
         <HelpLink

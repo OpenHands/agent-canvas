@@ -1,8 +1,13 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
+import { I18nKey } from "#/i18n/declaration";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { useConversationStore } from "#/stores/conversation-store";
 import { useSendMessage } from "#/hooks/use-send-message";
 import { createChatMessage } from "#/services/chat-service";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
+import { matchesPendingConversationId } from "#/utils/pending-task-message-link";
+import { ImageCarousel } from "#/components/features/images/image-carousel";
 import { ChatMessage } from "./chat-message";
 
 /**
@@ -18,6 +23,7 @@ import { ChatMessage } from "./chat-message";
  * bubbles over.
  */
 export function PendingUserMessages() {
+  const { t } = useTranslation("openhands");
   const { conversationId } = useOptionalConversationId();
   const pendingMessages = useOptimisticUserMessageStore(
     (state) => state.pendingMessages,
@@ -28,13 +34,22 @@ export function PendingUserMessages() {
   const markPendingMessageSending = useOptimisticUserMessageStore(
     (state) => state.markPendingMessageSending,
   );
+  const removePendingMessage = useOptimisticUserMessageStore(
+    (state) => state.removePendingMessage,
+  );
+  const restoreMessageToInputIfEmpty = useConversationStore(
+    (state) => state.restoreMessageToInputIfEmpty,
+  );
   const { send } = useSendMessage();
 
   const visibleMessages = React.useMemo(
     () =>
       conversationId
-        ? pendingMessages.filter(
-            (message) => message.conversationId === conversationId,
+        ? pendingMessages.filter((message) =>
+            matchesPendingConversationId(
+              conversationId,
+              message.conversationId,
+            ),
           )
         : [],
     [pendingMessages, conversationId],
@@ -60,11 +75,21 @@ export function PendingUserMessages() {
         );
       } catch (error) {
         const errorMessage =
-          error instanceof Error ? error.message : "Failed to send message";
+          error instanceof Error
+            ? error.message
+            : t(I18nKey.CHAT_INTERFACE$FAILED_TO_SEND_MESSAGE);
         markPendingMessageError(id, errorMessage);
       }
     },
-    [send, markPendingMessageError, markPendingMessageSending],
+    [send, markPendingMessageError, markPendingMessageSending, t],
+  );
+
+  const handleStop = React.useCallback(
+    (id: string, text: string) => {
+      restoreMessageToInputIfEmpty(text);
+      removePendingMessage(id);
+    },
+    [restoreMessageToInputIfEmpty, removePendingMessage],
   );
 
   if (visibleMessages.length === 0) {
@@ -84,7 +109,16 @@ export function PendingUserMessages() {
               ? () => handleRetry(message.id)
               : undefined
           }
-        />
+          onStop={
+            message.status === "sending"
+              ? () => handleStop(message.id, message.text)
+              : undefined
+          }
+        >
+          {message.imageUrls.length > 0 && (
+            <ImageCarousel size="small" images={message.imageUrls} />
+          )}
+        </ChatMessage>
       ))}
     </>
   );

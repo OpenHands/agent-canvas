@@ -1,6 +1,6 @@
 import React from "react";
+import { Tooltip } from "@heroui/react";
 import { useTranslation } from "react-i18next";
-import { Folder, Plus } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import { useNavigation } from "#/context/navigation-context";
 import { useActiveBackend } from "#/contexts/active-backend-context";
@@ -10,7 +10,6 @@ import { useDeleteConversation } from "#/hooks/mutation/use-delete-conversation"
 import { useUnifiedPauseConversation } from "#/hooks/mutation/use-unified-stop-conversation";
 import { ConfirmDeleteModal } from "./confirm-delete-modal";
 import { ConfirmStopModal } from "./confirm-stop-modal";
-import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { NavigationLink } from "#/components/shared/navigation-link";
 import { ExitConversationModal } from "./exit-conversation-modal";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
@@ -24,6 +23,7 @@ import { isExecutionActive } from "#/utils/status";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
 import { ConversationCard } from "./conversation-card/conversation-card";
+import { ConversationCardPreview } from "./conversation-card/conversation-card-preview";
 import { StartTaskCard } from "./start-task-card/start-task-card";
 import { ConversationCardSkeleton } from "./conversation-card/conversation-card-skeleton";
 import { CompactConversationRow } from "./compact-conversation-row";
@@ -31,11 +31,17 @@ import { useConversationPanelPreferencesStore } from "#/stores/conversation-pane
 import { cn } from "#/utils/utils";
 import { ConversationPanelFilterMenu } from "./conversation-panel-filter-menu";
 import { ConversationPanelNewThreadPicker } from "./conversation-panel-new-thread-picker";
+import { ConversationGroupFolderList } from "./conversation-group-folder-list";
+import { ConversationPanelPinnedSection } from "./conversation-panel-pinned-section";
 import {
+  applyGroupFolderOrder,
+  filterOutPinnedConversations,
   groupConversations,
+  resolvePinnedConversations,
   sortConversationsByField,
   type ConversationGroupLaunch,
 } from "./conversation-panel-list-helpers";
+import { usePinnedConversationsStore } from "#/stores/pinned-conversations-store";
 
 interface ConversationPanelProps {
   onClose?: () => void;
@@ -48,6 +54,8 @@ interface ConversationPanelProps {
 }
 
 const noop = () => {};
+
+const EMPTY_PINNED_CONVERSATION_IDS: readonly string[] = [];
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
@@ -114,6 +122,12 @@ export function ConversationPanel({
   const toggleShowLlmProfiles = useConversationPanelPreferencesStore(
     (state) => state.toggleShowLlmProfiles,
   );
+  const showHoverMetadata = useConversationPanelPreferencesStore(
+    (state) => state.showHoverMetadata,
+  );
+  const toggleShowHoverMetadata = useConversationPanelPreferencesStore(
+    (state) => state.toggleShowHoverMetadata,
+  );
   const organizeMode = useConversationPanelPreferencesStore(
     (state) => state.organizeMode,
   );
@@ -132,6 +146,12 @@ export function ConversationPanel({
   const setThreadScope = useConversationPanelPreferencesStore(
     (state) => state.setThreadScope,
   );
+  const groupFolderOrder = useConversationPanelPreferencesStore(
+    (state) => state.groupFolderOrder,
+  );
+  const setGroupFolderOrder = useConversationPanelPreferencesStore(
+    (state) => state.setGroupFolderOrder,
+  );
   const [filterMenuOpen, setFilterMenuOpen] = React.useState(false);
   const [isListScrolled, setIsListScrolled] = React.useState(false);
   const filterMenuRef = useClickOutsideElement<HTMLDivElement>(() => {
@@ -140,6 +160,20 @@ export function ConversationPanel({
   const [collapsedGroupIds, setCollapsedGroupIds] = React.useState<
     ReadonlySet<string>
   >(() => new Set());
+  const [expandedGroupPreviewIds, setExpandedGroupPreviewIds] = React.useState<
+    ReadonlySet<string>
+  >(() => new Set());
+  const [expandedPinnedPreview, setExpandedPinnedPreview] =
+    React.useState(false);
+
+  const pinnedIds = usePinnedConversationsStore(
+    (state) =>
+      state.pinsByBackendId[activeBackend.id] ?? EMPTY_PINNED_CONVERSATION_IDS,
+  );
+  const togglePin = usePinnedConversationsStore((state) => state.togglePin);
+  const pruneMissingPinnedConversations = usePinnedConversationsStore(
+    (state) => state.pruneMissingConversations,
+  );
 
   const toggleGroupCollapsed = React.useCallback((groupId: string) => {
     setCollapsedGroupIds((prev) => {
@@ -153,9 +187,22 @@ export function ConversationPanel({
     });
   }, []);
 
+  const toggleGroupPreviewExpanded = React.useCallback((groupId: string) => {
+    setExpandedGroupPreviewIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+      return next;
+    });
+  }, []);
+
   React.useEffect(() => {
     if (organizeMode !== "grouped") {
       setCollapsedGroupIds(new Set());
+      setExpandedGroupPreviewIds(new Set());
     }
   }, [organizeMode]);
 
@@ -170,23 +217,76 @@ export function ConversationPanel({
     string | null
   >(null);
 
-  const { data, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } =
-    usePaginatedConversations();
+  const {
+    data,
+    isLoading,
+    isFetched,
+    hasNextPage,
+    isFetching,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = usePaginatedConversations();
 
   // Fetch in-progress start tasks
   const { data: startTasks } = useStartTasks();
 
-  const conversations = React.useMemo(
-    () => data?.pages.flatMap((page) => page.items) ?? [],
-    [data],
+  const conversations = React.useMemo(() => {
+    const all = data?.pages.flatMap((page) => page.items) ?? [];
+    // The 10s background refetch re-fetches every loaded page with the
+    // `UPDATED_AT_DESC` cursor. If a conversation's `updated_at` shifts between
+    // page fetches, a later page can overlap an earlier one and surface the
+    // same conversation twice. Dedupe by id (keeping the first/freshest copy)
+    // so the rendered count reflects real growth and React keys stay unique.
+    const seen = new Set<string>();
+    return all.filter((conversation) => {
+      if (seen.has(conversation.id)) {
+        return false;
+      }
+      seen.add(conversation.id);
+      return true;
+    });
+  }, [data]);
+
+  const pinnedConversations = React.useMemo(
+    () => resolvePinnedConversations(pinnedIds, conversations),
+    [conversations, pinnedIds],
   );
 
-  const scopedConversations = React.useMemo(() => {
-    if (threadScope === "relevant") {
-      return conversations.filter((c) => isExecutionActive(c.execution_status));
+  React.useEffect(() => {
+    if (!isFetched) {
+      return;
     }
-    return conversations;
-  }, [conversations, threadScope]);
+    pruneMissingPinnedConversations(
+      activeBackend.id,
+      conversations.map((conversation) => conversation.id),
+    );
+  }, [
+    activeBackend.id,
+    conversations,
+    isFetched,
+    pruneMissingPinnedConversations,
+  ]);
+
+  React.useEffect(() => {
+    if (pinnedIds.length === 0) {
+      setExpandedPinnedPreview(false);
+    }
+  }, [pinnedIds.length]);
+
+  const scopedConversations = React.useMemo(() => {
+    const scopeFiltered =
+      threadScope === "relevant"
+        ? conversations.filter((c) => isExecutionActive(c.execution_status))
+        : conversations;
+
+    // In the expanded panel, pinned conversations should only appear inside
+    // the dedicated pinned section (not duplicated in grouped/flat lists).
+    if (compact) {
+      return scopeFiltered;
+    }
+
+    return filterOutPinnedConversations(scopeFiltered, pinnedIds);
+  }, [compact, conversations, pinnedIds, threadScope]);
 
   const { recent: recentScoped, older: olderScoped } = React.useMemo(
     () => partitionByCutoff(scopedConversations),
@@ -242,6 +342,18 @@ export function ConversationPanel({
     showOlderConversations,
   ]);
 
+  const orderedConversationGroups = React.useMemo(() => {
+    if (!conversationGroups) {
+      return null;
+    }
+    return applyGroupFolderOrder(conversationGroups, groupFolderOrder);
+  }, [conversationGroups, groupFolderOrder]);
+
+  const conversationGroupIds = React.useMemo(
+    () => conversationGroups?.map((group) => group.id) ?? [],
+    [conversationGroups],
+  );
+
   const compactVisibleConversations = React.useMemo(
     () =>
       sortConversationsByField(
@@ -256,16 +368,86 @@ export function ConversationPanel({
   const visibleFlatCount = sortedVisibleConversations.length;
 
   const visibleGroupedCount = React.useMemo(() => {
-    if (!conversationGroups) {
+    if (!orderedConversationGroups) {
       return 0;
     }
-    return conversationGroups.reduce((n, g) => n + g.conversations.length, 0);
-  }, [conversationGroups]);
+    return orderedConversationGroups.reduce(
+      (n, g) => n + g.conversations.length,
+      0,
+    );
+  }, [orderedConversationGroups]);
 
   const listIsEffectivelyEmpty =
     organizeMode === "grouped" && !compact
       ? visibleGroupedCount === 0
       : visibleFlatCount === 0;
+
+  // Number of conversations actually rendered in the list right now, in the
+  // current organize mode. "Load more" succeeds only when this number grows.
+  const visibleCount =
+    organizeMode === "grouped" && !compact
+      ? visibleGroupedCount
+      : visibleFlatCount;
+
+  // KNOWN ISSUE (unresolved as of 2026-05-29): users still report that the
+  // sidebar "Load more" sometimes requires two clicks before new conversations
+  // appear. The mitigation below (dedupe by id in `conversations`, plus the
+  // floor-tracking driver that keeps fetching until the visible count grows)
+  // reduced but did NOT fully eliminate the symptom in manual testing. Likely
+  // remaining suspects to investigate next: the agent-server cursor pagination
+  // returning an overlapping/short page under `UPDATED_AT_DESC` while the 10s
+  // `refetchInterval` reorders pages (see `usePaginatedConversations`), or a
+  // React Query state lag where `hasNextPage`/`isFetching` settle a render
+  // after the click. If you pick this up, reproduce against a backend with
+  // >40 conversations and watch the `/api/conversations/search` cursors.
+  //
+  // Robust "Load more" driver. A single click can fail to surface new rows for
+  // two reasons: (1) `fetchNextPage()` is silently dropped while the 10s
+  // background refetch is in flight, and (2) a fetched page can yield zero
+  // *visible* rows (filtered out by the active scope, or deduped as overlap),
+  // so the list does not appear to grow. We capture the visible count at click
+  // time and keep fetching pages — once the query is idle — until the visible
+  // count actually increases or there are no more pages.
+  const [loadMoreFloor, setLoadMoreFloor] = React.useState<number | null>(null);
+  const visibleCountRef = React.useRef(visibleCount);
+  visibleCountRef.current = visibleCount;
+
+  const requestLoadMore = React.useCallback(() => {
+    if (hasNextPage) {
+      setLoadMoreFloor(visibleCountRef.current);
+    }
+  }, [hasNextPage]);
+
+  React.useEffect(() => {
+    if (loadMoreFloor === null) {
+      return;
+    }
+    // Goal met: the visible list grew past where it was when the user clicked.
+    if (visibleCount > loadMoreFloor) {
+      setLoadMoreFloor(null);
+      return;
+    }
+    // Nothing more to fetch — stop waiting even if the list did not grow.
+    if (!hasNextPage) {
+      setLoadMoreFloor(null);
+      return;
+    }
+    // Wait for any in-flight fetch (including the background refetch) to settle
+    // before requesting the next page, otherwise the request is dropped.
+    if (isFetching || isFetchingNextPage) {
+      return;
+    }
+    fetchNextPage();
+  }, [
+    loadMoreFloor,
+    visibleCount,
+    hasNextPage,
+    isFetching,
+    isFetchingNextPage,
+    fetchNextPage,
+  ]);
+
+  const isLoadingMore = loadMoreFloor !== null || isFetchingNextPage;
 
   const { mutate: deleteConversation, mutateAsync: deleteConversationAsync } =
     useDeleteConversation();
@@ -384,7 +566,11 @@ export function ConversationPanel({
   };
 
   const renderConversationCard = React.useCallback(
-    (conversation: (typeof conversations)[number]) => {
+    (
+      conversation: (typeof conversations)[number],
+      options?: { inPinnedSection?: boolean },
+    ) => {
+      const isPinned = pinnedIds.includes(conversation.id);
       if (compact) {
         return (
           <CompactConversationRow
@@ -415,50 +601,90 @@ export function ConversationPanel({
         );
       }
       return (
-        <NavigationLink
+        <Tooltip
           key={conversation.id}
-          to={`/conversations/${conversation.id}`}
-          onClick={onClose}
-          className="block py-0.5"
+          placement="right-start"
+          delay={1000}
+          closeDelay={100}
+          isDisabled={
+            !showHoverMetadata || openContextMenuId === conversation.id
+          }
+          disableAnimation={import.meta.env.MODE === "test"}
+          className="rounded-xl border border-[var(--oh-border)] bg-base-secondary p-0 text-white shadow-xl"
+          content={
+            <ConversationCardPreview
+              title={conversation.title ?? ""}
+              executionStatus={conversation.execution_status}
+              sandboxStatus={conversation.sandbox_status}
+              selectedRepository={{
+                selected_repository: conversation.selected_repository,
+                selected_branch: conversation.selected_branch,
+                git_provider: conversation.git_provider as Provider,
+              }}
+              workspaceWorkingDir={
+                conversation.selected_workspace ??
+                conversation.workspace?.working_dir
+              }
+              llmModel={conversation.llm_model}
+              createdAt={conversation.created_at}
+            />
+          }
         >
-          <ConversationCard
-            onDelete={() =>
-              handleDeleteProject(conversation.id, conversation.title ?? "")
-            }
-            onStop={() => handleStopConversation(conversation.id)}
-            onChangeTitle={(title) =>
-              handleConversationTitleChange(conversation.id, title)
-            }
-            title={conversation.title ?? ""}
-            selectedRepository={{
-              selected_repository: conversation.selected_repository,
-              selected_branch: conversation.selected_branch,
-              git_provider: conversation.git_provider as Provider,
-            }}
-            lastUpdatedAt={conversation.updated_at}
-            createdAt={conversation.created_at}
-            executionStatus={conversation.execution_status}
-            sandboxStatus={conversation.sandbox_status}
-            conversationId={conversation.id}
-            contextMenuOpen={openContextMenuId === conversation.id}
-            onContextMenuToggle={(isOpen) =>
-              setOpenContextMenuId(isOpen ? conversation.id : null)
-            }
-            isActive={conversation.id === currentConversationId}
-            workspaceWorkingDir={
-              conversation.selected_workspace ??
-              conversation.workspace?.working_dir
-            }
-            showRepositoryMetadata={showRepoBranchMetadata}
-            llmModel={conversation.llm_model}
-            showLlmProfiles={showLlmProfiles}
-            agentKind={conversation.agent_kind}
-            acpServer={conversation.acp_server}
-          />
-        </NavigationLink>
+          <NavigationLink
+            to={`/conversations/${conversation.id}`}
+            onClick={onClose}
+            className={cn(
+              "block rounded-md transition-colors",
+              openContextMenuId !== conversation.id &&
+                "hover:bg-[var(--oh-surface)]",
+              (conversation.id === currentConversationId ||
+                openContextMenuId === conversation.id) &&
+                "bg-[var(--oh-surface)]",
+            )}
+          >
+            <ConversationCard
+              onDelete={() =>
+                handleDeleteProject(conversation.id, conversation.title ?? "")
+              }
+              onStop={() => handleStopConversation(conversation.id)}
+              onChangeTitle={(title) =>
+                handleConversationTitleChange(conversation.id, title)
+              }
+              title={conversation.title ?? ""}
+              selectedRepository={{
+                selected_repository: conversation.selected_repository,
+                selected_branch: conversation.selected_branch,
+                git_provider: conversation.git_provider as Provider,
+              }}
+              lastUpdatedAt={conversation.updated_at}
+              createdAt={conversation.created_at}
+              executionStatus={conversation.execution_status}
+              sandboxStatus={conversation.sandbox_status}
+              conversationId={conversation.id}
+              contextMenuOpen={openContextMenuId === conversation.id}
+              onContextMenuToggle={(isOpen) =>
+                setOpenContextMenuId(isOpen ? conversation.id : null)
+              }
+              isActive={conversation.id === currentConversationId}
+              workspaceWorkingDir={
+                conversation.selected_workspace ??
+                conversation.workspace?.working_dir
+              }
+              showRepositoryMetadata={showRepoBranchMetadata}
+              llmModel={conversation.llm_model}
+              showLlmProfiles={showLlmProfiles}
+              agentKind={conversation.agent_kind}
+              acpServer={conversation.acp_server}
+              isPinned={isPinned}
+              onTogglePin={() => togglePin(activeBackend.id, conversation.id)}
+              alwaysShowPinIcon={isPinned && !options?.inPinnedSection}
+            />
+          </NavigationLink>
+        </Tooltip>
       );
     },
     [
+      activeBackend.id,
       compact,
       currentConversationId,
       handleConversationTitleChange,
@@ -466,8 +692,11 @@ export function ConversationPanel({
       handleStopConversation,
       onClose,
       openContextMenuId,
+      pinnedIds,
       showRepoBranchMetadata,
       showLlmProfiles,
+      showHoverMetadata,
+      togglePin,
     ],
   );
 
@@ -475,13 +704,19 @@ export function ConversationPanel({
   // child fills the panel and scrolls when its content overflows. Modals are
   // siblings of the scroll element and are `position: fixed`, so they don't
   // participate in the panel's scroll geometry.
-  // Gate on `isLoading` (true only during the first fetch with no cached
-  // data), not `isFetching` — the latter flips back to true on every 10s
-  // background refetch, causing the skeleton/empty-state to flicker when
-  // the list is empty.
-  const showInitialSkeleton = isLoading;
+  // Gate on `isLoading` / `!isFetched` (true only until the first fetch settles),
+  // not `isFetching` — the latter flips back to true on every 10s background
+  // refetch, causing the skeleton/empty-state to flicker when the list is empty.
+  const showInitialSkeleton = isLoading || !isFetched;
+  const showPinnedSection =
+    !compact && !showInitialSkeleton && pinnedConversations.length > 0;
   const showEmptyState =
-    !isLoading && !compact && listIsEffectivelyEmpty && !startTasks?.length;
+    isFetched &&
+    !isLoading &&
+    !compact &&
+    listIsEffectivelyEmpty &&
+    !showPinnedSection &&
+    !startTasks?.length;
 
   const showConversationHeader = !compact;
 
@@ -528,6 +763,8 @@ export function ConversationPanel({
                 toggleShowRepoBranchMetadata={toggleShowRepoBranchMetadata}
                 showLlmProfiles={showLlmProfiles}
                 toggleShowLlmProfiles={toggleShowLlmProfiles}
+                showHoverMetadata={showHoverMetadata}
+                toggleShowHoverMetadata={toggleShowHoverMetadata}
                 totalConversationsCount={conversations.length}
                 onRequestDeleteAll={() => setConfirmDeleteAllVisible(true)}
               />
@@ -550,12 +787,30 @@ export function ConversationPanel({
         {showInitialSkeleton && <ConversationCardSkeleton compact={compact} />}
 
         {!compact && showEmptyState && (
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-8">
-            <p className="text-[var(--oh-muted)]">
+          <div
+            data-testid="conversation-panel-empty-state"
+            className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-8"
+          >
+            <p className="text-xs text-[var(--oh-muted)]">
               {t(I18nKey.CONVERSATION$NO_CONVERSATIONS)}
             </p>
           </div>
         )}
+
+        {showPinnedSection ? (
+          <ConversationPanelPinnedSection
+            pinnedConversations={pinnedConversations}
+            isPreviewExpanded={expandedPinnedPreview}
+            onTogglePreviewExpanded={() =>
+              setExpandedPinnedPreview((current) => !current)
+            }
+            activeConversationId={currentConversationId}
+            showDivider={!compact && organizeMode === "chronological"}
+            renderConversationCard={(conversation) =>
+              renderConversationCard(conversation, { inPinnedSection: true })
+            }
+          />
+        ) : null}
 
         {/* Render in-progress start tasks first (skipped in compact mode —
             their rich card layout doesn't fit in the icon rail). */}
@@ -572,105 +827,65 @@ export function ConversationPanel({
           ))}
 
         {!showInitialSkeleton && compact
-          ? compactVisibleConversations.map(renderConversationCard)
+          ? compactVisibleConversations.map((conversation) =>
+              renderConversationCard(conversation),
+            )
           : null}
 
         {!showInitialSkeleton &&
         !compact &&
         organizeMode === "grouped" &&
-        conversationGroups &&
-        conversationGroups.length > 0 ? (
-          <nav
-            aria-label={t(I18nKey.SIDEBAR$CONVERSATIONS)}
-            className="space-y-1 md:space-y-0.5 pb-1"
-          >
-            {conversationGroups.map((group) => {
-              const headingId = `thread-folder-${group.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-              const expanded = !collapsedGroupIds.has(group.id);
-              return (
-                <section key={group.id} aria-labelledby={headingId}>
-                  <div
-                    className={cn(
-                      "flex h-8 w-full min-w-0 items-center gap-0.5 rounded-md pl-2 pr-1 text-sm font-medium",
-                      "text-[var(--oh-muted)] transition-colors",
-                      "hover:bg-[var(--oh-surface-raised)] hover:text-white",
-                    )}
-                  >
-                    <button
-                      type="button"
-                      id={headingId}
-                      aria-expanded={expanded}
-                      onClick={() => toggleGroupCollapsed(group.id)}
-                      className="flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-md py-1 text-left text-inherit outline-none transition-colors focus-visible:ring-1 focus-visible:ring-[var(--oh-border)]"
-                    >
-                      <Folder className="h-4 w-4 shrink-0" aria-hidden />
-                      <span className="truncate">{group.label}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={cn(
-                        "inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md",
-                        "text-inherit transition-colors",
-                        "hover:bg-white/10 hover:text-white",
-                        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--oh-border)]",
-                        "disabled:cursor-not-allowed disabled:opacity-50",
-                      )}
-                      disabled={isCreatingConversationFlow}
-                      aria-label={t(
-                        I18nKey.CONVERSATION_PANEL$ADD_CONVERSATION_TO_GROUP,
-                        { label: group.label },
-                      )}
-                      data-testid={`add-conversation-to-group-${group.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        launchFromGroup(group.launch);
-                      }}
-                    >
-                      <Plus
-                        className="h-3.5 w-3.5 shrink-0"
-                        aria-hidden
-                        strokeWidth={2}
-                      />
-                    </button>
-                  </div>
-                  {expanded ? (
-                    <div className="mt-0.5 space-y-0.5">
-                      {group.conversations.map(renderConversationCard)}
-                    </div>
-                  ) : null}
-                </section>
-              );
-            })}
-          </nav>
+        orderedConversationGroups &&
+        orderedConversationGroups.length > 0 ? (
+          <ConversationGroupFolderList
+            groups={orderedConversationGroups}
+            groupIds={conversationGroupIds}
+            groupFolderOrder={groupFolderOrder}
+            setGroupFolderOrder={setGroupFolderOrder}
+            collapsedGroupIds={collapsedGroupIds}
+            expandedGroupPreviewIds={expandedGroupPreviewIds}
+            onToggleGroupCollapsed={toggleGroupCollapsed}
+            onToggleGroupPreviewExpanded={toggleGroupPreviewExpanded}
+            isCreatingConversationFlow={isCreatingConversationFlow}
+            activeConversationId={currentConversationId}
+            onLaunchFromGroup={launchFromGroup}
+            renderConversationCard={(conversation) =>
+              renderConversationCard(conversation)
+            }
+          />
         ) : null}
 
         {!showInitialSkeleton &&
         !compact &&
         organizeMode === "chronological" ? (
-          <>{sortedVisibleConversations.map(renderConversationCard)}</>
+          <div className="space-y-0.5">
+            {sortedVisibleConversations.map((conversation) =>
+              renderConversationCard(conversation),
+            )}
+          </div>
         ) : null}
 
         {/* Explicit "Load more" trigger. Only shown when more pages exist
             *and* the older list is currently visible (or there are no older
             conversations to begin with) — otherwise the next page would be
             populated mostly with conversations the user has chosen to hide. */}
-        {showLoadMore && (
-          <div className="flex justify-center py-4">
-            {isFetchingNextPage ? (
-              <LoadingSpinner size="small" />
-            ) : (
+        {showLoadMore &&
+          (isLoadingMore ? (
+            <div className="py-1">
+              <ConversationCardSkeleton compact={compact} />
+            </div>
+          ) : (
+            <div className="flex justify-center py-4">
               <button
                 type="button"
                 data-testid="load-more-conversations"
-                onClick={() => fetchNextPage()}
+                onClick={requestLoadMore}
                 className="text-xs text-[var(--oh-muted)] hover:text-white"
               >
                 {t(I18nKey.CONVERSATION$LOAD_MORE)}
               </button>
-            )}
-          </div>
-        )}
+            </div>
+          ))}
       </div>
 
       {confirmDeleteModalVisible && (

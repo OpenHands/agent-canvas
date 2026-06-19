@@ -5,6 +5,11 @@ import { ProfileInfo } from "#/api/profiles-service/profiles-service.api";
 import { I18nKey } from "#/i18n/declaration";
 import { EllipsisButton } from "#/components/features/conversation-panel/ellipsis-button";
 import { BrandBadge } from "#/components/shared/badge";
+import { cn } from "#/utils/utils";
+import {
+  settingsListIconActionButtonClassName,
+  settingsListRowClassName,
+} from "#/utils/settings-list-classes";
 
 interface ProfileRowProps {
   profile: ProfileInfo;
@@ -12,6 +17,7 @@ interface ProfileRowProps {
   onActivate: (name: string) => void;
   onEdit: (profile: ProfileInfo) => void;
   onRename: (profile: ProfileInfo) => void;
+  onDuplicate: (profile: ProfileInfo) => void;
   onDelete: (profile: ProfileInfo) => void;
   isActivating: boolean;
 }
@@ -22,6 +28,7 @@ export function ProfileRow({
   onActivate,
   onEdit,
   onRename,
+  onDuplicate,
   onDelete,
   isActivating,
 }: ProfileRowProps) {
@@ -32,18 +39,18 @@ export function ProfileRow({
   return (
     <div
       data-testid="profile-row"
-      className="flex items-center justify-between gap-3 px-5 py-4"
+      className={cn(settingsListRowClassName, "justify-between gap-3")}
     >
-      <div className="flex flex-col gap-1 min-w-0 flex-1 sm:flex-row sm:items-center sm:gap-3">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
         <span
-          className="font-medium text-white truncate min-w-0 max-w-full"
+          className="min-w-0 max-w-full truncate text-sm font-medium text-white"
           title={profile.name}
         >
           {profile.name}
         </span>
         {profile.model ? (
           <span
-            className="text-sm text-[var(--oh-muted)] truncate min-w-0 max-w-full"
+            className="min-w-0 max-w-full truncate text-sm text-[var(--oh-muted)]"
             title={profile.model}
           >
             {profile.model}
@@ -51,7 +58,7 @@ export function ProfileRow({
         ) : null}
         {isActive && (
           <BrandBadge
-            className="text-xs px-2.5 py-1 whitespace-nowrap self-start sm:self-auto"
+            className="shrink-0 whitespace-nowrap px-2.5 py-1 text-xs"
             data-testid="profile-active-badge"
           >
             {t(I18nKey.SETTINGS$PROFILE_ACTIVE)}
@@ -64,12 +71,14 @@ export function ProfileRow({
           onClick={() => setMenuOpen((open) => !open)}
           ariaLabel={t(I18nKey.SETTINGS$PROFILE_MENU)}
           testId="profile-menu-trigger"
+          className={settingsListIconActionButtonClassName}
         />
         {menuOpen && (
           <ProfileActionsMenu
             anchorRef={triggerRef}
             onEdit={() => onEdit(profile)}
             onRename={() => onRename(profile)}
+            onDuplicate={() => onDuplicate(profile)}
             onSetActive={() => onActivate(profile.name)}
             onDelete={() => onDelete(profile)}
             isActive={isActive}

@@ -1,8 +1,9 @@
 import { useCallback } from "react";
-import { isMobileDevice } from "#/utils/utils";
+import { isMobileUserAgent } from "#/utils/utils";
 import {
   ensureCursorVisible,
   clearEmptyContent,
+  getClipboardFiles,
 } from "#/components/features/chat/utils/chat-input.utils";
 
 /**
@@ -35,8 +36,7 @@ export const useChatInputEvents = (
     (e: React.ClipboardEvent) => {
       e.preventDefault();
 
-      // Check if there are files in the clipboard
-      const files = Array.from(e.clipboardData.files);
+      const files = getClipboardFiles(e.clipboardData);
       const hasFiles = files.length > 0;
 
       if (hasFiles) {
@@ -80,8 +80,11 @@ export const useChatInputEvents = (
         return;
       }
 
-      // Original submit logic - only for desktop without shift key
-      if (!isMobileDevice() && !e.shiftKey && !disabled) {
+      // Submit on Enter for everything except phones/tablets (where Enter
+      // inserts a newline and the user taps the send button). We gate on the
+      // user agent rather than touch capability so a desktop OS with a
+      // touchscreen (e.g. a Windows 2-in-1) still submits on Enter.
+      if (!isMobileUserAgent() && !e.shiftKey && !disabled) {
         e.preventDefault();
         handleSubmit();
       }

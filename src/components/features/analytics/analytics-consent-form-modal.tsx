@@ -8,6 +8,7 @@ import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalBody } from "#/components/shared/modals/modal-body";
 import { useSaveSettings } from "#/hooks/mutation/use-save-settings";
 import { handleCaptureConsent } from "#/utils/handle-capture-consent";
+import { setTelemetryConsent } from "#/services/telemetry";
 import { BrandButton } from "../settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
 
@@ -32,6 +33,9 @@ export function AnalyticsConsentFormModal({
       {
         onSuccess: () => {
           handleCaptureConsent(posthog, analytics);
+          // Sync telemetry.ts consent so canvas_new_session and any
+          // trackEvent() calls respect the same user decision.
+          void setTelemetryConsent(analytics ? "granted" : "denied");
           onClose();
         },
       },

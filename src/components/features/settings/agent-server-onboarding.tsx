@@ -1,22 +1,20 @@
 import React from "react";
 import { RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import {
-  getAgentServerFormDefaults,
-  saveAgentServerConfig,
-} from "#/api/agent-server-config";
+import { getAgentServerFormDefaults } from "#/api/agent-server-config";
 import {
   getRegisteredBackends,
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
 import {
-  DEFAULT_LOCAL_BACKEND_ID,
+  SEEDED_DEFAULT_BACKEND_ID,
   DEFAULT_LOCAL_BACKEND_NAME,
 } from "#/api/backend-registry/default-backend";
 import type { Backend } from "#/api/backend-registry/types";
 import { cn } from "#/utils/utils";
 import { BrandButton } from "./brand-button";
 import { SettingsInput } from "./settings-input";
+import { I18nKey } from "#/i18n/declaration";
 
 type AgentServerConnectionFormVariant = "settings" | "onboarding";
 
@@ -56,7 +54,7 @@ export function AgentServerConnectionForm({
     const trimmedKey = sessionApiKey.trim();
     const current = getRegisteredBackends();
     const defaultEntry: Backend = {
-      id: DEFAULT_LOCAL_BACKEND_ID,
+      id: SEEDED_DEFAULT_BACKEND_ID,
       name: DEFAULT_LOCAL_BACKEND_NAME,
       host: trimmedHost,
       apiKey: trimmedKey,
@@ -64,7 +62,7 @@ export function AgentServerConnectionForm({
     };
 
     const existingIndex = current.findIndex(
-      (b) => b.id === DEFAULT_LOCAL_BACKEND_ID,
+      (b) => b.id === SEEDED_DEFAULT_BACKEND_ID,
     );
     if (existingIndex === -1) {
       setRegisteredBackends([defaultEntry, ...current]);
@@ -83,15 +81,6 @@ export function AgentServerConnectionForm({
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    // Persist to the legacy config so the next-session seed and any
-    // module-level fallbacks pick up the new values …
-    saveAgentServerConfig({
-      baseUrl,
-      sessionApiKey,
-    });
-
-    // … and propagate the change into the registry so the active-store
-    // snapshot reflects the new host/api key on this session too.
     syncDefaultBackendInRegistry();
 
     reconnect();
@@ -114,10 +103,10 @@ export function AgentServerConnectionForm({
         {shouldShowSectionHeader ? (
           <div>
             <p className="text-sm font-medium uppercase tracking-[0.24em] text-primary">
-              {t("SETTINGS$AGENT_SERVER_CONNECTION_DETAILS_TITLE")}
+              {t(I18nKey.SETTINGS$AGENT_SERVER_CONNECTION_DETAILS_TITLE)}
             </p>
             <p className="mt-3 w-full min-w-0 text-sm leading-7 text-[var(--oh-muted)]">
-              {t("SETTINGS$AGENT_SERVER_CONNECTION_DETAILS_DESCRIPTION")}
+              {t(I18nKey.SETTINGS$AGENT_SERVER_CONNECTION_DETAILS_DESCRIPTION)}
             </p>
           </div>
         ) : null}
@@ -126,10 +115,10 @@ export function AgentServerConnectionForm({
           testId="agent-server-url-input"
           name="agent-server-url-input"
           type="text"
-          label={t("SETTINGS$AGENT_SERVER_URL")}
+          label={t(I18nKey.SETTINGS$AGENT_SERVER_URL)}
           value={baseUrl}
           onChange={setBaseUrl}
-          placeholder={t("SETTINGS$AGENT_SERVER_URL_PLACEHOLDER")}
+          placeholder={t(I18nKey.SETTINGS$AGENT_SERVER_URL_PLACEHOLDER)}
           className="w-full min-w-0"
         />
 
@@ -137,16 +126,16 @@ export function AgentServerConnectionForm({
           testId="agent-server-api-key-input"
           name="agent-server-api-key-input"
           type="password"
-          label={t("SETTINGS$AGENT_SERVER_API_KEY")}
+          label={t(I18nKey.SETTINGS$AGENT_SERVER_API_KEY)}
           value={sessionApiKey}
           onChange={setSessionApiKey}
-          placeholder={t("SETTINGS$AGENT_SERVER_API_KEY_PLACEHOLDER")}
+          placeholder={t(I18nKey.SETTINGS$AGENT_SERVER_API_KEY_PLACEHOLDER)}
           showOptionalTag
           className="w-full min-w-0"
         />
 
         <p className="w-full min-w-0 text-xs leading-6 text-[var(--oh-text-subtle)]">
-          {t("SETTINGS$AGENT_SERVER_BROWSER_ONLY_NOTE")}
+          {t(I18nKey.SETTINGS$AGENT_SERVER_BROWSER_ONLY_NOTE)}
         </p>
       </div>
 
@@ -158,7 +147,7 @@ export function AgentServerConnectionForm({
           onClick={reconnect}
           startContent={<RefreshCw className="size-4" />}
         >
-          {t("SETTINGS$AGENT_SERVER_RETRY_CONNECTION")}
+          {t(I18nKey.SETTINGS$AGENT_SERVER_RETRY_CONNECTION)}
         </BrandButton>
         <BrandButton
           testId="submit-button"
@@ -166,7 +155,7 @@ export function AgentServerConnectionForm({
           type="submit"
           isDisabled={formIsClean}
         >
-          {t("SETTINGS$SAVE_AND_RECONNECT")}
+          {t(I18nKey.SETTINGS$SAVE_AND_RECONNECT)}
         </BrandButton>
       </div>
     </form>

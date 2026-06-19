@@ -3,13 +3,15 @@ import { Wrench } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
-import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
+import { ComboboxCaretInline } from "#/ui/combobox-caret";
+import { chatInputPillButtonClassName } from "#/utils/form-control-classes";
 import { ToolsContextMenu } from "./tools-context-menu";
 import { useConversationNameContextMenu } from "#/hooks/use-conversation-name-context-menu";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { SystemMessageModal } from "../conversation-panel/system-message-modal";
 import { SkillsModal } from "../conversation-panel/skills-modal";
 import { HooksModal } from "../conversation-panel/hooks-modal";
+import { cn } from "#/utils/utils";
 
 export function Tools() {
   const { t } = useTranslation("openhands");
@@ -49,7 +51,7 @@ export function Tools() {
     <div className="relative">
       <button
         type="button"
-        className="group flex items-center gap-1 rounded-[100px] border border-transparent px-1.5 text-[var(--oh-muted)] transition-[border-color,color] cursor-pointer hover:text-white hover:bg-white/10"
+        className={cn(chatInputPillButtonClassName, "group flex")}
         onClick={handleClick}
       >
         <Wrench
@@ -60,12 +62,7 @@ export function Tools() {
         <span className="text-sm font-normal leading-5">
           {t(I18nKey.MICROAGENTS_MODAL$TOOLS)}
         </span>
-        <ChevronDownSmallIcon
-          width={18}
-          height={18}
-          color="currentColor"
-          aria-hidden
-        />
+        <ComboboxCaretInline isOpen={contextMenuOpen} />
       </button>
       {contextMenuOpen && (
         <ToolsContextMenu

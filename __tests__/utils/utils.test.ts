@@ -10,6 +10,7 @@ const t = (key: string) => {
     COMMON$SERVER_STOPPED: "Server stopped",
     COMMON$RUNNING: "Running",
     CONVERSATION$READY: "Ready",
+    CONVERSATION$STARTING_CONVERSATION: "Starting",
     CONVERSATION$ERROR_STARTING_CONVERSATION: "Error starting conversation",
   };
   return translations[key] || key;
@@ -31,7 +32,7 @@ describe("getStatusText", () => {
     expect(result).toBe(t(I18nKey.COMMON$STOPPING));
   });
 
-  it("formats task status when polling a task", () => {
+  it("localizes task status when polling a task", () => {
     const result = getStatusText({
       isPausing: false,
       isTask: true,
@@ -43,7 +44,22 @@ describe("getStatusText", () => {
       t,
     });
 
-    expect(result).toBe("Starting conversation");
+    expect(result).toBe(t(I18nKey.CONVERSATION$STARTING_CONVERSATION));
+  });
+
+  it("prefers task detail over the localized status while polling", () => {
+    const result = getStatusText({
+      isPausing: false,
+      isTask: true,
+      taskStatus: "STARTING_CONVERSATION",
+      taskDetail: "Cloning repository",
+      isStartingStatus: false,
+      isStopStatus: false,
+      curAgentState: AgentState.RUNNING,
+      t,
+    });
+
+    expect(result).toBe("Cloning repository");
   });
 
   it("returns task detail when task status is ERROR and detail exists", () => {

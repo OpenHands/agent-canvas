@@ -1,5 +1,4 @@
 import { ConversationClient } from "@openhands/typescript-client/clients";
-import { HttpClient } from "@openhands/typescript-client/client/http-client";
 import { RemoteEventsList } from "@openhands/typescript-client/events/remote-events-list";
 import { OpenHandsEvent } from "#/types/agent-server/core";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
@@ -30,9 +29,9 @@ import type {
  *     `/api/conversations/{id}/events/respond_to_confirmation`. Auth on
  *     these endpoints is `X-Session-API-Key`, not `Authorization: Bearer`.
  *
- * Both go through the bundled local agent-server's `/api/cloud-proxy`,
- * which sidesteps the cross-origin restrictions that block the GUI at
- * `localhost` from talking directly to either the cloud backend or the runtime.
+ * App API calls go directly to the cloud backend with bearer auth. Runtime
+ * sandbox calls go through `/api/cloud-proxy`, which avoids depending on CORS
+ * for per-conversation runtime hosts.
  *
  * Local mode keeps the existing typescript-client path: it targets the
  * conversation's host directly via typed client classes.
@@ -164,9 +163,7 @@ class EventService {
     }
 
     const page = await new RemoteEventsList(
-      new HttpClient(
-        getAgentServerHttpClientOptions({ conversationUrl, sessionApiKey }),
-      ),
+      getAgentServerHttpClientOptions({ conversationUrl, sessionApiKey }),
       conversationId,
     ).search({
       limit,

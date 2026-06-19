@@ -40,3 +40,11 @@ export function useScrollContext() {
   }
   return context;
 }
+
+// Same as useScrollContext but returns undefined when no provider is mounted.
+// Use this in components that have valid render paths both inside and outside
+// the chat's ScrollProvider (e.g. GitControlBar in production vs. isolated
+// test mounts).
+export function useOptionalScrollContext() {
+  return useContext(ScrollContext);
+}

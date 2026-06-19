@@ -1,9 +1,12 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import {
   AgentServerUnavailableError,
+  AgentServerUnknownVersionError,
+  AgentServerUnsupportedVersionError,
   clearCachedAgentServerInfo,
   isAgentServerToolAvailable,
+  MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
 } from "#/api/agent-server-compatibility";
 import OptionService from "#/api/option-service/option-service.api";
 import { server } from "#/mocks/node";
@@ -21,10 +24,14 @@ describe("OptionService", () => {
     expect(config.updated_at).toBeTruthy();
   });
 
-  it("loads config regardless of agent server version", async () => {
+  it("loads config when the agent server is compatible", async () => {
     server.use(
       http.get("*/server_info", () =>
-        HttpResponse.json({ uptime: 0, idle_time: 0, version: "1.0.0" }),
+        HttpResponse.json({
+          uptime: 0,
+          idle_time: 0,
+          version: MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
+        }),
       ),
     );
 
@@ -33,15 +40,30 @@ describe("OptionService", () => {
     });
   });
 
-  it("loads config even when the server does not advertise a version", async () => {
+  it("throws when the agent server is too old", async () => {
+    server.use(
+      http.get("*/server_info", () =>
+        HttpResponse.json({ uptime: 0, idle_time: 0, version: "1.27.1" }),
+      ),
+    );
+
+    await expect(OptionService.getConfig()).rejects.toMatchObject({
+      name: AgentServerUnsupportedVersionError.name,
+      actualVersion: "1.27.1",
+      requiredVersion: MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
+    });
+  });
+
+  it("throws when the server does not advertise a version", async () => {
     server.use(
       http.get("*/server_info", () =>
         HttpResponse.json({ uptime: 0, idle_time: 0 }),
       ),
     );
 
-    await expect(OptionService.getConfig()).resolves.toMatchObject({
-      feature_flags: expect.objectContaining({ hide_llm_settings: false }),
+    await expect(OptionService.getConfig()).rejects.toMatchObject({
+      name: AgentServerUnknownVersionError.name,
+      actualVersion: null,
     });
   });
 
@@ -50,7 +72,7 @@ describe("OptionService", () => {
 
     await expect(OptionService.getConfig()).rejects.toMatchObject({
       name: AgentServerUnavailableError.name,
-      message: expect.stringContaining("Agent server not found"),
+      message: expect.stringContaining("Could not connect to the configured agent server"),
       details: expect.stringContaining("Request failed"),
     });
   });
@@ -61,7 +83,7 @@ describe("OptionService", () => {
         HttpResponse.json({
           uptime: 0,
           idle_time: 0,
-          version: "1.21.1",
+          version: MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
           usable_tools: ["terminal", "file_editor", "task_tracker"],
         }),
       ),
@@ -79,7 +101,7 @@ describe("OptionService", () => {
         HttpResponse.json({
           uptime: 0,
           idle_time: 0,
-          version: "1.21.1",
+          version: MINIMUM_COMPATIBLE_AGENT_SERVER_VERSION,
         }),
       ),
     );
@@ -94,8 +116,37 @@ describe("OptionService", () => {
     const models = await OptionService.getModels();
 
     expect(models.models).toContain("openhands/claude-opus-4-5-20251101");
+    expect(models.models).toContain("openai/gpt-5.5");
     expect(models.verified_models).toContain("claude-opus-4-5-20251101");
-    expect(models.verified_providers).toEqual(["anthropic", "openhands"]);
+    expect(models.verified_models).toContain("gpt-5.5");
+    expect(models.verified_providers).toEqual([
+      "anthropic",
+      "openai",
+      "openhands",
+    ]);
     expect(models.default_model).toBeTruthy();
+  });
+
+  describe("posthog_client_key", () => {
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it("returns the key from VITE_POSTHOG_CLIENT_KEY when set", async () => {
+      vi.stubEnv("VITE_POSTHOG_CLIENT_KEY", "phc_test_key_123");
+
+      const config = await OptionService.getConfig();
+
+      expect(config.posthog_client_key).toBe("phc_test_key_123");
+    });
+
+    it("returns null when VITE_POSTHOG_CLIENT_KEY is not set", async () => {
+      // No stub — env var is absent in the test environment by default,
+      // so import.meta.env.VITE_POSTHOG_CLIENT_KEY is undefined,
+      // and the ?? null fallback applies.
+      const config = await OptionService.getConfig();
+
+      expect(config.posthog_client_key).toBeNull();
+    });
   });
 });

@@ -9,17 +9,16 @@ import { I18nKey } from "#/i18n/declaration";
 import { mapProvider } from "#/utils/map-provider";
 import { extractModelAndProvider } from "#/utils/extract-model-and-provider";
 import { cn } from "#/utils/utils";
+import { formControlSettingsFieldClassName } from "#/utils/form-control-classes";
+import { heroUiAutocompleteSelectorButtonClassName } from "#/ui/combobox-caret";
 import { HelpLink } from "#/ui/help-link";
 import { PRODUCT_URL } from "#/utils/constants";
 import { useSearchProviders } from "#/hooks/query/use-search-providers";
 import { useProviderModels } from "#/hooks/query/use-provider-models";
-import { useOpenhandsVerifiedModels } from "#/hooks/query/use-openhands-verified-models";
-import { normalizeDisplayModel } from "#/utils/normalize-display-model";
 
 interface ModelSelectorProps {
   isDisabled?: boolean;
   currentModel?: string;
-  currentBaseUrl?: string;
   onChange?: (provider: string | null, model: string | null) => void;
   onDefaultValuesChanged?: (
     provider: string | null,
@@ -32,7 +31,6 @@ interface ModelSelectorProps {
 export function ModelSelector({
   isDisabled,
   currentModel,
-  currentBaseUrl,
   onChange,
   onDefaultValuesChanged,
   wrapperClassName,
@@ -45,7 +43,6 @@ export function ModelSelector({
   const [selectedModel, setSelectedModel] = React.useState<string | null>(null);
 
   const { data: providers = [] } = useSearchProviders();
-  const { data: openhandsVerifiedModels } = useOpenhandsVerifiedModels();
   const {
     data: providerModels = [],
     isLoading: isLoadingModels,
@@ -71,24 +68,15 @@ export function ModelSelector({
   );
 
   React.useEffect(() => {
-    // Wait for the openhands verified list before initializing — otherwise a
-    // persisted `litellm_proxy/<m>` model would first land as `litellm_proxy`
-    // and only later flip to `openhands`, triggering a redundant /api/llm/models
-    // fetch for the throwaway provider value.
-    if (currentModel && openhandsVerifiedModels !== undefined) {
-      const displayModel = normalizeDisplayModel(
-        currentModel,
-        currentBaseUrl,
-        openhandsVerifiedModels,
-      );
-      const { provider, model } = extractModelAndProvider(displayModel);
+    if (currentModel) {
+      const { provider, model } = extractModelAndProvider(currentModel);
 
-      setLitellmId(displayModel);
+      setLitellmId(currentModel);
       setSelectedProvider(provider || null);
       setSelectedModel(model);
       onDefaultValuesChanged?.(provider || null, model);
     }
-  }, [currentModel, currentBaseUrl, openhandsVerifiedModels]);
+  }, [currentModel]);
 
   const handleChangeProvider = (provider: string) => {
     setSelectedProvider(provider);
@@ -142,14 +130,12 @@ export function ModelSelector({
           classNames={{
             popoverContent:
               "bg-content1 rounded-xl border border-[var(--oh-border)]",
-            selectorButton:
-              "!rounded-none !bg-transparent data-[hover=true]:!bg-transparent !min-w-0 !w-auto !h-auto px-1",
+            selectorButton: heroUiAutocompleteSelectorButtonClassName,
           }}
           selectorButtonProps={{ disableRipple: true }}
           inputProps={{
             classNames: {
-              inputWrapper:
-                "bg-tertiary border border-[var(--oh-border-input)] h-10 w-full rounded-sm p-2",
+              inputWrapper: formControlSettingsFieldClassName,
             },
           }}
         >
@@ -213,14 +199,12 @@ export function ModelSelector({
           classNames={{
             popoverContent:
               "bg-content1 rounded-xl border border-[var(--oh-border)]",
-            selectorButton:
-              "!rounded-none !bg-transparent data-[hover=true]:!bg-transparent !min-w-0 !w-auto !h-auto px-1",
+            selectorButton: heroUiAutocompleteSelectorButtonClassName,
           }}
           selectorButtonProps={{ disableRipple: true }}
           inputProps={{
             classNames: {
-              inputWrapper:
-                "bg-tertiary border border-[var(--oh-border-input)] h-10 w-full rounded-sm p-2",
+              inputWrapper: formControlSettingsFieldClassName,
             },
           }}
         >

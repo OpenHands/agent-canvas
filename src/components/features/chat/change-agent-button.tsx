@@ -3,24 +3,34 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
-import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
+import { ComboboxCaretInline } from "#/ui/combobox-caret";
 import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
 import { CodePillIcon } from "#/icons/code-pill";
 import { useConversationStore } from "#/stores/conversation-store";
 import { ChangeAgentContextMenu } from "./change-agent-context-menu";
 import { cn } from "#/utils/utils";
+import {
+  formControlMutedHoverClassName,
+  formControlTransitionClassName,
+} from "#/utils/form-control-classes";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useUnifiedWebSocketStatus } from "#/hooks/use-unified-websocket-status";
 import { useSubConversationTaskPolling } from "#/hooks/query/use-sub-conversation-task-polling";
 import { useHandlePlanClick } from "#/hooks/use-handle-plan-click";
+import { useOptionalConversationId } from "#/hooks/use-conversation-id";
+import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 
 export function ChangeAgentButton() {
   const [contextMenuOpen, setContextMenuOpen] = useState<boolean>(false);
 
   const { conversationMode, setConversationMode, subConversationTaskId } =
     useConversationStore();
+
+  const { conversationId } = useOptionalConversationId();
+
+  const isHomePage = !conversationId;
 
   const webSocketStatus = useUnifiedWebSocketStatus();
 
@@ -80,7 +90,10 @@ export function ChangeAgentButton() {
   }, [isAgentRunning, contextMenuOpen, isWebSocketConnected]);
 
   const isButtonDisabled =
-    isAgentRunning || isCreatingConversation || !isWebSocketConnected;
+    isHomePage ||
+    isAgentRunning ||
+    isCreatingConversation ||
+    !isWebSocketConnected;
 
   // Handle Shift + Tab keyboard shortcut to cycle through modes
   useEffect(() => {
@@ -144,25 +157,25 @@ export function ChangeAgentButton() {
     }
     return <LessonPlanIcon width={18} height={18} color="currentColor" />;
   }, [isExecutionAgent]);
-  const caretColor = "currentColor";
 
-  return (
+  const button = (
     <div className="relative">
       <button
         type="button"
         onClick={handleButtonClick}
         disabled={isButtonDisabled}
         className={cn(
-          "flex items-center rounded-[100px] transition-[border-color,color,opacity]",
+          "flex items-center rounded-[100px]",
+          formControlTransitionClassName,
           isExecutionAgent
             ? "border border-transparent text-[var(--oh-muted)]"
             : "border border-[#597FF4] bg-[#4A67BD]",
           !isButtonDisabled &&
             isExecutionAgent &&
-            "cursor-pointer hover:text-white hover:bg-white/10",
+            cn("cursor-pointer", formControlMutedHoverClassName),
           !isButtonDisabled &&
             !isExecutionAgent &&
-            "cursor-pointer text-white hover:bg-white/10",
+            "cursor-pointer text-white hover:bg-[#597FF4]",
           isButtonDisabled &&
             cn(
               "opacity-50 cursor-not-allowed",
@@ -176,10 +189,11 @@ export function ChangeAgentButton() {
             {buttonLabel}
           </Typography.Text>
         </div>
-        <ChevronDownSmallIcon width={18} height={18} color={caretColor} />
+        <ComboboxCaretInline isOpen={contextMenuOpen} />
       </button>
       {contextMenuOpen && (
         <ChangeAgentContextMenu
+          activeMode={conversationMode}
           onClose={() => setContextMenuOpen(false)}
           onCodeClick={handleCodeClick}
           onPlanClick={handlePlanClick}
@@ -187,4 +201,17 @@ export function ChangeAgentButton() {
       )}
     </div>
   );
+
+  if (isHomePage) {
+    return (
+      <StyledTooltip
+        content={t(I18nKey.CHANGE_AGENT$SWITCH_AFTER_CONVERSATION)}
+        placement="top"
+      >
+        {button}
+      </StyledTooltip>
+    );
+  }
+
+  return button;
 }

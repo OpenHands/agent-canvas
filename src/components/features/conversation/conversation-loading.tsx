@@ -1,5 +1,6 @@
 import { LoaderCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { TextShimmer } from "#/components/shared/text-shimmer";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 
@@ -18,12 +19,19 @@ export function ConversationLoading({ className }: ConversationLoadingProps) {
       )}
     >
       <LoaderCircle
-        className="h-8 w-8 shrink-0 animate-spin text-[var(--oh-text-secondary)]"
+        className="h-8 w-8 shrink-0 animate-spin text-tertiary-light"
         aria-hidden
       />
-      <span className="text-base font-normal leading-5 text-[var(--oh-focus)] opacity-80">
+      <TextShimmer
+        as="p"
+        role="status"
+        aria-live="polite"
+        className="block w-full text-center text-base font-normal leading-5"
+        duration={1}
+        spread={2}
+      >
         {t(I18nKey.HOME$LOADING)}
-      </span>
+      </TextShimmer>
     </div>
   );
 }

@@ -1,18 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import TerminalIcon from "#/icons/terminal.svg?react";
-import GlobeIcon from "#/icons/globe.svg?react";
+import { LayoutGroup } from "framer-motion";
+import { Globe, ListTodo, SquareChevronRight } from "lucide-react";
 import DocumentIcon from "#/icons/document.svg?react";
-import VSCodeIcon from "#/icons/vscode.svg?react";
-import LessonPlanIcon from "#/icons/lesson-plan.svg?react";
 import DoubleCheckIcon from "#/icons/double-check.svg?react";
 import { EllipsisButton } from "#/components/features/conversation-panel/ellipsis-button";
 import { cn } from "#/utils/utils";
 import { useConversationLocalStorageState } from "#/utils/conversation-local-storage";
 import { ConversationTabNav } from "./conversation-tab-nav";
+import { DrawerVSCodeLink } from "./drawer-vscode-link";
 import { ChatActionTooltip } from "../../chat/chat-action-tooltip";
 import { I18nKey } from "#/i18n/declaration";
-import { VSCodeTooltipContent } from "./vscode-tooltip-content";
 import { useConversationStore } from "#/stores/conversation-store";
 import { ConversationTabsContextMenu } from "./conversation-tabs-context-menu";
 import { useConversationId } from "#/hooks/use-conversation-id";
@@ -27,8 +25,11 @@ import { mobileTopBarIconClassName } from "#/utils/mobile-top-bar-icon-button-cl
 
 export function ConversationTabs({
   variant = "default",
+  isPanelResizing = false,
 }: {
   variant?: "default" | "compact";
+  /** True while the desktop drawer gripper is being dragged. */
+  isPanelResizing?: boolean;
 }) {
   const { conversationId } = useConversationId();
   const { setSelectedTab, planContent } = useConversationStore();
@@ -93,25 +94,16 @@ export function ConversationTabs({
     {
       tabValue: "planner",
       isActive: isTabActive("planner"),
-      icon: LessonPlanIcon,
+      icon: ListTodo,
       onClick: () => selectTab("planner"),
       tooltipContent: t(I18nKey.COMMON$PLANNER),
       tooltipAriaLabel: t(I18nKey.COMMON$PLANNER),
       label: t(I18nKey.COMMON$PLANNER),
     },
     {
-      tabValue: "vscode",
-      isActive: isTabActive("vscode"),
-      icon: VSCodeIcon,
-      onClick: () => selectTab("vscode"),
-      tooltipContent: <VSCodeTooltipContent />,
-      tooltipAriaLabel: t(I18nKey.COMMON$CODE),
-      label: t(I18nKey.COMMON$CODE),
-    },
-    {
       tabValue: "terminal",
       isActive: isTabActive("terminal"),
-      icon: TerminalIcon,
+      icon: SquareChevronRight,
       onClick: () => selectTab("terminal"),
       tooltipContent: t(I18nKey.COMMON$TERMINAL),
       tooltipAriaLabel: t(I18nKey.COMMON$TERMINAL),
@@ -121,7 +113,7 @@ export function ConversationTabs({
     {
       tabValue: "browser",
       isActive: isTabActive("browser"),
-      icon: GlobeIcon,
+      icon: Globe,
       onClick: () => selectTab("browser"),
       tooltipContent: t(I18nKey.COMMON$BROWSER),
       tooltipAriaLabel: t(I18nKey.COMMON$BROWSER),
@@ -144,9 +136,10 @@ export function ConversationTabs({
 
   // Pinned tabs always show in the bar. Unpinned tabs stay hidden unless the
   // user has that tab selected — then it appears while active so the bar
-  // matches the open panel. Hide VS Code on local backends (cloud-only URL).
+  // matches the open panel. Hide Planner on local backends — the planning
+  // agent isn't supported locally.
   const visibleTabs = tabs.filter((tab) => {
-    if (tab.tabValue === "vscode" && backend.kind !== "cloud") return false;
+    if (tab.tabValue === "planner" && backend.kind !== "cloud") return false;
     if (!persistedState.unpinnedTabs.includes(tab.tabValue)) return true;
     return selectedTab === tab.tabValue;
   });
@@ -161,6 +154,7 @@ export function ConversationTabs({
   const tabsRowInnerRef = useRef<HTMLDivElement>(null);
   const measureRowRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const vscodeButtonRef = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [inlineTabCount, setInlineTabCount] = useState(visibleTabs.length);
 
@@ -168,7 +162,8 @@ export function ConversationTabs({
     const rowInner = tabsRowInnerRef.current;
     const measureRow = measureRowRef.current;
     const menuEl = menuRef.current;
-    if (!rowInner || !measureRow || !menuEl) return undefined;
+    const vscodeEl = vscodeButtonRef.current;
+    if (!rowInner || !measureRow || !menuEl || !vscodeEl) return undefined;
 
     const measure = () => {
       const measureButtons = measureRow.querySelectorAll<HTMLButtonElement>(
@@ -192,13 +187,14 @@ export function ConversationTabs({
       }
 
       const menuWidth = menuEl.getBoundingClientRect().width;
+      const vscodeWidth = vscodeEl.getBoundingClientRect().width;
       const gapCss =
         getComputedStyle(rowInner).columnGap || getComputedStyle(rowInner).gap;
       const gapPx = parseFloat(gapCss) || 6;
 
       let nextCount = 0;
       for (let k = tabCount; k >= 0; k -= 1) {
-        let total = menuWidth;
+        let total = menuWidth + vscodeWidth;
         for (let i = 0; i < k; i += 1) {
           total += widths[i] ?? 0;
         }
@@ -281,56 +277,75 @@ export function ConversationTabs({
           ref={tabsRowInnerRef}
           className="flex w-full min-w-0 flex-nowrap items-center justify-start"
         >
-          <div className="flex w-fit max-w-full min-w-0 flex-nowrap items-center gap-1.5">
-            <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-hidden">
-              {visibleTabs
-                .slice(0, safeInlineTabCount)
-                .map(
-                  (
-                    {
-                      tabValue,
-                      icon,
-                      onClick,
-                      isActive,
-                      tooltipContent,
-                      tooltipAriaLabel,
-                      label,
-                      className: tabClassName,
-                    },
-                    index,
-                  ) => (
-                    <ChatActionTooltip
-                      key={`${tabValue}-${index}`}
-                      tooltip={tooltipContent}
-                      ariaLabel={tooltipAriaLabel}
-                    >
-                      <ConversationTabNav
-                        tabValue={tabValue}
-                        icon={icon}
-                        onClick={onClick}
-                        isActive={isActive}
-                        label={label}
-                        className={cn(tabClassName, "shrink-0")}
-                      />
-                    </ChatActionTooltip>
-                  ),
-                )}
+          <div className="flex min-w-0 flex-1 items-center justify-start overflow-hidden">
+            <div className="flex w-fit max-w-full min-w-0 items-center gap-1.5">
+              <LayoutGroup id="conversation-drawer-tabs">
+                <div className="flex w-fit max-w-full min-w-0 flex-nowrap items-center gap-1.5 overflow-x-hidden">
+                  {visibleTabs
+                    .slice(0, safeInlineTabCount)
+                    .map(
+                      (
+                        {
+                          tabValue,
+                          icon,
+                          onClick,
+                          isActive,
+                          tooltipContent,
+                          tooltipAriaLabel,
+                          label,
+                          className: tabClassName,
+                        },
+                        index,
+                      ) => (
+                        <ChatActionTooltip
+                          key={`${tabValue}-${index}`}
+                          tooltip={tooltipContent}
+                          ariaLabel={tooltipAriaLabel}
+                        >
+                          <ConversationTabNav
+                            tabValue={tabValue}
+                            icon={icon}
+                            onClick={onClick}
+                            isActive={isActive}
+                            label={label}
+                            className={cn(tabClassName, "shrink-0")}
+                            suppressLayoutAnimation={isPanelResizing}
+                          />
+                        </ChatActionTooltip>
+                      ),
+                    )}
+                </div>
+              </LayoutGroup>
+              <div ref={menuRef} className="relative shrink-0">
+                <EllipsisButton
+                  ref={anchorRef}
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                  ariaLabel={t(I18nKey.COMMON$MORE_OPTIONS)}
+                  iconClassName={
+                    variant === "compact"
+                      ? mobileTopBarIconClassName
+                      : undefined
+                  }
+                />
+                <ConversationTabsContextMenu
+                  isOpen={isMenuOpen}
+                  onClose={() => setIsMenuOpen(false)}
+                  ignoreOutsideClickRef={anchorRef}
+                  anchorRef={anchorRef}
+                />
+              </div>
             </div>
-            <div ref={menuRef} className="relative shrink-0">
-              <EllipsisButton
-                ref={anchorRef}
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
-                ariaLabel={t(I18nKey.COMMON$MORE_OPTIONS)}
-                iconClassName={
-                  variant === "compact" ? mobileTopBarIconClassName : undefined
-                }
-              />
-              <ConversationTabsContextMenu
-                isOpen={isMenuOpen}
-                onClose={() => setIsMenuOpen(false)}
-                ignoreOutsideClickRef={anchorRef}
-              />
-            </div>
+          </div>
+          {/* Keep the ref'd wrapper mounted on local backends too — the
+              overflow measurement effect above bails if it's missing. */}
+          <div
+            ref={vscodeButtonRef}
+            className={cn(
+              "ml-auto shrink-0",
+              backend.kind === "cloud" && "pr-1",
+            )}
+          >
+            {backend.kind === "cloud" && <DrawerVSCodeLink />}
           </div>
         </div>
       </div>
@@ -352,7 +367,7 @@ export function ConversationTabs({
             )}
             data-testid="planner-tab-build-button"
           >
-            <Typography.Text className="text-[11px] font-medium leading-5 text-black">
+            <Typography.Text className="text-[11px] font-normal leading-5 text-black">
               {/* eslint-disable-next-line i18next/no-literal-string */}
               {t(I18nKey.COMMON$BUILD)} ⌘↩
             </Typography.Text>

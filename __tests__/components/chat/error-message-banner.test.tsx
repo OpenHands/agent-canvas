@@ -15,8 +15,40 @@ describe("ErrorMessageBanner", () => {
       />,
     );
 
-    await user.click(screen.getByLabelText("BUTTON$CLOSE"));
+    await user.click(screen.getByTestId("error-message-banner-dismiss"));
     expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onRetry when the retry button is clicked", async () => {
+    const user = userEvent.setup();
+    const onRetry = vi.fn();
+
+    render(
+      <ErrorMessageBanner
+        message="Unable to connect to server"
+        onRetry={onRetry}
+      />,
+    );
+
+    await user.click(screen.getByTestId("error-message-banner-retry"));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a red error icon beside the message", () => {
+    render(<ErrorMessageBanner message="Something went wrong" />);
+
+    const icon = screen.getByTestId("error-message-banner-icon");
+    expect(icon).toHaveStyle({ color: "var(--oh-status-error)" });
+  });
+
+  it("uses greyscale theme tokens instead of red error styling", () => {
+    render(<ErrorMessageBanner message="Something went wrong" />);
+
+    const banner = screen.getByTestId("error-message-banner");
+    expect(banner.className).toContain("border-[var(--oh-border)]");
+    expect(banner.className).toContain("bg-[var(--oh-surface-raised)]");
+    expect(banner.className).not.toContain("#FF0006");
+    expect(banner.className).not.toContain("#4A0709");
   });
 
   it("shows a View More / View Less toggle for long messages", async () => {
@@ -30,5 +62,53 @@ describe("ErrorMessageBanner", () => {
 
     await user.click(toggle);
     expect(toggle).toHaveTextContent("COMMON$VIEW_LESS");
+  });
+
+  it("renders a code-specific header for a known ACP error code", () => {
+    render(
+      <ErrorMessageBanner
+        message="[-32603] Internal error: 401 invalid x-api-key"
+        code="ACPAuthRequired"
+      />,
+    );
+
+    const header = screen.getByTestId("error-message-banner-header");
+    expect(header).toHaveTextContent("ERROR$ACP_AUTH_REQUIRED_TITLE");
+    // The detail is still shown verbatim below the header.
+    expect(screen.getByTestId("error-message-banner-content")).toHaveTextContent(
+      "invalid x-api-key",
+    );
+  });
+
+  it("renders no header for an unknown or absent code", () => {
+    render(<ErrorMessageBanner message="boom" code={null} />);
+    expect(
+      screen.queryByTestId("error-message-banner-header"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a re-auth action and calls onReauth when provided", async () => {
+    const user = userEvent.setup();
+    const onReauth = vi.fn();
+
+    render(
+      <ErrorMessageBanner
+        message="Authentication failed"
+        code="ACPAuthRequired"
+        onReauth={onReauth}
+      />,
+    );
+
+    const reauth = screen.getByTestId("error-message-banner-reauth");
+    expect(reauth).toHaveTextContent("ERROR$ACP_UPDATE_CREDENTIALS");
+    await user.click(reauth);
+    expect(onReauth).toHaveBeenCalledTimes(1);
+  });
+
+  it("omits the re-auth action when onReauth is not provided", () => {
+    render(<ErrorMessageBanner message="boom" code="ACPPromptError" />);
+    expect(
+      screen.queryByTestId("error-message-banner-reauth"),
+    ).not.toBeInTheDocument();
   });
 });

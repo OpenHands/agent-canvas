@@ -1,18 +1,22 @@
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
-import DatabaseIcon from "#/icons/database.svg?react";
+import { extensionModuleEmptyStateClassName } from "#/utils/extension-module-card-classes";
 import { CreateInstructions } from "./create-instructions";
 
 export function EmptyState() {
   const { t } = useTranslation("openhands");
 
   return (
-    <div className="flex flex-col items-center justify-center py-12">
-      <DatabaseIcon className="size-12 text-muted" />
-      <p className="mt-4 text-sm text-muted">{t(I18nKey.AUTOMATIONS$EMPTY)}</p>
+    <div
+      data-testid="automations-empty"
+      className={extensionModuleEmptyStateClassName}
+    >
+      <p className="text-sm text-white">{t(I18nKey.AUTOMATIONS$EMPTY)}</p>
+      <p className="mt-1 text-xs text-tertiary-light">
+        {t(I18nKey.AUTOMATIONS$EMPTY_HINT)}
+      </p>
 
-      {/* How to create section */}
-      <div className="mt-8 flex justify-center">
+      <div className="mt-8 flex justify-center border-t border-[var(--oh-border)] pt-8">
         <CreateInstructions />
       </div>
     </div>

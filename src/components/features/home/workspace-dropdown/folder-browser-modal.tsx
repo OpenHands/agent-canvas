@@ -1,7 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { BaseModalTitle } from "#/components/shared/modals/confirmation-modals/base-modal";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
+import {
+  MODAL_MAX_WIDTH_VIEWPORT,
+  modalWidthClassName,
+} from "#/components/shared/modals/modal-body";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
 import { LocalWorkspace, LocalWorkspaceParent } from "#/types/workspace";
@@ -12,6 +17,7 @@ import {
 } from "#/hooks/query/use-search-subdirs";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { cn } from "#/utils/utils";
+import { modalTitleSmClassName } from "#/utils/modal-classes";
 import FolderIcon from "#/icons/folder.svg?react";
 import ChevronLeft from "#/icons/chevron-left-small.svg?react";
 
@@ -76,11 +82,32 @@ function SidebarSection({
 }
 
 function getParentPath(path: string): string | null {
-  const trimmed = path.replace(/\/+$/, "");
-  if (!trimmed || trimmed === "/") return null;
-  const idx = trimmed.lastIndexOf("/");
-  if (idx <= 0) return "/";
-  return trimmed.slice(0, idx);
+  const trimmed = trimTrailingSeparators(path);
+  if (!trimmed || trimmed === "/" || isWindowsDriveRoot(trimmed)) return null;
+
+  const idx = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  if (idx < 0) return null;
+  if (idx === 0) return "/";
+
+  const parent = trimmed.slice(0, idx);
+  if (/^[A-Za-z]:$/.test(parent)) {
+    return `${parent}${trimmed[idx]}`;
+  }
+
+  return parent;
+}
+
+function isWindowsDriveRoot(path: string): boolean {
+  return /^[A-Za-z]:[\\/]?$/.test(path);
+}
+
+function trimTrailingSeparators(path: string): string {
+  const trimmed = path.replace(/[\\/]+$/, "");
+  if (/^[A-Za-z]:$/.test(trimmed)) {
+    const separator = path.includes("/") && !path.includes("\\") ? "/" : "\\";
+    return `${trimmed}${separator}`;
+  }
+  return trimmed;
 }
 
 function shouldDefaultToProjectsPath(
@@ -128,7 +155,7 @@ export function FolderBrowserModal({
 
   const favorites: SidebarEntry[] = useMemo(() => {
     if (!homeData?.home) return [];
-    const trimmed = homeData.home.replace(/[\\/]+$/, "") || homeData.home;
+    const trimmed = trimTrailingSeparators(homeData.home) || homeData.home;
     const backendFavorites = [
       { label: "Home", path: trimmed },
       ...(homeData.favorites ?? []),
@@ -167,10 +194,11 @@ export function FolderBrowserModal({
     subdirs.length === 0;
 
   const getBasename = (path: string): string => {
-    const trimmed = path.replace(/\/+$/, "");
+    const trimmed = trimTrailingSeparators(path);
     if (!trimmed) return "/";
-    const idx = trimmed.lastIndexOf("/");
-    return idx >= 0 ? trimmed.slice(idx + 1) || "/" : trimmed;
+    if (trimmed === "/" || isWindowsDriveRoot(trimmed)) return trimmed;
+    const idx = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+    return idx >= 0 ? trimmed.slice(idx + 1) || trimmed : trimmed;
   };
 
   const handleAddDirectory = () => {
@@ -205,14 +233,17 @@ export function FolderBrowserModal({
         data-testid="folder-browser-modal"
         className={cn(
           "flex flex-col bg-[var(--oh-surface)] border border-[var(--oh-border-input)] rounded-xl",
-          "w-[720px] max-w-[90vw] h-[480px]",
+          modalWidthClassName("xl"),
+          MODAL_MAX_WIDTH_VIEWPORT,
+          "h-[480px]",
         )}
       >
         {/* Title bar */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-[var(--oh-border-input)]">
-          <span className="text-sm font-semibold text-white">
-            {t(I18nKey.HOME$ADD_WORKSPACES_TITLE)}
-          </span>
+          <BaseModalTitle
+            className={modalTitleSmClassName}
+            title={t(I18nKey.HOME$ADD_WORKSPACES_TITLE)}
+          />
         </div>
 
         {/* Body: sidebar + main */}

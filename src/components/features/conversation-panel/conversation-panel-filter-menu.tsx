@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import {
   Bot,
   CalendarArrowDown,
-  Check,
   Clock3,
   ClockArrowDown,
   Eye,
@@ -12,118 +11,29 @@ import {
   GitBranch,
   ListFilter,
   MessageCircle,
+  MousePointerClick,
   Star,
   Trash2,
 } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import type { BackendKind } from "#/api/backend-registry/types";
-import { Divider } from "#/ui/divider";
 import { cn } from "#/utils/utils";
+import {
+  dropdownInstantColorClassName,
+  dropdownMenuListClassName,
+  dropdownMenuViewportScrollClassName,
+} from "#/utils/dropdown-classes";
 import type {
   ConversationSortField,
   OrganizeMode,
   ThreadScope,
 } from "./conversation-panel-list-helpers";
+import { MenuHeading } from "./menu-heading";
+import { MenuSeparator } from "./menu-separator";
+import { MenuRow } from "./menu-row";
 
 const capitalizeLabel = (label: string) =>
   label.length > 0 ? label.charAt(0).toUpperCase() + label.slice(1) : label;
-
-const MENU_SECTION_HEADING_PADDING = "px-2 pb-1 pt-1";
-const MENU_SECTION_HEADING_TEXT =
-  "text-[11px] font-semibold uppercase tracking-wide text-[var(--oh-muted)]";
-
-function MenuHeading({
-  children,
-  suffix,
-}: {
-  children: React.ReactNode;
-  suffix?: React.ReactNode;
-}) {
-  if (suffix != null) {
-    return (
-      <div
-        role="presentation"
-        className={cn(
-          "flex items-baseline justify-between gap-2",
-          MENU_SECTION_HEADING_PADDING,
-        )}
-      >
-        <span
-          className={cn(
-            "min-w-0 truncate text-left",
-            MENU_SECTION_HEADING_TEXT,
-          )}
-        >
-          {children}
-        </span>
-        {suffix}
-      </div>
-    );
-  }
-
-  return (
-    <div
-      role="presentation"
-      className={cn(MENU_SECTION_HEADING_PADDING, MENU_SECTION_HEADING_TEXT)}
-    >
-      {children}
-    </div>
-  );
-}
-
-function MenuSeparator() {
-  return <Divider inset="menu" />;
-}
-
-function MenuRow({
-  icon: Icon,
-  label,
-  selected,
-  onClick,
-  testId,
-  disabled,
-}: {
-  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
-  label: string;
-  selected?: boolean;
-  onClick: () => void;
-  testId?: string;
-  disabled?: boolean;
-}) {
-  // Rows that show a selection checkmark are toggleable preferences, so
-  // they get `role="menuitemradio"` when they're part of a selectable
-  // group and `role="menuitemcheckbox"` when they're a standalone toggle.
-  // For simplicity we use `menuitemradio` whenever `selected` is provided
-  // (every selectable row in this menu is part of a mutually exclusive
-  // group in practice) and fall back to plain `menuitem` otherwise.
-  const role = selected === undefined ? "menuitem" : "menuitemradio";
-  return (
-    <button
-      type="button"
-      role={role}
-      aria-checked={selected === undefined ? undefined : Boolean(selected)}
-      data-testid={testId}
-      disabled={disabled}
-      onClick={onClick}
-      className={cn(
-        "group flex w-full items-center gap-2 rounded px-2 py-2 text-left text-sm text-[var(--oh-foreground)]",
-        "hover:bg-[var(--oh-interactive-hover)] disabled:cursor-not-allowed disabled:opacity-50",
-      )}
-    >
-      <Icon
-        className="h-3.5 w-3.5 shrink-0 text-[var(--oh-muted)] transition-colors group-hover:text-[var(--oh-foreground)] group-focus-visible:text-[var(--oh-foreground)]"
-        aria-hidden
-      />
-      <span className="min-w-0 flex-1 truncate">{label}</span>
-      {selected ? (
-        <Check
-          className="ml-auto h-3.5 w-3.5 shrink-0 text-[var(--oh-foreground)]"
-          aria-hidden
-        />
-      ) : null}
-    </button>
-  );
-}
 
 export interface ConversationPanelFilterMenuProps {
   filterMenuOpen: boolean;
@@ -142,6 +52,8 @@ export interface ConversationPanelFilterMenuProps {
   toggleShowRepoBranchMetadata: () => void;
   showLlmProfiles: boolean;
   toggleShowLlmProfiles: () => void;
+  showHoverMetadata: boolean;
+  toggleShowHoverMetadata: () => void;
   totalConversationsCount: number;
   onRequestDeleteAll: () => void;
 }
@@ -163,6 +75,8 @@ export function ConversationPanelFilterMenu({
   toggleShowRepoBranchMetadata,
   showLlmProfiles,
   toggleShowLlmProfiles,
+  showHoverMetadata,
+  toggleShowHoverMetadata,
   totalConversationsCount,
   onRequestDeleteAll,
 }: ConversationPanelFilterMenuProps) {
@@ -234,7 +148,10 @@ export function ConversationPanelFilterMenu({
         aria-haspopup="menu"
         aria-expanded={filterMenuOpen}
         onClick={() => setFilterMenuOpen(!filterMenuOpen)}
-        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)] transition-colors"
+        className={cn(
+          "inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
+          dropdownInstantColorClassName,
+        )}
       >
         <ListFilter
           className="lucide lucide-list-filter shrink-0"
@@ -259,7 +176,11 @@ export function ConversationPanelFilterMenu({
           tabIndex={-1}
           data-testid="older-conversations-filter-menu"
           onKeyDown={handleMenuKeyDown}
-          className="absolute right-0 top-full z-50 mt-0 w-64 rounded-md border border-[var(--oh-border-subtle)] bg-tertiary px-1 py-1 text-[var(--oh-foreground)] shadow-lg"
+          className={cn(
+            "absolute right-0 top-full z-50 mt-0 w-64 rounded-md border border-[var(--oh-border-subtle)] bg-tertiary px-1 py-1 text-[var(--oh-foreground)] shadow-lg",
+            dropdownMenuListClassName,
+            dropdownMenuViewportScrollClassName,
+          )}
         >
           <MenuHeading>{t(I18nKey.CONVERSATION_PANEL$ORGANIZE)}</MenuHeading>
           <MenuRow
@@ -342,6 +263,16 @@ export function ConversationPanelFilterMenu({
             testId="toggle-repo-branch-metadata"
             onClick={() => {
               toggleShowRepoBranchMetadata();
+              setFilterMenuOpen(false);
+            }}
+          />
+          <MenuRow
+            icon={MousePointerClick}
+            label={t(I18nKey.CONVERSATION_PANEL$HOVER_METADATA)}
+            selected={showHoverMetadata}
+            testId="toggle-hover-metadata"
+            onClick={() => {
+              toggleShowHoverMetadata();
               setFilterMenuOpen(false);
             }}
           />

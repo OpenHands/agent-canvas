@@ -9,7 +9,6 @@ import { useSettings } from "#/hooks/query/use-settings";
 import { useDeleteMcpServer } from "#/hooks/mutation/use-delete-mcp-server";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { parseMcpConfig } from "#/utils/mcp-config";
-import { redirectIfAcpActive } from "#/utils/acp-route-guard";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -18,33 +17,29 @@ import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message"
 import { settingsLikeMainScrollClassName } from "#/utils/settings-like-page-layout-classes";
 import {
   findCatalogEntryForServer,
-  findInstalledMatch,
+  getMcpMarketplaceCatalog,
   installedServerMatchesQuery,
 } from "#/utils/mcp-marketplace-utils";
 import {
-  MCP_CATALOG as MCP_MARKETPLACE,
-  type McpCatalogEntry as MarketplaceEntry,
-} from "@openhands/extensions/mcps";
+  INTEGRATION_CATALOG as MCP_MARKETPLACE,
+  type IntegrationCatalogEntry as MarketplaceEntry,
+} from "@openhands/extensions/integrations";
 import { MCPServerConfig } from "#/types/mcp-server";
 import { flattenMcpConfig } from "#/utils/mcp-installed-servers";
 import {
   InstalledServersSection,
-  MarketplaceSearch,
+  McpToolbar,
   MarketplaceSection,
   InstallServerModal,
   CustomServerEditor,
+  type McpSectionFilter,
 } from "#/components/features/mcp-page";
 
-// ACP guard: the ACP sub-agent owns its own MCP server configuration —
-// the SDK explicitly rejects `mcp_config` on ACPAgent init, and
-// `agent-server-adapter` already strips it from start payloads. The
-// Settings → Agent page is where the user configures the ACP server, so
-// bouncing there is consistent with how `/settings` and
-// `/settings/condenser` already behave under ACP.
-//
-// Declared with no parameters (rather than typed as Route.ClientLoaderArgs)
-// so the lib build doesn't pull generated React Router types out of rootDir.
-export const clientLoader = async () => redirectIfAcpActive();
+// No ACP guard here (unlike `/settings` and `/settings/condenser`): MCP
+// servers configured via `agent_settings.mcp_config` are now forwarded to
+// the ACP subprocess at session creation, so this page is meaningful for
+// both OpenHands and ACP agents. The same editor and `mcp_config` storage
+// drive both kinds.
 
 export default function MCPPage() {
   const { t } = useTranslation("openhands");
@@ -61,12 +56,12 @@ export default function MCPPage() {
   const [serverToDelete, setServerToDelete] =
     React.useState<MCPServerConfig | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [sectionFilter, setSectionFilter] =
+    React.useState<McpSectionFilter>("all");
 
   const mcpConfig = parseMcpConfig(settings?.agent_settings?.mcp_config);
   const allServers = flattenMcpConfig(mcpConfig);
-
-  const isInstalled = (entry: MarketplaceEntry) =>
-    !!findInstalledMatch(entry.template, allServers);
+  const mcpMarketplace = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
 
   // Filter installed servers by the search query. We pair each server
   // with its catalog entry (if any) so the search can match friendly
@@ -75,12 +70,12 @@ export default function MCPPage() {
   const filteredInstalledServers = allServers.filter((server) =>
     installedServerMatchesQuery(
       server,
-      findCatalogEntryForServer(server, MCP_MARKETPLACE),
+      findCatalogEntryForServer(server, mcpMarketplace),
       searchQuery,
     ),
   );
 
-  const handleMarketplaceClick = (entry: MarketplaceEntry) => {
+  const handleMarketplaceInstall = (entry: MarketplaceEntry) => {
     setInstallEntry(entry);
   };
 
@@ -120,7 +115,7 @@ export default function MCPPage() {
       >
         <ExtensionsNavigation />
         <div className="flex h-full flex-1 items-center justify-center px-4 md:px-0">
-          <div className="h-8 w-8 rounded-full border-2 border-[var(--oh-border)] border-t-white animate-spin" />
+          <div className="h-8 w-8 rounded-full border-2 border-transparent border-t-white animate-spin" />
         </div>
       </div>
     );
@@ -137,7 +132,7 @@ export default function MCPPage() {
           <div className="min-w-0">
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-1">
-                <h2 className="text-xl font-semibold leading-6 text-foreground">
+                <h2 className="text-xl font-medium leading-6 text-foreground">
                   {t(I18nKey.SETTINGS$MCP_TITLE)}
                 </h2>
                 <div className="max-w-2xl text-sm text-tertiary-light">
@@ -156,27 +151,36 @@ export default function MCPPage() {
             </div>
           </div>
 
-          <MarketplaceSearch value={searchQuery} onChange={setSearchQuery} />
-
-          <section className="flex flex-col gap-3">
-            <h2 className="text-base font-semibold text-foreground">
-              {t(I18nKey.MCP$INSTALLED_TITLE)}
-            </h2>
-            <InstalledServersSection
-              servers={filteredInstalledServers}
-              hasAnyInstalled={allServers.length > 0}
-              query={searchQuery}
-              onEdit={handleEdit}
-              onDelete={handleDeleteClick}
-            />
-          </section>
-
-          <MarketplaceSection
-            isInstalled={isInstalled}
-            backendKind={backendKind}
-            onSelect={handleMarketplaceClick}
-            query={searchQuery}
+          <McpToolbar
+            search={searchQuery}
+            onSearchChange={setSearchQuery}
+            sectionFilter={sectionFilter}
+            onSectionFilterChange={setSectionFilter}
           />
+
+          {sectionFilter !== "library" ? (
+            <section className="flex flex-col gap-3">
+              <h2 className="text-base font-semibold text-foreground">
+                {t(I18nKey.MCP$INSTALLED_TITLE)}
+              </h2>
+              <InstalledServersSection
+                servers={filteredInstalledServers}
+                hasAnyInstalled={allServers.length > 0}
+                query={searchQuery}
+                onEdit={handleEdit}
+                onDelete={handleDeleteClick}
+              />
+            </section>
+          ) : null}
+
+          {sectionFilter !== "installed" ? (
+            <MarketplaceSection
+              backendKind={backendKind}
+              onSelect={handleMarketplaceInstall}
+              onAdd={handleMarketplaceInstall}
+              query={searchQuery}
+            />
+          ) : null}
         </div>
 
         {installEntry && (
