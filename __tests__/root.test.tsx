@@ -132,6 +132,76 @@ describe("App root agent-server availability guard", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows first-run onboarding when locked to Cloud even if a session API key is baked in", async () => {
+    // Reproduces Hiep's report on PR #1389: a pre-built bundle with a baked-in
+    // VITE_SESSION_API_KEY plus --lock-to-cloud used to seed a disconnected
+    // Local backend, which skipped onboarding and landed on the Manage Backends
+    // recovery modal. Locked mode must not seed a Local backend, so onboarding
+    // still owns the first-run Cloud login.
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
+    vi.stubEnv("VITE_SESSION_API_KEY", "baked-session-key");
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_SESSION_API_KEY__ = "baked-session-key";
+    window.localStorage.clear();
+    __resetActiveStoreForTests();
+
+    renderApp(["/"]);
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("first-run-onboarding-screen"),
+      ).toBeInTheDocument();
+    });
+    expect(await screen.findByTestId("onboarding-modal")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("agent-server-onboarding-screen"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("manage-backends-modal"),
+    ).not.toBeInTheDocument();
+    // No Local backend should have been seeded into the registry.
+    expect(window.localStorage.getItem("openhands-backends")).toBeNull();
+  });
+
+  it("shows first-run onboarding when locked to Cloud with a stale persisted Local backend", async () => {
+    // A Local backend persisted from a previous non-locked session must not
+    // bypass onboarding once the deployment is locked to Cloud.
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_SESSION_API_KEY__;
+    window.localStorage.setItem(
+      "openhands-backends",
+      JSON.stringify([
+        {
+          id: "default-local",
+          name: "Local",
+          host: "http://127.0.0.1:8000",
+          apiKey: "stale-key",
+          kind: "local",
+        },
+      ]),
+    );
+    window.localStorage.setItem(
+      "openhands-active-backend",
+      JSON.stringify({ backendId: "default-local", orgId: null }),
+    );
+    __resetActiveStoreForTests();
+
+    renderApp(["/"]);
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("first-run-onboarding-screen"),
+      ).toBeInTheDocument();
+    });
+    expect(await screen.findByTestId("onboarding-modal")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("manage-backends-modal"),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows the auth gate after onboarding was already completed", async () => {
     vi.stubEnv("VITE_AUTH_REQUIRED", "true");
     vi.stubEnv("VITE_SESSION_API_KEY", "");

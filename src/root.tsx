@@ -178,12 +178,17 @@ export default function App() {
   const hasRegisteredKey = Boolean(getEffectiveLocalBackend()?.apiKey);
   const authMissing = bakedKeyMissing && !hasRegisteredKey;
   const { active } = useActiveBackendContext();
-  const lockedNoBackend =
-    Boolean(getLockedCloudHost()) && isNoBackend(active.backend);
+  // In locked-to-Cloud mode the only valid backend is a Cloud backend against
+  // the configured host. A missing backend OR a stale Local backend (e.g. one
+  // persisted from a previous non-locked session) must both trigger first-run
+  // onboarding instead of the Manage Backends recovery modal.
+  const lockedNeedsOnboarding =
+    Boolean(getLockedCloudHost()) &&
+    (isNoBackend(active.backend) || active.backend.kind !== "cloud");
   const { isCompleted: onboardingCompleted, markCompleted } =
     useOnboardingCompletion();
   const shouldShowFirstRunOnboarding =
-    (authMissing || lockedNoBackend) && !onboardingCompleted;
+    (authMissing || lockedNeedsOnboarding) && !onboardingCompleted;
   const [showFirstRunOnboarding, setShowFirstRunOnboarding] = React.useState(
     () => shouldShowFirstRunOnboarding,
   );
