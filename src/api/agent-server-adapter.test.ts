@@ -18,6 +18,39 @@ function makeSettings(agentSettings: Settings["agent_settings"]): Settings {
 }
 
 describe("buildStartConversationRequest", () => {
+  it("marks OpenHands start requests as encrypted when MCP headers are encrypted", () => {
+    const agentSettings = {
+      agent_kind: "openhands",
+      llm: {
+        model: "litellm_proxy/openai/gpt-5.5",
+        api_key: "gAAAAAencrypted-llm-api-key",
+      },
+      mcp_config: {
+        mcpServers: {
+          linear: {
+            url: "https://mcp.linear.app/mcp",
+            transport: "http",
+            headers: {
+              Authorization: encryptedValue,
+            },
+          },
+        },
+      },
+    };
+    const settings = makeSettings(agentSettings);
+
+    const payload = buildStartConversationRequest({
+      settings,
+      encryptedAgentSettings: agentSettings,
+      encryptedConversationSettings: settings.conversation_settings!,
+      secretsEncrypted: true,
+    });
+
+    expect(payload.agent_settings.agent_kind).toBe("openhands");
+    expect(payload.agent_settings.mcp_config).toEqual(agentSettings.mcp_config);
+    expect(payload.secrets_encrypted).toBe(true);
+  });
+
   it("marks ACP start requests as encrypted when MCP headers are encrypted", () => {
     const agentSettings = {
       agent_kind: "acp",
