@@ -8,7 +8,10 @@ import {
   isAuthRequired,
 } from "#/api/agent-server-config";
 import { DEFAULT_LOCAL_BACKEND_NAME } from "#/api/backend-registry/default-backend";
-import { BackendForm } from "#/components/features/backends/backend-form-modal";
+import {
+  BackendConnectionOptions,
+  type BackendFormSubmitPayload,
+} from "#/components/features/backends/backend-form-modal";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
@@ -94,13 +97,12 @@ function ConnectionBanner({
 }
 
 /**
- * Step 1: embed the "edit backend" form pre-populated with the
- * default/active backend, plus a contextual success/error banner that
- * reacts to the live health probe.
+ * First onboarding step: add the initial backend when none is selected,
+ * or edit/check the active backend with a contextual health banner.
  */
 export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
   const { t } = useTranslation("openhands");
-  const { active } = useActiveBackendContext();
+  const { active, addBackend, updateBackend } = useActiveBackendContext();
   const { backend } = active;
   const noBackendSelected = isNoBackend(backend);
   const defaults = React.useMemo(() => getAgentServerFormDefaults(), []);
@@ -117,7 +119,7 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
     noBackendSelected ? [] : [backend],
   );
   const isConnected = noBackendSelected
-    ? false
+    ? null
     : (healthByBackendId[backend.id]?.isConnected ?? null);
   const lastError = noBackendSelected
     ? null
@@ -132,25 +134,46 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
 
   const hideConfigurationFields = isConnected === true && !configurationOpen;
 
+  const handleConnected = React.useCallback(
+    (payload: BackendFormSubmitPayload) => {
+      if (noBackendSelected) {
+        addBackend(payload);
+      } else {
+        updateBackend(backend.id, payload);
+      }
+      onNext();
+    },
+    [addBackend, backend.id, noBackendSelected, onNext, updateBackend],
+  );
+
+  const actionRowClassName = cn(
+    "sticky bottom-0 mt-2 flex items-center gap-2 bg-base-secondary pt-4 pb-7",
+    onBack ? "justify-between" : "justify-end",
+  );
+  const titleKey = noBackendSelected
+    ? I18nKey.BACKEND$ADD_TITLE
+    : I18nKey.ONBOARDING$BACKEND_TITLE;
+  const subtitleKey = noBackendSelected
+    ? I18nKey.ONBOARDING$ADD_BACKEND_SUBTITLE
+    : I18nKey.ONBOARDING$BACKEND_SUBTITLE;
+
   return (
     <div
       data-testid="onboarding-step-check-backend"
       className="flex flex-col gap-6"
     >
       <header className="flex flex-col gap-2">
-        <h2 className="text-2xl font-medium text-white">
-          {t(I18nKey.ONBOARDING$BACKEND_TITLE)}
-        </h2>
-        <p className="text-sm text-[var(--oh-muted)]">
-          {t(I18nKey.ONBOARDING$BACKEND_SUBTITLE)}
-        </p>
+        <h2 className="text-2xl font-medium text-white">{t(titleKey)}</h2>
+        <p className="text-sm text-[var(--oh-muted)]">{t(subtitleKey)}</p>
       </header>
 
-      <ConnectionBanner
-        backend={backendForForm}
-        isConnected={isConnected}
-        lastError={lastError}
-      />
+      {noBackendSelected ? null : (
+        <ConnectionBanner
+          backend={backendForForm}
+          isConnected={isConnected}
+          lastError={lastError}
+        />
+      )}
 
       {isConnected === true ? (
         <button
@@ -175,44 +198,42 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
         </button>
       ) : null}
 
-      <BackendForm
-        mode={noBackendSelected ? "add" : "edit"}
-        backend={backendForForm}
-        onSubmitted={onNext}
-        testIdRoot="onboarding-backend"
-        requireApiKey={isAuthRequired()}
-        hideConfigurationFields={hideConfigurationFields}
-        renderActions={({ canSubmit, isSubmitting }) => (
-          <div
-            className={cn(
-              "sticky bottom-0 mt-2 flex items-center gap-2 bg-base-secondary pt-4 pb-7",
-              onBack ? "justify-between" : "justify-end",
-            )}
-          >
-            {onBack ? (
-              <BrandButton
-                testId="onboarding-backend-back"
-                type="button"
-                variant="secondary"
-                onClick={onBack}
-                isDisabled={isSubmitting}
-              >
-                {t(I18nKey.ONBOARDING$BACK)}
-              </BrandButton>
-            ) : null}
+      <div data-testid="onboarding-backend-configuration-fields">
+        {!hideConfigurationFields ? (
+          <BackendConnectionOptions
+            onConnected={handleConnected}
+            testIdRoot="onboarding-backend"
+            initialManualBackend={backendForForm}
+            requireManualApiKey={isAuthRequired()}
+            manualSubmitLabel={t(I18nKey.ONBOARDING$NEXT)}
+            manualSubmittingLabel={t(I18nKey.SETTINGS$SAVING)}
+            manualSubmitTestId="onboarding-backend-next"
+          />
+        ) : null}
+      </div>
+
+      {hideConfigurationFields ? (
+        <div className={actionRowClassName}>
+          {onBack ? (
             <BrandButton
-              testId="onboarding-backend-next"
-              type="submit"
-              variant="primary"
-              isDisabled={!canSubmit || isSubmitting}
+              testId="onboarding-backend-back"
+              type="button"
+              variant="secondary"
+              onClick={onBack}
             >
-              {isSubmitting
-                ? t(I18nKey.SETTINGS$SAVING)
-                : t(I18nKey.ONBOARDING$NEXT)}
+              {t(I18nKey.ONBOARDING$BACK)}
             </BrandButton>
-          </div>
-        )}
-      />
+          ) : null}
+          <BrandButton
+            testId="onboarding-backend-next"
+            type="button"
+            variant="primary"
+            onClick={onNext}
+          >
+            {t(I18nKey.ONBOARDING$NEXT)}
+          </BrandButton>
+        </div>
+      ) : null}
     </div>
   );
 }

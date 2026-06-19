@@ -7,6 +7,7 @@ import App, { links } from "#/root";
 import { server } from "#/mocks/node";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
+import { ONBOARDING_COMPLETED_STORAGE_KEY } from "#/components/features/onboarding/use-onboarding-completion";
 
 const TRANSLATIONS: Record<string, string> = {
   BACKEND$MANAGE_TITLE: "Manage backends",
@@ -31,6 +32,14 @@ vi.mock("react-i18next", () => ({
       return value;
     },
   }),
+}));
+
+vi.mock("#/components/features/onboarding/onboarding-modal", () => ({
+  OnboardingModal: () => (
+    <div data-testid="onboarding-modal">
+      <div data-testid="onboarding-step-check-backend" />
+    </div>
+  ),
 }));
 
 const RouterStub = createRoutesStub([
@@ -64,7 +73,54 @@ const renderApp = (initialEntries: string[] = ["/"]) =>
 describe("App root agent-server availability guard", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    vi.unstubAllEnvs();
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_AUTH_REQUIRED__;
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_SESSION_API_KEY__ = "test-session-key";
     __resetActiveStoreForTests();
+  });
+
+  it("shows first-run onboarding before the auth gate when public mode has no backend key", async () => {
+    vi.stubEnv("VITE_AUTH_REQUIRED", "true");
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_SESSION_API_KEY__;
+    window.localStorage.clear();
+    __resetActiveStoreForTests();
+
+    renderApp(["/"]);
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("first-run-onboarding-screen"),
+      ).toBeInTheDocument();
+    });
+    expect(await screen.findByTestId("onboarding-modal")).toBeInTheDocument();
+    expect(
+      await screen.findByTestId("onboarding-step-check-backend"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("api-key-entry-screen"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the auth gate after onboarding was already completed", async () => {
+    vi.stubEnv("VITE_AUTH_REQUIRED", "true");
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_SESSION_API_KEY__;
+    window.localStorage.clear();
+    window.localStorage.setItem(ONBOARDING_COMPLETED_STORAGE_KEY, "1");
+    __resetActiveStoreForTests();
+
+    renderApp(["/"]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("api-key-entry-screen")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("onboarding-modal")).not.toBeInTheDocument();
   });
 
   it("shows the manage-backends modal when the connected server reports an old version", async () => {
