@@ -838,7 +838,6 @@ export function ConversationPanel({
         <ConversationPanelSearchModal
           isOpen={isSearchModalOpen}
           onClose={handleSearchModalClose}
-          conversations={sortedVisibleConversations}
           onSelectConversation={handleSearchResultSelect}
         />
       )}

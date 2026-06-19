@@ -19,6 +19,7 @@ import { renderWithProviders } from "test-utils";
 import { ConversationPanel } from "#/components/features/conversation-panel/conversation-panel";
 import { useConversationPanelPreferencesStore } from "#/stores/conversation-panel-preferences-store";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import * as searchMatchingConversationsModule from "#/api/conversation-service/search-matching-conversations";
 import { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
@@ -1743,27 +1744,34 @@ describe("ConversationPanel", () => {
       ).toHaveTextContent("COMMON$MOST_RECENT");
     });
 
-    it("filters conversations by any part of the conversation string in the modal", async () => {
+    it("filters conversations via server-backed search in the modal", async () => {
       const user = userEvent.setup();
+      const searchableConversations = [
+        createMockConversation({
+          id: "1",
+          title: "Can you review the project?",
+        }),
+        createMockConversation({
+          id: "2",
+          title: "Enable Figma design export",
+        }),
+        createMockConversation({
+          id: "99",
+          title: "Hidden figma conversation on another page",
+        }),
+      ];
+
       vi.spyOn(
-        AgentServerConversationService,
-        "searchConversations",
-      ).mockResolvedValue({
-        items: [
-          createMockConversation({
-            id: "1",
-            title: "Can you review the project?",
-          }),
-          createMockConversation({
-            id: "2",
-            title: "Enable Figma design export",
-          }),
-          createMockConversation({
-            id: "3",
-            title: "Confirm access to inkscape project",
-          }),
-        ],
-        next_page_id: null,
+        searchMatchingConversationsModule,
+        "searchMatchingConversations",
+      ).mockImplementation(async (query) => {
+        const trimmed = query.trim().toLowerCase();
+        if (!trimmed) {
+          return searchableConversations.slice(0, 2);
+        }
+        return searchableConversations.filter((conversation) =>
+          conversation.title?.toLowerCase().includes(trimmed),
+        );
       });
 
       renderConversationPanel();
@@ -1776,19 +1784,23 @@ describe("ConversationPanel", () => {
       );
 
       const modal = screen.getByTestId("conversation-panel-search-modal");
-      await waitFor(() => {
-        expect(
-          within(modal).getAllByTestId("conversation-panel-search-result"),
-        ).toHaveLength(1);
-      });
-      expect(
-        within(modal).getByTestId("conversation-panel-search-result"),
-      ).toHaveAttribute("data-conversation-id", "2");
-      expect(screen.getAllByTestId("conversation-card")).toHaveLength(3);
+      await waitFor(
+        () => {
+          const ids = within(modal)
+            .getAllByTestId("conversation-panel-search-result")
+            .map((node) => node.getAttribute("data-conversation-id"));
+          expect(ids).toContain("99");
+        },
+        { timeout: 2000 },
+      );
     });
 
-    it("shows a no-results message in the modal when nothing matches", async () => {
+    it("shows a no-results message in the modal when server search finds nothing", async () => {
       const user = userEvent.setup();
+      vi.spyOn(
+        searchMatchingConversationsModule,
+        "searchMatchingConversations",
+      ).mockResolvedValue([]);
       renderConversationPanel();
       await screen.findAllByTestId("conversation-card");
 
