@@ -19,17 +19,21 @@
 
 services:
   agent-server:
-    # Pin to a software-agent-sdk release that includes the containerized ACP
-    # merges (#1020 file-secret materialisation, #3490 npx→pinned-binary, #3492
-    # per-conversation data-dir) AND #3510 (ACP cold-start off the event loop),
-    # which is REQUIRED: Canvas now delivers every ACP credential as a loopback
-    # LookupSecret, and only #3510 resolves it without self-deadlocking the
-    # conversation ("Failed to start ACP server: timed out"). #3510 first ships
-    # in v1.25.0, so 1.25.0-python is the minimum. Override with a newer release
-    # or a post-#3510 main sha:
+    # No-config default is `latest-python`, which is always >= the version
+    # Canvas requires. Canvas enforces `compatibility.minimumAgentServer` from
+    # the repo's single source of truth (config/defaults.json); a hardcoded tag
+    # below it renders "Disconnected — requires <floor> or newer". (The deeper
+    # functional floor is software-agent-sdk#3510 — first shipped in v1.25.0 —
+    # which resolves the loopback LookupSecret credentials Canvas delivers
+    # without self-deadlocking the first ACP turn; the compatibility pin sits
+    # at or above it.)
+    #
+    # For a reproducible, pinned image, generate `.env` from defaults.json first:
+    #   npm run example:acp-docker:env   # pins AGENT_SERVER_IMAGE to the SoT version
+    # Or override per-run with a newer release or a post-#3510 main sha:
     #   AGENT_SERVER_IMAGE=ghcr.io/openhands/agent-server:<sha>-python docker compose up
     #   gh api repos/OpenHands/software-agent-sdk/commits/main --jq '.sha[0:7]'
-    image: ${AGENT_SERVER_IMAGE:-ghcr.io/openhands/agent-server:1.25.0-python}
+    image: ${AGENT_SERVER_IMAGE:-ghcr.io/openhands/agent-server:latest-python}
     container_name: oh-acp
     ports:
       # host:container — Canvas points VITE_BACKEND_BASE_URL at http://localhost:8010.
