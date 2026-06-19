@@ -42,15 +42,49 @@ const remoteTransportMatches = (
   return false;
 };
 
+// The editor assigns each stdio server an id of the form ``stdio-<i>`` matching
+// its position in ``parseMcpConfig``'s stdio array. That position is stable
+// across a rename because ``parseMcpConfig`` collects stdio entries (those
+// without a ``url``) in ``Object.entries`` order, identical for the redacted
+// and encrypted settings. Resolve the original stored entry by position so a
+// renamed stdio server still finds its stored encrypted env, instead of
+// looking it up by the new (no-longer-matching) display name.
+const stdioIndexFromId = (id: string | undefined): number | undefined => {
+  if (!id) return undefined;
+  const match = /^stdio-(\d+)$/.exec(id);
+  return match ? Number.parseInt(match[1], 10) : undefined;
+};
+
+const findStoredStdioByIndex = (
+  id: string | undefined,
+  storedServers: StoredMcpServers,
+): StoredMcpServer | undefined => {
+  const index = stdioIndexFromId(id);
+  if (index === undefined) return undefined;
+  const stdioEntries = Object.entries(storedServers).filter(
+    ([, stored]) => !stored.url,
+  );
+  return stdioEntries[index]?.[1];
+};
+
 const findStoredServer = (
   server: MCPServerConfig,
   storedServers: StoredMcpServers,
 ): StoredMcpServer | undefined => {
+  if (server.type === "stdio") {
+    // Prefer the positional id: a rename changes the display name (the stored
+    // dict key), and a rename onto an existing name would otherwise restore the
+    // wrong server's secrets. Fall back to a name match only when no id-based
+    // position is available (e.g. configs built without an editor-assigned id).
+    return (
+      findStoredStdioByIndex(server.id, storedServers) ??
+      (server.name ? storedServers[server.name] : undefined)
+    );
+  }
+
   if (server.name && storedServers[server.name]) {
     return storedServers[server.name];
   }
-
-  if (server.type === "stdio") return undefined;
 
   return Object.values(storedServers).find(
     (stored) =>
