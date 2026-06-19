@@ -7,6 +7,11 @@ const EXCLUDED_SEGMENTS = new Set(["mocks", "routeTree.gen.ts"]);
 const ALLOWED_AD_HOC_HTTP_FILES = new Set([
   "api/automation-service/automation-service.api.ts",
   "api/cloud/proxy.ts",
+  // TEMPORARY: forwards the agent-server's `include_hidden` query param for the
+  // folder browser's "Show hidden folders" toggle. The pinned typed FileClient
+  // cannot send this param yet; remove this entry once the client adds
+  // `includeHidden` and the call routes back through FileClient.
+  "api/file-browser/file-browser-api.ts",
 ]);
 
 function collectSourceFiles(dir: string): string[] {

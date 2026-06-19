@@ -20,7 +20,6 @@ vi.mock("#/contexts/active-backend-context", () => ({
 
 vi.mock("#/api/agent-server-client-options", () => ({
   getAgentServerClientOptions: () => ({ host: "http://localhost" }),
-  getAgentServerHttpClientOptions: () => ({ baseUrl: "http://localhost" }),
 }));
 
 const fileSearch = vi.hoisted(() => vi.fn());
@@ -33,10 +32,12 @@ vi.mock("@openhands/typescript-client/clients", () => ({
   },
 }));
 
-const httpGet = vi.hoisted(() => vi.fn());
-vi.mock("@openhands/typescript-client/client/http-client", () => ({
-  HttpClient: class {
-    get = httpGet;
+const searchHidden = vi.hoisted(() => vi.fn());
+const getHomeHidden = vi.hoisted(() => vi.fn());
+vi.mock("#/api/file-browser/file-browser-api", () => ({
+  fileBrowserApi: {
+    searchSubdirectoriesWithHidden: searchHidden,
+    getHomeWithHidden: getHomeHidden,
   },
 }));
 
@@ -65,15 +66,13 @@ describe("useSearchSubdirs", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(fileSearch).toHaveBeenCalledWith("/home/me");
-    expect(httpGet).not.toHaveBeenCalled();
+    expect(searchHidden).not.toHaveBeenCalled();
   });
 
-  it("requests include_hidden via HttpClient when showing hidden dirs", async () => {
-    httpGet.mockResolvedValue({
-      data: {
-        items: [{ name: ".config", path: "/home/me/.config" }],
-        next_page_id: null,
-      },
+  it("requests include_hidden when showing hidden dirs", async () => {
+    searchHidden.mockResolvedValue({
+      items: [{ name: ".config", path: "/home/me/.config" }],
+      next_page_id: null,
     });
 
     const { result } = renderHook(() => useSearchSubdirs("/home/me", true), {
@@ -81,9 +80,7 @@ describe("useSearchSubdirs", () => {
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(httpGet).toHaveBeenCalledWith("/api/file/search_subdirs", {
-      params: { path: "/home/me", include_hidden: true },
-    });
+    expect(searchHidden).toHaveBeenCalledWith({ path: "/home/me" });
     expect(fileSearch).not.toHaveBeenCalled();
     expect(result.current.data?.items[0]?.name).toBe(".config");
   });
@@ -97,23 +94,19 @@ describe("useHomeDirectory", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(fileGetHome).toHaveBeenCalledTimes(1);
-    expect(httpGet).not.toHaveBeenCalled();
+    expect(getHomeHidden).not.toHaveBeenCalled();
   });
 
-  it("requests include_hidden via HttpClient when showing hidden dirs", async () => {
-    httpGet.mockResolvedValue({
-      data: {
-        home: "/home/me",
-        favorites: [{ label: ".cache", path: "/home/me/.cache" }],
-      },
+  it("requests include_hidden when showing hidden dirs", async () => {
+    getHomeHidden.mockResolvedValue({
+      home: "/home/me",
+      favorites: [{ label: ".cache", path: "/home/me/.cache" }],
     });
 
     const { result } = renderHook(() => useHomeDirectory(true), { wrapper });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(httpGet).toHaveBeenCalledWith("/api/file/home", {
-      params: { include_hidden: true },
-    });
+    expect(getHomeHidden).toHaveBeenCalledTimes(1);
     expect(fileGetHome).not.toHaveBeenCalled();
     expect(result.current.data?.favorites?.[0]?.label).toBe(".cache");
   });
