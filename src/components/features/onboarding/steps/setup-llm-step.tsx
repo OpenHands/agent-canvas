@@ -7,7 +7,6 @@ import type { SdkSectionSaveControl } from "#/components/features/settings/sdk-s
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
 import { useActivateLlmProfile } from "#/hooks/mutation/use-activate-llm-profile";
-import { useSettings } from "#/hooks/query/use-settings";
 import { deriveProfileNameFromModel } from "#/utils/derive-profile-name";
 
 interface SetupLlmStepProps {
@@ -28,22 +27,6 @@ const ONBOARDING_LLM_OVERRIDES = {
   "llm.model": ONBOARDING_DEFAULT_LLM_MODEL,
 } as const;
 
-function getConfiguredLlmModel(
-  settings: ReturnType<typeof useSettings>["data"],
-): string | null {
-  const llmSettings = settings?.agent_settings?.llm;
-  if (
-    typeof llmSettings === "object" &&
-    llmSettings !== null &&
-    !Array.isArray(llmSettings) &&
-    typeof llmSettings.model === "string" &&
-    llmSettings.model.length > 0
-  ) {
-    return llmSettings.model;
-  }
-  return null;
-}
-
 /**
  * Step 2: embed the LLM settings form. The screen runs in `embedded`
  * mode (so it doesn't render its own sticky Save bar) and with
@@ -55,16 +38,17 @@ function getConfiguredLlmModel(
  * If the form happens to be untouched (no dirty fields), Next falls
  * through to advancing without a save call, so users with already-
  * configured settings aren't blocked.
+ *
+ * Note: returning Cloud users who already have an LLM configured are
+ * intercepted upstream by `OnboardingHost`, so they never reach this
+ * step. Users who do reach it are first-time installs (Cloud or Local)
+ * who want the OpenAI/GPT-5.5 default pre-filled.
  */
 export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
   const { t } = useTranslation("openhands");
   const { backend } = useActiveBackend();
   const isLocalBackend = backend.kind === "local";
-  const { data: settings } = useSettings();
-  const hasExistingLlmSettings = Boolean(getConfiguredLlmModel(settings));
-  const initialValueOverrides = hasExistingLlmSettings
-    ? undefined
-    : ONBOARDING_LLM_OVERRIDES;
+  const initialValueOverrides = ONBOARDING_LLM_OVERRIDES;
   const saveProfile = useSaveLlmProfile();
   const activateProfile = useActivateLlmProfile();
   const [saveControl, setSaveControl] =
@@ -134,11 +118,9 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
         <h2 className="text-2xl font-medium text-white">
           {t(I18nKey.ONBOARDING$LLM_TITLE)}
         </h2>
-        {!hasExistingLlmSettings ? (
-          <p className="text-sm text-[var(--oh-muted)]">
-            {t(I18nKey.ONBOARDING$LLM_SUBTITLE)}
-          </p>
-        ) : null}
+        <p className="text-sm text-[var(--oh-muted)]">
+          {t(I18nKey.ONBOARDING$LLM_SUBTITLE)}
+        </p>
       </header>
 
       <div

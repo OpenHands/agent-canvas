@@ -405,31 +405,6 @@ describe("OnboardingModal", () => {
     );
   });
 
-  it("preserves existing Cloud LLM settings instead of applying onboarding defaults", async () => {
-    seedCloudBackend();
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
-      ...DEFAULT_SETTINGS,
-      agent_settings: {
-        ...DEFAULT_SETTINGS.agent_settings,
-        llm: {
-          model: "anthropic/claude-sonnet-4-5",
-          api_key: "stored-cloud-key",
-        },
-      },
-    });
-
-    renderModal();
-
-    await waitFor(() => {
-      expect(llmSettingsScreenMock).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          initialValueOverrides: undefined,
-        }),
-      );
-    });
-    expect(screen.queryByText("ONBOARDING$LLM_SUBTITLE")).toBeNull();
-  });
-
   it("pre-fills the LLM step with OpenAI GPT-5.5", () => {
     renderModal();
 
