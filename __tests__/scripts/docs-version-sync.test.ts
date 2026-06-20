@@ -22,11 +22,13 @@ function read(rel: string): string {
 }
 
 const config = JSON.parse(read("config/defaults.json")) as {
-  images: { agentCanvas: string };
+  compatibility: { minimumAgentServer: string };
+  images: { agentServer: string; agentCanvas: string };
   versions: { agentServer: string; agentCanvas: string };
 };
 const agentServerVersion = config.versions.agentServer;
-const dockerImage = `${config.images.agentCanvas}:${config.versions.agentCanvas}`;
+const agentServerImage = `${config.images.agentServer}:${agentServerVersion}-python`;
+const agentCanvasImage = `${config.images.agentCanvas}:${config.versions.agentCanvas}`;
 
 describe("docs/example references stay in sync with config/defaults.json", () => {
   it("AGENTS.md documents the current default version", () => {
@@ -46,9 +48,24 @@ describe("docs/example references stay in sync with config/defaults.json", () =>
       const refs = read(file).match(imageRefPattern) ?? [];
       expect(refs.length).toBeGreaterThan(0);
       for (const ref of refs) {
-        expect(ref).toBe(dockerImage);
+        expect(ref).toBe(agentCanvasImage);
       }
     }
+  });
+
+  it("examples/acp-docker uses the current agent-server image fallback", () => {
+    const compose = read("examples/acp-docker/docker-compose.yml");
+    const envExample = read("examples/acp-docker/.env.example");
+    const readme = read("examples/acp-docker/README.md");
+
+    expect(compose).toContain(
+      `image: \${AGENT_SERVER_IMAGE:-${agentServerImage}}`,
+    );
+    expect(envExample).toContain(`# AGENT_SERVER_IMAGE=${agentServerImage}`);
+    expect(readme).toContain(`This starts \`${agentServerImage}\``);
+    expect(readme).toContain(
+      `**Minimum version:** \`${config.compatibility.minimumAgentServer}-python\``,
+    );
   });
 
   it("scripts/dev-safe.mjs JSDoc example matches the current default", () => {

@@ -16,16 +16,15 @@ cp .env.example .env          # optional — only if baking creds into the conta
 docker compose up
 ```
 
-This starts `ghcr.io/openhands/agent-server:1.25.0-python` on
+This starts `ghcr.io/openhands/agent-server:1.28.1-python` on
 `http://localhost:8010` with a persistent `acp-data` volume. The image
 pre-installs the ACP CLI wrappers and the SDK rewrites `npx -y <pkg>` to those
 pinned binaries in-pod, so Canvas can keep sending the default `npx` command
 unchanged.
 
-> **Minimum version:** `1.25.0-python`. Canvas delivers every ACP credential as
-> a loopback `LookupSecret`; only software-agent-sdk#3510 (first released in
-> v1.25.0) resolves it off the event loop. An older image deadlocks the first
-> ACP turn with `Failed to start ACP server: timed out`.
+> **Minimum version:** `1.28.0-python`. Canvas enforces this compatibility floor
+> before connecting to a backend, so the bundled Docker example tracks the
+> shared `versions.agentServer` pin from `config/defaults.json`.
 
 To pin a newer release or a post-#3510 main build:
 
@@ -50,11 +49,11 @@ Pick the ACP provider in onboarding and fill in the **Set up credentials** step.
 On a containerized backend this step is **required** (there's no host login to
 fall back on):
 
-| Provider | What to paste |
-|---|---|
-| **Codex** (subscription) | `CODEX_AUTH_JSON` — the full contents of `~/.codex/auth.json` |
-| **Claude Code** (subscription) | `CLAUDE_CODE_OAUTH_TOKEN` — your Pro/Max OAuth token |
-| **Gemini CLI** (Vertex) | `GOOGLE_APPLICATION_CREDENTIALS_JSON` (SA / ADC JSON) + `GOOGLE_CLOUD_PROJECT` + `GOOGLE_CLOUD_LOCATION` + `GOOGLE_GENAI_USE_VERTEXAI=true` |
+| Provider                       | What to paste                                                                                                                               |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Codex** (subscription)       | `CODEX_AUTH_JSON` — the full contents of `~/.codex/auth.json`                                                                               |
+| **Claude Code** (subscription) | `CLAUDE_CODE_OAUTH_TOKEN` — your Pro/Max OAuth token                                                                                        |
+| **Gemini CLI** (Vertex)        | `GOOGLE_APPLICATION_CREDENTIALS_JSON` (SA / ADC JSON) + `GOOGLE_CLOUD_PROJECT` + `GOOGLE_CLOUD_LOCATION` + `GOOGLE_GENAI_USE_VERTEXAI=true` |
 
 Each provider also accepts an API-key path (`OPENAI_API_KEY` / `ANTHROPIC_API_KEY` /
 `GEMINI_API_KEY`). Canvas saves these to the agent-server's secret store and the
@@ -64,7 +63,7 @@ disk, and points the CLI's data-dir env at them automatically.
 
 > ⚠️ **Do not set `ANTHROPIC_BASE_URL` with the Claude OAuth token.** An inherited
 > LiteLLM base URL silently breaks bearer auth. Canvas never sets it for you, but
-> a *saved* `ANTHROPIC_BASE_URL` secret rides along on every start request — the
+> a _saved_ `ANTHROPIC_BASE_URL` secret rides along on every start request — the
 > credential form warns about the pair.
 
 > ⚠️ **Gemini Vertex ADC must be freshly logged in.** Run
