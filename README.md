@@ -112,25 +112,20 @@ docker run -it --rm \
   ghcr.io/openhands/agent-canvas:1.0.0-rc.11
 ```
 
-For Docker Compose on rootful Linux, export your host UID/GID before starting
-the service and reference them from the compose file:
-
-```sh
-export HOST_UID="$(id -u)"
-export HOST_GID="$(id -g)"
-docker compose up
-```
+For Docker Compose on rootful Linux, set `user` to your host UID/GID.
+Run `id -u` and `id -g` once on the host and replace the example values
+below:
 
 ```yaml
 services:
   openhands:
     image: ghcr.io/openhands/agent-canvas:1.0.0-rc.11
-    user: "${HOST_UID}:${HOST_GID}"
+    user: "1000:1000" # replace with id -u:id -g
     ports:
       - "8000:8000"
     volumes:
       - "${HOME}/.openhands:/home/openhands/.openhands"
-      - "${PROJECTS_PATH}:/projects"
+      - "${HOME}/projects:/projects"
 ```
 
 **Windows (PowerShell / Windows Terminal):** See [README.windows.md](./README.windows.md) for the equivalent commands.
