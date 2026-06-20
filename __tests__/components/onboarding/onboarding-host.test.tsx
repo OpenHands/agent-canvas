@@ -155,17 +155,41 @@ describe("OnboardingHost", () => {
     ).toBeNull();
   });
 
-  it("does not skip onboarding for a Local backend even if the agent-server reports a key + model", async () => {
-    // Local agent-servers can be started with an env-injected key
-    // (`LLM_API_KEY=…`), so a settings-based "ready" signal is
-    // unreliable for Local. Local first-run detection stays driven by
-    // the existing localStorage flag.
+  it("skips the modal for a Local backend that already has an LLM configured (llm_api_key_is_set)", async () => {
+    // When the user connects via Add Backend to an existing
+    // agent-server that already has an LLM saved, walking them
+    // through "Set up your LLM" would just overwrite the stored
+    // value with a copy. Skip and persist completion.
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
       ...DEFAULT_SETTINGS,
-      llm_api_key_set: true,
+      llm_api_key_is_set: true,
       agent_settings: {
         ...DEFAULT_SETTINGS.agent_settings,
-        llm: { model: "openai/gpt-5.5", api_key: "stored" },
+        llm: { model: "openai/zai-org/GLM-5.2", api_key: "**********" },
+      },
+    });
+
+    renderHost();
+
+    await waitFor(() => {
+      expect(
+        window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
+      ).not.toBeNull();
+    });
+    expect(screen.queryByTestId("onboarding-modal-stub")).toBeNull();
+  });
+
+  it("still shows the modal for a fresh Local agent-server with no API key set", async () => {
+    // The default agent-server schema returns a model name (e.g.
+    // "gpt-5.5") but llm_api_key_is_set === false until the user
+    // configures one. The modal must keep running the LLM step.
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
+      ...DEFAULT_SETTINGS,
+      llm_api_key_is_set: false,
+      llm_api_key_set: false,
+      agent_settings: {
+        ...DEFAULT_SETTINGS.agent_settings,
+        llm: { model: "gpt-5.5", api_key: null },
       },
     });
 

@@ -34,6 +34,7 @@ import { TOAST_OPTIONS } from "#/utils/custom-toast-handlers";
 import { TelemetryConsentBanner } from "#/components/features/analytics/telemetry-consent-banner";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useConfig } from "#/hooks/query/use-config";
+import { useSettings } from "#/hooks/query/use-settings";
 import { QUERY_KEYS } from "#/hooks/query/query-keys";
 import { AgentServerUIRoot } from "#/components/providers";
 import { useOnboardingCompletion } from "#/components/features/onboarding/use-onboarding-completion";
@@ -187,8 +188,35 @@ export default function App() {
     (isNoBackend(active.backend) || active.backend.kind !== "cloud");
   const { isCompleted: onboardingCompleted, markCompleted } =
     useOnboardingCompletion();
+
+  // Returning-user fast-path: when the active backend already reports a
+  // ready-to-use LLM (model + key, or subscription auth), skip first-run
+  // onboarding entirely. Covers two cases:
+  //   * Cloud (settings.llm_api_key_set) — same Cloud account on a new
+  //     origin/browser would otherwise re-trigger the modal because the
+  //     `openhands-onboarded` flag is origin-scoped and starts empty.
+  //   * Local (settings.llm_api_key_is_set) — when the user connects via
+  //     Add Backend to an existing agent-server that already has an LLM
+  //     configured, walking them through Set Up LLM is redundant.
+  // A truly fresh agent-server (no env-injected key, no saved settings)
+  // reports both flags as false and the modal still shows normally.
+  const { data: activeBackendSettings } = useSettings();
+  const isBackendLlmReady = (() => {
+    const llm = activeBackendSettings?.agent_settings?.llm as
+      | { model?: unknown; auth_type?: unknown }
+      | undefined;
+    const hasModel = typeof llm?.model === "string" && llm.model.length > 0;
+    const isAuthed =
+      activeBackendSettings?.llm_api_key_set === true ||
+      activeBackendSettings?.llm_api_key_is_set === true ||
+      llm?.auth_type === "subscription";
+    return hasModel && isAuthed;
+  })();
+
   const shouldShowFirstRunOnboarding =
-    (authMissing || lockedNeedsOnboarding) && !onboardingCompleted;
+    (authMissing || lockedNeedsOnboarding) &&
+    !onboardingCompleted &&
+    !isBackendLlmReady;
   const [showFirstRunOnboarding, setShowFirstRunOnboarding] = React.useState(
     () => shouldShowFirstRunOnboarding,
   );
@@ -199,10 +227,19 @@ export default function App() {
       return;
     }
 
-    if (onboardingCompleted) {
+    if (onboardingCompleted || isBackendLlmReady) {
       setShowFirstRunOnboarding(false);
     }
-  }, [onboardingCompleted, shouldShowFirstRunOnboarding]);
+  }, [onboardingCompleted, shouldShowFirstRunOnboarding, isBackendLlmReady]);
+
+  // Persist completion once we observe a returning Cloud user, so future
+  // first renders short-circuit immediately (before settings load) and the
+  // modal never flashes on a reload.
+  React.useEffect(() => {
+    if (isBackendLlmReady && !onboardingCompleted) {
+      markCompleted();
+    }
+  }, [isBackendLlmReady, onboardingCompleted, markCompleted]);
 
   // Skip the /server_info probe entirely when we already know auth is
   // required and missing — it would just 401 and waste time. Also keep the

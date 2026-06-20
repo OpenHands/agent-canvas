@@ -7,33 +7,30 @@ import {
 } from "./onboarding-preview";
 import { useOnboardingCompletion } from "./use-onboarding-completion";
 import { useSettings } from "#/hooks/query/use-settings";
-import { useActiveBackend } from "#/contexts/active-backend-context";
 
 /**
- * `true` when the active backend reports a Cloud-side LLM that's
- * already set up:
+ * `true` when the active backend already has a ready-to-use LLM:
  *   * `agent_settings.llm.model` is a non-empty string, AND
  *   * the backend reports an API key on file OR the model uses
  *     subscription auth (no key required).
  *
- * Only applied to Cloud backends. For Local backends the
- * `llm_api_key_set` flag is not a reliable "user has set this up"
- * signal — the agent-server can be started with an env-injected
- * key (`LLM_API_KEY=…`), which would make every fresh install look
- * configured. Local first-run detection stays driven by the
- * existing `openhands-onboarded` localStorage flag.
+ * Cloud surfaces this via `llm_api_key_set`; the agent-server
+ * surfaces it via `llm_api_key_is_set` — we accept either, so the
+ * same skip rule applies in both modes. A truly fresh agent-server
+ * with no key configured reports both flags as `false` and the
+ * modal continues to show.
  */
-function isReturningCloudUser(
-  backendKind: "cloud" | "local" | string,
+function isBackendLlmReady(
   settings: ReturnType<typeof useSettings>["data"],
 ): boolean {
-  if (backendKind !== "cloud") return false;
   const llm = settings?.agent_settings?.llm as
     | { model?: unknown; auth_type?: unknown }
     | undefined;
   const hasModel = typeof llm?.model === "string" && llm.model.length > 0;
   const isAuthed =
-    settings?.llm_api_key_set === true || llm?.auth_type === "subscription";
+    settings?.llm_api_key_set === true ||
+    settings?.llm_api_key_is_set === true ||
+    llm?.auth_type === "subscription";
   return hasModel && isAuthed;
 }
 
@@ -66,22 +63,18 @@ export function OnboardingHost() {
   const previewStep = readOnboardingPreviewStep(location.search);
   const isPreview = isOnboardingPreviewActive(location.search);
   const { isCompleted, markCompleted } = useOnboardingCompletion();
-  const { backend } = useActiveBackend();
   const { data: settings } = useSettings();
-  const skipForReturningCloudUser = isReturningCloudUser(
-    backend.kind,
-    settings,
-  );
+  const skipForReadyBackend = isBackendLlmReady(settings);
 
   React.useEffect(() => {
-    if (!isPreview && !isCompleted && skipForReturningCloudUser) {
+    if (!isPreview && !isCompleted && skipForReadyBackend) {
       markCompleted();
     }
-  }, [isPreview, isCompleted, skipForReturningCloudUser, markCompleted]);
+  }, [isPreview, isCompleted, skipForReadyBackend, markCompleted]);
 
   if (!isPreview) {
     if (isCompleted) return null;
-    if (skipForReturningCloudUser) return null;
+    if (skipForReadyBackend) return null;
   }
 
   const handleClose = () => {
