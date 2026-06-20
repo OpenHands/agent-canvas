@@ -6,12 +6,46 @@ import {
   readOnboardingPreviewStep,
 } from "./onboarding-preview";
 import { useOnboardingCompletion } from "./use-onboarding-completion";
+import { useSettings } from "#/hooks/query/use-settings";
+
+/**
+ * `true` when the active backend reports a usable LLM:
+ *   * `agent_settings.llm.model` is a non-empty string, AND
+ *   * the backend has an API key on file OR the model is using
+ *     subscription auth (no key required).
+ *
+ * The flat `llm_api_key_set` boolean is the canonical "user has set up
+ * auth" signal — `agent_settings` always carries default placeholders
+ * (e.g. an SDK default model) on a brand-new install, so a `model`
+ * check alone would incorrectly skip onboarding for first-time users.
+ */
+function isLlmReadyForUse(
+  settings: ReturnType<typeof useSettings>["data"],
+): boolean {
+  const llm = settings?.agent_settings?.llm as
+    | { model?: unknown; auth_type?: unknown }
+    | undefined;
+  const hasModel = typeof llm?.model === "string" && llm.model.length > 0;
+  const isAuthed =
+    settings?.llm_api_key_set === true || llm?.auth_type === "subscription";
+  return hasModel && isAuthed;
+}
 
 /**
  * Mounts the onboarding modal automatically the first time the user
  * lands on a host route (i.e. when the localStorage onboarding flag
  * isn't set yet). Closing or completing the flow marks it done so the
  * modal won't re-appear on subsequent visits.
+ *
+ * Returning users are detected via the live settings query: if the
+ * active backend already reports a configured LLM (api key + model, or
+ * a subscription model with no key), onboarding is skipped and the
+ * completion flag is persisted so the same user keeps skipping across
+ * tabs / browsers.
+ *
+ * Stale or unreachable backends fall through to the modal so the
+ * existing backend-check / manage-backends recovery path still kicks
+ * in for those users.
  *
  * With `?previewOnboardingStep=<0-3>` the modal opens on that slide for
  * design review without persisting completion (works on any route when
@@ -22,8 +56,19 @@ export function OnboardingHost() {
   const previewStep = readOnboardingPreviewStep(location.search);
   const isPreview = isOnboardingPreviewActive(location.search);
   const { isCompleted, markCompleted } = useOnboardingCompletion();
+  const { data: settings } = useSettings();
+  const isReturningUser = isLlmReadyForUse(settings);
 
-  if (!isPreview && isCompleted) return null;
+  React.useEffect(() => {
+    if (!isPreview && !isCompleted && isReturningUser) {
+      markCompleted();
+    }
+  }, [isPreview, isCompleted, isReturningUser, markCompleted]);
+
+  if (!isPreview) {
+    if (isCompleted) return null;
+    if (isReturningUser) return null;
+  }
 
   const handleClose = () => {
     if (isPreview) return;

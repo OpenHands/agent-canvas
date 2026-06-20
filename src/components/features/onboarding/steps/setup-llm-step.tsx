@@ -28,6 +28,22 @@ const ONBOARDING_LLM_OVERRIDES = {
   "llm.model": ONBOARDING_DEFAULT_LLM_MODEL,
 } as const;
 
+function getConfiguredLlmModel(
+  settings: ReturnType<typeof useSettings>["data"],
+): string | null {
+  const llmSettings = settings?.agent_settings?.llm;
+  if (
+    typeof llmSettings === "object" &&
+    llmSettings !== null &&
+    !Array.isArray(llmSettings) &&
+    typeof llmSettings.model === "string" &&
+    llmSettings.model.length > 0
+  ) {
+    return llmSettings.model;
+  }
+  return null;
+}
+
 /**
  * Step 2: embed the LLM settings form. The screen runs in `embedded`
  * mode (so it doesn't render its own sticky Save bar) and with
@@ -45,13 +61,7 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
   const { backend } = useActiveBackend();
   const isLocalBackend = backend.kind === "local";
   const { data: settings } = useSettings();
-  const llmSettings = settings?.agent_settings?.llm;
-  const hasExistingLlmSettings =
-    typeof llmSettings === "object" &&
-    llmSettings !== null &&
-    !Array.isArray(llmSettings) &&
-    typeof llmSettings.model === "string" &&
-    llmSettings.model.length > 0;
+  const hasExistingLlmSettings = Boolean(getConfiguredLlmModel(settings));
   const initialValueOverrides = hasExistingLlmSettings
     ? undefined
     : ONBOARDING_LLM_OVERRIDES;
