@@ -21,8 +21,29 @@ import { SetupLlmStep } from "./steps/setup-llm-step";
 import { SetupAcpSecretsStep } from "./steps/setup-acp-secrets-step";
 import { SayHelloStep } from "./steps/say-hello-step";
 
-const TOTAL_STEPS_WITH_BACKEND = 4;
-const TOTAL_STEPS_WITHOUT_BACKEND = 3;
+/**
+ * Logical onboarding phases.
+ *
+ * State is tracked as a phase (not a numeric step) so that the slide
+ * indices renumbering when ``skipBackendStep`` flips — e.g. a returning
+ * Cloud user finishes the backend slide and the carousel collapses from
+ * 4 slides to 3 — cannot accidentally drag the user from "agent" onto
+ * the slide that used to live at the agent index ("setup"). See the
+ * regression test `onboarding-modal` covering this transition.
+ */
+type OnboardingPhase = "backend" | "agent" | "setup" | "hello";
+
+const PHASE_ORDER_WITH_BACKEND: readonly OnboardingPhase[] = [
+  "backend",
+  "agent",
+  "setup",
+  "hello",
+];
+const PHASE_ORDER_WITHOUT_BACKEND: readonly OnboardingPhase[] = [
+  "agent",
+  "setup",
+  "hello",
+];
 
 interface SlideProps {
   /** Index of this slide in the step sequence. */
@@ -88,6 +109,11 @@ interface OnboardingModalProps {
  *   2. Set up LLM
  *   3. Say hello (creates a fresh conversation, then closes)
  *
+ * Internally we track the user's *phase* — "backend" | "agent" | "setup" |
+ * "hello" — rather than a numeric step, because the slide indices renumber
+ * when the backend slide is skipped and we must never accidentally drop the
+ * user onto whatever slide *used to* live at their numeric position.
+ *
  * Each visible step lives in its own slide and the rail is translated
  * horizontally by step index, so transitioning between steps animates the new
  * step in from the right.
@@ -106,45 +132,53 @@ export function OnboardingModal({
   );
   const skipBackendStep =
     !noBackendSelected && healthByBackendId[backend.id]?.isConnected === true;
-  const totalSteps = skipBackendStep
-    ? TOTAL_STEPS_WITHOUT_BACKEND
-    : TOTAL_STEPS_WITH_BACKEND;
-  const agentStepIndex = skipBackendStep ? 0 : 1;
-  const setupStepIndex = skipBackendStep ? 1 : 2;
-  const helloStepIndex = skipBackendStep ? 2 : 3;
-  const [currentStep, setCurrentStep] = React.useState(() =>
-    Math.min(Math.max(initialStep, 0), TOTAL_STEPS_WITH_BACKEND - 1),
+
+  const slideOrder = skipBackendStep
+    ? PHASE_ORDER_WITHOUT_BACKEND
+    : PHASE_ORDER_WITH_BACKEND;
+
+  const [phase, setPhase] = React.useState<OnboardingPhase>(
+    () =>
+      PHASE_ORDER_WITH_BACKEND[
+        Math.min(Math.max(initialStep, 0), PHASE_ORDER_WITH_BACKEND.length - 1)
+      ],
   );
   const [selectedAgentId, setSelectedAgentId] =
     React.useState<OnboardingAgentId>("openhands");
 
-  const wasSkippingBackendStep = React.useRef(skipBackendStep);
-
+  // When the backend slide drops out of the flow (skipBackendStep flips
+  // true), a user still parked on "backend" must be moved forward to the
+  // first remaining phase. Doing this with the *phase* rather than a numeric
+  // step keeps every other phase pinned to itself, so the user never lands
+  // on the slide that used to live at the next index ("setup").
   React.useEffect(() => {
-    if (!wasSkippingBackendStep.current && skipBackendStep) {
-      setCurrentStep((step) => Math.max(step - 1, 0));
-    }
-    wasSkippingBackendStep.current = skipBackendStep;
-  }, [skipBackendStep]);
+    if (!slideOrder.includes(phase)) setPhase(slideOrder[0]);
+  }, [phase, slideOrder]);
 
-  React.useEffect(() => {
-    setCurrentStep((step) => Math.min(step, totalSteps - 1));
-  }, [totalSteps]);
+  const totalSteps = slideOrder.length;
+  const currentPhase = slideOrder.includes(phase) ? phase : slideOrder[0];
+  const currentStep = slideOrder.indexOf(currentPhase);
 
-  // The setup slide is the "provider credentials" slot:
-  //   * OpenHands → the LLM-setup form (its own LLM config).
-  //   * Any ACP provider (Claude Code / Codex / Gemini) → the ACP credentials
-  //     form: API key + optional base URL, with a login-detection banner.
   const isOpenHands = selectedAgentId === "openhands";
   const hideSkip = currentStep === 0 && getLockedCloudHost() !== null;
-  const goNext = React.useCallback(
-    () => setCurrentStep((step) => Math.min(step + 1, totalSteps - 1)),
-    [totalSteps],
-  );
-  const goBack = React.useCallback(
-    () => setCurrentStep((step) => Math.max(step - 1, 0)),
-    [],
-  );
+  const goNext = React.useCallback(() => {
+    setPhase((prev) => {
+      const order = slideOrder;
+      const idx = order.indexOf(prev);
+      // If `prev` isn't in the current order (e.g. "backend" after the
+      // backend slide just collapsed), start from the first slot.
+      const safeIdx = idx === -1 ? 0 : idx;
+      return order[Math.min(safeIdx + 1, order.length - 1)];
+    });
+  }, [slideOrder]);
+  const goBack = React.useCallback(() => {
+    setPhase((prev) => {
+      const order = slideOrder;
+      const idx = order.indexOf(prev);
+      const safeIdx = idx === -1 ? 0 : idx;
+      return order[Math.max(safeIdx - 1, 0)];
+    });
+  }, [slideOrder]);
 
   return (
     // No `onClose`: the flow must only be dismissed via explicit actions
@@ -180,11 +214,17 @@ export function OnboardingModal({
               className="relative overflow-clip"
             >
               {skipBackendStep ? null : (
-                <Slide index={0} currentStep={currentStep}>
+                <Slide
+                  index={slideOrder.indexOf("backend")}
+                  currentStep={currentStep}
+                >
                   <CheckBackendStep onNext={goNext} />
                 </Slide>
               )}
-              <Slide index={agentStepIndex} currentStep={currentStep}>
+              <Slide
+                index={slideOrder.indexOf("agent")}
+                currentStep={currentStep}
+              >
                 <ChooseAgentStep
                   selectedAgentId={selectedAgentId}
                   onSelect={setSelectedAgentId}
@@ -192,19 +232,25 @@ export function OnboardingModal({
                   onNext={goNext}
                 />
               </Slide>
-              <Slide index={setupStepIndex} currentStep={currentStep}>
+              <Slide
+                index={slideOrder.indexOf("setup")}
+                currentStep={currentStep}
+              >
                 {isOpenHands ? (
                   <SetupLlmStep onBack={goBack} onNext={goNext} />
                 ) : (
                   <SetupAcpSecretsStep
                     providerKey={selectedAgentId}
-                    isActive={currentStep === setupStepIndex}
+                    isActive={currentPhase === "setup"}
                     onBack={goBack}
                     onNext={goNext}
                   />
                 )}
               </Slide>
-              <Slide index={helloStepIndex} currentStep={currentStep}>
+              <Slide
+                index={slideOrder.indexOf("hello")}
+                currentStep={currentStep}
+              >
                 <SayHelloStep
                   onBack={goBack}
                   onClose={onClose}

@@ -727,14 +727,6 @@ export function BackendConnectionOptions({
         />
       </div>
 
-      <div className="flex shrink-0 flex-row items-center md:flex-col">
-        <div className="h-px flex-1 bg-[var(--oh-border)] md:h-auto md:w-px" />
-        <span className="px-3 py-0 text-xs uppercase text-[var(--oh-muted)] md:px-0 md:py-3">
-          {t(I18nKey.BACKEND$LOGIN_OR)}
-        </span>
-        <div className="h-px flex-1 bg-[var(--oh-border)] md:h-auto md:w-px" />
-      </div>
-
       <div className="flex-1 min-w-0">
         <CloudLoginColumn onConnected={onConnected} testIdRoot={testIdRoot} />
       </div>

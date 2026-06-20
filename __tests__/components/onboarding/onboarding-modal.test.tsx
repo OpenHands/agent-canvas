@@ -374,6 +374,74 @@ describe("OnboardingModal", () => {
     );
   });
 
+  it("keeps users on Choose Agent after Cloud login in standard (non-locked) mode", async () => {
+    // Regression for #1389 review feedback: in standard mode (no
+    // VITE_LOCK_TO_CLOUD), the onboarding backend slide shows both the
+    // manual column and the Cloud column. Completing Cloud login from
+    // there used to land the user on the Set Up LLM slide because the
+    // slide-rail renumbered when `skipBackendStep` flipped before the
+    // post-flip step-decrement effect ran. Phase-based state must keep
+    // them on Choose Agent regardless of the renumber.
+    window.localStorage.clear();
+    vi.stubEnv("VITE_BACKEND_BASE_URL", "");
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_SESSION_API_KEY__;
+    __resetActiveStoreForTests();
+
+    renderModal();
+    const user = userEvent.setup();
+
+    // Both columns should be visible in standard mode.
+    expect(screen.getByTestId("onboarding-backend-host")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("onboarding-backend-login-button"),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("onboarding-backend-login-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+        "data-current-step",
+        "0",
+      );
+      expect(
+        within(screen.getByTestId("onboarding-slide-0")).getByTestId(
+          "onboarding-step-choose-agent",
+        ),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("onboarding-slide-0")).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+    // The Set Up LLM slide is always mounted (transform-translated off-screen),
+    // but it must not be the active slide after Cloud login completes.
+    expect(screen.getByTestId("onboarding-slide-1")).toHaveAttribute(
+      "data-active",
+      "false",
+    );
+  });
+
+  it("does not render an 'Or' divider between manual and Cloud columns", () => {
+    // Regression for #1389 review feedback: the "Or" label between
+    // BackendConnectionOptions' manual and Cloud columns is visually
+    // redundant given the columns are already clearly separated and
+    // both have prominent titles. It must not render.
+    window.localStorage.clear();
+    vi.stubEnv("VITE_BACKEND_BASE_URL", "");
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_SESSION_API_KEY__;
+    __resetActiveStoreForTests();
+
+    renderModal();
+
+    expect(screen.queryByText("BACKEND$LOGIN_OR")).toBeNull();
+  });
+
   it("shows a connection error when saving an unreachable backend", async () => {
     window.localStorage.clear();
     vi.stubEnv("VITE_BACKEND_BASE_URL", "");
