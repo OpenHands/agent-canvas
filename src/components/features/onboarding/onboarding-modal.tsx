@@ -118,6 +118,15 @@ export function OnboardingModal({
   const [selectedAgentId, setSelectedAgentId] =
     React.useState<OnboardingAgentId>("openhands");
 
+  const wasSkippingBackendStep = React.useRef(skipBackendStep);
+
+  React.useEffect(() => {
+    if (!wasSkippingBackendStep.current && skipBackendStep) {
+      setCurrentStep((step) => Math.max(step - 1, 0));
+    }
+    wasSkippingBackendStep.current = skipBackendStep;
+  }, [skipBackendStep]);
+
   React.useEffect(() => {
     setCurrentStep((step) => Math.min(step, totalSteps - 1));
   }, [totalSteps]);

@@ -4,13 +4,18 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
+import {
+  __resetActiveStoreForTests,
+  setActiveSelection,
+  setRegisteredBackends,
+} from "#/api/backend-registry/active-store";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import { OnboardingModal } from "#/components/features/onboarding/onboarding-modal";
 import { ONBOARDING_DEFAULT_LLM_MODEL } from "#/components/features/onboarding/steps/setup-llm-step";
 import { NavigationProvider } from "#/context/navigation-context";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import { SecretsService } from "#/api/secrets-service";
+import { DEFAULT_SETTINGS } from "#/services/settings";
 
 const llmSettingsScreenMock = vi.hoisted(() => vi.fn());
 const getServerInfoMock = vi.hoisted(() => vi.fn());
@@ -56,6 +61,29 @@ vi.mock("#/routes/llm-settings", async () => {
         "llm settings",
       );
     },
+  };
+});
+
+vi.mock("#/components/features/backends/device-flow-auth", async () => {
+  const React = await import("react");
+
+  return {
+    DeviceFlowAuth: ({
+      onSuccess,
+      testIdRoot,
+    }: {
+      onSuccess: (apiKey: string) => void;
+      testIdRoot: string;
+    }) =>
+      React.createElement(
+        "button",
+        {
+          type: "button",
+          "data-testid": `${testIdRoot}-login-button`,
+          onClick: () => onSuccess("cloud-session-key"),
+        },
+        "Login with OpenHands Cloud",
+      ),
   };
 });
 
@@ -129,6 +157,19 @@ async function completeAgentStep(user: ReturnType<typeof userEvent.setup>) {
   );
 }
 
+function seedCloudBackend() {
+  const backend = {
+    id: "cloud-backend",
+    name: "OpenHands Cloud",
+    host: "https://app.all-hands.dev",
+    apiKey: "cloud-session-key",
+    kind: "cloud" as const,
+  };
+  setRegisteredBackends([backend]);
+  setActiveSelection({ backendId: backend.id, orgId: null });
+  return backend;
+}
+
 function renderModal(onClose = vi.fn()) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -169,6 +210,13 @@ beforeEach(() => {
   // ChooseAgentStep's Next button now persists the selection via
   // saveSettings before advancing. Stub it so the rest of the flow
   // (which these tests focus on) isn't gated on a real HTTP call.
+  vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
+    ...DEFAULT_SETTINGS,
+    agent_settings: {
+      ...DEFAULT_SETTINGS.agent_settings,
+      llm: {},
+    },
+  });
   vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
   // The ACP secrets step lists existing secrets to flag "already saved"
   // fields. Stub the fetch so it doesn't reach a real client (none is
@@ -291,6 +339,41 @@ describe("OnboardingModal", () => {
     expect(screen.queryByTestId("onboarding-skip")).not.toBeInTheDocument();
   });
 
+  it("keeps users on the Choose Agent step after Cloud login makes the backend step skippable", async () => {
+    window.localStorage.clear();
+    vi.stubEnv("VITE_BACKEND_BASE_URL", "");
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_SESSION_API_KEY__;
+    __resetActiveStoreForTests();
+
+    renderModal();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("onboarding-backend-login-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+        "data-current-step",
+        "0",
+      );
+      expect(
+        within(screen.getByTestId("onboarding-slide-0")).getByTestId(
+          "onboarding-step-choose-agent",
+        ),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("onboarding-slide-0")).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+    expect(screen.getByTestId("onboarding-slide-1")).toHaveAttribute(
+      "data-active",
+      "false",
+    );
+  });
+
   it("shows a connection error when saving an unreachable backend", async () => {
     window.localStorage.clear();
     vi.stubEnv("VITE_BACKEND_BASE_URL", "");
@@ -320,6 +403,31 @@ describe("OnboardingModal", () => {
     expect(screen.getByTestId("onboarding-backend-error")).toHaveTextContent(
       "Disconnected",
     );
+  });
+
+  it("preserves existing Cloud LLM settings instead of applying onboarding defaults", async () => {
+    seedCloudBackend();
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
+      ...DEFAULT_SETTINGS,
+      agent_settings: {
+        ...DEFAULT_SETTINGS.agent_settings,
+        llm: {
+          model: "anthropic/claude-sonnet-4-5",
+          api_key: "stored-cloud-key",
+        },
+      },
+    });
+
+    renderModal();
+
+    await waitFor(() => {
+      expect(llmSettingsScreenMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          initialValueOverrides: undefined,
+        }),
+      );
+    });
+    expect(screen.queryByText("ONBOARDING$LLM_SUBTITLE")).toBeNull();
   });
 
   it("pre-fills the LLM step with OpenAI GPT-5.5", () => {
@@ -445,11 +553,23 @@ describe("OnboardingModal", () => {
 
     // Assert: heading and footer buttons are siblings of the settings
     // body, not descendants. Anything moved inside the settings wrapper
+
     // would scroll out of view on the All tab — this is the invariant
     // the fix relies on.
     expect(settings.contains(heading)).toBe(false);
     expect(settings.contains(back)).toBe(false);
     expect(settings.contains(next)).toBe(false);
+  });
+
+  it("hides the Say Hello OR separator when recommended automations are unavailable on Cloud", () => {
+    seedCloudBackend();
+
+    renderModal();
+
+    expect(screen.queryByTestId("onboarding-hello-or-separator")).toBeNull();
+    expect(
+      screen.queryByTestId("onboarding-recommended-automations"),
+    ).toBeNull();
   });
 
   it("shows the setup slide with Gemini's credential fields", async () => {

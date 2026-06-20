@@ -7,6 +7,7 @@ import type { SdkSectionSaveControl } from "#/components/features/settings/sdk-s
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
 import { useActivateLlmProfile } from "#/hooks/mutation/use-activate-llm-profile";
+import { useSettings } from "#/hooks/query/use-settings";
 import { deriveProfileNameFromModel } from "#/utils/derive-profile-name";
 
 interface SetupLlmStepProps {
@@ -43,6 +44,17 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
   const { t } = useTranslation("openhands");
   const { backend } = useActiveBackend();
   const isLocalBackend = backend.kind === "local";
+  const { data: settings } = useSettings();
+  const llmSettings = settings?.agent_settings?.llm;
+  const hasExistingLlmSettings =
+    typeof llmSettings === "object" &&
+    llmSettings !== null &&
+    !Array.isArray(llmSettings) &&
+    typeof llmSettings.model === "string" &&
+    llmSettings.model.length > 0;
+  const initialValueOverrides = hasExistingLlmSettings
+    ? undefined
+    : ONBOARDING_LLM_OVERRIDES;
   const saveProfile = useSaveLlmProfile();
   const activateProfile = useActivateLlmProfile();
   const [saveControl, setSaveControl] =
@@ -112,9 +124,11 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
         <h2 className="text-2xl font-medium text-white">
           {t(I18nKey.ONBOARDING$LLM_TITLE)}
         </h2>
-        <p className="text-sm text-[var(--oh-muted)]">
-          {t(I18nKey.ONBOARDING$LLM_SUBTITLE)}
-        </p>
+        {!hasExistingLlmSettings ? (
+          <p className="text-sm text-[var(--oh-muted)]">
+            {t(I18nKey.ONBOARDING$LLM_SUBTITLE)}
+          </p>
+        ) : null}
       </header>
 
       <div
@@ -125,7 +139,7 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
           embedded
           hideSaveButton
           suppressSuccessToast
-          initialValueOverrides={ONBOARDING_LLM_OVERRIDES}
+          initialValueOverrides={initialValueOverrides}
           onSaveSuccess={handleSaveSuccess}
           onSaveControlChange={setSaveControl}
         />
