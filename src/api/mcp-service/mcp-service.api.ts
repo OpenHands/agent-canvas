@@ -5,16 +5,12 @@ import type {
 } from "@openhands/typescript-client";
 import { getAgentServerClientOptions } from "../agent-server-client-options";
 import { getActiveBackend } from "../backend-registry/active-store";
-import SettingsService from "#/api/settings-service/settings-service.api";
 import { getCredentialValidationForServer } from "#/utils/mcp-credential-validation";
 import type {
   ExtendedMCPTestResponse,
   MCPServerConfig,
 } from "#/types/mcp-server";
-
-// Placeholder the settings API substitutes for secret env values when
-// settings are fetched without X-Expose-Secrets (the MCP page's mode).
-const REDACTED_ENV_VALUE = "<redacted>";
+import { substituteRedactedMcpCredentials } from "./mcp-redacted-credentials";
 
 function toMcpServerSpec(server: MCPServerConfig): MCPServerSpec {
   if (server.type === "stdio") {
@@ -29,45 +25,10 @@ function toMcpServerSpec(server: MCPServerConfig): MCPServerSpec {
   return {
     type: server.type,
     url: server.url!,
+    ...(server.headers &&
+      Object.keys(server.headers).length > 0 && { headers: server.headers }),
     ...(server.api_key ? { api_key: server.api_key } : {}),
-  };
-}
-
-/**
- * The MCP page reads settings with redacted secrets, so an env value the
- * user left unchanged in the edit form is the literal `<redacted>`
- * placeholder — testing with it would exercise garbage credentials. Swap
- * each placeholder for the stored value in encrypted form (the agent
- * server decrypts it before spawning), so "Test connection" exercises the
- * real stored credentials. Falls back to the placeholder when encrypted
- * settings are unavailable (e.g. no cipher configured) — the credential
- * check then fails honestly instead of crashing the test flow.
- */
-async function substituteRedactedEnv(
-  server: MCPServerConfig,
-): Promise<MCPServerConfig> {
-  if (server.type !== "stdio" || !server.name || !server.env) return server;
-  const values = Object.values(server.env);
-  if (!values.some((value) => value === REDACTED_ENV_VALUE)) return server;
-
-  try {
-    const response = await SettingsService.fetchSettingsFromApi("encrypted");
-    const mcpConfig = response.agent_settings?.mcp_config as
-      | { mcpServers?: Record<string, { env?: Record<string, string> }> }
-      | undefined;
-    const storedEnv = mcpConfig?.mcpServers?.[server.name]?.env ?? {};
-    const env = Object.fromEntries(
-      Object.entries(server.env).map(([key, value]) => [
-        key,
-        value === REDACTED_ENV_VALUE && typeof storedEnv[key] === "string"
-          ? storedEnv[key]
-          : value,
-      ]),
-    );
-    return { ...server, env };
-  } catch {
-    return server;
-  }
+  } as MCPServerSpec;
 }
 
 class McpService {
@@ -88,7 +49,9 @@ class McpService {
       return { ok: true, tools: [] };
     }
     const validation = getCredentialValidationForServer(server);
-    const serverSpec = toMcpServerSpec(await substituteRedactedEnv(server));
+    const serverSpec = toMcpServerSpec(
+      await substituteRedactedMcpCredentials(server),
+    );
     const { host, apiKey } = getAgentServerClientOptions();
     const client = new MCPClient({ host, ...(apiKey ? { apiKey } : {}) });
     try {
