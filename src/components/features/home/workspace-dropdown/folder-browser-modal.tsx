@@ -116,6 +116,23 @@ function shouldDefaultToProjectsPath(
   return homeData?.home === "/home/openhands";
 }
 
+/**
+ * Expand a leading `~` to the backend-reported home directory so users can
+ * type shortcuts like `~/.config`. The agent-server requires absolute paths,
+ * so a bare `~` would otherwise be rejected.
+ */
+function expandHomePath(input: string, home: string | undefined): string {
+  const trimmed = input.trim();
+  if (!home) return trimmed;
+  if (trimmed === "~") return home;
+  if (trimmed.startsWith("~/") || trimmed.startsWith("~\\")) {
+    const homeBase = trimTrailingSeparators(home) || home;
+    const separator = home.includes("\\") && !home.includes("/") ? "\\" : "/";
+    return `${homeBase}${separator}${trimmed.slice(2)}`;
+  }
+  return trimmed;
+}
+
 export function FolderBrowserModal({
   isOpen,
   onClose,
@@ -124,9 +141,18 @@ export function FolderBrowserModal({
 }: FolderBrowserModalProps) {
   const { t } = useTranslation("openhands");
   const [currentPath, setCurrentPath] = useState<string | null>(null);
+  // Editable copy of `currentPath` so users can type/paste an arbitrary path
+  // (including hidden directories like `~/.config` that the listing omits).
+  const [pathInput, setPathInput] = useState("");
   const active = useActiveBackend();
 
   const { data: homeData } = useHomeDirectory();
+
+  // Keep the editable input in sync whenever navigation changes the path
+  // (sidebar pick, up button, entry click, or initial seed).
+  useEffect(() => {
+    setPathInput(currentPath ?? "");
+  }, [currentPath]);
 
   // Initialize / reset to home each time the modal is opened
   useEffect(() => {
@@ -201,6 +227,15 @@ export function FolderBrowserModal({
     return idx >= 0 ? trimmed.slice(idx + 1) || trimmed : trimmed;
   };
 
+  const handleGoToPath = () => {
+    const expanded = expandHomePath(pathInput, homeData?.home);
+    if (!expanded) return;
+    // Navigating sets currentPath, which drives both the listing query and
+    // the "Add this directory" action — so even a hidden path the listing
+    // would never surface becomes addable once entered here.
+    setCurrentPath(expanded);
+  };
+
   const handleAddDirectory = () => {
     if (!currentPath) return;
     const item: LocalWorkspace = {
@@ -270,24 +305,44 @@ export function FolderBrowserModal({
           {/* Main */}
           <div className="flex-1 flex flex-col min-w-0">
             {/* Nav row */}
-            <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--oh-border-input)]">
+            <form
+              className="flex items-center gap-2 px-4 py-2 border-b border-[var(--oh-border-input)]"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleGoToPath();
+              }}
+            >
               <button
                 type="button"
                 data-testid="folder-browser-up"
                 onClick={() => parent && setCurrentPath(parent)}
                 disabled={!parent}
-                aria-label="Up"
+                aria-label={t(I18nKey.HOME$GO_UP)}
                 className="p-1 rounded hover:bg-[var(--oh-interactive-hover)] text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 <ChevronLeft width={16} height={16} />
               </button>
-              <span
-                className="text-xs text-[var(--oh-muted)] truncate"
+              <input
+                type="text"
+                value={pathInput}
+                onChange={(e) => setPathInput(e.target.value)}
+                placeholder={t(I18nKey.HOME$PATH_INPUT_PLACEHOLDER)}
+                aria-label={t(I18nKey.HOME$PATH_INPUT_LABEL)}
                 data-testid="folder-browser-current-path"
+                spellCheck={false}
+                autoCapitalize="off"
+                autoCorrect="off"
+                className="flex-1 min-w-0 bg-transparent text-xs text-[var(--oh-muted)] border border-[var(--oh-border-input)] rounded px-2 py-1 focus:outline-none focus:border-[var(--oh-border-focus)]"
+              />
+              <BrandButton
+                type="submit"
+                variant="secondary"
+                testId="folder-browser-go"
+                isDisabled={!pathInput.trim()}
               >
-                {currentPath ?? ""}
-              </span>
-            </div>
+                {t(I18nKey.HOME$GO_TO_PATH)}
+              </BrandButton>
+            </form>
 
             {/* Column headers */}
             <div className="grid grid-cols-[1fr_120px] px-4 py-1 border-b border-[var(--oh-border-input)] text-xs text-[var(--oh-text-secondary)] font-semibold">

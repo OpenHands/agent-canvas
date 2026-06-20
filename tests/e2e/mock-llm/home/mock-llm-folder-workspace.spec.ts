@@ -162,14 +162,14 @@ test.describe("mock-LLM folder browser → workspace → conversation", () => {
       // Without this wait the while-loop below can see the briefly-disabled
       // up button and exit immediately, leaving us stuck at home instead of
       // navigating to root.
-      await expect(currentPathEl).not.toHaveText("", { timeout: 10_000 });
+      await expect(currentPathEl).not.toHaveValue("", { timeout: 10_000 });
 
       // Keep clicking up until the button becomes disabled (at root).
       while (!(await upBtn.isDisabled())) {
         await upBtn.click();
         await page.waitForTimeout(300);
       }
-      await expect(currentPathEl).toHaveText(rootPath, { timeout: 5_000 });
+      await expect(currentPathEl).toHaveValue(rootPath, { timeout: 5_000 });
 
       // Navigate down through each segment of the test directory path.
       // e.g. /tmp/e2e-folder-workspace-test/my-test-project → ["tmp", "e2e-...", "my-test-project"]
@@ -181,7 +181,7 @@ test.describe("mock-LLM folder browser → workspace → conversation", () => {
       }
 
       // Verify we're at the correct path
-      await expect(currentPathEl).toHaveText(TEST_DIR, { timeout: 5_000 });
+      await expect(currentPathEl).toHaveValue(TEST_DIR, { timeout: 5_000 });
 
       // Click "Use this folder"
       await page.getByTestId("folder-browser-use").click();
@@ -284,5 +284,55 @@ test.describe("mock-LLM folder browser → workspace → conversation", () => {
     });
 
     page.off("request", captureConversationPayload);
+  });
+
+  // ── Step 2: Reach a hidden directory via the path input ─────────────
+
+  test("step 2: type a hidden path into the path input and add it as a workspace", async ({
+    page,
+  }) => {
+    // The folder browser never lists dot-directories (the agent-server filters
+    // them), so typing the path is the only way to reach `.hidden-workspace`.
+    // Create a hidden dir and verify the path-input + Go flow adds it.
+    const hiddenDirName = ".hidden-workspace";
+    const hiddenHostDir = `${HOST_DIR}/${hiddenDirName}`;
+    const hiddenContainerDir = `${TEST_DIR}/${hiddenDirName}`;
+    fs.mkdirSync(hiddenHostDir, { recursive: true });
+
+    await routeSessionApiKey(page);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await dismissAnalyticsModal(page);
+    await waitForTestId(page, "home-chat-launcher");
+
+    await page.getByTestId("open-workspace-button").click();
+    await expect(page.getByTestId("open-workspace-dialog-body")).toBeVisible({
+      timeout: 10_000,
+    });
+
+    await page.getByTestId("workspace-dropdown").click();
+    await page.getByTestId("add-workspaces-button").click();
+    await expect(page.getByTestId("folder-browser-modal")).toBeVisible({
+      timeout: 10_000,
+    });
+
+    const pathInput = page.getByTestId("folder-browser-current-path");
+    // Wait for the modal to seed the home path before typing.
+    await expect(pathInput).not.toHaveValue("", { timeout: 10_000 });
+
+    // Type the hidden directory path and navigate to it.
+    await pathInput.fill(hiddenContainerDir);
+    await page.getByTestId("folder-browser-go").click();
+    await expect(pathInput).toHaveValue(hiddenContainerDir, { timeout: 5_000 });
+
+    // Add it as a workspace — should succeed even though the listing would
+    // never surface a dot-directory.
+    await page.getByTestId("folder-browser-use").click();
+    await expect(page.getByTestId("folder-browser-modal")).toBeHidden({
+      timeout: 5_000,
+    });
+
+    // The hidden directory should now be the auto-selected workspace.
+    const dropdown = page.getByTestId("workspace-dropdown");
+    await expect(dropdown).toHaveValue(hiddenDirName, { timeout: 10_000 });
   });
 });

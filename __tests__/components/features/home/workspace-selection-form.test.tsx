@@ -336,6 +336,44 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     ]);
   });
 
+  it("lets the user type a hidden path and add it as a workspace", async () => {
+    // The folder listing never surfaces dot-directories (filtered by the
+    // agent-server), so typing the path is the only way to reach e.g.
+    // ~/.config. Verify the path input + Go flow makes it addable.
+    const addSpy = vi
+      .spyOn(WorkspacesService, "addWorkspaces")
+      .mockResolvedValue({ workspaces: [], workspaceParents: [] });
+    mockSearchSubdirectories.mockResolvedValue({
+      items: [],
+      next_page_id: null,
+    });
+    renderForm();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByTestId("workspace-dropdown"));
+    await user.click(await screen.findByTestId("add-workspaces-button"));
+    await screen.findByTestId("folder-browser-modal");
+
+    const pathInput = screen.getByTestId("folder-browser-current-path");
+    await user.clear(pathInput);
+    // `~` should expand against the backend-reported home (/Users/me).
+    await user.type(pathInput, "~/.config");
+    await user.click(screen.getByTestId("folder-browser-go"));
+
+    await expect(pathInput).toHaveValue("/Users/me/.config");
+
+    await user.click(screen.getByTestId("folder-browser-use"));
+
+    await waitFor(() => expect(addSpy).toHaveBeenCalledTimes(1));
+    expect(addSpy).toHaveBeenCalledWith([
+      {
+        id: "/Users/me/.config",
+        name: ".config",
+        path: "/Users/me/.config",
+      },
+    ]);
+  });
+
   it("handles Windows paths when browsing and adding a workspace", async () => {
     const homePath = String.raw`C:\Users\me`;
     const devPath = String.raw`C:\Users\me\dev`;
@@ -358,19 +396,19 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     await user.click(await screen.findByTestId("workspace-dropdown"));
     await user.click(await screen.findByTestId("add-workspaces-button"));
     await screen.findByTestId("folder-browser-modal");
-    await expect(
-      screen.getByTestId("folder-browser-current-path"),
-    ).toHaveTextContent(homePath);
+    await expect(screen.getByTestId("folder-browser-current-path")).toHaveValue(
+      homePath,
+    );
 
     await user.click(await screen.findByTestId("folder-browser-entry-dev"));
-    await expect(
-      screen.getByTestId("folder-browser-current-path"),
-    ).toHaveTextContent(devPath);
+    await expect(screen.getByTestId("folder-browser-current-path")).toHaveValue(
+      devPath,
+    );
 
     await user.click(screen.getByTestId("folder-browser-up"));
-    await expect(
-      screen.getByTestId("folder-browser-current-path"),
-    ).toHaveTextContent(homePath);
+    await expect(screen.getByTestId("folder-browser-current-path")).toHaveValue(
+      homePath,
+    );
 
     await user.click(await screen.findByTestId("folder-browser-entry-dev"));
     await user.click(screen.getByTestId("folder-browser-use"));
