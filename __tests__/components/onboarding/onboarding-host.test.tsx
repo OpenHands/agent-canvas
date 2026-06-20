@@ -18,14 +18,11 @@ import { NavigationProvider } from "#/context/navigation-context";
 
 // We don't need to exercise the modal's internals here; just verify
 // whether OnboardingHost mounts it at all.
-vi.mock(
-  "#/components/features/onboarding/onboarding-modal",
-  () => ({
-    OnboardingModal: () => (
-      <div data-testid="onboarding-modal-stub">onboarding modal</div>
-    ),
-  }),
-);
+vi.mock("#/components/features/onboarding/onboarding-modal", () => ({
+  OnboardingModal: () => (
+    <div data-testid="onboarding-modal-stub">onboarding modal</div>
+  ),
+}));
 
 function renderHost() {
   const queryClient = new QueryClient({
@@ -95,7 +92,8 @@ describe("OnboardingHost", () => {
     ).toBeInTheDocument();
   });
 
-  it("skips the modal and marks completion when an API-key-authenticated LLM is already configured", async () => {
+  it("skips the modal and marks completion for a returning Cloud user with a configured LLM", async () => {
+    seedCloudBackend();
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
       ...DEFAULT_SETTINGS,
       llm_api_key_set: true,
@@ -115,7 +113,8 @@ describe("OnboardingHost", () => {
     expect(screen.queryByTestId("onboarding-modal-stub")).toBeNull();
   });
 
-  it("skips the modal when the active LLM uses subscription auth (no API key)", async () => {
+  it("skips the modal when the active Cloud LLM uses subscription auth (no API key)", async () => {
+    seedCloudBackend();
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
       ...DEFAULT_SETTINGS,
       llm_api_key_set: false,
@@ -135,7 +134,8 @@ describe("OnboardingHost", () => {
     expect(screen.queryByTestId("onboarding-modal-stub")).toBeNull();
   });
 
-  it("still shows the modal when an API key is set but no model is configured (stale local registry)", async () => {
+  it("still shows the modal for a Cloud user when an API key is set but no model is configured", async () => {
+    seedCloudBackend();
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
       ...DEFAULT_SETTINGS,
       llm_api_key_set: true,
@@ -155,24 +155,27 @@ describe("OnboardingHost", () => {
     ).toBeNull();
   });
 
-  it("skips the modal for a returning Cloud user with an existing model and key", async () => {
-    seedCloudBackend();
+  it("does not skip onboarding for a Local backend even if the agent-server reports a key + model", async () => {
+    // Local agent-servers can be started with an env-injected key
+    // (`LLM_API_KEY=…`), so a settings-based "ready" signal is
+    // unreliable for Local. Local first-run detection stays driven by
+    // the existing localStorage flag.
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
       ...DEFAULT_SETTINGS,
       llm_api_key_set: true,
       agent_settings: {
         ...DEFAULT_SETTINGS.agent_settings,
-        llm: { model: "anthropic/claude-sonnet-4-5", api_key: "stored" },
+        llm: { model: "openai/gpt-5.5", api_key: "stored" },
       },
     });
 
     renderHost();
 
-    await waitFor(() => {
-      expect(
-        window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
-      ).not.toBeNull();
-    });
-    expect(screen.queryByTestId("onboarding-modal-stub")).toBeNull();
+    expect(
+      await screen.findByTestId("onboarding-modal-stub"),
+    ).toBeInTheDocument();
+    expect(
+      window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
+    ).toBeNull();
   });
 });

@@ -7,21 +7,27 @@ import {
 } from "./onboarding-preview";
 import { useOnboardingCompletion } from "./use-onboarding-completion";
 import { useSettings } from "#/hooks/query/use-settings";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 
 /**
- * `true` when the active backend reports a usable LLM:
+ * `true` when the active backend reports a Cloud-side LLM that's
+ * already set up:
  *   * `agent_settings.llm.model` is a non-empty string, AND
- *   * the backend has an API key on file OR the model is using
+ *   * the backend reports an API key on file OR the model uses
  *     subscription auth (no key required).
  *
- * The flat `llm_api_key_set` boolean is the canonical "user has set up
- * auth" signal — `agent_settings` always carries default placeholders
- * (e.g. an SDK default model) on a brand-new install, so a `model`
- * check alone would incorrectly skip onboarding for first-time users.
+ * Only applied to Cloud backends. For Local backends the
+ * `llm_api_key_set` flag is not a reliable "user has set this up"
+ * signal — the agent-server can be started with an env-injected
+ * key (`LLM_API_KEY=…`), which would make every fresh install look
+ * configured. Local first-run detection stays driven by the
+ * existing `openhands-onboarded` localStorage flag.
  */
-function isLlmReadyForUse(
+function isReturningCloudUser(
+  backendKind: "cloud" | "local" | string,
   settings: ReturnType<typeof useSettings>["data"],
 ): boolean {
+  if (backendKind !== "cloud") return false;
   const llm = settings?.agent_settings?.llm as
     | { model?: unknown; auth_type?: unknown }
     | undefined;
@@ -37,11 +43,15 @@ function isLlmReadyForUse(
  * isn't set yet). Closing or completing the flow marks it done so the
  * modal won't re-appear on subsequent visits.
  *
- * Returning users are detected via the live settings query: if the
- * active backend already reports a configured LLM (api key + model, or
- * a subscription model with no key), onboarding is skipped and the
+ * Returning Cloud users are detected via the live settings query: if
+ * Cloud already reports a configured LLM (api key + model, or a
+ * subscription model with no key), onboarding is skipped and the
  * completion flag is persisted so the same user keeps skipping across
- * tabs / browsers.
+ * tabs and devices.
+ *
+ * Local backends fall through to the existing localStorage-based
+ * gating — env-injected keys make the settings-based signal unreliable
+ * there.
  *
  * Stale or unreachable backends fall through to the modal so the
  * existing backend-check / manage-backends recovery path still kicks
@@ -56,18 +66,22 @@ export function OnboardingHost() {
   const previewStep = readOnboardingPreviewStep(location.search);
   const isPreview = isOnboardingPreviewActive(location.search);
   const { isCompleted, markCompleted } = useOnboardingCompletion();
+  const { backend } = useActiveBackend();
   const { data: settings } = useSettings();
-  const isReturningUser = isLlmReadyForUse(settings);
+  const skipForReturningCloudUser = isReturningCloudUser(
+    backend.kind,
+    settings,
+  );
 
   React.useEffect(() => {
-    if (!isPreview && !isCompleted && isReturningUser) {
+    if (!isPreview && !isCompleted && skipForReturningCloudUser) {
       markCompleted();
     }
-  }, [isPreview, isCompleted, isReturningUser, markCompleted]);
+  }, [isPreview, isCompleted, skipForReturningCloudUser, markCompleted]);
 
   if (!isPreview) {
     if (isCompleted) return null;
-    if (isReturningUser) return null;
+    if (skipForReturningCloudUser) return null;
   }
 
   const handleClose = () => {
