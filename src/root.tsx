@@ -213,10 +213,16 @@ export default function App() {
     return hasModel && isAuthed;
   })();
 
-  const shouldShowFirstRunOnboarding =
-    (authMissing || lockedNeedsOnboarding) &&
-    !onboardingCompleted &&
-    !isBackendLlmReady;
+  // In locked-to-Cloud mode the `openhands-onboarded` localStorage flag is
+  // not trustworthy: it may have been set during a previous non-locked
+  // session on the same origin, and origin-scoped localStorage cannot tell
+  // the two deployments apart. So when `lockedNeedsOnboarding` is true we
+  // ignore the completion flag and force first-run onboarding (which owns
+  // the Cloud login). A stale completion flag must never strand the user
+  // on the Manage Backends recovery modal ("Add Backend") in locked mode.
+  const shouldShowFirstRunOnboarding = lockedNeedsOnboarding
+    ? !isBackendLlmReady
+    : authMissing && !onboardingCompleted && !isBackendLlmReady;
   const [showFirstRunOnboarding, setShowFirstRunOnboarding] = React.useState(
     () => shouldShowFirstRunOnboarding,
   );

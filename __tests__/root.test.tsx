@@ -202,6 +202,40 @@ describe("App root agent-server availability guard", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows first-run onboarding when locked to Cloud even if onboarding was previously completed", async () => {
+    // Reproduces hieptl's report on PR #1389: the user had previously
+    // completed onboarding in a non-locked session (so the
+    // `openhands-onboarded` localStorage flag is set), then relaunched the
+    // static server with --lock-to-cloud. The stale completion flag used to
+    // suppress first-run onboarding, so the app fell through to the Manage
+    // Backends recovery modal ("Add Backend") instead of going straight to
+    // Cloud login. In locked-to-Cloud mode the completion flag must not
+    // bypass onboarding when the active backend is not a connected Cloud
+    // backend.
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_SESSION_API_KEY__;
+    window.localStorage.clear();
+    window.localStorage.setItem(ONBOARDING_COMPLETED_STORAGE_KEY, "1");
+    __resetActiveStoreForTests();
+
+    renderApp(["/"]);
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("first-run-onboarding-screen"),
+      ).toBeInTheDocument();
+    });
+    expect(await screen.findByTestId("onboarding-modal")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("agent-server-onboarding-screen"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("manage-backends-modal"),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows the auth gate after onboarding was already completed", async () => {
     vi.stubEnv("VITE_AUTH_REQUIRED", "true");
     vi.stubEnv("VITE_SESSION_API_KEY", "");
