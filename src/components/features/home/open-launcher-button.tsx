@@ -27,7 +27,7 @@ export function OpenLauncherButton({
 
   const isLocal = kind === "local";
   const label = isLocal
-    ? t(I18nKey.HOME$OPEN_WORKSPACE)
+    ? t(I18nKey.HOME$OPEN_LOCAL_SOURCE)
     : t(I18nKey.COMMON$OPEN_REPOSITORY);
   const testId = isLocal ? "open-workspace-button" : "open-repository-button";
 

@@ -7,6 +7,7 @@ import { I18nKey } from "#/i18n/declaration";
 import { LocalWorkspace } from "#/types/workspace";
 import { useUserProviders } from "#/hooks/use-user-providers";
 import { WorkspaceSelectionForm } from "./workspace-selection-form";
+import { LocalRepositorySelectionForm } from "./local-repository-selection-form";
 
 interface OpenWorkspaceDialogProps {
   isOpen: boolean;
@@ -35,17 +36,55 @@ export function OpenWorkspaceDialog({
           testId="close-open-workspace-dialog"
         />
         <div className="w-full pr-6">
-          <BaseModalTitle title={t(I18nKey.HOME$OPEN_WORKSPACE)} />
+          <BaseModalTitle title={t(I18nKey.HOME$OPEN_LOCAL_SOURCE)} />
         </div>
 
-        <div className="w-full" data-testid="open-workspace-dialog-body">
-          <WorkspaceSelectionForm
-            isLoadingSettings={isLoadingSettings}
-            onConfirm={(workspace) => {
-              onConfirm(workspace);
-              onClose();
-            }}
-          />
+        <div
+          className="flex w-full flex-col gap-5"
+          data-testid="open-workspace-dialog-body"
+        >
+          <section className="flex flex-col gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-white">
+                {t(I18nKey.HOME$OPEN_LOCAL_REPOSITORY_TITLE)}
+              </h3>
+              <p className="text-xs text-[var(--oh-text-secondary)]">
+                {t(I18nKey.HOME$OPEN_LOCAL_REPOSITORY_DESCRIPTION)}
+              </p>
+            </div>
+            <LocalRepositorySelectionForm
+              onConfirm={(workspace) => {
+                onConfirm(workspace);
+                onClose();
+              }}
+            />
+          </section>
+
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-[var(--oh-border)]" />
+            <span className="text-xs text-[var(--oh-text-secondary)]">
+              {t(I18nKey.COMMON$OR)}
+            </span>
+            <div className="h-px flex-1 bg-[var(--oh-border)]" />
+          </div>
+
+          <section className="flex flex-col gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-white">
+                {t(I18nKey.HOME$OPEN_LOCAL_WORKSPACE_TITLE)}
+              </h3>
+              <p className="text-xs text-[var(--oh-text-secondary)]">
+                {t(I18nKey.HOME$OPEN_LOCAL_WORKSPACE_DESCRIPTION)}
+              </p>
+            </div>
+            <WorkspaceSelectionForm
+              isLoadingSettings={isLoadingSettings}
+              onConfirm={(workspace) => {
+                onConfirm(workspace);
+                onClose();
+              }}
+            />
+          </section>
         </div>
       </ModalBody>
     </ModalBackdrop>

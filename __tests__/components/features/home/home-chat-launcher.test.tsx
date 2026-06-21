@@ -178,10 +178,12 @@ vi.mock("#/components/features/home/home-git-control-bar-preview", () => ({
     workspaceMode,
     backendKind,
     onWorkspaceModeChange,
+    lockWorkspaceMode,
   }: {
     workspaceMode: "local_repo" | "new_worktree";
     backendKind: "local" | "cloud";
     onWorkspaceModeChange: (mode: "local_repo" | "new_worktree") => void;
+    lockWorkspaceMode?: boolean;
   }) => (
     <div data-testid="stub-git-control-bar-preview">
       <span data-testid="stub-workspace-mode">
@@ -190,6 +192,7 @@ vi.mock("#/components/features/home/home-git-control-bar-preview", () => ({
       <button
         type="button"
         data-testid="stub-workspace-mode-new-worktree"
+        disabled={lockWorkspaceMode}
         onClick={() => onWorkspaceModeChange("new_worktree")}
       >
         New Worktree
@@ -326,7 +329,7 @@ describe("HomeChatLauncher", () => {
     expect(createSpy).not.toHaveBeenCalled();
   });
 
-  it("passes the picked workspace path as working_dir on a local backend", async () => {
+  it("passes the picked workspace path as an isolated worktree source on a local backend", async () => {
     const createSpy = vi
       .spyOn(AgentServerConversationService, "createConversation")
       .mockResolvedValue(
@@ -349,7 +352,7 @@ describe("HomeChatLauncher", () => {
       undefined,
       null,
       "/p/app",
-      "local_repo",
+      "new_worktree",
       undefined,
       undefined,
     );
@@ -358,7 +361,7 @@ describe("HomeChatLauncher", () => {
     );
   });
 
-  it("passes the picked workspace path with new-worktree mode when selected", async () => {
+  it("uses new-worktree mode by default and locks local task isolation", async () => {
     const createSpy = vi
       .spyOn(AgentServerConversationService, "createConversation")
       .mockResolvedValue(
@@ -373,13 +376,11 @@ describe("HomeChatLauncher", () => {
       await screen.findByTestId("stub-workspace-dialog-confirm"),
     );
     expect(screen.getByTestId("stub-workspace-mode")).toHaveTextContent(
-      "local:local_repo",
-    );
-
-    await user.click(screen.getByTestId("stub-workspace-mode-new-worktree"));
-    expect(screen.getByTestId("stub-workspace-mode")).toHaveTextContent(
       "local:new_worktree",
     );
+    expect(
+      screen.getByTestId("stub-workspace-mode-new-worktree"),
+    ).toBeDisabled();
     await user.click(screen.getByTestId("stub-chat-submit"));
 
     await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));

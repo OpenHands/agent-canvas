@@ -16,6 +16,7 @@ interface HomeGitControlBarPreviewProps {
   backendKind: BackendKind;
   onRepoClick: () => void;
   onWorkspaceModeChange: (mode: WorkspaceMode) => void;
+  lockWorkspaceMode?: boolean;
 }
 
 export function HomeGitControlBarPreview({
@@ -27,6 +28,7 @@ export function HomeGitControlBarPreview({
   backendKind,
   onRepoClick,
   onWorkspaceModeChange,
+  lockWorkspaceMode = false,
 }: HomeGitControlBarPreviewProps) {
   const workspaceName = workspace
     ? workspace.path.replace(/\/+$/, "").split("/").pop() || workspace.path
@@ -48,6 +50,7 @@ export function HomeGitControlBarPreview({
           value={workspaceMode}
           backendKind={backendKind}
           onChange={onWorkspaceModeChange}
+          disabled={lockWorkspaceMode}
         />
       ) : null}
       {branch ? (

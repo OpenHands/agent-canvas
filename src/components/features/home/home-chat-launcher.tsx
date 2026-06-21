@@ -45,7 +45,7 @@ export function HomeChatLauncher() {
   const [pendingBranch, setPendingBranch] = useState<Branch | null>(null);
   const [pendingProvider, setPendingProvider] = useState<Provider | null>(null);
   const [workspaceMode, setWorkspaceMode] =
-    useState<WorkspaceMode>("local_repo");
+    useState<WorkspaceMode>("new_worktree");
 
   const { mutate: createConversation, isPending } = useCreateConversation();
   const isCreatingElsewhere = useIsCreatingConversation();
@@ -228,6 +228,7 @@ export function HomeChatLauncher() {
             backendKind={backend.kind}
             onRepoClick={() => setIsDialogOpen(true)}
             onWorkspaceModeChange={setWorkspaceMode}
+            lockWorkspaceMode={isLocal}
           />
         ) : (
           <OpenLauncherButton
@@ -248,7 +249,7 @@ export function HomeChatLauncher() {
             setPendingRepository(null);
             setPendingBranch(null);
             setPendingProvider(null);
-            setWorkspaceMode("local_repo");
+            setWorkspaceMode("new_worktree");
           }}
         />
       ) : (
