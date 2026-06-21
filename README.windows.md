@@ -12,16 +12,16 @@ For the main install options and overall context, see [README.md](./README.md).
 - A host directory for `PROJECTS_PATH` containing the project folders you want the agent to access (create it before starting the container)
 
 ```powershell
-docker pull ghcr.io/openhands/agent-canvas:latest
+docker pull ghcr.io/openhands/agent-canvas:1.0.0-rc.11
 
-$env:PROJECTS_PATH = Join-Path $HOME "Projects"  # directory containing your project folders
+$env:PROJECTS_PATH = Join-Path $HOME "projects"  # directory containing your project folders
 New-Item -ItemType Directory -Force -Path $env:PROJECTS_PATH, (Join-Path $env:USERPROFILE ".openhands") | Out-Null
 
 docker run -it --rm `
   -p 8000:8000 `
   -v "$($env:USERPROFILE)\.openhands:/home/openhands/.openhands" `
   -v "$($env:PROJECTS_PATH):/projects" `
-  ghcr.io/openhands/agent-canvas:latest
+  ghcr.io/openhands/agent-canvas:1.0.0-rc.11
 ```
 
 The agent will be able to access any project under `PROJECTS_PATH`.
