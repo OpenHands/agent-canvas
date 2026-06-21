@@ -135,7 +135,9 @@ describe("settings route", () => {
     expect(screen.getByTestId("app-settings-screen")).toBeInTheDocument();
   });
 
-  it("redirects to /settings/agent when ACP is active and the path is disabled-by-ACP", async () => {
+  it("does not redirect a visible page when the active agent is ACP (lockout dissolved)", async () => {
+    // The per-profile AgentProfile editor (#3726) removed the global ACP nav
+    // lockout, so /settings/llm is reachable even while an ACP agent is active.
     vi.spyOn(OptionService, "getConfig").mockResolvedValue({
       posthog_client_key: null,
       feature_flags: {
@@ -158,14 +160,13 @@ describe("settings route", () => {
       },
     });
 
-    const response = (await clientLoader({
+    const result = await clientLoader({
       request: new Request("http://localhost/settings/llm"),
       params: {},
       context: {},
-    } as never)) as Response;
+    } as never);
 
-    expect(response.status).toBe(302);
-    expect(response.headers.get("Location")).toBe("/settings/agent");
+    expect(result).toBeNull();
   });
 
   it("does not redirect when the active agent is OpenHands", async () => {

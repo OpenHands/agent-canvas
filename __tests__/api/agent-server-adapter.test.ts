@@ -126,9 +126,9 @@ describe("buildStartConversationRequest", () => {
     });
     // Bundled public skills are injected into agent_context.skills so the
     // SDK can perform trigger matching without cloning the extensions repo.
-    expect(
-      Array.isArray(payload.agent_settings.agent_context.skills),
-    ).toBe(true);
+    expect(Array.isArray(payload.agent_settings.agent_context.skills)).toBe(
+      true,
+    );
     const skills = payload.agent_settings.agent_context.skills as Record<
       string,
       unknown
@@ -615,9 +615,9 @@ describe("buildStartConversationRequest", () => {
         tool_module_qualnames?: Record<string, string>;
       };
 
-      expect(payload.agent_settings.tools.map((tool) => tool.name)).not.toContain(
-        "canvas_ui",
-      );
+      expect(
+        payload.agent_settings.tools.map((tool) => tool.name),
+      ).not.toContain("canvas_ui");
       expect(payload.tool_module_qualnames).toBeUndefined();
     });
 
@@ -1161,9 +1161,9 @@ describe("agent_settings runtime services suffix", () => {
       load_user_skills: true,
       load_project_skills: true,
     });
-    expect(
-      Array.isArray(payload.agent_settings.agent_context.skills),
-    ).toBe(true);
+    expect(Array.isArray(payload.agent_settings.agent_context.skills)).toBe(
+      true,
+    );
   });
 
   it("sets system_message_suffix when runtime info is provided", () => {
@@ -1229,7 +1229,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     expect(payload.agent_settings.acp_command).toEqual([
       "npx",
       "-y",
-      "@agentclientprotocol/claude-agent-acp@0.30.0",
+      "@agentclientprotocol/claude-agent-acp@0.44.0",
     ]);
     expect(payload.agent_settings.acp_model).toBe("claude-opus-4-5");
     // LLM-only fields must not leak into the ACP settings payload.
@@ -1378,7 +1378,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     expect(payload.agent_settings.acp_command).toEqual([
       "npx",
       "-y",
-      "@agentclientprotocol/claude-agent-acp@0.30.0",
+      "@agentclientprotocol/claude-agent-acp@0.44.0",
     ]);
   });
 
@@ -1400,7 +1400,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     expect(payload.agent_settings.acp_command).toEqual([
       "npx",
       "-y",
-      "@zed-industries/codex-acp@0.15.0",
+      "@zed-industries/codex-acp@0.16.0",
     ]);
   });
 
@@ -1465,7 +1465,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
       agent_settings: Record<string, unknown> & { acp_model?: unknown };
     };
 
-    expect(payload.agent_settings.acp_model).toBe("claude-opus-4-8");
+    expect(payload.agent_settings.acp_model).toBe("opus[1m]");
   });
 
   it("omits acp_model for the custom preset when none is configured", () => {
@@ -1547,7 +1547,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     expect(acpPayload.agent_settings.acp_command).toEqual([
       "npx",
       "-y",
-      "@agentclientprotocol/claude-agent-acp@0.30.0",
+      "@agentclientprotocol/claude-agent-acp@0.44.0",
     ]);
     expect(acpPayload.agent_settings.acp_model).toBe("claude-opus-4-5");
     // acp_env is no longer a forwarded ACP setting — a stale value on saved

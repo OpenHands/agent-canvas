@@ -54,8 +54,15 @@ describe("ACP provider registry", () => {
   });
 
   it("does not suggest generic default model placeholders", () => {
+    // ``default`` (claude-agent-acp 0.44+) and ``auto`` (gemini-cli) are now
+    // real, server-selectable model ids in the upstream registry — not generic
+    // placeholders — so they (and their "Default (recommended)" label) are
+    // legitimate. The check still catches any *other* bare "default"-style id
+    // that leaks in as a placeholder rather than a concrete model.
+    const REGISTRY_DEFAULT_IDS = new Set(["default", "auto"]);
     for (const provider of ACP_PROVIDERS) {
       for (const model of provider.available_models ?? []) {
+        if (REGISTRY_DEFAULT_IDS.has(model.id.toLowerCase())) continue;
         expect(model.id.toLowerCase()).not.toBe("default");
         expect(model.label.toLowerCase()).not.toContain("default");
       }

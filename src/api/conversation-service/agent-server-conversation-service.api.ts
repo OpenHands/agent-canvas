@@ -175,6 +175,23 @@ function normalizeTags(value: unknown): Record<string, string> | null {
   return tags;
 }
 
+/**
+ * Validate the AgentProfile launch-provenance block (SDK PR #3784). Returns a
+ * ``{ profile_id, revision }`` record only when both fields are well-typed;
+ * otherwise ``null`` so older servers (which omit it) stay graceful. Surfaced
+ * for the chat-input profile picker (#3727).
+ */
+function normalizeLaunchedProfile(
+  value: unknown,
+): { profile_id: string; revision: number } | null {
+  if (!isRecord(value)) return null;
+  const { profile_id: profileId, revision } = value;
+  if (typeof profileId === "string" && typeof revision === "number") {
+    return { profile_id: profileId, revision };
+  }
+  return null;
+}
+
 function normalizeAbsolutePath(path: string): string | null {
   if (!path.startsWith("/")) return null;
 
@@ -231,6 +248,7 @@ function requireDirectConversationInfo(item: unknown): DirectConversationInfo {
     // omit these — adapter handles ``undefined`` / ``null`` gracefully.
     current_model_id: stringOrNull(item.current_model_id),
     current_model_name: stringOrNull(item.current_model_name),
+    launched_profile: normalizeLaunchedProfile(item.launched_profile),
   };
 }
 

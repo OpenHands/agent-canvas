@@ -393,6 +393,24 @@ export function getAcpProviderSecrets(
 }
 
 /**
+ * Every env-var/secret name canvas writes for ACP provider credentials, across
+ * all built-in providers (API key, base URL, and the reserved subscription /
+ * Vertex blobs). Derived from {@link getAcpProviderSecrets} so it can't drift as
+ * providers are added — no hardcoded list. Used to hide these from the generic
+ * Secrets panel (they're managed in the agent / profile editor's Authentication
+ * section instead, software-agent-sdk#3728).
+ */
+export function getAllAcpReservedSecretNames(): Set<string> {
+  const names = new Set<string>();
+  for (const provider of ACP_PROVIDERS) {
+    for (const field of getAcpProviderSecrets(provider.key)) {
+      names.add(field.name);
+    }
+  }
+  return names;
+}
+
+/**
  * Look up a built-in ACP provider config by its registry key.
  *
  * Returns ``undefined`` for an empty / null key, for the ``"custom"`` preset

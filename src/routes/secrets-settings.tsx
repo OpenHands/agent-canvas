@@ -1,7 +1,8 @@
 import { useQueryClient } from "@tanstack/react-query";
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { BackNavButton } from "#/components/shared/buttons/back-nav-button";
+import { getAllAcpReservedSecretNames } from "#/constants/acp-providers";
 import { useSearchSecrets } from "#/hooks/query/use-get-secrets";
 import { useDeleteSecret } from "#/hooks/mutation/use-delete-secret";
 import { SecretForm } from "#/components/features/settings/secrets-settings/secret-form";
@@ -38,6 +39,17 @@ export function SecretsSettingsScreen() {
   } = useSearchSecrets();
 
   const { mutate: deleteSecret } = useDeleteSecret();
+
+  // ACP provider credentials ride the env-keyed global-secret channel but are
+  // managed in the agent / profile editor's Authentication section, so hide
+  // them here to avoid showing e.g. ANTHROPIC_API_KEY as a raw global secret
+  // (software-agent-sdk#3728).
+  const acpReservedNames = useMemo(() => getAllAcpReservedSecretNames(), []);
+  const visibleSecrets = useMemo(
+    () =>
+      (secrets ?? []).filter((secret) => !acpReservedNames.has(secret.name)),
+    [secrets, acpReservedNames],
+  );
 
   const [view, setView] = React.useState<
     "list" | "add-secret-form" | "edit-secret-form"
@@ -144,7 +156,7 @@ export function SecretsSettingsScreen() {
         </ul>
       )}
 
-      {view === "list" && !isLoadingSecrets && secrets?.length === 0 && (
+      {view === "list" && !isLoadingSecrets && visibleSecrets.length === 0 && (
         <div
           data-testid="secrets-empty"
           className={extensionModuleEmptyStateClassName}
@@ -155,7 +167,7 @@ export function SecretsSettingsScreen() {
         </div>
       )}
 
-      {view === "list" && !isLoadingSecrets && (secrets?.length ?? 0) > 0 && (
+      {view === "list" && !isLoadingSecrets && visibleSecrets.length > 0 && (
         <div
           ref={tableContainerRef}
           className={settingsListScrollContainerClassName}
@@ -185,7 +197,7 @@ export function SecretsSettingsScreen() {
               </tr>
             </thead>
             <tbody>
-              {secrets?.map((secret) => (
+              {visibleSecrets.map((secret) => (
                 <SecretListItem
                   key={secret.name}
                   title={secret.name}

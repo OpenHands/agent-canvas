@@ -75,6 +75,12 @@ export interface DirectConversationInfo {
    * values are opaque strings.
    */
   tags?: Record<string, string> | null;
+  /**
+   * Provenance of the AgentProfile that launched this conversation (SDK PR
+   * #3784; present only when started via ``agent_profile_id``). Surfaced for the
+   * chat-input profile picker (#3727); see {@link toAppConversation}.
+   */
+  launched_profile?: { profile_id: string; revision: number } | null;
 }
 
 // Module qualname for the Canvas-UI tool. The agent-server imports this via
@@ -317,6 +323,10 @@ export function toAppConversation(
     pr_number: [],
     agent_kind: isAcp ? "acp" : "openhands",
     acp_server: acpServer,
+    // Server-authoritative AgentProfile provenance (#3727 reads this to mark
+    // which profile launched the conversation). Null for conversations started
+    // directly with agent/agent_settings.
+    launched_profile: info.launched_profile ?? null,
     // Chip path: omit ``providerDefault`` so that when no concrete model
     // resolves, the chip falls back to the provider display name in
     // ConversationCardFooter rather than a registry default the session may

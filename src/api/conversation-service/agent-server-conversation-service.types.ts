@@ -180,6 +180,16 @@ export interface AppConversation {
    * older client) — consumers fall back to model-matching.
    */
   active_profile?: string | null;
+  /**
+   * Server-authoritative provenance of the AgentProfile that launched this
+   * conversation (SDK PR #3784): the profile's stable id + the revision at
+   * launch. Distinct from `active_profile` (the client-side LLM profile): this
+   * is the *agent* profile, sourced from the wire `launched_profile` block.
+   * Null for conversations started directly with agent/agent_settings (and on
+   * older servers that don't emit it). Consumed by the chat-input profile
+   * picker (#3727) to mark which profile is current without settings-matching.
+   */
+  launched_profile?: { profile_id: string; revision: number } | null;
   public?: boolean;
   sub_conversation_ids: string[];
 }
