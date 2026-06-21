@@ -49,8 +49,8 @@ export function useChatInputModelState(): ChatInputModelState {
 
   let currentModelId: string | null = null;
   if (isActiveAcpConversation) {
-    // Cloud ACP conversations store llm_model=null (the model lives in the
-    // running ACP subprocess, not in the conversation row). Fall back to the
+    // ACP conversations store llm_model as the acp_model (persisted at
+    // creation time). Use it directly if available; fall back to the
     // settings-configured model or provider default so the chip stays visible.
     currentModelId =
       conversation?.llm_model ??

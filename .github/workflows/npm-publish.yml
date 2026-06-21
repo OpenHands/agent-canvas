@@ -60,6 +60,12 @@ jobs:
         run: npm test
 
       - name: Build app
+        env:
+          # Build the packaged static app the same way Docker tagged releases are
+          # built: production telemetry key and app-level PostHog key baked in.
+          # These are public, client-side project keys, not secrets.
+          VITE_APP_ENV: production
+          VITE_POSTHOG_CLIENT_KEY: ${{ vars.POSTHOG_PROD_KEY }}
         run: npm run build
 
       - name: Build library

@@ -39,6 +39,8 @@ vi.mock("react-i18next", async () => {
           CONVERSATION$UPDATED: "Updated",
           COMMON$NO_REPOSITORY: "No repository",
           CONVERSATION$ACP_AGENT_GENERIC: "ACP",
+          CONVERSATION_PANEL$PIN_CONVERSATION: "Pin conversation",
+          CONVERSATION_PANEL$UNPIN_CONVERSATION: "Unpin conversation",
         };
         return translations[key] || key;
       },
@@ -667,7 +669,7 @@ describe("ConversationCard", () => {
 
     it("shows the provider's picker label for a known model ID", () => {
       // When ``llm_model`` is a registry-known ID, the chip renders the
-      // human label ("Claude Opus 4.7") instead of the raw ID — matching
+      // human label ("Claude Opus 4.8") instead of the raw ID — matching
       // what the Settings → Agent picker shows for the same value.
       renderWithProviders(
         <ConversationCard
@@ -677,13 +679,13 @@ describe("ConversationCard", () => {
           showLlmProfiles
           agentKind="acp"
           acpServer="claude-code"
-          llmModel="claude-opus-4-7"
+          llmModel="claude-opus-4-8"
         />,
       );
 
       const chip = screen.getByTestId("conversation-card-agent-chip");
-      expect(chip).toHaveTextContent("Claude Opus 4.7");
-      expect(chip).toHaveAttribute("title", "Claude Code · Claude Opus 4.7");
+      expect(chip).toHaveTextContent("Claude Opus 4.8");
+      expect(chip).toHaveAttribute("title", "Claude Code · Claude Opus 4.8");
     });
 
     it("falls back to the provider display name for an ACP conversation with no model", () => {
@@ -798,5 +800,48 @@ describe("ConversationCard", () => {
         screen.queryByTestId("conversation-card-agent-chip"),
       ).not.toBeInTheDocument();
     });
+  });
+
+  it("calls onTogglePin when the pin button is clicked", async () => {
+    const onTogglePin = vi.fn();
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <ConversationCard
+        title="Conversation 1"
+        selectedRepository={null}
+        lastUpdatedAt="2021-10-01T12:00:00Z"
+        conversationId="conversation-1"
+        onDelete={vi.fn()}
+        onTogglePin={onTogglePin}
+      />,
+    );
+
+    const card = screen.getByTestId("conversation-card");
+    await user.hover(card);
+    await user.click(
+      screen.getByTestId("conversation-pin-toggle-conversation-1"),
+    );
+    expect(onTogglePin).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the pin icon visible without hover when alwaysShowPinIcon is set", () => {
+    renderWithProviders(
+      <ConversationCard
+        title="Conversation 1"
+        selectedRepository={null}
+        lastUpdatedAt="2021-10-01T12:00:00Z"
+        conversationId="conversation-1"
+        onDelete={vi.fn()}
+        onTogglePin={vi.fn()}
+        isPinned
+        alwaysShowPinIcon
+      />,
+    );
+
+    expect(
+      screen.getByTestId("conversation-pin-toggle-conversation-1"),
+    ).toBeVisible();
+    expect(screen.getByRole("time")).toBeInTheDocument();
   });
 });
