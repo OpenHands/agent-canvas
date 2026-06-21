@@ -376,6 +376,49 @@ describe("App root agent-server availability guard", () => {
       screen.queryByTestId("agent-server-onboarding-screen"),
     ).not.toBeInTheDocument();
   });
+
+  it("does not mark onboarding complete for the launcher-seeded default-local backend even when the agent-server reports a configured LLM", async () => {
+    // Regression for mock-llm-onboarding-regressions.spec.ts:16
+    // ("keeps the modal open on backdrop click and Escape") and
+    // mock-llm-auth-modes.spec.ts:57 ("reaches the onboarding modal
+    // without pre-seeded localStorage"). The shared mock-LLM
+    // agent-server retains a previously-configured LLM across browser
+    // sessions, so a genuinely fresh browser install (launcher-seeded
+    // default-local backend, no `openhands-onboarded` flag) must NOT
+    // have onboarding auto-marked complete by the returning-user
+    // fast-path. The settings-based LLM-ready signal is unreliable for
+    // the launcher-seeded default backend and must be suppressed there.
+    vi.stubEnv("VITE_BACKEND_BASE_URL", "http://127.0.0.1:8000");
+    vi.stubEnv("VITE_SESSION_API_KEY", "test-session-key");
+    // The launcher-seeded default-local backend (id
+    // SEEDED_DEFAULT_BACKEND_ID) is created from these env stubs by
+    // readStoredBackends().
+    __resetActiveStoreForTests();
+    server.use(
+      http.get("*/api/settings", () =>
+        HttpResponse.json({
+          llm_api_key_is_set: true,
+          agent_settings: {
+            llm: { model: "openai/gpt-5.5", api_key: "stored" },
+          },
+        }),
+      ),
+      http.get("*/server_info", () =>
+        HttpResponse.json({ uptime: 0, idle_time: 0, version: "1.28.1" }),
+      ),
+    );
+
+    renderApp(["/"]);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("app-outlet")).toBeInTheDocument();
+    });
+
+    // The returning-user fast-path must NOT have persisted completion.
+    expect(
+      window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
+    ).toBeNull();
+  });
 });
 
 describe("App root document links", () => {

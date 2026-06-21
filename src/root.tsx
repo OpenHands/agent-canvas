@@ -25,6 +25,7 @@ import {
   getEffectiveLocalBackend,
   isNoBackend,
 } from "#/api/backend-registry/active-store";
+import { SEEDED_DEFAULT_BACKEND_ID } from "#/api/backend-registry/default-backend";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import {
   isCloudBackendLoggedOutHealthError,
@@ -200,6 +201,15 @@ export default function App() {
   //     configured, walking them through Set Up LLM is redundant.
   // A truly fresh agent-server (no env-injected key, no saved settings)
   // reports both flags as false and the modal still shows normally.
+  //
+  // The skip is intentionally suppressed for the launcher-seeded default
+  // Local backend (`SEEDED_DEFAULT_BACKEND_ID`): the agent-server can be
+  // started with an env-injected LLM key, and shared-server deployments
+  // (e.g. the mock-LLM E2E stack) retain configured LLMs across browser
+  // sessions, so keying first-run onboarding off the server's LLM state
+  // would suppress the modal (and persist `openhands-onboarded`) for a
+  // genuinely fresh browser install. Must stay in sync with the same
+  // exclusion in `OnboardingHost.isBackendLlmReady`.
   const { data: activeBackendSettings } = useSettings();
   const isBackendLlmReady = (() => {
     const llm = activeBackendSettings?.agent_settings?.llm as
@@ -210,7 +220,14 @@ export default function App() {
       activeBackendSettings?.llm_api_key_set === true ||
       activeBackendSettings?.llm_api_key_is_set === true ||
       llm?.auth_type === "subscription";
-    return hasModel && isAuthed;
+    if (!hasModel || !isAuthed) return false;
+    if (
+      active.backend.kind === "local" &&
+      active.backend.id === SEEDED_DEFAULT_BACKEND_ID
+    ) {
+      return false;
+    }
+    return true;
   })();
 
   // In locked-to-Cloud mode the `openhands-onboarded` localStorage flag is
