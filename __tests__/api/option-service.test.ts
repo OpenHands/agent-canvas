@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import {
   AgentServerUnavailableError,
+  AgentServerUnknownVersionError,
   AgentServerUnsupportedVersionError,
   clearCachedAgentServerInfo,
   isAgentServerToolAvailable,
@@ -61,8 +62,8 @@ describe("OptionService", () => {
     );
 
     await expect(OptionService.getConfig()).rejects.toMatchObject({
-      name: AgentServerUnsupportedVersionError.name,
-      actualVersion: "unknown",
+      name: AgentServerUnknownVersionError.name,
+      actualVersion: null,
     });
   });
 

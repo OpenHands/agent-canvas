@@ -173,6 +173,14 @@ export function MCPServerForm({
       const urlDupError = validateUrlUniqueness(url);
       if (urlDupError) return urlDupError;
 
+      // The name is optional, but when provided it becomes the mcp_config
+      // key (and the reference used in mcp_server_refs), so hold it to the
+      // same safe-identifier rule as stdio names.
+      const name = formData.get("name")?.toString().trim() || "";
+      if (name && !/^[a-zA-Z0-9_-]+$/.test(name)) {
+        return t(I18nKey.SETTINGS$MCP_ERROR_NAME_INVALID);
+      }
+
       // Validate timeout for SHTTP servers only
       if (serverType === "shttp") {
         const timeoutStr = formData.get("timeout")?.toString() || "";
@@ -222,12 +230,14 @@ export function MCPServerForm({
     };
 
     if (serverType === "sse" || serverType === "shttp") {
+      const name = formData.get("name")?.toString().trim();
       const url = formData.get("url")?.toString().trim();
       const apiKey = formData.get("api_key")?.toString().trim();
       const timeoutStr = formData.get("timeout")?.toString().trim();
 
       const serverConfig: MCPServerConfig = {
         ...baseConfig,
+        ...(name && { name }),
         url: url!,
         ...(apiKey && { api_key: apiKey }),
       };
@@ -323,6 +333,17 @@ export function MCPServerForm({
 
       {(serverType === "sse" || serverType === "shttp") && (
         <>
+          <SettingsInput
+            testId="server-name-input"
+            name="name"
+            type="text"
+            label={t(I18nKey.SETTINGS$MCP_SERVER_NAME)}
+            className="w-full min-w-0"
+            showOptionalTag
+            defaultValue={server?.name || ""}
+            placeholder="my-search-server"
+          />
+
           <SettingsInput
             testId="url-input"
             name="url"

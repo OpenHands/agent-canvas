@@ -7,21 +7,10 @@ import {
   MCPSSEServer,
   MCPStdioServer,
 } from "#/types/settings";
+import { MCPServerConfig } from "#/types/mcp-server";
 import { parseMcpConfig, toSdkMcpConfig } from "#/utils/mcp-config";
 import { SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
-
-type MCPServerType = "sse" | "stdio" | "shttp";
-
-interface MCPServerConfig {
-  type: MCPServerType;
-  name?: string;
-  url?: string;
-  api_key?: string;
-  timeout?: number;
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
-}
+import { substituteRedactedMcpCredentials } from "#/api/mcp-service/mcp-redacted-credentials";
 
 export function useUpdateMcpServer() {
   const queryClient = useQueryClient();
@@ -44,28 +33,35 @@ export function useUpdateMcpServer() {
         stdio_servers: [...currentConfig.stdio_servers],
         shttp_servers: [...currentConfig.shttp_servers],
       };
+      const serverToSave = await substituteRedactedMcpCredentials(server);
       const [serverType, indexStr] = serverId.split("-");
       const index = parseInt(indexStr, 10);
 
       if (serverType === "sse") {
         const sseServer: MCPSSEServer = {
-          url: server.url!,
-          ...(server.api_key && { api_key: server.api_key }),
+          ...(serverToSave.name && { name: serverToSave.name }),
+          url: serverToSave.url!,
+          ...(serverToSave.api_key && { api_key: serverToSave.api_key }),
+          ...(serverToSave.headers && { headers: serverToSave.headers }),
         };
         newConfig.sse_servers[index] = sseServer;
       } else if (serverType === "stdio") {
         const stdioServer: MCPStdioServer = {
-          name: server.name!,
-          command: server.command!,
-          ...(server.args && { args: server.args }),
-          ...(server.env && { env: server.env }),
+          name: serverToSave.name!,
+          command: serverToSave.command!,
+          ...(serverToSave.args && { args: serverToSave.args }),
+          ...(serverToSave.env && { env: serverToSave.env }),
         };
         newConfig.stdio_servers[index] = stdioServer;
       } else if (serverType === "shttp") {
         const shttpServer: MCPSHTTPServer = {
-          url: server.url!,
-          ...(server.api_key && { api_key: server.api_key }),
-          ...(server.timeout !== undefined && { timeout: server.timeout }),
+          ...(serverToSave.name && { name: serverToSave.name }),
+          url: serverToSave.url!,
+          ...(serverToSave.api_key && { api_key: serverToSave.api_key }),
+          ...(serverToSave.headers && { headers: serverToSave.headers }),
+          ...(serverToSave.timeout !== undefined && {
+            timeout: serverToSave.timeout,
+          }),
         };
         newConfig.shttp_servers[index] = shttpServer;
       }

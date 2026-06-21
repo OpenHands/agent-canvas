@@ -7,7 +7,7 @@ import {
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
 import {
-  DEFAULT_LOCAL_BACKEND_ID,
+  SEEDED_DEFAULT_BACKEND_ID,
   DEFAULT_LOCAL_BACKEND_NAME,
 } from "#/api/backend-registry/default-backend";
 import type { Backend } from "#/api/backend-registry/types";
@@ -54,7 +54,7 @@ export function AgentServerConnectionForm({
     const trimmedKey = sessionApiKey.trim();
     const current = getRegisteredBackends();
     const defaultEntry: Backend = {
-      id: DEFAULT_LOCAL_BACKEND_ID,
+      id: SEEDED_DEFAULT_BACKEND_ID,
       name: DEFAULT_LOCAL_BACKEND_NAME,
       host: trimmedHost,
       apiKey: trimmedKey,
@@ -62,7 +62,7 @@ export function AgentServerConnectionForm({
     };
 
     const existingIndex = current.findIndex(
-      (b) => b.id === DEFAULT_LOCAL_BACKEND_ID,
+      (b) => b.id === SEEDED_DEFAULT_BACKEND_ID,
     );
     if (existingIndex === -1) {
       setRegisteredBackends([defaultEntry, ...current]);

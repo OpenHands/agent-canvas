@@ -5,6 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SettingsNavigation } from "#/components/features/settings/settings-navigation";
+import { SettingsDesktopSidebar } from "#/components/features/settings/settings-desktop-sidebar";
+import { SettingsMobileDrawer } from "#/components/features/settings/settings-mobile-drawer";
 import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
 import { SettingsNavRenderedItem } from "#/hooks/use-settings-nav-items";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
@@ -213,5 +215,63 @@ describe("SettingsNavigation", () => {
     expect(
       within(desktopNav).queryByTestId("styled-tooltip-content"),
     ).not.toBeInTheDocument();
+  });
+});
+
+// Focused unit coverage for the two components extracted out of this file.
+// The ``SettingsNavigation`` suite above already exercises the behaviors both
+// surfaces share (close button, item-select dismissal, the desktop
+// disabled/tooltip wiring). These cover each extracted component's distinct
+// contract that the composite does not assert.
+describe("SettingsDesktopSidebar", () => {
+  it("renders a navigation link for each item entry and excludes headers and dividers", () => {
+    // Arrange + Act: baseItems holds one header, two items, and one divider.
+    renderSettingsNavigation(
+      <SettingsDesktopSidebar navigationItems={baseItems} />,
+    );
+
+    // Assert: only the two ``item`` entries become links — the header and
+    // divider are filtered out of the desktop rail.
+    const desktopNav = screen.getByTestId("settings-navbar-desktop");
+    const links = within(desktopNav).getAllByTestId(/^sidebar-settings-/);
+
+    expect(links).toHaveLength(2);
+    expect(
+      within(desktopNav).getByTestId("sidebar-settings-/settings/llm"),
+    ).toBeInTheDocument();
+    expect(
+      within(desktopNav).getByTestId("sidebar-settings-/settings/condenser"),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("SettingsMobileDrawer", () => {
+  it("renders an ACP-disabled item as a non-interactive entry that keeps its label", () => {
+    // Arrange + Act
+    renderSettingsNavigation(
+      <SettingsMobileDrawer
+        isMobileMenuOpen
+        onCloseMobileMenu={vi.fn()}
+        navigationItems={[
+          {
+            type: "item",
+            item: llmItem,
+            disabled: true,
+            disabledAgentName: "Claude Code",
+          },
+        ]}
+      />,
+    );
+
+    // Assert: the mobile drawer routes disabled items through SettingsNavLink,
+    // which renders a non-link span marked aria-disabled while still showing
+    // the item's label.
+    const disabledItem = screen.getByTestId(
+      "settings-nav-link-disabled-/settings/llm",
+    );
+    expect(disabledItem).toHaveAttribute("aria-disabled", "true");
+    expect(
+      within(disabledItem).getByText("SETTINGS$NAV_LLM"),
+    ).toBeInTheDocument();
   });
 });

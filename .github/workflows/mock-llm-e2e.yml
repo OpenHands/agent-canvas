@@ -14,7 +14,40 @@ permissions:
   pull-requests: write
 
 jobs:
+  detect-pr-changes:
+    runs-on: ubuntu-24.04
+    outputs:
+      should_run: ${{ steps.detect.outputs.should_run }}
+    steps:
+      - name: Detect PR changes relevant to mock-LLM E2E
+        id: detect
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CHANGED_FILES=$(gh api \
+            "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --paginate --jq '.[].filename')
+
+          SHOULD_RUN=false
+          while IFS= read -r file; do
+            case "$file" in
+              src/*|public/*|scripts/*|bin/*|config/*|tests/e2e/mock-llm/*|tests/e2e/support/*|package.json|package-lock.json|vite.config.ts|tsconfig.json|react-router.config.ts|playwright.mock-llm.config.ts|tailwind.config.js|hero.ts|.github/workflows/mock-llm-e2e.yml)
+                SHOULD_RUN=true
+                break
+                ;;
+            esac
+          done <<< "$CHANGED_FILES"
+
+          echo "should_run=$SHOULD_RUN" >> "$GITHUB_OUTPUT"
+
   mock-llm-e2e:
+    needs: detect-pr-changes
+    if: github.event_name != 'pull_request' || needs.detect-pr-changes.outputs.should_run == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
 
@@ -106,10 +139,48 @@ jobs:
       - name: Build frontend (for agent-canvas binary)
         run: npm run build:app
 
+      - name: Resolve affected test directories
+        id: affected_tests
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          # Get changed files from the PR
+          CHANGED_FILES=$(gh api \
+            "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --paginate --jq '.[].filename' | tr '\n' ',')
+
+          # Resolve which test directories to run. If the resolver fails
+          # (for example malformed test-mapping.json), fail closed by
+          # running the full suite instead of treating stderr as test paths.
+          if ! RESULT=$(node tests/e2e/mock-llm/scripts/resolve-affected-tests.mjs \
+            --files "$CHANGED_FILES"); then
+            echo "::warning::Affected-test resolver failed — running full mock-LLM suite"
+            echo "test_paths=" >> "$GITHUB_OUTPUT"
+            echo "selective=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ -z "$RESULT" ]; then
+            echo "No affected test directories — running full suite as fallback"
+            echo "test_paths=" >> "$GITHUB_OUTPUT"
+            echo "selective=false" >> "$GITHUB_OUTPUT"
+          elif [ "$RESULT" = "__ALL__" ]; then
+            echo "Cross-cutting change detected — running full suite"
+            echo "test_paths=" >> "$GITHUB_OUTPUT"
+            echo "selective=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Running selective tests: $RESULT"
+            echo "test_paths=$RESULT" >> "$GITHUB_OUTPUT"
+            echo "selective=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Run mock-LLM E2E tests
         id: run_tests
         env:
           MOCK_LLM_PYTHON: .mock-llm-venv/bin/python3
+          AFFECTED_TEST_PATHS: ${{ steps.affected_tests.outputs.test_paths }}
+          SELECTIVE_TESTS: ${{ steps.affected_tests.outputs.selective }}
         run: |
           set +e
           MARKER_DIR=".mock-llm-markers"
@@ -117,9 +188,18 @@ jobs:
           PASS_MARKER="$MARKER_DIR/.all-passed"
           rm -rf "$MARKER_DIR"
 
+          # Build the Playwright command — either selective or full suite.
+          # workflow_dispatch always runs the full suite (SELECTIVE_TESTS is empty).
+          if [ "$SELECTIVE_TESTS" = "true" ] && [ -n "$AFFECTED_TEST_PATHS" ]; then
+            echo "::notice::Running selective E2E tests: $AFFECTED_TEST_PATHS"
+            PW_CMD="npx playwright test --config=playwright.mock-llm.config.ts $AFFECTED_TEST_PATHS"
+          else
+            PW_CMD="npm run test:e2e:mock-llm"
+          fi
+
           # Run Playwright in background so our shell survives if we have
           # to kill it (the webServer teardown can hang indefinitely).
-          npm run test:e2e:mock-llm &
+          $PW_CMD &
           PW_PID=$!
 
           # Wait for tests to complete. Playwright's globalTimeout is 600s

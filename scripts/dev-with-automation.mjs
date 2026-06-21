@@ -40,6 +40,8 @@
  *   as OPENHANDS_AUTOMATION_API_KEY, making it available to agents in conversations.
  *   Both the agent-server and automation backend use the same key value
  *   and the same `X-Session-API-Key` header for authentication.
+ *   AUTOMATION_KV_SECRET is derived from the session key if not set explicitly,
+ *   enabling the KV store out of the box for local development.
  */
 
 import { spawn, spawnSync } from "node:child_process";
@@ -81,9 +83,7 @@ const SHARED_DEFAULTS = JSON.parse(
 const DEFAULT_AUTOMATION_REPO = "https://github.com/OpenHands/automation";
 const DEFAULT_AUTOMATION_PACKAGE = SHARED_DEFAULTS.packages.automation;
 const DEFAULT_AUTOMATION_VERSION = SHARED_DEFAULTS.versions.automation;
-// SDK version used by DEFAULT_AUTOMATION_VERSION. This can intentionally lag
-// the agent-server version while automation releases catch up.
-const DEFAULT_AUTOMATION_SDK_VERSION = SHARED_DEFAULTS.versions.automationSdk;
+const DEFAULT_AUTOMATION_SDK_VERSION = SHARED_DEFAULTS.versions.agentServer;
 const DEFAULT_BACKEND_PORT = SHARED_DEFAULTS.ports.agentServer;
 const DEFAULT_AUTOMATION_PORT = SHARED_DEFAULTS.ports.automation;
 
@@ -259,6 +259,8 @@ SECRETS:
   The session API key is automatically seeded into agent-server secrets
   as OPENHANDS_AUTOMATION_API_KEY, making it available to agents in conversations.
   Both backends (agent-server and automation) share the same key value.
+  AUTOMATION_KV_SECRET defaults to the session key so the KV store works
+  out of the box; override with an explicit value for stronger isolation.
 
 ACCESS POINTS:
   Main UI:      http://localhost:PORT/
@@ -852,6 +854,14 @@ function startAutomationBackend(config) {
           join(config.stateDir, "workspaces"),
         // Session API key for self-hosted auth — shared with agent-server via X-Session-API-Key header
         AUTOMATION_LOCAL_API_KEY: config.sessionApiKey,
+        // KV store secret — required for automations to use the built-in
+        // key-value store for state persistence between runs. Used for JWT
+        // signing and value encryption.
+        // Priority:
+        //   1. AUTOMATION_KV_SECRET explicitly set in the user's env
+        //   2. sessionApiKey — convenient zero-config default for local dev
+        AUTOMATION_KV_SECRET:
+          process.env.AUTOMATION_KV_SECRET || config.sessionApiKey,
         // CORS: allow localhost origins for dev, unless explicitly overridden.
         AUTOMATION_CORS_ORIGINS:
           process.env.AUTOMATION_CORS_ORIGINS ||

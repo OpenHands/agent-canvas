@@ -1,7 +1,6 @@
 import React from "react";
 import { AxiosError } from "axios";
 import { useTranslation } from "react-i18next";
-import type { MCPTestFailure } from "@openhands/typescript-client";
 import { I18nKey } from "#/i18n/declaration";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
@@ -15,7 +14,7 @@ import { useUpdateMcpServer } from "#/hooks/mutation/use-update-mcp-server";
 import { useDeleteMcpServer } from "#/hooks/mutation/use-delete-mcp-server";
 import { useTestMcpServer } from "#/hooks/mutation/use-test-mcp-server";
 import { useActiveBackend } from "#/contexts/active-backend-context";
-import { MCPServerConfig } from "#/types/mcp-server";
+import { ExtendedMCPTestFailure, MCPServerConfig } from "#/types/mcp-server";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -65,12 +64,14 @@ export function CustomServerEditor({
   const isPending = isAdding || isUpdating || isDeleting;
   const isDismissBlocked = isPending || isTesting || showDeleteConfirm;
 
-  const makeTestErrorMessage = (failure: MCPTestFailure): string => {
+  const makeTestErrorMessage = (failure: ExtendedMCPTestFailure): string => {
     switch (failure.error_kind) {
       case "timeout":
         return t(I18nKey.MCP$TEST_ERROR_TIMEOUT);
       case "connection":
         return t(I18nKey.MCP$TEST_ERROR_CONNECTION);
+      case "credentials":
+        return t(I18nKey.MCP$TEST_ERROR_CREDENTIALS, { error: failure.error });
       default:
         return t(I18nKey.MCP$TEST_ERROR_UNKNOWN, { error: failure.error });
     }

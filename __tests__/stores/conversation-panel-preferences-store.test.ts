@@ -71,7 +71,9 @@ describe("conversation-panel-preferences store", () => {
     );
     expect(Object.keys(persisted.state).sort()).toEqual([
       "conversationSort",
+      "groupFolderOrder",
       "organizeMode",
+      "showHoverMetadata",
       "showLlmProfiles",
       "showOlderConversations",
       "showRepoBranchMetadata",

@@ -1,6 +1,6 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { ChatMessage } from "#/components/features/chat/chat-message";
 
 describe("ChatMessage", () => {
@@ -79,5 +79,26 @@ describe("ChatMessage", () => {
     fireEvent.click(screen.getByTestId("chat-message-expand"));
     expect(screen.queryByTestId("chat-message-truncation-gradient")).not.toBeInTheDocument();
     expect(screen.queryByTestId("chat-message-view-more")).not.toBeInTheDocument();
+  });
+
+  it("shows a stop control for a sending user message and calls onStop when clicked", () => {
+    const onStop = vi.fn();
+    render(
+      <ChatMessage
+        type="user"
+        message="Working on it"
+        pendingStatus="sending"
+        onStop={onStop}
+      />,
+    );
+
+    expect(screen.getByTestId("chat-message-sending")).toBeInTheDocument();
+    const stopButton = screen.getByTestId("chat-message-stop");
+
+    // The stop control only becomes interactive once the bubble is hovered.
+    fireEvent.mouseEnter(screen.getByTestId("user-message"));
+    fireEvent.click(stopButton);
+
+    expect(onStop).toHaveBeenCalledTimes(1);
   });
 });
