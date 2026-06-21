@@ -202,6 +202,119 @@ describe("App root agent-server availability guard", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("forces first-run onboarding in locked mode even when a stale Local backend reports a configured LLM", async () => {
+    // Critical regression for PR #1389 review: in locked-to-Cloud mode the
+    // ready-backend fast-path must NOT skip onboarding for a reachable
+    // stale Local backend that happens to report a configured LLM. The
+    // fast-path may only fire when the active backend IS the locked Cloud
+    // host; otherwise the user must be routed through the Cloud login /
+    // replacement flow. Here the agent-server (stale Local backend) reports
+    // `llm_api_key_is_set: true` and a configured model, which previously
+    // made `isBackendLlmReady` true and bypassed onboarding entirely.
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_SESSION_API_KEY__;
+    window.localStorage.setItem(
+      "openhands-backends",
+      JSON.stringify([
+        {
+          id: "user-added-local",
+          name: "My agent-server",
+          host: "http://127.0.0.1:8000",
+          apiKey: "stale-key",
+          kind: "local",
+        },
+      ]),
+    );
+    window.localStorage.setItem(
+      "openhands-active-backend",
+      JSON.stringify({ backendId: "user-added-local", orgId: null }),
+    );
+    __resetActiveStoreForTests();
+    server.use(
+      http.get("*/api/settings", () =>
+        HttpResponse.json({
+          llm_api_key_is_set: true,
+          agent_settings: {
+            llm: { model: "openai/gpt-5.5", api_key: "stored" },
+          },
+        }),
+      ),
+      http.get("*/server_info", () =>
+        HttpResponse.json({ uptime: 0, idle_time: 0, version: "1.28.1" }),
+      ),
+    );
+
+    renderApp(["/"]);
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("first-run-onboarding-screen"),
+      ).toBeInTheDocument();
+    });
+    expect(await screen.findByTestId("onboarding-modal")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("manage-backends-modal"),
+    ).not.toBeInTheDocument();
+    // The ready-backend fast-path must NOT have persisted completion.
+    expect(
+      window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
+    ).toBeNull();
+  });
+
+  it("forces first-run onboarding in locked mode when a Cloud backend points at a different host with a configured LLM", async () => {
+    // Companion to the stale-Local test: a Cloud backend on a *different*
+    // host than the locked Cloud host must also be forced through
+    // onboarding, even if it reports a configured LLM. `kind === "cloud"`
+    // alone is not enough — the host must match the locked host.
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_SESSION_API_KEY__;
+    const otherCloud = {
+      id: "other-cloud",
+      name: "Other Cloud",
+      host: "https://other-cloud.example.com",
+      apiKey: "other-token",
+      kind: "cloud",
+    };
+    window.localStorage.setItem(
+      "openhands-backends",
+      JSON.stringify([otherCloud]),
+    );
+    window.localStorage.setItem(
+      "openhands-active-backend",
+      JSON.stringify({ backendId: otherCloud.id, orgId: null }),
+    );
+    __resetActiveStoreForTests();
+    server.use(
+      http.get("*/api/settings", () =>
+        HttpResponse.json({
+          llm_api_key_set: true,
+          agent_settings: {
+            llm: { model: "openai/gpt-5.5" },
+          },
+        }),
+      ),
+      http.get("*/server_info", () =>
+        HttpResponse.json({ uptime: 0, idle_time: 0, version: "1.28.1" }),
+      ),
+    );
+
+    renderApp(["/"]);
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("first-run-onboarding-screen"),
+      ).toBeInTheDocument();
+    });
+    expect(await screen.findByTestId("onboarding-modal")).toBeInTheDocument();
+    expect(
+      window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
+    ).toBeNull();
+  });
+
   it("shows first-run onboarding when locked to Cloud even if onboarding was previously completed", async () => {
     // Reproduces hieptl's report on PR #1389: the user had previously
     // completed onboarding in a non-locked session (so the

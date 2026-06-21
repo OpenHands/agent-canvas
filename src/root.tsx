@@ -20,12 +20,9 @@ import {
 import {
   getLockedCloudHost,
   isAuthRequiredAndMissing,
+  isSameCloudHost,
 } from "#/api/agent-server-config";
-import {
-  getEffectiveLocalBackend,
-  isNoBackend,
-} from "#/api/backend-registry/active-store";
-import { SEEDED_DEFAULT_BACKEND_ID } from "#/api/backend-registry/default-backend";
+import { getEffectiveLocalBackend } from "#/api/backend-registry/active-store";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import {
   isCloudBackendLoggedOutHealthError,
@@ -39,6 +36,7 @@ import { useSettings } from "#/hooks/query/use-settings";
 import { QUERY_KEYS } from "#/hooks/query/query-keys";
 import { AgentServerUIRoot } from "#/components/providers";
 import { useOnboardingCompletion } from "#/components/features/onboarding/use-onboarding-completion";
+import { isBackendLlmReady } from "#/components/features/onboarding/is-backend-llm-ready";
 import {
   applyColorTheme,
   readPersistedColorTheme,
@@ -180,13 +178,23 @@ export default function App() {
   const hasRegisteredKey = Boolean(getEffectiveLocalBackend()?.apiKey);
   const authMissing = bakedKeyMissing && !hasRegisteredKey;
   const { active } = useActiveBackendContext();
-  // In locked-to-Cloud mode the only valid backend is a Cloud backend against
-  // the configured host. A missing backend OR a stale Local backend (e.g. one
-  // persisted from a previous non-locked session) must both trigger first-run
-  // onboarding instead of the Manage Backends recovery modal.
-  const lockedNeedsOnboarding =
-    Boolean(getLockedCloudHost()) &&
-    (isNoBackend(active.backend) || active.backend.kind !== "cloud");
+  // In locked-to-Cloud mode the only valid backend is a Cloud backend whose
+  // host matches the configured locked Cloud host. A missing backend, a stale
+  // Local backend (e.g. one persisted from a previous non-locked session), or
+  // a Cloud backend pointing at a *different* host must all trigger first-run
+  // onboarding instead of the Manage Backends recovery modal — the onboarding
+  // flow owns the Cloud login that replaces the stale backend.
+  const lockedCloudHost = getLockedCloudHost();
+  const isLockedToCloud = lockedCloudHost !== null;
+  // True only when the active backend IS the configured locked Cloud host
+  // (normalized comparison so trailing slash / case / protocol differences
+  // don't cause false negatives). This is the single signal the locked-mode
+  // gates key off of: a reachable stale Local backend or a Cloud backend on
+  // another host must never be treated as the locked backend.
+  const isActiveLockedCloudBackend =
+    isLockedToCloud &&
+    active.backend.kind === "cloud" &&
+    isSameCloudHost(active.backend.host, lockedCloudHost);
   const { isCompleted: onboardingCompleted, markCompleted } =
     useOnboardingCompletion();
 
@@ -208,38 +216,32 @@ export default function App() {
   // (e.g. the mock-LLM E2E stack) retain configured LLMs across browser
   // sessions, so keying first-run onboarding off the server's LLM state
   // would suppress the modal (and persist `openhands-onboarded`) for a
-  // genuinely fresh browser install. Must stay in sync with the same
-  // exclusion in `OnboardingHost.isBackendLlmReady`.
+  // genuinely fresh browser install. The shared helper is the same one
+  // `OnboardingHost` uses, so the two gates stay in sync.
   const { data: activeBackendSettings } = useSettings();
-  const isBackendLlmReady = (() => {
-    const llm = activeBackendSettings?.agent_settings?.llm as
-      | { model?: unknown; auth_type?: unknown }
-      | undefined;
-    const hasModel = typeof llm?.model === "string" && llm.model.length > 0;
-    const isAuthed =
-      activeBackendSettings?.llm_api_key_set === true ||
-      activeBackendSettings?.llm_api_key_is_set === true ||
-      llm?.auth_type === "subscription";
-    if (!hasModel || !isAuthed) return false;
-    if (
-      active.backend.kind === "local" &&
-      active.backend.id === SEEDED_DEFAULT_BACKEND_ID
-    ) {
-      return false;
-    }
-    return true;
-  })();
+  const backendLlmReady = isBackendLlmReady(
+    active.backend,
+    activeBackendSettings,
+  );
 
   // In locked-to-Cloud mode the `openhands-onboarded` localStorage flag is
   // not trustworthy: it may have been set during a previous non-locked
   // session on the same origin, and origin-scoped localStorage cannot tell
-  // the two deployments apart. So when `lockedNeedsOnboarding` is true we
-  // ignore the completion flag and force first-run onboarding (which owns
-  // the Cloud login). A stale completion flag must never strand the user
-  // on the Manage Backends recovery modal ("Add Backend") in locked mode.
-  const shouldShowFirstRunOnboarding = lockedNeedsOnboarding
-    ? !isBackendLlmReady
-    : authMissing && !onboardingCompleted && !isBackendLlmReady;
+  // the two deployments apart. So when the active backend is not the locked
+  // Cloud host we ignore the completion flag and force first-run onboarding
+  // (which owns the Cloud login). A stale completion flag must never strand
+  // the user on the Manage Backends recovery modal ("Add Backend") in locked
+  // mode.
+  //
+  // The ready-backend fast-path is additionally restricted in locked mode:
+  // it may only skip onboarding when the active backend IS the locked Cloud
+  // host. A reachable stale Local backend (or a Cloud backend on a different
+  // host) that happens to report a configured LLM must NOT bypass the Cloud
+  // login/replacement flow — otherwise the user continues as Local despite
+  // `VITE_LOCK_TO_CLOUD`.
+  const shouldShowFirstRunOnboarding = isLockedToCloud
+    ? !isActiveLockedCloudBackend || !backendLlmReady
+    : authMissing && !onboardingCompleted && !backendLlmReady;
   const [showFirstRunOnboarding, setShowFirstRunOnboarding] = React.useState(
     () => shouldShowFirstRunOnboarding,
   );
@@ -250,19 +252,31 @@ export default function App() {
       return;
     }
 
-    if (onboardingCompleted || isBackendLlmReady) {
+    if (onboardingCompleted || backendLlmReady) {
       setShowFirstRunOnboarding(false);
     }
-  }, [onboardingCompleted, shouldShowFirstRunOnboarding, isBackendLlmReady]);
+  }, [onboardingCompleted, shouldShowFirstRunOnboarding, backendLlmReady]);
 
-  // Persist completion once we observe a returning Cloud user, so future
-  // first renders short-circuit immediately (before settings load) and the
-  // modal never flashes on a reload.
+  // Persist completion once we observe a returning user with a ready LLM,
+  // so future first renders short-circuit immediately (before settings
+  // load) and the modal never flashes on a reload.
+  //
+  // In locked-to-Cloud mode this must only fire for the legitimate locked
+  // Cloud host: a stale Local backend (or a Cloud backend on a different
+  // host) that happens to report a configured LLM must NOT be treated as
+  // "onboarding complete" — the user is being routed through the Cloud
+  // login/replacement flow, not skipped past it.
   React.useEffect(() => {
-    if (isBackendLlmReady && !onboardingCompleted) {
-      markCompleted();
-    }
-  }, [isBackendLlmReady, onboardingCompleted, markCompleted]);
+    if (!backendLlmReady || onboardingCompleted) return;
+    if (isLockedToCloud && !isActiveLockedCloudBackend) return;
+    markCompleted();
+  }, [
+    backendLlmReady,
+    onboardingCompleted,
+    markCompleted,
+    isLockedToCloud,
+    isActiveLockedCloudBackend,
+  ]);
 
   // Skip the /server_info probe entirely when we already know auth is
   // required and missing — it would just 401 and waste time. Also keep the

@@ -374,6 +374,111 @@ describe("OnboardingModal", () => {
     );
   });
 
+  it("keeps the backend step visible for a reachable stale Local backend in locked-to-Cloud mode", async () => {
+    // Regression for PR #1389 review: in locked-to-Cloud mode a reachable
+    // stale Local backend (one persisted from a previous non-locked
+    // session) must NOT skip `CheckBackendStep`. The user has to stay on
+    // the backend slide so they can log into the locked Cloud host and
+    // replace the stale backend, rather than continuing as Local.
+    window.localStorage.clear();
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
+    const staleLocal = {
+      id: "stale-local",
+      name: "Local",
+      host: "http://127.0.0.1:8000",
+      apiKey: "stale-key",
+      kind: "local" as const,
+    };
+    setRegisteredBackends([staleLocal]);
+    setActiveSelection({ backendId: staleLocal.id, orgId: null });
+    __resetActiveStoreForTests();
+
+    renderModal();
+
+    // The health probe succeeds for the stale Local backend, but the
+    // backend slide must remain the active step (not skipped to agent
+    // selection) because the backend is not the locked Cloud host.
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("onboarding-step-check-backend"),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+      "data-current-step",
+      "0",
+    );
+    expect(screen.getByTestId("onboarding-progress-step-0")).toHaveAttribute(
+      "data-state",
+      "current",
+    );
+    // Progress bar keeps all 4 steps (backend slide still in the flow).
+    expect(screen.getByTestId("onboarding-progress-bar")).toHaveAttribute(
+      "aria-valuemax",
+      "4",
+    );
+  });
+
+  it("keeps the backend step visible for a reachable Cloud backend on a different host in locked-to-Cloud mode", async () => {
+    // A Cloud backend pointing at a host other than the locked Cloud host
+    // must also keep `CheckBackendStep` visible — `kind === "cloud"` alone
+    // is not enough; the host must match the locked host (normalized).
+    window.localStorage.clear();
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
+    const otherCloud = {
+      id: "other-cloud",
+      name: "Other Cloud",
+      host: "https://other-cloud.example.com",
+      apiKey: "other-token",
+      kind: "cloud" as const,
+    };
+    setRegisteredBackends([otherCloud]);
+    setActiveSelection({ backendId: otherCloud.id, orgId: null });
+    __resetActiveStoreForTests();
+
+    renderModal();
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("onboarding-step-check-backend"),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
+      "data-current-step",
+      "0",
+    );
+    expect(screen.getByTestId("onboarding-progress-bar")).toHaveAttribute(
+      "aria-valuemax",
+      "4",
+    );
+  });
+
+  it("skips the backend step in locked-to-Cloud mode when the active backend IS the locked Cloud host", async () => {
+    // Positive control: when the active backend is the locked Cloud host
+    // (and healthy), the backend slide is skipped exactly as before.
+    window.localStorage.clear();
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
+    const lockedCloud = {
+      id: "locked-cloud",
+      name: "OpenHands Cloud",
+      host: "https://app.all-hands.dev/",
+      apiKey: "cloud-token",
+      kind: "cloud" as const,
+    };
+    setRegisteredBackends([lockedCloud]);
+    setActiveSelection({ backendId: lockedCloud.id, orgId: null });
+    __resetActiveStoreForTests();
+
+    renderModal();
+
+    // Trailing slash on the stored host must normalize-match the locked
+    // host, so the backend slide is skipped.
+    await waitForConfiguredBackendToBeSkipped();
+    expect(screen.getByTestId("onboarding-progress-bar")).toHaveAttribute(
+      "aria-valuemax",
+      "3",
+    );
+  });
+
   it("keeps users on Choose Agent after Cloud login in standard (non-locked) mode", async () => {
     // Regression for #1389 review feedback: in standard mode (no
     // VITE_LOCK_TO_CLOUD), the onboarding backend slide shows both the

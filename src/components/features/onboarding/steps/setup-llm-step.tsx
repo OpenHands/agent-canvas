@@ -23,10 +23,6 @@ interface SetupLlmStepProps {
  */
 export const ONBOARDING_DEFAULT_LLM_MODEL = "openai/gpt-5.5";
 
-const ONBOARDING_LLM_OVERRIDES = {
-  "llm.model": ONBOARDING_DEFAULT_LLM_MODEL,
-} as const;
-
 /**
  * Step 2: embed the LLM settings form. The screen runs in `embedded`
  * mode (so it doesn't render its own sticky Save bar) and with
@@ -48,7 +44,6 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
   const { t } = useTranslation("openhands");
   const { backend } = useActiveBackend();
   const isLocalBackend = backend.kind === "local";
-  const initialValueOverrides = ONBOARDING_LLM_OVERRIDES;
   const saveProfile = useSaveLlmProfile();
   const activateProfile = useActivateLlmProfile();
   const [saveControl, setSaveControl] =
@@ -131,7 +126,9 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
           embedded
           hideSaveButton
           suppressSuccessToast
-          initialValueOverrides={initialValueOverrides}
+          initialValueOverrides={{
+            "llm.model": ONBOARDING_DEFAULT_LLM_MODEL,
+          }}
           onSaveSuccess={handleSaveSuccess}
           onSaveControlChange={setSaveControl}
         />
