@@ -7,6 +7,9 @@ import {
 } from "./onboarding-preview";
 import { useOnboardingCompletion } from "./use-onboarding-completion";
 import { useSettings } from "#/hooks/query/use-settings";
+import { useActiveBackend } from "#/contexts/active-backend-context";
+import { SEEDED_DEFAULT_BACKEND_ID } from "#/api/backend-registry/default-backend";
+import type { Backend } from "#/api/backend-registry/types";
 
 /**
  * `true` when the active backend already has a ready-to-use LLM:
@@ -19,8 +22,20 @@ import { useSettings } from "#/hooks/query/use-settings";
  * same skip rule applies in both modes. A truly fresh agent-server
  * with no key configured reports both flags as `false` and the
  * modal continues to show.
+ *
+ * For Local backends the skip is intentionally suppressed for the
+ * launcher-seeded default backend (`SEEDED_DEFAULT_BACKEND_ID`). The
+ * agent-server can be started with an env-injected LLM key, and in
+ * shared-server deployments (e.g. the mock-LLM E2E stack) a
+ * previously-configured LLM persists across browser sessions — so
+ * keying the first-run onboarding modal off the server's LLM state
+ * would suppress onboarding for a genuinely fresh browser install.
+ * The skip still fires for Local backends the user explicitly added
+ * via "Add Backend" (which carry a different id), preserving the
+ * "don't walk a pre-configured server through Set Up LLM" behavior.
  */
 function isBackendLlmReady(
+  backend: Backend,
   settings: ReturnType<typeof useSettings>["data"],
 ): boolean {
   const llm = settings?.agent_settings?.llm as
@@ -31,7 +46,11 @@ function isBackendLlmReady(
     settings?.llm_api_key_set === true ||
     settings?.llm_api_key_is_set === true ||
     llm?.auth_type === "subscription";
-  return hasModel && isAuthed;
+  if (!hasModel || !isAuthed) return false;
+  if (backend.kind === "local" && backend.id === SEEDED_DEFAULT_BACKEND_ID) {
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -63,8 +82,9 @@ export function OnboardingHost() {
   const previewStep = readOnboardingPreviewStep(location.search);
   const isPreview = isOnboardingPreviewActive(location.search);
   const { isCompleted, markCompleted } = useOnboardingCompletion();
+  const { backend } = useActiveBackend();
   const { data: settings } = useSettings();
-  const skipForReadyBackend = isBackendLlmReady(settings);
+  const skipForReadyBackend = isBackendLlmReady(backend, settings);
 
   React.useEffect(() => {
     if (!isPreview && !isCompleted && skipForReadyBackend) {

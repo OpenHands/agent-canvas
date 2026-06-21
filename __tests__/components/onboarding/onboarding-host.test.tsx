@@ -60,6 +60,22 @@ function seedCloudBackend() {
   return backend;
 }
 
+function seedUserAddedLocalBackend() {
+  // A Local backend the user explicitly added via "Add Backend" — its id
+  // is NOT the launcher-seeded SEEDED_DEFAULT_BACKEND_ID, so the
+  // "pre-configured server" skip is allowed to fire for it.
+  const backend = {
+    id: "user-added-local",
+    name: "My Agent Server",
+    host: "http://localhost:9000",
+    apiKey: "session-key",
+    kind: "local" as const,
+  };
+  setRegisteredBackends([backend]);
+  setActiveSelection({ backendId: backend.id, orgId: null });
+  return backend;
+}
+
 beforeEach(() => {
   window.localStorage.clear();
   vi.stubEnv("VITE_BACKEND_BASE_URL", "http://localhost:9000");
@@ -155,11 +171,14 @@ describe("OnboardingHost", () => {
     ).toBeNull();
   });
 
-  it("skips the modal for a Local backend that already has an LLM configured (llm_api_key_is_set)", async () => {
+  it("skips the modal for a user-added Local backend that already has an LLM configured (llm_api_key_is_set)", async () => {
     // When the user connects via Add Backend to an existing
     // agent-server that already has an LLM saved, walking them
     // through "Set up your LLM" would just overwrite the stored
-    // value with a copy. Skip and persist completion.
+    // value with a copy. Skip and persist completion. This only
+    // applies to Local backends the user explicitly added (not the
+    // launcher-seeded default-local — see the next test).
+    seedUserAddedLocalBackend();
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
       ...DEFAULT_SETTINGS,
       llm_api_key_is_set: true,
@@ -177,6 +196,34 @@ describe("OnboardingHost", () => {
       ).not.toBeNull();
     });
     expect(screen.queryByTestId("onboarding-modal-stub")).toBeNull();
+  });
+
+  it("still shows the modal for a launcher-seeded default-local backend even when the agent-server reports a configured LLM", async () => {
+    // Regression for the mock-LLM E2E fresh-install / happy-path tests:
+    // the shared agent-server retains a previously-configured LLM across
+    // browser sessions, so keying first-run onboarding off the server's
+    // LLM state would suppress the modal for a genuinely fresh browser
+    // install. The launcher-seeded default-local backend (id
+    // SEEDED_DEFAULT_BACKEND_ID) must not trigger the skip — the
+    // `openhands-onboarded` localStorage flag stays the source of truth
+    // for first-run detection there.
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
+      ...DEFAULT_SETTINGS,
+      llm_api_key_is_set: true,
+      agent_settings: {
+        ...DEFAULT_SETTINGS.agent_settings,
+        llm: { model: "openai/zai-org/GLM-5.2", api_key: "**********" },
+      },
+    });
+
+    renderHost();
+
+    expect(
+      await screen.findByTestId("onboarding-modal-stub"),
+    ).toBeInTheDocument();
+    expect(
+      window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
+    ).toBeNull();
   });
 
   it("still shows the modal for a fresh Local agent-server with no API key set", async () => {
