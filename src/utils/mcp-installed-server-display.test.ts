@@ -40,4 +40,15 @@ describe("getInstalledServerTitle", () => {
 
     expect(getInstalledServerTitle(server)).toBe("https://example.com/mcp");
   });
+
+  it("falls back to the command for unnamed stdio servers", () => {
+    const server: MCPServerConfig = {
+      id: "stdio-0",
+      type: "stdio",
+      command: "npx",
+      args: ["-y", "some-mcp"],
+    };
+
+    expect(getInstalledServerTitle(server)).toBe("npx");
+  });
 });
