@@ -11,6 +11,7 @@ import {
   GitBranch,
   ListFilter,
   MessageCircle,
+  MousePointerClick,
   Star,
   Trash2,
 } from "lucide-react";
@@ -51,6 +52,8 @@ export interface ConversationPanelFilterMenuProps {
   toggleShowRepoBranchMetadata: () => void;
   showLlmProfiles: boolean;
   toggleShowLlmProfiles: () => void;
+  showHoverMetadata: boolean;
+  toggleShowHoverMetadata: () => void;
   totalConversationsCount: number;
   onRequestDeleteAll: () => void;
 }
@@ -72,6 +75,8 @@ export function ConversationPanelFilterMenu({
   toggleShowRepoBranchMetadata,
   showLlmProfiles,
   toggleShowLlmProfiles,
+  showHoverMetadata,
+  toggleShowHoverMetadata,
   totalConversationsCount,
   onRequestDeleteAll,
 }: ConversationPanelFilterMenuProps) {
@@ -258,6 +263,16 @@ export function ConversationPanelFilterMenu({
             testId="toggle-repo-branch-metadata"
             onClick={() => {
               toggleShowRepoBranchMetadata();
+              setFilterMenuOpen(false);
+            }}
+          />
+          <MenuRow
+            icon={MousePointerClick}
+            label={t(I18nKey.CONVERSATION_PANEL$HOVER_METADATA)}
+            selected={showHoverMetadata}
+            testId="toggle-hover-metadata"
+            onClick={() => {
+              toggleShowHoverMetadata();
               setFilterMenuOpen(false);
             }}
           />

@@ -1,6 +1,9 @@
 import React from "react";
+import { Pin } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useTracking } from "#/hooks/use-tracking";
 import { cn } from "#/utils/utils";
+import { I18nKey } from "#/i18n/declaration";
 import { transformVSCodeUrl } from "#/utils/vscode-url-helper";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
@@ -35,6 +38,10 @@ interface ConversationCardProps {
   showLlmProfiles?: boolean;
   agentKind?: "openhands" | "acp" | null;
   acpServer?: string | null;
+  isPinned?: boolean;
+  onTogglePin?: () => void;
+  /** When true and pinned, keep the pin icon visible without hovering. */
+  alwaysShowPinIcon?: boolean;
 }
 
 export function ConversationCard({
@@ -59,7 +66,11 @@ export function ConversationCard({
   showLlmProfiles = false,
   agentKind = null,
   acpServer = null,
+  isPinned = false,
+  onTogglePin,
+  alwaysShowPinIcon = false,
 }: ConversationCardProps) {
+  const { t } = useTranslation("openhands");
   const { trackDownloadVsCodeButtonClicked } = useTracking();
   const [titleMode, setTitleMode] = React.useState<"view" | "edit">("view");
   const { mutateAsync: downloadConversation } = useDownloadConversation();
@@ -130,7 +141,42 @@ export function ConversationCard({
     onContextMenuToggle?.(false);
   };
 
+  const handleTogglePin = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onTogglePin?.();
+  };
+
+  const renderPinButton = () => (
+    <button
+      type="button"
+      data-testid={
+        conversationId
+          ? `conversation-pin-toggle-${conversationId}`
+          : "conversation-pin-toggle"
+      }
+      aria-pressed={isPinned}
+      aria-label={
+        isPinned
+          ? t(I18nKey.CONVERSATION_PANEL$UNPIN_CONVERSATION)
+          : t(I18nKey.CONVERSATION_PANEL$PIN_CONVERSATION)
+      }
+      onClick={handleTogglePin}
+      className={cn(
+        "flex shrink-0 cursor-pointer items-center justify-center rounded-md p-1",
+        "text-[var(--oh-muted)] hover:bg-white/10 hover:text-white",
+      )}
+    >
+      <Pin
+        className={cn("h-3.5 w-3.5", isPinned && "fill-current")}
+        aria-hidden
+      />
+    </button>
+  );
+
   const hasContextMenu = !!(onDelete || onChangeTitle || showOptions);
+  const hasHoverActions = hasContextMenu || !!onTogglePin;
+  const showPersistentPinIcon = alwaysShowPinIcon && isPinned && !!onTogglePin;
   const shouldRenderFooter =
     showRepositoryMetadata ||
     (showLlmProfiles && (agentKind === "acp" || !!llmModel));
@@ -143,8 +189,8 @@ export function ConversationCard({
       onClick={onClick}
       className={cn(
         "group relative h-auto w-full cursor-pointer rounded-md py-1 pl-2 pr-1 transition-colors",
-        "data-[context-menu-open=false]:hover:bg-[var(--oh-surface)]",
-        "data-[active=true]:bg-[var(--oh-surface)]",
+        !contextMenuOpen && "hover:bg-[var(--oh-surface)]",
+        (isActive || contextMenuOpen) && "bg-[var(--oh-surface)]",
       )}
     >
       <div className="flex items-center w-full min-w-0">
@@ -159,12 +205,25 @@ export function ConversationCard({
           {sandboxStatus === "ERROR" && <ConversationStatusBadges />}
         </div>
 
-        <div className="relative ml-auto pl-2 flex items-center justify-end shrink-0">
-          {(createdAt ?? lastUpdatedAt) && (
+        <div
+          className={cn(
+            "relative ml-auto pl-2 flex items-center justify-end shrink-0",
+            // The hover action overlay (pin + ellipsis) is absolutely
+            // positioned, so reserve its width so the flex-1 title truncates
+            // instead of colliding with the buttons. Pinned cards keep the pin
+            // visible at rest, so reserve the width always for those.
+            showPersistentPinIcon
+              ? "min-w-[3.75rem]"
+              : hasHoverActions &&
+                  "group-hover:min-w-[3.75rem] group-focus-within:min-w-[3.75rem]",
+            contextMenuOpen && "min-w-[3.75rem]",
+          )}
+        >
+          {!showPersistentPinIcon && (createdAt ?? lastUpdatedAt) && (
             <p
               className={cn(
                 "text-xs text-[var(--oh-muted)] text-right whitespace-nowrap transition-opacity -translate-x-1.5",
-                hasContextMenu &&
+                hasHoverActions &&
                   "group-hover:opacity-0 group-focus-within:opacity-0",
                 contextMenuOpen && "opacity-0",
               )}
@@ -173,28 +232,72 @@ export function ConversationCard({
             </p>
           )}
 
-          {hasContextMenu && (
+          {hasHoverActions ? (
             <div
               className={cn(
-                "absolute right-0 top-1/2 -translate-y-1/2 transition-opacity",
-                "opacity-0 invisible group-hover:opacity-100 group-hover:visible",
-                contextMenuOpen && "visible opacity-100",
+                "absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-0.5 transition-opacity",
+                showPersistentPinIcon
+                  ? "pointer-events-auto visible opacity-100"
+                  : cn(
+                      "pointer-events-none opacity-0 invisible",
+                      "group-hover:pointer-events-auto group-hover:opacity-100 group-hover:visible",
+                      "group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-focus-within:visible",
+                    ),
+                contextMenuOpen && "pointer-events-auto visible opacity-100",
               )}
             >
-              <ConversationCardActions
-                contextMenuOpen={contextMenuOpen}
-                onContextMenuToggle={onContextMenuToggle || (() => {})}
-                onDelete={onDelete && handleDelete}
-                onStop={onStop && handleStop}
-                onEdit={onChangeTitle && handleEdit}
-                onDownloadViaVSCode={handleDownloadViaVSCode}
-                onDownloadConversation={handleDownloadConversation}
-                executionStatus={executionStatus}
-                conversationId={conversationId}
-                showOptions={showOptions}
-              />
+              {onTogglePin ? renderPinButton() : null}
+              {showPersistentPinIcon &&
+              (createdAt ?? lastUpdatedAt) &&
+              hasContextMenu ? (
+                <div className="relative shrink-0">
+                  <div
+                    className={cn(
+                      !contextMenuOpen &&
+                        "invisible pointer-events-none group-hover:visible group-hover:pointer-events-auto group-focus-within:visible group-focus-within:pointer-events-auto",
+                    )}
+                  >
+                    <ConversationCardActions
+                      contextMenuOpen={contextMenuOpen}
+                      onContextMenuToggle={onContextMenuToggle || (() => {})}
+                      onDelete={onDelete && handleDelete}
+                      onStop={onStop && handleStop}
+                      onEdit={onChangeTitle && handleEdit}
+                      onDownloadViaVSCode={handleDownloadViaVSCode}
+                      onDownloadConversation={handleDownloadConversation}
+                      executionStatus={executionStatus}
+                      conversationId={conversationId}
+                      showOptions={showOptions}
+                    />
+                  </div>
+                  <p
+                    className={cn(
+                      "pointer-events-none absolute inset-0 flex items-center justify-end",
+                      "text-xs text-[var(--oh-muted)] whitespace-nowrap -translate-x-1.5",
+                      "group-hover:hidden group-focus-within:hidden",
+                      contextMenuOpen && "hidden",
+                    )}
+                  >
+                    <time>{formatTimeDelta(lastUpdatedAt ?? createdAt)}</time>
+                  </p>
+                </div>
+              ) : null}
+              {!showPersistentPinIcon && hasContextMenu ? (
+                <ConversationCardActions
+                  contextMenuOpen={contextMenuOpen}
+                  onContextMenuToggle={onContextMenuToggle || (() => {})}
+                  onDelete={onDelete && handleDelete}
+                  onStop={onStop && handleStop}
+                  onEdit={onChangeTitle && handleEdit}
+                  onDownloadViaVSCode={handleDownloadViaVSCode}
+                  onDownloadConversation={handleDownloadConversation}
+                  executionStatus={executionStatus}
+                  conversationId={conversationId}
+                  showOptions={showOptions}
+                />
+              ) : null}
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 

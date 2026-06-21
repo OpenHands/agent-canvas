@@ -57,6 +57,34 @@ export function getGroupConversationPreview(
   };
 }
 
+export function resolvePinnedConversations(
+  pinnedIds: readonly string[],
+  conversations: readonly AppConversation[],
+): AppConversation[] {
+  const byId = new Map(
+    conversations.map((conversation) => [conversation.id, conversation]),
+  );
+  return pinnedIds
+    .map((id) => byId.get(id))
+    .filter(
+      (conversation): conversation is AppConversation => conversation != null,
+    );
+}
+
+export function filterOutPinnedConversations(
+  conversations: readonly AppConversation[],
+  pinnedIds: readonly string[],
+): AppConversation[] {
+  if (pinnedIds.length === 0) {
+    return [...conversations];
+  }
+
+  const pinnedSet = new Set(pinnedIds);
+  return conversations.filter(
+    (conversation) => !pinnedSet.has(conversation.id),
+  );
+}
+
 /** Subset of `useCreateConversation` variables for launching from a group row */
 export type ConversationGroupLaunch = {
   workingDir?: string;
@@ -221,4 +249,65 @@ export function groupConversations(
 
   groups.sort((a, b) => groupOrderKey(b) - groupOrderKey(a));
   return groups;
+}
+
+export function applyGroupFolderOrder<T extends { id: string }>(
+  groups: readonly T[],
+  order: readonly string[],
+): T[] {
+  if (order.length === 0) {
+    return [...groups];
+  }
+
+  const byId = new Map(groups.map((group) => [group.id, group]));
+  const ordered: T[] = [];
+  const seen = new Set<string>();
+
+  for (const id of order) {
+    const group = byId.get(id);
+    if (group) {
+      ordered.push(group);
+      seen.add(id);
+    }
+  }
+
+  for (const group of groups) {
+    if (!seen.has(group.id)) {
+      ordered.push(group);
+    }
+  }
+
+  return ordered;
+}
+
+export type GroupFolderDropPosition = "before" | "after";
+
+export function moveGroupFolderOrder(
+  order: readonly string[],
+  groupIds: readonly string[],
+  activeGroupId: string,
+  targetGroupId: string,
+  position: GroupFolderDropPosition = "after",
+): string[] {
+  if (activeGroupId === targetGroupId) {
+    return [...order];
+  }
+
+  const effectiveOrder = applyGroupFolderOrder(
+    groupIds.map((id) => ({ id })),
+    order,
+  ).map((group) => group.id);
+  const fromIndex = effectiveOrder.indexOf(activeGroupId);
+  const toIndex = effectiveOrder.indexOf(targetGroupId);
+  if (fromIndex < 0 || toIndex < 0) {
+    return [...order];
+  }
+
+  const nextOrder = [...effectiveOrder];
+  nextOrder.splice(fromIndex, 1);
+  const adjustedTargetIndex = nextOrder.indexOf(targetGroupId);
+  const insertIndex =
+    position === "before" ? adjustedTargetIndex : adjustedTargetIndex + 1;
+  nextOrder.splice(insertIndex, 0, activeGroupId);
+  return nextOrder;
 }
