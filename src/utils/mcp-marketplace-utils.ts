@@ -34,11 +34,7 @@ export function getMcpConnectionOptions(
 export function getDefaultMcpConnectionOption(
   entry: MarketplaceEntry,
 ): McpMarketplaceConnectionOption | undefined {
-  const options = getMcpConnectionOptions(entry);
-  return (
-    options.find((option) => option.id === entry.defaultConnectionOptionId) ??
-    options[0]
-  );
+  return getMcpConnectionOptions(entry)[0];
 }
 
 function isLocallyInstallableMcpOption(
@@ -53,14 +49,7 @@ function isLocallyInstallableMcpOption(
 export function getInstallableMcpConnectionOption(
   entry: MarketplaceEntry,
 ): McpMarketplaceConnectionOption | undefined {
-  const options = getMcpConnectionOptions(entry);
-  const defaultOption = options.find(
-    (option) => option.id === entry.defaultConnectionOptionId,
-  );
-  if (defaultOption && isLocallyInstallableMcpOption(defaultOption)) {
-    return defaultOption;
-  }
-  return options.find(isLocallyInstallableMcpOption);
+  return getMcpConnectionOptions(entry).find(isLocallyInstallableMcpOption);
 }
 
 export function getDefaultMcpTransport(

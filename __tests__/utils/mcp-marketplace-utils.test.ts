@@ -104,7 +104,6 @@ describe("getInstallableMcpConnectionOption", () => {
     >[0] = {
       ...slackEntry,
       id: "oauth-only",
-      defaultConnectionOptionId: "oauth",
       connectionOptions: [
         {
           id: "oauth",
@@ -126,7 +125,6 @@ describe("getInstallableMcpConnectionOption", () => {
     >[0] = {
       ...slackEntry,
       id: "no-mcp",
-      defaultConnectionOptionId: undefined,
       connectionOptions: [],
     };
     const option = getInstallableMcpConnectionOption(noOptionsEntry);

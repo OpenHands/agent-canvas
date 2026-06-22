@@ -131,7 +131,6 @@ describe("InstallServerModal", () => {
       name: "Synthetic",
       description: "Synthetic catalog entry used in tests.",
       iconBg: "#000000",
-      defaultConnectionOptionId: "api",
       connectionOptions: [
         {
           id: "api",
@@ -173,7 +172,6 @@ describe("InstallServerModal", () => {
       name: "Synthetic Optional",
       description: "Synthetic entry that allows empty api_key.",
       iconBg: "#000000",
-      defaultConnectionOptionId: "api",
       connectionOptions: [
         {
           id: "api",
@@ -302,7 +300,6 @@ describe("InstallServerModal", () => {
       name: "Failing Server",
       description: "Always fails the connection test.",
       iconBg: "#000000",
-      defaultConnectionOptionId: "api",
       connectionOptions: [
         {
           id: "api",
@@ -384,7 +381,6 @@ describe("InstallServerModal", () => {
       name: "Passing Server",
       description: "Always passes the connection test.",
       iconBg: "#000000",
-      defaultConnectionOptionId: "api",
       connectionOptions: [
         {
           id: "api",
@@ -424,7 +420,6 @@ describe("InstallServerModal", () => {
       name: "Pending Server",
       description: "Connection test never resolves.",
       iconBg: "#000000",
-      defaultConnectionOptionId: "api",
       connectionOptions: [
         {
           id: "api",
@@ -466,7 +461,6 @@ describe("InstallServerModal", () => {
     name: "Synthetic Stdio Server",
     description: "Stdio server used to test the save-as-secret feature.",
     iconBg: "#000000",
-    defaultConnectionOptionId: "stdio",
     connectionOptions: [
       {
         id: "stdio",
@@ -512,7 +506,6 @@ describe("InstallServerModal", () => {
     name: "Synthetic Hosted Server",
     description: "Hosted server used to test credential secret saving.",
     iconBg: "#000000",
-    defaultConnectionOptionId: "api",
     connectionOptions: [
       {
         id: "api",
