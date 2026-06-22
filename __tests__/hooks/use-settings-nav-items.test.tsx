@@ -192,7 +192,7 @@ describe("useSettingsNavItems", () => {
     expect(paths).not.toContain("/settings/agents");
   });
 
-  it("drops the standalone Condenser page on local (configured per-profile)", () => {
+  it("drops the Condenser + Verification pages on local (configured per-profile)", () => {
     useConfigMock.mockReturnValue({ data: createConfig() });
 
     const { result } = renderHook(() => useSettingsNavItems());
@@ -201,9 +201,10 @@ describe("useSettingsNavItems", () => {
       .map((i) => (i.type === "item" ? i.item.to : null));
 
     expect(paths).not.toContain("/settings/condenser");
+    expect(paths).not.toContain("/settings/verification");
   });
 
-  it("keeps the Condenser page on cloud backends", () => {
+  it("keeps the Condenser + Verification pages on cloud backends", () => {
     useConfigMock.mockReturnValue({ data: createConfig() });
     useActiveBackendMock.mockReturnValue({
       backend: { kind: "cloud" },
@@ -216,5 +217,6 @@ describe("useSettingsNavItems", () => {
       .map((i) => (i.type === "item" ? i.item.to : null));
 
     expect(paths).toContain("/settings/condenser");
+    expect(paths).toContain("/settings/verification");
   });
 });
