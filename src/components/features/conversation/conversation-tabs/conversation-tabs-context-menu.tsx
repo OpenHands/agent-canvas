@@ -211,7 +211,11 @@ export function ConversationTabsContextMenu({
                       : "cursor-pointer hover:bg-white/10",
                   )}
                   aria-pressed={pinned}
-                  aria-label={pinned ? "Unpin tab from bar" : "Pin tab to bar"}
+                  aria-label={
+                    pinned
+                      ? t(I18nKey.CONVERSATION$UNPIN_TAB)
+                      : t(I18nKey.CONVERSATION$PIN_TAB)
+                  }
                   onClick={(e) => handlePinToggle(tab, e)}
                 >
                   {pinned ? (
