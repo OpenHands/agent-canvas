@@ -104,7 +104,8 @@ function ConnectionBanner({
  */
 export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
   const { t } = useTranslation("openhands");
-  const { active, addBackend, updateBackend } = useActiveBackendContext();
+  const { active, addBackend, setActive, updateBackend } =
+    useActiveBackendContext();
   const { backend } = active;
   const noBackendSelected = isNoBackend(backend);
   const lockedCloudHost = getLockedCloudHost();
@@ -158,11 +159,31 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
       if (noBackendSelected) {
         addBackend(payload);
       } else {
+        // When the host changes (e.g. replacing a stale Cloud backend
+        // with the locked Cloud host), the persisted active org_id is
+        // keyed to the OLD host's org list and would be sent as an
+        // invalid X-Org-Id to the new host. Clear it so the new
+        // backend starts org-less; the user picks an org on the new
+        // host. (Local-only edits are no-ops here since active.orgId
+        // is already null for Local backends.)
+        const hostChanged = payload.host !== backend.host;
         updateBackend(backend.id, payload);
+        if (hostChanged && active.orgId !== null) {
+          setActive(backend.id, null);
+        }
       }
       onNext();
     },
-    [addBackend, backend.id, noBackendSelected, onNext, updateBackend],
+    [
+      active.orgId,
+      addBackend,
+      backend.host,
+      backend.id,
+      noBackendSelected,
+      onNext,
+      setActive,
+      updateBackend,
+    ],
   );
 
   const actionRowClassName = cn(

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   __resetActiveStoreForTests,
+  getActiveSelection,
   setActiveSelection,
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
@@ -472,6 +473,49 @@ describe("OnboardingModal", () => {
       "aria-valuemax",
       "4",
     );
+  });
+
+  it("clears the stale active org_id when Cloud login replaces a mismatched Cloud backend", async () => {
+    // Regression for PR #1389 review: replacing a mismatched Cloud
+    // backend updates the backend row's host/apiKey, but the persisted
+    // active org_id is keyed to the OLD host's org list. Leaving it in
+    // place causes subsequent Cloud API calls to send an invalid
+    // X-Org-Id to the locked Cloud host. After Cloud login completes,
+    // active.orgId must be reset to null.
+    window.localStorage.clear();
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
+    const otherCloud = {
+      id: "other-cloud",
+      name: "Other Cloud",
+      host: "https://other-cloud.example.com",
+      apiKey: "other-token",
+      kind: "cloud" as const,
+    };
+    setRegisteredBackends([otherCloud]);
+    setActiveSelection({
+      backendId: otherCloud.id,
+      orgId: "stale-org-from-other-host",
+    });
+    __resetActiveStoreForTests();
+    expect(getActiveSelection()?.orgId).toBe("stale-org-from-other-host");
+
+    renderModal();
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("onboarding-backend-login-button"),
+      ).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("onboarding-backend-login-button"));
+
+    await waitFor(() => {
+      expect(getActiveSelection()?.orgId).toBeNull();
+    });
+    // The backend row was updated rather than added: still a single
+    // entry, but now pointed at the locked Cloud host.
+    expect(getActiveSelection()?.backendId).toBe(otherCloud.id);
   });
 
   it("skips the backend step in locked-to-Cloud mode when the active backend IS the locked Cloud host", async () => {
