@@ -51,6 +51,7 @@ export function useSettingsNavItems(): SettingsNavRenderedItem[] {
         item: {
           ...item,
           to: "/settings/agents",
+          text: I18nKey.SETTINGS$NAV_AGENT_PROFILES,
           subtitle: I18nKey.SETTINGS$PAGE_AGENT_PROFILES_SUBLINE,
         },
       };

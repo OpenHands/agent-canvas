@@ -168,7 +168,7 @@ describe("useSettingsNavItems", () => {
     );
     expect(agent?.type).toBe("item");
     if (agent?.type === "item") {
-      expect(agent.item.text).toBe(I18nKey.SETTINGS$NAV_AGENT);
+      expect(agent.item.text).toBe(I18nKey.SETTINGS$NAV_AGENT_PROFILES);
       expect(agent.item.subtitle).toBe(
         I18nKey.SETTINGS$PAGE_AGENT_PROFILES_SUBLINE,
       );
