@@ -95,6 +95,13 @@ function main() {
   console.log(`Wrote ${line} to examples/acp-docker/.env`);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+// Run main() only when invoked as a CLI. process.argv[1] is undefined in some
+// ESM contexts (e.g. `node --input-type=module -e "import(...)"`), so guard it
+// before pathToFileURL — otherwise importing this module for its exports throws
+// ERR_INVALID_ARG_TYPE.
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   main();
 }

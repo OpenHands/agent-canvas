@@ -11,9 +11,10 @@
 // 1.28.0 or newer". This test fails if the generator's pinned tag drifts from
 // versions.agentServer, if the no-config compose fallback stops using
 // `latest-python`, or if the pinned version ever falls below the floor.
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -80,6 +81,27 @@ describe("examples/acp-docker stays in sync with config/defaults.json", () => {
     const compose = read("examples/acp-docker/docker-compose.yml");
     const match = compose.match(/AGENT_SERVER_IMAGE:-([^}]+)\}/);
     expect(match?.[1]).toBe(`${config.images.agentServer}:latest-python`);
+  });
+});
+
+describe("gen-acp-docker-env.mjs is safe to import", () => {
+  // The module exports helpers (imported above, and by future consumers), so
+  // importing it must not run main(). The entrypoint guard compares
+  // import.meta.url against process.argv[1] — but argv[1] is undefined in some
+  // ESM contexts (e.g. `node --input-type=module -e "import(...)"`), and an
+  // unguarded pathToFileURL(argv[1]) throws ERR_INVALID_ARG_TYPE at import,
+  // before any export is reachable. Reproduces that exact context.
+  const scriptPath = path.join(repoRoot, "scripts", "gen-acp-docker-env.mjs");
+
+  it("imports without throwing when process.argv[1] is undefined", () => {
+    const url = pathToFileURL(scriptPath).href;
+    const res = spawnSync(
+      process.execPath,
+      ["--input-type=module", "-e", `import(${JSON.stringify(url)})`],
+      { encoding: "utf-8" },
+    );
+    expect(res.stderr).not.toMatch(/ERR_INVALID_ARG_TYPE/);
+    expect(res.status).toBe(0);
   });
 });
 
