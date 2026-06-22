@@ -20,12 +20,6 @@ export const OSS_NAV_ITEMS: SettingsNavItem[] = [
     subtitle: "SETTINGS$PAGE_AGENT_SUBLINE",
   },
   {
-    icon: <RobotIcon width={16} height={16} />,
-    to: "/settings/agents",
-    text: "SETTINGS$NAV_AGENT_PROFILES",
-    subtitle: "SETTINGS$PAGE_AGENT_PROFILES_SUBLINE",
-  },
-  {
     icon: <CircuitIcon width={16} height={16} />,
     to: "/settings/llm",
     text: "SETTINGS$NAV_LLM",

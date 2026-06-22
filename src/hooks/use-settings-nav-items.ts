@@ -22,26 +22,40 @@ export function useSettingsNavItems(): SettingsNavRenderedItem[] {
   // The per-profile AgentProfile editor (#3726) replaces the global ACP nav
   // lockout: every Settings page is now configurable regardless of agent kind,
   // so there is no longer an ACP-driven disable/redirect.
+  const isLocal = backend.kind === "local";
+
   return OSS_NAV_ITEMS.filter(
     (item) => !isSettingsPageHidden(item.to, featureFlags),
   ).map((item) => {
     // Local backends present "LLM Profiles" as the section name + subtitle for
     // the LLM entry; cloud backends keep the canonical "LLM".
-    const renamedItem =
-      item.to === "/settings/llm"
-        ? {
-            ...item,
-            text:
-              backend.kind === "local"
-                ? I18nKey.SETTINGS$LLM_PROFILES
-                : item.text,
-            subtitle:
-              backend.kind === "local"
-                ? I18nKey.SETTINGS$PAGE_LLM_PROFILES_SUBLINE
-                : item.subtitle,
-          }
-        : item;
+    if (item.to === "/settings/llm" && isLocal) {
+      return {
+        type: "item",
+        item: {
+          ...item,
+          text: I18nKey.SETTINGS$LLM_PROFILES,
+          subtitle: I18nKey.SETTINGS$PAGE_LLM_PROFILES_SUBLINE,
+        },
+      };
+    }
 
-    return { type: "item", item: renamedItem };
+    // On local the single "Agent" tab IS the AgentProfile library: conversations
+    // launch from the active profile (#3727), so the legacy global agent-settings
+    // page (`/settings/agent`) is superseded and dropped from the nav (still
+    // reachable by direct URL). Cloud has no AgentProfile surface yet (#3730),
+    // so it keeps the legacy page.
+    if (item.to === "/settings/agent" && isLocal) {
+      return {
+        type: "item",
+        item: {
+          ...item,
+          to: "/settings/agents",
+          subtitle: I18nKey.SETTINGS$PAGE_AGENT_PROFILES_SUBLINE,
+        },
+      };
+    }
+
+    return { type: "item", item };
   });
 }

@@ -69,9 +69,7 @@ describe("useSettingsNavItems", () => {
       (item) => item.type === "item" && item.item.to === "/settings/llm",
     );
 
-    const baseLlm = OSS_NAV_ITEMS.find(
-      (item) => item.to === "/settings/llm",
-    )!;
+    const baseLlm = OSS_NAV_ITEMS.find((item) => item.to === "/settings/llm")!;
     // The previously-dead `/settings` vs `/settings/llm` compare is fixed, so
     // local backends now surface the profile-management framing.
     expect(llmItem).toEqual({
@@ -151,5 +149,46 @@ describe("useSettingsNavItems", () => {
         expect(rendered.disabled).toBeFalsy();
       }
     }
+  });
+
+  it("points the single Agent tab at the AgentProfile library on local backends", () => {
+    useConfigMock.mockReturnValue({ data: createConfig() });
+
+    const { result } = renderHook(() => useSettingsNavItems());
+    const paths = result.current
+      .filter((i) => i.type === "item")
+      .map((i) => (i.type === "item" ? i.item.to : null));
+
+    // One Agent tab → the library; the legacy global page is dropped from the nav.
+    expect(paths).toContain("/settings/agents");
+    expect(paths).not.toContain("/settings/agent");
+
+    const agent = result.current.find(
+      (i) => i.type === "item" && i.item.to === "/settings/agents",
+    );
+    expect(agent?.type).toBe("item");
+    if (agent?.type === "item") {
+      expect(agent.item.text).toBe(I18nKey.SETTINGS$NAV_AGENT);
+      expect(agent.item.subtitle).toBe(
+        I18nKey.SETTINGS$PAGE_AGENT_PROFILES_SUBLINE,
+      );
+    }
+  });
+
+  it("keeps the legacy global Agent page in the nav on cloud backends", () => {
+    useConfigMock.mockReturnValue({ data: createConfig() });
+    useActiveBackendMock.mockReturnValue({
+      backend: { kind: "cloud" },
+      orgId: "org-123",
+    });
+
+    const { result } = renderHook(() => useSettingsNavItems());
+    const paths = result.current
+      .filter((i) => i.type === "item")
+      .map((i) => (i.type === "item" ? i.item.to : null));
+
+    // Cloud has no AgentProfile surface yet (#3730), so it keeps the legacy page.
+    expect(paths).toContain("/settings/agent");
+    expect(paths).not.toContain("/settings/agents");
   });
 });
