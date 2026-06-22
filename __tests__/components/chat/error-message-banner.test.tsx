@@ -63,4 +63,52 @@ describe("ErrorMessageBanner", () => {
     await user.click(toggle);
     expect(toggle).toHaveTextContent("COMMON$VIEW_LESS");
   });
+
+  it("renders a code-specific header for a known ACP error code", () => {
+    render(
+      <ErrorMessageBanner
+        message="[-32603] Internal error: 401 invalid x-api-key"
+        code="ACPAuthRequired"
+      />,
+    );
+
+    const header = screen.getByTestId("error-message-banner-header");
+    expect(header).toHaveTextContent("ERROR$ACP_AUTH_REQUIRED_TITLE");
+    // The detail is still shown verbatim below the header.
+    expect(screen.getByTestId("error-message-banner-content")).toHaveTextContent(
+      "invalid x-api-key",
+    );
+  });
+
+  it("renders no header for an unknown or absent code", () => {
+    render(<ErrorMessageBanner message="boom" code={null} />);
+    expect(
+      screen.queryByTestId("error-message-banner-header"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a re-auth action and calls onReauth when provided", async () => {
+    const user = userEvent.setup();
+    const onReauth = vi.fn();
+
+    render(
+      <ErrorMessageBanner
+        message="Authentication failed"
+        code="ACPAuthRequired"
+        onReauth={onReauth}
+      />,
+    );
+
+    const reauth = screen.getByTestId("error-message-banner-reauth");
+    expect(reauth).toHaveTextContent("ERROR$ACP_UPDATE_CREDENTIALS");
+    await user.click(reauth);
+    expect(onReauth).toHaveBeenCalledTimes(1);
+  });
+
+  it("omits the re-auth action when onReauth is not provided", () => {
+    render(<ErrorMessageBanner message="boom" code="ACPPromptError" />);
+    expect(
+      screen.queryByTestId("error-message-banner-reauth"),
+    ).not.toBeInTheDocument();
+  });
 });

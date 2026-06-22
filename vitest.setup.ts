@@ -76,7 +76,15 @@ if (typeof ProgressEvent === "undefined") {
     }
   }
 
-  vi.stubGlobal("ProgressEvent", MockProgressEvent);
+  // MSW's XMLHttpRequest interceptor may dispatch progress events while
+  // Vitest is tearing down globals between files. Keep this process-level
+  // fallback outside `vi.stubGlobal()` so `vi.unstubAllGlobals()` does not
+  // remove it before late interceptor callbacks settle.
+  Object.defineProperty(globalThis, "ProgressEvent", {
+    configurable: true,
+    writable: true,
+    value: MockProgressEvent,
+  });
 }
 
 // Mock ResizeObserver for test environment

@@ -317,10 +317,10 @@ export function toAppConversation(
     pr_number: [],
     agent_kind: isAcp ? "acp" : "openhands",
     acp_server: acpServer,
-    // Chip path: no ``providerDefault`` — the chip must distinguish
-    // "no concrete model" (fall back to the provider display name in
-    // ConversationCardFooter) from "default" (would lie about what's
-    // running on the subprocess).
+    // Chip path: omit ``providerDefault`` so that when no concrete model
+    // resolves, the chip falls back to the provider display name in
+    // ConversationCardFooter rather than a registry default the session may
+    // not actually be running.
     llm_model: isAcp
       ? resolveEffectiveAcpModel({
           runtimeName: info.current_model_name,
@@ -409,6 +409,8 @@ type ConversationSettingsPayload = SettingsRecord & {
 
 export const ACP_SERVER_TAG_KEY = "acpserver";
 
+const FERNET_TOKEN_PREFIX = "gAAAAA";
+
 const CONVERSATION_SETTINGS_METADATA_KEYS = new Set([
   "schema_version",
   "agent_settings",
@@ -433,6 +435,28 @@ function normalizeSecretString(value: unknown): string | undefined {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function hasEncryptedMcpSecrets(mcpConfig: unknown): boolean {
+  if (!isPlainRecord(mcpConfig) || !isPlainRecord(mcpConfig.mcpServers)) {
+    return false;
+  }
+
+  return Object.values(mcpConfig.mcpServers).some((server) => {
+    if (!isPlainRecord(server)) return false;
+    return ["env", "headers"].some((key) => {
+      const values = server[key];
+      if (!isPlainRecord(values)) return false;
+      return Object.values(values).some(
+        (value) =>
+          typeof value === "string" && value.startsWith(FERNET_TOKEN_PREFIX),
+      );
+    });
+  });
 }
 
 function getConversationConfirmationPolicy(
@@ -900,14 +924,16 @@ export function buildStartConversationRequest(
     payload.tags = { [ACP_SERVER_TAG_KEY]: acpServerTag };
   }
 
-  // ``secrets_encrypted`` makes the agent-server run every request secret through
-  // ``cipher.decrypt()`` at conversation start. Suppress it for ACP: an ACP agent
-  // carries no encrypted payload (no LLM api_key, and credentials ride as
-  // LookupSecrets whose values are fetched at resolution time, not decrypted), so
-  // there is nothing to decrypt. Claiming otherwise hard-fails ("cipher not
-  // configured") on a backend without ``OH_SECRET_KEY`` (e.g. a fresh ACP
-  // container). Non-ACP conversations still need it for their encrypted LLM key.
-  if (options.secretsEncrypted && !acpMode) {
+  // ``secrets_encrypted`` makes the agent-server decrypt request secrets at
+  // conversation start. Non-ACP conversations need it for encrypted LLM keys.
+  // ACP normally carries provider credentials as LookupSecrets, so avoid
+  // forcing a cipher on fresh ACP-only backends. The exception is MCP:
+  // encrypted settings round-trip mcp_config.env/headers as Fernet tokens,
+  // and ACP forwards that mcp_config directly to the subprocess.
+  if (
+    options.secretsEncrypted &&
+    (!acpMode || hasEncryptedMcpSecrets(agentSettings.mcp_config))
+  ) {
     payload.secrets_encrypted = true;
   }
 
