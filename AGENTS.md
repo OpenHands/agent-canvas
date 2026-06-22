@@ -235,6 +235,27 @@ npm run test:e2e:mock-llm -- --headed        # watch in browser
 npm run test:e2e:mock-llm -- -g "test name"  # run single test by name
 ```
 
+## Testing Rules
+
+<TESTING_RULES>
+Create TDD tests for your changes. Focus on user behavior and follow TDD best practices, including:
+
+- AAA structure (Arrange, Act, Assert)
+- Clear test focus
+- Proper test data management
+
+Before writing any test:
+
+- Avoid duplicating test cases or logic
+- Do not assert the same condition more than once
+- Do not mock the hook. Instead, mock the underlying service that the hook depends on
+- Prefer adding to or extending existing test files whenever possible. Create new test files only if no suitable ones exist
+- Do not include any tests that verify CSS, styling, or visual presentation. Focus only on functional behavior and logic
+- Keep the number of test cases to the minimum necessary while still fully covering the intended changes and behaviors
+
+Ensure each test is meaningful, concise, and covers a unique aspect of user interaction.
+</TESTING_RULES>
+
 ## Additional Notes
 
 - **Published binary auth fix**: When users install the npm package globally (`npm install -g @openhands/agent-canvas`) and run `agent-canvas`, the pre-built static frontend has NO `VITE_SESSION_API_KEY` baked in (npm publish runs `npm run build` with no such env var). The runtime session key is generated when the CLI launches and reaches the frontend via `scripts/static-server.mjs --session-api-key <key>`, which injects a `<head>` script that does two things: (a) sets `window.__AGENT_CANVAS_SESSION_API_KEY__ = <key>` — read by `getBakedSessionApiKey()` in `src/api/agent-server-config.ts` as a fallback when the env var is empty, symmetric with `__AGENT_CANVAS_AUTH_REQUIRED__` / `isAuthRequired()`; (b) writes the same key into `localStorage['openhands-agent-server-config'].sessionApiKey`, always overwriting when the value differs, so any code path that still reads the legacy storage key (e.g. e2e fixtures) sees the live key. The window-global path is the load-bearing one — without it, `makeDefaultLocalBackend()` returns null on a fresh install, the backend registry seeds empty, and `root.tsx` traps the user behind the Manage Backends modal instead of onboarding. `scripts/dev-with-automation.mjs` and `scripts/dev-static.mjs` both pass `--session-api-key ${config.sessionApiKey}` when starting the static server.

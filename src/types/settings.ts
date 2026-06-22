@@ -18,6 +18,7 @@ export type MCPSSEServer = {
   name?: string;
   url: string;
   api_key?: string;
+  headers?: Record<string, string>;
 };
 
 export type MCPStdioServer = {
@@ -31,6 +32,7 @@ export type MCPSHTTPServer = {
   name?: string;
   url: string;
   api_key?: string;
+  headers?: Record<string, string>;
   timeout?: number;
 };
 

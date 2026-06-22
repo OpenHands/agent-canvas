@@ -13,6 +13,7 @@ export interface MCPServerConfig {
   name?: string;
   url?: string;
   api_key?: string;
+  headers?: Record<string, string>;
   timeout?: number;
   command?: string;
   args?: string[];

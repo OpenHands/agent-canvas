@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import i18n from "i18next";
@@ -18,6 +18,7 @@ import React from "react";
 import { renderWithProviders } from "test-utils";
 import { ConversationPanel } from "#/components/features/conversation-panel/conversation-panel";
 import { useConversationPanelPreferencesStore } from "#/stores/conversation-panel-preferences-store";
+import { usePinnedConversationsStore } from "#/stores/pinned-conversations-store";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { ExecutionStatus } from "#/types/agent-server/core";
@@ -109,6 +110,8 @@ describe("ConversationPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockStopConversationMutate.mockClear();
+    _mockConversationCounter = 0;
+    usePinnedConversationsStore.setState({ pinsByBackendId: {} });
     // Setup default mock for searchConversations
     vi.spyOn(
       AgentServerConversationService,
@@ -1718,5 +1721,183 @@ describe("ConversationPanel", () => {
         ).not.toBeInTheDocument();
       });
     });
+  });
+
+  it("reorders grouped folders via drag and drop", async () => {
+    useConversationPanelPreferencesStore.setState({
+      organizeMode: "grouped",
+      groupFolderOrder: [],
+    });
+
+    vi.spyOn(
+      AgentServerConversationService,
+      "searchConversations",
+    ).mockResolvedValue({
+      items: [
+        createMockConversation({
+          id: "alpha-chat",
+          title: "Alpha Chat",
+          selected_workspace: "/workspace/alpha",
+        }),
+        createMockConversation({
+          id: "beta-chat",
+          title: "Beta Chat",
+          selected_workspace: "/workspace/beta",
+        }),
+      ],
+      next_page_id: null,
+    });
+
+    renderConversationPanel();
+
+    const alphaFolder = await screen.findByTestId(
+      "thread-folder-ws--workspace-alpha",
+    );
+    const betaFolder = screen.getByTestId("thread-folder-ws--workspace-beta");
+    expect(alphaFolder.compareDocumentPosition(betaFolder)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+
+    const dragHandle = screen.getByTestId(
+      "thread-folder-drag-ws--workspace-alpha",
+    );
+    const dataTransfer = {
+      effectAllowed: "move",
+      dropEffect: "move",
+      data: {} as Record<string, string>,
+      setData(format: string, value: string) {
+        this.data[format] = value;
+      },
+      getData(format: string) {
+        return this.data[format];
+      },
+    };
+    fireEvent.dragStart(dragHandle, { dataTransfer });
+    fireEvent.dragOver(betaFolder, { dataTransfer });
+    fireEvent.drop(betaFolder, { dataTransfer });
+
+    const reorderedAlpha = screen.getByTestId(
+      "thread-folder-ws--workspace-alpha",
+    );
+    const reorderedBeta = screen.getByTestId("thread-folder-ws--workspace-beta");
+    expect(reorderedBeta.compareDocumentPosition(reorderedAlpha)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(
+      useConversationPanelPreferencesStore.getState().groupFolderOrder,
+    ).toEqual(["ws:/workspace/beta", "ws:/workspace/alpha"]);
+  });
+
+  it("shows a pinned section above the conversations list when pins exist", async () => {
+    usePinnedConversationsStore
+      .getState()
+      .pinConversation("default-local", "2");
+
+    renderConversationPanel();
+
+    const pinnedSection = await screen.findByTestId(
+      "conversation-panel-pinned-section",
+    );
+    expect(
+      within(pinnedSection).getByText("CONVERSATION_PANEL$PINNED"),
+    ).toBeInTheDocument();
+    expect(
+      within(pinnedSection).getAllByTestId("conversation-card"),
+    ).toHaveLength(1);
+    expect(
+      within(pinnedSection).getByTestId("conversation-pin-toggle-2"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders pinned conversations only in the pinned section in chronological mode", async () => {
+    usePinnedConversationsStore
+      .getState()
+      .pinConversation("default-local", "2");
+
+    renderConversationPanel();
+
+    const pinnedSection = await screen.findByTestId(
+      "conversation-panel-pinned-section",
+    );
+    expect(within(pinnedSection).getAllByTestId("conversation-card")).toHaveLength(
+      1,
+    );
+    expect(await screen.findAllByTestId("conversation-card")).toHaveLength(3);
+    expect(screen.getAllByText("Conversation 2")).toHaveLength(1);
+  });
+
+  it("renders pinned conversations only in the pinned section in grouped mode", async () => {
+    useConversationPanelPreferencesStore.setState({ organizeMode: "grouped" });
+    usePinnedConversationsStore
+      .getState()
+      .pinConversation("default-local", "2");
+
+    renderConversationPanel();
+
+    const pinnedSection = await screen.findByTestId(
+      "conversation-panel-pinned-section",
+    );
+    expect(within(pinnedSection).getAllByTestId("conversation-card")).toHaveLength(
+      1,
+    );
+    expect(await screen.findAllByTestId("conversation-card")).toHaveLength(3);
+    expect(screen.getAllByText("Conversation 2")).toHaveLength(1);
+  });
+
+  it("hides the pinned section after the last pin is removed", async () => {
+    usePinnedConversationsStore
+      .getState()
+      .pinConversation("default-local", "2");
+
+    const user = userEvent.setup();
+    renderConversationPanel();
+
+    const pinnedSection = await screen.findByTestId(
+      "conversation-panel-pinned-section",
+    );
+    const pinnedCard = within(pinnedSection).getByTestId("conversation-card");
+    await user.hover(pinnedCard);
+    await user.click(
+      within(pinnedSection).getByTestId("conversation-pin-toggle-2"),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("conversation-panel-pinned-section"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("shows only five pinned conversations before a More control", async () => {
+    const manyConversations = Array.from({ length: 6 }, (_, index) =>
+      createMockConversation({
+        id: String(index + 1),
+        title: `Conversation ${index + 1}`,
+      }),
+    );
+    vi.spyOn(
+      AgentServerConversationService,
+      "searchConversations",
+    ).mockResolvedValue({
+      items: manyConversations,
+      next_page_id: null,
+    });
+    for (const conversation of manyConversations) {
+      usePinnedConversationsStore
+        .getState()
+        .pinConversation("default-local", conversation.id);
+    }
+
+    renderConversationPanel();
+
+    const pinnedSection = await screen.findByTestId(
+      "conversation-panel-pinned-section",
+    );
+    expect(
+      within(pinnedSection).getAllByTestId("conversation-card"),
+    ).toHaveLength(5);
+    expect(
+      within(pinnedSection).getByTestId("conversation-panel-pinned-view-more"),
+    ).toHaveTextContent("CONVERSATION_PANEL$MORE");
   });
 });
