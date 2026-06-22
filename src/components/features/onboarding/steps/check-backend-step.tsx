@@ -7,6 +7,7 @@ import {
   getAgentServerFormDefaults,
   getLockedCloudHost,
   isAuthRequired,
+  isSameCloudHost,
 } from "#/api/agent-server-config";
 import { DEFAULT_LOCAL_BACKEND_NAME } from "#/api/backend-registry/default-backend";
 import {
@@ -106,8 +107,25 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
   const { active, addBackend, updateBackend } = useActiveBackendContext();
   const { backend } = active;
   const noBackendSelected = isNoBackend(backend);
+  const lockedCloudHost = getLockedCloudHost();
+
+  // In locked-Cloud mode, a reachable backend that is NOT the locked
+  // Cloud host (e.g. a stale Local backend from localStorage) must be
+  // forced through Cloud login replacement. Treat it as if no backend
+  // were selected for render purposes so the Cloud login UI shows and
+  // the connected-backend "Next" shortcut is suppressed. The real
+  // `noBackendSelected` still controls whether handleConnected calls
+  // `addBackend` or `updateBackend`, so the stale backend gets replaced.
+  const lockedCloudHostMismatch =
+    lockedCloudHost !== null &&
+    !noBackendSelected &&
+    !(
+      backend.kind === "cloud" && isSameCloudHost(backend.host, lockedCloudHost)
+    );
+  const treatAsNoBackend = noBackendSelected || lockedCloudHostMismatch;
+
   const defaults = React.useMemo(() => getAgentServerFormDefaults(), []);
-  const backendForForm = noBackendSelected
+  const backendForForm = treatAsNoBackend
     ? {
         id: "onboarding-local-backend-draft",
         name: DEFAULT_LOCAL_BACKEND_NAME,
@@ -119,10 +137,10 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
   const healthByBackendId = useBackendsHealth(
     noBackendSelected ? [] : [backend],
   );
-  const isConnected = noBackendSelected
+  const isConnected = treatAsNoBackend
     ? null
     : (healthByBackendId[backend.id]?.isConnected ?? null);
-  const lastError = noBackendSelected
+  const lastError = treatAsNoBackend
     ? null
     : (healthByBackendId[backend.id]?.lastError ?? null);
   const [configurationOpen, setConfigurationOpen] = React.useState(false);
@@ -134,7 +152,6 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
   }, [isConnected]);
 
   const hideConfigurationFields = isConnected === true && !configurationOpen;
-  const lockedCloudHost = getLockedCloudHost();
 
   const handleConnected = React.useCallback(
     (payload: BackendFormSubmitPayload) => {
@@ -152,7 +169,7 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
     "sticky bottom-0 mt-2 flex items-center gap-2 bg-base-secondary pt-4 pb-7",
     onBack ? "justify-between" : "justify-end",
   );
-  const titleKey = noBackendSelected
+  const titleKey = treatAsNoBackend
     ? lockedCloudHost
       ? I18nKey.ONBOARDING$LOGIN_TO_CLOUD_TITLE
       : I18nKey.BACKEND$ADD_TITLE
@@ -165,7 +182,7 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
     >
       <header className="flex flex-col gap-2">
         <h2 className="text-2xl font-medium text-white">{t(titleKey)}</h2>
-        {noBackendSelected ? null : (
+        {treatAsNoBackend ? null : (
           <p
             data-testid="onboarding-backend-subtitle"
             className="text-sm text-[var(--oh-muted)]"
@@ -175,7 +192,7 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
         )}
       </header>
 
-      {noBackendSelected ? null : (
+      {treatAsNoBackend ? null : (
         <ConnectionBanner
           backend={backendForForm}
           isConnected={isConnected}

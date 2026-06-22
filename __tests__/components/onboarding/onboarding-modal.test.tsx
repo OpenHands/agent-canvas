@@ -416,6 +416,28 @@ describe("OnboardingModal", () => {
       "aria-valuemax",
       "4",
     );
+    // The locked Cloud login UI must be presented for replacement, and
+    // the connected-backend "Next" shortcut (which would let the user
+    // advance with the stale Local backend still active) must NOT be
+    // offered. Keeping the slide mounted is not enough on its own.
+    expect(
+      screen.getByText("ONBOARDING$LOGIN_TO_CLOUD_TITLE"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("onboarding-backend-cloud-title"),
+    ).toBeVisible();
+    expect(
+      screen.getByTestId("onboarding-backend-login-button"),
+    ).toBeVisible();
+    expect(
+      screen.queryByTestId("onboarding-backend-show-configuration"),
+    ).toBeNull();
+    expect(screen.queryByTestId("onboarding-backend-next")).toBeNull();
+    // The misleading "Connected" banner for the stale backend should
+    // not render either; the user is being told to log into Cloud.
+    expect(
+      screen.queryByTestId("onboarding-backend-subtitle"),
+    ).toBeNull();
   });
 
   it("keeps the backend step visible for a reachable Cloud backend on a different host in locked-to-Cloud mode", async () => {
