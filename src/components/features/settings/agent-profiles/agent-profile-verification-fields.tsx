@@ -81,7 +81,8 @@ export function AgentProfileVerificationFields({
             value={String(value.critic_threshold)}
             onChange={(raw) => {
               const num = Number(raw);
-              if (!Number.isNaN(num)) patch({ critic_threshold: num });
+              if (!Number.isNaN(num))
+                patch({ critic_threshold: Math.min(1, Math.max(0, num)) });
             }}
           />
 
@@ -109,7 +110,9 @@ export function AgentProfileVerificationFields({
               onChange={(raw) => {
                 const num = Number(raw);
                 if (!Number.isNaN(num))
-                  patch({ max_refinement_iterations: num });
+                  patch({
+                    max_refinement_iterations: Math.max(1, Math.floor(num)),
+                  });
               }}
             />
           )}

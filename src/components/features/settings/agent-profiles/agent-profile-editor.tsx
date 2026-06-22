@@ -256,7 +256,8 @@ export function AgentProfileEditor({
         acp_server: acpServer,
         acp_model: acpModel.trim() || null,
         acp_session_mode: sessionMode.trim() ? sessionMode.trim() : null,
-        acp_prompt_timeout: Number.isFinite(timeout) ? timeout : 300,
+        acp_prompt_timeout:
+          Number.isFinite(timeout) && timeout > 0 ? timeout : 300,
         acp_command: explicit ? (commandTokens[0] ?? null) : null,
         acp_args: explicit ? commandTokens.slice(1) : null,
         mcp_server_refs: mcpServerRefs,
@@ -272,7 +273,9 @@ export function AgentProfileEditor({
       enable_sub_agents: enableSubAgents,
       system_message_suffix: systemSuffix.trim() ? systemSuffix : null,
       tool_concurrency_limit:
-        Number.isFinite(concurrency) && concurrency > 0 ? concurrency : 1,
+        Number.isFinite(concurrency) && concurrency >= 1
+          ? Math.floor(concurrency)
+          : 1,
       // On edit, round-trip the loaded verification block; on create only send
       // it once the user enables the critic, otherwise let the server seed its
       // own default (avoids pinning a possibly-stale default critic_mode).
@@ -296,11 +299,8 @@ export function AgentProfileEditor({
           ? t(I18nKey.SETTINGS$AGENT_PROFILE_NAME_EXISTS)
           : t(I18nKey.SETTINGS$AGENT_PROFILE_LIMIT_REACHED),
       );
-    } else if (isSdkHttpStatusError(error, 422)) {
-      displayErrorToast(
-        error instanceof Error ? error.message : t(I18nKey.ERROR$GENERIC),
-      );
     } else {
+      // 422 (validation) and everything else: surface the server message.
       displayErrorToast(
         error instanceof Error ? error.message : t(I18nKey.ERROR$GENERIC),
       );
@@ -319,19 +319,22 @@ export function AgentProfileEditor({
         acpCredentialForm.reset();
       }
 
-      // Rename first if the name changed, then overwrite under the new name
-      // (the stable id is preserved across both).
+      // Save the body first (under its current name), then rename — so a
+      // validation failure can't leave a half-applied edit (renamed but with
+      // the old body). The stable id is preserved by both the overwrite and
+      // the rename.
+      const saveName = mode === "edit" && profile ? profile.name : trimmedName;
+      await saveProfile.mutateAsync({
+        name: saveName,
+        profile: buildPayload(),
+      });
+
       if (mode === "edit" && profile && profile.name !== trimmedName) {
         await renameProfile.mutateAsync({
           name: profile.name,
           newName: trimmedName,
         });
       }
-
-      await saveProfile.mutateAsync({
-        name: trimmedName,
-        profile: buildPayload(),
-      });
 
       displaySuccessToast(
         mode === "create"
