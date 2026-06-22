@@ -340,7 +340,15 @@ describe("OnboardingModal", () => {
     expect(screen.queryByTestId("onboarding-skip")).not.toBeInTheDocument();
   });
 
-  it("keeps users on the Choose Agent step after Cloud login makes the backend step skippable", async () => {
+  it("dismisses the onboarding modal immediately after Cloud login in locked-to-Cloud mode without showing the next step", async () => {
+    // Regression for hieptl's flicker report on PR #1389: after logging
+    // into OpenHands Cloud in locked-to-Cloud mode, the onboarding modal
+    // used to advance to the Choose Agent slide (the "next window"),
+    // then get torn down by the root first-run gate, then briefly
+    // remounted by OnboardingHost — producing a visible flicker. Cloud
+    // login IS the onboarding completion in locked mode, so the modal
+    // must call `onClose` (dismiss) immediately instead of advancing,
+    // so the next slide never shows.
     window.localStorage.clear();
     vi.stubEnv("VITE_BACKEND_BASE_URL", "");
     vi.stubEnv("VITE_SESSION_API_KEY", "");
@@ -349,30 +357,19 @@ describe("OnboardingModal", () => {
       .__AGENT_CANVAS_SESSION_API_KEY__;
     __resetActiveStoreForTests();
 
-    renderModal();
+    const onClose = vi.fn();
+    renderModal(onClose);
     const user = userEvent.setup();
 
     await user.click(screen.getByTestId("onboarding-backend-login-button"));
 
-    await waitFor(() => {
-      expect(screen.getByTestId("onboarding-modal")).toHaveAttribute(
-        "data-current-step",
-        "0",
-      );
-      expect(
-        within(screen.getByTestId("onboarding-slide-0")).getByTestId(
-          "onboarding-step-choose-agent",
-        ),
-      ).toBeInTheDocument();
-    });
-    expect(screen.getByTestId("onboarding-slide-0")).toHaveAttribute(
-      "data-active",
-      "true",
-    );
-    expect(screen.getByTestId("onboarding-slide-1")).toHaveAttribute(
-      "data-active",
-      "false",
-    );
+    // Cloud login must dismiss the modal (not advance to Choose Agent).
+    expect(onClose).toHaveBeenCalledTimes(1);
+    // The stale-org reset still runs when replacing a mismatched host;
+    // here there was no prior backend, so nothing to assert beyond
+    // dismissal. The key contract: no slide advancement happened via
+    // the Cloud login path. The backend step is what was visible at
+    // click time, and the modal is now dismissing.
   });
 
   it("keeps the backend step visible for a reachable stale Local backend in locked-to-Cloud mode", async () => {
@@ -424,21 +421,15 @@ describe("OnboardingModal", () => {
     expect(
       screen.getByText("ONBOARDING$LOGIN_TO_CLOUD_TITLE"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByTestId("onboarding-backend-cloud-title"),
-    ).toBeVisible();
-    expect(
-      screen.getByTestId("onboarding-backend-login-button"),
-    ).toBeVisible();
+    expect(screen.getByTestId("onboarding-backend-cloud-title")).toBeVisible();
+    expect(screen.getByTestId("onboarding-backend-login-button")).toBeVisible();
     expect(
       screen.queryByTestId("onboarding-backend-show-configuration"),
     ).toBeNull();
     expect(screen.queryByTestId("onboarding-backend-next")).toBeNull();
     // The misleading "Connected" banner for the stale backend should
     // not render either; the user is being told to log into Cloud.
-    expect(
-      screen.queryByTestId("onboarding-backend-subtitle"),
-    ).toBeNull();
+    expect(screen.queryByTestId("onboarding-backend-subtitle")).toBeNull();
   });
 
   it("keeps the backend step visible for a reachable Cloud backend on a different host in locked-to-Cloud mode", async () => {

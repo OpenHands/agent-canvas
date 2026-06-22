@@ -532,6 +532,69 @@ describe("App root agent-server availability guard", () => {
       window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
     ).toBeNull();
   });
+
+  it("hides first-run onboarding immediately after Cloud login completes in locked-to-Cloud mode (no flicker)", async () => {
+    // Regression for hieptl's flicker report on PR #1389: after Cloud
+    // login succeeds in locked-to-Cloud mode, the onboarding modal's
+    // onClose marks onboarding complete. The root first-run gate must
+    // honor that completion IMMEDIATELY — without waiting for the Cloud
+    // settings probe to confirm a configured LLM — so the first-run
+    // screen disappears and the routed app renders, rather than the
+    // modal flickering back via OnboardingHost. This test simulates the
+    // post-login state (active locked Cloud backend + completion flag
+    // set by the modal's onClose) with the Cloud settings probe
+    // reporting NO configured LLM, which is exactly the window where
+    // the old gate (`!isActiveLockedCloudBackend || !backendLlmReady`)
+    // kept the first-run screen mounted and caused the reopen.
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_SESSION_API_KEY__;
+    const lockedCloud = {
+      id: "locked-cloud",
+      name: "OpenHands Cloud",
+      host: "https://app.all-hands.dev",
+      apiKey: "cloud-session-key",
+      kind: "cloud",
+    };
+    window.localStorage.setItem(
+      "openhands-backends",
+      JSON.stringify([lockedCloud]),
+    );
+    window.localStorage.setItem(
+      "openhands-active-backend",
+      JSON.stringify({ backendId: lockedCloud.id, orgId: null }),
+    );
+    // The onboarding modal's onClose (markCompleted) sets this right
+    // after Cloud login succeeds — before the Cloud settings probe
+    // resolves. Seed it to reproduce the post-login moment.
+    window.localStorage.setItem(ONBOARDING_COMPLETED_STORAGE_KEY, "1");
+    __resetActiveStoreForTests();
+    // Cloud settings probe reports no configured LLM. This is the
+    // critical condition: the old gate treated `!backendLlmReady` as
+    // "keep showing first-run onboarding" even though the user had
+    // just finished Cloud login, so the modal reappeared.
+    server.use(
+      http.get("https://app.all-hands.dev/api/v1/settings", () =>
+        HttpResponse.json({ llm_api_key_set: false }),
+      ),
+      http.get("https://app.all-hands.dev/api/keys/current", () =>
+        HttpResponse.json({ org_id: "org-1" }),
+      ),
+    );
+
+    renderApp(["/"]);
+
+    // The first-run onboarding screen must NOT be mounted (no reopen),
+    // and the routed app must render instead.
+    await waitFor(() => {
+      expect(screen.getByTestId("app-outlet")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("first-run-onboarding-screen"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("onboarding-modal")).not.toBeInTheDocument();
+  });
 });
 
 describe("App root document links", () => {

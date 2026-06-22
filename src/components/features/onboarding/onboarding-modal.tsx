@@ -232,7 +232,7 @@ export function OnboardingModal({
                   index={slideOrder.indexOf("backend")}
                   currentStep={currentStep}
                 >
-                  <CheckBackendStep onNext={goNext} />
+                  <CheckBackendStep onNext={goNext} onClose={onClose} />
                 </Slide>
               )}
               <Slide

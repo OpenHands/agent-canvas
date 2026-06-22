@@ -239,8 +239,19 @@ export default function App() {
   // host) that happens to report a configured LLM must NOT bypass the Cloud
   // login/replacement flow — otherwise the user continues as Local despite
   // `VITE_LOCK_TO_CLOUD`.
+  //
+  // Once the active backend IS the locked Cloud host, a Cloud login that
+  // just succeeded (markCompleted fired via the onboarding modal's onClose)
+  // must hide first-run onboarding immediately — without waiting for the
+  // Cloud settings probe to confirm a configured LLM. Waiting caused the
+  // PR #1389 flicker: the modal advanced to Choose Agent, then the root
+  // gate tore it down, then OnboardingHost remounted it. Treating
+  // `onboardingCompleted` as authoritative once the locked Cloud backend is
+  // active suppresses the reopen. (The flag is only honored when the active
+  // backend really is the locked Cloud host, so the stale-flag bypass
+  // concerns above don't apply here.)
   const shouldShowFirstRunOnboarding = isLockedToCloud
-    ? !isActiveLockedCloudBackend || !backendLlmReady
+    ? !isActiveLockedCloudBackend || (!backendLlmReady && !onboardingCompleted)
     : authMissing && !onboardingCompleted && !backendLlmReady;
   const [showFirstRunOnboarding, setShowFirstRunOnboarding] = React.useState(
     () => shouldShowFirstRunOnboarding,
