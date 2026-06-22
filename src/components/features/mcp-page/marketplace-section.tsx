@@ -7,7 +7,6 @@ import {
 import {
   getMarketplaceEntriesByPopularity,
   getMcpMarketplaceCatalog,
-  isMarketplaceEntryAvailable,
   marketplaceEntryMatchesQuery,
 } from "#/utils/mcp-marketplace-utils";
 import { MarketplaceCard } from "./marketplace-card";
@@ -25,7 +24,7 @@ interface MarketplaceSectionProps {
 }
 
 export function MarketplaceSection({
-  backendKind,
+  backendKind: _backendKind,
   onSelect,
   onAdd,
   query = "",
@@ -34,11 +33,7 @@ export function MarketplaceSection({
 
   const visibleEntries = getMarketplaceEntriesByPopularity(
     getMcpMarketplaceCatalog(MCP_MARKETPLACE),
-  ).filter(
-    (entry) =>
-      isMarketplaceEntryAvailable(entry, backendKind) &&
-      marketplaceEntryMatchesQuery(entry, query),
-  );
+  ).filter((entry) => marketplaceEntryMatchesQuery(entry, query));
 
   return (
     <section

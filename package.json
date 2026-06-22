@@ -23,7 +23,7 @@
     "@heroui/react": "2.8.10",
     "@microlink/react-json-view": "1.31.20",
     "@monaco-editor/react": "4.7.0",
-    "@openhands/extensions": "https://github.com/OpenHands/extensions/archive/1f7c1e5b785ac33f5dcb78de9975fe6b3811fc85.tar.gz",
+    "@openhands/extensions": "https://github.com/OpenHands/extensions/archive/57c7f721516e21055e3199e455984f231b7c4326.tar.gz",
     "@openhands/typescript-client": "1.25.0",
     "@react-router/node": "7.17.0",
     "@react-router/serve": "7.17.0",

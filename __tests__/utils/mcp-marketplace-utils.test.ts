@@ -6,7 +6,6 @@ import {
   getInstallableMcpConnectionOption,
   getMcpMarketplaceCatalog,
   installedServerMatchesQuery,
-  isMarketplaceEntryAvailable,
   marketplaceEntryMatchesQuery,
 } from "#/utils/mcp-marketplace-utils";
 import { INTEGRATION_CATALOG as MCP_MARKETPLACE } from "@openhands/extensions/integrations";
@@ -129,18 +128,6 @@ describe("getInstallableMcpConnectionOption", () => {
     };
     const option = getInstallableMcpConnectionOption(noOptionsEntry);
     expect(option).toBeUndefined();
-  });
-});
-
-describe("isMarketplaceEntryAvailable", () => {
-  it("treats unset availability as 'all'", () => {
-    expect(isMarketplaceEntryAvailable(slackEntry, "local")).toBe(true);
-    expect(isMarketplaceEntryAvailable(slackEntry, "cloud")).toBe(true);
-  });
-
-  it("hides local-only entries on cloud", () => {
-    expect(isMarketplaceEntryAvailable(filesystemEntry, "local")).toBe(true);
-    expect(isMarketplaceEntryAvailable(filesystemEntry, "cloud")).toBe(false);
   });
 });
 

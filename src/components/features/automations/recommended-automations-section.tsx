@@ -21,7 +21,6 @@ import {
   findInstalledEntryMatch,
   getMarketplaceEntryById,
   getMcpMarketplaceCatalog,
-  isMarketplaceEntryAvailable,
 } from "#/utils/mcp-marketplace-utils";
 import { cn } from "#/utils/utils";
 import {
@@ -98,13 +97,8 @@ function automationMatchesQuery(
   return haystack.includes(query);
 }
 
-function isAutomationAvailable(
-  automation: RecommendedAutomation,
-  backendKind: "local" | "cloud",
-) {
-  return getRequiredEntries(automation).every((entry) =>
-    isMarketplaceEntryAvailable(entry, backendKind),
-  );
+function isAutomationAvailable(automation: RecommendedAutomation) {
+  return getRequiredEntries(automation).length > 0;
 }
 
 function buildRecommendedAutomationPills(
@@ -222,7 +216,7 @@ function AutomationCardGrid({
 }
 
 export function RecommendedAutomationsSection({
-  backendKind,
+  backendKind: _backendKind,
   installedServers,
   query = "",
   onSelect,
@@ -233,7 +227,7 @@ export function RecommendedAutomationsSection({
   const visibleAutomations = RECOMMENDED_AUTOMATIONS.filter((automation) => {
     const requiredEntries = getRequiredEntries(automation);
     return (
-      isAutomationAvailable(automation, backendKind) &&
+      isAutomationAvailable(automation) &&
       automationMatchesQuery(automation, requiredEntries, query)
     );
   });

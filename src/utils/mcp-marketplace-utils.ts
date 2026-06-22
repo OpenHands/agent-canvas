@@ -146,15 +146,6 @@ function transportMatchesServer(
   return server.type === "stdio" && server.name === transport.serverName;
 }
 
-export function isMarketplaceEntryAvailable(
-  entry: MarketplaceEntry,
-  backendKind: "local" | "cloud",
-): boolean {
-  if (!entry.runtimeAvailability || entry.runtimeAvailability === "all")
-    return true;
-  return entry.runtimeAvailability === backendKind;
-}
-
 function normalize(query: string): string {
   return query.trim().toLowerCase();
 }
