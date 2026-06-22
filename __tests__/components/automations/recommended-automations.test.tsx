@@ -383,19 +383,24 @@ describe("recommended automations", () => {
     expect(mockCreateConversationMutate).not.toHaveBeenCalled();
   });
 
-  it("launches directly with the catalog prompt when the required MCP is already installed", () => {
+  it("launches directly with the catalog prompt when the automation has no config schema", () => {
     mockUseSettings.mockReturnValue({
       data: settingsWithGithubMcp(),
     });
 
     renderLauncher();
 
+    // github-repo-monitor needs the github MCP (already installed here) but has
+    // no structured-config schema, so it launches straight away.
     fireEvent.click(
-      screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
+      screen.getByTestId("recommended-automation-card-github-repo-monitor"),
     );
 
     expect(mockCreateConversationMutate).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("mcp-install-modal")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("automation-config-modal"),
+    ).not.toBeInTheDocument();
 
     const [, options] = mockCreateConversationMutate.mock.calls[0];
     options.onSuccess({ conversation_id: "conversation-1" });
@@ -412,12 +417,77 @@ describe("recommended automations", () => {
     renderLauncher();
 
     const card = screen.getByTestId(
-      "recommended-automation-card-github-pr-reviewer",
+      "recommended-automation-card-github-repo-monitor",
     );
     fireEvent.click(card);
     fireEvent.click(card);
 
     expect(mockCreateConversationMutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the config form (not a launch) for a configurable automation whose MCP is installed", () => {
+    mockUseSettings.mockReturnValue({
+      data: settingsWithGithubMcp(),
+    });
+
+    renderLauncher();
+
+    fireEvent.click(
+      screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
+    );
+
+    // The PR reviewer has a config schema, so we collect config first and do
+    // NOT immediately create a conversation (issue #950).
+    const modal = screen.getByTestId("automation-config-modal");
+    expect(modal).toHaveAttribute("data-automation-id", "github-pr-reviewer");
+    expect(
+      screen.getByTestId("automation-config-field-repository"),
+    ).toBeInTheDocument();
+    expect(mockCreateConversationMutate).not.toHaveBeenCalled();
+  });
+
+  it("launches with a deterministic prompt built from the submitted config", () => {
+    mockUseSettings.mockReturnValue({
+      data: settingsWithGithubMcp(),
+    });
+
+    renderLauncher();
+
+    fireEvent.click(
+      screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
+    );
+
+    fireEvent.change(screen.getByTestId("automation-config-field-repository"), {
+      target: { value: "octocat/hello-world" },
+    });
+    fireEvent.submit(screen.getByTestId("automation-config-modal"));
+
+    expect(mockCreateConversationMutate).toHaveBeenCalledTimes(1);
+
+    const [, options] = mockCreateConversationMutate.mock.calls[0];
+    options.onSuccess({ conversation_id: "conversation-1" });
+
+    const draft = getConversationState("conversation-1").draftMessage;
+    expect(draft).toContain("octocat/hello-world");
+    expect(draft).toContain("*/5 * * * *");
+    expect(draft).toContain("SCHEDULED");
+  });
+
+  it("blocks config submission until required fields are filled", () => {
+    mockUseSettings.mockReturnValue({
+      data: settingsWithGithubMcp(),
+    });
+
+    renderLauncher();
+
+    fireEvent.click(
+      screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
+    );
+    // Submit with an empty required repository field.
+    fireEvent.submit(screen.getByTestId("automation-config-modal"));
+
+    expect(mockCreateConversationMutate).not.toHaveBeenCalled();
+    expect(screen.getByTestId("automation-config-modal")).toBeInTheDocument();
   });
 
   it("hides the recommended automations section on cloud backends", () => {
@@ -431,7 +501,7 @@ describe("recommended automations", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("launches the recommendation after the missing MCP is installed", async () => {
+  it("shows the config form after the missing MCP is installed, then launches on submit", async () => {
     const saveSpy = vi
       .spyOn(SettingsService, "saveSettings")
       .mockResolvedValue(true);
@@ -449,6 +519,17 @@ describe("recommended automations", () => {
     fireEvent.click(screen.getByTestId("mcp-install-submit"));
 
     await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+
+    // The PR reviewer is configurable: after MCP setup the config form opens
+    // instead of launching immediately.
+    const modal = await screen.findByTestId("automation-config-modal");
+    expect(mockCreateConversationMutate).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByTestId("automation-config-field-repository"), {
+      target: { value: "octocat/hello-world" },
+    });
+    fireEvent.submit(modal);
+
     await waitFor(() =>
       expect(mockCreateConversationMutate).toHaveBeenCalledTimes(1),
     );
