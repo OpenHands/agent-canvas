@@ -167,7 +167,6 @@ export function AgentProfileEditor({
     !!acp?.acp_model &&
       !isKnownAcpModel(getAcpProvider(acp.acp_server), acp.acp_model),
   );
-  const [sessionMode, setSessionMode] = useState(acp?.acp_session_mode ?? "");
   const [promptTimeout, setPromptTimeout] = useState(
     String(acp?.acp_prompt_timeout ?? 1800),
   );
@@ -251,7 +250,9 @@ export function AgentProfileEditor({
         agent_kind: "acp",
         acp_server: acpServer,
         acp_model: acpModel.trim() || null,
-        acp_session_mode: sessionMode.trim() ? sessionMode.trim() : null,
+        // Not user-configurable (the SDK auto-detects the right mode per
+        // provider); round-trip any existing value so an edit doesn't reset it.
+        acp_session_mode: acp?.acp_session_mode ?? null,
         acp_prompt_timeout:
           Number.isFinite(timeout) && timeout > 0 ? timeout : 1800,
         acp_command: explicit ? (commandTokens[0] ?? null) : null,
@@ -542,16 +543,6 @@ export function AgentProfileEditor({
               {t(I18nKey.SETTINGS$AGENT_MODEL_HINT)}
             </Typography.Text>
           </div>
-
-          <SettingsInput
-            testId="agent-profile-session-mode"
-            label={t(I18nKey.SETTINGS$AGENT_PROFILE_SESSION_MODE_LABEL)}
-            type="text"
-            className="w-full"
-            showOptionalTag
-            value={sessionMode}
-            onChange={setSessionMode}
-          />
 
           <SettingsInput
             testId="agent-profile-prompt-timeout"
