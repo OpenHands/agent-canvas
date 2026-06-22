@@ -220,6 +220,7 @@ export function LlmSettingsScreen({
             type="password"
             className="w-full"
             value={apiKeyValue}
+            // eslint-disable-next-line i18next/no-literal-string -- masked-key sentinel, not translatable
             placeholder={apiKeyIsSet ? "<hidden>" : ""}
             onChange={(value) => onChange("llm.api_key", value)}
             isDisabled={isDisabled}
@@ -356,7 +357,9 @@ export function LlmSettingsScreen({
                   ) : null}
 
                   {renderApiKeyInput(
+                    // eslint-disable-next-line i18next/no-literal-string -- DOM id, not user-facing
                     "llm-api-key-input",
+                    // eslint-disable-next-line i18next/no-literal-string -- DOM id, not user-facing
                     "llm-api-key-help-anchor",
                   )}
                 </>
@@ -394,13 +397,16 @@ export function LlmSettingsScreen({
                     type="text"
                     className="w-full"
                     value={baseUrlValue}
+                    // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
                     placeholder="https://api.openai.com"
                     onChange={(value) => onChange("llm.base_url", value)}
                     isDisabled={isDisabled}
                   />
 
                   {renderApiKeyInput(
+                    // eslint-disable-next-line i18next/no-literal-string -- DOM id, not user-facing
                     "llm-api-key-input",
+                    // eslint-disable-next-line i18next/no-literal-string -- DOM id, not user-facing
                     "llm-api-key-help-anchor-advanced",
                   )}
                 </>
