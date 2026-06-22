@@ -34,15 +34,10 @@ describe("OpenHands extensions catalogs", () => {
     );
   });
 
-  it("patches Linear to the streamable HTTP /mcp endpoint with bearer auth", () => {
-    // Arrange: upstream still ships the removed /sse SSE transport; the
-    // marketplace catalog must serve the patched entry instead.
+  it("loads Linear streamable HTTP /mcp endpoint with bearer auth", () => {
     const catalog = getMcpMarketplaceCatalog(INTEGRATION_CATALOG);
-
-    // Act
     const linear = catalog.find((entry) => entry.id === "linear")!;
 
-    // Assert
     expect(getDefaultMcpTransport(linear)).toEqual({
       kind: "shttp",
       url: "https://mcp.linear.app/mcp",
@@ -53,22 +48,9 @@ describe("OpenHands extensions catalogs", () => {
       (option) => option.transport?.kind === "shttp",
     );
     expect(mcpOption?.auth.strategy).toBe("bearer");
-  });
-
-  it("does not mutate the imported catalog when patching Linear", () => {
-    // Arrange/Act: run the patch, then inspect the raw imported entry.
-    getMcpMarketplaceCatalog(INTEGRATION_CATALOG);
-    const raw = INTEGRATION_CATALOG.find((entry) => entry.id === "linear");
-
-    // Assert: the shared JSON module still carries the upstream values.
-    const rawOption = raw?.connectionOptions.find(
-      (option) => option.transport?.kind === "sse",
-    );
-    expect(rawOption?.transport).toEqual({
-      kind: "sse",
-      url: "https://mcp.linear.app/sse",
-      apiKeyOptional: true,
-    });
+    expect(
+      linear.connectionOptions.some((option) => option.transport?.kind === "sse"),
+    ).toBe(false);
   });
 
   it("drops deprecated MCP entries that no longer have maintained replacements", () => {
