@@ -76,9 +76,10 @@ export interface DirectConversationInfo {
    */
   tags?: Record<string, string> | null;
   /**
-   * Provenance of the AgentProfile that launched this conversation (SDK PR
-   * #3784; present only when started via ``agent_profile_id``). Surfaced for the
-   * chat-input profile picker (#3727); see {@link toAppConversation}.
+   * Provenance of the AgentProfile that launched this conversation (wire field
+   * ``launched_agent_profile``, SDK PR #3784; present only when started via
+   * ``agent_profile_id``). Consumed by the chat-input profile picker (#3727);
+   * see {@link toAppConversation}.
    */
   launched_profile?: { profile_id: string; revision: number } | null;
 }

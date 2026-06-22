@@ -125,11 +125,16 @@ export function AgentProfilesManager() {
           profile.name,
           "encrypted",
         );
-        const existing = new Set(profiles.map((p) => p.name));
-        let newName = `${profile.name}-copy`;
+        const existing = new Set(existingNames);
+        // Cap at the 64-char profile-name limit: truncate the base so the
+        // "-copy" suffix always fits (a longer name would 422 server-side).
+        const MAX_NAME = 64;
+        const copyName = (suffix: string) =>
+          `${profile.name.slice(0, MAX_NAME - suffix.length)}${suffix}`;
+        let newName = copyName("-copy");
         let counter = 1;
         while (existing.has(newName)) {
-          newName = `${profile.name}-copy-${counter}`;
+          newName = copyName(`-copy-${counter}`);
           counter += 1;
         }
         await saveProfile.mutateAsync({
@@ -147,7 +152,7 @@ export function AgentProfilesManager() {
         );
       }
     },
-    [profiles, saveProfile, t],
+    [existingNames, saveProfile, t],
   );
 
   const handleBackToList = useCallback(() => {

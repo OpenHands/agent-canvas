@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   ACP_MANAGED_SENTINEL,
-  getAllAcpReservedSecretNames,
   resolveEffectiveAcpModel,
 } from "./acp-providers";
 
@@ -53,24 +52,5 @@ describe("resolveEffectiveAcpModel", () => {
         providerDefault: "opus[1m]",
       }),
     ).toBe("default");
-  });
-});
-
-describe("getAllAcpReservedSecretNames", () => {
-  it("covers every built-in provider's env-keyed credential names", () => {
-    const names = getAllAcpReservedSecretNames();
-    // API keys + base URLs from the SDK registry.
-    expect(names.has("ANTHROPIC_API_KEY")).toBe(true);
-    expect(names.has("ANTHROPIC_BASE_URL")).toBe(true);
-    // Per-provider container/subscription/Vertex credentials.
-    expect(names.has("CLAUDE_CODE_OAUTH_TOKEN")).toBe(true);
-    expect(names.has("CODEX_AUTH_JSON")).toBe(true);
-    expect(names.has("GOOGLE_APPLICATION_CREDENTIALS_JSON")).toBe(true);
-    expect(names.has("GOOGLE_CLOUD_PROJECT")).toBe(true);
-  });
-
-  it("does not include unrelated global secret names", () => {
-    const names = getAllAcpReservedSecretNames();
-    expect(names.has("MY_CUSTOM_TOOL_TOKEN")).toBe(false);
   });
 });

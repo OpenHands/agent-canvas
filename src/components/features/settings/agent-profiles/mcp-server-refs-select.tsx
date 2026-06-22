@@ -20,8 +20,8 @@ interface McpServerRefsSelectProps {
  * maps to `null`; turning it off reveals a checkbox list whose selection becomes
  * the explicit name list (`[]` when nothing is checked). Dangling refs — names
  * the user previously selected that are no longer configured — are still shown
- * (checked) so the user can see and drop them; the backend hard-errors on them
- * at resolve time, surfaced separately by the editor's materialize check.
+ * (checked) so the user can see and drop them; a still-dangling ref hard-errors
+ * at resolve/launch time (there is no pre-flight materialize check yet).
  */
 export function McpServerRefsSelect({
   availableServers,
@@ -80,6 +80,17 @@ export function McpServerRefsSelect({
             ))}
           </CheckboxGroup>
         ))}
+
+      {danglingRefs.length > 0 && (
+        <Typography.Text
+          className="text-xs text-yellow-500"
+          data-testid="mcp-server-refs-dangling"
+        >
+          {t(I18nKey.SETTINGS$AGENT_PROFILE_DANGLING_MCP, {
+            names: danglingRefs.join(", "),
+          })}
+        </Typography.Text>
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { ApiKeyModalBase } from "#/components/features/settings/api-key-modal-base";
 import { ProfileInfo } from "#/api/profiles-service/profiles-service.api";
 import { useDeleteLlmProfile } from "#/hooks/mutation/use-delete-llm-profile";
+import { isSdkHttpStatusError } from "#/api/agent-server-compatibility";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -34,9 +35,15 @@ export function DeleteProfileModal({
       );
       onClose();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : t(I18nKey.ERROR$GENERIC);
-      displayErrorToast(message);
+      // A referenced LLM profile is blocked by the agent-profile FK guard with
+      // a 409 (software-agent-sdk#3716); surface the localized reason.
+      displayErrorToast(
+        isSdkHttpStatusError(error, 409)
+          ? t(I18nKey.SETTINGS$AGENT_PROFILE_LLM_REFERENCED)
+          : error instanceof Error
+            ? error.message
+            : t(I18nKey.ERROR$GENERIC),
+      );
     }
   };
 

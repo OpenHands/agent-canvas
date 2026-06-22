@@ -41,11 +41,13 @@ type AgentKind = "openhands" | "acp";
 
 const ACP_CUSTOM_MODEL_KEY = "__custom_model__";
 
+// Mirrors the SDK ProfileVerificationSettings defaults so an unchanged create
+// matches what the server would seed.
 const DEFAULT_VERIFICATION: ProfileVerificationSettings = {
   critic_enabled: false,
-  critic_mode: "all_actions",
+  critic_mode: "finish_and_message",
   enable_iterative_refinement: false,
-  critic_threshold: 0.5,
+  critic_threshold: 0.6,
   max_refinement_iterations: 3,
   critic_server_url: null,
   critic_model_name: null,
@@ -55,17 +57,6 @@ function toStringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((v): v is string => typeof v === "string")
     : [];
-}
-
-function detectPreset(
-  commandText: string,
-  providers: ACPProviderConfig[],
-): string {
-  const normalized = parseCommand(commandText).join(" ");
-  for (const provider of providers) {
-    if (normalized === provider.default_command.join(" ")) return provider.key;
-  }
-  return ACP_CUSTOM_PRESET_KEY;
 }
 
 function isKnownAcpModel(
@@ -132,7 +123,7 @@ export function AgentProfileEditor({
     openhands?.llm_profile_ref ?? llmProfilesData?.active_profile ?? "",
   );
   const [enableSubAgents, setEnableSubAgents] = useState(
-    openhands?.enable_sub_agents ?? true,
+    openhands?.enable_sub_agents ?? false,
   );
   const [systemSuffix, setSystemSuffix] = useState(
     openhands?.system_message_suffix ?? "",
@@ -178,13 +169,16 @@ export function AgentProfileEditor({
   );
   const [sessionMode, setSessionMode] = useState(acp?.acp_session_mode ?? "");
   const [promptTimeout, setPromptTimeout] = useState(
-    String(acp?.acp_prompt_timeout ?? 300),
+    String(acp?.acp_prompt_timeout ?? 1800),
   );
+  // The selected ACP provider preset (a registry key or the "custom" sentinel).
+  // Explicit state, NOT derived from the command text, so editing the command
+  // (e.g. adding a flag) can't silently flip the preset to "custom" and drop
+  // the provider's credentials / model list.
+  const [acpServerSel, setAcpServerSel] = useState<string>(initialAcpServer);
 
   const isAcp = agentKind === "acp";
-  const selectedPreset = isAcp
-    ? detectPreset(commandText, ACP_PROVIDERS)
-    : ACP_CUSTOM_PRESET_KEY;
+  const selectedPreset = isAcp ? acpServerSel : ACP_CUSTOM_PRESET_KEY;
   const selectedProvider = getAcpProvider(selectedPreset);
   const modelSuggestions = selectedProvider?.available_models ?? [];
   const hasModelSuggestions = modelSuggestions.length > 0;
@@ -216,6 +210,7 @@ export function AgentProfileEditor({
     if (kind === "acp" && !commandText) {
       const preferred = ACP_PROVIDERS[0];
       if (preferred) {
+        setAcpServerSel(preferred.key);
         setCommandText(formatCommand(preferred.default_command));
         setAcpModel(getAcpPreferredDefaultModel(preferred.key) ?? "");
         setIsCustomAcpModel(false);
@@ -227,6 +222,7 @@ export function AgentProfileEditor({
   };
 
   const handlePresetChange = (preset: string) => {
+    setAcpServerSel(preset);
     const provider = getAcpProvider(preset);
     if (provider) {
       setCommandText(formatCommand(provider.default_command));
@@ -256,7 +252,8 @@ export function AgentProfileEditor({
         acp_server: acpServer,
         acp_model: acpModel.trim() || null,
         acp_session_mode: sessionMode.trim() ? sessionMode.trim() : null,
-        acp_prompt_timeout: Number.isFinite(timeout) ? timeout : 300,
+        acp_prompt_timeout:
+          Number.isFinite(timeout) && timeout > 0 ? timeout : 1800,
         acp_command: explicit ? (commandTokens[0] ?? null) : null,
         acp_args: explicit ? commandTokens.slice(1) : null,
         mcp_server_refs: mcpServerRefs,
@@ -272,7 +269,9 @@ export function AgentProfileEditor({
       enable_sub_agents: enableSubAgents,
       system_message_suffix: systemSuffix.trim() ? systemSuffix : null,
       tool_concurrency_limit:
-        Number.isFinite(concurrency) && concurrency > 0 ? concurrency : 1,
+        Number.isFinite(concurrency) && concurrency >= 1
+          ? Math.floor(concurrency)
+          : 1,
       // On edit, round-trip the loaded verification block; on create only send
       // it once the user enables the critic, otherwise let the server seed its
       // own default (avoids pinning a possibly-stale default critic_mode).
@@ -289,59 +288,71 @@ export function AgentProfileEditor({
     };
   };
 
-  const reportSaveError = (error: unknown) => {
-    if (isSdkHttpStatusError(error, 409)) {
-      displayErrorToast(
-        mode === "edit" && name !== profile?.name
-          ? t(I18nKey.SETTINGS$AGENT_PROFILE_NAME_EXISTS)
-          : t(I18nKey.SETTINGS$AGENT_PROFILE_LIMIT_REACHED),
-      );
-    } else if (isSdkHttpStatusError(error, 422)) {
-      displayErrorToast(
-        error instanceof Error ? error.message : t(I18nKey.ERROR$GENERIC),
-      );
-    } else {
-      displayErrorToast(
-        error instanceof Error ? error.message : t(I18nKey.ERROR$GENERIC),
-      );
-    }
+  // 409 means different things per operation (save = profile-count limit,
+  // rename = name collision), so each call site passes its own conflict copy.
+  const showSaveError = (error: unknown, conflictKey: I18nKey) => {
+    displayErrorToast(
+      isSdkHttpStatusError(error, 409)
+        ? t(conflictKey)
+        : error instanceof Error
+          ? error.message
+          : t(I18nKey.ERROR$GENERIC),
+    );
   };
 
   const handleSave = async () => {
     if (!canSave) return;
     const trimmedName = name.trim();
 
-    try {
-      // Persist ACP credentials first so they exist when the spec is applied.
-      if (acpCredentialForm.isDirty) {
+    // Persist ACP credentials first so they exist when the spec is applied.
+    if (acpCredentialForm.isDirty) {
+      try {
         const ok = await acpCredentialForm.save({ silent: true });
         if (!ok) return;
         acpCredentialForm.reset();
+      } catch (error) {
+        displayErrorToast(
+          error instanceof Error ? error.message : t(I18nKey.ERROR$GENERIC),
+        );
+        return;
       }
+    }
 
-      // Rename first if the name changed, then overwrite under the new name
-      // (the stable id is preserved across both).
-      if (mode === "edit" && profile && profile.name !== trimmedName) {
+    // Save the body first (under its current name), then rename — so a
+    // validation failure can't leave a half-applied edit (renamed but with the
+    // old body). The stable id is preserved by both the overwrite and the
+    // rename. A 409 here is the profile-count limit; an overwrite of a namesake
+    // never conflicts on name.
+    const saveName = mode === "edit" && profile ? profile.name : trimmedName;
+    try {
+      await saveProfile.mutateAsync({
+        name: saveName,
+        profile: buildPayload(),
+      });
+    } catch (error) {
+      showSaveError(error, I18nKey.SETTINGS$AGENT_PROFILE_LIMIT_REACHED);
+      return;
+    }
+
+    // Rename last; a 409 here is specifically a name collision.
+    if (mode === "edit" && profile && profile.name !== trimmedName) {
+      try {
         await renameProfile.mutateAsync({
           name: profile.name,
           newName: trimmedName,
         });
+      } catch (error) {
+        showSaveError(error, I18nKey.SETTINGS$AGENT_PROFILE_NAME_EXISTS);
+        return;
       }
-
-      await saveProfile.mutateAsync({
-        name: trimmedName,
-        profile: buildPayload(),
-      });
-
-      displaySuccessToast(
-        mode === "create"
-          ? t(I18nKey.SETTINGS$PROFILE_CREATED, { name: trimmedName })
-          : t(I18nKey.SETTINGS$PROFILE_UPDATED, { name: trimmedName }),
-      );
-      onSaved();
-    } catch (error) {
-      reportSaveError(error);
     }
+
+    displaySuccessToast(
+      mode === "create"
+        ? t(I18nKey.SETTINGS$PROFILE_CREATED, { name: trimmedName })
+        : t(I18nKey.SETTINGS$PROFILE_UPDATED, { name: trimmedName }),
+    );
+    onSaved();
   };
 
   const isSaving = saveProfile.isPending || renameProfile.isPending;

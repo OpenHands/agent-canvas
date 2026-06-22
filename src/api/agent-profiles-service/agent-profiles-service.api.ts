@@ -14,7 +14,6 @@ import type {
   AgentProfile,
   AgentProfileSummary,
   AgentProfileSaveInput,
-  AgentProfileDiagnostics,
   AgentProfileListResponse,
   AgentProfileDetailResponse,
   AgentProfileMutationResponse,
@@ -28,7 +27,6 @@ export type {
   AgentProfile,
   AgentProfileSummary,
   AgentProfileSaveInput,
-  AgentProfileDiagnostics,
   AgentProfileListResponse,
   AgentProfileDetailResponse,
   AgentProfileMutationResponse,
@@ -89,16 +87,6 @@ class AgentProfilesService {
     return new AgentProfilesClient(
       getAgentServerClientOptions(),
     ).activateAgentProfile(profileId);
-  }
-
-  /** Dry-run resolve of LLM/MCP refs. Never throws on dangling refs — those are
-   * reported in the body (`valid: false`, `dangling_mcp_server_refs`). */
-  static async materializeProfile(
-    name: string,
-  ): Promise<AgentProfileDiagnostics> {
-    return new AgentProfilesClient(
-      getAgentServerClientOptions(),
-    ).materializeAgentProfile(name);
   }
 }
 
