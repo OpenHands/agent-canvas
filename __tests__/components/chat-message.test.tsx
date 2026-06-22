@@ -1,9 +1,101 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
+import util from "util";
 import { ChatMessage } from "#/components/features/chat/chat-message";
 
 describe("ChatMessage", () => {
+  it("does not update the parent while measuring user-message truncation", async () => {
+    // Regression test for the React warning:
+    //   "Cannot update a component (`ChatMessage`) while rendering a different
+    //    component (`UserMessageBody`)"
+    // The bug: UserMessageBody notified the parent (ChatMessage's
+    // setIsTruncatable) from inside its own render-phase state updater, which
+    // updates the parent while the child is rendering.
+    //
+    // Two conditions are needed to make the warning observable here — they are
+    // present in a real browser but hidden by the default test setup:
+    //   1. A ResizeObserver that actually fires its callback. The shared mock's
+    //      `observe` is a no-op, so truncation is only ever measured once and
+    //      React's eager-state bailout swallows the render-phase update.
+    //   2. A measured height that changes between measurements. We model the
+    //      realistic settling: the content overflows on first measure, then
+    //      shrinks once `line-clamp` is applied. The second (render-phase)
+    //      measurement therefore produces a real state transition, defeating
+    //      the eager-state bailout so the buggy parent update actually runs.
+    class FiringResizeObserver {
+      private cb: ResizeObserverCallback;
+
+      constructor(cb: ResizeObserverCallback) {
+        this.cb = cb;
+      }
+
+      // The real ResizeObserver invokes the callback once shortly after observe.
+      observe = () => this.cb([], this as unknown as ResizeObserver);
+
+      unobserve = () => {};
+
+      disconnect = () => {};
+    }
+
+    let measurements = 0;
+    const originalScrollHeight = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "scrollHeight",
+    );
+    Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
+      configurable: true,
+      get() {
+        measurements += 1;
+        // Overflow on the first measure (truncatable), shrink afterwards.
+        return measurements <= 1 ? 1000 : 0;
+      },
+    });
+
+    const previousResizeObserver = globalThis.ResizeObserver;
+    globalThis.ResizeObserver =
+      FiringResizeObserver as unknown as typeof ResizeObserver;
+
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    // No newlines and <= 220 chars, so truncation depends only on the measured
+    // (mocked) height rather than the message length / newline heuristics.
+    const message = "word ".repeat(20).trim();
+
+    try {
+      render(<ChatMessage type="user" message={message} />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("user-message")).toBeInTheDocument();
+      });
+
+      // Guard against the test becoming vacuous: truncation must have been
+      // measured more than once for the render-phase update to be reachable.
+      expect(measurements).toBeGreaterThan(1);
+
+      const renderPhaseWarning = consoleError.mock.calls.find((args) =>
+        util
+          .format(...(args as [unknown, ...unknown[]]))
+          .includes(
+            "Cannot update a component (`ChatMessage`) while rendering a different component (`UserMessageBody`)",
+          ),
+      );
+      expect(renderPhaseWarning).toBeUndefined();
+    } finally {
+      consoleError.mockRestore();
+      globalThis.ResizeObserver = previousResizeObserver;
+      if (originalScrollHeight) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          "scrollHeight",
+          originalScrollHeight,
+        );
+      } else {
+        // @ts-expect-error -- remove our override to restore the jsdom default
+        delete HTMLElement.prototype.scrollHeight;
+      }
+    }
+  });
+
   it("should render a user message", () => {
     render(<ChatMessage type="user" message="Hello, World!" />);
     expect(screen.getByTestId("user-message")).toBeInTheDocument();
