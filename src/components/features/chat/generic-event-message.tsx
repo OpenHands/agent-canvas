@@ -1,10 +1,12 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import ArrowDown from "#/icons/angle-down-solid.svg?react";
 import ArrowUp from "#/icons/angle-up-solid.svg?react";
 import { SuccessIndicator } from "./success-indicator";
 import { ObservationResultStatus } from "#/components/conversation-events/chat/event-content-helpers/get-observation-result";
 import { MarkdownRenderer } from "../markdown/markdown-renderer";
 import { cn } from "#/utils/utils";
+import { I18nKey } from "#/i18n/declaration";
 
 interface GenericEventMessageProps {
   title: React.ReactNode;
@@ -28,6 +30,7 @@ export function GenericEventMessage({
   titleTrailing,
   titleIcon,
 }: GenericEventMessageProps) {
+  const { t } = useTranslation("openhands");
   const [showDetails, setShowDetails] = React.useState(initiallyExpanded);
 
   const chevron = details ? (
@@ -35,7 +38,9 @@ export function GenericEventMessage({
       type="button"
       onClick={() => setShowDetails((prev) => !prev)}
       className="cursor-pointer text-left"
-      aria-label={showDetails ? "Collapse" : "Expand"}
+      aria-label={
+        showDetails ? t(I18nKey.BUTTON$COLLAPSE) : t(I18nKey.BUTTON$EXPAND)
+      }
     >
       {showDetails ? (
         <ArrowUp
