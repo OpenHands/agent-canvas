@@ -5,6 +5,7 @@ import { I18nKey } from "#/i18n/declaration";
 import { SettingsNavRenderedItem } from "#/hooks/use-settings-nav-items";
 import { SidebarNavLink } from "#/components/features/sidebar/sidebar-nav-link";
 import { BackendSyncedSettingsBadge } from "#/components/features/settings/backend-synced-settings-badge";
+import { CloudSettingsLink } from "#/components/features/settings/cloud-settings-link";
 
 interface SettingsDesktopSidebarProps {
   navigationItems: SettingsNavRenderedItem[];
@@ -64,6 +65,9 @@ export function SettingsDesktopSidebar({
       </div>
       <div className="px-2 pt-3">
         <BackendSyncedSettingsBadge />
+      </div>
+      <div className="mt-auto px-2 pt-3">
+        <CloudSettingsLink />
       </div>
     </aside>
   );
