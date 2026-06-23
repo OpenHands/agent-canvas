@@ -10,8 +10,9 @@
  *
  * Two tests:
  *   1. **Card flow**: configure a dummy Slack MCP server so the automation
- *      card is launchable, click the card, verify it sends the correct
- *      slash command and triggers skill activation.
+ *      card is launchable, click the card, choose "Poll locally" in the
+ *      responder-deployment modal, then verify it sends the correct slash
+ *      command and triggers skill activation.
  *   2. **Direct slash command**: send the slash command from the home page
  *      (no MCP needed), verify skill activation + agent reply.
  */
@@ -192,6 +193,15 @@ test.describe("preset automation → slash command conversation", () => {
       );
       await expect(card).toBeVisible({ timeout: 10_000 });
       await card.click();
+    });
+
+    // Slack/GitHub responders now prompt for a deployment target first.
+    // Choose "Poll locally on your laptop" to resume the existing local
+    // setup + launch flow this test exercises.
+    await test.step("choose local deployment", async () => {
+      const modal = page.getByTestId("responder-deployment-modal");
+      await expect(modal).toBeVisible({ timeout: 10_000 });
+      await page.getByTestId("responder-deployment-continue-local").click();
     });
 
     // Should navigate to a new conversation
