@@ -291,7 +291,7 @@ describe("BackendSelector", () => {
     expect(screen.queryByText(/Beta Co/)).not.toBeInTheDocument();
   });
 
-  it("labels an org as 'Personal Workspace' when /me reports user_id === org.id", async () => {
+  it("labels personal workspace orgs with a Personal pill when /me reports user_id === org.id", async () => {
     const personalOrgId = "0b93b5f2-5396-49f2-8d98-61f906184270";
     vi.mocked(getCloudOrganizations).mockResolvedValue({
       items: [
@@ -328,10 +328,10 @@ describe("BackendSelector", () => {
     await openDropdown();
 
     await waitFor(() => {
-      expect(
-        screen.getByText("Production – BACKEND$PERSONAL_WORKSPACE"),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Production")).toBeInTheDocument();
+      expect(screen.getByText("COMMON$PERSONAL")).toBeInTheDocument();
     });
+    expect(screen.getAllByTestId("cloud-org-label-pill")).toHaveLength(1);
     expect(screen.getByText("Production – Acme Inc")).toBeInTheDocument();
     // The auto-generated org name must NOT be rendered.
     expect(

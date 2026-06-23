@@ -7,7 +7,7 @@ import {
   dropdownMenuRowClassName,
   dropdownMenuRowIconWrapperClassName,
 } from "#/utils/dropdown-classes";
-import { HoverMarqueeLabel } from "./hover-marquee-label";
+import { DropdownOptionLabel } from "./dropdown-option-label";
 
 interface DropdownMenuProps {
   isOpen: boolean;
@@ -75,9 +75,7 @@ export function DropdownMenu({
                   {option.prefix}
                 </span>
               ) : null}
-              <HoverMarqueeLabel className="flex-1">
-                {option.label}
-              </HoverMarqueeLabel>
+              <DropdownOptionLabel option={option} />
             </li>
           ))}
       </ul>

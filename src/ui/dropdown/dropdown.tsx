@@ -8,7 +8,7 @@ import { ClearButton } from "./clear-button";
 import { ToggleButton } from "./toggle-button";
 import { DropdownMenu } from "./dropdown-menu";
 import { DropdownInput } from "./dropdown-input";
-import { HoverMarqueeLabel } from "./hover-marquee-label";
+import { DropdownOptionLabel } from "./dropdown-option-label";
 
 // Equivalent to Tailwind's `sr-only`, inlined so we don't depend on the
 // utility class being preserved by the host project's CSS pipeline.
@@ -205,13 +205,13 @@ export function Dropdown({
               fitContent={fitContent}
               hideVisibleText={!isOpen && Boolean(inputValue)}
             />
-            {!isOpen && inputValue ? (
-              <HoverMarqueeLabel
+            {!isOpen && liveSelectedOption ? (
+              <DropdownOptionLabel
+                option={liveSelectedOption}
                 aria-hidden
-                className="pointer-events-none absolute inset-y-0 left-0 flex items-center pr-8"
-              >
-                {inputValue}
-              </HoverMarqueeLabel>
+                className="pointer-events-none absolute inset-y-0 left-0 pr-8"
+                marqueeProps={{ "aria-hidden": true }}
+              />
             ) : null}
           </div>
           {loading && <LoadingSpinner />}

@@ -21,9 +21,7 @@ function useActiveBackendDisplayName(): string {
 
   const userId = userIds[active.backend.id]?.userId ?? null;
   const isPersonal = !!userId && org.id === userId;
-  const orgLabel = isPersonal
-    ? t(I18nKey.BACKEND$PERSONAL_WORKSPACE)
-    : org.name;
+  const orgLabel = isPersonal ? t(I18nKey.COMMON$PERSONAL) : org.name;
   return `${active.backend.name} – ${orgLabel}`;
 }
 

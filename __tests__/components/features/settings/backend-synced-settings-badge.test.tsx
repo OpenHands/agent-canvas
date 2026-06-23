@@ -105,7 +105,7 @@ describe("BackendSyncedSettingsBadge", () => {
     expect(text).not.toContain("&#x2F;");
   });
 
-  it("labels a cloud backend's active org as Personal Workspace when it matches the current user id", async () => {
+  it("labels a cloud backend's active org as Personal when it matches the current user id", async () => {
     // Arrange
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id, orgId: "user-1" });
@@ -128,7 +128,7 @@ describe("BackendSyncedSettingsBadge", () => {
     await waitFor(() => {
       expect(
         screen.getByTestId("backend-synced-settings-badge").textContent,
-      ).toContain("Production – BACKEND$PERSONAL_WORKSPACE");
+      ).toContain("Production – COMMON$PERSONAL");
     });
   });
 

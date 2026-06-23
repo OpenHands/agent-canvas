@@ -28,6 +28,7 @@ import { useConversationStore } from "#/stores/conversation-store";
 import { AddBackendModal } from "./add-backend-modal";
 import { BackendStatusDot } from "./backend-status-dot";
 import { ManageBackendsModal } from "./manage-backends-modal";
+import { CloudOrgLabelPill } from "./cloud-org-label-pill";
 import { cn } from "#/utils/utils";
 import { formControlTransitionClassName } from "#/utils/form-control-classes";
 import {
@@ -60,7 +61,7 @@ function buildNoBackendPrefix() {
 
 function buildOptions(
   registered: Backend[],
-  personalWorkspaceLabel: string,
+  personalOrgLabel: string,
   cloudOrgs: ReturnType<typeof useAllCloudOrganizations>,
   currentUserIds: ReturnType<typeof useCloudCurrentUserId>,
   healthByBackendId: Record<string, BackendHealth>,
@@ -96,14 +97,21 @@ function buildOptions(
 
       for (const org of entry.orgs) {
         const isPersonal = !!userIdForBackend && userIdForBackend === org.id;
-        const orgLabel = isPersonal ? personalWorkspaceLabel : org.name;
-        options.push({
-          value: makeOptionValue(b.id, org.id),
-          label: `${b.name} – ${orgLabel}`,
-          // All org rows for the same cloud backend share that backend's
-          // single connectivity verdict — there is no per-org probe.
-          prefix,
-        });
+        if (isPersonal) {
+          options.push({
+            value: makeOptionValue(b.id, org.id),
+            label: `${b.name} – ${personalOrgLabel}`,
+            displayLabel: b.name,
+            suffix: <CloudOrgLabelPill>{personalOrgLabel}</CloudOrgLabelPill>,
+            prefix,
+          });
+        } else {
+          options.push({
+            value: makeOptionValue(b.id, org.id),
+            label: `${b.name} – ${org.name}`,
+            prefix,
+          });
+        }
       }
     }
   }
@@ -162,24 +170,18 @@ export function BackendSelector({
   const [manageBackendsModalOpen, setManageBackendsModalOpen] =
     React.useState(false);
 
-  const personalWorkspaceLabel = t(I18nKey.BACKEND$PERSONAL_WORKSPACE);
+  const personalOrgLabel = t(I18nKey.COMMON$PERSONAL);
 
   const options = React.useMemo(
     () =>
       buildOptions(
         backends,
-        personalWorkspaceLabel,
+        personalOrgLabel,
         cloudOrgs,
         currentUserIds,
         healthByBackendId,
       ),
-    [
-      backends,
-      personalWorkspaceLabel,
-      cloudOrgs,
-      currentUserIds,
-      healthByBackendId,
-    ],
+    [backends, personalOrgLabel, cloudOrgs, currentUserIds, healthByBackendId],
   );
 
   const noBackendSelected = isNoBackend(active.backend);
