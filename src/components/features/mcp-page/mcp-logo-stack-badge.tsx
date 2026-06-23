@@ -10,7 +10,10 @@ const STACK_CONTAINER_CLASS_NAME =
 
 interface McpLogoStackBadgeProps {
   entries: Array<
-    Pick<IntegrationCatalogEntry, "id" | "name" | "iconBg" | "iconColor">
+    Pick<
+      IntegrationCatalogEntry,
+      "id" | "name" | "iconBg" | "iconColor" | "logoUrl"
+    >
   >;
   className?: string;
   testId?: string;
