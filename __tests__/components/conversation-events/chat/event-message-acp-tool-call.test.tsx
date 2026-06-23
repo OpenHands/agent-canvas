@@ -99,7 +99,7 @@ describe("EventMessage - ACPToolCallEvent dispatch", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Expand" }));
+    await user.click(screen.getByRole("button", { name: "BUTTON$EXPAND" }));
 
     // Markdown renderer wraps code blocks but the plain text survives.
     expect(screen.getByText(/gh pr diff 490/)).toBeInTheDocument();

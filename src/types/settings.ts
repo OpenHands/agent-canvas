@@ -18,6 +18,7 @@ export type MCPSSEServer = {
   name?: string;
   url: string;
   api_key?: string;
+  headers?: Record<string, string>;
 };
 
 export type MCPStdioServer = {
@@ -31,6 +32,7 @@ export type MCPSHTTPServer = {
   name?: string;
   url: string;
   api_key?: string;
+  headers?: Record<string, string>;
   timeout?: number;
 };
 
@@ -131,7 +133,15 @@ export type Settings = {
   agent: string;
   language: string;
   llm_api_key: string | null;
+  /** Cloud-shape "an LLM key is on file for this user". */
   llm_api_key_set: boolean;
+  /**
+   * Agent-server-shape "an LLM key is on file". The local agent-server
+   * uses `_is_set` in its `/api/settings` payload; Cloud uses `_set`.
+   * Surfacing both so onboarding-skip logic can treat the two backends
+   * uniformly.
+   */
+  llm_api_key_is_set?: boolean;
   search_api_key_set: boolean;
   confirmation_mode: boolean;
   security_analyzer: string | null;

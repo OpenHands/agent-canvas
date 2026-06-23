@@ -132,7 +132,7 @@ export function ConfigurationSection({
           icon={<SparkleIcon className="size-3.5" />}
           label={t(I18nKey.AUTOMATIONS$DETAIL$MODEL)}
         >
-          {automation.model ?? "Active profile"}
+          {automation.model ?? t(I18nKey.COMMON$ACTIVE_PROFILE)}
         </ConfigField>
 
         {automation.notification && (

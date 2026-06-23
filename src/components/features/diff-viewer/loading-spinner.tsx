@@ -1,10 +1,14 @@
+import { useTranslation } from "react-i18next";
 import { cn } from "#/utils/utils";
+import { I18nKey } from "#/i18n/declaration";
 
 export interface LoadingSpinnerProps {
   className?: string;
 }
 
 export function LoadingSpinner({ className }: LoadingSpinnerProps) {
+  const { t } = useTranslation("openhands");
+
   return (
     <div className="flex items-center justify-center">
       <div
@@ -13,7 +17,7 @@ export function LoadingSpinner({ className }: LoadingSpinnerProps) {
           className,
         )}
         role="status"
-        aria-label="Loading"
+        aria-label={t(I18nKey.HOME$LOADING)}
       />
     </div>
   );
