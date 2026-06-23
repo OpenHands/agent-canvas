@@ -185,7 +185,6 @@ export function SdkSectionPage({
   suppressSuccessToast = false,
   onSaveControlChange,
   testId = "sdk-section-settings-screen",
-  hideViewToggle = false,
 }: {
   settingsSources: SettingsSourceConfig[];
   scope?: SettingsScope;
@@ -232,14 +231,6 @@ export function SdkSectionPage({
    * embedded in a custom flow and the built-in Save button is hidden.
    */
   onSaveControlChange?: (control: SdkSectionSaveControl) => void;
-  /**
-   * Render every (non-gated) field in one flat list and hide the
-   * Basic/Advanced/All switcher. For focused single-purpose pages (e.g. the
-   * Critic page) where the prominence tiers add no value — the tiers would
-   * otherwise look identical because the differentiating fields are gated
-   * behind a toggle.
-   */
-  hideViewToggle?: boolean;
   testId?: string;
 }) {
   const { t } = useTranslation("openhands");
@@ -627,9 +618,6 @@ export function SdkSectionPage({
   // nested scroll region. Save actions are inline after the last field.
   const bodyClassName = "flex flex-col gap-8";
 
-  // When the toggle is hidden, render every (non-gated) field in one flat list.
-  const renderView: SettingsView = hideViewToggle ? "all" : view;
-
   return (
     <div
       data-testid={testId}
@@ -639,21 +627,19 @@ export function SdkSectionPage({
           : "relative w-full min-h-0"
       }
     >
-      {!hideViewToggle && (
-        <ViewToggle
-          view={view}
-          setView={setView}
-          showAdvanced={showAdvanced}
-          showAll={showAll}
-          isDisabled={isReadOnly}
-        />
-      )}
+      <ViewToggle
+        view={view}
+        setView={setView}
+        showAdvanced={showAdvanced}
+        showAll={showAll}
+        isDisabled={isReadOnly}
+      />
 
       <div className={bodyClassName}>
         {header?.({
           values: flatValues,
           isDisabled: isReadOnly,
-          view: renderView,
+          view,
           onChange: handleFieldChange,
         })}
 
@@ -663,7 +649,7 @@ export function SdkSectionPage({
           const visibleSections = getVisibleSettingsSections(
             src.filteredSchema,
             { ...flatValues, ...sourceValues },
-            renderView,
+            view,
             src.excludeKeys ?? EMPTY_EXCLUDE_KEYS,
           );
           return visibleSections.map((section) => (

@@ -46,7 +46,7 @@ beforeEach(() => {
 });
 
 describe("VerificationSettingsScreen", () => {
-  it("renders critic controls in the flat Critic view (no view tabs)", async () => {
+  it("renders critic controls in basic view", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       buildSettings({
         agent_settings: {
@@ -95,14 +95,10 @@ describe("VerificationSettingsScreen", () => {
       ),
     ).not.toBeNull();
 
-    // The Critic page renders flat (hideViewToggle) — no Basic/Advanced/All
-    // switcher — so every field, incl. confirmation_mode, is visible at once.
+    // Major-prominence fields (confirmation_mode) are hidden in basic view
     expect(
-      screen.queryByTestId("sdk-section-advanced-toggle"),
+      screen.queryByTestId("sdk-settings-confirmation_mode"),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByTestId("sdk-settings-confirmation_mode"),
-    ).toBeInTheDocument();
   });
 
   it("hides the critic API key field when the critic is disabled", async () => {
