@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { AUTOMATION_CATALOG } from "@openhands/extensions/automations";
-import { INTEGRATION_LOGOS } from "@openhands/extensions/integrations/logos";
 import { INTEGRATION_CATALOG } from "@openhands/extensions/integrations";
 import {
   getDefaultMcpTransport,
@@ -13,7 +12,7 @@ describe("OpenHands extensions catalogs", () => {
 
     const github = INTEGRATION_CATALOG.find((entry) => entry.id === "github");
     expect(getDefaultMcpTransport(github!)?.kind).toBe("shttp");
-    expect(INTEGRATION_LOGOS.github).toBeTruthy();
+    expect(github?.logoUrl).toBe("https://cdn.simpleicons.org/github/FFFFFF");
   });
 
   it("patches Slack to the maintained docs and npm package", () => {
