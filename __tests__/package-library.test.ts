@@ -16,6 +16,9 @@ const packageJson = JSON.parse(
   devDependencies?: Record<string, string>;
 };
 
+const EXACT_SEMVER_PATTERN =
+  /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+
 describe("package library metadata", () => {
   it("publishes the agent-canvas package entrypoints", () => {
     expect(packageJson.name).toBe("@openhands/agent-canvas");
@@ -81,10 +84,26 @@ describe("package library metadata", () => {
     expect(violations).toEqual([]);
   });
 
+  it("pins direct dependency versions exactly", () => {
+    const allDepsBySection = {
+      dependencies: packageJson.dependencies,
+      devDependencies: packageJson.devDependencies,
+    };
+
+    const violations = Object.entries(allDepsBySection).flatMap(
+      ([section, dependencies]) =>
+        Object.entries(dependencies ?? {})
+          .filter(([, version]) => !EXACT_SEMVER_PATTERN.test(version))
+          .map(([name, version]) => `${section}.${name}: ${version}`),
+    );
+
+    expect(violations).toEqual([]);
+  });
+
   it("ships runtime logger dependencies for the published CLI", () => {
     expect(packageJson.dependencies).toMatchObject({
-      winston: "^3.19.0",
-      "winston-daily-rotate-file": "^5.0.0",
+      winston: "3.19.0",
+      "winston-daily-rotate-file": "5.0.0",
     });
     expect(packageJson.devDependencies?.winston).toBeUndefined();
     expect(
