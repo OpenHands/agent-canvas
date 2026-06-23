@@ -8,6 +8,10 @@ import {
   dropdownMenuRowIconWrapperClassName,
 } from "#/utils/dropdown-classes";
 import { DropdownOptionLabel } from "./dropdown-option-label";
+import {
+  computeDropdownMenuLayout,
+  type DropdownMenuLayout,
+} from "./dropdown-menu-layout";
 
 interface DropdownMenuProps {
   isOpen: boolean;
@@ -23,7 +27,13 @@ interface DropdownMenuProps {
   footer?: React.ReactNode;
   openUpward?: boolean;
   fitContent?: boolean;
+  anchorRef: React.RefObject<HTMLElement | null>;
 }
+
+const EMPTY_LAYOUT: DropdownMenuLayout = {
+  needsScroll: false,
+  maxHeightPx: undefined,
+};
 
 export function DropdownMenu({
   isOpen,
@@ -35,17 +45,84 @@ export function DropdownMenu({
   footer,
   openUpward = false,
   fitContent = false,
+  anchorRef,
 }: DropdownMenuProps) {
+  const menuRef = React.useRef<HTMLDivElement>(null);
+  const [layout, setLayout] = React.useState<DropdownMenuLayout>(EMPTY_LAYOUT);
+
+  const measureLayout = React.useCallback(() => {
+    const menu = menuRef.current;
+    const anchor = anchorRef.current;
+    if (!menu || !anchor || !isOpen) {
+      return;
+    }
+
+    const contentHeight = menu.scrollHeight;
+    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+
+    setLayout(
+      computeDropdownMenuLayout(
+        anchor.getBoundingClientRect(),
+        contentHeight,
+        openUpward,
+        viewportHeight,
+      ),
+    );
+  }, [anchorRef, isOpen, openUpward]);
+
+  React.useLayoutEffect(() => {
+    if (!isOpen) {
+      setLayout(EMPTY_LAYOUT);
+      return undefined;
+    }
+
+    measureLayout();
+
+    const menu = menuRef.current;
+    const resizeObserver =
+      menu && typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(measureLayout)
+        : null;
+    if (menu && resizeObserver) {
+      resizeObserver.observe(menu);
+    }
+
+    window.addEventListener("resize", measureLayout);
+    window.visualViewport?.addEventListener("resize", measureLayout);
+    window.visualViewport?.addEventListener("scroll", measureLayout);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", measureLayout);
+      window.visualViewport?.removeEventListener("resize", measureLayout);
+      window.visualViewport?.removeEventListener("scroll", measureLayout);
+    };
+  }, [
+    isOpen,
+    measureLayout,
+    filteredOptions.length,
+    footer,
+    selectedItem?.value,
+  ]);
+
   return (
     <div
+      ref={menuRef}
+      data-testid="dropdown-menu-panel"
+      data-scrollable={layout.needsScroll ? "true" : "false"}
       className={cn(
-        "absolute z-50 overflow-hidden text-white",
+        "absolute z-50 text-white",
         fitContent ? "min-w-full w-max" : "w-full",
         openUpward ? "bottom-full mb-1" : "mt-1",
         "bg-tertiary rounded-[6px] context-menu-box-shadow p-1",
-        "max-h-60 overflow-auto",
+        layout.needsScroll && "overflow-y-auto custom-scrollbar",
         !isOpen && "hidden",
       )}
+      style={
+        layout.maxHeightPx !== undefined
+          ? { maxHeight: `${layout.maxHeightPx}px` }
+          : undefined
+      }
     >
       <ul
         {...getMenuProps({ className: cn("p-0", dropdownMenuListClassName) })}

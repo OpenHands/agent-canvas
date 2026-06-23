@@ -27,31 +27,55 @@
     black calc(100% - var(--hover-marquee-mask-inset-right)),
     transparent 100%
   );
-  /* Hover off: both edges ease over the scroll-back duration so the left
-     fade stays visible while the label returns to its start position. */
-  transition:
-    --hover-marquee-mask-inset-left var(--hover-marquee-mask-duration, 2s)
-      ease-in-out,
-    --hover-marquee-mask-inset-right var(--hover-marquee-mask-duration, 2s)
-      ease-in-out;
+  /* Right fade at rest is immediate — no mount/hover-out animation. */
+  transition: none;
 }
 
-.group:hover .hover-marquee-clip,
-.group:focus-within .hover-marquee-clip {
+.group:hover .hover-marquee-clip:not([data-phase="exiting"]) {
   --hover-marquee-mask-inset-left: 2.5rem;
   --hover-marquee-mask-inset-right: 0px;
-  /* Hover on: left fade snaps in quickly; right fades out with the scroll. */
   transition:
     --hover-marquee-mask-inset-left
       var(--hover-marquee-mask-fade-in-duration, 300ms) ease-out,
     --hover-marquee-mask-inset-right var(--hover-marquee-mask-duration, 2s)
-      ease-in-out;
+      linear;
+}
+
+.hover-marquee-rest {
+  opacity: 1;
+  transition: opacity var(--hover-marquee-crossfade-duration, 220ms) ease-out;
+}
+
+.group:hover .hover-marquee-clip:not([data-phase="exiting"]) .hover-marquee-rest {
+  opacity: 0;
+}
+
+.hover-marquee-scroll {
+  opacity: 0;
+  transform: translateX(0);
+  transition:
+    transform var(--hover-marquee-mask-duration, 2s) linear,
+    opacity var(--hover-marquee-crossfade-duration, 220ms) ease-out;
+}
+
+.group:hover .hover-marquee-scroll:not([data-phase="exiting"]) {
+  opacity: 1;
+  transform: translateX(calc(-1 * var(--hover-marquee-offset, 0px)));
+}
+
+.hover-marquee-scroll[data-phase="exiting"] {
+  opacity: 0;
+  transition:
+    opacity var(--hover-marquee-crossfade-duration, 220ms) ease-out,
+    transform 0s;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .hover-marquee-clip,
-  .group:hover .hover-marquee-clip,
-  .group:focus-within .hover-marquee-clip {
+  .group:hover .hover-marquee-clip:not([data-phase="exiting"]),
+  .hover-marquee-rest,
+  .hover-marquee-scroll,
+  .group:hover .hover-marquee-scroll:not([data-phase="exiting"]) {
     transition: none;
   }
 }

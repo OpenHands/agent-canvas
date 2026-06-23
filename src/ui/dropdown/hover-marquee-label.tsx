@@ -1,5 +1,10 @@
 import React from "react";
 import { cn } from "#/utils/utils";
+import {
+  HOVER_MARQUEE_CROSSFADE_MS,
+  readTransformOffsetPx,
+  type HoverMarqueePhase,
+} from "./hover-marquee-phase";
 import "./hover-marquee-label.css";
 
 export const HOVER_MARQUEE_MIN_DURATION_MS = 1200;
@@ -9,7 +14,7 @@ export const HOVER_MARQUEE_OVERFLOW_THRESHOLD_PX = 1;
 export const HOVER_MARQUEE_FADE_WIDTH = "2.5rem";
 export const HOVER_MARQUEE_FADE_IN_DURATION_MS = 300;
 
-export type HoverMarqueeMaskMode = "right" | "both" | "left";
+export { HOVER_MARQUEE_CROSSFADE_MS } from "./hover-marquee-phase";
 
 export function getHoverMarqueeDurationMs(scrollDistance: number): number {
   return Math.min(
@@ -41,6 +46,8 @@ export function readHoverMarqueeFadeState(options: {
   }
   return { left: true, right: true };
 }
+
+export type HoverMarqueeMaskMode = "right" | "both" | "left";
 
 export function getHoverMarqueeMaskInsets(
   mode: HoverMarqueeMaskMode,
@@ -74,24 +81,25 @@ interface HoverMarqueeLabelProps extends React.HTMLAttributes<HTMLSpanElement> {
 
 /**
  * Clips long single-line labels to their container and scrolls the overflow
- * into view on parent `group` hover with a smooth in/out transition.
- *
- * Edge fades use an animated CSS mask on the text so the fade stays
- * transparent regardless of row hover/selected backgrounds. Mask insets
- * transition in sync with the marquee (left ~300ms, right matches scroll).
+ * into view on parent `group` hover (CSS-driven scroll + opacity). Hover-out
+ * crossfades back to the truncated start position instead of reversing scroll.
  */
 export function HoverMarqueeLabel({
   children,
   className,
   ...rest
 }: HoverMarqueeLabelProps) {
+  const rootRef = React.useRef<HTMLSpanElement>(null);
   const containerRef = React.useRef<HTMLSpanElement>(null);
-  const contentRef = React.useRef<HTMLSpanElement>(null);
+  const restRef = React.useRef<HTMLSpanElement>(null);
+  const scrollRef = React.useRef<HTMLSpanElement>(null);
   const [scrollDistance, setScrollDistance] = React.useState(0);
+  const [phase, setPhase] = React.useState<HoverMarqueePhase>("idle");
+  const [exitOffsetPx, setExitOffsetPx] = React.useState(0);
 
   const measureOverflow = React.useCallback(() => {
     const container = containerRef.current;
-    const content = contentRef.current;
+    const content = scrollRef.current ?? restRef.current;
     if (!container || !content) {
       return;
     }
@@ -105,7 +113,7 @@ export function HoverMarqueeLabel({
     measureOverflow();
 
     const container = containerRef.current;
-    const content = contentRef.current;
+    const content = scrollRef.current ?? restRef.current;
     if (!container) {
       return undefined;
     }
@@ -119,22 +127,73 @@ export function HoverMarqueeLabel({
     return () => resizeObserver.disconnect();
   }, [children, measureOverflow]);
 
+  React.useEffect(() => {
+    const root = rootRef.current;
+    const group = root?.closest(".group");
+    if (!group) {
+      return undefined;
+    }
+
+    const handleEnter = () => {
+      setExitOffsetPx(0);
+      setPhase("idle");
+    };
+
+    const handleLeave = () => {
+      const scroll = scrollRef.current;
+      if (!scroll) {
+        return;
+      }
+      setExitOffsetPx(readTransformOffsetPx(scroll));
+      setPhase("exiting");
+    };
+
+    group.addEventListener("mouseenter", handleEnter);
+    group.addEventListener("mouseleave", handleLeave);
+
+    return () => {
+      group.removeEventListener("mouseenter", handleEnter);
+      group.removeEventListener("mouseleave", handleLeave);
+    };
+  }, [children]);
+
+  const handleRestTransitionEnd = React.useCallback(
+    (event: React.TransitionEvent<HTMLSpanElement>) => {
+      if (event.propertyName !== "opacity") {
+        return;
+      }
+      setPhase((current) => {
+        if (current === "exiting") {
+          setExitOffsetPx(0);
+          return "idle";
+        }
+        return current;
+      });
+    },
+    [],
+  );
+
   const isOverflowing = scrollDistance > HOVER_MARQUEE_OVERFLOW_THRESHOLD_PX;
   const durationMs = getHoverMarqueeDurationMs(scrollDistance);
+  const crossfadeMs = HOVER_MARQUEE_CROSSFADE_MS;
+  const isExiting = isOverflowing && phase === "exiting";
 
   return (
     <span
+      ref={rootRef}
       className={cn("relative min-w-0", className)}
       data-testid="hover-marquee-label"
       data-overflow={isOverflowing ? "true" : "false"}
+      data-phase={isOverflowing ? phase : undefined}
       title={isOverflowing ? children : undefined}
       {...rest}
     >
       <span
         ref={containerRef}
         data-testid="hover-marquee-label-clip"
+        data-phase={isOverflowing ? phase : undefined}
         className={cn(
-          "block min-w-0 overflow-hidden",
+          "relative block min-w-0 overflow-hidden",
           isOverflowing && "hover-marquee-clip",
         )}
         style={
@@ -142,29 +201,36 @@ export function HoverMarqueeLabel({
             ? ({
                 ["--hover-marquee-mask-duration" as string]: `${durationMs}ms`,
                 ["--hover-marquee-mask-fade-in-duration" as string]: `${HOVER_MARQUEE_FADE_IN_DURATION_MS}ms`,
+                ["--hover-marquee-crossfade-duration" as string]: `${crossfadeMs}ms`,
               } as React.CSSProperties)
             : undefined
         }
       >
         <span
-          ref={contentRef}
-          data-testid="hover-marquee-label-content"
-          className={cn(
-            "inline-block whitespace-nowrap",
-            isOverflowing &&
-              "transition-transform ease-in-out motion-reduce:transition-none group-hover:[transform:translateX(var(--hover-marquee-offset))]",
-          )}
-          style={
-            isOverflowing
-              ? ({
-                  ["--hover-marquee-offset" as string]: `-${scrollDistance}px`,
-                  transitionDuration: `${durationMs}ms`,
-                } as React.CSSProperties)
-              : undefined
-          }
+          ref={restRef}
+          data-testid="hover-marquee-label-rest"
+          className="hover-marquee-rest inline-block whitespace-nowrap"
+          onTransitionEnd={handleRestTransitionEnd}
         >
           {children}
         </span>
+        {isOverflowing ? (
+          <span
+            ref={scrollRef}
+            data-testid="hover-marquee-label-scroll"
+            data-phase={phase}
+            aria-hidden
+            className="hover-marquee-scroll absolute left-0 top-0 inline-block whitespace-nowrap motion-reduce:transition-none"
+            style={{
+              ["--hover-marquee-offset" as string]: `${scrollDistance}px`,
+              transform: isExiting
+                ? `translateX(-${exitOffsetPx}px)`
+                : undefined,
+            }}
+          >
+            {children}
+          </span>
+        ) : null}
       </span>
     </span>
   );

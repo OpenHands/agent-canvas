@@ -5,6 +5,7 @@ import {
   getHoverMarqueeMaskImage,
   getHoverMarqueeMaskInsets,
   getHoverMarqueeOffset,
+  HOVER_MARQUEE_CROSSFADE_MS,
   HOVER_MARQUEE_FADE_IN_DURATION_MS,
   HoverMarqueeLabel,
   readHoverMarqueeFadeState,
@@ -66,9 +67,12 @@ describe("HoverMarqueeLabel", () => {
     expect(screen.getByTestId("hover-marquee-label-clip")).not.toHaveClass(
       "hover-marquee-clip",
     );
+    expect(
+      screen.queryByTestId("hover-marquee-label-scroll"),
+    ).not.toBeInTheDocument();
   });
 
-  it("applies animated clip mask timing vars when overflowing", async () => {
+  it("renders rest and scroll layers with crossfade timing when overflowing", async () => {
     vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(80);
     vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockReturnValue(200);
 
@@ -84,19 +88,23 @@ describe("HoverMarqueeLabel", () => {
     await waitFor(() => {
       expect(label).toHaveAttribute("data-overflow", "true");
     });
+    expect(label).toHaveAttribute("data-phase", "idle");
 
     const clip = screen.getByTestId("hover-marquee-label-clip");
     expect(clip).toHaveClass("hover-marquee-clip");
     expect(clip).toHaveStyle({
       "--hover-marquee-mask-duration": "3000ms",
       "--hover-marquee-mask-fade-in-duration": `${HOVER_MARQUEE_FADE_IN_DURATION_MS}ms`,
+      "--hover-marquee-crossfade-duration": `${HOVER_MARQUEE_CROSSFADE_MS}ms`,
     });
 
-    const inner = screen.getByTestId("hover-marquee-label-content");
-    expect(inner).toHaveStyle({
-      "--hover-marquee-offset": "-120px",
-      transitionDuration: "3000ms",
+    const rest = screen.getByTestId("hover-marquee-label-rest");
+    expect(rest).toHaveClass("hover-marquee-rest");
+
+    const scroll = screen.getByTestId("hover-marquee-label-scroll");
+    expect(scroll).toHaveClass("hover-marquee-scroll");
+    expect(scroll).toHaveStyle({
+      "--hover-marquee-offset": "120px",
     });
-    expect(inner.className).toContain("group-hover:");
   });
 });

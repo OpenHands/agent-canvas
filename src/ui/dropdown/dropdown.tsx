@@ -69,6 +69,7 @@ export function Dropdown({
   const closeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const anchorRef = React.useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState(defaultValue?.label ?? "");
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -158,6 +159,7 @@ export function Dropdown({
 
   return (
     <div
+      ref={anchorRef}
       className={cn("relative", fitContent ? "inline-block w-auto" : "w-full")}
       data-testid={testId}
       onMouseEnter={
@@ -209,7 +211,7 @@ export function Dropdown({
               <DropdownOptionLabel
                 option={liveSelectedOption}
                 aria-hidden
-                className="pointer-events-none absolute inset-y-0 left-0 pr-8"
+                className="pointer-events-none absolute inset-y-0 left-0 right-8 min-w-0 w-full"
                 marqueeProps={{ "aria-hidden": true }}
               />
             ) : null}
@@ -257,6 +259,7 @@ export function Dropdown({
         footer={footer}
         openUpward={openUpward}
         fitContent={fitContent}
+        anchorRef={anchorRef}
       />
     </div>
   );
