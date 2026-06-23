@@ -35,27 +35,24 @@ describe("settings route", () => {
     queryClient.clear();
   });
 
-  it("prefers /settings/agent when LLM settings are hidden", () => {
-    // /settings/agent is the unconditional first fallback — always
-    // available and the single place to switch agent kinds.
+  it("lands on /settings/app — Settings shrank to cross-cutting items (#1456)", () => {
+    // Agent config moved to the Agents hub; Application is the always-available
+    // settings landing.
     expect(
       getFirstAvailablePath({
         hide_llm_settings: true,
         hide_users_page: true,
       }),
-    ).toBe("/settings/agent");
+    ).toBe("/settings/app");
   });
 
-  it("prefers /settings/agent when LLM settings are visible", () => {
-    // /settings/agent wins unconditionally, so OpenHands users land
-    // there too and reach LLM via the left nav instead of bouncing
-    // through /settings/llm (which is disabled for ACP users).
+  it("lands on /settings/app regardless of LLM visibility", () => {
     expect(
       getFirstAvailablePath({
         hide_llm_settings: false,
         hide_users_page: true,
       }),
-    ).toBe("/settings/agent");
+    ).toBe("/settings/app");
   });
 
   it("redirects hidden OSS settings pages to the first available route", async () => {
@@ -80,7 +77,7 @@ describe("settings route", () => {
     } as never)) as Response;
 
     expect(response.status).toBe(302);
-    expect(response.headers.get("Location")).toBe("/settings/agent");
+    expect(response.headers.get("Location")).toBe("/settings/app");
   });
 
   it("does not redirect unrelated removed nested paths through the settings loader", async () => {

@@ -27,7 +27,7 @@ describe("ExtensionsNavigation", () => {
     renderExtensionsNavigation(<ExtensionsNavigation />);
 
     const nav = screen.getByTestId("extensions-navbar-desktop");
-    const mcpItem = within(nav).getByTestId("sidebar-extensions-/mcp");
+    const mcpItem = within(nav).getByTestId("sidebar-extensions-/agents/mcp");
     expect(mcpItem).not.toHaveAttribute("aria-disabled");
     // `NavigationLink` renders as <a> with an href so direct URL
     // navigation works.
@@ -42,7 +42,7 @@ describe("ExtensionsNavigation", () => {
     renderExtensionsNavigation(<ExtensionsNavigation />);
 
     const nav = screen.getByTestId("extensions-navbar-desktop");
-    const mcpItem = within(nav).getByTestId("sidebar-extensions-/mcp");
+    const mcpItem = within(nav).getByTestId("sidebar-extensions-/agents/mcp");
     expect(mcpItem).not.toHaveAttribute("aria-disabled");
     expect(mcpItem.tagName).toBe("A");
   });
@@ -51,7 +51,9 @@ describe("ExtensionsNavigation", () => {
     renderExtensionsNavigation(<ExtensionsNavigation />);
 
     const nav = screen.getByTestId("extensions-navbar-desktop");
-    const skillsItem = within(nav).getByTestId("sidebar-extensions-/skills");
+    const skillsItem = within(nav).getByTestId(
+      "sidebar-extensions-/agents/skills",
+    );
     expect(skillsItem).not.toHaveAttribute("aria-disabled");
     expect(skillsItem.tagName).toBe("A");
   });

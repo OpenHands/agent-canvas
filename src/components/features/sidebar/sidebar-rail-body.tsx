@@ -43,7 +43,7 @@ export interface SidebarRailBodyProps {
   onCollapse: () => void;
   onExpand: () => void;
   showCollapsedExpandButton: boolean;
-  isExtensionsActive: boolean;
+  isAgentsActive: boolean;
   currentPath: string;
   activeBackendHealth: { isConnected: boolean | null } | undefined;
   collapsedBackendPopoverOpen: boolean;
@@ -66,7 +66,7 @@ export function SidebarRailBody({
   onCollapse,
   onExpand,
   showCollapsedExpandButton,
-  isExtensionsActive,
+  isAgentsActive,
   currentPath,
   activeBackendHealth,
   collapsedBackendPopoverOpen,
@@ -166,12 +166,12 @@ export function SidebarRailBody({
           icon={<Plus width={ICON_SIZE} height={ICON_SIZE} />}
         />
         <SidebarNavLink
-          to="/customize"
-          label={t(I18nKey.NAV$CUSTOMIZE)}
-          testId="sidebar-skills-link"
+          to="/agents"
+          label={t(I18nKey.NAV$AGENTS)}
+          testId="sidebar-agents-link"
           disabled={linkDisabled}
           collapsed={collapsed}
-          forceActive={isExtensionsActive}
+          forceActive={isAgentsActive}
           icon={
             <svg
               xmlns="http://www.w3.org/2000/svg"

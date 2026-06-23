@@ -53,27 +53,26 @@ export function isSettingsPageHidden(
   path: string,
   featureFlags: WebClientFeatureFlags | undefined,
 ): boolean {
-  if (featureFlags?.hide_llm_settings && path === "/settings/llm") return true;
+  // The LLM catalog now lives in the Agents hub; honor the flag on both the
+  // new path and the legacy one.
+  if (
+    featureFlags?.hide_llm_settings &&
+    (path === "/agents/llm" || path === "/settings/llm")
+  )
+    return true;
   return false;
 }
 
 export function getFirstAvailablePath(
-  featureFlags: WebClientFeatureFlags | undefined,
+  _featureFlags: WebClientFeatureFlags | undefined,
 ): string | null {
-  // ``/settings/agent`` always wins: it is the single place to switch
-  // agent kinds (OpenHands / ACP) and the only sub-page that is always
-  // available regardless of feature flags. Landing here keeps the
-  // routing simple — ACP users no longer have to bounce through
-  // ``/settings/llm`` (which is disabled for them), and OpenHands users
-  // are one nav-click away from the LLM page.
-  const fallbackOrder = [
-    { path: "/settings/agent", hidden: false },
-    { path: "/settings/llm", hidden: !!featureFlags?.hide_llm_settings },
-    { path: "/settings", hidden: !!featureFlags?.hide_llm_settings },
-    { path: "/settings/app", hidden: false },
-    { path: "/settings/secrets", hidden: false },
-  ];
+  // Settings shrank to cross-cutting items (#1456); Application is always
+  // available and is the natural landing for the gear.
+  return "/settings/app";
+}
 
-  const firstAvailable = fallbackOrder.find((item) => !item.hidden);
-  return firstAvailable?.path ?? null;
+export function getFirstAvailableAgentsPath(): string {
+  // The profile library is always available; building-block catalogs may be
+  // feature-flagged off, but Profiles never is.
+  return "/agents/profiles";
 }

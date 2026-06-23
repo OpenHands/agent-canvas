@@ -179,7 +179,10 @@ export function Sidebar() {
   const showCollapsedExpandButton =
     collapsed && collapsedRailHovered && !suppressCollapsedExpandRef.current;
 
-  const isExtensionsActive =
+  // The rail "Agents" item covers the hub plus the legacy catalog paths that
+  // still redirect into it.
+  const isAgentsActive =
+    currentPath.startsWith("/agents") ||
     currentPath === "/customize" ||
     currentPath.startsWith("/skills") ||
     currentPath === "/plugins" ||
@@ -191,7 +194,7 @@ export function Sidebar() {
     onCollapse: handleCollapse,
     onExpand: () => setCollapsed(false),
     showCollapsedExpandButton,
-    isExtensionsActive,
+    isAgentsActive,
     currentPath,
     activeBackendHealth,
     collapsedBackendPopoverOpen,

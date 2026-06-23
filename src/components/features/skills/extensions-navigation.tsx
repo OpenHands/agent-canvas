@@ -20,19 +20,19 @@ interface ExtensionNavItem {
 
 export const EXTENSIONS_NAV_ITEMS: ExtensionNavItem[] = [
   {
-    to: "/skills",
+    to: "/agents/skills",
     label: "Skills",
     icon: <SkillsIcon width={16} height={16} aria-hidden="true" />,
     end: true,
   },
   {
-    to: "/mcp",
+    to: "/agents/mcp",
     label: "MCP Servers",
     icon: <ServerProcessIcon width={16} height={16} />,
     end: true,
   },
   {
-    to: "/plugins",
+    to: "/agents/plugins",
     label: "Plugins",
     icon: (
       <svg
@@ -66,7 +66,7 @@ export function ExtensionsNavigation() {
       className="hidden md:flex md:w-[260px] md:shrink-0 md:flex-col md:gap-2 md:sticky md:top-8 md:self-start"
     >
       <span className="px-2 text-sm font-normal text-white">
-        {t(I18nKey.NAV$CUSTOMIZE)}
+        {t(I18nKey.NAV$AGENTS)}
       </span>
       <div className="flex flex-col gap-0.5 pt-0.5">
         {EXTENSIONS_NAV_ITEMS.map((item) => {

@@ -432,7 +432,7 @@ describe("Sidebar", () => {
     for (const testId of [
       "sidebar-conversations-link",
       "sidebar-automations-link",
-      "sidebar-skills-link",
+      "sidebar-agents-link",
     ]) {
       const link = screen.getByTestId(testId);
       expect(link.querySelector("svg")).not.toBeNull();
@@ -447,8 +447,8 @@ describe("Sidebar", () => {
     expect(screen.getByTestId("sidebar-conversations-link")).toHaveTextContent(
       "New Chat",
     );
-    expect(screen.getByTestId("sidebar-skills-link")).toHaveTextContent(
-      "Customize",
+    expect(screen.getByTestId("sidebar-agents-link")).toHaveTextContent(
+      "Agents",
     );
     expect(screen.getByTestId("sidebar-automations-link")).toHaveTextContent(
       "Automate",
