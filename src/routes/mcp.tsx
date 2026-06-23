@@ -7,7 +7,6 @@ import { BrandButton } from "#/components/features/settings/brand-button";
 import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useDeleteMcpServer } from "#/hooks/mutation/use-delete-mcp-server";
-import { useActiveBackend } from "#/contexts/active-backend-context";
 import { parseMcpConfig } from "#/utils/mcp-config";
 import {
   displayErrorToast,
@@ -46,8 +45,6 @@ export default function MCPPage() {
   const { data: settings, isLoading } = useSettings();
   const { mutate: deleteMcpServer, isPending: isDeleting } =
     useDeleteMcpServer();
-  const activeBackend = useActiveBackend();
-  const backendKind = activeBackend.backend.kind;
 
   const [installEntry, setInstallEntry] =
     React.useState<MarketplaceEntry | null>(null);
@@ -175,7 +172,6 @@ export default function MCPPage() {
 
           {sectionFilter !== "installed" ? (
             <MarketplaceSection
-              backendKind={backendKind}
               onSelect={handleMarketplaceInstall}
               onAdd={handleMarketplaceInstall}
               query={searchQuery}

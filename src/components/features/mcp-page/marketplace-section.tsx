@@ -16,7 +16,6 @@ import {
 } from "#/utils/extension-module-card-classes";
 
 interface MarketplaceSectionProps {
-  backendKind: "local" | "cloud";
   onSelect: (entry: MarketplaceEntry) => void;
   onAdd: (entry: MarketplaceEntry) => void;
   /** Empty string = no filter. */
@@ -24,7 +23,6 @@ interface MarketplaceSectionProps {
 }
 
 export function MarketplaceSection({
-  backendKind: _backendKind,
   onSelect,
   onAdd,
   query = "",
