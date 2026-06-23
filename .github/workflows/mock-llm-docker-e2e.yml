@@ -403,8 +403,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          gh pr comment "${{ steps.ctx.outputs.pr_number }}" \
-            --body-file "$MOCK_LLM_REPORT_PATH"
+          node tests/e2e/mock-llm/scripts/upsert-pr-comment.mjs \
+            --issue-number "${{ steps.ctx.outputs.pr_number }}" \
+            --body-file "$MOCK_LLM_REPORT_PATH" \
+            --marker "<!-- agent-canvas-mock-llm-docker-e2e-report -->" \
+            --legacy-title "Mock-LLM Docker E2E Test Results"
 
       - name: Fail job when tests fail
         if: always()
