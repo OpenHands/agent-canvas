@@ -97,6 +97,14 @@ function automationMatchesQuery(
   return haystack.includes(query);
 }
 
+/**
+ * Returns true only when at least one of the automation's required integration
+ * IDs resolves to a known marketplace entry.  An empty result means none of
+ * the required integrations are in our catalog (or the array itself is empty),
+ * so there is nothing for the user to set up — hide the card.
+ * NOTE: intentionally no local/cloud backend availability filter; every entry
+ * with a catalog match is shown regardless of runtimeAvailability.
+ */
 function isAutomationAvailable(automation: RecommendedAutomation) {
   return getRequiredEntries(automation).length > 0;
 }

@@ -52,6 +52,10 @@ export function McpLogoBadge({
           src={entry.logoUrl}
           alt={`${entry.name} logo`}
           className="h-full w-full object-contain p-[22%]"
+          onError={(e) => {
+            // Hide the broken image so the outer badge background still shows.
+            (e.target as HTMLImageElement).style.display = "none";
+          }}
         />
       ) : (
         (fallback ?? <Bot className="h-5 w-5" strokeWidth={2.25} />)
