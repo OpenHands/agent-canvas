@@ -111,6 +111,7 @@ export function ConversationCardContextMenu({
             </ContextMenuListItem>
           ),
         ],
+        // eslint-disable-next-line i18next/no-literal-string -- internal section id, not user-facing
         "edit-section",
       )}
       {generateSection(
@@ -147,6 +148,7 @@ export function ConversationCardContextMenu({
             </ContextMenuListItem>
           ),
         ],
+        // eslint-disable-next-line i18next/no-literal-string -- internal section id, not user-facing
         "tools-section",
       )}
       {generateSection(
@@ -188,6 +190,7 @@ export function ConversationCardContextMenu({
             </ContextMenuListItem>
           ),
         ],
+        // eslint-disable-next-line i18next/no-literal-string -- internal section id, not user-facing
         "control-section",
       )}
       {generateSection(
@@ -217,6 +220,7 @@ export function ConversationCardContextMenu({
             </ContextMenuListItem>
           ),
         ],
+        // eslint-disable-next-line i18next/no-literal-string -- internal section id, not user-facing
         "info-section",
         true,
       )}

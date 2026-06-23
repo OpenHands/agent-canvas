@@ -11,6 +11,11 @@ import {
 import { I18nKey } from "#/i18n/declaration";
 import { getEventContent } from "../event-content-helpers/get-event-content";
 import { IsInEventGroupContext } from "../../../features/chat/is-in-event-group-context";
+import {
+  computeGroupElapsedMs,
+  countChangedFiles,
+  formatElapsed,
+} from "./event-group-summary";
 
 interface EventGroupProps {
   /** The events represented by this group. Used to compute the summary. */
@@ -66,17 +71,41 @@ export function EventGroup({
   const contentId = React.useId();
   const buttonId = `${contentId}-toggle`;
 
+  // An ActionEvent still present in the group (not yet replaced by its
+  // observation) is an action currently in flight.
+  const isRunning = events.some((e) => isActionEvent(e));
+
+  // Tick once a second while running so the elapsed counter stays live; the
+  // interval stops as soon as the group settles, freezing the displayed value.
+  const [nowTick, setNowTick] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    if (!isRunning) return undefined;
+    setNowTick(Date.now());
+    const interval = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [isRunning]);
+
   if (events.length === 0) {
     return null;
   }
 
-  // Each ObservationEvent in the group is a completed action. An ActionEvent
-  // that's still here (i.e. not yet replaced by its observation in the UI
-  // events array) is an action currently in flight.
-  const pendingAction = events.find((e): e is ActionEvent => isActionEvent(e));
+  // Each ObservationEvent in the group is a completed action.
   const completedCount = events.filter(isObservationEvent).length;
   const totalCount = events.length;
-  const isRunning = !!pendingAction;
+
+  const elapsedMs = computeGroupElapsedMs(events, isRunning, nowTick);
+  const changedFilesCount = countChangedFiles(events, allEvents ?? events);
+  const metaSegments: string[] = [];
+  if (Math.round(elapsedMs / 1000) > 0) {
+    metaSegments.push(formatElapsed(elapsedMs));
+  }
+  if (changedFilesCount > 0) {
+    metaSegments.push(
+      t(I18nKey.EVENT_GROUP$FILES_CHANGED, { count: changedFilesCount }),
+    );
+  }
+  const metaSuffix =
+    metaSegments.length > 0 ? ` · ${metaSegments.join(" · ")}` : "";
 
   // Title of the most recent groupable event. While running this is the
   // pending action; otherwise it's the latest observation, with its
@@ -125,7 +154,10 @@ export function EventGroup({
         {isFinalized ? (
           <span className="flex items-center gap-2 min-w-0 font-normal text-[var(--oh-muted)]">
             <Chevron className="h-4 w-4 fill-[var(--oh-muted)] flex-shrink-0" />
-            <span className="truncate">{countSummary}</span>
+            <span className="truncate">
+              {countSummary}
+              {metaSuffix}
+            </span>
           </span>
         ) : (
           <>
@@ -134,7 +166,10 @@ export function EventGroup({
               <span className="truncate">{latestTitle ?? countSummary}</span>
             </span>
             <span className="flex items-center flex-shrink-0 font-normal text-[var(--oh-muted)]">
-              <span className="truncate">{countSummary}</span>
+              <span className="truncate">
+                {countSummary}
+                {metaSuffix}
+              </span>
               {isRunning ? (
                 <LoaderCircle
                   data-testid="spinner-icon"

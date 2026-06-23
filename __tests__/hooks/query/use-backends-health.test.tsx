@@ -65,7 +65,7 @@ function wrapper({ children }: { children: React.ReactNode }) {
 beforeEach(() => {
   getSettingsMock.mockReset();
   getServerInfoMock.mockReset();
-  getServerInfoMock.mockResolvedValue({ version: "1.28.0" });
+  getServerInfoMock.mockResolvedValue({ version: "1.29.0" });
   getCurrentCloudApiKeyMock.mockReset();
   vi.mocked(ServerClient).mockClear();
   vi.mocked(SettingsClient).mockClear();
@@ -107,7 +107,7 @@ describe("useBackendsHealth", () => {
       expect(result.current[localBackend.id]).toMatchObject({
         isConnected: false,
         lastError:
-          "Agent Canvas requires agent-server 1.28.0 or newer; this backend is running 1.27.1. Please upgrade the agent-server backend.",
+          "Agent Canvas requires agent-server 1.29.0 or newer; this backend is running 1.27.1. Please upgrade the agent-server backend.",
       }),
     );
   });

@@ -1,5 +1,17 @@
 export const DEFAULT_WORKING_DIR = "workspace/project";
 
+/**
+ * Default root the agent-server clones GitHub repositories into (and creates
+ * per-task worktrees beneath). It deliberately lives under the writable,
+ * persisted `.openhands` state volume rather than the legacy `/projects` bind
+ * mount: the in-container `openhands` user owns `.openhands`, whereas a
+ * host-mounted `/projects` is owned by the host user (UID mismatch on Linux,
+ * macOS file-sharing restrictions for `~/Documents`), which made `git clone`
+ * fail with "could not create work tree dir … Permission denied".
+ */
+export const DEFAULT_MANAGED_REPOSITORY_ROOT =
+  "/home/openhands/.openhands/repos";
+
 export interface AgentServerFormDefaults {
   baseUrl: string;
   sessionApiKey: string;
@@ -89,6 +101,18 @@ export function getAgentServerWorkingDir(): string {
   if (envDir) return envDir;
 
   return DEFAULT_WORKING_DIR;
+}
+
+/**
+ * Root directory the agent-server uses for managed GitHub clones / worktree
+ * sources. Overridable at build time via `VITE_MANAGED_REPOSITORY_ROOT`;
+ * defaults to a writable location under the `.openhands` state volume.
+ */
+export function getManagedRepositoryRoot(): string {
+  const envRoot = import.meta.env.VITE_MANAGED_REPOSITORY_ROOT?.trim();
+  if (envRoot) return envRoot.replace(/\/+$/, "");
+
+  return DEFAULT_MANAGED_REPOSITORY_ROOT;
 }
 
 export function buildConversationWorkingDir(conversationId: string): string {

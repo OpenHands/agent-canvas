@@ -43,7 +43,7 @@ export const formControlTransformTransitionClassName = cn(
 
 /** Muted icon/pill controls: instant foreground, fading shell on hover. */
 export const formControlMutedHoverClassName =
-  "hover:text-white hover:bg-white/10";
+  "hover:text-foreground hover:bg-white/10";
 
 /** Text/icon pill triggers in the chat input actions row. */
 export const chatInputPillButtonClassName = cn(
@@ -78,7 +78,7 @@ export const formControlFieldClassName = cn(
   formControlTransitionClassName,
   formControlFocusClassName,
   formControlDisabledClassName,
-  "w-full min-w-0 px-3 text-sm text-white placeholder:text-tertiary-alt",
+  "w-full min-w-0 px-3 text-sm text-foreground placeholder:text-tertiary-alt",
 );
 
 /** Settings screens keep italic placeholders on form controls. */
@@ -96,7 +96,7 @@ export const formControlMultilineFieldClassName = cn(
   formControlTransitionClassName,
   formControlFocusClassName,
   formControlDisabledClassName,
-  "w-full min-w-0 px-3 py-2 text-sm text-white placeholder:text-tertiary-alt",
+  "w-full min-w-0 px-3 py-2 text-sm text-foreground placeholder:text-tertiary-alt",
 );
 
 /** Combobox / search shell (icon + input), e.g. skills toolbar. */
@@ -134,7 +134,7 @@ export const formControlFilterTriggerClassName = cn(
   formControlButtonClassName,
   formControlBorderClassName,
   formControlSurfaceClassName,
-  "shrink-0 text-white",
+  "shrink-0 text-foreground",
 );
 
 /** Muted back navigation control with tertiary hover fill (settings sub-pages, detail views). */
@@ -142,5 +142,5 @@ export const formControlBackNavButtonClassName = cn(
   "inline-flex items-center gap-2 self-start rounded-lg p-2",
   "text-sm font-normal leading-5 text-[var(--oh-muted)] cursor-pointer",
   formControlTransitionClassName,
-  "hover:bg-tertiary hover:text-white",
+  "hover:bg-tertiary hover:text-foreground",
 );

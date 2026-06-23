@@ -73,6 +73,7 @@ describe("conversation-panel-preferences store", () => {
       "conversationSort",
       "groupFolderOrder",
       "organizeMode",
+      "repoFilter",
       "showHoverMetadata",
       "showLlmProfiles",
       "showOlderConversations",

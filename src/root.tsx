@@ -31,15 +31,22 @@ import { useConfig } from "#/hooks/query/use-config";
 import { QUERY_KEYS } from "#/hooks/query/query-keys";
 import { AgentServerUIRoot } from "#/components/providers";
 import { useOnboardingCompletion } from "#/components/features/onboarding/use-onboarding-completion";
+import { applyActiveTheme } from "#/themes/color-themes";
 import {
-  applyColorTheme,
-  readPersistedColorTheme,
-} from "#/themes/color-themes";
+  readPersistedAppearanceMode,
+  subscribeToSystemAppearance,
+} from "#/themes/appearance";
 
-/** Applies the persisted color-theme palette to document.body on mount. */
+/**
+ * Applies the persisted color-theme palette + appearance on mount, and
+ * re-applies when the OS color scheme flips while the mode is "system".
+ */
 function ColorThemeApplier() {
   React.useEffect(() => {
-    applyColorTheme(readPersistedColorTheme());
+    applyActiveTheme();
+    return subscribeToSystemAppearance(() => {
+      if (readPersistedAppearanceMode() === "system") applyActiveTheme();
+    });
   }, []);
   return null;
 }
@@ -91,7 +98,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 function AgentServerBootstrapLoading() {
   return (
-    <main className="min-h-screen bg-base px-6 py-10 text-white">
+    <main className="min-h-screen bg-base px-6 py-10 text-foreground">
       <div className="mx-auto flex min-h-screen max-w-6xl items-center justify-center">
         <div className="rounded-3xl border border-white/10 bg-base/80 px-8 py-10 shadow-2xl">
           <LoadingSpinner size="large" />

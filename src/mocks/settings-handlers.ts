@@ -603,7 +603,7 @@ const MOCK_VERIFIED_MODELS_BY_PROVIDER = MOCK_MODELS.reduce<
   return acc;
 }, {});
 
-const MOCK_AGENT_SERVER_VERSION = "1.28.1";
+const MOCK_AGENT_SERVER_VERSION = "1.29.0";
 
 // --- Handlers for options/config/settings ---
 // Uses wildcard "*" prefix to match both relative paths and absolute URLs

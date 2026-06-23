@@ -8,7 +8,10 @@ import {
   ObservationEvent,
   SecurityRisk,
 } from "#/types/agent-server/core";
-import { ExecuteBashAction } from "#/types/agent-server/core/base/action";
+import {
+  ExecuteBashAction,
+  FileEditorAction,
+} from "#/types/agent-server/core/base/action";
 import { ExecuteBashObservation } from "#/types/agent-server/core/base/observation";
 
 const makeBashAction = (
@@ -61,6 +64,51 @@ const makeBashObservation = (
     timeout: false,
     metadata: {} as never,
   },
+});
+
+const makeFileEditAction = (
+  id: string,
+  path: string,
+  timestamp: string,
+  command: FileEditorAction["command"] = "str_replace",
+): ActionEvent<FileEditorAction> => ({
+  id,
+  timestamp,
+  source: "agent",
+  thought: [],
+  thinking_blocks: [],
+  action: {
+    kind: "FileEditorAction",
+    command,
+    path,
+    file_text: null,
+  } as FileEditorAction,
+  tool_name: "file_editor",
+  tool_call_id: `call_${id}`,
+  tool_call: {
+    id: `call_${id}`,
+    type: "function",
+    function: { name: "file_editor", arguments: "{}" },
+  },
+  llm_response_id: `response_${id}`,
+  security_risk: SecurityRisk.UNKNOWN,
+});
+
+const makeFileEditObservation = (
+  id: string,
+  actionId: string,
+  timestamp: string,
+): ObservationEvent => ({
+  id,
+  timestamp,
+  source: "environment",
+  tool_name: "file_editor",
+  tool_call_id: `call_${actionId}`,
+  action_id: actionId,
+  observation: {
+    kind: "FileEditorObservation",
+    content: [{ type: "text", text: "ok" }],
+  } as never,
 });
 
 describe("EventGroup", () => {
@@ -190,6 +238,38 @@ describe("EventGroup", () => {
     );
     expect(screen.queryByTestId("spinner-icon")).not.toBeInTheDocument();
     expect(screen.queryByTestId("status-icon")).not.toBeInTheDocument();
+  });
+
+  it("shows elapsed time and a files-changed segment for a settled group", () => {
+    // A settled group holds observations (the actions have been replaced); the
+    // originating file-edit actions live in `allEvents` so the summary can
+    // resolve which files changed.
+    const action1 = makeFileEditAction(
+      "a1",
+      "/src/a.ts",
+      "2026-01-01T00:00:00.000Z",
+    );
+    const action2 = makeFileEditAction(
+      "a2",
+      "/src/b.ts",
+      "2026-01-01T00:00:08.000Z",
+    );
+    const obs1 = makeFileEditObservation("o1", "a1", "2026-01-01T00:00:00.000Z");
+    const obs2 = makeFileEditObservation("o2", "a2", "2026-01-01T00:00:08.000Z");
+    const events = [obs1, obs2];
+    const allEvents = [action1, obs1, action2, obs2];
+
+    renderWithProviders(
+      <EventGroup events={events} allEvents={allEvents} isFinalized>
+        <div>child</div>
+      </EventGroup>,
+    );
+
+    const toggle = screen.getByTestId("event-group-toggle");
+    // Two distinct edited files surface the files-changed key, and the
+    // 8s span between the first and last timestamp renders as elapsed time.
+    expect(toggle).toHaveTextContent("EVENT_GROUP$FILES_CHANGED");
+    expect(toggle).toHaveTextContent("8s");
   });
 
   it("updates accessibility state while toggling the group", async () => {

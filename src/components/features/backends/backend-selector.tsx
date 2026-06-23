@@ -410,11 +410,11 @@ export function BackendSelector({
               className={
                 isSettingsActive
                   ? cn(
-                      "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md bg-tertiary text-white font-normal cursor-pointer",
+                      "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md bg-tertiary text-foreground font-normal cursor-pointer",
                       formControlTransitionClassName,
                     )
                   : cn(
-                      "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)] cursor-pointer",
+                      "inline-flex items-center justify-center shrink-0 w-9 h-9 rounded-md text-[var(--oh-muted)] hover:text-foreground hover:bg-[var(--oh-surface-raised)] cursor-pointer",
                       formControlTransitionClassName,
                     )
               }

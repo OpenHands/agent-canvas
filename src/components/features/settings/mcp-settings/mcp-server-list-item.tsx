@@ -92,7 +92,7 @@ export function MCPServerListItem({
           type="button"
           onClick={onEdit}
           aria-label={`Edit ${serverName}`}
-          className="inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-muted transition-colors hover:bg-interactive-hover hover:text-white"
+          className="inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-muted transition-colors hover:bg-interactive-hover hover:text-foreground"
         >
           <Pencil aria-hidden className="size-4" strokeWidth={2} />
         </button>
@@ -101,7 +101,7 @@ export function MCPServerListItem({
           type="button"
           onClick={onDelete}
           aria-label={`Delete ${serverName}`}
-          className="inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-muted transition-colors hover:bg-interactive-hover hover:text-white"
+          className="inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-muted transition-colors hover:bg-interactive-hover hover:text-foreground"
         >
           <Trash2 aria-hidden className="size-4" strokeWidth={2} />
         </button>

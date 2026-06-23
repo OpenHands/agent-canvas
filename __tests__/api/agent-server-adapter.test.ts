@@ -2,6 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   ACP_SERVER_TAG_KEY,
+  CONVERSATION_BRANCH_TAG_KEY,
+  CONVERSATION_REPOSITORY_TAG_KEY,
+  CONVERSATION_WORKSPACE_TAG_KEY,
   buildRuntimeServicesSystemSuffix,
   buildStartConversationRequest,
   getDefaultConversationTitle,
@@ -126,9 +129,9 @@ describe("buildStartConversationRequest", () => {
     });
     // Bundled public skills are injected into agent_context.skills so the
     // SDK can perform trigger matching without cloning the extensions repo.
-    expect(
-      Array.isArray(payload.agent_settings.agent_context.skills),
-    ).toBe(true);
+    expect(Array.isArray(payload.agent_settings.agent_context.skills)).toBe(
+      true,
+    );
     const skills = payload.agent_settings.agent_context.skills as Record<
       string,
       unknown
@@ -615,9 +618,9 @@ describe("buildStartConversationRequest", () => {
         tool_module_qualnames?: Record<string, string>;
       };
 
-      expect(payload.agent_settings.tools.map((tool) => tool.name)).not.toContain(
-        "canvas_ui",
-      );
+      expect(
+        payload.agent_settings.tools.map((tool) => tool.name),
+      ).not.toContain("canvas_ui");
       expect(payload.tool_module_qualnames).toBeUndefined();
     });
 
@@ -806,6 +809,60 @@ describe("toAppConversation", () => {
       expect(result.selected_workspace).toBe("/workspace/agent-server-gui");
     } finally {
       removeStoredConversationMetadata(baseInfo.id);
+    }
+  });
+
+  it("hydrates source metadata from server tags for API-created conversations", () => {
+    const result = toAppConversation({
+      ...baseInfo,
+      id: "api-created-12345",
+      tags: {
+        [CONVERSATION_REPOSITORY_TAG_KEY]: "SpotwiseAI/spotwise-self-serve-web",
+        [CONVERSATION_WORKSPACE_TAG_KEY]: "/projects/spotwise-self-serve-web",
+        [CONVERSATION_BRANCH_TAG_KEY]: "hermes/task-123",
+        source: "hermes",
+      },
+    });
+
+    expect(result.selected_repository).toBe(
+      "SpotwiseAI/spotwise-self-serve-web",
+    );
+    expect(result.selected_workspace).toBe("/projects/spotwise-self-serve-web");
+    expect(result.selected_branch).toBe("hermes/task-123");
+    expect(result.git_provider).toBe("github");
+    expect(result.tags).toEqual({
+      [CONVERSATION_REPOSITORY_TAG_KEY]: "SpotwiseAI/spotwise-self-serve-web",
+      [CONVERSATION_WORKSPACE_TAG_KEY]: "/projects/spotwise-self-serve-web",
+      [CONVERSATION_BRANCH_TAG_KEY]: "hermes/task-123",
+      source: "hermes",
+    });
+  });
+
+  it("prefers stored browser metadata over server tags", () => {
+    const id = "ui-created-12345";
+    setStoredConversationMetadata(id, {
+      selected_repository: "SpotwiseAI/ui-selected-repo",
+      selected_branch: "ui-selected-branch",
+      git_provider: "github",
+      selected_workspace: "/projects/ui-selected-workspace",
+    });
+    try {
+      const result = toAppConversation({
+        ...baseInfo,
+        id,
+        tags: {
+          [CONVERSATION_REPOSITORY_TAG_KEY]: "SpotwiseAI/server-tagged-repo",
+          [CONVERSATION_WORKSPACE_TAG_KEY]: "/projects/server-tagged-workspace",
+          [CONVERSATION_BRANCH_TAG_KEY]: "server-tagged-branch",
+        },
+      });
+
+      expect(result.selected_repository).toBe("SpotwiseAI/ui-selected-repo");
+      expect(result.selected_workspace).toBe("/projects/ui-selected-workspace");
+      expect(result.selected_branch).toBe("ui-selected-branch");
+      expect(result.git_provider).toBe("github");
+    } finally {
+      removeStoredConversationMetadata(id);
     }
   });
 
@@ -1161,9 +1218,9 @@ describe("agent_settings runtime services suffix", () => {
       load_user_skills: true,
       load_project_skills: true,
     });
-    expect(
-      Array.isArray(payload.agent_settings.agent_context.skills),
-    ).toBe(true);
+    expect(Array.isArray(payload.agent_settings.agent_context.skills)).toBe(
+      true,
+    );
   });
 
   it("sets system_message_suffix when runtime info is provided", () => {

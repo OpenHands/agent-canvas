@@ -87,7 +87,7 @@ export function AutomationListRow({
             <ClockIcon className="size-4 shrink-0 text-muted" />
           )}
           <span
-            className="max-w-[40%] shrink-0 truncate text-sm font-medium text-white"
+            className="max-w-[40%] shrink-0 truncate text-sm font-medium text-foreground"
             title={automation.name}
           >
             {automation.name}

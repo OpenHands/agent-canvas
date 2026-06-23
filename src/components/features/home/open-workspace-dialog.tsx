@@ -13,17 +13,27 @@ interface OpenWorkspaceDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: (workspace: LocalWorkspace) => void;
+  /**
+   * Restrict the dialog to a single source. ``"repo"`` shows only the GitHub
+   * repository picker, ``"workspace"`` only the local-folder picker. Omit to
+   * show both sections (the home-screen default).
+   */
+  initialSource?: "repo" | "workspace";
 }
 
 export function OpenWorkspaceDialog({
   isOpen,
   onClose,
   onConfirm,
+  initialSource,
 }: OpenWorkspaceDialogProps) {
   const { t } = useTranslation("openhands");
   const { isLoadingSettings } = useUserProviders();
 
   if (!isOpen) return null;
+
+  const showRepo = initialSource !== "workspace";
+  const showWorkspace = initialSource !== "repo";
 
   return (
     <ModalBackdrop onClose={onClose}>
@@ -43,48 +53,54 @@ export function OpenWorkspaceDialog({
           className="flex w-full flex-col gap-5"
           data-testid="open-workspace-dialog-body"
         >
-          <section className="flex flex-col gap-3">
-            <div>
-              <h3 className="text-sm font-semibold text-white">
-                {t(I18nKey.HOME$OPEN_LOCAL_REPOSITORY_TITLE)}
-              </h3>
-              <p className="text-xs text-[var(--oh-text-secondary)]">
-                {t(I18nKey.HOME$OPEN_LOCAL_REPOSITORY_DESCRIPTION)}
-              </p>
-            </div>
-            <LocalRepositorySelectionForm
-              onConfirm={(workspace) => {
-                onConfirm(workspace);
-                onClose();
-              }}
-            />
-          </section>
+          {showRepo ? (
+            <section className="flex flex-col gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">
+                  {t(I18nKey.HOME$OPEN_LOCAL_REPOSITORY_TITLE)}
+                </h3>
+                <p className="text-xs text-[var(--oh-text-secondary)]">
+                  {t(I18nKey.HOME$OPEN_LOCAL_REPOSITORY_DESCRIPTION)}
+                </p>
+              </div>
+              <LocalRepositorySelectionForm
+                onConfirm={(workspace) => {
+                  onConfirm(workspace);
+                  onClose();
+                }}
+              />
+            </section>
+          ) : null}
 
-          <div className="flex items-center gap-3">
-            <div className="h-px flex-1 bg-[var(--oh-border)]" />
-            <span className="text-xs text-[var(--oh-text-secondary)]">
-              {t(I18nKey.COMMON$OR)}
-            </span>
-            <div className="h-px flex-1 bg-[var(--oh-border)]" />
-          </div>
-
-          <section className="flex flex-col gap-3">
-            <div>
-              <h3 className="text-sm font-semibold text-white">
-                {t(I18nKey.HOME$OPEN_LOCAL_WORKSPACE_TITLE)}
-              </h3>
-              <p className="text-xs text-[var(--oh-text-secondary)]">
-                {t(I18nKey.HOME$OPEN_LOCAL_WORKSPACE_DESCRIPTION)}
-              </p>
+          {showRepo && showWorkspace ? (
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-[var(--oh-border)]" />
+              <span className="text-xs text-[var(--oh-text-secondary)]">
+                {t(I18nKey.COMMON$OR)}
+              </span>
+              <div className="h-px flex-1 bg-[var(--oh-border)]" />
             </div>
-            <WorkspaceSelectionForm
-              isLoadingSettings={isLoadingSettings}
-              onConfirm={(workspace) => {
-                onConfirm(workspace);
-                onClose();
-              }}
-            />
-          </section>
+          ) : null}
+
+          {showWorkspace ? (
+            <section className="flex flex-col gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">
+                  {t(I18nKey.HOME$OPEN_LOCAL_WORKSPACE_TITLE)}
+                </h3>
+                <p className="text-xs text-[var(--oh-text-secondary)]">
+                  {t(I18nKey.HOME$OPEN_LOCAL_WORKSPACE_DESCRIPTION)}
+                </p>
+              </div>
+              <WorkspaceSelectionForm
+                isLoadingSettings={isLoadingSettings}
+                onConfirm={(workspace) => {
+                  onConfirm(workspace);
+                  onClose();
+                }}
+              />
+            </section>
+          ) : null}
         </div>
       </ModalBody>
     </ModalBackdrop>

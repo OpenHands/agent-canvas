@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import i18n from "i18next";
@@ -152,7 +159,10 @@ describe("ConversationPanel", () => {
   });
 
   it("does not show load more when the visible list is empty even if another page exists", async () => {
-    vi.spyOn(AgentServerConversationService, "searchConversations").mockResolvedValue({
+    vi.spyOn(
+      AgentServerConversationService,
+      "searchConversations",
+    ).mockResolvedValue({
       items: [],
       next_page_id: "page-2",
     });
@@ -795,9 +805,8 @@ describe("ConversationPanel", () => {
 
     // Test RUNNING conversation - should show stop button
     const runningCard = await getCardByTitle("Running Conversation");
-    const runningEllipsisButton = within(runningCard).getByTestId(
-      "ellipsis-button",
-    );
+    const runningEllipsisButton =
+      within(runningCard).getByTestId("ellipsis-button");
     await user.click(runningEllipsisButton);
 
     expect(await screen.findByTestId("stop-button")).toBeInTheDocument();
@@ -812,9 +821,8 @@ describe("ConversationPanel", () => {
 
     // Test STARTING/RUNNING conversation - should show stop button
     const startingCard = await getCardByTitle("Starting Conversation");
-    const startingEllipsisButton = within(startingCard).getByTestId(
-      "ellipsis-button",
-    );
+    const startingEllipsisButton =
+      within(startingCard).getByTestId("ellipsis-button");
     await user.click(startingEllipsisButton);
 
     expect(await screen.findByTestId("stop-button")).toBeInTheDocument();
@@ -829,9 +837,8 @@ describe("ConversationPanel", () => {
 
     // Test STOPPED conversation - should NOT show stop button
     const stoppedCard = await getCardByTitle("Stopped Conversation");
-    const stoppedEllipsisButton = within(stoppedCard).getByTestId(
-      "ellipsis-button",
-    );
+    const stoppedEllipsisButton =
+      within(stoppedCard).getByTestId("ellipsis-button");
     await user.click(stoppedEllipsisButton);
 
     await waitFor(() => {
@@ -1779,13 +1786,77 @@ describe("ConversationPanel", () => {
     const reorderedAlpha = screen.getByTestId(
       "thread-folder-ws--workspace-alpha",
     );
-    const reorderedBeta = screen.getByTestId("thread-folder-ws--workspace-beta");
+    const reorderedBeta = screen.getByTestId(
+      "thread-folder-ws--workspace-beta",
+    );
     expect(reorderedBeta.compareDocumentPosition(reorderedAlpha)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
     expect(
       useConversationPanelPreferencesStore.getState().groupFolderOrder,
     ).toEqual(["ws:/workspace/beta", "ws:/workspace/alpha"]);
+  });
+
+  it("renders grouped conversations under Conductor-style status buckets", async () => {
+    useConversationPanelPreferencesStore.setState({
+      organizeMode: "grouped",
+      groupFolderOrder: [],
+    });
+
+    vi.spyOn(
+      AgentServerConversationService,
+      "searchConversations",
+    ).mockResolvedValue({
+      items: [
+        createMockConversation({
+          id: "active-chat",
+          title: "Active Chat",
+          execution_status: ExecutionStatus.RUNNING,
+          selected_workspace: "/workspace/active",
+        }),
+        createMockConversation({
+          id: "review-chat",
+          title: "Review Chat",
+          execution_status: ExecutionStatus.FINISHED,
+          selected_workspace: "/workspace/review",
+        }),
+        createMockConversation({
+          id: "done-chat",
+          title: "Done Chat",
+          execution_status: ExecutionStatus.FINISHED,
+          selected_workspace: "/workspace/done",
+          tags: { status: "done" },
+        }),
+      ],
+      next_page_id: null,
+    });
+
+    renderConversationPanel();
+
+    const getBucketSection = async (testId: string) => {
+      const header = await screen.findByTestId(testId);
+      const section = header.closest("section");
+      if (!section) {
+        throw new Error(`Missing section for ${testId}`);
+      }
+      return section;
+    };
+
+    expect(
+      within(
+        await getBucketSection("conversation-status-bucket-in-progress"),
+      ).getByText("active"),
+    ).toBeInTheDocument();
+    expect(
+      within(
+        await getBucketSection("conversation-status-bucket-in-review"),
+      ).getByText("review"),
+    ).toBeInTheDocument();
+    expect(
+      within(
+        await getBucketSection("conversation-status-bucket-done"),
+      ).getByText("done"),
+    ).toBeInTheDocument();
   });
 
   it("shows a pinned section above the conversations list when pins exist", async () => {
@@ -1819,9 +1890,9 @@ describe("ConversationPanel", () => {
     const pinnedSection = await screen.findByTestId(
       "conversation-panel-pinned-section",
     );
-    expect(within(pinnedSection).getAllByTestId("conversation-card")).toHaveLength(
-      1,
-    );
+    expect(
+      within(pinnedSection).getAllByTestId("conversation-card"),
+    ).toHaveLength(1);
     expect(await screen.findAllByTestId("conversation-card")).toHaveLength(3);
     expect(screen.getAllByText("Conversation 2")).toHaveLength(1);
   });
@@ -1837,9 +1908,9 @@ describe("ConversationPanel", () => {
     const pinnedSection = await screen.findByTestId(
       "conversation-panel-pinned-section",
     );
-    expect(within(pinnedSection).getAllByTestId("conversation-card")).toHaveLength(
-      1,
-    );
+    expect(
+      within(pinnedSection).getAllByTestId("conversation-card"),
+    ).toHaveLength(1);
     expect(await screen.findAllByTestId("conversation-card")).toHaveLength(3);
     expect(screen.getAllByText("Conversation 2")).toHaveLength(1);
   });

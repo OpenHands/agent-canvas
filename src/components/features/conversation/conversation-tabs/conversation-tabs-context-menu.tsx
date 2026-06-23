@@ -183,7 +183,7 @@ export function ConversationTabsContextMenu({
                   data-testid={`conversation-tabs-menu-open-${tab}`}
                   disabled={isArchivedConversation}
                   className={cn(
-                    "flex min-w-0 flex-1 items-center gap-2 rounded-l p-2 text-start text-white",
+                    "flex min-w-0 flex-1 items-center gap-2 rounded-l p-2 text-start text-foreground",
                     dropdownInstantColorClassName,
                     isArchivedConversation
                       ? "cursor-not-allowed"
@@ -204,14 +204,18 @@ export function ConversationTabsContextMenu({
                   data-testid={`conversation-tabs-menu-pin-${tab}`}
                   disabled={isArchivedConversation}
                   className={cn(
-                    "flex shrink-0 items-center justify-center rounded-r px-2 text-white",
+                    "flex shrink-0 items-center justify-center rounded-r px-2 text-foreground",
                     dropdownInstantColorClassName,
                     isArchivedConversation
                       ? "cursor-not-allowed"
                       : "cursor-pointer hover:bg-white/10",
                   )}
                   aria-pressed={pinned}
-                  aria-label={pinned ? "Unpin tab from bar" : "Pin tab to bar"}
+                  aria-label={
+                    pinned
+                      ? t(I18nKey.CONVERSATION$UNPIN_TAB)
+                      : t(I18nKey.CONVERSATION$PIN_TAB)
+                  }
                   onClick={(e) => handlePinToggle(tab, e)}
                 >
                   {pinned ? (

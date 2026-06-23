@@ -101,6 +101,9 @@ export type AgentServerGitChangeStatus =
 export interface GitChange {
   status: GitChangeStatus;
   path: string;
+  /** Lines added/removed (`git diff --numstat`); null for binary/unknown. */
+  additions?: number | null;
+  deletions?: number | null;
 }
 
 export interface GitChangeDiff {

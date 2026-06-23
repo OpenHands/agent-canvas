@@ -24,6 +24,9 @@ function renderFilterMenu(
     setOrganizeMode: vi.fn(),
     conversationSort: "created",
     setConversationSort: vi.fn(),
+    repoFilter: "all",
+    setRepoFilter: vi.fn(),
+    repoOptions: [],
     threadScope: "all",
     setThreadScope: vi.fn(),
     showOlderConversations: false,
@@ -51,11 +54,44 @@ describe("ConversationPanelFilterMenu", () => {
     expect(
       screen.getByTestId("older-conversations-filter-menu"),
     ).toBeInTheDocument();
-    expect(screen.getByText("CONVERSATION_PANEL$ORGANIZE")).toBeInTheDocument();
+    expect(screen.getByText("CONVERSATION_PANEL$GROUP_BY")).toBeInTheDocument();
     expect(
       screen.getByTestId("toggle-older-conversations"),
     ).toBeInTheDocument();
     expect(screen.getByTestId("delete-all-conversations")).toBeInTheDocument();
+  });
+
+  it("renders the repo filter only when more than one repo is present", async () => {
+    const user = userEvent.setup();
+    const props = renderFilterMenu({
+      filterMenuOpen: true,
+      repoOptions: [
+        { id: "ws:/projects/spotwise-ui", label: "spotwise-ui", count: 3 },
+        {
+          id: "ws:/projects/internal-spotty",
+          label: "internal-spotty",
+          count: 1,
+        },
+      ],
+    });
+
+    expect(screen.getByTestId("repo-filter-all")).toBeInTheDocument();
+    const repoRow = screen.getByTestId("repo-filter-ws:/projects/spotwise-ui");
+    expect(repoRow).toBeInTheDocument();
+
+    await user.click(repoRow);
+    expect(props.setRepoFilter).toHaveBeenCalledWith(
+      "ws:/projects/spotwise-ui",
+    );
+    expect(props.setFilterMenuOpen).toHaveBeenCalledWith(false);
+  });
+
+  it("hides the repo filter when only one repo is present", () => {
+    renderFilterMenu({
+      filterMenuOpen: true,
+      repoOptions: [{ id: "ws:/projects/only", label: "only", count: 2 }],
+    });
+    expect(screen.queryByTestId("repo-filter-all")).not.toBeInTheDocument();
   });
 
   it("runs a row's action and closes the menu when the row is clicked", async () => {

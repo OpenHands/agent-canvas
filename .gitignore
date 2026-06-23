@@ -28,3 +28,6 @@ __pycache__
 ralph/
 .vercel
 *.tgz
+
+# Generated local design/context artifacts
+.context/

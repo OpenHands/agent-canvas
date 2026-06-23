@@ -235,6 +235,27 @@ npm run test:e2e:mock-llm -- --headed        # watch in browser
 npm run test:e2e:mock-llm -- -g "test name"  # run single test by name
 ```
 
+## Testing Rules
+
+<TESTING_RULES>
+Create TDD tests for your changes. Focus on user behavior and follow TDD best practices, including:
+
+- AAA structure (Arrange, Act, Assert)
+- Clear test focus
+- Proper test data management
+
+Before writing any test:
+
+- Avoid duplicating test cases or logic
+- Do not assert the same condition more than once
+- Do not mock the hook. Instead, mock the underlying service that the hook depends on
+- Prefer adding to or extending existing test files whenever possible. Create new test files only if no suitable ones exist
+- Do not include any tests that verify CSS, styling, or visual presentation. Focus only on functional behavior and logic
+- Keep the number of test cases to the minimum necessary while still fully covering the intended changes and behaviors
+
+Ensure each test is meaningful, concise, and covers a unique aspect of user interaction.
+</TESTING_RULES>
+
 ## Additional Notes
 
 - **Published binary auth fix**: When users install the npm package globally (`npm install -g @openhands/agent-canvas`) and run `agent-canvas`, the pre-built static frontend has NO `VITE_SESSION_API_KEY` baked in (npm publish runs `npm run build` with no such env var). The runtime session key is generated when the CLI launches and reaches the frontend via `scripts/static-server.mjs --session-api-key <key>`, which injects a `<head>` script that does two things: (a) sets `window.__AGENT_CANVAS_SESSION_API_KEY__ = <key>` — read by `getBakedSessionApiKey()` in `src/api/agent-server-config.ts` as a fallback when the env var is empty, symmetric with `__AGENT_CANVAS_AUTH_REQUIRED__` / `isAuthRequired()`; (b) writes the same key into `localStorage['openhands-agent-server-config'].sessionApiKey`, always overwriting when the value differs, so any code path that still reads the legacy storage key (e.g. e2e fixtures) sees the live key. The window-global path is the load-bearing one — without it, `makeDefaultLocalBackend()` returns null on a fresh install, the backend registry seeds empty, and `root.tsx` traps the user behind the Manage Backends modal instead of onboarding. `scripts/dev-with-automation.mjs` and `scripts/dev-static.mjs` both pass `--session-api-key ${config.sessionApiKey}` when starting the static server.
@@ -496,10 +517,10 @@ When adding code that needs a new string, decide up front which rule it falls un
 - `scripts/dev-safe.mjs` uses `uvx` for temporary agent-server installation — no permanent `uv tool install` needed. Environment variables (highest precedence first):
   - `OH_AGENT_SERVER_LOCAL_PATH` — absolute path to a local `software-agent-sdk` checkout. Runs the local checkout via `uvx` with `--with-editable` for `openhands-sdk`/`openhands-tools`/`openhands-workspace` and `--reinstall` for `openhands-agent-server`, so SDK edits are picked up on restart. Highest precedence.
   - `OH_AGENT_SERVER_GIT_REF` — git commit SHA or branch name (takes precedence over version)
-  - `OH_AGENT_SERVER_VERSION` — specific PyPI version (e.g., "1.28.1")
+  - `OH_AGENT_SERVER_VERSION` — specific PyPI version (e.g., "1.29.0")
   - `OH_SECRET_KEY` — secret key for settings encryption; auto-generated and persisted to `~/.openhands/agent-canvas/secret-key.txt` on first run (same file Docker uses), ensuring dev mode and Docker share the same key when both mount the same `~/.openhands` directory. Override with the env var to pin a specific key.
   - `SESSION_API_KEY` / `OH_SESSION_API_KEYS_0` / `VITE_SESSION_API_KEY` — session API key for agent-server authentication; auto-generated using `crypto.randomBytes(32)` if not set, passed to both agent-server (`OH_SESSION_API_KEYS_0`) and frontend (`VITE_SESSION_API_KEY`)
-  - Default: released PyPI version `1.28.1` for agent-server SDK libraries
+  - Default: released PyPI version `1.29.0` for agent-server SDK libraries
 
 - Security: `scripts/dev-safe.mjs` and `scripts/dev-with-automation.mjs` auto-generate random API keys when needed and persist the defaults so static builds, localStorage, and restarted services stay in sync:
   - `SESSION_API_KEY` — 64-character hex (256-bit) for agent-server API authentication; persisted at `~/.openhands/agent-canvas/session-api-key.txt` unless overridden via env var

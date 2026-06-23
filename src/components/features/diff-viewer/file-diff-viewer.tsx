@@ -229,8 +229,8 @@ export function FileDiffViewer({ path, type }: FileDiffViewerProps) {
                   className={cn(
                     "p-1 rounded transition-colors cursor-pointer",
                     viewMode === mode
-                      ? "bg-[var(--oh-interactive-hover)] text-white"
-                      : "text-[var(--oh-muted)] hover:bg-[var(--oh-interactive-hover)] hover:text-white",
+                      ? "bg-[var(--oh-interactive-hover)] text-foreground"
+                      : "text-[var(--oh-muted)] hover:bg-[var(--oh-interactive-hover)] hover:text-foreground",
                   )}
                 >
                   <Icon className="w-4 h-4" />

@@ -189,11 +189,11 @@ export function FileContentViewer({ path, viewMode }: FileContentViewerProps) {
     // pin body / bold / quote text to pure white — the user specifically
     // asked for every text element (not just headings) to read as white.
     // The custom heading components in `markdown/headings.tsx` already
-    // hard-code `text-white`, so headers stay white through this change.
+    // hard-code `text-foreground`, so headers stay white through this change.
     return (
       <div
         data-testid="file-content-viewer-markdown"
-        className="h-full w-full overflow-auto bg-[var(--oh-surface)] text-white custom-scrollbar-always"
+        className="h-full w-full overflow-auto bg-[var(--oh-surface)] text-foreground custom-scrollbar-always"
       >
         <div className="prose prose-sm prose-invert max-w-none p-6 [--tw-prose-body:#fff] [--tw-prose-bold:#fff] [--tw-prose-headings:#fff] [--tw-prose-lead:#fff] [--tw-prose-counters:#fff] [--tw-prose-quotes:#fff] [--tw-prose-quote-borders:var(--oh-border-subtle)] [--tw-prose-bullets:var(--oh-muted)] [--tw-prose-hr:var(--oh-border-subtle)] [--tw-prose-captions:var(--oh-muted)] [--tw-prose-kbd:#fff]">
           <MarkdownRenderer

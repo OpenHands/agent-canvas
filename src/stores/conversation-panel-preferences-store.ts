@@ -28,6 +28,8 @@ interface ConversationPanelPreferencesState {
   conversationSort: ConversationSortField;
   threadScope: ThreadScope;
   groupFolderOrder: string[];
+  /** Repo/workspace id to filter the list to, or "all". */
+  repoFilter: string;
 }
 
 interface ConversationPanelPreferencesActions {
@@ -43,6 +45,7 @@ interface ConversationPanelPreferencesActions {
   setConversationSort: (value: ConversationSortField) => void;
   setThreadScope: (value: ThreadScope) => void;
   setGroupFolderOrder: (order: readonly string[]) => void;
+  setRepoFilter: (value: string) => void;
 }
 
 type ConversationPanelPreferencesStore = ConversationPanelPreferencesState &
@@ -57,6 +60,7 @@ const initialState: ConversationPanelPreferencesState = {
   conversationSort: "updated",
   threadScope: "all",
   groupFolderOrder: [],
+  repoFilter: "all",
 };
 
 export const useConversationPanelPreferencesStore =
@@ -98,6 +102,7 @@ export const useConversationPanelPreferencesStore =
         setThreadScope: (value) => set(() => ({ threadScope: value })),
         setGroupFolderOrder: (order) =>
           set(() => ({ groupFolderOrder: [...order] })),
+        setRepoFilter: (value) => set(() => ({ repoFilter: value })),
       }),
       {
         name: "conversation-panel-preferences",
@@ -112,6 +117,7 @@ export const useConversationPanelPreferencesStore =
           conversationSort: state.conversationSort,
           threadScope: state.threadScope,
           groupFolderOrder: state.groupFolderOrder,
+          repoFilter: state.repoFilter,
         }),
       },
     ),

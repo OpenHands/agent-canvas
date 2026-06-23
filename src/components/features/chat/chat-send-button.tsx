@@ -16,7 +16,7 @@ export function ChatSendButton({
     <button
       type="button"
       className={cn(
-        "flex items-center justify-center rounded-full border border-white size-8",
+        "flex items-center justify-center rounded-full border border-border size-8",
         disabled
           ? "cursor-not-allowed border-[var(--oh-muted)]"
           : "cursor-pointer hover:bg-white/10",
