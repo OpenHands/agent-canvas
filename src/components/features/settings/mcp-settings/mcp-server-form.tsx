@@ -173,6 +173,14 @@ export function MCPServerForm({
       const urlDupError = validateUrlUniqueness(url);
       if (urlDupError) return urlDupError;
 
+      // The name is optional, but when provided it becomes the mcp_config
+      // key (and the reference used in mcp_server_refs), so hold it to the
+      // same safe-identifier rule as stdio names.
+      const name = formData.get("name")?.toString().trim() || "";
+      if (name && !/^[a-zA-Z0-9_-]+$/.test(name)) {
+        return t(I18nKey.SETTINGS$MCP_ERROR_NAME_INVALID);
+      }
+
       // Validate timeout for SHTTP servers only
       if (serverType === "shttp") {
         const timeoutStr = formData.get("timeout")?.toString() || "";
@@ -222,12 +230,14 @@ export function MCPServerForm({
     };
 
     if (serverType === "sse" || serverType === "shttp") {
+      const name = formData.get("name")?.toString().trim();
       const url = formData.get("url")?.toString().trim();
       const apiKey = formData.get("api_key")?.toString().trim();
       const timeoutStr = formData.get("timeout")?.toString().trim();
 
       const serverConfig: MCPServerConfig = {
         ...baseConfig,
+        ...(name && { name }),
         url: url!,
         ...(apiKey && { api_key: apiKey }),
       };
@@ -324,6 +334,18 @@ export function MCPServerForm({
       {(serverType === "sse" || serverType === "shttp") && (
         <>
           <SettingsInput
+            testId="server-name-input"
+            name="name"
+            type="text"
+            label={t(I18nKey.SETTINGS$MCP_SERVER_NAME)}
+            className="w-full min-w-0"
+            showOptionalTag
+            defaultValue={server?.name || ""}
+            // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
+            placeholder="my-search-server"
+          />
+
+          <SettingsInput
             testId="url-input"
             name="url"
             type="url"
@@ -331,6 +353,7 @@ export function MCPServerForm({
             className="w-full min-w-0"
             required
             defaultValue={server?.url || ""}
+            // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
             placeholder="https://api.example.com"
           />
 
@@ -372,6 +395,7 @@ export function MCPServerForm({
             className="w-full min-w-0"
             required
             defaultValue={server?.name || ""}
+            // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
             placeholder="my-mcp-server"
             pattern="^[a-zA-Z0-9_-]+$"
           />
@@ -384,6 +408,7 @@ export function MCPServerForm({
             className="w-full min-w-0"
             required
             defaultValue={server?.command || ""}
+            // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
             placeholder="npx"
           />
 
@@ -399,6 +424,7 @@ export function MCPServerForm({
               name="args"
               rows={3}
               defaultValue={server?.args?.join("\n") || ""}
+              // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
               placeholder="arg1&#10;arg2&#10;arg3"
               className={cn(
                 formControlMultilineFieldClassName,
@@ -423,6 +449,7 @@ export function MCPServerForm({
               name="env"
               rows={4}
               defaultValue={formatEnvironmentVariables(server?.env)}
+              // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
               placeholder="KEY1=value1&#10;KEY2=value2"
               className={cn(
                 formControlMultilineFieldClassName,

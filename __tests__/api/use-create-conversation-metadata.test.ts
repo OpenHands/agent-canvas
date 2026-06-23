@@ -54,6 +54,7 @@ vi.mock("#/api/agent-server-config", () => ({
   ),
   shouldLoadPublicSkills: vi.fn(() => true),
   syncBakedSessionApiKey: vi.fn(),
+  getLockedCloudHost: vi.fn(() => null),
 }));
 
 vi.mock("#/api/settings-service/settings-service.api", () => ({

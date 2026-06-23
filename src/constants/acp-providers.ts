@@ -17,28 +17,25 @@ export type ACPProviderIcon =
 
 export const ACP_PROVIDER_FALLBACK_ICON: ACPProviderIcon = "cli-generic";
 
-// SDK placeholder strings the ACP wrapper returns before the user has
-// chosen a real model — surfacing either would lie about what's running.
-export const ACP_DEFAULT_PLACEHOLDERS = new Set([
-  "default",
-  "default (recommended)",
-]);
-
 // Sentinel ``agent.llm.model`` returned by older SDKs for ACP conversations
 // in lieu of a real model. Suppressed at every consumer that resolves a
 // display string.
+//
+// NB: ``"default"`` is NOT a placeholder. claude-agent-acp 0.44+ exposes
+// ``default`` ("Default (recommended)") as a real, selectable model in its
+// configOptions select — the server reports it as ``currentModelId`` and lists
+// it in ``availableModels`` — so it must surface like any other model id.
 export const ACP_MANAGED_SENTINEL = "acp-managed";
 
 /**
- * Filter for "real" ACP model strings — non-empty, not the SDK's "default"
- * placeholder, not the legacy ``acp-managed`` sentinel. Returns the trimmed
- * value on success, ``null`` otherwise.
+ * Filter for "real" ACP model strings — non-empty and not the legacy
+ * ``acp-managed`` sentinel. Returns the trimmed value on success, ``null``
+ * otherwise.
  */
 function realAcpModel(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
-  if (ACP_DEFAULT_PLACEHOLDERS.has(trimmed.toLowerCase())) return null;
   if (trimmed === ACP_MANAGED_SENTINEL) return null;
   return trimmed;
 }

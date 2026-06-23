@@ -1,8 +1,10 @@
+import { useTranslation } from "react-i18next";
 import {
   ComboboxCaretIcon,
   comboboxCaretButtonClassName,
 } from "#/ui/combobox-caret";
 import { cn } from "#/utils/utils";
+import { I18nKey } from "#/i18n/declaration";
 
 interface ToggleButtonProps {
   isOpen: boolean;
@@ -19,6 +21,8 @@ export function ToggleButton({
   getToggleButtonProps,
   iconClassName,
 }: ToggleButtonProps) {
+  const { t } = useTranslation("openhands");
+
   return (
     <button
       {...getToggleButtonProps({
@@ -31,7 +35,7 @@ export function ToggleButton({
         ),
       })}
       type="button"
-      aria-label="Toggle menu"
+      aria-label={t(I18nKey.COMMON$TOGGLE_MENU)}
     >
       <ComboboxCaretIcon className={iconClassName} />
     </button>
