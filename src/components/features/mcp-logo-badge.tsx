@@ -53,8 +53,8 @@ export function McpLogoBadge({
           alt={`${entry.name} logo`}
           className="h-full w-full object-contain p-[22%]"
           onError={(e) => {
-            // Hide the broken image so the outer badge background still shows.
-            (e.target as HTMLImageElement).style.display = "none";
+            const image = e.currentTarget;
+            image.style.display = "none";
           }}
         />
       ) : (
