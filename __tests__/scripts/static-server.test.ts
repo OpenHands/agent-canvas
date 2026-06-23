@@ -4,10 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  parseArgs,
-  startStaticServer,
-} from "../../scripts/static-server.mjs";
+import { parseArgs, startStaticServer } from "../../scripts/static-server.mjs";
 
 describe("static-server.mjs", () => {
   const servers: Server[] = [];
@@ -64,6 +61,24 @@ describe("static-server.mjs", () => {
     it("defaults runtimeServicesInfo to null", () => {
       const config = parseArgs([]);
       expect(config.runtimeServicesInfo).toBeNull();
+    });
+
+    it("defaults lockToCloud to null", () => {
+      const config = parseArgs([]);
+      expect(config.lockToCloud).toBeNull();
+    });
+
+    it("parses --lock-to-cloud", () => {
+      const config = parseArgs([
+        "--lock-to-cloud",
+        "https://cloud.example.com",
+      ]);
+      expect(config.lockToCloud).toBe("https://cloud.example.com");
+    });
+
+    it("treats empty string as null for lockToCloud", () => {
+      const config = parseArgs(["--lock-to-cloud", ""]);
+      expect(config.lockToCloud).toBeNull();
     });
 
     it("parses --runtime-services-info", () => {
@@ -148,6 +163,61 @@ describe("static-server.mjs", () => {
 
       const body = await (await fetch(`${origin}/`)).text();
       expect(body).not.toContain("__AGENT_CANVAS_RUNTIME_SERVICES_INFO__");
+    });
+  });
+
+  describe("lock-to-cloud injection", () => {
+    async function startServerLockedToCloud(dir: string, lockToCloud: string) {
+      const server = await startStaticServer({
+        port: 0,
+        host: "127.0.0.1",
+        dir,
+        routes: {},
+        lockToCloud,
+      });
+      servers.push(server);
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        throw new Error("Static server did not bind to a TCP port");
+      }
+      return `http://127.0.0.1:${address.port}`;
+    }
+
+    it("exposes the locked Cloud URL on window.__AGENT_CANVAS_LOCK_TO_CLOUD__", async () => {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(
+        path.join(buildDir, "index.html"),
+        "<html><head></head><body>app</body></html>",
+      );
+
+      const origin = await startServerLockedToCloud(
+        buildDir,
+        "https://cloud.example.com",
+      );
+      const body = await (await fetch(`${origin}/`)).text();
+
+      expect(body).toContain("window.__AGENT_CANVAS_LOCK_TO_CLOUD__");
+      expect(body).toContain('"https://cloud.example.com"');
+    });
+
+    it("injects lock-to-cloud into SPA fallback index.html", async () => {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(
+        path.join(buildDir, "index.html"),
+        "<html><head></head><body>app</body></html>",
+      );
+
+      const origin = await startServerLockedToCloud(
+        buildDir,
+        "https://cloud.example.com",
+      );
+      const response = await fetch(`${origin}/some/deep/route`);
+      const body = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(body).toContain("__AGENT_CANVAS_LOCK_TO_CLOUD__");
     });
   });
 
