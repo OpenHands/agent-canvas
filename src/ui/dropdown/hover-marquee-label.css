@@ -1,0 +1,57 @@
+@property --hover-marquee-mask-inset-left {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --hover-marquee-mask-inset-right {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+.hover-marquee-clip {
+  --hover-marquee-mask-inset-left: 0px;
+  --hover-marquee-mask-inset-right: 2.5rem;
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    black var(--hover-marquee-mask-inset-left),
+    black calc(100% - var(--hover-marquee-mask-inset-right)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    black var(--hover-marquee-mask-inset-left),
+    black calc(100% - var(--hover-marquee-mask-inset-right)),
+    transparent 100%
+  );
+  /* Hover off: both edges ease over the scroll-back duration so the left
+     fade stays visible while the label returns to its start position. */
+  transition:
+    --hover-marquee-mask-inset-left var(--hover-marquee-mask-duration, 2s)
+      ease-in-out,
+    --hover-marquee-mask-inset-right var(--hover-marquee-mask-duration, 2s)
+      ease-in-out;
+}
+
+.group:hover .hover-marquee-clip,
+.group:focus-within .hover-marquee-clip {
+  --hover-marquee-mask-inset-left: 2.5rem;
+  --hover-marquee-mask-inset-right: 0px;
+  /* Hover on: left fade snaps in quickly; right fades out with the scroll. */
+  transition:
+    --hover-marquee-mask-inset-left
+      var(--hover-marquee-mask-fade-in-duration, 300ms) ease-out,
+    --hover-marquee-mask-inset-right var(--hover-marquee-mask-duration, 2s)
+      ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hover-marquee-clip,
+  .group:hover .hover-marquee-clip,
+  .group:focus-within .hover-marquee-clip {
+    transition: none;
+  }
+}

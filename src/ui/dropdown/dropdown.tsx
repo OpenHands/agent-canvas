@@ -8,6 +8,7 @@ import { ClearButton } from "./clear-button";
 import { ToggleButton } from "./toggle-button";
 import { DropdownMenu } from "./dropdown-menu";
 import { DropdownInput } from "./dropdown-input";
+import { HoverMarqueeLabel } from "./hover-marquee-label";
 
 // Equivalent to Tailwind's `sr-only`, inlined so we don't depend on the
 // utility class being preserved by the host project's CSS pipeline.
@@ -195,13 +196,24 @@ export function Dropdown({
               {liveSelectedOption.prefix}
             </span>
           ) : null}
-          <DropdownInput
-            placeholder={placeholder}
-            isDisabled={isDisabled}
-            getInputProps={getInputPropsWithCursorFix}
-            italicPlaceholder={italicPlaceholder}
-            fitContent={fitContent}
-          />
+          <div className="relative min-w-0 flex-1">
+            <DropdownInput
+              placeholder={placeholder}
+              isDisabled={isDisabled}
+              getInputProps={getInputPropsWithCursorFix}
+              italicPlaceholder={italicPlaceholder}
+              fitContent={fitContent}
+              hideVisibleText={!isOpen && Boolean(inputValue)}
+            />
+            {!isOpen && inputValue ? (
+              <HoverMarqueeLabel
+                aria-hidden
+                className="pointer-events-none absolute inset-y-0 left-0 flex items-center pr-8"
+              >
+                {inputValue}
+              </HoverMarqueeLabel>
+            ) : null}
+          </div>
           {loading && <LoadingSpinner />}
           {clearable && selectedItem && (
             <ClearButton onClear={() => selectItem(null)} />
