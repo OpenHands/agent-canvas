@@ -5,6 +5,9 @@ import {
   CONVERSATION_BRANCH_TAG_KEY,
   CONVERSATION_REPOSITORY_TAG_KEY,
   CONVERSATION_WORKSPACE_TAG_KEY,
+  OWNER_TAG_KEY,
+  PROJECT_TAG_KEY,
+  SOURCE_TAG_KEY,
   buildRuntimeServicesSystemSuffix,
   buildStartConversationRequest,
   getDefaultConversationTitle,
@@ -386,6 +389,39 @@ describe("buildStartConversationRequest", () => {
     expect(payload.workspace.working_dir).toBe(
       "/Users/devin/project-without-git",
     );
+  });
+
+  it("stamps the project tag when an active project is supplied", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        git_user_email: "dev@spotwise.ai",
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          llm: { model: "nested-model" },
+        },
+      },
+      project: "spotwise-billing",
+    }) as { tags: Record<string, string> };
+
+    expect(payload.tags[PROJECT_TAG_KEY]).toBe("spotwise-billing");
+    // Project rides alongside the existing source/owner tags.
+    expect(payload.tags[SOURCE_TAG_KEY]).toBe("gui");
+    expect(payload.tags[OWNER_TAG_KEY]).toBe("dev@spotwise.ai");
+  });
+
+  it("omits the project tag when no active project is supplied", () => {
+    const payload = buildStartConversationRequest({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          llm: { model: "nested-model" },
+        },
+      },
+    }) as { tags: Record<string, string> };
+
+    expect(payload.tags).not.toHaveProperty(PROJECT_TAG_KEY);
   });
 
   it("forwards supported conversation runtime fields from nested settings", () => {
@@ -1303,7 +1339,12 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
       load_project_skills: true,
     });
     expect(Array.isArray(acpAgentContext.skills)).toBe(true);
-    expect(payload.tags).toEqual({ [ACP_SERVER_TAG_KEY]: "claude-code" });
+    // The ACP server tag rides alongside the firehose source tag stamped on
+    // every cockpit-launched conversation.
+    expect(payload.tags).toMatchObject({
+      [ACP_SERVER_TAG_KEY]: "claude-code",
+      [SOURCE_TAG_KEY]: "gui",
+    });
   });
 
   it("forwards mcp_config to the ACP subprocess when servers are configured", () => {
@@ -1375,7 +1416,10 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     expect(payload.agent_settings.acp_command).toBeUndefined();
     expect(payload.agent_settings.acp_server).toBeUndefined();
     expect(payload.agent_settings.llm.model).toBe("gpt-4");
-    expect(payload.tags).toBeUndefined();
+    // Firehose stamps the source tag on every conversation; the ACP-only
+    // acpserver tag must NOT leak onto an OpenHands conversation.
+    expect(payload.tags?.[ACP_SERVER_TAG_KEY]).toBeUndefined();
+    expect(payload.tags?.[SOURCE_TAG_KEY]).toBe("gui");
   });
 
   it("omits acp_model when the user clears it (null)", () => {

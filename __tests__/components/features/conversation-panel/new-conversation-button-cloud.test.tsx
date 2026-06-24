@@ -160,6 +160,8 @@ describe("NewConversationButton (cloud)", () => {
         undefined,
         undefined,
         undefined,
+        undefined,
+        undefined,
       );
     });
     await waitFor(() => {
@@ -199,6 +201,8 @@ describe("NewConversationButton (cloud)", () => {
           selected_branch: "main",
           git_provider: "github",
         },
+        undefined,
+        undefined,
         undefined,
         undefined,
         undefined,

@@ -10,6 +10,7 @@ import {
   setStoredConversationMetadata,
   type WorkspaceMode,
 } from "#/api/conversation-metadata-store";
+import { getActiveProjectSlug } from "#/stores/conversation-panel-preferences-store";
 
 interface CreateConversationVariables {
   query?: string;
@@ -58,6 +59,11 @@ export const useCreateConversation = () => {
         agentType,
       } = variables;
 
+      // Read the active project at call time (not render time) so the new
+      // conversation inherits whatever project is selected right now. "all" ⇒
+      // undefined ⇒ no project stamped (firehose default).
+      const project = getActiveProjectSlug();
+
       const conversation =
         await AgentServerConversationService.createConversation(
           query,
@@ -74,6 +80,8 @@ export const useCreateConversation = () => {
           workspaceMode,
           parentConversationId,
           agentType,
+          undefined,
+          project,
         );
 
       // Stamp the active LLM profile onto the (local) conversation so the

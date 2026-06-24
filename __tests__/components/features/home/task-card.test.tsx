@@ -143,6 +143,8 @@ describe("TaskCard", () => {
         undefined,
         undefined,
         undefined,
+        undefined,
+        undefined,
       );
     });
   });

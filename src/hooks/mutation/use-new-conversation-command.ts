@@ -36,6 +36,8 @@ export const useNewConversationCommand = () => {
         undefined,
         undefined,
         conversation.sandbox_id ?? undefined,
+        // Continue in the parent conversation's project so /new stays scoped.
+        conversation.project ?? undefined,
       );
 
       if (startTask.status === "ERROR") {

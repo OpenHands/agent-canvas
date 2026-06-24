@@ -9,6 +9,8 @@ import {
   Eye,
   EyeOff,
   Folder,
+  FolderKanban,
+  FolderPlus,
   GitBranch,
   Layers,
   ListFilter,
@@ -35,6 +37,7 @@ import type {
   ThreadScope,
 } from "./conversation-panel-list-helpers";
 import { REPO_FILTER_ALL } from "./conversation-panel-list-helpers";
+import { PROJECT_FILTER_ALL, type ProjectFilterOption } from "#/utils/project";
 import { MenuHeading } from "./menu-heading";
 import { MenuSeparator } from "./menu-separator";
 import { MenuRow } from "./menu-row";
@@ -54,6 +57,13 @@ export interface ConversationPanelFilterMenuProps {
   repoFilter: string;
   setRepoFilter: (id: string) => void;
   repoOptions: readonly RepoFilterOption[];
+  projectFilter: string;
+  setProjectFilter: (slug: string) => void;
+  projectOptions: readonly ProjectFilterOption[];
+  /** Whether any projects exist; gates the project selection rows. */
+  showProjectScope: boolean;
+  /** Open the create/manage-projects dialog. */
+  onManageProjects: () => void;
   threadScope: ThreadScope;
   setThreadScope: (scope: ThreadScope) => void;
   ownerScope: OwnerScope;
@@ -88,6 +98,11 @@ export function ConversationPanelFilterMenu({
   repoFilter,
   setRepoFilter,
   repoOptions,
+  projectFilter,
+  setProjectFilter,
+  projectOptions,
+  showProjectScope,
+  onManageProjects,
   threadScope,
   setThreadScope,
   ownerScope,
@@ -258,6 +273,45 @@ export function ConversationPanelFilterMenu({
               ))}
             </>
           ) : null}
+
+          <MenuSeparator />
+          <MenuHeading>{t(I18nKey.CONVERSATION_PANEL$PROJECT)}</MenuHeading>
+          {showProjectScope ? (
+            <>
+              <MenuRow
+                icon={Layers}
+                label={t(I18nKey.CONVERSATION_PANEL$ALL_PROJECTS)}
+                selected={projectFilter === PROJECT_FILTER_ALL}
+                testId="project-filter-all"
+                onClick={() => {
+                  setProjectFilter(PROJECT_FILTER_ALL);
+                  setFilterMenuOpen(false);
+                }}
+              />
+              {projectOptions.map((option) => (
+                <MenuRow
+                  key={option.slug}
+                  icon={FolderKanban}
+                  label={option.label}
+                  selected={projectFilter === option.slug}
+                  testId={`project-filter-${option.slug}`}
+                  onClick={() => {
+                    setProjectFilter(option.slug);
+                    setFilterMenuOpen(false);
+                  }}
+                />
+              ))}
+            </>
+          ) : null}
+          <MenuRow
+            icon={FolderPlus}
+            label={t(I18nKey.CONVERSATION_PANEL$MANAGE_PROJECTS)}
+            testId="manage-projects"
+            onClick={() => {
+              onManageProjects();
+              setFilterMenuOpen(false);
+            }}
+          />
 
           <MenuSeparator />
           <MenuHeading>{t(I18nKey.CONVERSATION_PANEL$SORT_BY)}</MenuHeading>

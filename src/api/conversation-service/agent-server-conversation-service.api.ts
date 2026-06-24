@@ -351,6 +351,7 @@ class AgentServerConversationService {
     parentConversationId?: string,
     agentType?: "default" | "plan",
     sandboxId?: string,
+    project?: string,
   ): Promise<AppConversationStartTask> {
     if (getActiveBackend().backend.kind === "cloud") {
       // Cloud path mirrors OpenHands' frontend: build a flat
@@ -358,6 +359,12 @@ class AgentServerConversationService {
       // (returns a WORKING task), and let the conversation route's
       // useTaskPolling drive it to READY. NO encrypted-settings
       // round-trip — the cloud backend holds secrets server-side.
+      //
+      // shortcut: the cloud AppConversationStartRequest has no `tags` field,
+      // so owner/source/project tags are NOT stamped on this path — only the
+      // local agent-server path below stamps them. Spotwise runs the local
+      // backend, so `project` is honored in practice; extend the cloud API to
+      // carry tags if/when cloud launches need project scoping.
       const request: AppConversationStartRequest = {
         initial_message: initialUserMsg
           ? {
@@ -400,6 +407,7 @@ class AgentServerConversationService {
       conversationId,
       workingDir,
       worktree: resolvedWorkspaceMode === "new_worktree",
+      project,
     });
 
     const data = await new ConversationClient(
