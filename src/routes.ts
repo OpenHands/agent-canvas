@@ -26,7 +26,8 @@ export default [
     // The Agents hub: the profile library + the catalogs it composes, all
     // nested so they share the one hub nav (no per-page sub-sidebar).
     route("agents", "routes/agents-hub.tsx", [
-      index("routes/legacy-redirect.tsx", { id: "agents-index" }),
+      // Mobile shows a navigable hub landing; desktop drops into Profiles.
+      index("routes/agents-index.tsx"),
       route("profiles", "routes/agent-profiles-settings.tsx"),
       route("llm", "routes/llm-settings.tsx", { id: "agents-llm" }),
       route("mcp", "routes/mcp.tsx", { id: "agents-mcp" }),

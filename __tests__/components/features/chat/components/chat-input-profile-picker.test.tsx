@@ -138,7 +138,7 @@ describe("ChatInputProfilePicker", () => {
     fireEvent.click(screen.getByTestId("chat-input-agent-profile"));
 
     expect(
-      container.ownerDocument.querySelector('a[href="/settings/agents"]'),
+      container.ownerDocument.querySelector('a[href="/agents/profiles"]'),
     ).not.toBeNull();
   });
 });

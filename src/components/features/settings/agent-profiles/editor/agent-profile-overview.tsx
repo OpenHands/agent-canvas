@@ -67,6 +67,28 @@ export function AgentProfileOverview({
     return refs.join(", ");
   };
 
+  // Prefer the server-resolved server list whenever materialize returned one —
+  // including the empty array (the profile genuinely resolves to no servers, so
+  // show "None", not the live-form "All servers" scope). Fall back to the form
+  // preview only when there is no resolved view (create / loading / error).
+  const mcpRowValue = (): string => {
+    const resolved = diag?.resolved_mcp_servers;
+    if (resolved) {
+      return resolved.length
+        ? resolved.join(", ")
+        : t(I18nKey.SETTINGS$AGENT_OVERVIEW_MCP_NONE);
+    }
+    return mcpScope(form.mcpServerRefs);
+  };
+
+  // The condenser trigger count, guarded so a profile whose condenser carries no
+  // `max_size` (e.g. a non-summarizing kind) renders the default rather than the
+  // literal string "NaN".
+  const condenserTriggerCount = (): number => {
+    const n = Number(form.condenser.max_size);
+    return Number.isFinite(n) ? n : 240;
+  };
+
   const statusBanner = () => {
     if (form.mode !== "edit") return null;
     if (isLoading) {
@@ -140,14 +162,12 @@ export function AgentProfileOverview({
             )}
           </Row>
           <Row label={t(I18nKey.SETTINGS$AGENT_OVERVIEW_MCP)}>
-            {diag?.resolved_mcp_servers?.length
-              ? diag.resolved_mcp_servers.join(", ")
-              : mcpScope(form.mcpServerRefs)}
+            {mcpRowValue()}
           </Row>
           <Row label={t(I18nKey.SETTINGS$NAV_CONDENSER)}>
             {form.condenser.enabled
               ? t(I18nKey.SETTINGS$AGENT_OVERVIEW_MEMORY_TRIGGER, {
-                  count: Number(form.condenser.max_size),
+                  count: condenserTriggerCount(),
                 })
               : t(I18nKey.SETTINGS$AGENT_OVERVIEW_DISABLED)}
           </Row>
@@ -176,9 +196,7 @@ export function AgentProfileOverview({
           )}
         </Row>
         <Row label={t(I18nKey.SETTINGS$AGENT_OVERVIEW_MCP)}>
-          {diag?.resolved_mcp_servers?.length
-            ? diag.resolved_mcp_servers.join(", ")
-            : mcpScope(form.mcpServerRefs)}
+          {mcpRowValue()}
         </Row>
         {form.sessionMode.trim() && (
           <Row label={t(I18nKey.SETTINGS$AGENT_OVERVIEW_SESSION_MODE)}>

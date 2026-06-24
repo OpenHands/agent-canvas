@@ -57,6 +57,14 @@ export function ToolsMcpSection({ form }: SectionProps) {
 const numStr = (v: unknown, fallback = "") =>
   typeof v === "number" && Number.isFinite(v) ? String(v) : fallback;
 
+/** Parse a number-input string back to a number, falling back to `fallback`
+ * when the field is empty or non-numeric — so clearing a field never coerces
+ * `Number("")` to 0 and persists a degenerate value. */
+const numOr = (v: string, fallback: number): number => {
+  const n = Number(v);
+  return v.trim() && Number.isFinite(n) ? n : fallback;
+};
+
 export function CondenserSection({ form }: SectionProps) {
   const { t } = useTranslation("openhands");
   const enabled = !!form.condenser.enabled;
@@ -83,7 +91,7 @@ export function CondenserSection({ form }: SectionProps) {
             step={1}
             className="w-full max-w-xs"
             value={numStr(form.condenser.max_size, "240")}
-            onChange={(v) => form.patchCondenser({ max_size: Number(v) })}
+            onChange={(v) => form.patchCondenser({ max_size: numOr(v, 240) })}
           />
           <SettingsInput
             testId="agent-profile-condenser-keep-first"
@@ -93,7 +101,7 @@ export function CondenserSection({ form }: SectionProps) {
             step={1}
             className="w-full max-w-xs"
             value={numStr(form.condenser.keep_first, "2")}
-            onChange={(v) => form.patchCondenser({ keep_first: Number(v) })}
+            onChange={(v) => form.patchCondenser({ keep_first: numOr(v, 2) })}
           />
           <SettingsInput
             testId="agent-profile-condenser-max-tokens"

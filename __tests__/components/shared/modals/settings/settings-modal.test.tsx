@@ -20,7 +20,7 @@ describe("SettingsModal", () => {
     const linkElement = advancedSettingsLink.querySelector("a");
 
     expect(linkElement).toBeInTheDocument();
-    expect(linkElement).toHaveAttribute("href", "/settings");
+    expect(linkElement).toHaveAttribute("href", "/agents/llm");
     expect(linkElement).toHaveAttribute("target", "_blank");
     expect(linkElement).toHaveAttribute("rel", "noreferrer noopener");
   });

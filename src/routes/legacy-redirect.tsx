@@ -11,7 +11,6 @@ const REDIRECTS: Record<string, string> = {
   "/skills": "/agents/skills",
   "/plugins": "/agents/plugins",
   "/mcp": "/agents/mcp",
-  "/agents": "/agents/profiles",
   "/settings/llm": "/agents/llm",
   "/settings/secrets": "/agents/secrets",
   "/settings/agents": "/agents/profiles",

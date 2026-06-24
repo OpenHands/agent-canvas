@@ -157,11 +157,20 @@ export function useAgentProfileForm({
   const openHandsExtrasRef = useRef<OpenHandsExtras>(
     openhands ? { agent: openhands.agent, skills: openhands.skills } : {},
   );
+  // Whether the loaded profile already carried a condenser. Combined with the
+  // touched flag below, this gates whether `condenser` is sent on save — so we
+  // never stamp the frontend default onto a create (or an edit of a profile
+  // that had none), letting the server seed its own default instead.
+  const hadInitialCondenser =
+    !!openhands?.condenser && typeof openhands.condenser === "object";
   const [condenser, setCondenser] = useState<CondenserConfig>(
     toCondenserConfig(openhands?.condenser),
   );
-  const patchCondenser = (partial: CondenserConfig) =>
+  const [condenserTouched, setCondenserTouched] = useState(false);
+  const patchCondenser = (partial: CondenserConfig) => {
+    setCondenserTouched(true);
     setCondenser((prev) => ({ ...prev, ...partial }));
+  };
 
   // --- ACP ---
   const acp = profile?.agent_kind === "acp" ? profile : null;
@@ -284,8 +293,10 @@ export function useAgentProfileForm({
         Number.isFinite(concurrency) && concurrency >= 1
           ? Math.floor(concurrency)
           : 1,
-      // The flat condenser config (edited fields + round-tripped rest).
-      condenser,
+      // Send the flat condenser config only when the loaded profile already had
+      // one or the user touched it; otherwise omit it so the server seeds its
+      // own default rather than pinning the frontend's DEFAULT_CONDENSER.
+      ...(hadInitialCondenser || condenserTouched ? { condenser } : {}),
       // On edit, round-trip the loaded verification block; on create only send
       // it once the user enables the critic, otherwise let the server seed its
       // own default (avoids pinning a possibly-stale default critic_mode).

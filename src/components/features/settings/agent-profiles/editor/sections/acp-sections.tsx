@@ -133,6 +133,9 @@ export function LaunchSection({ form }: SectionProps) {
         type="number"
         min={1}
         step={1}
+        // Empty/invalid resolves to this default on save (see buildPayload); the
+        // placeholder telegraphs that so the fallback isn't silent.
+        placeholder="1800"
         className="w-full max-w-xs"
         value={form.promptTimeout}
         onChange={form.setPromptTimeout}
