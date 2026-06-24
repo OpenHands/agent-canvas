@@ -1,11 +1,14 @@
 import type { ReactNode } from "react";
-import { Bot } from "lucide-react";
 import type { IntegrationCatalogEntry } from "@openhands/extensions/integrations";
+import {
+  INTEGRATION_FALLBACK_LOGO,
+  INTEGRATION_LOGOS,
+} from "@openhands/extensions/integrations/logos";
 import { cn } from "#/utils/utils";
 
 type McpLogoEntry = Pick<
   IntegrationCatalogEntry,
-  "id" | "name" | "iconBg" | "iconColor" | "logoUrl"
+  "id" | "name" | "iconBg" | "iconColor"
 >;
 
 export type { McpLogoEntry };
@@ -47,19 +50,9 @@ export function McpLogoBadge({
         color: entry?.iconColor ?? "#FFFFFF",
       }}
     >
-      {entry?.logoUrl ? (
-        <img
-          src={entry.logoUrl}
-          alt={`${entry.name} logo`}
-          className="h-full w-full object-contain p-[22%]"
-          onError={(e) => {
-            const image = e.currentTarget;
-            image.style.display = "none";
-          }}
-        />
-      ) : (
-        (fallback ?? <Bot className="h-5 w-5" strokeWidth={2.25} />)
-      )}
+      {entry
+        ? (INTEGRATION_LOGOS[entry.id] ?? fallback ?? INTEGRATION_FALLBACK_LOGO)
+        : (fallback ?? INTEGRATION_FALLBACK_LOGO)}
     </span>
   );
 }
