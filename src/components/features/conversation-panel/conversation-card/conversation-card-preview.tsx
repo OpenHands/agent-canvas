@@ -80,7 +80,7 @@ export function ConversationCardPreview({
             />
           </div>
         ) : null}
-        <span className="break-words text-sm font-medium text-white">
+        <span className="break-words text-sm font-medium text-foreground">
           {title}
         </span>
       </div>

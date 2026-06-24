@@ -31,8 +31,10 @@ import type { OwnerScope, SourceScope } from "#/utils/conversation-ownership";
 import type {
   ConversationSortField,
   OrganizeMode,
+  RepoFilterOption,
   ThreadScope,
 } from "./conversation-panel-list-helpers";
+import { REPO_FILTER_ALL } from "./conversation-panel-list-helpers";
 import { MenuHeading } from "./menu-heading";
 import { MenuSeparator } from "./menu-separator";
 import { MenuRow } from "./menu-row";
@@ -49,6 +51,9 @@ export interface ConversationPanelFilterMenuProps {
   setOrganizeMode: (mode: OrganizeMode) => void;
   conversationSort: ConversationSortField;
   setConversationSort: (sort: ConversationSortField) => void;
+  repoFilter: string;
+  setRepoFilter: (id: string) => void;
+  repoOptions: readonly RepoFilterOption[];
   threadScope: ThreadScope;
   setThreadScope: (scope: ThreadScope) => void;
   ownerScope: OwnerScope;
@@ -80,6 +85,9 @@ export function ConversationPanelFilterMenu({
   setOrganizeMode,
   conversationSort,
   setConversationSort,
+  repoFilter,
+  setRepoFilter,
+  repoOptions,
   threadScope,
   setThreadScope,
   ownerScope,
@@ -168,7 +176,7 @@ export function ConversationPanelFilterMenu({
         aria-expanded={filterMenuOpen}
         onClick={() => setFilterMenuOpen(!filterMenuOpen)}
         className={cn(
-          "inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
+          "inline-flex h-7 w-7 items-center justify-center rounded-md text-[var(--oh-muted)] hover:text-foreground hover:bg-[var(--oh-surface-raised)]",
           dropdownInstantColorClassName,
         )}
       >
@@ -201,7 +209,7 @@ export function ConversationPanelFilterMenu({
             dropdownMenuViewportScrollClassName,
           )}
         >
-          <MenuHeading>{t(I18nKey.CONVERSATION_PANEL$ORGANIZE)}</MenuHeading>
+          <MenuHeading>{t(I18nKey.CONVERSATION_PANEL$GROUP_BY)}</MenuHeading>
           <MenuRow
             icon={Folder}
             label={groupedLabel}
@@ -220,6 +228,36 @@ export function ConversationPanelFilterMenu({
               setFilterMenuOpen(false);
             }}
           />
+
+          {repoOptions.length > 1 ? (
+            <>
+              <MenuSeparator />
+              <MenuHeading>{t(I18nKey.CONVERSATION_PANEL$REPO)}</MenuHeading>
+              <MenuRow
+                icon={GitBranch}
+                label={t(I18nKey.CONVERSATION_PANEL$ALL_REPOS)}
+                selected={repoFilter === REPO_FILTER_ALL}
+                testId="repo-filter-all"
+                onClick={() => {
+                  setRepoFilter(REPO_FILTER_ALL);
+                  setFilterMenuOpen(false);
+                }}
+              />
+              {repoOptions.map((option) => (
+                <MenuRow
+                  key={option.id}
+                  icon={Folder}
+                  label={option.label}
+                  selected={repoFilter === option.id}
+                  testId={`repo-filter-${option.id}`}
+                  onClick={() => {
+                    setRepoFilter(option.id);
+                    setFilterMenuOpen(false);
+                  }}
+                />
+              ))}
+            </>
+          ) : null}
 
           <MenuSeparator />
           <MenuHeading>{t(I18nKey.CONVERSATION_PANEL$SORT_BY)}</MenuHeading>

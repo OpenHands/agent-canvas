@@ -30,7 +30,7 @@ function toWorkspace(path: string): LocalWorkspace {
 
 function selectClassName(disabled: boolean): string {
   return cn(
-    "w-full rounded-lg border border-[var(--oh-border)] bg-[var(--oh-surface)] px-3 py-2 text-sm text-white outline-none",
+    "w-full rounded-lg border border-[var(--oh-border)] bg-[var(--oh-surface)] px-3 py-2 text-sm text-foreground outline-none",
     disabled
       ? "cursor-not-allowed opacity-50"
       : "focus:border-[var(--oh-border-subtle)]",
@@ -128,7 +128,7 @@ export function LocalRepositorySelectionForm({
             value={filter}
             onChange={(event) => setFilter(event.target.value)}
             placeholder={t(I18nKey.HOME$LOCAL_REPOSITORY_SEARCH_PLACEHOLDER)}
-            className="w-full rounded-lg border border-[var(--oh-border)] bg-[var(--oh-surface)] py-2 pl-9 pr-3 text-sm text-white outline-none placeholder:text-[var(--oh-text-secondary)] focus:border-[var(--oh-border-subtle)]"
+            className="w-full rounded-lg border border-[var(--oh-border)] bg-[var(--oh-surface)] py-2 pl-9 pr-3 text-sm text-foreground outline-none placeholder:text-[var(--oh-text-secondary)] focus:border-[var(--oh-border-subtle)]"
             disabled={isLoading || repositoriesQuery.isError}
           />
         </div>

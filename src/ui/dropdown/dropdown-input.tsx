@@ -23,7 +23,7 @@ export function DropdownInput({
         placeholder,
         disabled: isDisabled,
         className: cn(
-          "outline-none bg-transparent text-white not-italic",
+          "outline-none bg-transparent text-foreground not-italic",
           fitContent
             ? "w-auto field-sizing-content whitespace-nowrap text-sm"
             : "flex-1 min-w-0",

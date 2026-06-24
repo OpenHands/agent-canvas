@@ -49,7 +49,7 @@ export function MenuRow({
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {selected ? (
         <Check
-          className="ml-auto h-3.5 w-3.5 shrink-0 text-white"
+          className="ml-auto h-3.5 w-3.5 shrink-0 text-foreground"
           aria-hidden
         />
       ) : null}

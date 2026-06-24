@@ -11,7 +11,7 @@ export function EmptyState() {
       data-testid="automations-empty"
       className={extensionModuleEmptyStateClassName}
     >
-      <p className="text-sm text-white">{t(I18nKey.AUTOMATIONS$EMPTY)}</p>
+      <p className="text-sm text-foreground">{t(I18nKey.AUTOMATIONS$EMPTY)}</p>
       <p className="mt-1 text-xs text-tertiary-light">
         {t(I18nKey.AUTOMATIONS$EMPTY_HINT)}
       </p>

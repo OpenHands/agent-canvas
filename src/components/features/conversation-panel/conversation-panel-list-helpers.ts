@@ -1,10 +1,37 @@
 import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 import type { BackendKind } from "#/api/backend-registry/types";
+import { ExecutionStatus } from "#/types/agent-server/core";
 import type { Provider } from "#/types/settings";
 
 export type ConversationSortField = "created" | "updated";
 export type ThreadScope = "all" | "relevant";
 export type OrganizeMode = "grouped" | "chronological";
+export type ConversationStatusBucketId = "in_progress" | "in_review" | "done";
+
+export const CONVERSATION_STATUS_BUCKET_ORDER: readonly ConversationStatusBucketId[] =
+  ["in_progress", "in_review", "done"];
+
+const STATUS_TAG_KEYS = ["status", "bucket"] as const;
+
+const DONE_STATUS_TAG_VALUES = new Set([
+  "done",
+  "complete",
+  "completed",
+  "closed",
+  "merged",
+]);
+
+const REVIEW_STATUS_TAG_VALUES = new Set([
+  "review",
+  "inreview",
+  "readyforreview",
+]);
+
+const PROGRESS_STATUS_TAG_VALUES = new Set([
+  "progress",
+  "inprogress",
+  "running",
+]);
 
 /** Max conversations shown under a workspace/repo folder before "View more". */
 export const GROUP_CONVERSATIONS_PREVIEW_LIMIT = 5;
@@ -57,6 +84,120 @@ export function getGroupConversationPreview(
   };
 }
 
+function normalizeStatusTagValue(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function getTaggedStatusBucket(
+  tags: AppConversation["tags"],
+): ConversationStatusBucketId | null {
+  for (const key of STATUS_TAG_KEYS) {
+    const value = tags?.[key];
+    if (!value) continue;
+
+    const normalized = normalizeStatusTagValue(value);
+    if (DONE_STATUS_TAG_VALUES.has(normalized)) {
+      return "done";
+    }
+    if (REVIEW_STATUS_TAG_VALUES.has(normalized)) {
+      return "in_review";
+    }
+    if (PROGRESS_STATUS_TAG_VALUES.has(normalized)) {
+      return "in_progress";
+    }
+  }
+
+  return null;
+}
+
+/** Resolves a manual per-conversation status override, if any. */
+export type StatusOverrideAccessor = (
+  conversationId: string,
+) => ConversationStatusBucketId | undefined;
+
+export function getConversationStatusBucket(
+  conversation: AppConversation,
+  getOverride?: StatusOverrideAccessor,
+): ConversationStatusBucketId {
+  // A user-set override wins over computed status so conversations can be
+  // moved between buckets manually.
+  const override = getOverride?.(conversation.id);
+  if (override) {
+    return override;
+  }
+
+  const tagged = getTaggedStatusBucket(conversation.tags);
+  if (tagged) {
+    return tagged;
+  }
+
+  // A finished coding run is ready for human inspection, not automatically
+  // complete. Explicit tags can move it to Done after review/merge.
+  if (conversation.execution_status === ExecutionStatus.FINISHED) {
+    return "in_review";
+  }
+
+  return "in_progress";
+}
+
+export function bucketConversationsByStatus(
+  conversations: readonly AppConversation[],
+  getOverride?: StatusOverrideAccessor,
+): Array<{ id: ConversationStatusBucketId; conversations: AppConversation[] }> {
+  const buckets = new Map<ConversationStatusBucketId, AppConversation[]>(
+    CONVERSATION_STATUS_BUCKET_ORDER.map((id) => [id, []]),
+  );
+
+  for (const conversation of conversations) {
+    buckets
+      .get(getConversationStatusBucket(conversation, getOverride))
+      ?.push(conversation);
+  }
+
+  return CONVERSATION_STATUS_BUCKET_ORDER.map((id) => ({
+    id,
+    conversations: buckets.get(id) ?? [],
+  })).filter((bucket) => bucket.conversations.length > 0);
+}
+
+function getGroupStatusBucket(
+  group: {
+    conversations: readonly AppConversation[];
+  },
+  getOverride?: StatusOverrideAccessor,
+): ConversationStatusBucketId {
+  const bucketIds = new Set(
+    group.conversations.map((conversation) =>
+      getConversationStatusBucket(conversation, getOverride),
+    ),
+  );
+  return (
+    CONVERSATION_STATUS_BUCKET_ORDER.find((bucketId) =>
+      bucketIds.has(bucketId),
+    ) ?? "in_progress"
+  );
+}
+
+export function bucketConversationGroupsByStatus<
+  T extends { conversations: readonly AppConversation[] },
+>(
+  groups: readonly T[],
+  getOverride?: StatusOverrideAccessor,
+): Array<{ id: ConversationStatusBucketId; groups: T[] }> {
+  const buckets = new Map<ConversationStatusBucketId, T[]>(
+    CONVERSATION_STATUS_BUCKET_ORDER.map((id) => [id, []]),
+  );
+
+  for (const group of groups) {
+    buckets.get(getGroupStatusBucket(group, getOverride))?.push(group);
+  }
+
+  return CONVERSATION_STATUS_BUCKET_ORDER.map((id) => ({
+    id,
+    groups: buckets.get(id) ?? [],
+  })).filter((bucket) => bucket.groups.length > 0);
+}
+
 export function resolvePinnedConversations(
   pinnedIds: readonly string[],
   conversations: readonly AppConversation[],
@@ -83,6 +224,28 @@ export function filterOutPinnedConversations(
   return conversations.filter(
     (conversation) => !pinnedSet.has(conversation.id),
   );
+}
+
+/** Splits the list into active (shown in buckets) and archived conversations. */
+export function partitionArchivedConversations(
+  conversations: readonly AppConversation[],
+  archivedIds: readonly string[],
+): { active: AppConversation[]; archived: AppConversation[] } {
+  if (archivedIds.length === 0) {
+    return { active: [...conversations], archived: [] };
+  }
+
+  const archivedSet = new Set(archivedIds);
+  const active: AppConversation[] = [];
+  const archived: AppConversation[] = [];
+  for (const conversation of conversations) {
+    if (archivedSet.has(conversation.id)) {
+      archived.push(conversation);
+    } else {
+      active.push(conversation);
+    }
+  }
+  return { active, archived };
 }
 
 /** Subset of `useCreateConversation` variables for launching from a group row */
@@ -249,6 +412,53 @@ export function groupConversations(
 
   groups.sort((a, b) => groupOrderKey(b) - groupOrderKey(a));
   return groups;
+}
+
+/** Stable repo/workspace identifier used to group and filter a conversation. */
+export function getConversationRepoId(
+  conversation: AppConversation,
+  backendKind: BackendKind,
+): string {
+  return backendKind === "local"
+    ? workspaceGroup(conversation).id
+    : repositoryGroup(conversation).id;
+}
+
+export const REPO_FILTER_ALL = "all";
+
+export interface RepoFilterOption {
+  id: string;
+  label: string;
+  count: number;
+}
+
+/** Distinct repos/workspaces present in the list, for the "Repo" filter. */
+export function deriveRepoFilterOptions(
+  conversations: readonly AppConversation[],
+  backendKind: BackendKind,
+  labels: { emptyWorkspace: string; emptyRepository: string },
+): RepoFilterOption[] {
+  return groupConversations(conversations, backendKind, "updated", labels).map(
+    (group) => ({
+      id: group.id,
+      label: group.label,
+      count: group.conversations.length,
+    }),
+  );
+}
+
+export function filterConversationsByRepo(
+  conversations: readonly AppConversation[],
+  backendKind: BackendKind,
+  repoFilter: string,
+): AppConversation[] {
+  if (repoFilter === REPO_FILTER_ALL) {
+    return [...conversations];
+  }
+  return conversations.filter(
+    (conversation) =>
+      getConversationRepoId(conversation, backendKind) === repoFilter,
+  );
 }
 
 export function applyGroupFolderOrder<T extends { id: string }>(

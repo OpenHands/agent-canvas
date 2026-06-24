@@ -1,5 +1,6 @@
 import React from "react";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
+import { useTranslation } from "react-i18next";
 import { NavigationLink } from "#/components/shared/navigation-link";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { SandboxStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
@@ -7,6 +8,7 @@ import { RepositorySelection } from "#/api/open-hands.types";
 import { cn } from "#/utils/utils";
 import { ConversationStatusDot } from "./conversation-status-dot";
 import { ConversationCardFooter } from "./conversation-card/conversation-card-footer";
+import { I18nKey } from "#/i18n/declaration";
 
 interface CompactConversationRowProps {
   conversationId: string;
@@ -48,6 +50,8 @@ export function CompactConversationRow({
   agentKind = null,
   acpServer = null,
 }: CompactConversationRowProps) {
+  const { t } = useTranslation("openhands");
+
   const preview = (
     <div className="w-[260px] p-3">
       <div className="flex items-center gap-2 mb-1">
@@ -56,8 +60,11 @@ export function CompactConversationRow({
           sandboxStatus={sandboxStatus}
           showTooltip={false}
         />
-        <span className="text-sm font-medium text-white truncate" title={title}>
-          {title || "(untitled)"}
+        <span
+          className="text-sm font-medium text-foreground truncate"
+          title={title}
+        >
+          {title || t(I18nKey.CONVERSATION$UNTITLED)}
         </span>
       </div>
       <ConversationCardFooter
@@ -80,7 +87,7 @@ export function CompactConversationRow({
       content={preview}
       placement="right"
       closeDelay={100}
-      tooltipClassName="bg-[var(--oh-surface)] text-white border border-[var(--oh-border-subtle)] shadow-xl p-0"
+      tooltipClassName="bg-[var(--oh-surface)] text-foreground border border-[var(--oh-border-subtle)] shadow-xl p-0"
     >
       <NavigationLink
         to={`/conversations/${conversationId}`}

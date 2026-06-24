@@ -66,6 +66,7 @@ export const AGENT_SERVER_UI_DEFAULT_CSS_VARIABLES = {
   "--oh-separator": "rgba(113, 120, 136, 0.5)",
   "--oh-focus": "#ffffff",
   "--oh-status-success": "#1FBD53",
+  "--oh-status-warning": "#E0A82E",
   "--oh-status-error": "#FF684E",
   "--oh-link": "var(--cool-grey-100)",
   "--oh-radius": "8px",

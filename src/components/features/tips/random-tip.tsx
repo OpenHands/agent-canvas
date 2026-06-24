@@ -32,7 +32,7 @@ export function RandomTip() {
                   href={randomTip.link}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="underline transition-colors hover:text-white"
+                  className="underline transition-colors hover:text-foreground"
                 >
                   {t(I18nKey.TIPS$LEARN_MORE)}
                 </a>

@@ -86,10 +86,11 @@ ENV AGENT_CANVAS_BUILD_GIT_REF=${OPENHANDS_BUILD_GIT_REF}
 USER root
 
 # Install system deps required by automation's transitive dependencies
-# (asyncpg needs libpq, which the agent-server base image may not include).
+# (asyncpg needs libpq, which the agent-server base image may not include),
+# plus common agent ergonomics for repo inspection.
 RUN if command -v apt-get >/dev/null 2>&1; then \
       apt-get update && \
-      apt-get install -y --no-install-recommends libpq-dev && \
+      apt-get install -y --no-install-recommends libpq-dev ripgrep && \
       rm -rf /var/lib/apt/lists/*; \
     fi
 
@@ -99,6 +100,20 @@ RUN if command -v apt-get >/dev/null 2>&1; then \
 # specific packages (asyncpg, sqlalchemy, boto3, gcloud, …) are added.
 RUN uv pip install --system "openhands-automation==${AUTOMATION_VERSION}" 2>/dev/null \
     || pip install --no-cache-dir "openhands-automation==${AUTOMATION_VERSION}"
+
+# Patch the baked openhands-sdk so /git/changes also returns per-file line
+# counts (additions/deletions via `git diff --numstat`). Pinned to SDK 1.29.0
+# — re-sync docker/patches/openhands-sdk-git/ if config/defaults.json bumps the
+# agentServer pin. The smoke-test import fails the build if the patch is
+# incompatible with the installed SDK.
+COPY docker/patches/openhands-sdk-git/git_changes.py docker/patches/openhands-sdk-git/models.py /tmp/oh-sdk-git-patch/
+# Resolve the dir via a real submodule file (openhands.sdk.git is a PEP 420
+# namespace package whose __file__ is None, so dirname(__file__) would fail).
+RUN GITDIR="$(python3 -c 'import os, openhands.sdk.git.git_changes as m; print(os.path.dirname(m.__file__))')" \
+    && cp /tmp/oh-sdk-git-patch/git_changes.py "$GITDIR/git_changes.py" \
+    && cp /tmp/oh-sdk-git-patch/models.py "$GITDIR/models.py" \
+    && python3 -c 'from openhands.sdk.git.git_changes import get_git_changes; from openhands.sdk.git.models import GitChange; assert "additions" in GitChange.model_fields and "deletions" in GitChange.model_fields' \
+    && rm -rf /tmp/oh-sdk-git-patch
 
 # Copy the frontend build output.
 # react-router.config.ts unpacks build/client/ into build/ for non-Vercel builds.
@@ -128,6 +143,7 @@ RUN chmod +x /opt/agent-canvas/entrypoint.sh
 RUN mkdir -p /home/openhands/.openhands/agent-canvas/conversations \
              /home/openhands/.openhands/agent-canvas/bash_events \
              /home/openhands/.openhands/automation \
+             /home/openhands/.openhands/repos \
              /projects && \
     chown -R openhands:openhands /home/openhands/.openhands /projects
 

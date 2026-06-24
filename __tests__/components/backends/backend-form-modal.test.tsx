@@ -63,7 +63,7 @@ function TestSeed({
 beforeEach(() => {
   window.localStorage.clear();
   getServerInfoMock.mockReset();
-  getServerInfoMock.mockResolvedValue({ version: "1.28.0" });
+  getServerInfoMock.mockResolvedValue({ version: "1.29.0" });
   __resetActiveStoreForTests();
 });
 

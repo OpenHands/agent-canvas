@@ -44,7 +44,7 @@ function renderWithProviders(
 beforeEach(() => {
   window.localStorage.clear();
   getServerInfoMock.mockReset();
-  getServerInfoMock.mockResolvedValue({ version: "1.28.0" });
+  getServerInfoMock.mockResolvedValue({ version: "1.29.0" });
   __resetActiveStoreForTests();
 });
 
@@ -218,7 +218,7 @@ describe("AddBackendModal – two-column layout", () => {
     await user.click(screen.getByTestId("add-backend-submit"));
 
     expect(await screen.findByTestId("add-backend-error")).toHaveTextContent(
-      "Agent Canvas requires agent-server 1.28.0 or newer",
+      "Agent Canvas requires agent-server 1.29.0 or newer",
     );
     expect(onClose).not.toHaveBeenCalled();
   });

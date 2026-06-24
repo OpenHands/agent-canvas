@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { Pin } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useTracking } from "#/hooks/use-tracking";
@@ -7,14 +8,25 @@ import { I18nKey } from "#/i18n/declaration";
 import { transformVSCodeUrl } from "#/utils/vscode-url-helper";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
-import { SandboxStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
+import {
+  SandboxStatus,
+  type AppConversation,
+} from "#/api/conversation-service/agent-server-conversation-service.types";
 import { RepositorySelection } from "#/api/open-hands.types";
 import { formatTimeDelta } from "#/utils/format-time-delta";
 import { ConversationCardHeader } from "./conversation-card-header";
 import { ConversationCardActions } from "./conversation-card-actions";
 import { ConversationCardFooter } from "./conversation-card-footer";
 import { ConversationStatusBadges } from "./conversation-status-badges";
+import { ConversationSourceBadges } from "./conversation-source-badges";
+import { ConductorRowContextMenu } from "./conductor-row-context-menu";
+import { ConversationDiffStatChip } from "./conversation-diff-stat-chip";
+import type { ConversationStatusBucketId } from "../conversation-panel-list-helpers";
 import { useDownloadConversation } from "#/hooks/use-download-conversation";
+import { useConversationDiffStat } from "#/hooks/query/use-conversation-diff-stat";
+
+const RIGHT_CLICK_MENU_WIDTH = 240;
+const RIGHT_CLICK_MENU_HEIGHT = 300;
 
 interface ConversationCardProps {
   onClick?: () => void;
@@ -44,6 +56,15 @@ interface ConversationCardProps {
   onTogglePin?: () => void;
   /** When true and pinned, keep the pin icon visible without hovering. */
   alwaysShowPinIcon?: boolean;
+  /** Server-stamped tags; source/linear/requester render as provenance badges. */
+  tags?: AppConversation["tags"];
+  isUnread?: boolean;
+  onToggleUnread?: () => void;
+  isArchived?: boolean;
+  onToggleArchive?: () => void;
+  statusOverride?: ConversationStatusBucketId | null;
+  onSetStatus?: (bucket: ConversationStatusBucketId) => void;
+  onClearStatus?: () => void;
 }
 
 export function ConversationCard({
@@ -72,11 +93,30 @@ export function ConversationCard({
   isPinned = false,
   onTogglePin,
   alwaysShowPinIcon = false,
+  tags = null,
+  isUnread = false,
+  onToggleUnread,
+  isArchived = false,
+  onToggleArchive,
+  statusOverride = null,
+  onSetStatus,
+  onClearStatus,
 }: ConversationCardProps) {
   const { t } = useTranslation("openhands");
   const { trackDownloadVsCodeButtonClicked } = useTracking();
   const [titleMode, setTitleMode] = React.useState<"view" | "edit">("view");
+  const [rightClickPos, setRightClickPos] = React.useState<{
+    top: number;
+    left: number;
+  } | null>(null);
   const { mutateAsync: downloadConversation } = useDownloadConversation();
+
+  const diffStat = useConversationDiffStat({
+    conversationId,
+    selectedRepository: selectedRepository?.selected_repository,
+    workingDir: workspaceWorkingDir,
+    sandboxStatus,
+  });
 
   const onTitleSave = (newTitle: string) => {
     if (newTitle !== "" && newTitle !== title) {
@@ -150,6 +190,24 @@ export function ConversationCard({
     onTogglePin?.();
   };
 
+  // The Conductor right-click menu is only meaningful when the row exposes the
+  // conductor actions (status/archive/unread come from the panel together).
+  const hasConductorMenu = !!(onSetStatus || onToggleArchive || onToggleUnread);
+
+  const handleContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!hasConductorMenu) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const vw = window.innerWidth || 0;
+    const vh = window.innerHeight || 0;
+    setRightClickPos({
+      top: Math.min(event.clientY, Math.max(8, vh - RIGHT_CLICK_MENU_HEIGHT)),
+      left: Math.min(event.clientX, Math.max(8, vw - RIGHT_CLICK_MENU_WIDTH)),
+    });
+  };
+
+  const portalTarget = typeof document !== "undefined" ? document.body : null;
+
   const renderPinButton = () => (
     <button
       type="button"
@@ -167,7 +225,7 @@ export function ConversationCard({
       onClick={handleTogglePin}
       className={cn(
         "flex shrink-0 cursor-pointer items-center justify-center rounded-md p-1",
-        "text-[var(--oh-muted)] hover:bg-white/10 hover:text-white",
+        "text-[var(--oh-muted)] hover:bg-white/10 hover:text-foreground",
       )}
     >
       <Pin
@@ -190,6 +248,7 @@ export function ConversationCard({
       data-context-menu-open={contextMenuOpen.toString()}
       data-active={isActive ? "true" : "false"}
       onClick={onClick}
+      onContextMenu={handleContextMenu}
       className={cn(
         "group relative h-auto w-full cursor-pointer rounded-md py-1 pl-2 pr-1 transition-colors",
         !contextMenuOpen && "hover:bg-[var(--oh-surface)]",
@@ -198,6 +257,13 @@ export function ConversationCard({
     >
       <div className="flex items-center w-full min-w-0">
         <div className="flex items-center gap-2 flex-1 min-w-0 overflow-hidden">
+          {isUnread ? (
+            <span
+              data-testid="conversation-unread-dot"
+              aria-hidden
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--oh-status-warning)]"
+            />
+          ) : null}
           <ConversationCardHeader
             title={title}
             titleMode={titleMode}
@@ -222,18 +288,24 @@ export function ConversationCard({
             contextMenuOpen && "min-w-[3.75rem]",
           )}
         >
-          {!showPersistentPinIcon && (createdAt ?? lastUpdatedAt) && (
-            <p
-              className={cn(
-                "text-xs text-[var(--oh-muted)] text-right whitespace-nowrap transition-opacity -translate-x-1.5",
-                hasHoverActions &&
-                  "group-hover:opacity-0 group-focus-within:opacity-0",
-                contextMenuOpen && "opacity-0",
-              )}
-            >
-              <time>{formatTimeDelta(lastUpdatedAt ?? createdAt)}</time>
-            </p>
-          )}
+          {!showPersistentPinIcon &&
+            (diffStat || createdAt || lastUpdatedAt) && (
+              <div
+                className={cn(
+                  "flex items-center gap-1.5 whitespace-nowrap transition-opacity -translate-x-1.5",
+                  hasHoverActions &&
+                    "group-hover:opacity-0 group-focus-within:opacity-0",
+                  contextMenuOpen && "opacity-0",
+                )}
+              >
+                {diffStat ? <ConversationDiffStatChip stat={diffStat} /> : null}
+                {(createdAt ?? lastUpdatedAt) ? (
+                  <p className="text-right text-xs text-[var(--oh-muted)]">
+                    <time>{formatTimeDelta(lastUpdatedAt ?? createdAt)}</time>
+                  </p>
+                ) : null}
+              </div>
+            )}
 
           {hasHoverActions ? (
             <div
@@ -304,6 +376,8 @@ export function ConversationCard({
         </div>
       </div>
 
+      <ConversationSourceBadges tags={tags} className="mt-1 pl-[26px]" />
+
       {shouldRenderFooter && (
         <ConversationCardFooter
           selectedRepository={selectedRepository}
@@ -320,6 +394,32 @@ export function ConversationCard({
           isHermes={isHermes}
         />
       )}
+
+      {rightClickPos && portalTarget
+        ? createPortal(
+            <ConductorRowContextMenu
+              style={{
+                position: "fixed",
+                top: rightClickPos.top,
+                left: rightClickPos.left,
+                zIndex: 100_000,
+              }}
+              onClose={() => setRightClickPos(null)}
+              isUnread={isUnread}
+              onToggleUnread={() => onToggleUnread?.()}
+              isPinned={isPinned}
+              onTogglePin={() => onTogglePin?.()}
+              statusOverride={statusOverride}
+              onSetStatus={(bucket) => onSetStatus?.(bucket)}
+              onClearStatus={() => onClearStatus?.()}
+              onRename={() => setTitleMode("edit")}
+              isArchived={isArchived}
+              onToggleArchive={() => onToggleArchive?.()}
+              onDelete={() => onDelete?.()}
+            />,
+            portalTarget,
+          )
+        : null}
     </div>
   );
 }

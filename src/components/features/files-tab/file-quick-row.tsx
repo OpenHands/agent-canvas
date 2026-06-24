@@ -76,7 +76,7 @@ export function FileQuickRow({
                 className={cn(
                   "inline-flex items-center px-2 py-0.5 text-xs whitespace-nowrap rounded-md cursor-pointer",
                   isSelected
-                    ? "bg-[var(--oh-interactive-hover)] text-white"
+                    ? "bg-[var(--oh-interactive-hover)] text-foreground"
                     : "bg-[var(--oh-surface-raised)] text-[var(--oh-text-tertiary)] hover:bg-tertiary",
                 )}
               >

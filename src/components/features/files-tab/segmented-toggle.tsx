@@ -47,8 +47,8 @@ export function SegmentedToggle<T extends string>({
             className={cn(
               "px-2 py-0.5 rounded cursor-pointer transition-colors",
               isActive
-                ? "bg-[var(--oh-interactive-hover)] text-white"
-                : "text-[var(--oh-muted)] hover:text-white",
+                ? "bg-[var(--oh-interactive-hover)] text-foreground"
+                : "text-[var(--oh-muted)] hover:text-foreground",
             )}
           >
             {option.label}

@@ -69,13 +69,15 @@ export default function SharedConversation() {
   if (error || !conversation) {
     return (
       <div className="flex items-center justify-center h-screen bg-base">
-        <div className="text-white">{t(I18nKey.CONVERSATION$NOT_FOUND)}</div>
+        <div className="text-foreground">
+          {t(I18nKey.CONVERSATION$NOT_FOUND)}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen bg-base text-white flex flex-col">
+    <div className="h-screen bg-base text-foreground flex flex-col">
       {/* Header with logo, conversation title and branch info */}
       <div className="border-b border-[var(--oh-border-subtle)] p-4 flex-shrink-0">
         <div className="max-w-4xl mx-auto flex items-start gap-4">

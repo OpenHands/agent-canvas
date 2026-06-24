@@ -31,9 +31,15 @@ describe("agent-server version compatibility", () => {
     ).toThrow(AgentServerUnsupportedVersionError);
   });
 
+  it("rejects 1.28.x because ACP model switching needs pre-session server support", () => {
+    expect(() =>
+      assertAgentServerVersionIsSupported(serverInfo("1.28.1")),
+    ).toThrow(AgentServerUnsupportedVersionError);
+  });
+
   it("does not render unknown or malformed versions as backend badges", () => {
     expect(getDisplayAgentServerVersion(serverInfo("unknown"))).toBeNull();
     expect(getDisplayAgentServerVersion(serverInfo("dev-build"))).toBeNull();
-    expect(getDisplayAgentServerVersion(serverInfo("1.28.0"))).toBe("1.28.0");
+    expect(getDisplayAgentServerVersion(serverInfo("1.29.0"))).toBe("1.29.0");
   });
 });

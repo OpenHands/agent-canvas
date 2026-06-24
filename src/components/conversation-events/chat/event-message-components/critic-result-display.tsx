@@ -215,7 +215,11 @@ export function CriticResultDisplay({
             type="button"
             onClick={() => setExpanded((prev) => !prev)}
             className="cursor-pointer ml-1"
-            aria-label={expanded ? "Collapse details" : "Expand details"}
+            aria-label={
+              expanded
+                ? t(I18nKey.BUTTON$COLLAPSE_DETAILS)
+                : t(I18nKey.BUTTON$EXPAND_DETAILS)
+            }
           >
             {expanded ? (
               <ArrowUp className="h-3 w-3 inline fill-neutral-400" />

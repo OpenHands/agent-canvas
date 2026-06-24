@@ -51,8 +51,8 @@ export function SkillsToolbar({
           <button
             type="button"
             onClick={() => onSearchChange("")}
-            aria-label="Clear search"
-            className="mr-2 p-1 rounded text-tertiary-alt hover:text-white cursor-pointer"
+            aria-label={t(I18nKey.MCP$SEARCH_CLEAR)}
+            className="mr-2 p-1 rounded text-tertiary-alt hover:text-foreground cursor-pointer"
           >
             <X className="h-4 w-4" aria-hidden />
           </button>

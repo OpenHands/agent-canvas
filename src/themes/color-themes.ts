@@ -1,10 +1,17 @@
+import {
+  type ResolvedAppearance,
+  readPersistedAppearanceMode,
+  resolveAppearance,
+} from "#/themes/appearance";
+
 export type ColorThemeKey =
+  | "codex"
   | "openhands-deepsea"
   | "openhands-neutral"
   | "openhands-neo";
 
-export interface ColorThemeDefinition {
-  label: string;
+/** A concrete palette for one appearance (light or dark). */
+export interface ColorThemeVariant {
   /** Overrides for --cool-grey-* CSS custom properties (our semantic scale) */
   scale: Record<string, string>;
   /**
@@ -16,8 +23,25 @@ export interface ColorThemeDefinition {
    * from a later stylesheet to pick up theme changes at runtime.
    */
   heroui: Record<string, string>;
-  /** Overrides for --oh-* semantic tokens such as brand / button colors. */
+  /**
+   * Overrides for --oh-* semantic tokens — brand/button colors plus literal
+   * tokens (radius, shadows, focus ring) that are NOT var(--cool-grey-*)
+   * references and so cannot flow from a scale override. Applied via
+   * element.style so they beat the inline defaults on the scope root.
+   */
   tokens?: Record<string, string>;
+  /** Native color-scheme hint (form controls, scrollbars). Defaults to dark. */
+  colorScheme?: ResolvedAppearance;
+}
+
+export interface ColorThemeDefinition extends ColorThemeVariant {
+  label: string;
+  /**
+   * Optional light palette. When present and the resolved appearance is
+   * "light", this variant is used instead of the base (dark) palette. Themes
+   * without a light variant always render dark regardless of appearance mode.
+   */
+  light?: ColorThemeVariant;
 }
 
 // HSL channel strings for the neutral grey palette (H=0, S=0%, L=hex/255*100)
@@ -105,7 +129,149 @@ const NEO_WHITE_BUTTON_TOKENS: Record<
   "--oh-warning": "#ffffff",
 };
 
+// ── Codex palettes ──────────────────────────────────────────────────────────
+// The cool-grey ramp is a single lightness axis: low stops are used for text /
+// foreground, high stops for surfaces / background. Dark mode keeps that
+// orientation (50 lightest → 975 darkest); light mode inverts it (50 darkest →
+// 950 near-white) so every var(--cool-grey-*) reference flips automatically.
+
+const CODEX_DARK_SCALE = {
+  "--cool-grey-50": "#FAFAFA",
+  "--cool-grey-100": "#EDEDED",
+  "--cool-grey-200": "#D6D6D6",
+  "--cool-grey-300": "#B4B4B4",
+  "--cool-grey-400": "#8A8A8A",
+  "--cool-grey-500": "#6E6E6E",
+  "--cool-grey-600": "#545454",
+  "--cool-grey-700": "#2E2E2E",
+  "--cool-grey-800": "#242424",
+  "--cool-grey-900": "#181818",
+  "--cool-grey-925": "#141414",
+  "--cool-grey-950": "#0E0E0E",
+  "--cool-grey-975": "#080808",
+};
+
+const CODEX_LIGHT_SCALE = {
+  "--cool-grey-50": "#0D0D0D",
+  "--cool-grey-100": "#171717",
+  "--cool-grey-200": "#2E2E2E",
+  "--cool-grey-300": "#444444",
+  "--cool-grey-400": "#8F8F8F",
+  "--cool-grey-500": "#A0A0A0",
+  "--cool-grey-600": "#B5B5B5",
+  "--cool-grey-700": "#E6E6E6",
+  "--cool-grey-800": "#ECECEC",
+  "--cool-grey-900": "#F4F4F4",
+  "--cool-grey-925": "#F7F7F7",
+  "--cool-grey-950": "#FFFFFF",
+  "--cool-grey-975": "#FBFBFB",
+};
+
+// Grayscale HSL channels ("0 0% L%") mirroring NEUTRAL_HSL's stop positions.
+// prettier-ignore
+const CODEX_DARK_HSL = {
+  50:  "0 0% 98.04%", 100: "0 0% 92.94%", 200: "0 0% 83.92%", 300: "0 0% 70.59%",
+  400: "0 0% 54.12%", 500: "0 0% 43.14%", 600: "0 0% 32.94%", 700: "0 0% 18.04%",
+  800: "0 0% 14.12%", 850: "0 0% 10.98%", 900: "0 0% 9.41%",  950: "0 0% 5.49%",
+  975: "0 0% 3.14%",
+};
+// prettier-ignore
+const CODEX_LIGHT_HSL = {
+  50:  "0 0% 5.1%",   100: "0 0% 9.02%",  200: "0 0% 18.04%", 300: "0 0% 26.67%",
+  400: "0 0% 56.08%", 500: "0 0% 62.75%", 600: "0 0% 70.98%", 700: "0 0% 90.2%",
+  800: "0 0% 92.55%", 850: "0 0% 94.12%", 900: "0 0% 95.69%", 950: "0 0% 100%",
+  975: "0 0% 98.43%",
+};
+
+/** Build the HeroUI var map from a grayscale HSL stop table (NEUTRAL layout). */
+function buildHeroui(hsl: Record<number, string>): Record<string, string> {
+  return {
+    "--heroui-background": hsl[950],
+    "--heroui-background-foreground": hsl[50],
+    "--heroui-foreground-50": hsl[975],
+    "--heroui-foreground-100": hsl[950],
+    "--heroui-foreground-200": hsl[900],
+    "--heroui-foreground-300": hsl[850],
+    "--heroui-foreground-400": hsl[800],
+    "--heroui-foreground-500": hsl[700],
+    "--heroui-foreground-600": hsl[600],
+    "--heroui-foreground-700": hsl[500],
+    "--heroui-foreground-800": hsl[400],
+    "--heroui-foreground-900": hsl[300],
+    "--heroui-foreground": hsl[300],
+    "--heroui-content1": hsl[900],
+    "--heroui-content1-foreground": hsl[100],
+    "--heroui-content2": hsl[850],
+    "--heroui-content2-foreground": hsl[200],
+    "--heroui-content3": hsl[800],
+    "--heroui-content3-foreground": hsl[300],
+    "--heroui-content4": hsl[700],
+    "--heroui-content4-foreground": hsl[400],
+    "--heroui-default-50": hsl[975],
+    "--heroui-default-100": hsl[950],
+    "--heroui-default-200": hsl[900],
+    "--heroui-default-300": hsl[850],
+    "--heroui-default-400": hsl[800],
+    "--heroui-default-500": hsl[700],
+    "--heroui-default-600": hsl[600],
+    "--heroui-default-700": hsl[500],
+    "--heroui-default-800": hsl[400],
+    "--heroui-default-900": hsl[300],
+    "--heroui-default-foreground": hsl[50],
+    "--heroui-default": hsl[800],
+  };
+}
+
+// Literal --oh-* overrides (radius, shadows, focus, brand) that are not
+// var(--cool-grey-*) references; applied via element.style on the scope root.
+const CODEX_SHARED_TOKENS = {
+  "--oh-radius": "14px",
+  "--oh-field-radius": "16px",
+};
+
+const CODEX_DARK_TOKENS: Record<string, string> = {
+  ...CODEX_SHARED_TOKENS,
+  "--oh-surface-shadow": "0 1px 2px rgba(0, 0, 0, 0.4)",
+  "--oh-overlay-shadow": "0 8px 30px rgba(0, 0, 0, 0.5)",
+  "--oh-field-shadow": "0 1px 2px rgba(0, 0, 0, 0.35)",
+  "--oh-focus": "#ededed",
+  "--oh-color-primary": "#fafafa",
+  "--oh-color-logo": "#fafafa",
+  "--oh-accent": "#fafafa",
+  "--oh-accent-foreground": "#0e0e0e",
+  "--oh-warning": "#fafafa",
+};
+
+const CODEX_LIGHT_TOKENS: Record<string, string> = {
+  ...CODEX_SHARED_TOKENS,
+  "--oh-surface-shadow":
+    "0 1px 2px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06)",
+  "--oh-overlay-shadow": "0 8px 30px rgba(0, 0, 0, 0.12)",
+  "--oh-field-shadow":
+    "0 1px 2px rgba(0, 0, 0, 0.05), 0 2px 8px rgba(0, 0, 0, 0.04)",
+  "--oh-focus": "#0d0d0d",
+  "--oh-color-primary": "#0d0d0d",
+  "--oh-color-logo": "#0d0d0d",
+  "--oh-accent": "#0d0d0d",
+  "--oh-accent-foreground": "#ffffff",
+  "--oh-warning": "#0d0d0d",
+};
+
 export const COLOR_THEMES: Record<ColorThemeKey, ColorThemeDefinition> = {
+  codex: {
+    label: "Codex",
+    colorScheme: "dark",
+    scale: CODEX_DARK_SCALE,
+    heroui: buildHeroui(CODEX_DARK_HSL),
+    tokens: CODEX_DARK_TOKENS,
+    light: {
+      colorScheme: "light",
+      scale: CODEX_LIGHT_SCALE,
+      heroui: buildHeroui(CODEX_LIGHT_HSL),
+      tokens: CODEX_LIGHT_TOKENS,
+    },
+  },
+
   "openhands-deepsea": {
     label: "OpenHands-DeepSea",
     // Matches the values already set by index.css; included so switching back
@@ -182,7 +348,7 @@ export const COLOR_THEMES: Record<ColorThemeKey, ColorThemeDefinition> = {
   },
 };
 
-export const DEFAULT_COLOR_THEME: ColorThemeKey = "openhands-neutral";
+export const DEFAULT_COLOR_THEME: ColorThemeKey = "codex";
 
 export const AVAILABLE_COLOR_THEMES = Object.entries(COLOR_THEMES).map(
   ([key, def]) => ({ key: key as ColorThemeKey, label: def.label }),
@@ -229,9 +395,33 @@ const THEME_STYLE_TAG_ID = "oh-color-theme-override";
  *   They reference their own token system and are unaffected by --cool-grey-*
  *   changes, so we override them from the same injected sheet.
  */
-export function applyColorTheme(key: ColorThemeKey): void {
+/** Resolve a theme's concrete variant for the given appearance. */
+function resolveThemeVariant(
+  key: ColorThemeKey,
+  appearance: ResolvedAppearance,
+): Required<Pick<ColorThemeVariant, "scale" | "heroui">> & {
+  tokens: Record<string, string>;
+  colorScheme: ResolvedAppearance;
+} {
+  const def = COLOR_THEMES[key];
+  const variant = appearance === "light" && def.light ? def.light : def;
+  return {
+    scale: variant.scale,
+    heroui: variant.heroui,
+    tokens: variant.tokens ?? {},
+    colorScheme: variant.colorScheme ?? "dark",
+  };
+}
+
+export function applyColorTheme(
+  key: ColorThemeKey,
+  appearance: ResolvedAppearance = "dark",
+): void {
   if (typeof document === "undefined") return;
-  const { scale, heroui, tokens = {} } = COLOR_THEMES[key];
+  const { scale, heroui, tokens, colorScheme } = resolveThemeVariant(
+    key,
+    appearance,
+  );
 
   const scaleDecls = Object.entries(scale)
     .map(([p, v]) => `  ${p}: ${v};`)
@@ -251,7 +441,7 @@ export function applyColorTheme(key: ColorThemeKey): void {
   //   [data-theme=dark]      — covers the inner AgentServerUIRoot wrapper so
   //     components scoped inside the dark theme wrapper also pick them up.
   const css = [
-    `[data-agent-server-ui] {\n${scaleDecls}\n${herouiDecls}\n${tokenDecls}\n}`,
+    `[data-agent-server-ui] {\n  color-scheme: ${colorScheme};\n${scaleDecls}\n${herouiDecls}\n${tokenDecls}\n}`,
     `[data-theme=dark] {\n${herouiDecls}\n}`,
   ].join("\n");
 
@@ -268,20 +458,35 @@ export function applyColorTheme(key: ColorThemeKey): void {
   syncColorThemeTokensOnScopeRoots(tokens);
 }
 
+/** Apply the persisted color theme at the persisted (resolved) appearance. */
+export function applyActiveTheme(): void {
+  applyColorTheme(
+    readPersistedColorTheme(),
+    resolveAppearance(readPersistedAppearanceMode()),
+  );
+}
+
+// Tokens applied on the previous theme so we can clear ones the next theme
+// doesn't set (token sets differ in size between themes).
+let lastAppliedTokenKeys: string[] = [];
+
 function syncColorThemeTokensOnScopeRoots(
   tokens: Record<string, string>,
 ): void {
   const roots = document.querySelectorAll("[data-agent-server-ui]");
+  const nextKeys = Object.keys(tokens);
+  const keysToClear = lastAppliedTokenKeys.filter((k) => !(k in tokens));
+
   for (const root of roots) {
     if (!(root instanceof HTMLElement)) continue;
 
-    for (const key of COLOR_THEME_TOKEN_KEYS) {
-      const value = tokens[key];
-      if (value) {
-        root.style.setProperty(key, value);
-      } else {
-        root.style.removeProperty(key);
-      }
+    for (const key of keysToClear) {
+      root.style.removeProperty(key);
+    }
+    for (const [key, value] of Object.entries(tokens)) {
+      root.style.setProperty(key, value);
     }
   }
+
+  lastAppliedTokenKeys = nextKeys;
 }

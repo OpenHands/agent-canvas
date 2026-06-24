@@ -34,6 +34,8 @@ import { LlmNotConfiguredBanner } from "#/components/features/home/llm-not-confi
 import { useLlmConfigured } from "#/hooks/use-llm-configured";
 import { Messages } from "#/components/conversation-events/chat/messages";
 import { PendingUserMessages } from "./pending-user-messages";
+import { SelectionPopover } from "./selection-popover";
+import { appendToDraft, formatSelectionPrompt } from "./selection-prompt";
 import { useUnifiedUploadFiles } from "#/hooks/mutation/use-unified-upload-files";
 import { validateFiles } from "#/utils/file-validation";
 import { useConversationStore } from "#/stores/conversation-store";
@@ -87,6 +89,22 @@ export function ChatInterface() {
   );
   const { t } = useTranslation("openhands");
   const scrollRef = React.useRef<HTMLDivElement>(null);
+
+  // Drop a selected passage from the transcript into the composer, preserving
+  // whatever the user has already typed (read live from the contenteditable so
+  // an unsynced draft is not lost).
+  const handleAddSelectionToPrompt = React.useCallback(
+    (selectedText: string, comment: string) => {
+      const inputEl = scrollRef.current
+        ?.closest('[data-testid="chat-interface"]')
+        ?.querySelector('[data-testid="chat-input"]');
+      const current = inputEl?.textContent ?? "";
+      setMessageToSend(
+        appendToDraft(current, formatSelectionPrompt(selectedText, comment)),
+      );
+    },
+    [setMessageToSend],
+  );
   const {
     scrollDomToBottom,
     onChatBodyScroll,
@@ -481,7 +499,7 @@ export function ChatInterface() {
             maybeLoadOlder(e.currentTarget);
           }}
           onWheel={handleWheelForPagination}
-          className="custom-scrollbar-always flex min-h-0 grow flex-col gap-2 overflow-x-hidden overflow-y-auto px-0 pt-4 pb-8 md:px-4"
+          className="custom-scrollbar-always relative flex min-h-0 grow flex-col gap-2 overflow-x-hidden overflow-y-auto px-0 pt-4 pb-8 md:px-4"
         >
           {isChatLoading && isReturningToConversation && (
             <ChatMessagesSkeleton />
@@ -534,6 +552,11 @@ export function ChatInterface() {
             double-renders alongside the real event list.
           */}
           <PendingUserMessages />
+
+          <SelectionPopover
+            containerRef={scrollRef}
+            onAddToPrompt={handleAddSelectionToPrompt}
+          />
         </div>
 
         <div className="flex shrink-0 flex-col gap-[6px] pb-4">

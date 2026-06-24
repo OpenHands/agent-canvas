@@ -31,6 +31,8 @@ interface ConversationPanelPreferencesState {
   ownerScope: OwnerScope;
   sourceScope: SourceScope;
   groupFolderOrder: string[];
+  /** Repo/workspace id to filter the list to, or "all". */
+  repoFilter: string;
 }
 
 interface ConversationPanelPreferencesActions {
@@ -48,6 +50,7 @@ interface ConversationPanelPreferencesActions {
   setOwnerScope: (value: OwnerScope) => void;
   setSourceScope: (value: SourceScope) => void;
   setGroupFolderOrder: (order: readonly string[]) => void;
+  setRepoFilter: (value: string) => void;
 }
 
 type ConversationPanelPreferencesStore = ConversationPanelPreferencesState &
@@ -67,6 +70,7 @@ const initialState: ConversationPanelPreferencesState = {
   ownerScope: "all",
   sourceScope: "all",
   groupFolderOrder: [],
+  repoFilter: "all",
 };
 
 export const useConversationPanelPreferencesStore =
@@ -110,6 +114,7 @@ export const useConversationPanelPreferencesStore =
         setSourceScope: (value) => set(() => ({ sourceScope: value })),
         setGroupFolderOrder: (order) =>
           set(() => ({ groupFolderOrder: [...order] })),
+        setRepoFilter: (value) => set(() => ({ repoFilter: value })),
       }),
       {
         name: "conversation-panel-preferences",
@@ -126,6 +131,7 @@ export const useConversationPanelPreferencesStore =
           ownerScope: state.ownerScope,
           sourceScope: state.sourceScope,
           groupFolderOrder: state.groupFolderOrder,
+          repoFilter: state.repoFilter,
         }),
       },
     ),

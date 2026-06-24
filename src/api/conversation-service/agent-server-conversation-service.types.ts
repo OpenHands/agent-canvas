@@ -149,6 +149,12 @@ export interface AppConversation {
    * "ACP" chip when the key is unknown or null.
    */
   acp_server?: string | null;
+  /**
+   * Server-side tags stamped on the conversation. Hermes/API-created sessions
+   * use these to carry stable source metadata (repo, workspace, requester,
+   * Linear issue, etc.) even when no browser localStorage metadata exists.
+   */
+  tags?: Record<string, string> | null;
   llm_model: string | null;
   metrics: MetricsSnapshot | null;
   created_at: string;

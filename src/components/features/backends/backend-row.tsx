@@ -15,7 +15,7 @@ import { DeviceFlowAuth } from "./device-flow-auth";
 import { getBackendStatusLabel } from "./backend-status-label";
 
 const ROW_ACTION_BUTTON_CLASS =
-  "inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-muted transition-colors hover:bg-interactive-hover hover:text-white";
+  "inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-muted transition-colors hover:bg-interactive-hover hover:text-foreground";
 
 interface BackendRowProps {
   backend: Backend;
@@ -77,7 +77,9 @@ export function BackendRow({
         <BackendStatusDot isConnected={dotStatus} />
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-sm text-white">{backend.name}</span>
+            <span className="truncate text-sm text-foreground">
+              {backend.name}
+            </span>
             <BackendVersion backend={backend} />
           </div>
           <span className="truncate text-xs text-[var(--oh-muted)]">
