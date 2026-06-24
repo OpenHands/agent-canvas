@@ -1,6 +1,4 @@
-import React from "react";
-import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { SyntaxHighlighter } from "../../../markdown/syntax-highlighter";
+import { HighlightedCode } from "../../../markdown/highlighted-code";
 import { CopyableContentWrapper } from "#/components/shared/buttons/copyable-content-wrapper";
 import { MAX_CONTENT_LENGTH } from "#/components/conversation-events/chat/event-content-helpers/shared";
 
@@ -24,14 +22,11 @@ export function CodeBlock({ code, language, copy = true }: CodeBlockProps) {
       : code;
 
   const block = (
-    <SyntaxHighlighter
+    <HighlightedCode
       className="rounded-lg text-xs"
-      style={vscDarkPlus}
       language={language}
-      PreTag="div"
-    >
-      {display}
-    </SyntaxHighlighter>
+      code={display}
+    />
   );
 
   return copy ? (

@@ -20,6 +20,7 @@
     "node": ">=22.12.0"
   },
   "dependencies": {
+    "@base-ui/react": "^1.6.0",
     "@heroui/react": "2.8.10",
     "@microlink/react-json-view": "1.31.20",
     "@monaco-editor/react": "4.7.0",
@@ -59,7 +60,6 @@
     "remark-gfm": "4.0.1",
     "shell-quote": "^1.8.3",
     "sirv-cli": "3.0.1",
-    "socket.io-client": "4.8.3",
     "tailwind-merge": "3.5.0",
     "tailwind-scrollbar": "4.0.2",
     "unist-util-visit": "5.1.0",

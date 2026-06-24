@@ -1,16 +1,51 @@
-import { Tooltip, TooltipProps } from "@heroui/react";
 import React, { ReactNode } from "react";
 import { cn } from "#/utils/utils";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipPopup,
+  type TooltipSide,
+  type TooltipAlign,
+} from "#/components/ui/tooltip";
+
+type TooltipPlacement =
+  | TooltipSide
+  | `${TooltipSide}-start`
+  | `${TooltipSide}-end`;
 
 export interface StyledTooltipProps {
   children: ReactNode;
   content: string | ReactNode;
   tooltipClassName?: React.HTMLAttributes<HTMLDivElement>["className"];
-  placement?: TooltipProps["placement"];
+  placement?: TooltipPlacement;
   showArrow?: boolean;
+  /** Delay before opening, in ms. */
+  delay?: number;
+  /** Delay before closing, in ms. */
   closeDelay?: number;
   offset?: number;
+  /** When true, the tooltip never opens. */
+  disabled?: boolean;
+  /**
+   * Accepted for source compatibility with the previous HeroUI API. Base UI's
+   * positioner flips automatically on collision, so this is a no-op.
+   */
   shouldFlip?: boolean;
+}
+
+// Base UI's Positioner takes a `side` + `align` rather than HeroUI's combined
+// `placement` string ("right-start", "top-end", …). Split it back apart.
+function parsePlacement(placement: TooltipPlacement): {
+  side: TooltipSide;
+  align: TooltipAlign;
+} {
+  const [side, suffix] = placement.split("-") as [
+    TooltipSide,
+    "start" | "end" | undefined,
+  ];
+  if (suffix === "start") return { side, align: "start" };
+  if (suffix === "end") return { side, align: "end" };
+  return { side, align: "center" };
 }
 
 function getTooltipTriggerChild(children: ReactNode) {
@@ -26,31 +61,32 @@ export function StyledTooltip({
   tooltipClassName,
   placement = "right",
   showArrow = false,
+  delay,
   closeDelay = 100,
-  shouldFlip,
   offset = 7,
+  disabled,
 }: StyledTooltipProps) {
-  const disableAnimation = import.meta.env.MODE === "test";
+  const { side, align } = parsePlacement(placement);
 
   return (
-    <Tooltip
-      content={content}
-      closeDelay={closeDelay}
-      placement={placement}
-      offset={offset}
-      shouldFlip={shouldFlip}
-      className={cn("bg-white text-black", tooltipClassName)}
-      showArrow={showArrow}
-      disableAnimation={disableAnimation}
-      classNames={{
-        content: cn(
-          "z-[9999] rounded-md px-2 py-1 text-xs font-medium shadow-md",
-          "!bg-white !text-black",
+    <Tooltip disabled={disabled}>
+      <TooltipTrigger
+        delay={delay}
+        closeDelay={closeDelay}
+        render={getTooltipTriggerChild(children)}
+      />
+      <TooltipPopup
+        side={side}
+        align={align}
+        sideOffset={offset}
+        showArrow={showArrow}
+        className={cn(
+          "px-2 py-1 font-medium bg-white text-black",
           tooltipClassName,
-        ),
-      }}
-    >
-      {getTooltipTriggerChild(children)}
+        )}
+      >
+        {content}
+      </TooltipPopup>
     </Tooltip>
   );
 }

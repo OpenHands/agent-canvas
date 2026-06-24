@@ -16,6 +16,7 @@ import {
   useActiveBackendContext,
 } from "#/contexts/active-backend-context";
 import { BackendSelector } from "#/components/features/backends/backend-selector";
+import { ReactRouterNavigationProvider } from "#/routes/react-router-navigation-provider";
 import {
   __resetEnvironmentSwitchOverlayForTests,
   EnvironmentSwitchOverlay,
@@ -427,14 +428,16 @@ describe("BackendSelector", () => {
     async ({ startPath, startRoute, landingRoute, expectRedirect }) => {
       function StartRoute() {
         return (
-          <TestSeed
-            onMount={(ctx) => {
-              ctx.addBackend(SEED_LOCAL_1);
-            }}
-          >
-            <div data-testid="start-route" />
-            <BackendSelector />
-          </TestSeed>
+          <ReactRouterNavigationProvider>
+            <TestSeed
+              onMount={(ctx) => {
+                ctx.addBackend(SEED_LOCAL_1);
+              }}
+            >
+              <div data-testid="start-route" />
+              <BackendSelector />
+            </TestSeed>
+          </ReactRouterNavigationProvider>
         );
       }
       function LandingRoute() {

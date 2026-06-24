@@ -12,12 +12,8 @@ export interface WebSocketHookOptions {
   };
 }
 
-export const useWebSocket = <T = string>(
-  url: string,
-  options?: WebSocketHookOptions,
-) => {
+export const useWebSocket = (url: string, options?: WebSocketHookOptions) => {
   const [isConnected, setIsConnected] = React.useState(false);
-  const [lastMessage, setLastMessage] = React.useState<T | null>(null);
   const [error, setError] = React.useState<Error | null>(null);
   const [isReconnecting, setIsReconnecting] = React.useState(false);
   const wsRef = React.useRef<WebSocket | null>(null);
@@ -64,7 +60,6 @@ export const useWebSocket = <T = string>(
     };
 
     ws.onmessage = (event) => {
-      setLastMessage(event.data);
       optionsRef.current?.onMessage?.(event);
     };
 
@@ -204,7 +199,6 @@ export const useWebSocket = <T = string>(
 
   return {
     isConnected,
-    lastMessage,
     error,
     socket: wsRef.current,
     sendMessage,

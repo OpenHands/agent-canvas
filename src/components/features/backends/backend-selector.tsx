@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { useMatch, useNavigate } from "react-router";
 import { Plus, Settings } from "lucide-react";
+import { useNavigation } from "#/context/navigation-context";
 import { Dropdown } from "#/ui/dropdown/dropdown";
 import { DropdownOption } from "#/ui/dropdown/types";
 import { isNoBackend } from "#/api/backend-registry/active-store";
@@ -153,11 +153,16 @@ export function BackendSelector({
   const currentUserIds = useCloudCurrentUserId();
   // Probe each registered backend every 10s.
   const healthByBackendId = useBackendsHealth(backends);
-  const navigate = useNavigate();
-  const settingsMatch = useMatch("/settings");
-  const settingsSubrouteMatch = useMatch("/settings/*");
-  const conversationMatch = useMatch("/conversations/:conversationId");
-  const automationDetailMatch = useMatch("/automations/:automationId");
+  // Derive route-active flags from the shared navigation context instead of
+  // four `useMatch` subscriptions. `useMatch` re-subscribes this always-mounted
+  // component to the router so it re-rendered on every navigation; the context
+  // path is one stable string. The regexes mirror the previous matchers exactly
+  // (single trailing segment, so the `/panel` subroute is still excluded).
+  const { currentPath, navigate } = useNavigation();
+  const isSettingsActive =
+    currentPath === "/settings" || currentPath.startsWith("/settings/");
+  const isConversationDetail = /^\/conversations\/[^/]+$/.test(currentPath);
+  const isAutomationDetail = /^\/automations\/[^/]+$/.test(currentPath);
   const [addBackendModalOpen, setAddBackendModalOpen] = React.useState(false);
   const [manageBackendsModalOpen, setManageBackendsModalOpen] =
     React.useState(false);
@@ -188,7 +193,6 @@ export function BackendSelector({
   const activeOption = noBackendSelected
     ? undefined
     : options.find((o) => o.value === activeValue);
-  const isSettingsActive = Boolean(settingsMatch || settingsSubrouteMatch);
   const settingsLabel = t(I18nKey.SIDEBAR$SETTINGS);
   const isRightPanelShown = useConversationStore(
     (state) => state.isRightPanelShown,
@@ -197,7 +201,7 @@ export function BackendSelector({
   // canvas and reads awkwardly; prefer above the control. When the rail is
   // collapsed, keep left except on active conversation + open right drawer.
   const settingsTooltipPlacement =
-    !sidebarCollapsed || (conversationMatch && isRightPanelShown)
+    !sidebarCollapsed || (isConversationDetail && isRightPanelShown)
       ? "top"
       : "left";
 
@@ -344,8 +348,8 @@ export function BackendSelector({
       });
 
       // @spec BM-002 — Switching backends keeps the user on the same page
-      if (conversationMatch) navigate("/conversations");
-      else if (automationDetailMatch) navigate("/automations");
+      if (isConversationDetail) navigate("/conversations");
+      else if (isAutomationDetail) navigate("/automations");
 
       setActive(target.id, orgId);
       onSelectOption?.();
@@ -353,8 +357,8 @@ export function BackendSelector({
     [
       activeValue,
       backends,
-      conversationMatch,
-      automationDetailMatch,
+      isConversationDetail,
+      isAutomationDetail,
       navigate,
       options,
       setActive,
