@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Bot, FolderKanban } from "lucide-react";
+import { BellOff, Bot, FolderKanban, User } from "lucide-react";
 import { formatTimeDelta } from "#/utils/format-time-delta";
 import { cn } from "#/utils/utils";
 import { I18nKey } from "#/i18n/declaration";
@@ -61,6 +61,14 @@ interface ConversationCardFooterProps {
    * project is scannable at a glance in the visible-by-default list.
    */
   projectLabel?: string | null;
+  /**
+   * Owner identity to attribute the row to another user (the navigability half
+   * of mine/all). Null when it's the current user's, unowned, or Hermes. The
+   * full identity is the tooltip; an email is abbreviated to its local-part.
+   */
+  ownerLabel?: string | null;
+  /** Whether the conversation is muted — renders a small muted indicator. */
+  isMuted?: boolean;
 }
 
 export function ConversationCardFooter({
@@ -77,8 +85,19 @@ export function ConversationCardFooter({
   acpServer = null,
   isHermes = false,
   projectLabel = null,
+  ownerLabel = null,
+  isMuted = false,
 }: ConversationCardFooterProps) {
   const { t } = useTranslation("openhands");
+
+  // An email owner abbreviates to its local-part for the chip; non-email
+  // identities (e.g. a Slack-namespaced requester) show as-is. Full identity
+  // stays in the tooltip.
+  const ownerChipText = ownerLabel
+    ? ownerLabel.includes("@")
+      ? ownerLabel.slice(0, ownerLabel.indexOf("@"))
+      : ownerLabel
+    : null;
 
   const isPaused = isExecutionPaused(executionStatus);
 
@@ -155,6 +174,25 @@ export function ConversationCardFooter({
             <NoRepository workspaceWorkingDir={workspaceWorkingDir} />
           ))}
         <div className="flex items-center gap-2 shrink-0 ml-auto">
+          {isMuted ? (
+            <BellOff
+              data-testid="conversation-card-muted-indicator"
+              className="w-3 h-3 shrink-0 text-[var(--oh-muted)]"
+              aria-label={t(I18nKey.CONVERSATION_PANEL$MUTED)}
+            >
+              <title>{t(I18nKey.CONVERSATION_PANEL$MUTED)}</title>
+            </BellOff>
+          ) : null}
+          {ownerChipText ? (
+            <span
+              data-testid="conversation-card-owner-chip"
+              className="inline-flex items-center gap-1 rounded-full bg-white/5 px-1.5 py-0.5 text-[10px] text-[var(--oh-muted)] shrink-0 max-w-[140px]"
+              title={`${t(I18nKey.CONVERSATION_PANEL$OWNER)}: ${ownerLabel}`}
+            >
+              <User className="w-3 h-3 shrink-0" />
+              <span className="truncate">{ownerChipText}</span>
+            </span>
+          ) : null}
           {projectLabel ? (
             <span
               data-testid="conversation-card-project-chip"

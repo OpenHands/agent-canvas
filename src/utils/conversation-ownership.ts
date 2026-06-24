@@ -43,6 +43,26 @@ export const ConversationOwnership = {
     return owner?.toLowerCase() === target;
   },
 
+  /**
+   * The owner to surface as a peer-attribution chip on a row — the
+   * navigability half of "mine vs all": in the "all" view you can see whose
+   * each session is at a glance. Returns null when there's nothing useful to
+   * show: an unowned session, the current user's own session (implied), or a
+   * Hermes session (its requester is already badged via ConversationSource).
+   * Returns the raw owner identity; the display layer abbreviates it.
+   */
+  peerOwner(
+    conversation: OwnedConversation,
+    currentUserEmail: string | null | undefined,
+  ): string | null {
+    if (ConversationOwnership.isHermes(conversation)) return null;
+    const owner = ConversationOwnership.ownerOf(conversation);
+    if (!owner) return null;
+    const target = currentUserEmail?.trim().toLowerCase();
+    if (target && owner.toLowerCase() === target) return null;
+    return owner;
+  },
+
   matchesSourceScope(
     conversation: OwnedConversation,
     scope: SourceScope,

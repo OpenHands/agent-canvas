@@ -163,4 +163,49 @@ describe("ConversationAttention.diff", () => {
     expect(result.next.has("gone")).toBe(false);
     expect(result.next.has("a")).toBe(true);
   });
+
+  it("excludes muted conversations from the pending count", () => {
+    const result = ConversationAttention.diff({
+      previous: new Map(),
+      conversations: [
+        conv("a", ExecutionStatus.WAITING_FOR_CONFIRMATION),
+        conv("b", ExecutionStatus.ERROR),
+      ],
+      activeConversationId: null,
+      mutedIds: new Set(["a"]),
+    });
+    // Only the unmuted blocked conversation counts.
+    expect(result.pendingCount).toBe(1);
+  });
+
+  it("fires no interrupt event for a muted conversation's transition", () => {
+    const previous = new Map([["a", ExecutionStatus.RUNNING]]);
+    const result = ConversationAttention.diff({
+      previous,
+      conversations: [conv("a", ExecutionStatus.WAITING_FOR_CONFIRMATION)],
+      activeConversationId: null,
+      mutedIds: new Set(["a"]),
+    });
+    expect(result.events).toEqual([]);
+    // ...but it's still tracked, so unmuting later won't burst on this change.
+    expect(result.next.get("a")).toBe(ExecutionStatus.WAITING_FOR_CONFIRMATION);
+  });
+
+  it("still notifies an unmuted conversation alongside a muted one", () => {
+    const previous = new Map([
+      ["a", ExecutionStatus.RUNNING],
+      ["b", ExecutionStatus.RUNNING],
+    ]);
+    const result = ConversationAttention.diff({
+      previous,
+      conversations: [
+        conv("a", ExecutionStatus.WAITING_FOR_CONFIRMATION),
+        conv("b", ExecutionStatus.WAITING_FOR_CONFIRMATION),
+      ],
+      activeConversationId: null,
+      mutedIds: new Set(["a"]),
+    });
+    expect(result.events.map((e) => e.id)).toEqual(["b"]);
+    expect(result.pendingCount).toBe(1);
+  });
 });

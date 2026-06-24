@@ -56,6 +56,13 @@ export interface AttentionDiffInput {
   conversations: readonly AttentionConversation[];
   /** The conversation the user is currently viewing — never notified about. */
   activeConversationId: string | null;
+  /**
+   * Conversations the user muted. They're still tracked (so unmuting doesn't
+   * fire a burst for a transition that happened while muted) but contribute
+   * neither to `pendingCount` nor to interrupt `events`. Omitted ⇒ nothing
+   * muted.
+   */
+  mutedIds?: ReadonlySet<string>;
 }
 
 export const ConversationAttention = {
@@ -89,7 +96,7 @@ export const ConversationAttention = {
   },
 
   diff(input: AttentionDiffInput): AttentionDiff {
-    const { previous, conversations, activeConversationId } = input;
+    const { previous, conversations, activeConversationId, mutedIds } = input;
     const events: AttentionEvent[] = [];
     const next = new Map<string, ExecutionStatus | null>();
     let pendingCount = 0;
@@ -99,13 +106,18 @@ export const ConversationAttention = {
       next.set(conv.id, status);
 
       const isActive = conv.id === activeConversationId;
-      if (!isActive && ConversationAttention.isPending(status)) {
+      const isMuted = mutedIds?.has(conv.id) ?? false;
+      if (!isActive && !isMuted && ConversationAttention.isPending(status)) {
         pendingCount += 1;
       }
 
       // The open conversation has its own in-view notifier; never double-fire,
       // and don't interrupt the user about what they're already looking at.
       if (isActive) continue;
+
+      // Muted: still seeded in `next` above (so unmuting doesn't burst on a
+      // stale transition), but it raises no badge count and fires no interrupt.
+      if (isMuted) continue;
 
       // First sighting: seed the status but don't notify. Otherwise opening a
       // tab would fire a burst for sessions that finished/errored before now.

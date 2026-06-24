@@ -65,6 +65,7 @@ import {
   type StatusOverrideAccessor,
 } from "./conversation-panel-list-helpers";
 import { usePinnedConversationsStore } from "#/stores/pinned-conversations-store";
+import { useMutedConversationsStore } from "#/stores/muted-conversations-store";
 import { useArchivedConversationsStore } from "#/stores/archived-conversations-store";
 import { useUnreadConversationsStore } from "#/stores/unread-conversations-store";
 import { useConversationStatusOverrideStore } from "#/stores/conversation-status-override-store";
@@ -243,6 +244,15 @@ export function ConversationPanel({
   );
   const togglePin = usePinnedConversationsStore((state) => state.togglePin);
   const pruneMissingPinnedConversations = usePinnedConversationsStore(
+    (state) => state.pruneMissingConversations,
+  );
+
+  const mutedIds = useMutedConversationsStore(
+    (state) =>
+      state.mutedByBackendId[activeBackend.id] ?? EMPTY_CONVERSATION_IDS,
+  );
+  const toggleMute = useMutedConversationsStore((state) => state.toggleMute);
+  const pruneMissingMuted = useMutedConversationsStore(
     (state) => state.pruneMissingConversations,
   );
 
@@ -460,6 +470,7 @@ export function ConversationPanel({
     pruneMissingPinnedConversations(activeBackend.id, existingIds);
     pruneMissingArchived(activeBackend.id, existingIds);
     pruneMissingUnread(activeBackend.id, existingIds);
+    pruneMissingMuted(activeBackend.id, existingIds);
     pruneMissingStatusOverrides(activeBackend.id, existingIds);
   }, [
     activeBackend.id,
@@ -468,6 +479,7 @@ export function ConversationPanel({
     pruneMissingPinnedConversations,
     pruneMissingArchived,
     pruneMissingUnread,
+    pruneMissingMuted,
     pruneMissingStatusOverrides,
   ]);
 
@@ -837,6 +849,7 @@ export function ConversationPanel({
       const isPinned = pinnedIds.includes(conversation.id);
       const isArchived = archivedIds.includes(conversation.id);
       const isUnread = unreadIds.includes(conversation.id);
+      const isMuted = mutedIds.includes(conversation.id);
       const statusOverride = statusOverrides[conversation.id] ?? null;
       if (compact) {
         return (
@@ -949,9 +962,15 @@ export function ConversationPanel({
                     conversation.project)
                   : null
               }
+              ownerLabel={ConversationOwnership.peerOwner(
+                conversation,
+                currentUserEmail,
+              )}
               tags={conversation.tags}
               isPinned={isPinned}
               onTogglePin={() => togglePin(activeBackend.id, conversation.id)}
+              isMuted={isMuted}
+              onToggleMute={() => toggleMute(activeBackend.id, conversation.id)}
               alwaysShowPinIcon={isPinned && !options?.inPinnedSection}
               isUnread={isUnread}
               onToggleUnread={() =>
@@ -985,12 +1004,15 @@ export function ConversationPanel({
       pinnedIds,
       archivedIds,
       unreadIds,
+      mutedIds,
       statusOverrides,
       showRepoBranchMetadata,
       showLlmProfiles,
       showHoverMetadata,
       projectNameBySlug,
+      currentUserEmail,
       togglePin,
+      toggleMute,
       toggleArchive,
       toggleUnread,
       markRead,

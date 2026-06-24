@@ -186,3 +186,38 @@ describe("ConversationOwnership.filter — project facet", () => {
     ).toEqual(["bm"]);
   });
 });
+
+describe("ConversationOwnership.peerOwner", () => {
+  it("returns another user's owner on a gui session", () => {
+    expect(
+      ConversationOwnership.peerOwner(conv("a", "her@x.io", "gui"), "me@x.io"),
+    ).toBe("her@x.io");
+  });
+
+  it("returns null for the current user's own session (case-insensitive)", () => {
+    expect(
+      ConversationOwnership.peerOwner(conv("a", "Me@x.io", "gui"), "me@x.io"),
+    ).toBeNull();
+  });
+
+  it("returns null for Hermes sessions (requester is already badged)", () => {
+    expect(
+      ConversationOwnership.peerOwner(
+        conv("a", "slack:U1", "hermes"),
+        "me@x.io",
+      ),
+    ).toBeNull();
+  });
+
+  it("returns null when the session is unowned", () => {
+    expect(
+      ConversationOwnership.peerOwner(conv("a", null, "gui"), "me@x.io"),
+    ).toBeNull();
+  });
+
+  it("labels every owned gui session when the current user is unknown", () => {
+    expect(
+      ConversationOwnership.peerOwner(conv("a", "her@x.io", "gui"), null),
+    ).toBe("her@x.io");
+  });
+});
