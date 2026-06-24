@@ -302,9 +302,17 @@ export function toAppConversation(
   // conversation — the chip is identity info for the ACP CLI subprocess,
   // and showing it on a non-ACP conversation would be a lie.
   const acpServer = isAcp ? (info.tags?.[ACP_SERVER_TAG_KEY] ?? null) : null;
+  // Advisory owner = the cockpit-stamped `owner` tag, falling back to the
+  // Hermes-stamped `requester` tag so Slack-launched sessions aren't ownerless.
+  const tags = info.tags ?? {};
+  const owner =
+    tags[OWNER_TAG_KEY]?.trim() || tags[REQUESTER_TAG_KEY]?.trim() || null;
+  const source = tags[SOURCE_TAG_KEY]?.trim() || null;
   return {
     id: info.id,
     created_by_user_id: null,
+    owner,
+    source,
     selected_repository: metadata?.selected_repository ?? null,
     selected_branch: metadata?.selected_branch ?? null,
     git_provider: metadata?.git_provider ?? null,
@@ -408,6 +416,17 @@ type ConversationSettingsPayload = SettingsRecord & {
 };
 
 export const ACP_SERVER_TAG_KEY = "acpserver";
+
+// Conversation-ownership tags. Keys must match the agent-server validator
+// (`^[a-z0-9]+$`). `owner` is the advisory owner identity (an email) the
+// cockpit stamps at creation; `requester` is the equivalent Hermes-launched
+// sessions already carry (a Slack-namespaced id); `source` distinguishes
+// "gui" (cockpit) from "hermes". These organize the firehose — they are not a
+// privacy boundary (the local backend has no enforced per-user identity).
+export const OWNER_TAG_KEY = "owner";
+export const REQUESTER_TAG_KEY = "requester";
+export const SOURCE_TAG_KEY = "source";
+export const SOURCE_TAG_GUI = "gui";
 
 const FERNET_TOKEN_PREFIX = "gAAAAA";
 
@@ -920,9 +939,17 @@ export function buildStartConversationRequest(
     worktree: options.worktree ?? true,
   };
 
-  if (acpServerTag) {
-    payload.tags = { [ACP_SERVER_TAG_KEY]: acpServerTag };
-  }
+  // Stamp ownership tags so the conversation list can offer a "mine" view and
+  // distinguish cockpit-launched ("gui") from Hermes-launched sessions. The
+  // owner is the user's git email — advisory (user-editable), good enough to
+  // organize a visible-by-default list. Reuses the same tags map Hermes PATCHes.
+  const ownerTag = (
+    options.settings.git_user_email ?? options.settings.email
+  )?.trim();
+  const tags: Record<string, string> = { [SOURCE_TAG_KEY]: SOURCE_TAG_GUI };
+  if (ownerTag) tags[OWNER_TAG_KEY] = ownerTag;
+  if (acpServerTag) tags[ACP_SERVER_TAG_KEY] = acpServerTag;
+  payload.tags = tags;
 
   // ``secrets_encrypted`` makes the agent-server decrypt request secrets at
   // conversation start. Non-ACP conversations need it for encrypted LLM keys.

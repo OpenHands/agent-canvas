@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { Bot } from "lucide-react";
 import { formatTimeDelta } from "#/utils/format-time-delta";
 import { cn } from "#/utils/utils";
 import { I18nKey } from "#/i18n/declaration";
@@ -48,6 +49,12 @@ interface ConversationCardFooterProps {
    * useful chip.
    */
   acpServer?: string | null;
+  /**
+   * Whether this conversation was launched by Hermes (Slack/voice intake)
+   * rather than the cockpit. Renders a small "Hermes" attribution chip so the
+   * source is scannable at a glance in a mixed, visible-by-default list.
+   */
+  isHermes?: boolean;
 }
 
 export function ConversationCardFooter({
@@ -62,6 +69,7 @@ export function ConversationCardFooter({
   showAgentChip = false,
   agentKind = null,
   acpServer = null,
+  isHermes = false,
 }: ConversationCardFooterProps) {
   const { t } = useTranslation("openhands");
 
@@ -140,6 +148,16 @@ export function ConversationCardFooter({
             <NoRepository workspaceWorkingDir={workspaceWorkingDir} />
           ))}
         <div className="flex items-center gap-2 shrink-0 ml-auto">
+          {isHermes && (
+            <span
+              data-testid="conversation-card-hermes-chip"
+              className="inline-flex items-center gap-1 rounded-full bg-white/5 px-1.5 py-0.5 text-[10px] text-[var(--oh-muted)] shrink-0"
+              title={t(I18nKey.CONVERSATION_PANEL$SOURCE_HERMES)}
+            >
+              <Bot className="w-3 h-3" />
+              {t(I18nKey.CONVERSATION_PANEL$SOURCE_HERMES)}
+            </span>
+          )}
           {showTimestamp && (createdAt ?? lastUpdatedAt) && (
             <p className="text-xs text-[var(--oh-muted)] text-right">
               <time>

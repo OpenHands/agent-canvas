@@ -26,6 +26,12 @@ function renderFilterMenu(
     setConversationSort: vi.fn(),
     threadScope: "all",
     setThreadScope: vi.fn(),
+    ownerScope: "all",
+    setOwnerScope: vi.fn(),
+    showOwnerScope: true,
+    sourceScope: "all",
+    setSourceScope: vi.fn(),
+    showSourceScope: true,
     showOlderConversations: false,
     toggleShowOlderConversations: vi.fn(),
     showRepoBranchMetadata: false,
@@ -77,5 +83,52 @@ describe("ConversationPanelFilterMenu", () => {
 
     // Assert
     expect(screen.getByTestId("delete-all-conversations")).toBeDisabled();
+  });
+
+  it("sets the owner scope when a Mine/All row is clicked", async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const props = renderFilterMenu({ filterMenuOpen: true, ownerScope: "all" });
+
+    // Act
+    await user.click(screen.getByTestId("owner-scope-mine"));
+
+    // Assert
+    expect(props.setOwnerScope).toHaveBeenCalledWith("mine");
+    expect(props.setFilterMenuOpen).toHaveBeenCalledWith(false);
+  });
+
+  it("hides the owner facet when no current-user identity is known", () => {
+    // Arrange + Act
+    renderFilterMenu({ filterMenuOpen: true, showOwnerScope: false });
+
+    // Assert
+    expect(screen.queryByTestId("owner-scope-mine")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("owner-scope-all")).not.toBeInTheDocument();
+  });
+
+  it("sets the source scope when a source row is clicked", async () => {
+    // Arrange
+    const user = userEvent.setup();
+    const props = renderFilterMenu({
+      filterMenuOpen: true,
+      sourceScope: "all",
+    });
+
+    // Act
+    await user.click(screen.getByTestId("source-scope-hermes"));
+
+    // Assert
+    expect(props.setSourceScope).toHaveBeenCalledWith("hermes");
+    expect(props.setFilterMenuOpen).toHaveBeenCalledWith(false);
+  });
+
+  it("hides the source facet when no Hermes sessions are present", () => {
+    // Arrange + Act
+    renderFilterMenu({ filterMenuOpen: true, showSourceScope: false });
+
+    // Assert
+    expect(screen.queryByTestId("source-scope-hermes")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("source-scope-app")).not.toBeInTheDocument();
   });
 });
