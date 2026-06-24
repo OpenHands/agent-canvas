@@ -9,6 +9,7 @@ import {
 import type { BashOutput } from "@openhands/typescript-client";
 import { cn } from "#/utils/utils";
 import { modalTitleLgMediumClassName } from "#/utils/modal-classes";
+import { redactShellSecrets } from "#/utils/redact-shell-secrets";
 
 /**
  * Localized empty-state message key for each `SandboxIssue` reason.
@@ -87,8 +88,8 @@ export function RunLogsModal({
   const { stdout, stderr } = useMemo(() => {
     if (!outputs) return { stdout: "", stderr: "" };
     return {
-      stdout: concatStream(outputs, "stdout"),
-      stderr: concatStream(outputs, "stderr"),
+      stdout: redactShellSecrets(concatStream(outputs, "stdout")),
+      stderr: redactShellSecrets(concatStream(outputs, "stderr")),
     };
   }, [outputs]);
 
