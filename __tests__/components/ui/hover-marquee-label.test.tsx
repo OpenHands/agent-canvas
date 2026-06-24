@@ -17,10 +17,11 @@ describe("hover marquee helpers", () => {
     expect(getHoverMarqueeOffset(160, 100)).toBe(0);
   });
 
-  it("clamps marquee duration between min and max", () => {
-    expect(getHoverMarqueeDurationMs(10)).toBe(1200);
-    expect(getHoverMarqueeDurationMs(200)).toBe(4000);
-    expect(getHoverMarqueeDurationMs(80)).toBe(2000);
+  it("uses constant scroll speed for all overflow distances", () => {
+    expect(getHoverMarqueeDurationMs(0)).toBe(0);
+    expect(getHoverMarqueeDurationMs(10)).toBe(120);
+    expect(getHoverMarqueeDurationMs(200)).toBe(2400);
+    expect(getHoverMarqueeDurationMs(80)).toBe(960);
   });
 
   it("derives edge fade visibility from overflow and hover state", () => {
@@ -93,7 +94,7 @@ describe("HoverMarqueeLabel", () => {
     const clip = screen.getByTestId("hover-marquee-label-clip");
     expect(clip).toHaveClass("hover-marquee-clip");
     expect(clip).toHaveStyle({
-      "--hover-marquee-mask-duration": "3000ms",
+      "--hover-marquee-mask-duration": "1440ms",
       "--hover-marquee-mask-fade-in-duration": `${HOVER_MARQUEE_FADE_IN_DURATION_MS}ms`,
       "--hover-marquee-crossfade-duration": `${HOVER_MARQUEE_CROSSFADE_MS}ms`,
     });

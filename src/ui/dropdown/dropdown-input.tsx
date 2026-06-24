@@ -26,16 +26,16 @@ export function DropdownInput({
         placeholder,
         disabled: isDisabled,
         className: cn(
-          "outline-none bg-transparent text-white not-italic",
+          "outline-none bg-transparent not-italic",
           fitContent
             ? "w-auto field-sizing-content whitespace-nowrap text-sm"
             : "flex-1 min-w-0",
-          hideVisibleText && "text-transparent caret-transparent",
           italicPlaceholder &&
             "placeholder:italic placeholder:text-tertiary-alt",
           !italicPlaceholder && "placeholder:text-tertiary-alt",
           formControlInlineInputClassName,
           "px-0 not-italic text-inherit",
+          hideVisibleText ? "text-transparent caret-transparent" : "text-white",
         ),
       })}
     />

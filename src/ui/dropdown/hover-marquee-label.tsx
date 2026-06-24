@@ -7,23 +7,19 @@ import {
 } from "./hover-marquee-phase";
 import "./hover-marquee-label.css";
 
-export const HOVER_MARQUEE_MIN_DURATION_MS = 1200;
-export const HOVER_MARQUEE_MAX_DURATION_MS = 4000;
-export const HOVER_MARQUEE_MS_PER_PX = 25;
+/** Fixed scroll speed (ms per px) — duration scales linearly with overflow distance. */
+export const HOVER_MARQUEE_MS_PER_PX = 12;
 export const HOVER_MARQUEE_OVERFLOW_THRESHOLD_PX = 1;
 export const HOVER_MARQUEE_FADE_WIDTH = "2.5rem";
-export const HOVER_MARQUEE_FADE_IN_DURATION_MS = 300;
+export const HOVER_MARQUEE_FADE_IN_DURATION_MS = 150;
 
 export { HOVER_MARQUEE_CROSSFADE_MS } from "./hover-marquee-phase";
 
 export function getHoverMarqueeDurationMs(scrollDistance: number): number {
-  return Math.min(
-    Math.max(
-      scrollDistance * HOVER_MARQUEE_MS_PER_PX,
-      HOVER_MARQUEE_MIN_DURATION_MS,
-    ),
-    HOVER_MARQUEE_MAX_DURATION_MS,
-  );
+  if (scrollDistance <= 0) {
+    return 0;
+  }
+  return scrollDistance * HOVER_MARQUEE_MS_PER_PX;
 }
 
 export function getHoverMarqueeOffset(

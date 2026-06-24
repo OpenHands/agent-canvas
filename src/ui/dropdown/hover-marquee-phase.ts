@@ -1,4 +1,4 @@
-export const HOVER_MARQUEE_CROSSFADE_MS = 220;
+export const HOVER_MARQUEE_CROSSFADE_MS = 150;
 
 export type HoverMarqueePhase = "idle" | "exiting";
 

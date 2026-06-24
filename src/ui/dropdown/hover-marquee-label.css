@@ -36,14 +36,14 @@
   --hover-marquee-mask-inset-right: 0px;
   transition:
     --hover-marquee-mask-inset-left
-      var(--hover-marquee-mask-fade-in-duration, 300ms) ease-out,
-    --hover-marquee-mask-inset-right var(--hover-marquee-mask-duration, 2s)
+      var(--hover-marquee-mask-fade-in-duration, 150ms) ease-out,
+    --hover-marquee-mask-inset-right var(--hover-marquee-mask-duration, 1.2s)
       linear;
 }
 
 .hover-marquee-rest {
   opacity: 1;
-  transition: opacity var(--hover-marquee-crossfade-duration, 220ms) ease-out;
+  transition: opacity var(--hover-marquee-crossfade-duration, 150ms) ease-out;
 }
 
 .group:hover .hover-marquee-clip:not([data-phase="exiting"]) .hover-marquee-rest {
@@ -54,8 +54,8 @@
   opacity: 0;
   transform: translateX(0);
   transition:
-    transform var(--hover-marquee-mask-duration, 2s) linear,
-    opacity var(--hover-marquee-crossfade-duration, 220ms) ease-out;
+    transform var(--hover-marquee-mask-duration, 1.2s) linear,
+    opacity var(--hover-marquee-crossfade-duration, 150ms) ease-out;
 }
 
 .group:hover .hover-marquee-scroll:not([data-phase="exiting"]) {
@@ -66,7 +66,7 @@
 .hover-marquee-scroll[data-phase="exiting"] {
   opacity: 0;
   transition:
-    opacity var(--hover-marquee-crossfade-duration, 220ms) ease-out,
+    opacity var(--hover-marquee-crossfade-duration, 150ms) ease-out,
     transform 0s;
 }
 
