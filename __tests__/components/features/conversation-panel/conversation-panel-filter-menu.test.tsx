@@ -27,6 +27,11 @@ function renderFilterMenu(
     repoFilter: "all",
     setRepoFilter: vi.fn(),
     repoOptions: [],
+    projectFilter: "all",
+    setProjectFilter: vi.fn(),
+    projectOptions: [],
+    showProjectScope: false,
+    onManageProjects: vi.fn(),
     threadScope: "all",
     setThreadScope: vi.fn(),
     ownerScope: "all",
@@ -166,5 +171,42 @@ describe("ConversationPanelFilterMenu", () => {
     // Assert
     expect(screen.queryByTestId("source-scope-hermes")).not.toBeInTheDocument();
     expect(screen.queryByTestId("source-scope-app")).not.toBeInTheDocument();
+  });
+
+  it("renders the project selection rows only when projects exist", async () => {
+    const user = userEvent.setup();
+    const props = renderFilterMenu({
+      filterMenuOpen: true,
+      showProjectScope: true,
+      projectOptions: [
+        {
+          slug: "billing",
+          label: "Spotwise Billing",
+          count: 2,
+          inRegistry: true,
+        },
+      ],
+    });
+
+    expect(screen.getByTestId("project-filter-all")).toBeInTheDocument();
+    const projectRow = screen.getByTestId("project-filter-billing");
+    await user.click(projectRow);
+    expect(props.setProjectFilter).toHaveBeenCalledWith("billing");
+    expect(props.setFilterMenuOpen).toHaveBeenCalledWith(false);
+  });
+
+  it("hides the project selection rows but keeps Manage projects when none exist", async () => {
+    const user = userEvent.setup();
+    const props = renderFilterMenu({
+      filterMenuOpen: true,
+      showProjectScope: false,
+    });
+
+    // No selection rows...
+    expect(screen.queryByTestId("project-filter-all")).not.toBeInTheDocument();
+    // ...but the create/manage entry point is always reachable.
+    const manage = screen.getByTestId("manage-projects");
+    await user.click(manage);
+    expect(props.onManageProjects).toHaveBeenCalledTimes(1);
   });
 });

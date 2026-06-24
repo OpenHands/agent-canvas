@@ -26,6 +26,7 @@ import {
 } from "#/utils/custom-toast-handlers";
 import { getWorkspacesUnsupportedMessage } from "#/utils/workspaces-compatibility";
 import { HomeHeaderTitle } from "./home-header/home-header-title";
+import { HomeProjectSelector } from "./home-project-selector";
 import { OpenLauncherButton } from "./open-launcher-button";
 import { OpenWorkspaceDialog } from "./open-workspace-dialog";
 import { OpenRepositoryDialog } from "./open-repository-dialog";
@@ -217,7 +218,7 @@ export function HomeChatLauncher() {
         />
       </div>
 
-      <div className="flex justify-start">
+      <div className="flex flex-wrap items-center justify-start gap-2">
         {hasSelection ? (
           <HomeGitControlBarPreview
             workspace={pendingWorkspace}
@@ -238,6 +239,7 @@ export function HomeChatLauncher() {
             disabledTooltip={workspacesUnsupportedMessage}
           />
         )}
+        <HomeProjectSelector />
       </div>
 
       {isLocal ? (

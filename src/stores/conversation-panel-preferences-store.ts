@@ -6,6 +6,7 @@ import {
   type ThreadScope,
 } from "#/components/features/conversation-panel/conversation-panel-list-helpers";
 import type { OwnerScope, SourceScope } from "#/utils/conversation-ownership";
+import { PROJECT_FILTER_ALL } from "#/utils/project";
 
 /**
  * User-toggleable display preferences for the sidebar conversation list
@@ -33,6 +34,14 @@ interface ConversationPanelPreferencesState {
   groupFolderOrder: string[];
   /** Repo/workspace id to filter the list to, or "all". */
   repoFilter: string;
+  /**
+   * Active project slug to filter the list to, or "all". Doubles as the
+   * launch target: new conversations created while a project is active inherit
+   * its slug as `tags.project` (read in `use-create-conversation`). "all" ⇒
+   * no project scope and no stamping (firehose default — see
+   * `.context/research/project-scoping.md`).
+   */
+  projectFilter: string;
 }
 
 interface ConversationPanelPreferencesActions {
@@ -51,6 +60,7 @@ interface ConversationPanelPreferencesActions {
   setSourceScope: (value: SourceScope) => void;
   setGroupFolderOrder: (order: readonly string[]) => void;
   setRepoFilter: (value: string) => void;
+  setProjectFilter: (value: string) => void;
 }
 
 type ConversationPanelPreferencesStore = ConversationPanelPreferencesState &
@@ -71,6 +81,7 @@ const initialState: ConversationPanelPreferencesState = {
   sourceScope: "all",
   groupFolderOrder: [],
   repoFilter: "all",
+  projectFilter: PROJECT_FILTER_ALL,
 };
 
 export const useConversationPanelPreferencesStore =
@@ -115,6 +126,7 @@ export const useConversationPanelPreferencesStore =
         setGroupFolderOrder: (order) =>
           set(() => ({ groupFolderOrder: [...order] })),
         setRepoFilter: (value) => set(() => ({ repoFilter: value })),
+        setProjectFilter: (value) => set(() => ({ projectFilter: value })),
       }),
       {
         name: "conversation-panel-preferences",
@@ -132,7 +144,19 @@ export const useConversationPanelPreferencesStore =
           sourceScope: state.sourceScope,
           groupFolderOrder: state.groupFolderOrder,
           repoFilter: state.repoFilter,
+          projectFilter: state.projectFilter,
         }),
       },
     ),
   );
+
+/**
+ * The active project slug to stamp on a new conversation, or undefined when no
+ * project is active ("all"). Read imperatively (not as a hook) at launch time
+ * so creation paths pick up the *current* selection rather than a value
+ * captured at render — see `use-create-conversation`.
+ */
+export function getActiveProjectSlug(): string | undefined {
+  const value = useConversationPanelPreferencesStore.getState().projectFilter;
+  return value && value !== PROJECT_FILTER_ALL ? value : undefined;
+}

@@ -307,6 +307,8 @@ describe("HomeChatLauncher", () => {
       undefined,
       undefined,
       undefined,
+      undefined,
+      undefined,
     );
     await waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith("/conversations/conv-abc"),
@@ -355,6 +357,8 @@ describe("HomeChatLauncher", () => {
       "new_worktree",
       undefined,
       undefined,
+      undefined,
+      undefined,
     );
     await waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith("/conversations/conv-ws"),
@@ -391,6 +395,8 @@ describe("HomeChatLauncher", () => {
       null,
       "/p/app",
       "new_worktree",
+      undefined,
+      undefined,
       undefined,
       undefined,
     );
@@ -449,6 +455,8 @@ describe("HomeChatLauncher", () => {
       undefined,
       undefined,
       undefined,
+      undefined,
+      undefined,
     );
     await waitFor(() =>
       expect(mockNavigate).toHaveBeenCalledWith("/conversations/conv-repo"),
@@ -471,6 +479,8 @@ describe("HomeChatLauncher", () => {
       undefined,
       undefined,
       null,
+      undefined,
+      undefined,
       undefined,
       undefined,
       undefined,
@@ -552,6 +562,8 @@ describe("HomeChatLauncher", () => {
       undefined,
       undefined,
       null,
+      undefined,
+      undefined,
       undefined,
       undefined,
       undefined,

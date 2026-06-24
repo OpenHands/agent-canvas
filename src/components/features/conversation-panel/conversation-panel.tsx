@@ -21,7 +21,16 @@ import {
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
 import { isExecutionActive } from "#/utils/status";
-import { ConversationOwnership } from "#/utils/conversation-ownership";
+import {
+  ConversationOwnership,
+  type ProjectScope,
+} from "#/utils/conversation-ownership";
+import {
+  Project,
+  PROJECT_FILTER_ALL,
+  type ProjectFilterOption,
+} from "#/utils/project";
+import { useProjectRegistryStore } from "#/stores/project-registry-store";
 import { ConversationSearch } from "#/utils/conversation-search";
 import { useCurrentUserEmail } from "#/hooks/use-current-user-email";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
@@ -34,6 +43,7 @@ import { CompactConversationRow } from "./compact-conversation-row";
 import { useConversationPanelPreferencesStore } from "#/stores/conversation-panel-preferences-store";
 import { cn } from "#/utils/utils";
 import { ConversationPanelFilterMenu } from "./conversation-panel-filter-menu";
+import { ProjectManagerDialog } from "./project-manager-dialog";
 import { ConversationPanelNewThreadPicker } from "./conversation-panel-new-thread-picker";
 import { ConversationGroupFolderList } from "./conversation-group-folder-list";
 import { ConversationPanelPinnedSection } from "./conversation-panel-pinned-section";
@@ -74,6 +84,7 @@ const noop = () => {};
 const EMPTY_PINNED_CONVERSATION_IDS: readonly string[] = [];
 const EMPTY_CONVERSATION_IDS: readonly string[] = [];
 const EMPTY_STATUS_OVERRIDES: Record<string, ConversationStatusBucketId> = {};
+const EMPTY_PROJECTS: readonly Project[] = [];
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
@@ -131,6 +142,7 @@ export function ConversationPanel({
   ] = React.useState(false);
   const [confirmDeleteAllVisible, setConfirmDeleteAllVisible] =
     React.useState(false);
+  const [projectManagerOpen, setProjectManagerOpen] = React.useState(false);
   const showOlderConversations = useConversationPanelPreferencesStore(
     (state) => state.showOlderConversations,
   );
@@ -172,6 +184,12 @@ export function ConversationPanel({
   );
   const setRepoFilter = useConversationPanelPreferencesStore(
     (state) => state.setRepoFilter,
+  );
+  const projectFilter = useConversationPanelPreferencesStore(
+    (state) => state.projectFilter,
+  );
+  const setProjectFilter = useConversationPanelPreferencesStore(
+    (state) => state.setProjectFilter,
   );
   const threadScope = useConversationPanelPreferencesStore(
     (state) => state.threadScope,
@@ -227,6 +245,12 @@ export function ConversationPanel({
   const pruneMissingPinnedConversations = usePinnedConversationsStore(
     (state) => state.pruneMissingConversations,
   );
+
+  const registryProjects = useProjectRegistryStore(
+    (state) => state.projectsByBackendId[activeBackend.id] ?? EMPTY_PROJECTS,
+  );
+  const upsertProject = useProjectRegistryStore((state) => state.upsertProject);
+  const removeProject = useProjectRegistryStore((state) => state.removeProject);
 
   const archivedIds = useArchivedConversationsStore(
     (state) =>
@@ -382,6 +406,52 @@ export function ConversationPanel({
   );
   const effectiveSourceScope = hasHermesConversations ? sourceScope : "all";
 
+  // The project facet narrows the list to one project, and the same selection
+  // seeds new launches (see `getActiveProjectSlug`). Options union the local
+  // registry with any slug present on the active conversations, so a freshly
+  // created (empty) project and a Hermes-stamped foreign slug are both
+  // selectable. Mirrors owner/source: hidden + forced "all" when there are no
+  // projects so a persisted scope can't strand the list.
+  const projectOptions = React.useMemo<ProjectFilterOption[]>(
+    () => Project.deriveFilterOptions(registryProjects, activeConversations),
+    [registryProjects, activeConversations],
+  );
+  const hasProjects = projectOptions.length > 0;
+  const effectiveProjectFilter = hasProjects
+    ? projectFilter
+    : PROJECT_FILTER_ALL;
+  // Memoized (keyed on the flat filter string) so the object identity is
+  // stable across renders and doesn't defeat the `scopedConversations` memo.
+  const projectScope = React.useMemo<ProjectScope>(
+    () =>
+      effectiveProjectFilter === PROJECT_FILTER_ALL
+        ? "all"
+        : { slug: effectiveProjectFilter },
+    [effectiveProjectFilter],
+  );
+  const projectNameBySlug = React.useMemo(
+    () => new Map(registryProjects.map((p) => [p.slug, p.name])),
+    [registryProjects],
+  );
+
+  // Drop a project filter that no longer matches any registry row or
+  // conversation (deleted project, backend switch) so the list can't silently
+  // render empty. Gated on `isFetched`: a foreign/Hermes slug only appears in
+  // `projectOptions` once the conversation carrying it loads, so resetting in
+  // the pre-fetch empty window would wrongly clear a persisted selection (and
+  // its launch seed) before that conversation arrives.
+  React.useEffect(() => {
+    if (!isFetched) {
+      return;
+    }
+    if (
+      projectFilter !== PROJECT_FILTER_ALL &&
+      !projectOptions.some((option) => option.slug === projectFilter)
+    ) {
+      setProjectFilter(PROJECT_FILTER_ALL);
+    }
+  }, [isFetched, projectFilter, projectOptions, setProjectFilter]);
+
   React.useEffect(() => {
     if (!isFetched) {
       return;
@@ -414,6 +484,7 @@ export function ConversationPanel({
         ownerScope: effectiveOwnerScope,
         sourceScope: effectiveSourceScope,
         currentUserEmail,
+        projectScope,
       },
     );
 
@@ -437,6 +508,7 @@ export function ConversationPanel({
     effectiveOwnerScope,
     effectiveSourceScope,
     currentUserEmail,
+    projectScope,
   ]);
 
   const { recent: recentScoped, older: olderScoped } = React.useMemo(
@@ -871,6 +943,12 @@ export function ConversationPanel({
               agentKind={conversation.agent_kind}
               acpServer={conversation.acp_server}
               isHermes={ConversationOwnership.isHermes(conversation)}
+              projectLabel={
+                conversation.project
+                  ? (projectNameBySlug.get(conversation.project) ??
+                    conversation.project)
+                  : null
+              }
               tags={conversation.tags}
               isPinned={isPinned}
               onTogglePin={() => togglePin(activeBackend.id, conversation.id)}
@@ -911,6 +989,7 @@ export function ConversationPanel({
       showRepoBranchMetadata,
       showLlmProfiles,
       showHoverMetadata,
+      projectNameBySlug,
       togglePin,
       toggleArchive,
       toggleUnread,
@@ -995,6 +1074,11 @@ export function ConversationPanel({
                 repoFilter={repoFilter}
                 setRepoFilter={setRepoFilter}
                 repoOptions={repoOptions}
+                projectFilter={effectiveProjectFilter}
+                setProjectFilter={setProjectFilter}
+                projectOptions={projectOptions}
+                showProjectScope={hasProjects}
+                onManageProjects={() => setProjectManagerOpen(true)}
                 threadScope={threadScope}
                 setThreadScope={setThreadScope}
                 ownerScope={ownerScope}
@@ -1223,6 +1307,17 @@ export function ConversationPanel({
             setSelectedConversationTitle(null);
           }}
           conversationTitle={selectedConversationTitle ?? undefined}
+        />
+      )}
+
+      {projectManagerOpen && (
+        <ProjectManagerDialog
+          projects={registryProjects}
+          onCreate={(input) => upsertProject(activeBackend.id, input)}
+          onRemove={(slug) => removeProject(activeBackend.id, slug)}
+          onActivate={(slug) => setProjectFilter(slug)}
+          currentUserEmail={currentUserEmail}
+          onClose={() => setProjectManagerOpen(false)}
         />
       )}
 

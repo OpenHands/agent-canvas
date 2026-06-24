@@ -324,11 +324,13 @@ export function toAppConversation(
   const owner =
     tags[OWNER_TAG_KEY]?.trim() || tags[REQUESTER_TAG_KEY]?.trim() || null;
   const source = tags[SOURCE_TAG_KEY]?.trim() || null;
+  const project = tags[PROJECT_TAG_KEY]?.trim() || null;
   return {
     id: info.id,
     created_by_user_id: null,
     owner,
     source,
+    project,
     selected_repository: metadata?.selected_repository ?? tagRepository,
     selected_branch: metadata?.selected_branch ?? tagBranch,
     git_provider:
@@ -448,6 +450,10 @@ export const OWNER_TAG_KEY = "owner";
 export const REQUESTER_TAG_KEY = "requester";
 export const SOURCE_TAG_KEY = "source";
 export const SOURCE_TAG_GUI = "gui";
+// `project` groups sessions across repos under a named project, mapped 1:1 to
+// the Hermes board slug so both surfaces share one project namespace. Same
+// validator constraint (`^[a-z0-9]+$`) — values are normalized slugs.
+export const PROJECT_TAG_KEY = "project";
 
 const FERNET_TOKEN_PREFIX = "gAAAAA";
 
@@ -917,6 +923,13 @@ export interface StartConversationOptions {
   encryptedConversationSettings?: Record<string, SettingsValue>;
   secretsEncrypted?: boolean;
   customSecrets?: Array<{ name: string; description?: string }>;
+  /**
+   * Active project slug to stamp as `tags.project`, mapping the conversation
+   * into a project (see `project.ts`). Omitted ⇒ no project scope. Already a
+   * normalized slug by the time it reaches here (the registry/`slugify` own
+   * that); stamped verbatim.
+   */
+  project?: string;
 }
 
 export function buildStartConversationRequest(
@@ -970,6 +983,10 @@ export function buildStartConversationRequest(
   const tags: Record<string, string> = { [SOURCE_TAG_KEY]: SOURCE_TAG_GUI };
   if (ownerTag) tags[OWNER_TAG_KEY] = ownerTag;
   if (acpServerTag) tags[ACP_SERVER_TAG_KEY] = acpServerTag;
+  // Map the conversation into the active project so it groups/filters under
+  // that slug across both surfaces. Advisory, like owner/source.
+  const projectTag = options.project?.trim();
+  if (projectTag) tags[PROJECT_TAG_KEY] = projectTag;
   payload.tags = tags;
 
   // ``secrets_encrypted`` makes the agent-server decrypt request secrets at
@@ -1088,6 +1105,7 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   conversationId?: string;
   workingDir?: string;
   worktree?: boolean;
+  project?: string;
 }): Promise<Record<string, unknown>> {
   const { SecretsService } = await import("./secrets-service");
 
