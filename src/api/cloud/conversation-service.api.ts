@@ -189,21 +189,6 @@ export async function updateCloudConversationPublicFlag(
 }
 
 /**
- * Pause the cloud sandbox backing a v1 app-conversation. Mirrors
- * OpenHands' `SandboxService.pauseSandbox`:
- * `POST /api/v1/sandboxes/{sandboxId}/pause` on the cloud backend, which stops
- * the runtime owning the conversation.
- */
-export async function pauseCloudSandbox(sandboxId: string): Promise<void> {
-  const backend = getActiveCloudBackend();
-  await callCloudProxy<unknown>({
-    backend,
-    method: "POST",
-    path: `/api/v1/sandboxes/${sandboxId}/pause`,
-  });
-}
-
-/**
  * Interrupt the running agent loop on a cloud runtime sandbox. This targets the
  * per-conversation agent-server endpoint through the local cloud proxy so the
  * browser does not call the runtime host directly.
