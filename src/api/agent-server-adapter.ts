@@ -750,6 +750,12 @@ function buildConfiguredOpenHandsAgentSettings(
       ? llm.model
       : DEFAULT_SETTINGS.llm_model;
 
+  // Stream assistant tokens so the OpenHands agent matches the ACP agents'
+  // live-typing experience. The agent-server only emits StreamingDeltaEvent
+  // for SDK LLM agents when at least one LLM has stream=True (ACP agents
+  // stream unconditionally); the UI already renders those deltas.
+  llm.stream = true;
+
   const apiKey = normalizeSecretString(llm.api_key);
   if (apiKey) {
     llm.api_key = apiKey;

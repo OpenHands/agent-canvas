@@ -5,6 +5,8 @@ import { ImageCarousel } from "../../../features/images/image-carousel";
 import { ConversationConfirmationButtons } from "#/components/shared/buttons/conversation-confirmation-buttons";
 import { parseMessageFromEvent } from "../event-content-helpers/parse-message-from-event";
 import { CriticResultDisplay } from "./critic-result-display";
+import { CollapsibleThinking } from "./collapsible-thinking";
+import { splitInlineThink } from "../event-thought-helpers";
 
 interface UserAssistantEventMessageProps {
   event: MessageEvent;
@@ -17,7 +19,14 @@ export function UserAssistantEventMessage({
   isLastMessage,
   isFromPlanningAgent,
 }: UserAssistantEventMessageProps) {
-  const message = parseMessageFromEvent(event);
+  const parsed = parseMessageFromEvent(event);
+  // Agent messages may carry inline <think> reasoning (e.g. when the response
+  // was streamed); route it to the collapsible thinking section instead of the
+  // bubble so reloaded conversations match the live streamed rendering.
+  const { reasoning, message } =
+    event.source === "agent"
+      ? splitInlineThink(parsed)
+      : { reasoning: "", message: parsed };
 
   const imageUrls: string[] = [];
   if (Array.isArray(event.llm_message.content)) {
@@ -30,6 +39,7 @@ export function UserAssistantEventMessage({
 
   return (
     <>
+      {reasoning && <CollapsibleThinking content={reasoning} />}
       <ChatMessage
         type={event.source}
         message={message}
