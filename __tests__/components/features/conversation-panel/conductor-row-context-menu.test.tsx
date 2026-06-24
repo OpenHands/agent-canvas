@@ -14,6 +14,8 @@ function setup(
     onToggleUnread: vi.fn(),
     isPinned: false,
     onTogglePin: vi.fn(),
+    isMuted: false,
+    onToggleMute: vi.fn(),
     statusOverride: null,
     onSetStatus: vi.fn(),
     onClearStatus: vi.fn(),
@@ -32,10 +34,19 @@ describe("ConductorRowContextMenu", () => {
     setup();
     expect(screen.getByTestId("conductor-row-mark-unread")).toBeInTheDocument();
     expect(screen.getByTestId("conductor-row-pin")).toBeInTheDocument();
+    expect(screen.getByTestId("conductor-row-mute")).toBeInTheDocument();
     expect(screen.getByTestId("conductor-row-set-status")).toBeInTheDocument();
     expect(screen.getByTestId("conductor-row-rename")).toBeInTheDocument();
     expect(screen.getByTestId("conductor-row-archive")).toBeInTheDocument();
     expect(screen.getByTestId("conductor-row-delete")).toBeInTheDocument();
+  });
+
+  it("toggles mute and closes the menu", async () => {
+    const user = userEvent.setup();
+    const props = setup();
+    await user.click(screen.getByTestId("conductor-row-mute"));
+    expect(props.onToggleMute).toHaveBeenCalledTimes(1);
+    expect(props.onClose).toHaveBeenCalled();
   });
 
   it("opens the status submenu and sets a status", async () => {

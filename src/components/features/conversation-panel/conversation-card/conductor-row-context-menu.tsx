@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import {
   Archive,
   ArchiveRestore,
+  Bell,
+  BellOff,
   Check,
   ChevronRight,
   CircleDashed,
@@ -89,6 +91,8 @@ export interface ConductorRowContextMenuProps {
   onToggleUnread: () => void;
   isPinned: boolean;
   onTogglePin: () => void;
+  isMuted: boolean;
+  onToggleMute: () => void;
   statusOverride: ConversationStatusBucketId | null;
   onSetStatus: (bucket: ConversationStatusBucketId) => void;
   onClearStatus: () => void;
@@ -105,6 +109,8 @@ export function ConductorRowContextMenu({
   onToggleUnread,
   isPinned,
   onTogglePin,
+  isMuted,
+  onToggleMute,
   statusOverride,
   onSetStatus,
   onClearStatus,
@@ -178,6 +184,24 @@ export function ConductorRowContextMenu({
         )}
         trailing="P"
         onClick={run(onTogglePin)}
+        onMouseEnter={() => setStatusSubmenuOpen(false)}
+      />
+      <Row
+        testId="conductor-row-mute"
+        icon={
+          isMuted ? (
+            <Bell width={16} height={16} />
+          ) : (
+            <BellOff width={16} height={16} />
+          )
+        }
+        label={t(
+          isMuted
+            ? I18nKey.CONVERSATION_PANEL$UNMUTE_CONVERSATION
+            : I18nKey.CONVERSATION_PANEL$MUTE_CONVERSATION,
+        )}
+        trailing="M"
+        onClick={run(onToggleMute)}
         onMouseEnter={() => setStatusSubmenuOpen(false)}
       />
 

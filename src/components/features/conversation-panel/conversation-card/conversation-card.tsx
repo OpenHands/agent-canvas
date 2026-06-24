@@ -62,6 +62,9 @@ interface ConversationCardProps {
   ownerLabel?: string | null;
   isPinned?: boolean;
   onTogglePin?: () => void;
+  /** Whether the user muted this conversation's attention signals. */
+  isMuted?: boolean;
+  onToggleMute?: () => void;
   /** When true and pinned, keep the pin icon visible without hovering. */
   alwaysShowPinIcon?: boolean;
   /** Server-stamped tags; source/linear/requester render as provenance badges. */
@@ -102,6 +105,8 @@ export function ConversationCard({
   ownerLabel = null,
   isPinned = false,
   onTogglePin,
+  isMuted = false,
+  onToggleMute,
   alwaysShowPinIcon = false,
   tags = null,
   isUnread = false,
@@ -404,6 +409,7 @@ export function ConversationCard({
           isHermes={isHermes}
           projectLabel={projectLabel}
           ownerLabel={ownerLabel}
+          isMuted={isMuted}
         />
       )}
 
@@ -421,6 +427,8 @@ export function ConversationCard({
               onToggleUnread={() => onToggleUnread?.()}
               isPinned={isPinned}
               onTogglePin={() => onTogglePin?.()}
+              isMuted={isMuted}
+              onToggleMute={() => onToggleMute?.()}
               statusOverride={statusOverride}
               onSetStatus={(bucket) => onSetStatus?.(bucket)}
               onClearStatus={() => onClearStatus?.()}

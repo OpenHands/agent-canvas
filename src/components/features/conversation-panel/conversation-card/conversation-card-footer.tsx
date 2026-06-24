@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Bot, FolderKanban, User } from "lucide-react";
+import { BellOff, Bot, FolderKanban, User } from "lucide-react";
 import { formatTimeDelta } from "#/utils/format-time-delta";
 import { cn } from "#/utils/utils";
 import { I18nKey } from "#/i18n/declaration";
@@ -67,6 +67,8 @@ interface ConversationCardFooterProps {
    * full identity is the tooltip; an email is abbreviated to its local-part.
    */
   ownerLabel?: string | null;
+  /** Whether the conversation is muted — renders a small muted indicator. */
+  isMuted?: boolean;
 }
 
 export function ConversationCardFooter({
@@ -84,6 +86,7 @@ export function ConversationCardFooter({
   isHermes = false,
   projectLabel = null,
   ownerLabel = null,
+  isMuted = false,
 }: ConversationCardFooterProps) {
   const { t } = useTranslation("openhands");
 
@@ -171,6 +174,15 @@ export function ConversationCardFooter({
             <NoRepository workspaceWorkingDir={workspaceWorkingDir} />
           ))}
         <div className="flex items-center gap-2 shrink-0 ml-auto">
+          {isMuted ? (
+            <BellOff
+              data-testid="conversation-card-muted-indicator"
+              className="w-3 h-3 shrink-0 text-[var(--oh-muted)]"
+              aria-label={t(I18nKey.CONVERSATION_PANEL$MUTED)}
+            >
+              <title>{t(I18nKey.CONVERSATION_PANEL$MUTED)}</title>
+            </BellOff>
+          ) : null}
           {ownerChipText ? (
             <span
               data-testid="conversation-card-owner-chip"

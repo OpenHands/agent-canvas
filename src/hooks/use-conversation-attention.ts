@@ -5,6 +5,8 @@ import { usePaginatedConversations } from "#/hooks/query/use-paginated-conversat
 import { useNavigation } from "#/context/navigation-context";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useAttentionStore } from "#/stores/attention-store";
+import { useMutedConversationsStore } from "#/stores/muted-conversations-store";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import {
   ConversationAttention,
   type AttentionEvent,
@@ -12,6 +14,8 @@ import {
 } from "#/utils/conversation-attention";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import notificationSound from "#/assets/notification.mp3";
+
+const EMPTY_MUTED_IDS: readonly string[] = [];
 
 // Reuse existing, fully-translated status labels so this adds no new i18n keys
 // (the repo enforces translation completeness across 15 languages).
@@ -86,6 +90,10 @@ export function useConversationAttention() {
   const { conversationId, navigate } = useNavigation();
   const { data: settings } = useSettings();
   const setPendingCount = useAttentionStore((state) => state.setPendingCount);
+  const { backend } = useActiveBackend();
+  const mutedIds = useMutedConversationsStore(
+    (state) => state.mutedByBackendId[backend.id] ?? EMPTY_MUTED_IDS,
+  );
 
   const previousRef = useRef<Map<string, ExecutionStatus | null>>(new Map());
   const audioRef = useRef<HTMLAudioElement | undefined>(undefined);
@@ -106,6 +114,7 @@ export function useConversationAttention() {
       previous: previousRef.current,
       conversations,
       activeConversationId: conversationId,
+      mutedIds: new Set(mutedIds),
     });
     previousRef.current = next;
 
@@ -127,5 +136,12 @@ export function useConversationAttention() {
       audioRef.current.play().catch(() => {});
     }
     fireNotifications(events, navigate);
-  }, [data, conversationId, isSoundEnabled, setPendingCount, navigate]);
+  }, [
+    data,
+    conversationId,
+    isSoundEnabled,
+    setPendingCount,
+    navigate,
+    mutedIds,
+  ]);
 }
