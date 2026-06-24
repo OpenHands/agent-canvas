@@ -1,6 +1,5 @@
 const REDACTED = "<redacted>";
 
-// Mirrors openhands-sdk SECRET_KEY_PATTERNS (substring match, case-insensitive).
 const SECRET_KEY_PATTERNS = [
   "AUTHORIZATION",
   "COOKIE",
@@ -17,7 +16,6 @@ export function isSensitiveEnvVarName(name: string): boolean {
   return SECRET_KEY_PATTERNS.some((pattern) => upper.includes(pattern));
 }
 
-// export VAR='value', export VAR="value", or export VAR=unquoted
 const EXPORT_ASSIGNMENT =
   /export\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*('(?:\\'|[^'])*'|"(?:\\"|[^"])*"|[^\s&;|\\]+)/g;
 
@@ -31,11 +29,6 @@ function redactAssignment(
   return `${prefix}'${REDACTED}'`;
 }
 
-/**
- * Redact credential-bearing shell environment assignments before showing
- * automation run logs. Covers inline `export VAR=value` chains produced by
- * the automation backend when bootstrapping a run workspace.
- */
 export function redactShellSecrets(text: string): string {
   if (!text) return text;
 
