@@ -187,6 +187,8 @@ describe("LocalNewConversationMenu", () => {
         undefined,
         undefined,
         undefined,
+        undefined,
+        undefined,
       );
     });
     await waitFor(() => {

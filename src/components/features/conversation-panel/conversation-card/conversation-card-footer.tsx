@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Bot } from "lucide-react";
+import { Bot, FolderKanban } from "lucide-react";
 import { formatTimeDelta } from "#/utils/format-time-delta";
 import { cn } from "#/utils/utils";
 import { I18nKey } from "#/i18n/declaration";
@@ -55,6 +55,12 @@ interface ConversationCardFooterProps {
    * source is scannable at a glance in a mixed, visible-by-default list.
    */
   isHermes?: boolean;
+  /**
+   * Display label for the conversation's project (registry name or raw slug);
+   * null when unscoped. Renders a project chip next to the Hermes chip so the
+   * project is scannable at a glance in the visible-by-default list.
+   */
+  projectLabel?: string | null;
 }
 
 export function ConversationCardFooter({
@@ -70,6 +76,7 @@ export function ConversationCardFooter({
   agentKind = null,
   acpServer = null,
   isHermes = false,
+  projectLabel = null,
 }: ConversationCardFooterProps) {
   const { t } = useTranslation("openhands");
 
@@ -148,6 +155,16 @@ export function ConversationCardFooter({
             <NoRepository workspaceWorkingDir={workspaceWorkingDir} />
           ))}
         <div className="flex items-center gap-2 shrink-0 ml-auto">
+          {projectLabel ? (
+            <span
+              data-testid="conversation-card-project-chip"
+              className="inline-flex items-center gap-1 rounded-full bg-white/5 px-1.5 py-0.5 text-[10px] text-[var(--oh-muted)] shrink-0 max-w-[140px]"
+              title={projectLabel}
+            >
+              <FolderKanban className="w-3 h-3 shrink-0" />
+              <span className="truncate">{projectLabel}</span>
+            </span>
+          ) : null}
           {isHermes && (
             <span
               data-testid="conversation-card-hermes-chip"

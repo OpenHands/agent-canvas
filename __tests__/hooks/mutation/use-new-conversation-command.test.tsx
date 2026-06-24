@@ -208,6 +208,7 @@ describe("useNewConversationCommand", () => {
         undefined,
         undefined,
         "sandbox-abc",
+        undefined,
       );
     });
   });

@@ -73,11 +73,14 @@ describe("conversation-panel-preferences store", () => {
       "conversationSort",
       "groupFolderOrder",
       "organizeMode",
+      "ownerScope",
+      "projectFilter",
       "repoFilter",
       "showHoverMetadata",
       "showLlmProfiles",
       "showOlderConversations",
       "showRepoBranchMetadata",
+      "sourceScope",
       "threadScope",
     ]);
   });

@@ -52,6 +52,12 @@ interface ConversationCardProps {
   acpServer?: string | null;
   /** Whether this conversation was launched by Hermes (drives the source chip). */
   isHermes?: boolean;
+  /**
+   * Display label for the conversation's project (registry name, or the raw
+   * slug when not in the local registry). Null when the conversation has no
+   * project tag. Drives the project chip.
+   */
+  projectLabel?: string | null;
   isPinned?: boolean;
   onTogglePin?: () => void;
   /** When true and pinned, keep the pin icon visible without hovering. */
@@ -90,6 +96,7 @@ export function ConversationCard({
   agentKind = null,
   acpServer = null,
   isHermes = false,
+  projectLabel = null,
   isPinned = false,
   onTogglePin,
   alwaysShowPinIcon = false,
@@ -392,6 +399,7 @@ export function ConversationCard({
           agentKind={agentKind}
           acpServer={acpServer}
           isHermes={isHermes}
+          projectLabel={projectLabel}
         />
       )}
 
