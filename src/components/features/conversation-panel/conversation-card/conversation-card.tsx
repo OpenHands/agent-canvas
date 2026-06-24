@@ -58,6 +58,8 @@ interface ConversationCardProps {
    * project tag. Drives the project chip.
    */
   projectLabel?: string | null;
+  /** Owner label for another user's session (navigability half of mine/all). */
+  ownerLabel?: string | null;
   isPinned?: boolean;
   onTogglePin?: () => void;
   /** When true and pinned, keep the pin icon visible without hovering. */
@@ -97,6 +99,7 @@ export function ConversationCard({
   acpServer = null,
   isHermes = false,
   projectLabel = null,
+  ownerLabel = null,
   isPinned = false,
   onTogglePin,
   alwaysShowPinIcon = false,
@@ -400,6 +403,7 @@ export function ConversationCard({
           acpServer={acpServer}
           isHermes={isHermes}
           projectLabel={projectLabel}
+          ownerLabel={ownerLabel}
         />
       )}
 

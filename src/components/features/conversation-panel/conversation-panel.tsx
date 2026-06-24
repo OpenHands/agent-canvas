@@ -949,6 +949,10 @@ export function ConversationPanel({
                     conversation.project)
                   : null
               }
+              ownerLabel={ConversationOwnership.peerOwner(
+                conversation,
+                currentUserEmail,
+              )}
               tags={conversation.tags}
               isPinned={isPinned}
               onTogglePin={() => togglePin(activeBackend.id, conversation.id)}
@@ -990,6 +994,7 @@ export function ConversationPanel({
       showLlmProfiles,
       showHoverMetadata,
       projectNameBySlug,
+      currentUserEmail,
       togglePin,
       toggleArchive,
       toggleUnread,
