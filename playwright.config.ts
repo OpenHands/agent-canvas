@@ -13,7 +13,12 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./tests/e2e",
-  testIgnore: ["**/e2e/live/**", "**/e2e/mock-llm/**"],
+  // `verified/**` holds agent-authored verification specs (Bet D). They run
+  // ONLY under the `verified-dev` / `verified-prod` projects below (against a
+  // preview / prod URL), never under the default browser projects that target
+  // the local mock dev server — so ignore them globally and re-include them
+  // per verified project via that project's own testDir.
+  testIgnore: ["**/e2e/live/**", "**/e2e/mock-llm/**", "**/e2e/verified/**"],
   /* Run tests in files in parallel */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
@@ -23,8 +28,14 @@ export default defineConfig({
   /* Use 2 workers on CI (matches ubuntu-24.04's 2 vCPUs). Tests are isolated
    * per browser context so parallel execution is safe. */
   workers: process.env.CI ? 2 : undefined,
-  /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: "html",
+  /* Reporter to use. See https://playwright.dev/docs/test-reporters
+   * `EMIT_CHECKS=1` (the Bet D verification run, e.g.
+   * `EMIT_CHECKS=1 npx playwright test --project=verified-dev`) adds the checks
+   * reporter, which writes `.checks/result.json` for the cockpit Checks tab.
+   * Normal `npm test` / CI runs keep the plain html reporter. */
+  reporter: process.env.EMIT_CHECKS
+    ? [["list"], ["./tests/e2e/verified/checks-reporter.ts"]]
+    : "html",
 
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
@@ -53,6 +64,38 @@ export default defineConfig({
     {
       name: "webkit",
       use: { ...devices["Desktop Safari"] },
+    },
+
+    /* Bet D — verified projects. Same spec, different target, differing only
+     * by baseURL (Playwright-projects-as-targets). They run the committed
+     * `tests/e2e/verified/*.spec.ts` artifacts an agent emits after a
+     * browser-toolbelt run, recording video + trace as the durable proof a
+     * reviewer inspects without running anything locally. `testDir` re-includes
+     * the globally-ignored `verified/` dir; `testIgnore: []` clears the
+     * inherited global ignores so these specs actually collect. */
+    {
+      name: "verified-dev",
+      testDir: "./tests/e2e/verified",
+      testIgnore: [],
+      use: {
+        ...devices["Desktop Chrome"],
+        // Portless preview URL (RUNTIME_SERVICES); falls back to the local mock
+        // server so the project is runnable in dev without extra setup.
+        baseURL: process.env.VERIFY_DEV_URL ?? "http://localhost:3001/",
+        video: "on",
+        trace: "on",
+      },
+    },
+    {
+      name: "verified-prod",
+      testDir: "./tests/e2e/verified",
+      testIgnore: [],
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: process.env.VERIFY_PROD_URL ?? "http://localhost:3001/",
+        video: "on",
+        trace: "on",
+      },
     },
 
     /* Test against mobile viewports. */

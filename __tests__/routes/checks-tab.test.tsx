@@ -1,0 +1,260 @@
+import { screen, within } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+import ChecksTab from "#/routes/checks-tab";
+import { CHECK_RESULT_PATH } from "#/utils/check-result";
+import { renderWithProviders } from "../../test-utils";
+
+// The tab reads `.checks/result.json` (and any recording) through this hook,
+// and drives live-refresh through the auto-refresh hook. Both are mocked so
+// the tests exercise the tab's own render logic in isolation.
+const useWorkspaceFileContentMock = vi.fn();
+
+vi.mock("#/hooks/query/use-workspace-file-content", () => ({
+  useWorkspaceFileContent: (path: string | null) =>
+    useWorkspaceFileContentMock(path),
+}));
+
+vi.mock("#/hooks/use-auto-refresh-files-on-edit", () => ({
+  useAutoRefreshFilesOnEdit: vi.fn(),
+}));
+
+/** A settled query carrying the decoded text of `.checks/result.json`. */
+const textResult = (text: string) => ({
+  data: {
+    path: CHECK_RESULT_PATH,
+    kind: "text",
+    text,
+    staticUrl: "",
+    mimeType: "application/json",
+  },
+  isLoading: false,
+  isError: false,
+});
+
+const loadingResult = { data: undefined, isLoading: true, isError: false };
+// The query throws (file missing) → settled, errored, no data.
+const missingResult = { data: undefined, isLoading: false, isError: true };
+
+/** A settled query for a recording, exposing the fileserver `staticUrl`. */
+const videoContent = (staticUrl: string) => ({
+  data: {
+    path: ".checks/run.webm",
+    kind: "binary",
+    text: null,
+    staticUrl,
+    mimeType: "video/webm",
+  },
+  isLoading: false,
+  isError: false,
+});
+
+const passedJson = JSON.stringify({
+  status: "passed",
+  spec: "tests/e2e/verified/cockpit-loads.spec.ts",
+  checks: [
+    { title: "cockpit shell loads", status: "passed", durationMs: 1200 },
+  ],
+});
+
+/** Route the mock by requested path: result file vs. recording vs. disabled. */
+function wire({
+  result,
+  video,
+}: {
+  result:
+    | ReturnType<typeof textResult>
+    | typeof loadingResult
+    | typeof missingResult;
+  video?:
+    | ReturnType<typeof videoContent>
+    | { data: undefined; isLoading: boolean; isError: boolean };
+}) {
+  useWorkspaceFileContentMock.mockImplementation((path: string | null) => {
+    if (path === CHECK_RESULT_PATH) return result;
+    return video ?? missingResult;
+  });
+}
+
+describe("ChecksTab", () => {
+  beforeEach(() => {
+    useWorkspaceFileContentMock.mockReset();
+  });
+
+  it("shows a loading indicator while the result query is in flight", () => {
+    wire({ result: loadingResult });
+    renderWithProviders(<ChecksTab />);
+    expect(screen.getByTestId("checks-tab-loading")).toBeInTheDocument();
+  });
+
+  it("shows the empty state (with hint) when no result file exists", () => {
+    wire({ result: missingResult });
+    renderWithProviders(<ChecksTab />);
+    expect(screen.getByText("CHECKS$EMPTY")).toBeInTheDocument();
+    expect(screen.getByText("CHECKS$EMPTY_HINT")).toBeInTheDocument();
+    expect(screen.queryByTestId("checks-tab")).not.toBeInTheDocument();
+  });
+
+  it("shows the unreadable state when the result file is present but malformed", () => {
+    wire({ result: textResult("{ not json") });
+    renderWithProviders(<ChecksTab />);
+    expect(screen.getByText("CHECKS$UNREADABLE")).toBeInTheDocument();
+    expect(screen.queryByText("CHECKS$EMPTY")).not.toBeInTheDocument();
+  });
+
+  it("renders a passed verdict with the spec path and check rows", () => {
+    wire({ result: textResult(passedJson) });
+    renderWithProviders(<ChecksTab />);
+
+    expect(screen.getByTestId("checks-tab")).toBeInTheDocument();
+    expect(screen.getByTestId("checks-tab-status-passed")).toBeInTheDocument();
+    expect(
+      screen.getByText("tests/e2e/verified/cockpit-loads.spec.ts"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("cockpit shell loads")).toBeInTheDocument();
+    // Advisory note is always present on a loaded result.
+    expect(screen.getByText("CHECKS$ADVISORY")).toBeInTheDocument();
+  });
+
+  it("renders a failed verdict and surfaces the failing check's error", () => {
+    wire({
+      result: textResult(
+        JSON.stringify({
+          checks: [
+            {
+              title: "launcher visible",
+              status: "failed",
+              error: "expected element to be visible",
+            },
+          ],
+        }),
+      ),
+    });
+    renderWithProviders(<ChecksTab />);
+
+    expect(screen.getByTestId("checks-tab-status-failed")).toBeInTheDocument();
+    expect(
+      screen.getByText("expected element to be visible"),
+    ).toBeInTheDocument();
+  });
+
+  it("gives each check row a non-color status label and data-status for AT/screen readers", () => {
+    wire({
+      result: textResult(
+        JSON.stringify({
+          checks: [
+            { title: "a", status: "passed" },
+            { title: "b", status: "failed" },
+          ],
+        }),
+      ),
+    });
+    renderWithProviders(<ChecksTab />);
+
+    const rows = screen.getAllByTestId("checks-tab-check");
+    expect(rows.map((r) => r.getAttribute("data-status"))).toEqual([
+      "passed",
+      "failed",
+    ]);
+    // Status is also present as text per-row (not color-only) — sr-only but in
+    // the DOM. Scope to each row so the overall badge's label doesn't collide.
+    expect(within(rows[0]).getByText("CHECKS$PASSED")).toBeInTheDocument();
+    expect(within(rows[1]).getByText("CHECKS$FAILED")).toBeInTheDocument();
+  });
+
+  it("renders a titleless check using its status label as visible text (never blank)", () => {
+    wire({
+      result: textResult(
+        JSON.stringify({ checks: [{ status: "failed", error: "boom" }] }),
+      ),
+    });
+    renderWithProviders(<ChecksTab />);
+
+    // The overall verdict is failed (red check forces it) and the row is shown.
+    expect(screen.getByTestId("checks-tab-status-failed")).toBeInTheDocument();
+    expect(screen.getByTestId("checks-tab-check")).toHaveAttribute(
+      "data-status",
+      "failed",
+    );
+    expect(screen.getByText("boom")).toBeInTheDocument();
+  });
+
+  it("shows a 'recording unavailable' message when a worktree recording settles without a URL", () => {
+    wire({
+      result: textResult(
+        JSON.stringify({ status: "passed", video: ".checks/run.webm" }),
+      ),
+      // Query settled (not loading) with no data — e.g. the fetch errored.
+      video: { data: undefined, isLoading: false, isError: true },
+    });
+    renderWithProviders(<ChecksTab />);
+
+    expect(
+      screen.getByTestId("checks-tab-video-unavailable"),
+    ).toBeInTheDocument();
+    // Must NOT spin forever, and must not pretend a player exists.
+    expect(
+      screen.queryByTestId("checks-tab-video-loading"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("checks-tab-video")).not.toBeInTheDocument();
+  });
+
+  it("renders an inline <video> for a worktree-relative recording", () => {
+    wire({
+      result: textResult(
+        JSON.stringify({ status: "passed", video: ".checks/run.webm" }),
+      ),
+      video: videoContent(
+        "https://agent.example/api/.../workspace/.checks/run.webm",
+      ),
+    });
+    renderWithProviders(<ChecksTab />);
+
+    const video = screen.getByTestId("checks-tab-video");
+    expect(video).toHaveAttribute(
+      "src",
+      "https://agent.example/api/.../workspace/.checks/run.webm",
+    );
+    // The worktree path was resolved through the workspace fileserver.
+    expect(useWorkspaceFileContentMock).toHaveBeenCalledWith(
+      ".checks/run.webm",
+    );
+    expect(screen.getByTestId("checks-tab-video-open")).toBeInTheDocument();
+  });
+
+  it("uses an absolute recording URL directly without a workspace fetch", () => {
+    wire({
+      result: textResult(
+        JSON.stringify({
+          status: "passed",
+          video: "https://media.example/run.mp4",
+        }),
+      ),
+    });
+    renderWithProviders(<ChecksTab />);
+
+    expect(screen.getByTestId("checks-tab-video")).toHaveAttribute(
+      "src",
+      "https://media.example/run.mp4",
+    );
+    // An absolute URL must NOT be fetched through the workspace fileserver —
+    // the video hook is disabled (called with null).
+    expect(useWorkspaceFileContentMock).toHaveBeenCalledWith(null);
+    expect(useWorkspaceFileContentMock).not.toHaveBeenCalledWith(
+      "https://media.example/run.mp4",
+    );
+  });
+
+  it("shows a recording placeholder while the video resolves", () => {
+    wire({
+      result: textResult(
+        JSON.stringify({ status: "passed", video: ".checks/run.webm" }),
+      ),
+      video: { data: undefined, isLoading: true, isError: false },
+    });
+    renderWithProviders(<ChecksTab />);
+
+    expect(screen.getByTestId("checks-tab-video-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("checks-tab-video")).not.toBeInTheDocument();
+  });
+});
