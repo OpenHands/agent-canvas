@@ -336,7 +336,7 @@ function parseBooleanFieldValue(rawValue: string | boolean): boolean | null {
   throw new Error(`Expected a boolean value, received: ${rawValue}`);
 }
 
-function coerceFieldValue(
+export function coerceFieldValue(
   field: SettingsFieldSchema,
   rawValue: string | boolean,
 ): SettingsValue {

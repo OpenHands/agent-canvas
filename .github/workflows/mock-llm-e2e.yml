@@ -322,8 +322,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          gh pr comment "${{ github.event.pull_request.number }}" \
-            --body-file "$MOCK_LLM_REPORT_PATH"
+          node tests/e2e/mock-llm/scripts/upsert-pr-comment.mjs \
+            --issue-number "${{ github.event.pull_request.number }}" \
+            --body-file "$MOCK_LLM_REPORT_PATH" \
+            --marker "<!-- agent-canvas-mock-llm-e2e-report -->" \
+            --legacy-title "Mock-LLM E2E Tests"
 
       - name: Fail job when tests fail
         if: always()

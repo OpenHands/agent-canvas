@@ -38,6 +38,15 @@ const looksLikeTranslationKey = (value: string | null | undefined) =>
  * Labels and descriptions are now handled via convention-based i18n keys.
  */
 const FIELD_METADATA: Record<string, SettingsFieldMetadata> = {
+  // Mirrors the SDK's ``tool_concurrency_limit`` constraint (``int`` with
+  // ``ge=1``). Drives both the number input's ``min``/``step`` and
+  // ``coerceFieldValue``'s save-time validation.
+  tool_concurrency_limit: {
+    constraints: {
+      min: 1,
+      step: 1,
+    },
+  },
   "llm.top_p": {
     constraints: {
       min: 0,
