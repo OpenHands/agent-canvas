@@ -18,6 +18,11 @@ __pycache__
 /test-results-mock-llm/
 /test-results-mock-llm-docker/
 /.mock-llm-markers/
+# Bet D verification: the agent commits `.checks/result.json` + the spec, but the
+# recorded video/trace are heavy and pushed to a media branch instead (pr-media).
+.checks/*.webm
+.checks/*.zip
+.checks/*.png
 /playwright-report/
 /playwright-report-live/
 /playwright-report-mock-llm/

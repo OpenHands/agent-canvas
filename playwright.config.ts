@@ -28,8 +28,14 @@ export default defineConfig({
   /* Use 2 workers on CI (matches ubuntu-24.04's 2 vCPUs). Tests are isolated
    * per browser context so parallel execution is safe. */
   workers: process.env.CI ? 2 : undefined,
-  /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: "html",
+  /* Reporter to use. See https://playwright.dev/docs/test-reporters
+   * `EMIT_CHECKS=1` (the Bet D verification run, e.g.
+   * `EMIT_CHECKS=1 npx playwright test --project=verified-dev`) adds the checks
+   * reporter, which writes `.checks/result.json` for the cockpit Checks tab.
+   * Normal `npm test` / CI runs keep the plain html reporter. */
+  reporter: process.env.EMIT_CHECKS
+    ? [["list"], ["./tests/e2e/verified/checks-reporter.ts"]]
+    : "html",
 
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
