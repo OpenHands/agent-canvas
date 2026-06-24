@@ -5,6 +5,7 @@ import {
   type OrganizeMode,
   type ThreadScope,
 } from "#/components/features/conversation-panel/conversation-panel-list-helpers";
+import type { OwnerScope, SourceScope } from "#/utils/conversation-ownership";
 
 /**
  * User-toggleable display preferences for the sidebar conversation list
@@ -27,6 +28,8 @@ interface ConversationPanelPreferencesState {
   organizeMode: OrganizeMode;
   conversationSort: ConversationSortField;
   threadScope: ThreadScope;
+  ownerScope: OwnerScope;
+  sourceScope: SourceScope;
   groupFolderOrder: string[];
   /** Repo/workspace id to filter the list to, or "all". */
   repoFilter: string;
@@ -44,6 +47,8 @@ interface ConversationPanelPreferencesActions {
   setOrganizeMode: (value: OrganizeMode) => void;
   setConversationSort: (value: ConversationSortField) => void;
   setThreadScope: (value: ThreadScope) => void;
+  setOwnerScope: (value: OwnerScope) => void;
+  setSourceScope: (value: SourceScope) => void;
   setGroupFolderOrder: (order: readonly string[]) => void;
   setRepoFilter: (value: string) => void;
 }
@@ -59,6 +64,11 @@ const initialState: ConversationPanelPreferencesState = {
   organizeMode: "chronological",
   conversationSort: "updated",
   threadScope: "all",
+  // Default to "all" (no behavior change). "mine" is opt-in; until owner tags
+  // backfill on existing conversations, defaulting to "mine" would hide most
+  // of the list. See firehose-plan.md.
+  ownerScope: "all",
+  sourceScope: "all",
   groupFolderOrder: [],
   repoFilter: "all",
 };
@@ -100,6 +110,8 @@ export const useConversationPanelPreferencesStore =
         setConversationSort: (value) =>
           set(() => ({ conversationSort: value })),
         setThreadScope: (value) => set(() => ({ threadScope: value })),
+        setOwnerScope: (value) => set(() => ({ ownerScope: value })),
+        setSourceScope: (value) => set(() => ({ sourceScope: value })),
         setGroupFolderOrder: (order) =>
           set(() => ({ groupFolderOrder: [...order] })),
         setRepoFilter: (value) => set(() => ({ repoFilter: value })),
@@ -116,6 +128,8 @@ export const useConversationPanelPreferencesStore =
           organizeMode: state.organizeMode,
           conversationSort: state.conversationSort,
           threadScope: state.threadScope,
+          ownerScope: state.ownerScope,
+          sourceScope: state.sourceScope,
           groupFolderOrder: state.groupFolderOrder,
           repoFilter: state.repoFilter,
         }),

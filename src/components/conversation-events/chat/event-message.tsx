@@ -131,7 +131,7 @@ const renderUserMessageWithSkillReady = (
   }
 };
 
-export function EventMessage({
+function EventMessageImpl({
   event,
   messages,
   isLastMessage,
@@ -140,7 +140,10 @@ export function EventMessage({
   suppressThought = false,
 }: EventMessageProps) {
   const { data: config } = useConfig();
-  const { planContent } = useConversationStore();
+  // Narrow selector: subscribing to the whole store re-rendered every settled
+  // message on every composer keystroke (setMessageToSend) and every tab/file
+  // mutation. Only the PlanPreview branch needs planContent.
+  const planContent = useConversationStore((s) => s.planContent);
   const { curAgentState } = useAgentState();
 
   // Disable Build button while agent is running (streaming)
@@ -326,3 +329,35 @@ export function EventMessage({
     <GenericEventMessageWrapper event={event} isLastMessage={isLastMessage} />
   );
 }
+
+/**
+ * Per-row memo barrier. The parent <Messages> re-renders on every streaming
+ * token (its comparator intentionally re-renders when the tail event changes).
+ * Without this, that re-render cascaded into every message row. Settled events
+ * keep referential identity across tokens — only the live tail event object is
+ * replaced — so identity equality means a row's content is unchanged and React
+ * can skip it. Result: one token re-renders one row, not the whole transcript.
+ *
+ * `messages` (allEvents) gets a fresh array reference every token, so it is
+ * intentionally excluded: for a settled observation the corresponding-action
+ * lookup is stable, so the rendered output does not change. `planPreviewEventIds`
+ * is likewise a new Set every token; only its membership for *this* event can
+ * change output (the PlanningFileEditorObservation branch), so we compare that
+ * single bit rather than the Set reference.
+ */
+function arePropsEqual(
+  prev: EventMessageProps,
+  next: EventMessageProps,
+): boolean {
+  if (prev.event !== next.event) return false;
+  if (prev.isLastMessage !== next.isLastMessage) return false;
+  if (prev.isInLast10Actions !== next.isInLast10Actions) return false;
+  if (prev.suppressThought !== next.suppressThought) return false;
+  const id = next.event.id;
+  const prevShowsPreview = prev.planPreviewEventIds?.has(id) ?? false;
+  const nextShowsPreview = next.planPreviewEventIds?.has(id) ?? false;
+  return prevShowsPreview === nextShowsPreview;
+}
+
+export const EventMessage = React.memo(EventMessageImpl, arePropsEqual);
+EventMessage.displayName = "EventMessage";

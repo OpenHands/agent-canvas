@@ -1,11 +1,11 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useParams } from "react-router";
 import { useUserConversation } from "./query/use-user-conversation";
 import { useAppTitle } from "./use-app-title";
 import { useConversationStateStore } from "#/stores/conversation-state-store";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
+import { useNavigation } from "#/context/navigation-context";
 
 const renderAppTitleHook = () =>
   renderHook(() => useAppTitle(), {
@@ -16,23 +16,26 @@ const renderAppTitleHook = () =>
     ),
   });
 
-vi.mock("./query/use-user-conversation");
-vi.mock("react-router", async () => {
-  const actual = await vi.importActual("react-router");
-  return {
-    ...actual,
-    useParams: vi.fn(),
-  };
+const navState = (conversationId: string | null) => ({
+  conversationId,
+  currentPath: conversationId ? `/conversations/${conversationId}` : "/",
+  isNavigating: false,
+  navigate: vi.fn(),
 });
+
+vi.mock("./query/use-user-conversation");
+vi.mock("#/context/navigation-context", () => ({
+  useNavigation: vi.fn(),
+}));
 
 describe("useAppTitle", () => {
   const mockUseUserConversation = vi.mocked(useUserConversation);
-  const mockUseParams = vi.mocked(useParams);
+  const mockUseNavigation = vi.mocked(useNavigation);
 
   beforeEach(() => {
     // @ts-expect-error - only returning partial config for test
     mockUseUserConversation.mockReturnValue({ data: null });
-    mockUseParams.mockReturnValue({});
+    mockUseNavigation.mockReturnValue(navState(null));
     useConversationStateStore.getState().reset();
   });
 
@@ -43,7 +46,7 @@ describe("useAppTitle", () => {
   });
 
   it("returns the conversation title with the OSS app name", async () => {
-    mockUseParams.mockReturnValue({ conversationId: "123" });
+    mockUseNavigation.mockReturnValue(navState("123"));
     mockUseUserConversation.mockReturnValue({
       // @ts-expect-error - only returning partial config for test
       data: { title: "My Conversation" },
@@ -57,7 +60,7 @@ describe("useAppTitle", () => {
   });
 
   it("returns the app name while conversation data is loading", async () => {
-    mockUseParams.mockReturnValue({ conversationId: "123" });
+    mockUseNavigation.mockReturnValue(navState("123"));
     // @ts-expect-error - only returning partial config for test
     mockUseUserConversation.mockReturnValue({ data: undefined });
 
@@ -77,7 +80,7 @@ describe("useAppTitle", () => {
   ])(
     "prefixes the title with %s emoji for execution status %s",
     async (status, emoji) => {
-      mockUseParams.mockReturnValue({ conversationId: "123" });
+      mockUseNavigation.mockReturnValue(navState("123"));
       mockUseUserConversation.mockReturnValue({
         // @ts-expect-error - only returning partial config for test
         data: { title: "My Conversation" },
@@ -93,7 +96,7 @@ describe("useAppTitle", () => {
   );
 
   it("falls back to the conversation's execution_status when the live store is empty", async () => {
-    mockUseParams.mockReturnValue({ conversationId: "123" });
+    mockUseNavigation.mockReturnValue(navState("123"));
     mockUseUserConversation.mockReturnValue({
       // @ts-expect-error - only returning partial config for test
       data: {
@@ -110,7 +113,7 @@ describe("useAppTitle", () => {
   });
 
   it("does not add an emoji when in a conversation but execution status is unknown", async () => {
-    mockUseParams.mockReturnValue({ conversationId: "123" });
+    mockUseNavigation.mockReturnValue(navState("123"));
     mockUseUserConversation.mockReturnValue({
       // @ts-expect-error - only returning partial config for test
       data: { title: "My Conversation" },

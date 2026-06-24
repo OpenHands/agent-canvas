@@ -50,6 +50,8 @@ interface ConversationCardProps {
   showLlmProfiles?: boolean;
   agentKind?: "openhands" | "acp" | null;
   acpServer?: string | null;
+  /** Whether this conversation was launched by Hermes (drives the source chip). */
+  isHermes?: boolean;
   isPinned?: boolean;
   onTogglePin?: () => void;
   /** When true and pinned, keep the pin icon visible without hovering. */
@@ -87,6 +89,7 @@ export function ConversationCard({
   showLlmProfiles = false,
   agentKind = null,
   acpServer = null,
+  isHermes = false,
   isPinned = false,
   onTogglePin,
   alwaysShowPinIcon = false,
@@ -388,6 +391,7 @@ export function ConversationCard({
           showAgentChip={showLlmProfiles}
           agentKind={agentKind}
           acpServer={acpServer}
+          isHermes={isHermes}
         />
       )}
 

@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import {
+  AppWindow,
   Bot,
   CalendarArrowDown,
   Clock3,
@@ -9,11 +10,14 @@ import {
   EyeOff,
   Folder,
   GitBranch,
+  Layers,
   ListFilter,
   MessageCircle,
   MousePointerClick,
   Star,
   Trash2,
+  User,
+  Users,
 } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import type { BackendKind } from "#/api/backend-registry/types";
@@ -23,6 +27,7 @@ import {
   dropdownMenuListClassName,
   dropdownMenuViewportScrollClassName,
 } from "#/utils/dropdown-classes";
+import type { OwnerScope, SourceScope } from "#/utils/conversation-ownership";
 import type {
   ConversationSortField,
   OrganizeMode,
@@ -51,6 +56,14 @@ export interface ConversationPanelFilterMenuProps {
   repoOptions: readonly RepoFilterOption[];
   threadScope: ThreadScope;
   setThreadScope: (scope: ThreadScope) => void;
+  ownerScope: OwnerScope;
+  setOwnerScope: (scope: OwnerScope) => void;
+  /** Hide the owner facet when no current-user identity is known (see firehose-plan.md). */
+  showOwnerScope: boolean;
+  sourceScope: SourceScope;
+  setSourceScope: (scope: SourceScope) => void;
+  /** Hide the source facet when no Hermes-launched conversations are present. */
+  showSourceScope: boolean;
   showOlderConversations: boolean;
   toggleShowOlderConversations: () => void;
   showRepoBranchMetadata: boolean;
@@ -77,6 +90,12 @@ export function ConversationPanelFilterMenu({
   repoOptions,
   threadScope,
   setThreadScope,
+  ownerScope,
+  setOwnerScope,
+  showOwnerScope,
+  sourceScope,
+  setSourceScope,
+  showSourceScope,
   showOlderConversations,
   toggleShowOlderConversations,
   showRepoBranchMetadata,
@@ -260,6 +279,70 @@ export function ConversationPanelFilterMenu({
               setFilterMenuOpen(false);
             }}
           />
+
+          {showOwnerScope && (
+            <>
+              <MenuSeparator />
+              <MenuHeading>{t(I18nKey.CONVERSATION_PANEL$OWNER)}</MenuHeading>
+              <MenuRow
+                icon={User}
+                label={t(I18nKey.CONVERSATION_PANEL$MINE)}
+                selected={ownerScope === "mine"}
+                testId="owner-scope-mine"
+                onClick={() => {
+                  setOwnerScope("mine");
+                  setFilterMenuOpen(false);
+                }}
+              />
+              <MenuRow
+                icon={Users}
+                label={t(I18nKey.CONVERSATION_PANEL$ALL_OWNERS)}
+                selected={ownerScope === "all"}
+                testId="owner-scope-all"
+                onClick={() => {
+                  setOwnerScope("all");
+                  setFilterMenuOpen(false);
+                }}
+              />
+            </>
+          )}
+
+          {showSourceScope && (
+            <>
+              <MenuSeparator />
+              <MenuHeading>{t(I18nKey.CONVERSATION_PANEL$SOURCE)}</MenuHeading>
+              <MenuRow
+                icon={Layers}
+                label={t(I18nKey.CONVERSATION_PANEL$ALL_OWNERS)}
+                selected={sourceScope === "all"}
+                testId="source-scope-all"
+                onClick={() => {
+                  setSourceScope("all");
+                  setFilterMenuOpen(false);
+                }}
+              />
+              <MenuRow
+                icon={AppWindow}
+                label={t(I18nKey.CONVERSATION_PANEL$SOURCE_APP)}
+                selected={sourceScope === "app"}
+                testId="source-scope-app"
+                onClick={() => {
+                  setSourceScope("app");
+                  setFilterMenuOpen(false);
+                }}
+              />
+              <MenuRow
+                icon={Bot}
+                label={t(I18nKey.CONVERSATION_PANEL$SOURCE_HERMES)}
+                selected={sourceScope === "hermes"}
+                testId="source-scope-hermes"
+                onClick={() => {
+                  setSourceScope("hermes");
+                  setFilterMenuOpen(false);
+                }}
+              />
+            </>
+          )}
 
           <MenuSeparator />
           <MenuHeading>{t(I18nKey.CONVERSATION_PANEL$SHOW)}</MenuHeading>

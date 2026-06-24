@@ -187,6 +187,19 @@ export interface AppConversation {
    */
   active_profile?: string | null;
   public?: boolean;
+  /**
+   * Advisory owner identity (an email), derived from the conversation's
+   * `owner` tag (cockpit-stamped at creation) or `requester` tag (Hermes).
+   * Powers the "mine" list filter. Null when unknown. Organizes the list —
+   * NOT a privacy boundary (the local backend has no enforced per-user auth).
+   */
+  owner?: string | null;
+  /**
+   * Launch source, from the `source` tag: `"hermes"` for Hermes-launched
+   * sessions, `"gui"` for cockpit-launched. Null/unknown for legacy
+   * conversations created before this tag existed.
+   */
+  source?: string | null;
   sub_conversation_ids: string[];
 }
 

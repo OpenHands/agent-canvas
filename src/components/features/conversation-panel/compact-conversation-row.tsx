@@ -1,5 +1,5 @@
 import React from "react";
-import { Tooltip } from "@heroui/react";
+import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import { useTranslation } from "react-i18next";
 import { NavigationLink } from "#/components/shared/navigation-link";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
@@ -51,7 +51,6 @@ export function CompactConversationRow({
   acpServer = null,
 }: CompactConversationRowProps) {
   const { t } = useTranslation("openhands");
-  const disableAnimation = import.meta.env.MODE === "test";
 
   const preview = (
     <div className="w-[260px] p-3">
@@ -84,12 +83,11 @@ export function CompactConversationRow({
   );
 
   return (
-    <Tooltip
+    <StyledTooltip
       content={preview}
       placement="right"
       closeDelay={100}
-      className="bg-[var(--oh-surface)] text-foreground border border-[var(--oh-border-subtle)] shadow-xl p-0"
-      disableAnimation={disableAnimation}
+      tooltipClassName="bg-[var(--oh-surface)] text-foreground border border-[var(--oh-border-subtle)] shadow-xl p-0"
     >
       <NavigationLink
         to={`/conversations/${conversationId}`}
@@ -113,6 +111,6 @@ export function CompactConversationRow({
           showTooltip={false}
         />
       </NavigationLink>
-    </Tooltip>
+    </StyledTooltip>
   );
 }

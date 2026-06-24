@@ -1,9 +1,8 @@
 import React from "react";
 import { ExtraProps } from "react-markdown";
-import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { CopyableContentWrapper } from "#/components/shared/buttons/copyable-content-wrapper";
 import { cn } from "#/utils/utils";
-import { SyntaxHighlighter } from "./syntax-highlighter";
+import { HighlightedCode } from "./highlighted-code";
 
 // See https://github.com/remarkjs/react-markdown?tab=readme-ov-file#use-custom-components-syntax-highlight
 
@@ -46,14 +45,11 @@ export function code({
 
   return (
     <CopyableContentWrapper text={codeString}>
-      <SyntaxHighlighter
+      <HighlightedCode
         className="rounded-lg"
-        style={vscDarkPlus}
         language={match?.[1]}
-        PreTag="div"
-      >
-        {codeString}
-      </SyntaxHighlighter>
+        code={codeString}
+      />
     </CopyableContentWrapper>
   );
 }

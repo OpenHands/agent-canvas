@@ -1,4 +1,4 @@
-import { cn } from "@heroui/react";
+import { cn } from "#/utils/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import DebugStackframeDot from "#/icons/debug-stackframe-dot.svg?react";
 

@@ -19,6 +19,8 @@ import { useSyncPostHogConsent } from "#/hooks/use-sync-posthog-consent";
 import { usePostHogIdentify } from "#/hooks/use-posthog-identify";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useAppTitle } from "#/hooks/use-app-title";
+import { useAttentionStore } from "#/stores/attention-store";
+import { ConversationAttentionNotifier } from "#/components/features/notifications/conversation-attention-notifier";
 import { ReactRouterNavigationProvider } from "./react-router-navigation-provider";
 import { OnboardingHost } from "#/components/features/onboarding";
 import { isOnboardingPreviewActive } from "#/components/features/onboarding/onboarding-preview";
@@ -76,6 +78,11 @@ export function ErrorBoundary() {
 export default function MainApp() {
   const location = useLocation();
   const appTitle = useAppTitle();
+  const pendingAttentionCount = useAttentionStore((s) => s.pendingCount);
+  const documentTitle =
+    pendingAttentionCount > 0
+      ? `(${pendingAttentionCount}) ${appTitle}`
+      : appTitle;
   const { data: settings } = useSettings();
   const { migrateUserConsent } = useMigrateUserConsent();
   const config = useConfig();
@@ -127,7 +134,8 @@ export default function MainApp() {
           data-testid="root-layout"
           className="h-screen lg:min-w-5xl flex flex-col md:flex-row bg-base overflow-hidden p-0"
         >
-          <title>{appTitle}</title>
+          <title>{documentTitle}</title>
+          <ConversationAttentionNotifier />
           <Sidebar />
 
           <div className="flex min-h-0 flex-col w-full min-w-0 h-full gap-3">

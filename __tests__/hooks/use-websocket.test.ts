@@ -60,15 +60,9 @@ describe("useWebSocket", () => {
 
     // Initially should not be connected
     expect(result.current.isConnected).toBe(false);
-    expect(result.current.lastMessage).toBe(null);
 
     // Wait for connection to be established
     await waitForConnection(result);
-
-    // Should receive the welcome message from our mock
-    await waitFor(() => {
-      expect(result.current.lastMessage).toBe("Welcome to the WebSocket!");
-    });
 
     // Confirm that the WebSocket connection is established when the hook is used
     expect(result.current.socket).toBeTruthy();
@@ -134,7 +128,10 @@ describe("useWebSocket", () => {
         );
       });
 
-      expect(result.current.lastMessage).toBe("third");
+      // The hook intentionally retains no raw websocket frames at all — neither
+      // a `lastMessage` nor a `messages` history. Consumers parse frames into
+      // their own domain stores instead of retaining raw frames here.
+      expect("lastMessage" in result.current).toBe(false);
       expect("messages" in result.current).toBe(false);
 
       unmount();
@@ -142,32 +139,6 @@ describe("useWebSocket", () => {
       globalThis.WebSocket = originalWebSocket;
       MockWebSocket.instance = null;
     }
-  });
-
-  it.skip("should handle incoming messages correctly", async () => {
-    const { result } = renderHook(() => useWebSocket("ws://acme.com/ws"));
-
-    // Wait for connection to be established
-    await waitFor(() => {
-      expect(result.current.isConnected).toBe(true);
-    });
-
-    // Should receive the welcome message from our mock
-    await waitFor(() => {
-      expect(result.current.lastMessage).toBe("Welcome to the WebSocket!");
-    });
-
-    // Send another message from the mock server
-    wsLink.broadcast("Hello from server!");
-
-    await waitFor(() => {
-      expect(result.current.lastMessage).toBe("Hello from server!");
-    });
-
-    // The hook intentionally keeps only the latest message; consumers that
-    // need durable history should store parsed events in their own domain
-    // store instead of retaining every raw websocket frame here.
-    expect("messages" in result.current).toBe(false);
   });
 
   it("should handle connection errors gracefully", async () => {
@@ -394,23 +365,18 @@ describe("useWebSocket", () => {
       expect(result.current.isConnected).toBe(true);
     });
 
-    // Should receive the welcome message from our mock
-    await waitFor(() => {
-      expect(result.current.lastMessage).toBe("Welcome to the WebSocket!");
-    });
-
     // onMessage handler should have been called for the welcome message
-    expect(onMessageSpy).toHaveBeenCalledOnce();
+    await waitFor(() => {
+      expect(onMessageSpy).toHaveBeenCalledOnce();
+    });
 
     // Send another message from the mock server
     wsLink.broadcast("Hello from server!");
 
-    await waitFor(() => {
-      expect(result.current.lastMessage).toBe("Hello from server!");
-    });
-
     // onMessage handler should have been called twice now
-    expect(onMessageSpy).toHaveBeenCalledTimes(2);
+    await waitFor(() => {
+      expect(onMessageSpy).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("should call onError handler when WebSocket encounters an error", async () => {

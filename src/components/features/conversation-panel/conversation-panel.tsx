@@ -1,5 +1,6 @@
 import React from "react";
-import { Tooltip } from "@heroui/react";
+import { Search, X, Archive, ChevronDown, ChevronRight } from "lucide-react";
+import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { useNavigation } from "#/context/navigation-context";
@@ -20,6 +21,9 @@ import {
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
 import { isExecutionActive } from "#/utils/status";
+import { ConversationOwnership } from "#/utils/conversation-ownership";
+import { ConversationSearch } from "#/utils/conversation-search";
+import { useCurrentUserEmail } from "#/hooks/use-current-user-email";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
 import { ConversationCard } from "./conversation-card/conversation-card";
@@ -33,7 +37,6 @@ import { ConversationPanelFilterMenu } from "./conversation-panel-filter-menu";
 import { ConversationPanelNewThreadPicker } from "./conversation-panel-new-thread-picker";
 import { ConversationGroupFolderList } from "./conversation-group-folder-list";
 import { ConversationPanelPinnedSection } from "./conversation-panel-pinned-section";
-import { Archive, ChevronDown, ChevronRight } from "lucide-react";
 import { StatusBucketIcon } from "./status-bucket-icon";
 import { ConductorNewWorkspaceMenu } from "./conductor-new-workspace-menu";
 import {
@@ -176,6 +179,22 @@ export function ConversationPanel({
   const setThreadScope = useConversationPanelPreferencesStore(
     (state) => state.setThreadScope,
   );
+  const ownerScope = useConversationPanelPreferencesStore(
+    (state) => state.ownerScope,
+  );
+  const setOwnerScope = useConversationPanelPreferencesStore(
+    (state) => state.setOwnerScope,
+  );
+  const sourceScope = useConversationPanelPreferencesStore(
+    (state) => state.sourceScope,
+  );
+  const setSourceScope = useConversationPanelPreferencesStore(
+    (state) => state.setSourceScope,
+  );
+  const currentUserEmail = useCurrentUserEmail();
+  // Force "all" when we have no identity so a persisted "mine" can't strand the
+  // list empty with no visible toggle (the owner facet is hidden in that case).
+  const effectiveOwnerScope = currentUserEmail ? ownerScope : "all";
   const groupFolderOrder = useConversationPanelPreferencesStore(
     (state) => state.groupFolderOrder,
   );
@@ -184,6 +203,8 @@ export function ConversationPanel({
   );
   const [filterMenuOpen, setFilterMenuOpen] = React.useState(false);
   const [isListScrolled, setIsListScrolled] = React.useState(false);
+  // Transient (not persisted) — search is a per-visit lens over loaded pages.
+  const [searchQuery, setSearchQuery] = React.useState("");
   const filterMenuRef = useClickOutsideElement<HTMLDivElement>(() => {
     setFilterMenuOpen(false);
   });
@@ -329,23 +350,37 @@ export function ConversationPanel({
       [conversations, archivedIds],
     );
 
-  // The "Repo" filter narrows the (non-archived) list to one workspace/repo.
-  // Options are derived from the unfiltered active set so every repo stays
-  // selectable regardless of the current filter.
+  // Client-side search lens over the active set, before the list splits into
+  // pinned/scoped so search narrows every view consistently.
+  const searchedConversations = React.useMemo(
+    () => ConversationSearch.filter(activeConversations, searchQuery),
+    [activeConversations, searchQuery],
+  );
+
+  // The "Repo" filter narrows the searched list to one workspace/repo. Options
+  // derive from the unfiltered active set so every repo stays selectable.
   const repoVisibleConversations = React.useMemo(
     () =>
       filterConversationsByRepo(
-        activeConversations,
+        searchedConversations,
         activeBackend.kind,
         repoFilter,
       ),
-    [activeConversations, activeBackend.kind, repoFilter],
+    [searchedConversations, activeBackend.kind, repoFilter],
   );
 
   const pinnedConversations = React.useMemo(
     () => resolvePinnedConversations(pinnedIds, repoVisibleConversations),
     [repoVisibleConversations, pinnedIds],
   );
+
+  // Only offer the source facet when Hermes-launched sessions are actually
+  // present; force "all" otherwise so a persisted scope can't strand the list.
+  const hasHermesConversations = React.useMemo(
+    () => conversations.some((c) => ConversationOwnership.isHermes(c)),
+    [conversations],
+  );
+  const effectiveSourceScope = hasHermesConversations ? sourceScope : "all";
 
   React.useEffect(() => {
     if (!isFetched) {
@@ -373,12 +408,19 @@ export function ConversationPanel({
   }, [pinnedIds.length]);
 
   const scopedConversations = React.useMemo(() => {
+    const ownerFiltered = ConversationOwnership.filter(
+      repoVisibleConversations,
+      {
+        ownerScope: effectiveOwnerScope,
+        sourceScope: effectiveSourceScope,
+        currentUserEmail,
+      },
+    );
+
     const scopeFiltered =
       threadScope === "relevant"
-        ? repoVisibleConversations.filter((c) =>
-            isExecutionActive(c.execution_status),
-          )
-        : repoVisibleConversations;
+        ? ownerFiltered.filter((c) => isExecutionActive(c.execution_status))
+        : ownerFiltered;
 
     // In the expanded panel, pinned conversations should only appear inside
     // the dedicated pinned section (not duplicated in grouped/flat lists).
@@ -387,7 +429,15 @@ export function ConversationPanel({
     }
 
     return filterOutPinnedConversations(scopeFiltered, pinnedIds);
-  }, [compact, repoVisibleConversations, pinnedIds, threadScope]);
+  }, [
+    compact,
+    repoVisibleConversations,
+    pinnedIds,
+    threadScope,
+    effectiveOwnerScope,
+    effectiveSourceScope,
+    currentUserEmail,
+  ]);
 
   const { recent: recentScoped, older: olderScoped } = React.useMemo(
     () => partitionByCutoff(scopedConversations),
@@ -746,16 +796,13 @@ export function ConversationPanel({
         );
       }
       return (
-        <Tooltip
+        <StyledTooltip
           key={conversation.id}
           placement="right-start"
           delay={1000}
           closeDelay={100}
-          isDisabled={
-            !showHoverMetadata || openContextMenuId === conversation.id
-          }
-          disableAnimation={import.meta.env.MODE === "test"}
-          className="rounded-xl border border-[var(--oh-border)] bg-base-secondary p-0 text-foreground shadow-xl"
+          disabled={!showHoverMetadata || openContextMenuId === conversation.id}
+          tooltipClassName="rounded-xl border border-[var(--oh-border)] bg-base-secondary p-0 text-foreground shadow-xl"
           content={
             <ConversationCardPreview
               title={conversation.title ?? ""}
@@ -823,6 +870,7 @@ export function ConversationPanel({
               showLlmProfiles={showLlmProfiles}
               agentKind={conversation.agent_kind}
               acpServer={conversation.acp_server}
+              isHermes={ConversationOwnership.isHermes(conversation)}
               tags={conversation.tags}
               isPinned={isPinned}
               onTogglePin={() => togglePin(activeBackend.id, conversation.id)}
@@ -844,7 +892,7 @@ export function ConversationPanel({
               }
             />
           </NavigationLink>
-        </Tooltip>
+        </StyledTooltip>
       );
     },
     [
@@ -949,6 +997,12 @@ export function ConversationPanel({
                 repoOptions={repoOptions}
                 threadScope={threadScope}
                 setThreadScope={setThreadScope}
+                ownerScope={ownerScope}
+                setOwnerScope={setOwnerScope}
+                showOwnerScope={currentUserEmail != null}
+                sourceScope={sourceScope}
+                setSourceScope={setSourceScope}
+                showSourceScope={hasHermesConversations}
                 showOlderConversations={showOlderConversations}
                 toggleShowOlderConversations={toggleShowOlderConversations}
                 showRepoBranchMetadata={showRepoBranchMetadata}
@@ -960,6 +1014,34 @@ export function ConversationPanel({
                 totalConversationsCount={conversations.length}
                 onRequestDeleteAll={() => setConfirmDeleteAllVisible(true)}
               />
+            </div>
+          </div>
+          <div className="px-4 pb-2">
+            <div className="relative">
+              <Search
+                aria-hidden
+                className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-[var(--oh-muted)]"
+              />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder={t(I18nKey.CONVERSATION_PANEL$SEARCH_PLACEHOLDER)}
+                aria-label={t(I18nKey.CONVERSATION_PANEL$SEARCH_PLACEHOLDER)}
+                data-testid="conversation-search-input"
+                className="w-full rounded-md border border-[var(--oh-border)] bg-transparent py-1 pl-7 pr-7 text-sm text-white placeholder:text-[var(--oh-muted)] focus:border-white/30 focus:outline-none"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  aria-label={t(I18nKey.CONVERSATION_PANEL$SEARCH_CLEAR)}
+                  data-testid="conversation-search-clear"
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-[var(--oh-muted)] hover:text-white"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
             </div>
           </div>
         </div>
