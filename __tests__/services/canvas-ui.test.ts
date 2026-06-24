@@ -57,6 +57,13 @@ describe("handleCanvasUIAction", () => {
     expect(useFilesTabStore.getState().selectedPath).toBeNull();
   });
 
+  it("open_tab navigates to the checks tab (not treated as an unknown tab)", () => {
+    handleCanvasUIAction(action({ command: "open_tab", tab: "checks" }));
+
+    expect(useConversationStore.getState().selectedTab).toBe("checks");
+    expect(useConversationStore.getState().isRightPanelShown).toBe(true);
+  });
+
   it("open_tab ignores unknown tab values and surfaces a warning for debuggability", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 

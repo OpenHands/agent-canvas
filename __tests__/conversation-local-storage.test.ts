@@ -50,6 +50,15 @@ describe("conversation localStorage utilities", () => {
       expect(state.selectedTab).toBe("terminal");
     });
 
+    it("preserves a persisted selectedTab of 'checks' across reload (browser-parity)", () => {
+      // The Checks tab is a first-class, persistable tab like browser/terminal —
+      // it must survive the VALID_CONVERSATION_TABS sanitizer, not reset to files.
+      const key = `${LOCAL_STORAGE_KEYS.CONVERSATION_STATE}-conv-checks`;
+      localStorage.setItem(key, JSON.stringify({ selectedTab: "checks" }));
+
+      expect(getConversationState("conv-checks").selectedTab).toBe("checks");
+    });
+
     it("silently drops the legacy rightPanelShown field from older persisted blobs", () => {
       // Older builds persisted the right-drawer state alongside the
       // selected tab. The schema no longer carries that field — verify

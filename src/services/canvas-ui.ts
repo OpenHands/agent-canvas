@@ -11,6 +11,7 @@ const VALID_TABS: ReadonlySet<ConversationTab> = new Set<ConversationTab>([
   "terminal",
   "planner",
   "tasklist",
+  "checks",
 ]);
 
 // Mirrors src/hooks/use-select-conversation-tab.ts so a non-React caller (the
