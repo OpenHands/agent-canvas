@@ -1,13 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { ConversationOwnership } from "./conversation-ownership";
 
-// filter() is generic over the minimal { owner, source } shape, so test
-// fixtures only carry the fields under test plus an id to assert on.
-const conv = (id: string, owner: string | null, source: string | null) => ({
-  id,
-  owner,
-  source,
-});
+// filter() is generic over the minimal { owner, source, project } shape, so
+// test fixtures only carry the fields under test plus an id to assert on.
+const conv = (
+  id: string,
+  owner: string | null,
+  source: string | null,
+  project: string | null = null,
+) => ({ id, owner, source, project });
 
 describe("ConversationOwnership.isHermes", () => {
   it("is true only for source 'hermes' (case-insensitive)", () => {
@@ -108,5 +109,80 @@ describe("ConversationOwnership.filter", () => {
         currentUserEmail: null,
       }),
     ).toEqual([]);
+  });
+});
+
+describe("ConversationOwnership.matchesProjectScope", () => {
+  it('"all" matches everything, including unprojected', () => {
+    expect(
+      ConversationOwnership.matchesProjectScope(
+        conv("a", null, null, null),
+        "all",
+      ),
+    ).toBe(true);
+    expect(
+      ConversationOwnership.matchesProjectScope(
+        conv("a", null, null, "billing"),
+        "all",
+      ),
+    ).toBe(true);
+  });
+
+  it("a slug scope matches only that project (case-insensitive)", () => {
+    expect(
+      ConversationOwnership.matchesProjectScope(
+        conv("a", null, null, "Billing"),
+        {
+          slug: "billing",
+        },
+      ),
+    ).toBe(true);
+    expect(
+      ConversationOwnership.matchesProjectScope(conv("a", null, null, "web"), {
+        slug: "billing",
+      }),
+    ).toBe(false);
+    expect(
+      ConversationOwnership.matchesProjectScope(conv("a", null, null, null), {
+        slug: "billing",
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("ConversationOwnership.filter — project facet", () => {
+  const billingMine = conv("bm", "me@x.ai", "gui", "billing");
+  const webMine = conv("wm", "me@x.ai", "gui", "web");
+  const billingHermes = conv("bh", "you@x.ai", "hermes", "billing");
+  const all = [billingMine, webMine, billingHermes];
+
+  it("defaults to all projects when projectScope omitted", () => {
+    expect(
+      ConversationOwnership.filter(all, {
+        ownerScope: "all",
+        sourceScope: "all",
+        currentUserEmail: null,
+      }).map((c) => c.id),
+    ).toEqual(["bm", "wm", "bh"]);
+  });
+
+  it("scopes to a single project and ANDs with owner+source", () => {
+    expect(
+      ConversationOwnership.filter(all, {
+        ownerScope: "all",
+        sourceScope: "all",
+        currentUserEmail: null,
+        projectScope: { slug: "billing" },
+      }).map((c) => c.id),
+    ).toEqual(["bm", "bh"]);
+
+    expect(
+      ConversationOwnership.filter(all, {
+        ownerScope: "mine",
+        sourceScope: "app",
+        currentUserEmail: "me@x.ai",
+        projectScope: { slug: "billing" },
+      }).map((c) => c.id),
+    ).toEqual(["bm"]);
   });
 });
