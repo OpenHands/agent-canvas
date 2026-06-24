@@ -17,7 +17,10 @@ export type OwnerScope = "all" | "mine";
 /** Which conversations to show by launch source. */
 export type SourceScope = "all" | "hermes" | "app";
 
-type OwnedConversation = Pick<AppConversation, "owner" | "source">;
+/** Which conversations to show by project: all, or a single project slug. */
+export type ProjectScope = "all" | { slug: string };
+
+type OwnedConversation = Pick<AppConversation, "owner" | "source" | "project">;
 
 export const ConversationOwnership = {
   /** Hermes-launched sessions carry `source: "hermes"`. Everything else is "app". */
@@ -55,16 +58,42 @@ export const ConversationOwnership = {
     }
   },
 
+  projectOf(conversation: OwnedConversation): string | null {
+    return conversation.project?.trim() || null;
+  },
+
+  /** "all" matches everything; a `{slug}` scope matches only that project. */
+  matchesProjectScope(
+    conversation: OwnedConversation,
+    scope: ProjectScope,
+  ): boolean {
+    if (scope === "all") return true;
+    const project = ConversationOwnership.projectOf(conversation);
+    return project?.toLowerCase() === scope.slug.trim().toLowerCase();
+  },
+
   filter<T extends OwnedConversation>(
     conversations: readonly T[],
     options: {
       ownerScope: OwnerScope;
       sourceScope: SourceScope;
       currentUserEmail: string | null;
+      // Optional so existing callers compile unchanged; defaults to "all".
+      projectScope?: ProjectScope;
     },
   ): T[] {
-    const { ownerScope, sourceScope, currentUserEmail } = options;
+    const {
+      ownerScope,
+      sourceScope,
+      currentUserEmail,
+      projectScope = "all",
+    } = options;
     return conversations.filter((conversation) => {
+      if (
+        !ConversationOwnership.matchesProjectScope(conversation, projectScope)
+      ) {
+        return false;
+      }
       if (
         !ConversationOwnership.matchesSourceScope(conversation, sourceScope)
       ) {

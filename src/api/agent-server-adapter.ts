@@ -308,11 +308,13 @@ export function toAppConversation(
   const owner =
     tags[OWNER_TAG_KEY]?.trim() || tags[REQUESTER_TAG_KEY]?.trim() || null;
   const source = tags[SOURCE_TAG_KEY]?.trim() || null;
+  const project = tags[PROJECT_TAG_KEY]?.trim() || null;
   return {
     id: info.id,
     created_by_user_id: null,
     owner,
     source,
+    project,
     selected_repository: metadata?.selected_repository ?? null,
     selected_branch: metadata?.selected_branch ?? null,
     git_provider: metadata?.git_provider ?? null,
@@ -427,6 +429,10 @@ export const OWNER_TAG_KEY = "owner";
 export const REQUESTER_TAG_KEY = "requester";
 export const SOURCE_TAG_KEY = "source";
 export const SOURCE_TAG_GUI = "gui";
+// `project` groups sessions across repos under a named project, mapped 1:1 to
+// the Hermes board slug so both surfaces share one project namespace. Same
+// validator constraint (`^[a-z0-9]+$`) — values are normalized slugs.
+export const PROJECT_TAG_KEY = "project";
 
 const FERNET_TOKEN_PREFIX = "gAAAAA";
 

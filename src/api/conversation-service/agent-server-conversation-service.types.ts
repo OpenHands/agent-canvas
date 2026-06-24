@@ -194,6 +194,12 @@ export interface AppConversation {
    * conversations created before this tag existed.
    */
   source?: string | null;
+  /**
+   * Project slug, from the `project` tag — groups sessions across repos under a
+   * named project (mapped 1:1 to the Hermes board slug). Null when unscoped.
+   * Advisory organizer, not a permission boundary (see research/project-scoping).
+   */
+  project?: string | null;
   sub_conversation_ids: string[];
 }
 
