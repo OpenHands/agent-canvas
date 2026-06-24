@@ -58,7 +58,7 @@ export function TaskSuggestions({ filterFor }: TaskSuggestionsProps) {
           !hasSuggestedTasks && "mb-[14px]",
         )}
       >
-        <h3 className="text-xs leading-4 text-white font-medium py-[14px] pl-[14px]">
+        <h3 className="text-xs leading-4 text-foreground font-medium py-[14px] pl-[14px]">
           {t(I18nKey.TASKS$SUGGESTED_TASKS)}
         </h3>
       </div>
@@ -70,7 +70,7 @@ export function TaskSuggestions({ filterFor }: TaskSuggestionsProps) {
           </div>
         )}
         {!hasSuggestedTasks && !isLoading && (
-          <Typography.Text className="text-xs leading-4 text-white font-medium px-[14px]">
+          <Typography.Text className="text-xs leading-4 text-foreground font-medium px-[14px]">
             {t(I18nKey.TASKS$NO_TASKS_AVAILABLE)}
           </Typography.Text>
         )}

@@ -5,7 +5,7 @@ export function GuideMessage() {
   const { t } = useTranslation("openhands");
 
   return (
-    <div className="w-fit flex flex-col md:flex-row items-start md:items-center justify-center gap-1 rounded-[12px] bg-tertiary leading-5 text-white text-[15px] font-normal m-1 md:h-9.5 px-4 pb-1 md:px-[15px] md:py-0">
+    <div className="w-fit flex flex-col md:flex-row items-start md:items-center justify-center gap-1 rounded-[12px] bg-tertiary leading-5 text-foreground text-[15px] font-normal m-1 md:h-9.5 px-4 pb-1 md:px-[15px] md:py-0">
       <span className="">{t(I18nKey.HOME$GUIDE_MESSAGE_TITLE)} </span>
       <a
         href="https://docs.all-hands.dev/usage/getting-started"

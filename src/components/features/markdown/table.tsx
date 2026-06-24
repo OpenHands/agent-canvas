@@ -23,7 +23,7 @@ export function th({
   React.ThHTMLAttributes<HTMLTableCellElement> &
   ExtraProps) {
   return (
-    <th className="border border-[var(--oh-border)] bg-[var(--oh-surface)] px-3 py-2 text-left font-semibold text-white">
+    <th className="border border-[var(--oh-border)] bg-[var(--oh-surface)] px-3 py-2 text-left font-semibold text-foreground">
       {children}
     </th>
   );

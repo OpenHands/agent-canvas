@@ -132,7 +132,7 @@ export function SidebarRailBody({
             className={cn(
               "hidden md:inline-flex ml-auto",
               SIDEBAR_ICON_BUTTON_CLASS,
-              "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
+              "text-[var(--oh-muted)] hover:text-foreground hover:bg-[var(--oh-surface-raised)]",
             )}
           >
             <ChevronLeft width={14} height={14} />
@@ -147,7 +147,7 @@ export function SidebarRailBody({
             className={cn(
               "inline-flex ml-auto",
               SIDEBAR_ICON_BUTTON_CLASS,
-              "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
+              "text-[var(--oh-muted)] hover:text-foreground hover:bg-[var(--oh-surface-raised)]",
             )}
           >
             <ChevronLeft width={14} height={14} />
@@ -159,7 +159,7 @@ export function SidebarRailBody({
         <SidebarNavLink
           to="/conversations"
           end
-          label="New Chat"
+          label={t(I18nKey.SIDEBAR$NEW_CHAT)}
           testId="sidebar-conversations-link"
           disabled={linkDisabled}
           collapsed={collapsed}
@@ -167,7 +167,7 @@ export function SidebarRailBody({
         />
         <SidebarNavLink
           to="/customize"
-          label="Customize"
+          label={t(I18nKey.NAV$CUSTOMIZE)}
           testId="sidebar-skills-link"
           disabled={linkDisabled}
           collapsed={collapsed}

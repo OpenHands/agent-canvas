@@ -1,4 +1,5 @@
 import AgentServerRuntimeService from "#/api/runtime-service/agent-server-runtime-service";
+import { getManagedRepositoryRoot } from "#/api/agent-server-config";
 import { Branch, GitRepository } from "#/types/git";
 import { Provider } from "#/types/settings";
 
@@ -23,7 +24,6 @@ export interface CloneLocalRepositoryResult {
 }
 
 const GITHUB_REPOSITORY_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-const MANAGED_REPOSITORY_ROOT = "/projects";
 
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
@@ -63,16 +63,16 @@ function readGithubTokenShellSnippet(): string {
   ].join("\n");
 }
 
-async function runBackendCommand(
-  command: string,
-  cwd = MANAGED_REPOSITORY_ROOT,
-  timeout = 30,
-) {
+async function runBackendCommand(command: string, timeout = 30) {
+  // No `cwd`: the agent-server runs in its default working directory, which
+  // always exists. The managed repository root is created on demand by the
+  // clone command (`mkdir -p`) and referenced via absolute paths, so it does
+  // not need to exist yet when these commands start.
   const result = await AgentServerRuntimeService.executeCommand(
     null,
     null,
     command,
-    cwd,
+    undefined,
     timeout,
   );
 
@@ -171,11 +171,7 @@ class LocalGithubRepositoryService {
       "fi",
     ].join("\n");
 
-    const stdout = await runBackendCommand(
-      command,
-      MANAGED_REPOSITORY_ROOT,
-      30,
-    );
+    const stdout = await runBackendCommand(command, 30);
     const payload = JSON.parse(stdout) as unknown;
     const values = Array.isArray(payload)
       ? payload
@@ -196,11 +192,7 @@ class LocalGithubRepositoryService {
       `curl -fsS -H "Accept: application/vnd.github+json" -H "Authorization: Bearer $token" -H "X-GitHub-Api-Version: 2022-11-28" ${shellQuote(`https://api.github.com/repos/${normalized}/branches?per_page=100`)}`,
     ].join("\n");
 
-    const stdout = await runBackendCommand(
-      command,
-      MANAGED_REPOSITORY_ROOT,
-      30,
-    );
+    const stdout = await runBackendCommand(command, 30);
     const payload = JSON.parse(stdout) as unknown;
     const branches = Array.isArray(payload) ? payload : [];
 
@@ -216,7 +208,8 @@ class LocalGithubRepositoryService {
   ): Promise<CloneLocalRepositoryResult> {
     const parsed = parseLocalRepositoryInput(repository.full_name);
     const branchName = branch?.name || repository.main_branch || "";
-    const destination = `${MANAGED_REPOSITORY_ROOT}/${parsed.directoryName}`;
+    const managedRoot = getManagedRepositoryRoot();
+    const destination = `${managedRoot}/${parsed.directoryName}`;
     const quotedDestination = shellQuote(destination);
     const checkoutBranch = branchName.trim();
     const command = [
@@ -225,7 +218,7 @@ class LocalGithubRepositoryService {
       `url=${shellQuote(parsed.cloneUrl)}`,
       `dest=${quotedDestination}`,
       `branch=${shellQuote(checkoutBranch)}`,
-      `mkdir -p ${shellQuote(MANAGED_REPOSITORY_ROOT)}`,
+      `mkdir -p ${shellQuote(managedRoot)}`,
       'if [ ! -d "$dest/.git" ]; then',
       '  git clone "$url" "$dest"',
       "else",
@@ -251,9 +244,7 @@ class LocalGithubRepositoryService {
       "printf '%s' \"$dest\"",
     ].join("\n");
 
-    const path = (
-      await runBackendCommand(command, MANAGED_REPOSITORY_ROOT, 120)
-    )
+    const path = (await runBackendCommand(command, 120))
       .trim()
       .split("\n")
       .pop()

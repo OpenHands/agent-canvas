@@ -128,7 +128,9 @@ describe("CriticResultDisplay", () => {
       <CriticResultDisplay criticResult={makeCriticResult()} />,
     );
 
-    expect(screen.queryByLabelText("Expand details")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("BUTTON$EXPAND_DETAILS"),
+    ).not.toBeInTheDocument();
   });
 
   it("prompts users to enable iterative refinement when it is disabled", () => {
@@ -178,7 +180,7 @@ describe("CriticResultDisplay", () => {
 
     renderWithProviders(<CriticResultDisplay criticResult={result} />);
 
-    expect(screen.getByLabelText("Expand details")).toBeInTheDocument();
+    expect(screen.getByLabelText("BUTTON$EXPAND_DETAILS")).toBeInTheDocument();
   });
 
   it("expands features on click", async () => {
@@ -201,7 +203,7 @@ describe("CriticResultDisplay", () => {
 
     expect(screen.queryByText("Insufficient Testing")).not.toBeInTheDocument();
 
-    await user.click(screen.getByLabelText("Expand details"));
+    await user.click(screen.getByLabelText("BUTTON$EXPAND_DETAILS"));
 
     expect(screen.getByText("Insufficient Testing")).toBeInTheDocument();
     expect(screen.getByText("(75%)")).toBeInTheDocument();
@@ -226,10 +228,10 @@ describe("CriticResultDisplay", () => {
 
     renderWithProviders(<CriticResultDisplay criticResult={result} />);
 
-    await user.click(screen.getByLabelText("Expand details"));
+    await user.click(screen.getByLabelText("BUTTON$EXPAND_DETAILS"));
     expect(screen.getByText("Loop Behavior")).toBeInTheDocument();
 
-    await user.click(screen.getByLabelText("Collapse details"));
+    await user.click(screen.getByLabelText("BUTTON$COLLAPSE_DETAILS"));
     expect(screen.queryByText("Loop Behavior")).not.toBeInTheDocument();
   });
 
@@ -265,7 +267,7 @@ describe("CriticResultDisplay", () => {
 
     renderWithProviders(<CriticResultDisplay criticResult={result} />);
 
-    await user.click(screen.getByLabelText("Expand details"));
+    await user.click(screen.getByLabelText("BUTTON$EXPAND_DETAILS"));
 
     expect(screen.getByText("CRITIC$POTENTIAL_ISSUES")).toBeInTheDocument();
     expect(screen.getByText("Incomplete Changes")).toBeInTheDocument();

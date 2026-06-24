@@ -40,7 +40,7 @@ export function SuggestionItem({ suggestion, onClick }: SuggestionItemProps) {
       {itemIcon}
       <span
         data-testid="suggestion"
-        className="text-[15px] font-normal leading-5 text-white text-center cursor-pointer"
+        className="text-[15px] font-normal leading-5 text-foreground text-center cursor-pointer"
       >
         {t(suggestion.label)}
       </span>

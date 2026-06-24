@@ -2,7 +2,7 @@ import { ACP_SETTINGS_KEYS } from "@openhands/typescript-client";
 import { SKILLS_CATALOG } from "@openhands/extensions/skills";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
-import { Settings, SettingsValue } from "#/types/settings";
+import { ProviderOptions, Settings, SettingsValue } from "#/types/settings";
 import {
   getAcpPreferredDefaultModel,
   getAcpProvider,
@@ -68,11 +68,10 @@ export interface DirectConversationInfo {
   } | null;
   /**
    * Arbitrary string-keyed conversation tags surfaced by the agent-server
-   * (see ``ConversationInfo.tags``). Canvas only consumes one key today —
-   * ``ACP_SERVER_TAG_KEY`` ("acpserver") — but the field is typed as a
-   * generic record so future readers don't need another wire-shape change.
-   * Keys are constrained to ``^[a-z0-9]+$`` by the agent-server validator;
-   * values are opaque strings.
+   * (see ``ConversationInfo.tags``). Canvas consumes a small set of stable
+   * identity keys (repo, workspace, branch, acpserver) and preserves the full
+   * record for future sidebar/review badges. Keys are constrained to
+   * ``^[a-z0-9]+$`` by the agent-server validator; values are opaque strings.
    */
   tags?: Record<string, string> | null;
 }
@@ -288,10 +287,27 @@ export function getDefaultConversationTitle(conversationId: string): string {
   return `Conversation ${conversationId.slice(0, 5)}`;
 }
 
+function getConversationTag(
+  tags: DirectConversationInfo["tags"],
+  key: string,
+): string | null {
+  const value = tags?.[key]?.trim();
+  return value ? value : null;
+}
+
 export function toAppConversation(
   info: DirectConversationInfo,
 ): AppConversation {
   const metadata = getStoredConversationMetadata(info.id);
+  const tagRepository = getConversationTag(
+    info.tags,
+    CONVERSATION_REPOSITORY_TAG_KEY,
+  );
+  const tagWorkspace = getConversationTag(
+    info.tags,
+    CONVERSATION_WORKSPACE_TAG_KEY,
+  );
+  const tagBranch = getConversationTag(info.tags, CONVERSATION_BRANCH_TAG_KEY);
   // ACPAgent conversations carry a sentinel ``llm`` on older SDKs. Prefer the
   // runtime model fields when available, then the configured ``acp_model`` that
   // Canvas saves for built-in providers. ``agent_kind`` still gates model
@@ -313,11 +329,13 @@ export function toAppConversation(
     created_by_user_id: null,
     owner,
     source,
-    selected_repository: metadata?.selected_repository ?? null,
-    selected_branch: metadata?.selected_branch ?? null,
-    git_provider: metadata?.git_provider ?? null,
-    selected_workspace: metadata?.selected_workspace ?? null,
+    selected_repository: metadata?.selected_repository ?? tagRepository,
+    selected_branch: metadata?.selected_branch ?? tagBranch,
+    git_provider:
+      metadata?.git_provider ?? (tagRepository ? ProviderOptions.github : null),
+    selected_workspace: metadata?.selected_workspace ?? tagWorkspace,
     active_profile: metadata?.active_profile ?? null,
+    tags: info.tags ? { ...info.tags } : null,
     title: info.title?.trim()
       ? info.title
       : getDefaultConversationTitle(info.id),
@@ -416,6 +434,9 @@ type ConversationSettingsPayload = SettingsRecord & {
 };
 
 export const ACP_SERVER_TAG_KEY = "acpserver";
+export const CONVERSATION_REPOSITORY_TAG_KEY = "repo";
+export const CONVERSATION_WORKSPACE_TAG_KEY = "workspace";
+export const CONVERSATION_BRANCH_TAG_KEY = "branch";
 
 // Conversation-ownership tags. Keys must match the agent-server validator
 // (`^[a-z0-9]+$`). `owner` is the advisory owner identity (an email) the

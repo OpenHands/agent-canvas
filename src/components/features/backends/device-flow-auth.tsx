@@ -276,7 +276,7 @@ function DeviceFlowStatusContent({
       >
         <div className="flex items-center gap-2">
           <LoadingSpinner />
-          <span className="text-sm font-medium text-white">
+          <span className="text-sm font-medium text-foreground">
             {t(I18nKey.BACKEND$AUTH_AWAITING)}
           </span>
         </div>
@@ -332,7 +332,7 @@ function DeviceFlowStatusContent({
 function LoadingSpinner() {
   return (
     <svg
-      className="animate-spin h-4 w-4 text-white"
+      className="animate-spin h-4 w-4 text-foreground"
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 24 24"

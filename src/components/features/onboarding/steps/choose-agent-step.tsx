@@ -47,7 +47,7 @@ export function AgentOptionIcon({ id, muted }: { id: string; muted: boolean }) {
       <AgentBrandIcon
         kind="openhands"
         size={16}
-        className={cn("text-white", muted && "opacity-55")}
+        className={cn("text-foreground", muted && "opacity-55")}
         data-testid="onboarding-agent-icon-openhands"
       />
     );
@@ -57,7 +57,7 @@ export function AgentOptionIcon({ id, muted }: { id: string; muted: boolean }) {
     <AgentBrandIcon
       kind={icon}
       size={18}
-      className={muted ? "text-[var(--oh-muted)]" : "text-white"}
+      className={muted ? "text-[var(--oh-muted)]" : "text-foreground"}
       data-testid={`onboarding-agent-icon-${icon}`}
     />
   );
@@ -137,7 +137,7 @@ export function ChooseAgentStep({
       className="flex flex-col gap-6"
     >
       <header className="flex flex-col gap-2">
-        <h2 className="text-2xl font-medium text-white">
+        <h2 className="text-2xl font-medium text-foreground">
           {t(I18nKey.ONBOARDING$AGENT_TITLE)}
         </h2>
         <p className="text-sm text-[var(--oh-muted)]">
@@ -171,7 +171,7 @@ export function ChooseAgentStep({
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <div className="flex min-w-0 items-center gap-2">
                   <AgentOptionIcon id={option.id} muted={false} />
-                  <span className="truncate text-base font-normal text-white">
+                  <span className="truncate text-base font-normal text-foreground">
                     {option.label}
                   </span>
                 </div>
@@ -184,7 +184,7 @@ export function ChooseAgentStep({
                   <Check
                     width={18}
                     height={18}
-                    className="mt-1 shrink-0 text-white"
+                    className="mt-1 shrink-0 text-foreground"
                     aria-hidden
                   />
                 ) : null}

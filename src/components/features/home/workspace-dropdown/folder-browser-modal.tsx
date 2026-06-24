@@ -66,7 +66,7 @@ function SidebarSection({
                 className={cn(
                   "flex items-center gap-2 w-full px-2 py-1 rounded text-sm cursor-pointer",
                   isActive
-                    ? "bg-tertiary text-white"
+                    ? "bg-tertiary text-foreground"
                     : "text-[var(--oh-text-tertiary)] hover:bg-[var(--oh-surface-raised)]",
                 )}
               >
@@ -276,8 +276,8 @@ export function FolderBrowserModal({
                 data-testid="folder-browser-up"
                 onClick={() => parent && setCurrentPath(parent)}
                 disabled={!parent}
-                aria-label="Up"
-                className="p-1 rounded hover:bg-[var(--oh-interactive-hover)] text-white disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                aria-label={t(I18nKey.COMMON$UP)}
+                className="p-1 rounded hover:bg-[var(--oh-interactive-hover)] text-foreground disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 <ChevronLeft width={16} height={16} />
               </button>
@@ -310,7 +310,8 @@ export function FolderBrowserModal({
                   className="px-4 py-2 text-sm text-red-400"
                   data-testid="folder-browser-error"
                 >
-                  {(error as Error | undefined)?.message ?? "Failed to load"}
+                  {(error as Error | undefined)?.message ??
+                    t(I18nKey.COMMON$FAILED_TO_LOAD)}
                 </li>
               )}
               {!isLoading && !isError && subdirs.length === 0 && (
@@ -332,7 +333,7 @@ export function FolderBrowserModal({
                   <button
                     type="button"
                     onClick={() => setCurrentPath(entry.path)}
-                    className="grid grid-cols-[1fr_120px] items-center w-full text-left px-4 py-1.5 text-sm text-white hover:bg-[var(--oh-interactive-hover)] cursor-pointer"
+                    className="grid grid-cols-[1fr_120px] items-center w-full text-left px-4 py-1.5 text-sm text-foreground hover:bg-[var(--oh-interactive-hover)] cursor-pointer"
                     data-testid={`folder-browser-entry-${entry.name}`}
                   >
                     <span className="flex items-center gap-2 min-w-0">

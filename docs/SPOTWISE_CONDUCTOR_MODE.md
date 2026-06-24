@@ -102,9 +102,22 @@ Hermes remains the better intake brain for Slack/WhatsApp/voice/Linear routing; 
 
 ## Deployment direction
 
-The Azure pilot should eventually run `ghcr.io/spotwiseai/agent-canvas:<tag>` instead of upstream `ghcr.io/openhands/agent-canvas:<tag>`. The remote-coding-agent setup repo should own:
+The Azure pilot should run images from Azure Container Registry (ACR). This repo owns the image build/push workflow in `.github/workflows/azure-container.yml`; the remote-coding-agent setup repo should own:
 
 - image tag pinning
 - GitHub App token refresh/mounts
 - Agent Canvas service restart
 - smoke test: repo list → clone → start worktree conversation
+
+GitHub configuration for the ACR workflow is set on `SpotwiseAI/agent-canvas`:
+
+- repository variables:
+  - `AZURE_CONTAINER_REGISTRY_NAME=spotwiseapp`
+  - `AZURE_CONTAINER_REGISTRY_LOGIN_SERVER=spotwiseapp.azurecr.io`
+  - `AZURE_IMAGE_NAME=agent-canvas`
+- repository secrets for Azure OIDC login:
+  - `AZURE_CLIENT_ID` — Azure app `spotwise-agent-canvas`
+  - `AZURE_TENANT_ID`
+  - `AZURE_SUBSCRIPTION_ID`
+
+The Azure app/service principal has `AcrPush` on `spotwiseapp` and a federated credential for the GitHub environment subject `repo:SpotwiseAI/agent-canvas:environment:azure-production`. The workflow pushes per-architecture tags plus multi-arch manifests for `sha-<short>`, `main`, release versions, and `latest` on stable `v*` tags.

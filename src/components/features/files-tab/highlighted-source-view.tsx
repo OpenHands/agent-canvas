@@ -34,7 +34,7 @@ export function HighlightedSourceView({
     return (
       <pre
         data-testid="file-content-viewer-plain"
-        className="h-full w-full overflow-auto whitespace-pre-wrap break-words bg-[var(--oh-surface)] p-4 text-xs leading-5 text-white custom-scrollbar-always"
+        className="h-full w-full overflow-auto whitespace-pre-wrap break-words bg-[var(--oh-surface)] p-4 text-xs leading-5 text-foreground custom-scrollbar-always"
       >
         {text}
       </pre>

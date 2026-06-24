@@ -8,6 +8,12 @@ import { getAgentServerClientOptions } from "../agent-server-client-options";
 interface AgentServerGitChange {
   status: string;
   path: string;
+  additions?: number | null;
+  deletions?: number | null;
+}
+
+function readLineCount(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 /**
@@ -65,6 +71,8 @@ class AgentServerGitService {
           >[0],
         ),
         path: change.path,
+        additions: readLineCount(change.additions),
+        deletions: readLineCount(change.deletions),
       }));
     }
 
@@ -85,6 +93,8 @@ class AgentServerGitService {
         >[0],
       ),
       path: change.path,
+      additions: readLineCount((change as { additions?: unknown }).additions),
+      deletions: readLineCount((change as { deletions?: unknown }).deletions),
     }));
   }
 
