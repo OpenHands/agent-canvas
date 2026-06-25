@@ -29,7 +29,7 @@ describe("<GoalStatusBanner />", () => {
   it("renders the live banner while the loop is active", () => {
     useGoalStore.getState().setStatus(CONV, makeStatus());
     render(<GoalStatusBanner conversationId={CONV} />);
-    expect(screen.getByTestId("goal-status-banner")).toBeInTheDocument();
+    expect(screen.getByTestId("goal-status")).toBeInTheDocument();
     expect(screen.getByTestId("goal-spinner")).toBeInTheDocument();
   });
 

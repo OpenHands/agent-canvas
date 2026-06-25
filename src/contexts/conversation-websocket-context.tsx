@@ -550,6 +550,9 @@ export function ConversationWebSocketProvider({
             if (isStatsConversationStateUpdateEvent(event)) {
               updateMetricsFromStats(event);
             }
+            // Mirror goal status into the store. Intentionally duplicated across
+            // the main and planning WebSocket handlers (like the execution_status
+            // and stats branches above), not a merge artifact.
             if (isGoalConversationStateUpdateEvent(event) && conversationId) {
               useGoalStore.getState().setStatus(conversationId, event.value);
             }
@@ -746,6 +749,9 @@ export function ConversationWebSocketProvider({
             if (isStatsConversationStateUpdateEvent(event)) {
               updateMetricsFromStats(event);
             }
+            // Mirror goal status into the store. Intentionally duplicated across
+            // the main and planning WebSocket handlers (like the execution_status
+            // and stats branches above), not a merge artifact.
             if (isGoalConversationStateUpdateEvent(event) && conversationId) {
               useGoalStore.getState().setStatus(conversationId, event.value);
             }

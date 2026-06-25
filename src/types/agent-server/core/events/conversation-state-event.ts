@@ -84,6 +84,11 @@ export interface GoalStatus {
   status: "running" | "complete" | "capped" | "interrupted";
   /** Audit rounds completed so far (0 at kickoff). */
   iteration: number;
+  /**
+   * Maximum audit rounds before the loop gives up. snake_case mirrors the
+   * agent-server `GoalStatus` payload (this event value is its `model_dump`);
+   * renaming it to camelCase would stop matching the streamed event JSON.
+   */
   max_iterations: number;
   objective: string;
   /** Last judge verdict; null at kickoff and on an interrupted loop. */

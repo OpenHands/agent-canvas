@@ -39,7 +39,7 @@ export function GoalStatusContent({ status }: { status: GoalStatus }) {
     : "";
 
   return (
-    <div data-testid="goal-status-banner" className="flex flex-col w-full">
+    <div data-testid="goal-status" className="flex flex-col w-full">
       <GenericEventMessage
         title={
           <span className="flex items-center gap-2 flex-wrap">
