@@ -715,10 +715,8 @@ class AgentServerConversationService {
     await conversationClient.switchLLM(conversationId, {
       ...profile.config,
       model,
-      // Keep token streaming on after a mid-conversation switch, matching the
-      // conversation-start payload (buildConfiguredOpenHandsAgentSettings).
-      // The agent-server only streams when an LLM has stream=True, so without
-      // this the new LLM defaults to stream=False and streaming silently stops.
+      // Keep streaming on after a switch (parity with conversation start);
+      // the profile config would otherwise default it to stream=False.
       stream: true,
       // Avoid stale first-write-wins entries in the backend LLM registry.
       usage_id: `profile:${profileName}:${uuidv4()}`,

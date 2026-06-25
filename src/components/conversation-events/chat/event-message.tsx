@@ -179,11 +179,10 @@ export function EventMessage({
   }
 
   if (isStreamingDeltaEvent(event)) {
-    // Some models stream chain-of-thought as an inline <think> block inside
-    // `content`; split it out so it renders in the collapsible thinking
-    // section instead of leaking into the message bubble.
+    // Route an inline <think> block to the thinking section, not the bubble.
     const { reasoning: inlineThink, message } = splitInlineThink(
       event.content ?? "",
+      { streaming: true },
     );
     const reasoningContent = [event.reasoning_content ?? "", inlineThink]
       .filter(Boolean)

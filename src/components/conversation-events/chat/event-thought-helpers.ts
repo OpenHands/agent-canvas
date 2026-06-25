@@ -44,57 +44,41 @@ export const hasNonEmptyThought = (action: ActionEvent): boolean =>
   getActionThoughtText(action).trim().length > 0;
 
 /**
- * Splits an inline `<think>…</think>` reasoning block out of assistant
- * message content.
+ * Splits a leading `<think>…</think>` reasoning block out of assistant content
+ * so it renders in the collapsible thinking section, not the message bubble.
+ * Some models stream reasoning inline instead of via `reasoning_content`.
  *
- * Some models stream their chain-of-thought as an inline `<think>` block
- * inside the regular `content` instead of the dedicated `reasoning_content`
- * field. litellm extracts that block when a completion is NOT streamed, but
- * raw streamed deltas keep it inline — so a streamed OpenHands message would
- * otherwise render the reasoning as visible message text. This routes the
- * reasoning to the same collapsible "thinking" section used for
- * `reasoning_content`.
- *
- * Returns the extracted `reasoning` (joined across blocks) and the remaining
- * `message`. When there is no `<think>` block the content is returned
- * unchanged as `message`, so this is a safe no-op for normal messages. An
- * unclosed `<think>` (mid-stream) is treated as reasoning in full, so partial
- * thinking never leaks into the message bubble.
+ * Conservative to avoid mangling normal messages: only a `<think>` at the very
+ * start is touched (later occurrences, e.g. quoted in docs, stay verbatim),
+ * only the first block is peeled, and an unclosed leading `<think>` is reasoning
+ * only while `streaming` — in a finalized message it's literal output.
  */
 export const splitInlineThink = (
   content: string,
+  options?: { streaming?: boolean },
 ): { reasoning: string; message: string } => {
   const OPEN = "<think>";
   const CLOSE = "</think>";
-  if (!content.includes(OPEN)) {
+
+  // Only a <think> at the very start is reasoning.
+  const leading = content.replace(/^\s+/, "");
+  if (!leading.startsWith(OPEN)) {
     return { reasoning: "", message: content };
   }
 
-  const reasoning: string[] = [];
-  let message = "";
-  let rest = content;
+  const afterOpen = leading.slice(OPEN.length);
+  const close = afterOpen.indexOf(CLOSE);
 
-  while (rest.length > 0) {
-    const open = rest.indexOf(OPEN);
-    if (open === -1) {
-      message += rest;
-      break;
-    }
-    message += rest.slice(0, open);
-    const afterOpen = rest.slice(open + OPEN.length);
-    const close = afterOpen.indexOf(CLOSE);
-    if (close === -1) {
-      // Unclosed block: still streaming — everything left is reasoning.
-      reasoning.push(afterOpen);
-      break;
-    }
-    reasoning.push(afterOpen.slice(0, close));
-    rest = afterOpen.slice(close + CLOSE.length);
+  if (close === -1) {
+    // Unclosed: reasoning-in-progress while streaming, else literal output.
+    return options?.streaming
+      ? { reasoning: afterOpen.trim(), message: "" }
+      : { reasoning: "", message: content };
   }
 
   return {
-    reasoning: reasoning.join("\n\n").trim(),
-    message: message.trim(),
+    reasoning: afterOpen.slice(0, close).trim(),
+    message: afterOpen.slice(close + CLOSE.length).trim(),
   };
 };
 

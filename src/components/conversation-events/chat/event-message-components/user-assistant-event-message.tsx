@@ -20,9 +20,8 @@ export function UserAssistantEventMessage({
   isFromPlanningAgent,
 }: UserAssistantEventMessageProps) {
   const parsed = parseMessageFromEvent(event);
-  // Agent messages may carry inline <think> reasoning (e.g. when the response
-  // was streamed); route it to the collapsible thinking section instead of the
-  // bubble so reloaded conversations match the live streamed rendering.
+  // Route an inline <think> block (e.g. from a streamed reply) to the thinking
+  // section so reloaded conversations match the live rendering.
   const { reasoning, message } =
     event.source === "agent"
       ? splitInlineThink(parsed)
