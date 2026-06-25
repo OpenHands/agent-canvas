@@ -28,6 +28,14 @@ import {
   OPENAI_SUBSCRIPTION_VENDOR,
   isSubscriptionLlmConfig,
 } from "#/constants/llm-subscription";
+import {
+  buildPlanPath,
+  LOCAL_PLANNER_INITIAL_MESSAGE,
+  LOCAL_PLANNER_PARENT_TAG_KEY,
+  PLAN_STRUCTURE_TEXT,
+  PLANNING_FILE_EDITOR_TOOL_NAME,
+  PLANNING_SYSTEM_PROMPT_FILENAME,
+} from "#/utils/plan-file";
 
 export interface DirectConversationInfo {
   id: string;
@@ -373,7 +381,9 @@ export function toConversationPage(data: {
   next_page_id?: string | null;
 }): AppConversationPage {
   return {
-    items: data.items.map(toAppConversation),
+    items: data.items
+      .filter((item) => !item.tags?.[LOCAL_PLANNER_PARENT_TAG_KEY])
+      .map(toAppConversation),
     next_page_id: data.next_page_id ?? null,
   };
 }
@@ -435,6 +445,41 @@ function normalizeSecretString(value: unknown): string | undefined {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function buildNormalizedLlmSettings(value: unknown): SettingsRecord {
+  const llm = toRecord(value);
+
+  llm.model =
+    typeof llm.model === "string" && llm.model.trim().length > 0
+      ? llm.model
+      : DEFAULT_SETTINGS.llm_model;
+
+  const apiKey = normalizeSecretString(llm.api_key);
+  if (apiKey) {
+    llm.api_key = apiKey;
+  } else {
+    delete llm.api_key;
+  }
+
+  const baseUrl = normalizeSecretString(llm.base_url);
+  if (baseUrl) {
+    llm.base_url = baseUrl;
+  } else {
+    delete llm.base_url;
+  }
+
+  if (isSubscriptionLlmConfig(llm)) {
+    llm.auth_type = LLM_AUTH_TYPE_SUBSCRIPTION;
+    llm.subscription_vendor = OPENAI_SUBSCRIPTION_VENDOR;
+    delete llm.api_key;
+    delete llm.base_url;
+  } else {
+    delete llm.auth_type;
+    delete llm.subscription_vendor;
+  }
+
+  return llm;
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -743,36 +788,7 @@ function buildConfiguredOpenHandsAgentSettings(
   settings: Settings,
 ): AgentSettingsPayload {
   const agentSettings = toRecord(settings.agent_settings);
-  const llm = toRecord(agentSettings.llm);
-
-  llm.model =
-    typeof llm.model === "string" && llm.model.trim().length > 0
-      ? llm.model
-      : DEFAULT_SETTINGS.llm_model;
-
-  const apiKey = normalizeSecretString(llm.api_key);
-  if (apiKey) {
-    llm.api_key = apiKey;
-  } else {
-    delete llm.api_key;
-  }
-
-  const baseUrl = normalizeSecretString(llm.base_url);
-  if (baseUrl) {
-    llm.base_url = baseUrl;
-  } else {
-    delete llm.base_url;
-  }
-
-  if (isSubscriptionLlmConfig(llm)) {
-    llm.auth_type = LLM_AUTH_TYPE_SUBSCRIPTION;
-    llm.subscription_vendor = OPENAI_SUBSCRIPTION_VENDOR;
-    delete llm.api_key;
-    delete llm.base_url;
-  } else {
-    delete llm.auth_type;
-    delete llm.subscription_vendor;
-  }
+  const llm = buildNormalizedLlmSettings(agentSettings.llm);
 
   const mcpConfig = toRecord(agentSettings.mcp_config);
   if (Object.keys(mcpConfig).length === 0 || !("mcpServers" in mcpConfig)) {
@@ -848,21 +864,30 @@ interface LookupSecret {
   description?: string;
 }
 
-type StartConversationPayload = Record<string, unknown> & {
-  agent_settings: AgentSettingsPayload;
+type StartConversationPayloadBase = Record<string, unknown> & {
   workspace: LocalWorkspacePayload;
   confirmation_policy: SettingsRecord;
   security_analyzer?: SettingsRecord;
   initial_message?: InitialMessagePayload;
   max_iterations: number;
   stuck_detection: true;
-  autotitle: true;
+  autotitle: boolean;
   worktree: boolean;
   secrets_encrypted?: true;
   conversation_id?: string;
   secrets?: Record<string, LookupSecret>;
   tags?: Record<string, string>;
   tool_module_qualnames?: Record<string, string>;
+};
+
+type AgentSettingsStartConversationPayload = StartConversationPayloadBase & {
+  agent_settings: AgentSettingsPayload;
+  agent?: never;
+};
+
+type RawAgentStartConversationPayload = StartConversationPayloadBase & {
+  agent: SettingsRecord;
+  agent_settings?: never;
 };
 
 export interface StartConversationOptions {
@@ -881,7 +906,7 @@ export interface StartConversationOptions {
 
 export function buildStartConversationRequest(
   options: StartConversationOptions,
-): StartConversationPayload {
+): AgentSettingsStartConversationPayload {
   const sourceAgentSettings = options.encryptedAgentSettings
     ? { ...options.settings, agent_settings: options.encryptedAgentSettings }
     : options.settings;
@@ -906,7 +931,7 @@ export function buildStartConversationRequest(
     sourceConversationOptions,
   );
 
-  const payload: StartConversationPayload = {
+  const payload: AgentSettingsStartConversationPayload = {
     agent_settings: agentSettings,
     workspace: conversationSettings.workspace,
     confirmation_policy:
@@ -1009,6 +1034,107 @@ export function buildStartConversationRequest(
   }
 
   return payload;
+}
+
+export function buildStartPlanningConversationRequest(options: {
+  encryptedAgentSettings: Record<string, SettingsValue>;
+  workingDir: string;
+  parentConversationId: string;
+  initialMessage?: string;
+  secretsEncrypted?: boolean;
+  customSecrets?: Array<{ name: string; description?: string }>;
+}): RawAgentStartConversationPayload {
+  const agentSettings = toRecord(options.encryptedAgentSettings);
+  const llm = buildNormalizedLlmSettings(agentSettings.llm);
+
+  const planPath = buildPlanPath(options.workingDir);
+  const payload: RawAgentStartConversationPayload = {
+    agent: {
+      kind: "Agent",
+      llm,
+      tools: [
+        { name: "glob", params: {} },
+        { name: "grep", params: {} },
+        {
+          name: PLANNING_FILE_EDITOR_TOOL_NAME,
+          params: { plan_path: planPath },
+        },
+      ],
+      system_prompt_filename: PLANNING_SYSTEM_PROMPT_FILENAME,
+      system_prompt_kwargs: { plan_structure: PLAN_STRUCTURE_TEXT },
+      agent_context: buildAgentContext(agentSettings),
+    },
+    workspace: {
+      kind: "LocalWorkspace",
+      working_dir: options.workingDir,
+    },
+    confirmation_policy: { kind: "NeverConfirm" },
+    max_iterations: 500,
+    stuck_detection: true,
+    autotitle: false,
+    worktree: false,
+    tags: { [LOCAL_PLANNER_PARENT_TAG_KEY]: options.parentConversationId },
+    initial_message: {
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: options.initialMessage ?? LOCAL_PLANNER_INITIAL_MESSAGE,
+        },
+      ],
+      run: true,
+    },
+  };
+
+  if (options.secretsEncrypted) {
+    payload.secrets_encrypted = true;
+  }
+
+  if (options.customSecrets && options.customSecrets.length > 0) {
+    const backend = getEffectiveLocalBackend();
+    const headers = backend ? buildAuthHeaders(backend) : {};
+
+    const secrets: Record<string, LookupSecret> = {};
+    for (const secret of options.customSecrets) {
+      const lookupSecret: LookupSecret = {
+        kind: "LookupSecret",
+        url: `/api/settings/secrets/${encodeURIComponent(secret.name)}`,
+        description: secret.description,
+      };
+
+      if (Object.keys(headers).length > 0) {
+        lookupSecret.headers = headers;
+      }
+
+      secrets[secret.name] = lookupSecret;
+    }
+
+    payload.secrets = secrets;
+  }
+
+  return payload;
+}
+
+export async function buildStartPlanningConversationRequestWithEncryptedSettings(options: {
+  workingDir: string;
+  parentConversationId: string;
+  initialMessage?: string;
+}): Promise<RawAgentStartConversationPayload> {
+  const { SecretsService } = await import("./secrets-service");
+
+  const [settingsResult, customSecrets] = await Promise.all([
+    SettingsService.getSettingsForConversation(),
+    SecretsService.getSecrets(),
+  ]);
+
+  await assertSubscriptionAuthReady(settingsResult.agentSettings);
+
+  return buildStartPlanningConversationRequest({
+    ...options,
+    encryptedAgentSettings: settingsResult.agentSettings,
+    secretsEncrypted: settingsResult.secretsEncrypted,
+    customSecrets,
+  });
 }
 
 export const SUBSCRIPTION_LOGIN_REQUIRED_ERROR =

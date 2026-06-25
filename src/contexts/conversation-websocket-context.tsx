@@ -70,6 +70,7 @@ import {
   getStoredConversationMetadata,
   setStoredConversationMetadata,
 } from "#/api/conversation-metadata-store";
+import { isPlanFilePath } from "#/utils/plan-file";
 
 export type WebSocketConnectionState =
   | "CONNECTING"
@@ -165,7 +166,10 @@ export function ConversationWebSocketProvider({
 
   const { setPlanContent } = useConversationStore();
 
-  // Hook for reading conversation file
+  useEffect(() => {
+    setPlanContent(null);
+  }, [conversationId, setPlanContent]);
+
   const { mutate: readConversationFile } = useReadConversationFile();
 
   // Track planning-agent received events (still WS-driven).
@@ -176,9 +180,6 @@ export function ConversationWebSocketProvider({
     path: string;
     conversationId: string;
   } | null>(null);
-
-  const isPlanFilePath = (path: string | null): boolean =>
-    path?.toUpperCase().endsWith("PLAN.MD") ?? false;
 
   const handleNonErrorEvent = useCallback(() => {
     // A normal event means connectivity recovered: clear a transient connection
