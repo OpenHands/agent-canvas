@@ -9,6 +9,7 @@ import { BtwMessages } from "./btw-messages";
 import { GoalStatusBanner } from "./goal-status-banner";
 import { ModelMessages } from "./model-messages";
 import { useModelStore } from "#/stores/model-store";
+import { useGoalStore } from "#/stores/goal-store";
 import { InteractiveChatBox } from "./interactive-chat-box";
 import { AgentState } from "#/types/agent-state";
 import { useFilteredEvents } from "#/hooks/use-filtered-events";
@@ -150,6 +151,18 @@ export function ChatInterface() {
 
   const { selectedRepository, replayJson } = useInitialQueryStore();
   const { conversationId } = useOptionalConversationId();
+
+  // The live goal banner renders in the scroll stream but advances via store
+  // updates (in-progress goal events are filtered out of `renderableEvents`),
+  // so the bottom-following effect would not react to it. This key changes as
+  // an active loop appears and advances each round; feeding it into that effect
+  // keeps the banner in view when the user is pinned to the bottom.
+  const activeGoalScrollKey = useGoalStore((s) => {
+    const goal = conversationId
+      ? s.statusByConversation[conversationId]
+      : undefined;
+    return goal?.active ? `${goal.iteration}:${goal.status}` : null;
+  });
   const { mutateAsync: uploadFiles } = useUnifiedUploadFiles();
 
   // Lazy "scroll up to load older events" backfill. Initial REST fetch only
@@ -391,7 +404,12 @@ export function ChatInterface() {
     }
     // Note: We intentionally exclude autoScroll from deps because we only want
     // to scroll when message content changes, not when autoScroll state changes.
-  }, [renderableEvents.length, hasPendingUserMessages, scrollDomToBottom]);
+  }, [
+    renderableEvents.length,
+    hasPendingUserMessages,
+    activeGoalScrollKey,
+    scrollDomToBottom,
+  ]);
 
   // Auto-load older events when the chat content doesn't overflow the
   // scroll area (no scrollbar to drag, no wheel events past 0). We
