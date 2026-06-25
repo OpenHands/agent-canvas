@@ -23,7 +23,6 @@ const LIB_EXTERNALS = [
   "react/jsx-dev-runtime",
   "react-router",
 ];
-const APP_CHUNK_MAX_BYTES = 450 * 1024;
 
 // Absolute path to the bundled extensions skills directory in node_modules.
 // Injected as __EXTENSIONS_SKILLS_DIR__ so agent-server-adapter.ts can pass
@@ -36,23 +35,11 @@ const EXTENSIONS_SKILLS_DIR = resolve(
 );
 const PUBLIC_LOCALES_DIR = resolve(process.cwd(), "public", "locales");
 
-const appBuildConfig = {
-  rolldownOptions: {
-    output: {
-      codeSplitting: {
-        groups: [
-          {
-            name: "vendor",
-            test: /node_modules[\\/]/,
-            maxSize: APP_CHUNK_MAX_BYTES,
-            minSize: 20 * 1024,
-            entriesAware: true,
-          },
-        ],
-      },
-    },
-  },
-};
+// Keep app builds on Vite/Rolldown's default chunking. The custom vendor
+// splitting groups caused circular chunks where route modules imported each
+// other before React was initialized, which React Router handles by reloading
+// the page forever in production.
+const appBuildConfig = {};
 
 export default defineConfig(({ mode }) => {
   const {
