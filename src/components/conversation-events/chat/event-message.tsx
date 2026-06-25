@@ -17,12 +17,15 @@ import {
   isHookExecutionEvent,
   isACPToolCallEvent,
   isStreamingDeltaEvent,
+  isConversationStateUpdateEvent,
+  isGoalConversationStateUpdateEvent,
 } from "#/types/agent-server/type-guards";
 import { useConfig } from "#/hooks/query/use-config";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
 import { ChatMessage } from "#/components/features/chat/chat-message";
+import { GoalStatusContent } from "#/components/features/chat/goal-status-content";
 import { PlanPreview } from "../../features/chat/plan-preview";
 import { ErrorEventMessage } from "./event-message-components/error-event-message";
 import { UserAssistantEventMessage } from "./event-message-components/user-assistant-event-message";
@@ -158,6 +161,16 @@ export function EventMessage({
     config,
     isFromPlanningAgent,
   };
+
+  // Finished `/goal` loop: render the terminal status inline so it settles into
+  // the conversation. should-render-event.ts only lets the terminal goal event
+  // through; the active loop is shown by the separate bottom GoalStatusBanner.
+  if (
+    isConversationStateUpdateEvent(event) &&
+    isGoalConversationStateUpdateEvent(event)
+  ) {
+    return <GoalStatusContent status={event.value} />;
+  }
 
   // Agent error events
   if (isAgentErrorEvent(event)) {

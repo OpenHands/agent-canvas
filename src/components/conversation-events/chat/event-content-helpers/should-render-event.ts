@@ -5,15 +5,19 @@ import {
   isMessageEvent,
   isAgentErrorEvent,
   isConversationStateUpdateEvent,
+  isGoalConversationStateUpdateEvent,
   isHookExecutionEvent,
   isACPToolCallEvent,
   isStreamingDeltaEvent,
 } from "#/types/agent-server/type-guards";
 
 export const shouldRenderEvent = (event: OpenHandsEvent) => {
-  // Explicitly exclude system events that should not be rendered in chat
   if (isConversationStateUpdateEvent(event)) {
-    return false;
+    // A finished `/goal` loop renders inline so it settles into the
+    // conversation; the live (active) banner is shown separately by
+    // GoalStatusBanner, and all other state updates (and the in-progress goal
+    // events) stay hidden.
+    return isGoalConversationStateUpdateEvent(event) && !event.value.active;
   }
 
   // Render action events (with filtering)

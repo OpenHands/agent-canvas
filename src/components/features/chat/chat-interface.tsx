@@ -6,6 +6,7 @@ import { isAcpAuthErrorCode } from "#/utils/acp-error-codes";
 import { convertImageToBase64 } from "#/utils/convert-image-to-base-64";
 import { createChatMessage } from "#/services/chat-service";
 import { BtwMessages } from "./btw-messages";
+import { GoalStatusBanner } from "./goal-status-banner";
 import { ModelMessages } from "./model-messages";
 import { useModelStore } from "#/stores/model-store";
 import { InteractiveChatBox } from "./interactive-chat-box";
@@ -534,6 +535,10 @@ export function ChatInterface() {
             double-renders alongside the real event list.
           */}
           <PendingUserMessages />
+
+          {/* Goal-loop status sits at the end of the message flow — above the
+              composer and its typing indicator — so progress stays in view. */}
+          <GoalStatusBanner conversationId={conversationId} />
         </div>
 
         <div className="flex shrink-0 flex-col gap-[6px] pb-4">

@@ -20,6 +20,7 @@ import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-
 import { useConversationStateStore } from "#/stores/conversation-state-store";
 import { useCommandStore } from "#/stores/command-store";
 import { useBrowserStore } from "#/stores/browser-store";
+import { useGoalStore } from "#/stores/goal-store";
 import {
   isAgentServerEvent,
   isAgentErrorEvent,
@@ -29,6 +30,7 @@ import {
   isFullStateConversationStateUpdateEvent,
   isAgentStatusConversationStateUpdateEvent,
   isStatsConversationStateUpdateEvent,
+  isGoalConversationStateUpdateEvent,
   isExecuteBashActionEvent,
   isExecuteBashObservationEvent,
   isDisplayableErrorEvent,
@@ -548,6 +550,9 @@ export function ConversationWebSocketProvider({
             if (isStatsConversationStateUpdateEvent(event)) {
               updateMetricsFromStats(event);
             }
+            if (isGoalConversationStateUpdateEvent(event) && conversationId) {
+              useGoalStore.getState().setStatus(conversationId, event.value);
+            }
           }
 
           // Handle ExecuteBashAction events - add command as input to terminal
@@ -740,6 +745,9 @@ export function ConversationWebSocketProvider({
             }
             if (isStatsConversationStateUpdateEvent(event)) {
               updateMetricsFromStats(event);
+            }
+            if (isGoalConversationStateUpdateEvent(event) && conversationId) {
+              useGoalStore.getState().setStatus(conversationId, event.value);
             }
           }
 
