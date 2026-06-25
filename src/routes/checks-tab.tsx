@@ -7,6 +7,7 @@ import {
   Clapperboard,
   FileCode,
   Loader2,
+  ScrollText,
   TriangleAlert,
 } from "lucide-react";
 
@@ -18,6 +19,7 @@ import {
   type CheckStatus,
   type VerifiedCheck,
 } from "#/utils/check-result";
+import { DecisionLog, DECISIONS_PATH } from "#/utils/decision-log";
 import { useWorkspaceFileContent } from "#/hooks/query/use-workspace-file-content";
 import { useAutoRefreshFilesOnEdit } from "#/hooks/use-auto-refresh-files-on-edit";
 import { ConversationTabEmptyState } from "#/components/features/conversation/conversation-tab-empty-state";
@@ -135,6 +137,16 @@ function ChecksTab() {
   const resultQuery = useWorkspaceFileContent(CHECK_RESULT_PATH);
   const text = resultQuery.data?.text ?? null;
   const result = useMemo(() => (text ? CheckResult.parse(text) : null), [text]);
+
+  // The agent's reasoning trail, shown beside the verdict ("show me your work").
+  // Append-only and best-effort — absent until the agent logs one; a single
+  // malformed line is dropped, never the whole log.
+  const decisionsText =
+    useWorkspaceFileContent(DECISIONS_PATH).data?.text ?? null;
+  const decisions = useMemo(
+    () => (decisionsText ? DecisionLog.parse(decisionsText) : []),
+    [decisionsText],
+  );
 
   // Resolve the recording. Always call the hook (stable hook order) with the
   // worktree path only — null disables it for absolute URLs / no recording.
@@ -295,6 +307,43 @@ function ChecksTab() {
                 <Loader2 className="size-4 animate-spin" aria-hidden />
               </div>
             )}
+          </section>
+        ) : null}
+
+        {decisions.length > 0 ? (
+          <section className="flex flex-col gap-1.5">
+            <h2 className="flex items-center gap-1.5 text-xs font-medium tracking-wide text-[var(--oh-muted)] uppercase">
+              <ScrollText className="size-3.5" aria-hidden />
+              {t(I18nKey.CHECKS$DECISIONS)}
+            </h2>
+            <ol className="flex flex-col gap-2">
+              {decisions.map((decision, index) => (
+                <li
+                  key={`${decision.decision}-${index}`}
+                  data-testid="checks-tab-decision"
+                  className="flex flex-col gap-1.5 rounded-lg border border-[var(--oh-border)] p-3"
+                >
+                  <span className="break-words text-sm text-foreground">
+                    {decision.decision}
+                  </span>
+                  {decision.why ? (
+                    <span className="break-words text-xs text-[var(--oh-muted)]">
+                      {decision.why}
+                    </span>
+                  ) : null}
+                  {decision.evidence ? (
+                    <pre className="overflow-x-auto rounded-md bg-black/20 p-2 font-mono text-xs whitespace-pre-wrap text-[var(--oh-muted)]">
+                      {decision.evidence}
+                    </pre>
+                  ) : null}
+                  {decision.outcome ? (
+                    <span className="self-start rounded-full border border-[var(--oh-border)] px-2 py-0.5 text-xs text-foreground">
+                      {decision.outcome}
+                    </span>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
           </section>
         ) : null}
       </div>
