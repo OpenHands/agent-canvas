@@ -101,4 +101,41 @@ describe("ChatMessage", () => {
 
     expect(onStop).toHaveBeenCalledTimes(1);
   });
+
+  it("renders a literal angle-bracket user message as visible text", () => {
+    // Regression: user messages were rendered with raw-HTML parsing enabled,
+    // so a message like "<something>" was parsed as an unknown HTML tag and
+    // dropped by rehype-sanitize — leaving an empty bubble that looked like
+    // nothing was sent. User input must render literally.
+    const { container } = render(
+      <ChatMessage type="user" message="<something>" />,
+    );
+
+    expect(screen.getByTestId("user-message")).toBeInTheDocument();
+    // The angle-bracket text must survive verbatim...
+    expect(container.textContent).toContain("<something>");
+    // ...and must NOT have been parsed into an element.
+    expect(container.querySelector("something")).toBeNull();
+  });
+
+  it("renders literal angle-bracket text in a sending user message", () => {
+    // The pending/sending bubble renders through a different branch than the
+    // settled message, so it gets its own guard.
+    const { container } = render(
+      <ChatMessage type="user" message="<something>" pendingStatus="sending" />,
+    );
+
+    expect(container.textContent).toContain("<something>");
+    expect(container.querySelector("something")).toBeNull();
+  });
+
+  it("still parses inline HTML for agent messages", () => {
+    // The fix is scoped to user input: agent output keeps raw-HTML parsing so
+    // allowed inline tags (badges, <mark>, <details>, …) continue to render.
+    const { container } = render(
+      <ChatMessage type="agent" message="Hello <mark>world</mark>" />,
+    );
+
+    expect(container.querySelector("mark")?.textContent).toBe("world");
+  });
 });
