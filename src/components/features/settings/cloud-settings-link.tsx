@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { ExternalLink } from "lucide-react";
+import { Cloud, ExternalLink } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { isNoBackend } from "#/api/backend-registry/active-store";
@@ -10,8 +10,9 @@ import { cn } from "#/utils/utils";
  *
  * Rendered at the bottom of the Settings sidebar. Only appears when the
  * active backend is a Cloud backend — Local backends have no equivalent
- * hosted settings page. Opens `{cloudHost}/settings` in a new tab with an
- * external-link icon so users can tell it leaves the canvas.
+ * hosted settings page. Opens `{cloudHost}/settings` in a new tab with a
+ * cloud glyph and an external-link icon so users can tell it leaves the
+ * canvas.
  */
 export function CloudSettingsLink() {
   const { t } = useTranslation("openhands");
@@ -33,7 +34,10 @@ export function CloudSettingsLink() {
         "text-sm text-white transition-colors hover:bg-surface-raised",
       )}
     >
-      <span>{t(I18nKey.SETTINGS$CLOUD_SETTINGS_LINK)}</span>
+      <span className="flex items-center gap-2">
+        <Cloud className="size-4 shrink-0 text-[var(--oh-muted)]" />
+        {t(I18nKey.SETTINGS$CLOUD_SETTINGS_LINK)}
+      </span>
       <ExternalLink className="size-4 shrink-0 text-[var(--oh-muted)]" />
     </a>
   );
