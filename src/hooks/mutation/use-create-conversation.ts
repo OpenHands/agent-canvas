@@ -82,7 +82,18 @@ export const useCreateConversation = () => {
       // (app_conversation_id stays null until the sandbox is READY). Merge so
       // the repo/workspace metadata the service just persisted is preserved.
       const localConversationId = conversation.app_conversation_id;
-      if (localConversationId && llmProfiles?.active_profile) {
+      // Persist explicitly-attached plugins (coordinates only — strip
+      // parameters, which may carry secrets) so the in-conversation plugins
+      // view can show what was attached; the agent-server doesn't return a
+      // live conversation's loaded plugins.
+      const attachedPlugins =
+        plugins?.map((plugin) => ({
+          source: plugin.source,
+          ref: plugin.ref ?? null,
+          repo_path: plugin.repo_path ?? null,
+        })) ?? null;
+      const activeProfile = llmProfiles?.active_profile ?? null;
+      if (localConversationId && (activeProfile || attachedPlugins?.length)) {
         const prev = getStoredConversationMetadata(localConversationId);
         setStoredConversationMetadata(localConversationId, {
           selected_repository: prev?.selected_repository ?? null,
@@ -90,7 +101,10 @@ export const useCreateConversation = () => {
           git_provider: prev?.git_provider ?? null,
           selected_workspace: prev?.selected_workspace ?? null,
           workspace_mode: prev?.workspace_mode ?? null,
-          active_profile: llmProfiles.active_profile,
+          active_profile: activeProfile ?? prev?.active_profile ?? null,
+          plugins: attachedPlugins?.length
+            ? attachedPlugins
+            : (prev?.plugins ?? null),
         });
       }
 

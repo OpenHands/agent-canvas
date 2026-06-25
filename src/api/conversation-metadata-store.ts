@@ -1,4 +1,5 @@
 import { Provider } from "#/types/settings";
+import type { PluginSpec } from "#/api/conversation-service/agent-server-conversation-service.types";
 
 const STORAGE_KEY = "openhands-agent-server-conversation-metadata";
 
@@ -34,6 +35,14 @@ export interface ConversationMetadata {
    * is ambiguous (issue #1082).
    */
   active_profile?: string | null;
+  /**
+   * Plugins explicitly attached at creation (coordinates only — `parameters`
+   * are stripped). The agent-server doesn't expose a live conversation's
+   * loaded plugins, so this is the client-side source for the in-conversation
+   * plugins view. Local + forward-only: only set for conversations created
+   * after this shipped, and only when `app_conversation_id` is known.
+   */
+  plugins?: PluginSpec[] | null;
 }
 
 type StoredMetadata = Record<string, ConversationMetadata>;
