@@ -12,14 +12,8 @@ import {
 } from "#/components/features/sidebar/sidebar-layout";
 
 /**
- * External link to the active Cloud backend's account/settings page.
- *
- * Rendered as a sidebar nav row (same height, padding, idle/hover
- * background as the other Settings nav items) directly below the Secrets
- * entry. Only appears when the active backend is a Cloud backend — Local
- * backends have no equivalent hosted settings page. Opens
- * `{cloudHost}/settings` in a new tab with a cloud glyph and a trailing
- * external-link icon so users can tell it leaves the canvas.
+ * Renders only for cloud backends — local backends have no equivalent
+ * hosted settings page.
  */
 export function CloudSettingsLink() {
   const { t } = useTranslation("openhands");
