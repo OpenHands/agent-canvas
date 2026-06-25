@@ -775,6 +775,8 @@ describe("AgentServerConversationService", () => {
         expect.objectContaining({
           model: "openhands/claude-haiku-4-5",
           api_key: "encrypted-key",
+          // Streaming must stay enabled after a mid-conversation switch.
+          stream: true,
           usage_id: expect.stringMatching(/^profile:haiku:/),
         }),
       );

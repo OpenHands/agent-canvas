@@ -106,6 +106,8 @@ describe("buildStartConversationRequest", () => {
       model: "nested-model",
       api_key: "nested-key",
       base_url: "https://nested.example.com",
+      // Streaming is enabled so the OpenHands agent emits StreamingDeltaEvents.
+      stream: true,
     });
     expect(payload.agent_settings.condenser).toEqual({
       enabled: true,
@@ -183,6 +185,7 @@ describe("buildStartConversationRequest", () => {
 
     expect(payload.agent_settings.llm).toEqual({
       model: "gpt-5.2-codex",
+      stream: true,
       auth_type: LLM_AUTH_TYPE_SUBSCRIPTION,
       subscription_vendor: OPENAI_SUBSCRIPTION_VENDOR,
     });
