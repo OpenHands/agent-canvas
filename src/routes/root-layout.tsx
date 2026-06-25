@@ -22,6 +22,7 @@ import { useAppTitle } from "#/hooks/use-app-title";
 import { ReactRouterNavigationProvider } from "./react-router-navigation-provider";
 import { OnboardingHost } from "#/components/features/onboarding";
 import { isOnboardingPreviewActive } from "#/components/features/onboarding/onboarding-preview";
+import { useAppModeBackendSync } from "#/hooks/use-app-mode-backend-sync";
 
 // Lazy-load components that are only rendered conditionally — keeps them out
 // of the root layout's eager dev/prod graph (and out of every page's first
@@ -86,6 +87,8 @@ export default function MainApp() {
   usePostHogIdentify();
   // Local-mode policy: keep a profile active so a usable LLM is always selected.
   useEnsureActiveProfile();
+
+  useAppModeBackendSync();
 
   React.useEffect(() => {
     if (settings?.language) {

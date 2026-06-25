@@ -17,6 +17,11 @@ import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import { BackendSelector } from "#/components/features/backends/backend-selector";
 import { BackendStatusDot } from "#/components/features/backends/backend-status-dot";
 import { SidebarConversationList } from "./sidebar-conversation-list";
+import { AppModeToggle } from "./app-mode-toggle";
+import { useAppModeStore } from "#/stores/app-mode-store";
+import { useWorkModeCapabilityContext } from "#/hooks/use-work-mode-availability";
+import { getHomePathForAppMode } from "#/utils/app-mode";
+import { getEffectiveAppMode } from "#/utils/app-mode-capabilities";
 import AutomationsIcon from "#/icons/automations.svg?react";
 import {
   SIDEBAR_COLLAPSE_TOGGLE_OVERLAY_CLASS,
@@ -77,6 +82,11 @@ export function SidebarRailBody({
   onOpenManageBackends,
 }: SidebarRailBodyProps) {
   const { t } = useTranslation("openhands");
+  const appMode = useAppModeStore((state) => state.mode);
+  const capabilityContext = useWorkModeCapabilityContext();
+  const effectiveMode = getEffectiveAppMode(appMode, capabilityContext);
+  const homePath = getHomePathForAppMode(effectiveMode);
+  const newSessionLabel = effectiveMode === "work" ? "New Task" : "New Chat";
   const backendCloseTimerRef = collapsedBackendCloseTimer;
 
   return (
@@ -86,7 +96,7 @@ export function SidebarRailBody({
           className={cn(
             collapsed && showCollapseToggle
               ? SIDEBAR_COLLAPSED_LOGO_WRAPPER_CLASS
-              : "flex min-w-0 shrink-0 items-center",
+              : "flex min-w-0 shrink-0 items-center gap-1.5",
           )}
         >
           <div
@@ -95,6 +105,7 @@ export function SidebarRailBody({
                 showCollapseToggle &&
                 "flex h-full w-full items-center justify-start pl-2.5 transition-opacity duration-150",
               collapsed && showCollapsedExpandButton && "opacity-0",
+              !collapsed && "flex shrink-0 items-center",
             )}
           >
             <OpenHandsLogoButton
@@ -103,6 +114,7 @@ export function SidebarRailBody({
               logoClassName="max-w-none"
               className={cn(SIDEBAR_ICON_SLOT_CLASS, "overflow-visible")}
             />
+            {!collapsed ? <AppModeToggle collapsed={collapsed} /> : null}
           </div>
           {collapsed && showCollapseToggle ? (
             <button
@@ -157,10 +169,10 @@ export function SidebarRailBody({
 
       <nav className={sidebarNavListClassName(collapsed)}>
         <SidebarNavLink
-          to="/conversations"
+          to={homePath}
           end
-          label={t(I18nKey.SIDEBAR$NEW_CHAT)}
-          testId="sidebar-conversations-link"
+          label={newSessionLabel}
+          testId="sidebar-home-link"
           disabled={linkDisabled}
           collapsed={collapsed}
           icon={<Plus width={ICON_SIZE} height={ICON_SIZE} />}

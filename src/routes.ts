@@ -9,6 +9,7 @@ export default [
   layout("routes/root-layout.tsx", [
     index("routes/index-redirect.tsx"),
     route("conversations", "routes/home.tsx"),
+    route("work", "routes/work-home.tsx"),
     route(
       "conversations/:conversationId/panel",
       "routes/conversation-panel.tsx",

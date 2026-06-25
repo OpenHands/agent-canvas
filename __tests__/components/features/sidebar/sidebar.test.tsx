@@ -60,6 +60,10 @@ vi.mock("#/contexts/active-backend-context", () => ({
     },
     setActive: vi.fn(),
   }),
+  useActiveBackend: () => ({
+    backend: { id: "local", name: "Local", kind: "local", host: "", apiKey: "" },
+    orgId: null,
+  }),
 }));
 
 vi.mock("#/hooks/query/use-backends-health", () => ({
@@ -430,7 +434,7 @@ describe("Sidebar", () => {
     renderSidebar("/conversations");
 
     for (const testId of [
-      "sidebar-conversations-link",
+      "sidebar-home-link",
       "sidebar-automations-link",
       "sidebar-skills-link",
     ]) {
@@ -444,7 +448,7 @@ describe("Sidebar", () => {
     renderSidebar("/conversations");
 
     // Act + Assert: each top-level nav link surfaces its new user-facing label.
-    expect(screen.getByTestId("sidebar-conversations-link")).toHaveTextContent(
+    expect(screen.getByTestId("sidebar-home-link")).toHaveTextContent(
       "New Chat",
     );
     expect(screen.getByTestId("sidebar-skills-link")).toHaveTextContent(
