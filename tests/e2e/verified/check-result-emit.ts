@@ -23,7 +23,7 @@ export type PlaywrightStatus =
   | "skipped";
 
 /** One test's reviewable facts, with artifacts already resolved to worktree
- * paths by the reporter. */
+ * paths or durable media URLs by the reporter. */
 export interface ReportedTest {
   title: string;
   status: PlaywrightStatus;
@@ -31,9 +31,9 @@ export interface ReportedTest {
   error: string | null;
   /** Worktree-relative path to this test's spec file. */
   spec: string | null;
-  /** Worktree-relative path to the recorded video, or null. */
+  /** Worktree-relative path or durable URL to the recorded video, or null. */
   video: string | null;
-  /** Worktree-relative path to the trace, or null. */
+  /** Worktree-relative path or durable URL to the trace, or null. */
   trace: string | null;
 }
 

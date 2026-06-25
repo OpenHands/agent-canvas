@@ -226,12 +226,14 @@ describe("ChecksTab", () => {
     expect(screen.getByTestId("checks-tab-video-open")).toBeInTheDocument();
   });
 
-  it("uses an absolute recording URL directly without a workspace fetch", () => {
+  it("uses an allowlisted absolute recording URL directly without a workspace fetch", () => {
+    const videoUrl =
+      "https://raw.githubusercontent.com/SpotwiseAI/agent-canvas/media/.checks/run.mp4";
     wire({
       result: textResult(
         JSON.stringify({
           status: "passed",
-          video: "https://media.example/run.mp4",
+          video: videoUrl,
         }),
       ),
     });
@@ -239,7 +241,7 @@ describe("ChecksTab", () => {
 
     expect(screen.getByTestId("checks-tab-video")).toHaveAttribute(
       "src",
-      "https://media.example/run.mp4",
+      videoUrl,
     );
     // An absolute URL must NOT be fetched through the workspace fileserver —
     // the video hook is disabled (called with null).

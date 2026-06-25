@@ -40,8 +40,8 @@ reader and the single source of truth.
     }
   ],
   "spec":      "tests/e2e/verified/x.spec.ts", // the committed test — worktree-relative
-  "video":     ".checks/0-run.webm",           // recording — worktree-relative OR https URL
-  "trace":     ".checks/0-run.zip",            // deep replay artifact — Playwright only
+  "video":     ".checks/0-run.webm",           // recording — worktree-relative OR allowlisted HTTPS URL
+  "trace":     ".checks/0-run.zip",            // deep replay artifact — worktree-relative OR allowlisted HTTPS URL
   "commit":    "abc1234",                      // commit the run executed against
   "createdAt": "2026-06-25T08:00:00.000Z"      // ISO-8601
 }
@@ -57,8 +57,8 @@ invents a green.
 | `status`    | Overall verdict               | A red check **overrides** this — see the trust model.                                                                                             |
 | `checks[]`  | One row per verified behavior | `title` is cosmetic; a missing title is **never** a reason to drop a row.                                                                         |
 | `spec`      | The committed test source     | **The load-bearing review artifact.** Worktree-relative path; never a URL. For non-web stacks it is often the _only_ artifact — make it non-null. |
-| `video`     | The human-watchable proof     | Worktree-relative path, **or** an absolute `https?://` URL (a media-branch URL once A3 lands). Null is fine (non-UI work).                        |
-| `trace`     | Deep replay artifact          | **Playwright-specific** (a trace `.zip`). Non-Playwright emitters leave it null.                                                                  |
+| `video`     | The human-watchable proof     | Worktree-relative path, **or** an allowlisted HTTPS raw media URL. Null is fine (non-UI work).                                                     |
+| `trace`     | Deep replay artifact          | Worktree-relative path, **or** an allowlisted HTTPS raw media URL. Playwright emitters use a trace `.zip`; non-Playwright emitters leave it null. |
 | `commit`    | Provenance                    | Short sha the run executed against.                                                                                                               |
 | `createdAt` | When the run finished         | ISO-8601.                                                                                                                                         |
 
@@ -74,10 +74,12 @@ file. So the parser, not the writer, owns the invariants:
 2. **A titleless check is never dropped.** A row needs only a recognizable
    `status`; a missing `title` renders a status-word fallback. (Dropping a
    titleless `failed` row would erase a red result before rule 1 runs.)
-3. **Artifact pointers are constrained to the worktree.** `spec`/`video`/`trace`
-   that are absolute, contain a `..` segment, or carry a non-`http(s)` scheme
-   are dropped to `null` — an untrusted emitter cannot smuggle in a path that
-   escapes the worktree when resolved against the fileserver.
+3. **Artifact pointers are constrained.** `spec`/`video`/`trace` that are
+   absolute, contain a `..` segment, or carry a non-`http(s)` scheme are dropped
+   to `null` — an untrusted emitter cannot smuggle in a path that escapes the
+   worktree when resolved against the fileserver. For `video`/`trace`, the only
+   external escape hatch is an allowlisted HTTPS raw GitHub URL; all other hosts
+   are dropped.
 4. **No verdict ⇒ unreadable, not green.** A file with neither an explicit
    `status` nor any checks shows an honest "unreadable" state, never a false
    pass.
@@ -114,6 +116,20 @@ Playwright — reuse it if present; do not scaffold it from nothing.
 ```sh
 EMIT_CHECKS=1 npx playwright test --project=verified-dev
 ```
+
+Optional durable media publishing (A3): if a runner has checked out or mounted a
+media branch/path, set both env vars before running Playwright:
+
+```sh
+CHECKS_MEDIA_DIR=/tmp/checks-media/$RUN_ID \
+CHECKS_MEDIA_BASE_URL=https://raw.githubusercontent.com/OWNER/REPO/media/.checks/$RUN_ID \
+EMIT_CHECKS=1 npx playwright test --project=verified-dev
+```
+
+The reporter copies video/trace attachments into `CHECKS_MEDIA_DIR` and writes
+`CHECKS_MEDIA_BASE_URL/<file>` into `result.json`. The URL prefix must pass the
+reader's allowlist (`https://raw.githubusercontent.com/...`) or the reporter
+falls back to worktree-relative `.checks/*` paths.
 
 ### WRAP — the universal floor (any runner, any language)
 

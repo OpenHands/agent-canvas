@@ -123,15 +123,36 @@ function asWorktreeRelativePath(value: string | null): string | null {
   return value;
 }
 
+const ALLOWED_ARTIFACT_URL_HOSTS = new Set(["raw.githubusercontent.com"]);
+
+/**
+ * External verification artifacts are durable media, not arbitrary embeds. Keep
+ * the initial A3 surface narrow: GitHub raw URLs only, with enough path segments
+ * for owner/repo/ref/file. Local and same-worktree recordings still use
+ * worktree-relative paths and never pass through this policy.
+ */
+export function isAllowedCheckArtifactUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return false;
+    if (!ALLOWED_ARTIFACT_URL_HOSTS.has(url.hostname)) return false;
+    const segments = url.pathname.split("/").filter(Boolean);
+    return segments.length >= 4;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * A video/trace pointer: a worktree-relative path (resolved against the
- * fileserver) OR an absolute http(s) URL (a media-branch URL, post A3, which
- * the tab renders directly as `<video src>`). An origin allowlist for external
- * URLs lands with A3 — the feature that first emits one.
+ * fileserver) OR an allowlisted absolute media URL (rendered directly). The
+ * allowlist lands with A3 so an arbitrary emitter cannot turn the Checks tab
+ * into an unbounded external URL surface.
  */
 function asArtifactRef(value: string | null): string | null {
   if (value === null) return null;
-  return isHttpUrl(value) ? value : asWorktreeRelativePath(value);
+  if (isHttpUrl(value)) return isAllowedCheckArtifactUrl(value) ? value : null;
+  return asWorktreeRelativePath(value);
 }
 
 function parseCheck(value: unknown): VerifiedCheck | null {

@@ -206,17 +206,38 @@ describe("CheckResult.parse — artifact pointers are constrained to the worktre
     expect(result?.trace).toBe(".checks/0-run.zip");
   });
 
-  it("keeps an absolute http(s) URL for video/trace (the A3 media-branch escape hatch)", () => {
+  it("keeps allowlisted raw GitHub URLs for video/trace", () => {
     const result = CheckResult.parse(
       json({
         status: "passed",
-        video: "https://media.example/run.webm",
-        trace: "http://media.example/run.zip",
+        video:
+          "https://raw.githubusercontent.com/SpotwiseAI/agent-canvas/media/.checks/run.webm",
+        trace:
+          "https://raw.githubusercontent.com/SpotwiseAI/agent-canvas/media/.checks/run.zip",
       }),
     );
-    expect(result?.video).toBe("https://media.example/run.webm");
-    expect(result?.trace).toBe("http://media.example/run.zip");
+    expect(result?.video).toBe(
+      "https://raw.githubusercontent.com/SpotwiseAI/agent-canvas/media/.checks/run.webm",
+    );
+    expect(result?.trace).toBe(
+      "https://raw.githubusercontent.com/SpotwiseAI/agent-canvas/media/.checks/run.zip",
+    );
   });
+
+  it.each([
+    ["unknown host", "https://media.example/run.webm"],
+    ["non-HTTPS raw GitHub", "http://raw.githubusercontent.com/o/r/b/run.webm"],
+    ["too-short raw GitHub path", "https://raw.githubusercontent.com/o/r"],
+  ])(
+    "drops external artifact URLs outside the allowlist (%s)",
+    (_label, url) => {
+      const result = CheckResult.parse(
+        json({ status: "passed", video: url, trace: url }),
+      );
+      expect(result?.video).toBeNull();
+      expect(result?.trace).toBeNull();
+    },
+  );
 
   it("rejects a URL in spec (spec is path-only)", () => {
     const result = CheckResult.parse(

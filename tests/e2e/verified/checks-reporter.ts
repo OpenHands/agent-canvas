@@ -14,6 +14,11 @@
  * `on_stop` hook then commits the spec + result.json. Only `verified-*` project
  * tests are captured, so a stray full run can't pollute `.checks/`.
  *
+ * Durable media: set CHECKS_MEDIA_DIR plus CHECKS_MEDIA_BASE_URL to copy
+ * video/trace files into a mounted media-branch directory and write allowlisted
+ * raw URLs into result.json. Without both env vars, attachments fall back to
+ * worktree-relative `.checks/*` paths.
+ *
  * Writes are best-effort and wrapped — a reporter must never crash the run.
  */
 import { execSync } from "node:child_process";
@@ -32,6 +37,11 @@ import type {
   TestResult,
 } from "@playwright/test/reporter";
 import { buildCheckResult, type ReportedTest } from "./check-result-emit";
+import {
+  buildChecksMediaUrl,
+  loadChecksMediaPublisher,
+  type ChecksMediaPublisher,
+} from "./checks-media-publisher";
 
 // Playwright runs from the project root (where the config file lives).
 const CHECKS_DIR = join(process.cwd(), ".checks");
@@ -58,6 +68,8 @@ function slug(title: string): string {
 class ChecksReporter implements Reporter {
   private tests: ReportedTest[] = [];
   private index = 0;
+  private mediaPublisher: ChecksMediaPublisher | null =
+    loadChecksMediaPublisher();
 
   onBegin() {
     // Fresh dir each run so a stale verdict/video never lingers.
@@ -113,7 +125,10 @@ class ChecksReporter implements Reporter {
     }
   }
 
-  /** Copy a named attachment into `.checks/`, returning its worktree path. */
+  /**
+   * Copy a named attachment, returning a durable URL when a media publisher is
+   * configured, otherwise the legacy worktree-relative `.checks/*` path.
+   */
   private copyAttachment(
     result: TestResult,
     name: "video" | "trace",
@@ -123,11 +138,26 @@ class ChecksReporter implements Reporter {
       (attachment) => attachment.name === name,
     )?.path;
     if (!source || !existsSync(source)) return null;
+
+    const published = this.copyToMediaPublisher(source, destName);
+    if (published) return published;
+
     try {
       const dest = join(CHECKS_DIR, destName);
       mkdirSync(CHECKS_DIR, { recursive: true });
       copyFileSync(source, dest);
       return toWorktreePath(resolve(dest));
+    } catch {
+      return null;
+    }
+  }
+
+  private copyToMediaPublisher(source: string, destName: string): string | null {
+    if (!this.mediaPublisher) return null;
+    try {
+      mkdirSync(this.mediaPublisher.outputDir, { recursive: true });
+      copyFileSync(source, join(this.mediaPublisher.outputDir, destName));
+      return buildChecksMediaUrl(this.mediaPublisher, destName);
     } catch {
       return null;
     }
