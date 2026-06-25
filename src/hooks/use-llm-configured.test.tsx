@@ -120,4 +120,57 @@ describe("useLlmConfigured", () => {
     expect(result.current.isConfigured).toBe(true);
     expect(mockGetProfile).toHaveBeenCalledWith("gpt-5.5-sub");
   });
+
+  it("uses the api_key_set fast path for an API-key profile without fetching profile detail", async () => {
+    mockListProfiles.mockResolvedValue({
+      active_profile: "gpt-5.5",
+      profiles: [
+        {
+          name: "gpt-5.5",
+          model: "gpt-5.5",
+          base_url: "https://api.openai.com/v1",
+          api_key_set: true,
+        },
+      ],
+    });
+
+    const { result } = renderLlmConfiguredHook();
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.isConfigured).toBe(true);
+    // The fast path must not fetch active profile detail.
+    expect(mockGetProfile).not.toHaveBeenCalled();
+  });
+
+  it("treats a no-key, non-subscription local profile as not configured", async () => {
+    mockListProfiles.mockResolvedValue({
+      active_profile: "gpt-5.5",
+      profiles: [
+        {
+          name: "gpt-5.5",
+          model: "gpt-5.5",
+          base_url: "https://api.openai.com/v1",
+          api_key_set: false,
+        },
+      ],
+    });
+    mockGetProfile.mockResolvedValue({
+      name: "gpt-5.5",
+      api_key_set: false,
+      config: {
+        model: "openai/gpt-5.5",
+        // No auth_type: "subscription" — this is a plain key-less profile,
+        // not a subscription-authenticated one, so it must be unconfigured.
+      },
+    });
+
+    const { result } = renderLlmConfiguredHook();
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    expect(result.current.isConfigured).toBe(false);
+    // Detail is fetched because the profile is local + active + key-less.
+    expect(mockGetProfile).toHaveBeenCalledWith("gpt-5.5");
+  });
 });
