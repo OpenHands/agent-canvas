@@ -30,6 +30,10 @@ import {
 
 const USER_MESSAGE = "Hello, please respond.";
 const WORKSPACE_PATH = "/tmp/e2e-test-project/my-app";
+// The git remote the step-2 trajectory configures for the workspace. Kept as a
+// shared constant so the `git remote add` command and the control-bar pill
+// assertion below can never drift apart.
+const EXPECTED_REPO_SLUG = "test-org/test-repo";
 
 /**
  * Seed `selected_workspace` into the conversation metadata localStorage key.
@@ -115,7 +119,7 @@ test.describe("files tab, git control bar, and browser tab", () => {
       // Otherwise bootstrap a fresh repo with a GitHub remote (Docker path).
       // Must configure user.name/email — Docker containers may not have them.
       "|| (git init && git config user.email test@test.com && git config user.name test",
-      "&& git remote add origin https://github.com/test-org/test-repo.git",
+      `&& git remote add origin https://github.com/${EXPECTED_REPO_SLUG}.git`,
       "&& git commit --allow-empty -m init)",
     ].join(" ");
     await registerTrajectory(request, "files-and-git", [
@@ -202,12 +206,22 @@ test.describe("files tab, git control bar, and browser tab", () => {
 
     const workspaceName = WORKSPACE_PATH.replace(/\/+$/, "").split("/").pop()!;
 
-    // The git control bar renders below the chat input. The workspace
-    // metadata seeded above makes it show the folder basename as a pill.
-    await test.step("verify workspace pill is visible", async () => {
-      await expect(
-        page.getByText(workspaceName).first(),
-      ).toBeVisible({ timeout: 15_000 });
+    // The git control bar renders below the chat input and shows the
+    // conversation's workspace/repo identity. Either state is valid and the
+    // bar flips between them as the local `git remote get-url origin` probe
+    // resolves: it shows the folder basename ("my-app") until the remote
+    // (added by step 2) is detected, then the repo slug ("test-org/test-repo").
+    // Accept either so the assertion doesn't race that probe (the source of a
+    // pre-existing flake — see GitControlBarRepoButton: selectedRepository ||
+    // workspaceName).
+    const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pillText = new RegExp(
+      `${escapeRegExp(workspaceName)}|${escapeRegExp(EXPECTED_REPO_SLUG)}`,
+    );
+    await test.step("verify workspace/repo pill is visible", async () => {
+      await expect(page.getByText(pillText).first()).toBeVisible({
+        timeout: 15_000,
+      });
     });
 
     // When useLocalGitInfo detects a remote (trajectory ran git init +
