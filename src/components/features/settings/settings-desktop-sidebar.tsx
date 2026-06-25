@@ -62,12 +62,10 @@ export function SettingsDesktopSidebar({
             }
           />
         ))}
+        <CloudSettingsLink />
       </div>
       <div className="px-2 pt-3">
         <BackendSyncedSettingsBadge />
-      </div>
-      <div className="mt-auto px-2 pt-3">
-        <CloudSettingsLink />
       </div>
     </aside>
   );

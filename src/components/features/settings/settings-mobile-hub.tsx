@@ -35,12 +35,10 @@ export function SettingsMobileHub({ navigationItems }: SettingsMobileHubProps) {
             icon={renderedItem.item.icon}
           />
         ))}
+        <CloudSettingsLink />
       </nav>
       <div className="pt-1">
         <BackendSyncedSettingsBadge />
-      </div>
-      <div className="pt-1">
-        <CloudSettingsLink />
       </div>
     </div>
   );

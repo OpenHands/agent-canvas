@@ -88,13 +88,11 @@ export function SettingsMobileDrawer({
               />
             );
           })}
+          <CloudSettingsLink />
         </div>
 
         <div className="px-2 pt-3">
           <BackendSyncedSettingsBadge />
-        </div>
-        <div className="px-2 pt-3">
-          <CloudSettingsLink />
         </div>
       </nav>
     </>

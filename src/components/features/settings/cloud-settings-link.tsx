@@ -4,15 +4,22 @@ import { I18nKey } from "#/i18n/declaration";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { isNoBackend } from "#/api/backend-registry/active-store";
 import { cn } from "#/utils/utils";
+import {
+  SIDEBAR_ICON_SLOT_CLASS,
+  SIDEBAR_ROW_INTERACTIVE_CLASS,
+  sidebarNavLabelClassName,
+  sidebarNavRowClassName,
+} from "#/components/features/sidebar/sidebar-layout";
 
 /**
  * External link to the active Cloud backend's account/settings page.
  *
- * Rendered at the bottom of the Settings sidebar. Only appears when the
- * active backend is a Cloud backend — Local backends have no equivalent
- * hosted settings page. Opens `{cloudHost}/settings` in a new tab with a
- * cloud glyph and an external-link icon so users can tell it leaves the
- * canvas.
+ * Rendered as a sidebar nav row (same height, padding, idle/hover
+ * background as the other Settings nav items) directly below the Secrets
+ * entry. Only appears when the active backend is a Cloud backend — Local
+ * backends have no equivalent hosted settings page. Opens
+ * `{cloudHost}/settings` in a new tab with a cloud glyph and a trailing
+ * external-link icon so users can tell it leaves the canvas.
  */
 export function CloudSettingsLink() {
   const { t } = useTranslation("openhands");
@@ -30,15 +37,20 @@ export function CloudSettingsLink() {
       target="_blank"
       rel="noopener noreferrer"
       className={cn(
-        "flex items-center justify-between gap-2 rounded-lg border border-[var(--oh-border)] bg-base-secondary px-3 py-2",
-        "text-sm text-white transition-colors hover:bg-surface-raised",
+        sidebarNavRowClassName({ collapsed: false }),
+        SIDEBAR_ROW_INTERACTIVE_CLASS.idle,
       )}
     >
-      <span className="flex items-center gap-2">
-        <Cloud className="size-4 shrink-0 text-[var(--oh-muted)]" />
+      <span className={SIDEBAR_ICON_SLOT_CLASS}>
+        <Cloud className="size-4 shrink-0" aria-hidden />
+      </span>
+      <span className={cn(sidebarNavLabelClassName(false), "flex-1")}>
         {t(I18nKey.SETTINGS$CLOUD_SETTINGS_LINK)}
       </span>
-      <ExternalLink className="size-4 shrink-0 text-[var(--oh-muted)]" />
+      <ExternalLink
+        className="size-4 shrink-0 text-[var(--oh-muted)]"
+        aria-hidden
+      />
     </a>
   );
 }
