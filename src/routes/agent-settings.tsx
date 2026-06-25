@@ -7,6 +7,7 @@ import { useAgentSettingsSchema } from "#/hooks/query/use-agent-settings-schema"
 import { SettingsDropdownInput } from "#/components/features/settings/settings-dropdown-input";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { SettingsSwitch } from "#/components/features/settings/settings-switch";
+import { SchemaField } from "#/components/features/settings/sdk-settings/schema-field";
 import { AcpCredentialsSection } from "#/components/features/settings/acp-credentials-section";
 import { useAcpCredentialForm } from "#/hooks/use-acp-credential-form";
 import { BrandButton } from "#/components/features/settings/brand-button";
@@ -14,7 +15,12 @@ import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
 import { formControlSwitchDescriptionClassName } from "#/utils/form-control-classes";
 import { cn } from "#/utils/utils";
-import { SettingsFieldSchema } from "#/types/settings";
+import { SettingsFieldSchema, SettingsValue } from "#/types/settings";
+import {
+  coerceFieldValue,
+  getAgentSettingValue,
+  normalizeFieldValue,
+} from "#/utils/sdk-settings-schema";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -39,6 +45,7 @@ export const handle = { hideTitle: true };
 type AgentType = "openhands" | "acp";
 
 const ENABLE_SUB_AGENTS_FIELD_KEY = "enable_sub_agents";
+const TOOL_CONCURRENCY_FIELD_KEY = "tool_concurrency_limit";
 const COMMAND_PLACEHOLDER_FALLBACK = "npx -y <package-name>";
 const ACP_CUSTOM_MODEL_KEY = "__custom_model__";
 
@@ -108,6 +115,23 @@ function AgentSettingsScreen() {
   );
   const [subAgentsEnabled, setSubAgentsEnabled] = useState(
     initialSubAgentsEnabled,
+  );
+
+  // --- Parallel tool calls (OpenHands path) ---
+  // Surfaced only when the backend schema exposes the field, so older
+  // agent-servers that predate ``tool_concurrency_limit`` hide it cleanly.
+  const toolConcurrencyField = fields?.find(
+    (field) => field.key === TOOL_CONCURRENCY_FIELD_KEY,
+  );
+  const initialToolConcurrency = React.useMemo(() => {
+    if (!toolConcurrencyField) return "";
+    const raw = settings
+      ? getAgentSettingValue(settings, TOOL_CONCURRENCY_FIELD_KEY)
+      : undefined;
+    return normalizeFieldValue(toolConcurrencyField, raw);
+  }, [toolConcurrencyField, settings]);
+  const [toolConcurrency, setToolConcurrency] = useState<string | boolean>(
+    initialToolConcurrency,
   );
 
   // --- ACP path ---
@@ -189,6 +213,11 @@ function AgentSettingsScreen() {
     setSubAgentsEnabled(initialSubAgentsEnabled);
   }, [initialSubAgentsEnabled]);
 
+  // Sync the parallel-tool-calls input when settings reload
+  useEffect(() => {
+    setToolConcurrency(initialToolConcurrency);
+  }, [initialToolConcurrency]);
+
   if (isLoading) return null;
 
   const isAcp = agentType === "acp";
@@ -210,9 +239,12 @@ function AgentSettingsScreen() {
     formatCommand(ACP_PROVIDERS[0]?.default_command ?? []) ||
     COMMAND_PLACEHOLDER_FALLBACK;
 
-  // Dirty tracking: for OpenHands path, also check sub-agents toggle
+  // Dirty tracking: for OpenHands path, also check sub-agents toggle and the
+  // parallel-tool-calls input.
   const isOpenHandsDirty =
-    !isAcp && subAgentsEnabled !== initialSubAgentsEnabled;
+    !isAcp &&
+    (subAgentsEnabled !== initialSubAgentsEnabled ||
+      toolConcurrency !== initialToolConcurrency);
   const settingsDirty = isDirty || isOpenHandsDirty;
   // The single Save covers both the agent spec and ACP credentials, so it is
   // active when either changed, and shows "Saving…" while either is in flight.
@@ -278,13 +310,34 @@ function AgentSettingsScreen() {
         },
       );
     } else {
-      // OpenHands path: save agent_kind + sub-agents toggle
+      // OpenHands path: save agent_kind + sub-agents toggle + parallel tool calls
+      const agentSettingsDiff: Record<string, SettingsValue> = {
+        agent_kind: "openhands",
+        enable_sub_agents: subAgentsEnabled,
+      };
+
+      if (toolConcurrencyField) {
+        let coerced: SettingsValue;
+        try {
+          // Reuse the schema-driven coercion + min/max validation rather than
+          // re-implementing it; throws a user-facing message on bad input.
+          coerced = coerceFieldValue(toolConcurrencyField, toolConcurrency);
+        } catch (error) {
+          displayErrorToast(
+            error instanceof Error ? error.message : t(I18nKey.ERROR$GENERIC),
+          );
+          return;
+        }
+        // ``tool_concurrency_limit`` is a non-nullable int (default 1); skip an
+        // empty input rather than sending ``null`` the backend would reject.
+        if (coerced != null) {
+          agentSettingsDiff[TOOL_CONCURRENCY_FIELD_KEY] = coerced;
+        }
+      }
+
       saveSettings(
         {
-          agent_settings_diff: {
-            agent_kind: "openhands",
-            enable_sub_agents: subAgentsEnabled,
-          },
+          agent_settings_diff: agentSettingsDiff,
         },
         {
           onError: (error) => {
@@ -379,6 +432,15 @@ function AgentSettingsScreen() {
           ) : null}
         </div>
       )}
+
+      {!isAcp && toolConcurrencyField ? (
+        <SchemaField
+          field={toolConcurrencyField}
+          value={toolConcurrency}
+          isDisabled={isSavingAny}
+          onChange={setToolConcurrency}
+        />
+      ) : null}
 
       {isAcp && (
         <>

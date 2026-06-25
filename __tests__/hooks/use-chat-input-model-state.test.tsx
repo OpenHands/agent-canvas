@@ -107,7 +107,7 @@ describe("useChatInputModelState", () => {
         conversation_id: "c1",
         agent_kind: "acp",
         acp_server: "claude-code",
-        llm_model: "claude-sonnet-4-6",
+        llm_model: "sonnet",
       },
     });
     useOptionalConversationIdMock.mockReturnValue({ conversationId: "c1" });
@@ -123,7 +123,7 @@ describe("useChatInputModelState", () => {
     const { result } = renderHook(() => useChatInputModelState());
 
     expect(result.current.isAcpContext).toBe(true);
-    expect(result.current.currentModelId).toBe("claude-sonnet-4-6");
+    expect(result.current.currentModelId).toBe("sonnet");
     // Human label resolved from the registry (matches the conversation chip).
     expect(result.current.displayModel).toBe("Claude Sonnet 4.6");
     expect(result.current.availableAcpModels).toEqual(

@@ -89,6 +89,21 @@ const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
           secret: false,
           required: false,
         },
+        {
+          key: "tool_concurrency_limit",
+          label: "Parallel tool calls",
+          description:
+            "Maximum number of tool calls to execute concurrently per agent step. 1 = sequential (default).",
+          section: "general",
+          section_label: "General",
+          value_type: "integer",
+          default: 1,
+          choices: [],
+          depends_on: [],
+          prominence: "major",
+          secret: false,
+          required: false,
+        },
       ],
     },
     {
@@ -425,6 +440,7 @@ export const MOCK_DEFAULT_USER_SETTINGS: Settings = {
       condenser_max_size: null,
     },
     enable_sub_agents: false,
+    tool_concurrency_limit: 1,
   },
   conversation_settings_schema: MOCK_CONVERSATION_SETTINGS_SCHEMA,
   conversation_settings: {
@@ -603,7 +619,7 @@ const MOCK_VERIFIED_MODELS_BY_PROVIDER = MOCK_MODELS.reduce<
   return acc;
 }, {});
 
-const MOCK_AGENT_SERVER_VERSION = "1.28.1";
+const MOCK_AGENT_SERVER_VERSION = "1.29.0";
 
 // --- Handlers for options/config/settings ---
 // Uses wildcard "*" prefix to match both relative paths and absolute URLs
