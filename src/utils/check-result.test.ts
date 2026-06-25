@@ -170,6 +170,75 @@ describe("CheckResult.parse — fields and coercion", () => {
   });
 });
 
+describe("CheckResult.parse — artifact pointers are constrained to the worktree", () => {
+  // The emitter is untrusted once verification generalizes (any target's agent
+  // writes result.json), so an escaping path must never reach the fileserver.
+  it.each([
+    ["absolute POSIX path", "/etc/passwd"],
+    ["parent traversal", "../../../etc/passwd"],
+    ["traversal mid-path", ".checks/../../secret"],
+    ["windows drive", "C:\\windows\\system32"],
+    ["windows drive forward-slash", "C:/windows/system32"],
+    ["UNC path", "\\\\host\\share\\x"],
+    ["backslash traversal", "..\\..\\secret"],
+  ])("drops spec/video/trace that is an escaping path (%s)", (_label, bad) => {
+    const result = CheckResult.parse(
+      json({ status: "passed", spec: bad, video: bad, trace: bad }),
+    );
+    expect(result?.spec).toBeNull();
+    expect(result?.video).toBeNull();
+    expect(result?.trace).toBeNull();
+    // The verdict itself is unaffected — only the pointers are scrubbed.
+    expect(result?.status).toBe("passed");
+  });
+
+  it("keeps ordinary worktree-relative pointers", () => {
+    const result = CheckResult.parse(
+      json({
+        status: "passed",
+        spec: "tests/e2e/verified/x.spec.ts",
+        video: ".checks/0-run.webm",
+        trace: ".checks/0-run.zip",
+      }),
+    );
+    expect(result?.spec).toBe("tests/e2e/verified/x.spec.ts");
+    expect(result?.video).toBe(".checks/0-run.webm");
+    expect(result?.trace).toBe(".checks/0-run.zip");
+  });
+
+  it("keeps an absolute http(s) URL for video/trace (the A3 media-branch escape hatch)", () => {
+    const result = CheckResult.parse(
+      json({
+        status: "passed",
+        video: "https://media.example/run.webm",
+        trace: "http://media.example/run.zip",
+      }),
+    );
+    expect(result?.video).toBe("https://media.example/run.webm");
+    expect(result?.trace).toBe("http://media.example/run.zip");
+  });
+
+  it("rejects a URL in spec (spec is path-only)", () => {
+    const result = CheckResult.parse(
+      json({ status: "passed", spec: "https://evil.example/x" }),
+    );
+    expect(result?.spec).toBeNull();
+  });
+
+  it("scrubbing a bad pointer never masks a red verdict", () => {
+    // A red check still forces failed even though its video pointer is dropped.
+    const result = CheckResult.parse(
+      json({
+        status: "passed",
+        video: "../../escape.webm",
+        checks: [{ title: "broken", status: "failed" }],
+      }),
+    );
+    expect(result?.status).toBe("failed");
+    expect(result?.video).toBeNull();
+  });
+});
+
 describe("CHECK_RESULT_PATH", () => {
   it("is the agreed worktree-relative emit location", () => {
     expect(CHECK_RESULT_PATH).toBe(".checks/result.json");

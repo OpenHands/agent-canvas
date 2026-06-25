@@ -87,6 +87,53 @@ function asFiniteNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+/**
+ * Absolute http(s) URL — the one non-path value the contract allows for an
+ * artifact pointer (e.g. a media-branch raw URL once Bet D A3 lands). The
+ * parser is the contract authority; the Checks tab mirrors this test to decide
+ * render-directly vs resolve-against-the-fileserver.
+ */
+function isHttpUrl(value: string): boolean {
+  return /^https?:\/\//i.test(value);
+}
+
+/**
+ * Constrain an artifact pointer to a genuinely worktree-relative path, else
+ * null. Generalizing verification (Bet D) moves the writer outside the
+ * cockpit's trust boundary — any agent, in any target repo, writes
+ * `.checks/result.json` — so the reader can no longer assume these came from a
+ * trusted `path.relative()`. Reject anything that could escape the worktree
+ * when resolved against the static fileserver: absolute POSIX (`/x`), Windows
+ * drive (`C:\x`) or UNC (`\\host`) paths, and any `..` segment. A rejected
+ * pointer drops to null (the field vanishes; the verdict + checks still
+ * render). Defense-in-depth — the agent-server fileserver remains the primary
+ * traversal guard; this enforces the contract's "worktree-relative" promise at
+ * the trust boundary so an arbitrary emitter cannot smuggle in an escaping path.
+ */
+function asWorktreeRelativePath(value: string | null): string | null {
+  if (value === null) return null;
+  // Leading separator — absolute POSIX (`/x`) or UNC (`\\host`).
+  if (/^[/\\]/.test(value)) return null;
+  // A URL or Windows-drive scheme prefix (`https:`, `file:`, `C:`) is never a
+  // worktree-relative path. video/trace get their http(s) escape hatch in
+  // asArtifactRef, which runs before this; everything else with a scheme is out.
+  if (/^[A-Za-z][\w+.-]*:/.test(value)) return null;
+  // Any `..` path segment, with either separator (e.g. `a/../../etc`).
+  if (value.split(/[/\\]/).some((segment) => segment === "..")) return null;
+  return value;
+}
+
+/**
+ * A video/trace pointer: a worktree-relative path (resolved against the
+ * fileserver) OR an absolute http(s) URL (a media-branch URL, post A3, which
+ * the tab renders directly as `<video src>`). An origin allowlist for external
+ * URLs lands with A3 — the feature that first emits one.
+ */
+function asArtifactRef(value: string | null): string | null {
+  if (value === null) return null;
+  return isHttpUrl(value) ? value : asWorktreeRelativePath(value);
+}
+
 function parseCheck(value: unknown): VerifiedCheck | null {
   const record = asRecord(value);
   if (!record) return null;
@@ -151,9 +198,12 @@ export const CheckResult = {
     return {
       status,
       checks,
-      spec: asTrimmedString(record.spec),
-      video: asTrimmedString(record.video),
-      trace: asTrimmedString(record.trace),
+      // spec is path-only (the committed test, shown as text); video/trace may
+      // also be an absolute http(s) URL. All are constrained to the worktree —
+      // the writer is now untrusted (any target's agent).
+      spec: asWorktreeRelativePath(asTrimmedString(record.spec)),
+      video: asArtifactRef(asTrimmedString(record.video)),
+      trace: asArtifactRef(asTrimmedString(record.trace)),
       commit: asTrimmedString(record.commit),
       createdAt: asTrimmedString(record.createdAt),
     };

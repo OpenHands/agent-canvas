@@ -3,6 +3,11 @@
  * `.checks/result.json` (+ copied video/trace) in the worktree, matching the
  * contract the cockpit Checks tab reads (`src/utils/check-result.ts`).
  *
+ * This is the REFERENCE web adapter + the cockpit's self-hosting bootstrap
+ * (verifying itself) — NOT the contract. The contract is the JSON file at
+ * `.checks/result.json`; any runner/language that writes it feeds the tab. See
+ * `docs/verification/CONTRACT.md` for the framework-neutral spec.
+ *
  * Activated only when `EMIT_CHECKS` is set (see `playwright.config.ts`), so
  * normal `npm test` / CI html runs are untouched. The agent's verification step
  * runs e.g. `EMIT_CHECKS=1 npx playwright test --project=verified-dev`; the rca
