@@ -9,7 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Work mode scaffold (in progress): Code/Work sidebar toggle, `/work` placeholder route, and capability resolver for local vs hosted Work execution. See [specs/work-mode.md](./specs/work-mode.md).
+- Work mode MVP (local): Code/Work toggle, Work Runtime sidecar, folder setup,
+  restricted Work task creation, `/work/tasks/:id` chat, and tag-filtered task
+  lists. See [specs/work-mode.md](./specs/work-mode.md).
 
 ## [1.0.0-alpha.2] - 2025-05-11
 

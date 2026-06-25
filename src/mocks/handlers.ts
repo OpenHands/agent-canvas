@@ -20,6 +20,10 @@ import {
   WORKSPACES_HANDLERS,
   resetMockWorkspaces,
 } from "./workspaces-handlers";
+import {
+  WORK_RUNTIME_HANDLERS,
+  resetWorkRuntimeMockData,
+} from "./work-runtime-handlers";
 
 export const handlers = [
   ...FILE_SERVICE_HANDLERS,
@@ -31,9 +35,9 @@ export const handlers = [
   ...AUTH_HANDLERS,
   ...FEEDBACK_HANDLERS,
   ...ANALYTICS_HANDLERS,
-  ...AUTOMATION_HANDLERS,
   ...MCP_HANDLERS,
   ...WORKSPACES_HANDLERS,
+  ...WORK_RUNTIME_HANDLERS,
 ];
 
 export {
@@ -41,4 +45,5 @@ export {
   resetTestHandlersMockSettings,
   resetAutomationMockData,
   resetMockWorkspaces,
+  resetWorkRuntimeMockData,
 };

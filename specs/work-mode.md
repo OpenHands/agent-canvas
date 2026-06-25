@@ -1,8 +1,8 @@
 # Work Mode
 
-> **Status:** In progress on branch `feat/work-mode-scaffold`. The Code/Work toggle,
-> capability resolver, and placeholder `/work` home exist. Work Runtime, task flows,
-> folder grants, and apps are not built yet.
+> **Status:** MVP on branch `feat/work-mode-scaffold`. Local Work mode supports
+> folder grants, task creation, and `/work/tasks/:id` chat. Hosted cloud Work
+> and apps are not built yet.
 
 Work mode is a Cowork-style surface for knowledge work on the user's machine (or,
 later, in cloud-provisioned volumes). **Code mode** stays the existing agent-canvas
@@ -167,6 +167,22 @@ Cloud coding sandboxes cannot access the user's desktop folders.
 ### WM-005: Placeholder Work home
 - [x] `/work` route renders a scaffold home screen (`src/routes/work-home.tsx`).
 
+### WM-006: Work Runtime sidecar
+- [x] Embedded FastAPI service at `services/work-runtime/`.
+- [x] Dev stack route `/api/work` on port `18002`.
+
+### WM-007: Work manifest client
+- [x] `WorkRuntimeService`, health/manifest hooks, MSW handlers.
+
+### WM-008: Workspace setup
+- [x] Folder picker + manifest persistence on `/work`.
+
+### WM-009: Work task creation
+- [x] Restricted agent profile and `useCreateWorkTask`.
+
+### WM-010: Work task route and list
+- [x] `/work/tasks/:taskId` and tag-filtered sidebar/home lists.
+
 ---
 
 ## Key implementation files
@@ -175,14 +191,20 @@ Cloud coding sandboxes cannot access the user's desktop folders.
 |------|------|
 | App mode type | `src/types/app-mode.ts` |
 | Work execution types | `src/types/work-mode-capabilities.ts` |
+| Work manifest types | `src/types/work-manifest.ts` |
+| Work Runtime (Python) | `services/work-runtime/openhands_work_runtime/app.py` |
+| Work Runtime client | `src/api/work-runtime-service/work-runtime-service.api.ts` |
 | Backend optional override | `src/api/backend-registry/types.ts` → `Backend.workExecution` |
 | Capability resolver | `src/utils/app-mode-capabilities.ts` |
+| Work conversation helpers | `src/utils/work-conversations.ts` |
+| Restricted start payload | `buildWorkStartConversationRequest()` in `src/api/agent-server-adapter.ts` |
 | Mode store | `src/stores/app-mode-store.ts` |
 | Capability context hook | `src/hooks/use-work-mode-availability.ts` |
 | Backend/mode sync | `src/hooks/use-app-mode-backend-sync.ts` |
 | Sidebar toggle | `src/components/features/sidebar/app-mode-toggle.tsx` |
-| Cloud guard | `src/components/features/work/work-mode-cloud-guard.tsx` |
-| Tests | `__tests__/utils/app-mode-capabilities.test.ts` |
+| Work home + setup | `src/components/features/work/` |
+| Task route | `src/routes/work-task.tsx` |
+| Tests | `__tests__/utils/app-mode-capabilities.test.ts`, `__tests__/api/work-runtime-service.test.ts` |
 
 Hooks and routes should use `useWorkModeCapabilityContext()` (or
 `useWorkModeAvailability()`) instead of checking `backend.kind === "local"` directly,
@@ -190,18 +212,16 @@ so override policy stays centralized.
 
 ---
 
-## Not built yet
+## Not built yet (post-MVP)
 
-- **Work Runtime** service (sibling to Automation Server)
-- **Work workspace manifest** (granted folders, deliverables path, app entitlements)
-- Task creation, folder picker, `/work/tasks/:id`, apps marketplace
-- Restricted agent profile for Work (no shell/git)
-- Routing Work API calls by `execution` (`local` vs `hosted`)
+- Apps marketplace / Work apps
+- Hosted Work (`execution: "hosted"`) and cloud volume routing
 - Backend/org UI to set `workExecution`
 - Sidebar copy for dual-host (“Code on … / Work on …”)
 - Org policy (e.g. forbid `workExecution: "local"` for compliance)
+- Docker all-in-one third service
 
-When implementing Work Runtime calls, branch on `capabilities.execution`:
+When implementing hosted Work Runtime calls, branch on `capabilities.execution`:
 
 - `local` → local agent-server / Work Runtime on device (same machine as
   `getEffectiveLocalBackend()`)

@@ -10,6 +10,7 @@ export default [
     index("routes/index-redirect.tsx"),
     route("conversations", "routes/home.tsx"),
     route("work", "routes/work-home.tsx"),
+    route("work/tasks/:taskId", "routes/work-task.tsx"),
     route(
       "conversations/:conversationId/panel",
       "routes/conversation-panel.tsx",

@@ -13,6 +13,7 @@ import {
 interface MatchWithParams {
   params?: {
     conversationId?: string;
+    taskId?: string;
   };
 }
 
@@ -26,7 +27,8 @@ export function ReactRouterNavigationProvider({
 
   const conversationId = React.useMemo(() => {
     for (let index = matches.length - 1; index >= 0; index -= 1) {
-      const matchedConversationId = matches[index]?.params?.conversationId;
+      const params = matches[index]?.params;
+      const matchedConversationId = params?.conversationId ?? params?.taskId;
       if (matchedConversationId) {
         return matchedConversationId;
       }

@@ -28,6 +28,12 @@ import {
   OPENAI_SUBSCRIPTION_VENDOR,
   isSubscriptionLlmConfig,
 } from "#/constants/llm-subscription";
+import type { WorkManifest } from "#/types/work-manifest";
+import {
+  WORK_MODE_TAG,
+  WORK_MODE_TAG_VALUE,
+  WORK_WORKSPACE_ID_TAG,
+} from "#/types/work-manifest";
 
 export interface DirectConversationInfo {
   id: string;
@@ -127,6 +133,14 @@ interface RuntimeServicesInfo {
       openapi_url?: string;
       auth_env_var?: string;
     };
+    work_runtime?: {
+      description?: string;
+      url_from_agent?: string;
+      api_prefix?: string;
+      docs_url?: string;
+      openapi_url?: string;
+      auth_env_var?: string;
+    };
   };
 }
 
@@ -207,8 +221,8 @@ export function buildRuntimeServicesSystemSuffix(): string | undefined {
     "",
   );
 
-  const { agent_server, ingress, automation } = info.services;
-  const { frontend } = info.services;
+  const { agent_server, ingress, automation, work_runtime } = info.services;
+  const frontend = info.services.frontend ?? info.services.vite;
 
   if (agent_server?.url_from_agent) {
     lines.push(
@@ -249,6 +263,28 @@ export function buildRuntimeServicesSystemSuffix(): string | undefined {
   } else {
     lines.push(
       "* Automation backend: not running in this dev mode (skip /api/automation calls).",
+    );
+  }
+
+  if (work_runtime?.url_from_agent) {
+    lines.push(
+      `* Work Runtime: ${work_runtime.url_from_agent}`,
+      `    ${work_runtime.description ?? "OpenHands Work Runtime service."}`,
+    );
+    if (work_runtime.docs_url) {
+      lines.push(`    Docs:    ${work_runtime.docs_url}`);
+    }
+    if (work_runtime.openapi_url) {
+      lines.push(`    OpenAPI: ${work_runtime.openapi_url}`);
+    }
+    if (work_runtime.auth_env_var) {
+      lines.push(
+        `    Auth:    header 'X-API-Key: $${work_runtime.auth_env_var}'`,
+      );
+    }
+  } else {
+    lines.push(
+      "* Work Runtime: not running in this dev mode (skip /api/work calls).",
     );
   }
 
@@ -365,6 +401,7 @@ export function toAppConversation(
     },
     public: false,
     sub_conversation_ids: [],
+    tags: info.tags ?? undefined,
   };
 }
 
@@ -1034,6 +1071,105 @@ export async function assertSubscriptionAuthReady(
   if (!status.connected) {
     throw new Error(SUBSCRIPTION_LOGIN_REQUIRED_ERROR);
   }
+}
+
+const WORK_TOOL_NAMES = [
+  "file_editor",
+  "task_tracker",
+  CANVAS_UI_TOOL_NAME,
+] as const;
+
+export function buildWorkSystemSuffix(manifest: {
+  grantedFolders: string[];
+  deliverablesPath: string;
+}): string {
+  return [
+    "<WORK_MODE>",
+    "You are running in Work mode for desktop knowledge work.",
+    "Do not use shell, terminal, git, or browser tools.",
+    `Granted folders: ${manifest.grantedFolders.join(", ")}`,
+    `Deliverables path: ${manifest.deliverablesPath}`,
+    "Save finished outputs for the user under the deliverables path.",
+    "</WORK_MODE>",
+  ].join("\n");
+}
+
+function getWorkAgentTools(): AgentToolSpec[] {
+  return WORK_TOOL_NAMES.map((name) => ({ name, params: {} }));
+}
+
+function buildWorkAgentContext(
+  agentSettings: SettingsRecord,
+  workManifest: WorkManifest,
+): SettingsRecord {
+  const workSuffix = buildWorkSystemSuffix(workManifest);
+  const runtimeServicesSuffix = buildRuntimeServicesSystemSuffix();
+  const combinedSuffix = [workSuffix, runtimeServicesSuffix]
+    .filter(Boolean)
+    .join("\n\n");
+
+  return {
+    ...toRecord(agentSettings.agent_context),
+    load_public_skills: shouldLoadPublicSkills(),
+    load_user_skills: true,
+    ...(combinedSuffix ? { system_message_suffix: combinedSuffix } : {}),
+  };
+}
+
+export interface WorkStartConversationOptions extends StartConversationOptions {
+  workManifest: WorkManifest;
+}
+
+/** @spec WM-010 — Restricted Work agent profile */
+export function buildWorkStartConversationRequest(
+  options: WorkStartConversationOptions,
+): StartConversationPayload {
+  const payload = buildStartConversationRequest(options);
+  const sourceAgentSettings = options.encryptedAgentSettings
+    ? { ...options.settings, agent_settings: options.encryptedAgentSettings }
+    : options.settings;
+  const agentSettings = {
+    ...payload.agent_settings,
+    tools: getWorkAgentTools(),
+    agent_context: buildWorkAgentContext(
+      toRecord(sourceAgentSettings.agent_settings),
+      options.workManifest,
+    ),
+  };
+
+  return {
+    ...payload,
+    agent_settings: agentSettings,
+    worktree: false,
+    tags: {
+      [WORK_MODE_TAG]: WORK_MODE_TAG_VALUE,
+      [WORK_WORKSPACE_ID_TAG]: options.workManifest.id
+        .replace(/[^a-z0-9]/gi, "")
+        .toLowerCase(),
+    },
+  };
+}
+
+export async function buildWorkStartConversationRequestWithEncryptedSettings(
+  options: Omit<WorkStartConversationOptions, "encryptedAgentSettings">,
+): Promise<Record<string, unknown>> {
+  const { SecretsService } = await import("./secrets-service");
+
+  const [settingsResult, customSecrets] = await Promise.all([
+    SettingsService.getSettingsForConversation(),
+    SecretsService.getSecrets(),
+  ]);
+
+  const { agentSettings, conversationSettings, secretsEncrypted } =
+    settingsResult;
+
+  return buildWorkStartConversationRequest({
+    ...options,
+    encryptedAgentSettings: agentSettings,
+    encryptedConversationSettings: conversationSettings,
+    secretsEncrypted,
+    customSecrets,
+  });
 }
 
 export async function buildStartConversationRequestWithEncryptedSettings(options: {

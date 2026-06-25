@@ -11,6 +11,7 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { Provider } from "#/types/settings";
 import type { ConversationRuntimeContext } from "#/api/conversation-file-upload.api";
+import type { WorkManifest } from "#/types/work-manifest";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import {
   buildConversationWorkingDir,
@@ -36,6 +37,7 @@ import {
   DirectConversationInfo,
   assertSubscriptionAuthReady,
   buildStartConversationRequestWithEncryptedSettings,
+  buildWorkStartConversationRequestWithEncryptedSettings,
   emptyHooksResponse,
   getDefaultConversationTitle,
   toAppConversation,
@@ -436,6 +438,57 @@ class AgentServerConversationService {
           | AppConversationStartRequest["initial_message"]
           | undefined,
         plugins: plugins ?? null,
+      },
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+    };
+  }
+
+  static async createWorkConversation(
+    initialUserMsg: string,
+    workManifest: WorkManifest,
+  ): Promise<AppConversationStartTask> {
+    if (getActiveBackend().backend.kind === "cloud") {
+      throw new Error("Work mode requires a local backend");
+    }
+
+    const settings = await SettingsService.getSettings();
+    const conversationId = uuidv4();
+    const workingDir =
+      workManifest.deliverablesPath || workManifest.grantedFolders[0];
+
+    const payload =
+      await buildWorkStartConversationRequestWithEncryptedSettings({
+        settings,
+        query: initialUserMsg,
+        conversationId,
+        workingDir,
+        workManifest,
+      });
+
+    const data = await new ConversationClient(
+      getAgentServerClientOptions(),
+    ).createConversation<DirectConversationInfo>(payload);
+
+    setStoredConversationMetadata(data.id, {
+      selected_repository: null,
+      selected_branch: null,
+      git_provider: null,
+      selected_workspace: workingDir,
+    });
+
+    return {
+      id: data.id,
+      created_by_user_id: null,
+      status: "READY",
+      detail: null,
+      app_conversation_id: data.id,
+      agent_server_url: getEffectiveLocalBackend().host,
+      request: {
+        initial_message: payload.initial_message as
+          | AppConversationStartRequest["initial_message"]
+          | undefined,
+        plugins: null,
       },
       created_at: data.created_at,
       updated_at: data.updated_at,
