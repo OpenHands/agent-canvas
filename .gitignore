@@ -6,6 +6,7 @@ src/i18n/declaration.ts
 node_modules/
 build/
 logs/
+/.tmp/checks-media-worktree/
 /.tmp/live-e2e-state/
 /.tmp/mock-llm-state/
 /.tmp/mock-llm-skill-repos/
@@ -19,7 +20,7 @@ __pycache__
 /test-results-mock-llm-docker/
 /.mock-llm-markers/
 # Bet D verification: the agent commits `.checks/result.json` + the spec, but the
-# recorded video/trace are heavy and pushed to a media branch instead (pr-media).
+# recorded video/trace are heavy and pushed to a media branch instead.
 .checks/*.webm
 .checks/*.zip
 .checks/*.png

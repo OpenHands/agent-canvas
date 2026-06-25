@@ -117,12 +117,29 @@ Playwright — reuse it if present; do not scaffold it from nothing.
 EMIT_CHECKS=1 npx playwright test --project=verified-dev
 ```
 
-Optional durable media publishing (A3): if a runner has checked out or mounted a
-media branch/path, set both env vars before running Playwright:
+Optional durable media publishing (A3): use the wrapper to run a verified
+project, copy video/trace attachments into a media-branch checkout, push that
+branch, and write durable raw URLs into `result.json`:
+
+```sh
+npm run test:e2e:verified:media -- --project=verified-dev
+```
+
+Defaults:
+
+- branch: `checks-media` (`CHECKS_MEDIA_BRANCH` to override)
+- checkout: `.tmp/checks-media-worktree` (`CHECKS_MEDIA_WORKTREE` to override)
+- path: `.checks/<short-sha>-<timestamp>/...` (`CHECKS_MEDIA_PATH_PREFIX` /
+  `CHECKS_MEDIA_RUN_ID` to override)
+- URL: `https://raw.githubusercontent.com/<owner>/<repo>/<branch>/.checks/<run>/...`
+  derived from `origin` (`CHECKS_MEDIA_BASE_URL` to override)
+
+If a runner has already mounted a media branch/path, it can still set both env
+vars directly before Playwright:
 
 ```sh
 CHECKS_MEDIA_DIR=/tmp/checks-media/$RUN_ID \
-CHECKS_MEDIA_BASE_URL=https://raw.githubusercontent.com/OWNER/REPO/media/.checks/$RUN_ID \
+CHECKS_MEDIA_BASE_URL=https://raw.githubusercontent.com/OWNER/REPO/checks-media/.checks/$RUN_ID \
 EMIT_CHECKS=1 npx playwright test --project=verified-dev
 ```
 
