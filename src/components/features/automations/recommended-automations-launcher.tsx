@@ -23,7 +23,9 @@ import {
 } from "#/utils/mcp-marketplace-utils";
 import { InstallServerModal } from "#/components/features/mcp-page/install-server-modal";
 import { useTracking } from "#/hooks/use-tracking";
+import { isResponderAutomation } from "#/utils/responder-deployment";
 import { RecommendedAutomationsSection } from "./recommended-automations-section";
+import { ResponderDeploymentModal } from "./responder-deployment-modal";
 
 interface RecommendedAutomationsLauncherProps {
   query?: string;
@@ -64,6 +66,8 @@ export function RecommendedAutomationsLauncher({
     (state) => state.setMessageToSend,
   );
   const [pendingAutomation, setPendingAutomation] =
+    useState<RecommendedAutomation | null>(null);
+  const [deploymentChoiceAutomation, setDeploymentChoiceAutomation] =
     useState<RecommendedAutomation | null>(null);
   const [installQueue, setInstallQueue] = useState<MarketplaceEntry[]>([]);
   const completedInstallRef = useRef(false);
@@ -135,16 +139,7 @@ export function RecommendedAutomationsLauncher({
     [installedMcpServers],
   );
 
-  const handleSelectAutomation = (automation: RecommendedAutomation) => {
-    if (
-      launchInFlightRef.current ||
-      createConversation.isPending ||
-      isCreatingConversation ||
-      installQueue.length > 0
-    ) {
-      return;
-    }
-
+  const proceedWithLocalLaunch = (automation: RecommendedAutomation) => {
     const missingEntries = getMissingEntries(automation);
     if (missingEntries.length === 0) {
       launchAutomation(automation);
@@ -153,6 +148,44 @@ export function RecommendedAutomationsLauncher({
 
     setPendingAutomation(automation);
     setInstallQueue(missingEntries);
+  };
+
+  const handleSelectAutomation = (automation: RecommendedAutomation) => {
+    if (
+      launchInFlightRef.current ||
+      createConversation.isPending ||
+      isCreatingConversation ||
+      installQueue.length > 0 ||
+      deploymentChoiceAutomation !== null
+    ) {
+      return;
+    }
+
+    // GitHub/Slack responders poll continuously; let the user choose where the
+    // responder runs before committing to the local setup flow.
+    if (isResponderAutomation(automation)) {
+      setDeploymentChoiceAutomation(automation);
+      return;
+    }
+
+    proceedWithLocalLaunch(automation);
+  };
+
+  const handleDeploymentContinueLocal = () => {
+    const automation = deploymentChoiceAutomation;
+    setDeploymentChoiceAutomation(null);
+    if (automation) {
+      proceedWithLocalLaunch(automation);
+    }
+  };
+
+  const handleDeploymentOpenUrl = (url: string) => {
+    setDeploymentChoiceAutomation(null);
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const handleDeploymentClose = () => {
+    setDeploymentChoiceAutomation(null);
   };
 
   const cancelInstallFlow = () => {
@@ -206,6 +239,13 @@ export function RecommendedAutomationsLauncher({
           onSuccess={handleInstallSuccess}
         />
       )}
+
+      <ResponderDeploymentModal
+        isOpen={deploymentChoiceAutomation !== null}
+        onClose={handleDeploymentClose}
+        onContinueLocal={handleDeploymentContinueLocal}
+        onOpenUrl={handleDeploymentOpenUrl}
+      />
     </>
   );
 }
