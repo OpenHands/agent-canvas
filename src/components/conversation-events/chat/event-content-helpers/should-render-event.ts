@@ -1,4 +1,4 @@
-import { OpenHandsEvent } from "#/types/agent-server/core";
+import { MessageEvent, OpenHandsEvent } from "#/types/agent-server/core";
 import {
   isActionEvent,
   isObservationEvent,
@@ -10,6 +10,31 @@ import {
   isACPToolCallEvent,
   isStreamingDeltaEvent,
 } from "#/types/agent-server/type-guards";
+
+// Prefixes of the SDK goal-loop re-prompts (FOLLOWUP_PROMPT / RESUME_PROMPT in
+// openhands.sdk .../conversation/goal/prompts.py). The goal loop injects these
+// as `user` messages each round to steer the agent, and FOLLOWUP_PROMPT embeds
+// the judge's verdict — which the goal banner already surfaces. The persisted
+// event carries no marker distinguishing them from real user input, so we match
+// the prompt text to keep this machinery out of the chat. Brittle by design;
+// keep in sync with the SDK prompts (the durable fix is a persisted goal-loop
+// flag on the event).
+const GOAL_REPROMPT_PREFIXES = [
+  "The goal is NOT yet complete (audit iteration",
+  "Resuming a goal that was paused or interrupted.",
+];
+
+const isGoalLoopReprompt = (event: MessageEvent): boolean => {
+  if (event.llm_message?.role !== "user") return false;
+  const content = event.llm_message.content;
+  const text = Array.isArray(content)
+    ? content
+        .filter((c) => c.type === "text")
+        .map((c) => c.text)
+        .join("\n")
+    : "";
+  return GOAL_REPROMPT_PREFIXES.some((prefix) => text.startsWith(prefix));
+};
 
 export const shouldRenderEvent = (event: OpenHandsEvent) => {
   if (isConversationStateUpdateEvent(event)) {
@@ -63,9 +88,11 @@ export const shouldRenderEvent = (event: OpenHandsEvent) => {
     return true;
   }
 
-  // Render message events (user and assistant messages)
+  // Render message events (user and assistant messages), except the goal loop's
+  // injected re-prompts — the judge feedback they carry is shown in the goal
+  // banner, so otherwise they leak into the chat as fake user turns.
   if (isMessageEvent(event)) {
-    return true;
+    return !isGoalLoopReprompt(event);
   }
 
   // Render agent error events
