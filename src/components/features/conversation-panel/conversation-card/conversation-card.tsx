@@ -21,9 +21,11 @@ import { ConversationStatusBadges } from "./conversation-status-badges";
 import { ConversationSourceBadges } from "./conversation-source-badges";
 import { ConductorRowContextMenu } from "./conductor-row-context-menu";
 import { ConversationDiffStatChip } from "./conversation-diff-stat-chip";
+import { VerificationVerdictBadge } from "./verification-verdict-badge";
 import type { ConversationStatusBucketId } from "../conversation-panel-list-helpers";
 import { useDownloadConversation } from "#/hooks/use-download-conversation";
 import { useConversationDiffStat } from "#/hooks/query/use-conversation-diff-stat";
+import { useConversationCheckResult } from "#/hooks/query/use-conversation-check-result";
 
 const RIGHT_CLICK_MENU_WIDTH = 240;
 const RIGHT_CLICK_MENU_HEIGHT = 300;
@@ -41,6 +43,8 @@ interface ConversationCardProps {
   executionStatus?: ExecutionStatus | null;
   sandboxStatus?: SandboxStatus | null;
   conversationId?: string;
+  conversationUrl?: string | null;
+  sessionApiKey?: string | null;
   contextMenuOpen?: boolean;
   onContextMenuToggle?: (isOpen: boolean) => void;
   isActive?: boolean;
@@ -89,6 +93,8 @@ export function ConversationCard({
   lastUpdatedAt,
   createdAt,
   conversationId,
+  conversationUrl,
+  sessionApiKey,
   executionStatus,
   sandboxStatus,
   contextMenuOpen = false,
@@ -130,6 +136,13 @@ export function ConversationCard({
     conversationId,
     selectedRepository: selectedRepository?.selected_repository,
     workingDir: workspaceWorkingDir,
+    sandboxStatus,
+  });
+  const checkResult = useConversationCheckResult({
+    conversationId,
+    conversationUrl,
+    sessionApiKey,
+    executionStatus,
     sandboxStatus,
   });
 
@@ -286,6 +299,7 @@ export function ConversationCard({
             executionStatus={executionStatus}
             sandboxStatus={sandboxStatus}
           />
+          <VerificationVerdictBadge status={checkResult.data?.status ?? null} />
           {sandboxStatus === "ERROR" && <ConversationStatusBadges />}
         </div>
 

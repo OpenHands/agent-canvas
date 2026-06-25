@@ -41,6 +41,8 @@ vi.mock("react-i18next", async () => {
           CONVERSATION$ACP_AGENT_GENERIC: "ACP",
           CONVERSATION_PANEL$PIN_CONVERSATION: "Pin conversation",
           CONVERSATION_PANEL$UNPIN_CONVERSATION: "Unpin conversation",
+          CONVERSATION_PANEL$VERIFICATION_PASSED: "Verification passed",
+          CONVERSATION_PANEL$VERIFICATION_FAILED: "Verification failed",
         };
         return translations[key] || key;
       },
@@ -56,6 +58,17 @@ vi.mock("#/hooks/use-tracking", () => ({
     trackDownloadVsCodeButtonClicked: vi.fn(),
   }),
 }));
+
+const downloadFileMock = vi.fn();
+vi.mock("#/api/runtime-service/agent-server-runtime-service", () => ({
+  default: {
+    downloadFile: (...args: unknown[]) => downloadFileMock(...args),
+  },
+}));
+
+function arrayBufferFromString(value: string): ArrayBuffer {
+  return new TextEncoder().encode(value).buffer as ArrayBuffer;
+}
 
 describe("ConversationCard", () => {
   const onClick = vi.fn();
@@ -73,6 +86,7 @@ describe("ConversationCard", () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    downloadFileMock.mockReset();
   });
 
   afterAll(() => {
@@ -519,6 +533,32 @@ describe("ConversationCard", () => {
     expect(
       screen.getByTestId("conversation-status-working"),
     ).toBeInTheDocument();
+  });
+
+  it("renders the verification verdict when a finished conversation has check results", async () => {
+    downloadFileMock.mockResolvedValue(
+      arrayBufferFromString(JSON.stringify({ status: "failed" })),
+    );
+
+    renderWithProviders(
+      <ConversationCard
+        title="Conversation 1"
+        selectedRepository={null}
+        lastUpdatedAt="2021-10-01T12:00:00Z"
+        conversationId="conversation-1"
+        conversationUrl="https://agent.example.com/conversations/1"
+        sessionApiKey="session-key"
+        executionStatus={ExecutionStatus.FINISHED}
+      />,
+    );
+
+    const badge = await screen.findByTestId("verification-verdict-badge");
+    expect(badge).toHaveAttribute("data-status", "failed");
+    expect(downloadFileMock).toHaveBeenCalledWith(
+      "https://agent.example.com/conversations/1",
+      "session-key",
+      ".checks/result.json",
+    );
   });
 
   const statusTable: [ExecutionStatus, boolean][] = [

@@ -30,6 +30,20 @@ export const LOCAL_WORKSPACES_QUERY_KEYS = {
   all: ["local-workspaces"] as const,
 } as const;
 
+export const CHECK_RESULT_QUERY_KEYS = {
+  byConversation: (
+    conversationId: string | undefined,
+    conversationUrl: string | null | undefined,
+    sessionApiKey: string | null | undefined,
+  ) =>
+    [
+      "conversation-check-result",
+      conversationId,
+      conversationUrl,
+      sessionApiKey,
+    ] as const,
+} as const;
+
 /** Cache configuration shared across all config-related queries */
 export const CONFIG_CACHE_OPTIONS = {
   staleTime: 1000 * 60 * 5, // 5 minutes

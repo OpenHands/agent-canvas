@@ -941,6 +941,8 @@ export function ConversationPanel({
               executionStatus={conversation.execution_status}
               sandboxStatus={conversation.sandbox_status}
               conversationId={conversation.id}
+              conversationUrl={conversation.conversation_url}
+              sessionApiKey={conversation.session_api_key}
               contextMenuOpen={openContextMenuId === conversation.id}
               onContextMenuToggle={(isOpen) =>
                 setOpenContextMenuId(isOpen ? conversation.id : null)
