@@ -22,10 +22,39 @@ describe("table (markdown)", () => {
       <MarkdownRenderer>{GFM_TABLE}</MarkdownRenderer>,
     );
 
-    // Wide tables must not break chat layout — wrapper enables overflow
-    const wrapper = container.querySelector(".overflow-x-auto");
-    expect(wrapper).not.toBeNull();
-    expect(wrapper?.querySelector("table")).not.toBeNull();
+    const wrapper = screen.getByTestId("markdown-table-scroll");
+    expect(wrapper).toHaveClass("overflow-x-auto");
+    expect(wrapper).toHaveClass("custom-scrollbar-always");
+    expect(wrapper).toHaveClass("max-w-full");
+    expect(wrapper.querySelector("table")).not.toBeNull();
+    expect(container.querySelector(".overflow-x-auto")).not.toBeNull();
+  });
+
+  it("should round corners on the table element", () => {
+    render(<MarkdownRenderer>{GFM_TABLE}</MarkdownRenderer>);
+
+    const table = screen.getByRole("table");
+    expect(table).toHaveClass("rounded-xl");
+    expect(table).toHaveClass("overflow-hidden");
+
+    const wrapper = screen.getByTestId("markdown-table-scroll");
+    expect(wrapper).not.toHaveClass("rounded-xl");
+
+    expect(
+      screen.getByTestId("markdown-table-scroll-fade-left"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("markdown-table-scroll-fade-right"),
+    ).toBeInTheDocument();
+  });
+
+  it("should let wide tables grow beyond the chat column instead of squishing columns", () => {
+    render(<MarkdownRenderer>{GFM_TABLE}</MarkdownRenderer>);
+
+    const table = screen.getByRole("table");
+    expect(table).toHaveClass("w-max");
+    expect(table).toHaveClass("min-w-full");
+    expect(table).not.toHaveClass("w-full");
   });
 
   it("should render header cells as <th> elements with correct content", () => {
