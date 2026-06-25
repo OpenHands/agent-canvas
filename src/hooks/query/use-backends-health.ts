@@ -8,6 +8,8 @@ import {
 import { getCurrentCloudApiKey } from "#/api/cloud/organization-service.api";
 import {
   assertAgentServerVersionIsSupported,
+  isAgentServerUnknownVersionError,
+  isAgentServerUnsupportedVersionError,
   isSdkHttpStatusError,
 } from "#/api/agent-server-compatibility";
 import type { Backend } from "#/api/backend-registry/types";
@@ -26,6 +28,7 @@ import { MAX_CONSECUTIVE_FAILURES } from "#/api/backend-registry/health-storage"
 
 const REFRESH_INTERVAL_MS = 10000;
 const PROBE_TIMEOUT_MS = 4000;
+const PROBE_TRANSIENT_RETRY_LIMIT = 2;
 export const INVALID_BACKEND_API_KEY_ERROR = "Invalid API key";
 export const MISSING_BACKEND_API_KEY_ERROR = "API key required";
 export const CLOUD_BACKEND_API_KEY_OR_NETWORK_ERROR =
@@ -58,6 +61,30 @@ export function isCloudBackendLoggedOutHealthError(
   error: string | null | undefined,
 ): boolean {
   return error === CLOUD_BACKEND_LOGGED_OUT_ERROR;
+}
+
+// Auth and compatibility failures need user action; other probe errors get a
+// bounded reconnect window before the health store records a failure.
+function isTerminalProbeError(error: unknown): boolean {
+  if (error instanceof Error) {
+    if (
+      error.message === INVALID_BACKEND_API_KEY_ERROR ||
+      error.message === MISSING_BACKEND_API_KEY_ERROR ||
+      error.message === CLOUD_BACKEND_LOGGED_OUT_ERROR
+    ) {
+      return true;
+    }
+  }
+  return (
+    isAgentServerUnsupportedVersionError(error) ||
+    isAgentServerUnknownVersionError(error)
+  );
+}
+
+function waitForProbeRetry(): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, 250);
+  });
 }
 
 /**
@@ -189,13 +216,25 @@ export function useBackendsHealth(
           b.apiKey ?? "",
         ] as const,
         queryFn: async () => {
-          try {
-            const result = await probeBackend(b);
-            recordBackendSuccess(b.id);
-            return result;
-          } catch (err) {
-            recordBackendFailure(b.id, err);
-            throw err;
+          let transientFailures = 0;
+
+          for (;;) {
+            try {
+              const result = await probeBackend(b);
+              recordBackendSuccess(b.id);
+              return result;
+            } catch (err) {
+              if (
+                isTerminalProbeError(err) ||
+                transientFailures >= PROBE_TRANSIENT_RETRY_LIMIT
+              ) {
+                recordBackendFailure(b.id, err);
+                throw err;
+              }
+
+              transientFailures += 1;
+              await waitForProbeRetry();
+            }
           }
         },
         enabled: shouldProbe,

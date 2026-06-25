@@ -127,6 +127,27 @@ export const isAgentServerUnknownVersionError = (
 export const isAgentServerAuthError = (error: unknown): boolean =>
   isAuthRequired() && isSdkHttpStatusError(error, 401);
 
+/**
+ * Distinguishes retryable disconnects from terminal compatibility/auth
+ * failures so startup can absorb brief backend outages without hiding real
+ * configuration problems.
+ */
+export const isTransientAgentServerError = (error: unknown): boolean => {
+  if (!isAgentServerUnavailableError(error)) {
+    return false;
+  }
+  if (
+    isAgentServerUnsupportedVersionError(error) ||
+    isAgentServerUnknownVersionError(error) ||
+    isAgentServerAuthError(error)
+  ) {
+    return false;
+  }
+  return (
+    (error as { noBackendConfigured?: boolean }).noBackendConfigured !== true
+  );
+};
+
 export function clearCachedAgentServerInfo() {
   cachedAgentServerInfo = null;
 }

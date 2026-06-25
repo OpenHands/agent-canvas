@@ -418,22 +418,59 @@ describe("App root agent-server availability guard", () => {
 
     renderApp(["/"]);
 
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("agent-server-onboarding-screen"),
-      ).toBeInTheDocument();
-    });
+    await waitFor(
+      () => {
+        expect(
+          screen.getByTestId("agent-server-onboarding-screen"),
+        ).toBeInTheDocument();
+      },
+      { timeout: 8000 },
+    );
 
     // The onboarding placeholder now hosts the Manage Backends modal
     // directly so the user can edit/add a backend immediately. The
     // modal additionally probes /server_info per registered backend
     // for its status dot + version label, so the request count is
     // bounded but greater than the single config probe.
-    await waitFor(() => {
-      expect(screen.getByTestId("manage-backends-modal")).toBeInTheDocument();
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByTestId("manage-backends-modal")).toBeInTheDocument();
+      },
+      { timeout: 8000 },
+    );
     expect(serverInfoRequests).toBeGreaterThanOrEqual(1);
     expect(screen.queryByTestId("app-outlet")).not.toBeInTheDocument();
+  });
+
+  it("retries the bootstrap config probe on a transient failure then renders the app", async () => {
+    let serverInfoRequests = 0;
+
+    server.use(
+      http.get("*/server_info", () => {
+        serverInfoRequests += 1;
+        if (serverInfoRequests === 1) {
+          return HttpResponse.error();
+        }
+        return HttpResponse.json({
+          uptime: 0,
+          idle_time: 0,
+          version: "1.28.1",
+        });
+      }),
+    );
+
+    renderApp(["/"]);
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId("app-outlet")).toBeInTheDocument();
+      },
+      { timeout: 5000 },
+    );
+    expect(serverInfoRequests).toBeGreaterThanOrEqual(2);
+    expect(
+      screen.queryByTestId("agent-server-onboarding-screen"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the manage-backends recovery modal when the active cloud backend is logged out", async () => {

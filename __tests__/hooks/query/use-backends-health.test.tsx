@@ -119,9 +119,69 @@ describe("useBackendsHealth", () => {
       wrapper,
     });
 
-    await waitFor(() =>
-      expect(result.current[localBackend.id].isConnected).toBe(false),
+    await waitFor(
+      () => expect(result.current[localBackend.id].isConnected).toBe(false),
+      { timeout: 2000 },
     );
+  });
+
+  it("retries a transient probe failure before recording a backend failure", async () => {
+    getSettingsMock
+      .mockRejectedValueOnce(new Error("ECONNREFUSED"))
+      .mockResolvedValue({});
+
+    const { result } = renderHook(() => useBackendsHealth([localBackend]), {
+      wrapper,
+    });
+
+    await waitFor(
+      () =>
+        expect(result.current[localBackend.id]).toMatchObject({
+          isConnected: true,
+          consecutiveFailures: 0,
+        }),
+      { timeout: 1500 },
+    );
+    expect(getSettingsMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("records a failure exactly once after exhausting the transient retry budget", async () => {
+    getSettingsMock.mockRejectedValue(new Error("ECONNREFUSED"));
+
+    const { result } = renderHook(() => useBackendsHealth([localBackend]), {
+      wrapper,
+    });
+
+    await waitFor(
+      () =>
+        expect(result.current[localBackend.id]).toMatchObject({
+          isConnected: false,
+          consecutiveFailures: 1,
+        }),
+      { timeout: 2000 },
+    );
+  });
+
+  it("records an invalid API key failure immediately without consuming the transient retry budget", async () => {
+    getSettingsMock.mockRejectedValue(
+      Object.assign(new Error("Unauthorized"), {
+        name: "HttpError",
+        status: 401,
+      }),
+    );
+
+    const { result } = renderHook(() => useBackendsHealth([localBackend]), {
+      wrapper,
+    });
+
+    await waitFor(() =>
+      expect(result.current[localBackend.id]).toMatchObject({
+        isConnected: false,
+        lastError: "Invalid API key",
+        consecutiveFailures: 1,
+      }),
+    );
+    expect(getSettingsMock).toHaveBeenCalledTimes(1);
   });
 
   it("reports invalid API key when the authenticated local probe returns 401", async () => {
@@ -169,8 +229,9 @@ describe("useBackendsHealth", () => {
       wrapper,
     });
 
-    await waitFor(() =>
-      expect(result.current[cloudBackend.id].isConnected).toBe(false),
+    await waitFor(
+      () => expect(result.current[cloudBackend.id].isConnected).toBe(false),
+      { timeout: 2000 },
     );
   });
 
@@ -227,13 +288,15 @@ describe("useBackendsHealth", () => {
     // Assert — one failed probe surfaces the new metadata fields on
     // the hook's return value and persists them to localStorage; the
     // disabled flag stays false because we're below the cap.
-    await waitFor(() =>
-      expect(result.current[localBackend.id]).toMatchObject({
-        isConnected: false,
-        consecutiveFailures: 1,
-        lastError: "ECONNREFUSED",
-        disabled: false,
-      }),
+    await waitFor(
+      () =>
+        expect(result.current[localBackend.id]).toMatchObject({
+          isConnected: false,
+          consecutiveFailures: 1,
+          lastError: "ECONNREFUSED",
+          disabled: false,
+        }),
+      { timeout: 2000 },
     );
     const persisted = JSON.parse(
       window.localStorage.getItem(BACKEND_HEALTH_STORAGE_KEY) ?? "{}",
