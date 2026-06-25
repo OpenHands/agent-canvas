@@ -723,6 +723,9 @@ class AgentServerConversationService {
     await conversationClient.switchLLM(conversationId, {
       ...profile.config,
       model,
+      // Keep streaming on after a switch (parity with conversation start);
+      // the profile config would otherwise default it to stream=False.
+      stream: true,
       // Avoid stale first-write-wins entries in the backend LLM registry.
       usage_id: `profile:${profileName}:${uuidv4()}`,
     } as LLMConfig);
