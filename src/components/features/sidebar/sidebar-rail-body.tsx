@@ -159,7 +159,7 @@ export function SidebarRailBody({
         <SidebarNavLink
           to="/conversations"
           end
-          label="New Chat"
+          label={t(I18nKey.SIDEBAR$NEW_CHAT)}
           testId="sidebar-conversations-link"
           disabled={linkDisabled}
           collapsed={collapsed}
@@ -167,7 +167,7 @@ export function SidebarRailBody({
         />
         <SidebarNavLink
           to="/customize"
-          label="Customize"
+          label={t(I18nKey.NAV$CUSTOMIZE)}
           testId="sidebar-skills-link"
           disabled={linkDisabled}
           collapsed={collapsed}

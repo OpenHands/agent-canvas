@@ -85,7 +85,9 @@ export function DetailHeader({
               onClick={onRunNow}
             >
               <PlayIcon className="size-3.5 shrink-0" aria-hidden />
-              {isRunningNow ? "Starting…" : t(I18nKey.AUTOMATIONS$RUN_NOW)}
+              {isRunningNow
+                ? t(I18nKey.AUTOMATIONS$STARTING)
+                : t(I18nKey.AUTOMATIONS$RUN_NOW)}
             </button>
           )}
           {canManage && (

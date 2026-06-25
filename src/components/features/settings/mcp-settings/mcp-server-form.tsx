@@ -341,6 +341,7 @@ export function MCPServerForm({
             className="w-full min-w-0"
             showOptionalTag
             defaultValue={server?.name || ""}
+            // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
             placeholder="my-search-server"
           />
 
@@ -352,6 +353,7 @@ export function MCPServerForm({
             className="w-full min-w-0"
             required
             defaultValue={server?.url || ""}
+            // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
             placeholder="https://api.example.com"
           />
 
@@ -393,6 +395,7 @@ export function MCPServerForm({
             className="w-full min-w-0"
             required
             defaultValue={server?.name || ""}
+            // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
             placeholder="my-mcp-server"
             pattern="^[a-zA-Z0-9_-]+$"
           />
@@ -405,6 +408,7 @@ export function MCPServerForm({
             className="w-full min-w-0"
             required
             defaultValue={server?.command || ""}
+            // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
             placeholder="npx"
           />
 
@@ -420,6 +424,7 @@ export function MCPServerForm({
               name="args"
               rows={3}
               defaultValue={server?.args?.join("\n") || ""}
+              // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
               placeholder="arg1&#10;arg2&#10;arg3"
               className={cn(
                 formControlMultilineFieldClassName,
@@ -444,6 +449,7 @@ export function MCPServerForm({
               name="env"
               rows={4}
               defaultValue={formatEnvironmentVariables(server?.env)}
+              // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
               placeholder="KEY1=value1&#10;KEY2=value2"
               className={cn(
                 formControlMultilineFieldClassName,

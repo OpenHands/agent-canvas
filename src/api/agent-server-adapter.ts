@@ -750,6 +750,10 @@ function buildConfiguredOpenHandsAgentSettings(
       ? llm.model
       : DEFAULT_SETTINGS.llm_model;
 
+  // Stream assistant tokens (parity with ACP agents). The agent-server only
+  // emits StreamingDeltaEvents for SDK LLM agents when an LLM has stream=True.
+  llm.stream = true;
+
   const apiKey = normalizeSecretString(llm.api_key);
   if (apiKey) {
     llm.api_key = apiKey;

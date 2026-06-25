@@ -82,6 +82,7 @@ vi.mock("#/api/agent-server-config", () => ({
   getAgentServerHeaders: vi.fn(() => ({ "X-Session-API-Key": "test-api-key" })),
   shouldLoadPublicSkills: vi.fn(() => true),
   syncBakedSessionApiKey: vi.fn(),
+  getLockedCloudHost: vi.fn(() => null),
 }));
 
 vi.mock("#/api/settings-service/settings-service.api", () => ({
@@ -774,6 +775,8 @@ describe("AgentServerConversationService", () => {
         expect.objectContaining({
           model: "openhands/claude-haiku-4-5",
           api_key: "encrypted-key",
+          // Streaming must stay enabled after a mid-conversation switch.
+          stream: true,
           usage_id: expect.stringMatching(/^profile:haiku:/),
         }),
       );

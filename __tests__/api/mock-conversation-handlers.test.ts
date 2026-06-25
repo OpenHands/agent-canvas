@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import AgentServerGitService from "#/api/git-service/agent-server-git-service.api";
+import EventService from "#/api/event-service/event-service.api";
+import { TABLE_DEMO_CONVERSATION_ID } from "#/fixtures/table-demo-conversation";
 
 describe("mock conversation handlers", () => {
   it("returns adapted conversations for batch lookups", async () => {
@@ -40,5 +42,28 @@ describe("mock conversation handlers", () => {
       "src/utils/new-helper.ts",
       "src/old-module.py",
     ]);
+  });
+
+  it("returns the table demo conversation via MSW batch lookup", async () => {
+    const [conversation] =
+      await AgentServerConversationService.batchGetAppConversations([
+        TABLE_DEMO_CONVERSATION_ID,
+      ]);
+
+    expect(conversation?.id).toBe(TABLE_DEMO_CONVERSATION_ID);
+    expect(conversation?.title).toBe("Wide table demo");
+  });
+
+  it("returns table demo events sorted for conversation history", async () => {
+    const page = await EventService.searchEvents(
+      TABLE_DEMO_CONVERSATION_ID,
+      null,
+      null,
+      { limit: 50, sortOrder: "TIMESTAMP_DESC" },
+    );
+
+    expect(page.items).toHaveLength(2);
+    expect(page.items[0]?.source).toBe("agent");
+    expect(page.items[1]?.source).toBe("user");
   });
 });
