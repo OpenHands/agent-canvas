@@ -8,8 +8,13 @@
       "changelog-type": "github",
       "skip-changelog": true,
       "extra-files": [
-        { "type": "json", "path": "config/defaults.json", "jsonpath": "$.versions.agentCanvas" },
-        "README.md"
+        {
+          "type": "json",
+          "path": "config/defaults.json",
+          "jsonpath": "$.versions.agentCanvas"
+        },
+        "README.md",
+        "README.windows.md"
       ]
     }
   }
