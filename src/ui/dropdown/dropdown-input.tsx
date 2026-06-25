@@ -8,6 +8,8 @@ interface DropdownInputProps {
   /** When false, placeholder hint keeps upright type (e.g. backend selector). */
   italicPlaceholder?: boolean;
   fitContent?: boolean;
+  /** Hide typed/selected text while keeping the value for assistive tech. */
+  hideVisibleText?: boolean;
 }
 
 export function DropdownInput({
@@ -16,6 +18,7 @@ export function DropdownInput({
   getInputProps,
   italicPlaceholder = true,
   fitContent = false,
+  hideVisibleText = false,
 }: DropdownInputProps) {
   return (
     <input
@@ -23,7 +26,7 @@ export function DropdownInput({
         placeholder,
         disabled: isDisabled,
         className: cn(
-          "outline-none bg-transparent text-white not-italic",
+          "outline-none bg-transparent not-italic",
           fitContent
             ? "w-auto field-sizing-content whitespace-nowrap text-sm"
             : "flex-1 min-w-0",
@@ -32,6 +35,7 @@ export function DropdownInput({
           !italicPlaceholder && "placeholder:text-tertiary-alt",
           formControlInlineInputClassName,
           "px-0 not-italic text-inherit",
+          hideVisibleText ? "text-transparent caret-transparent" : "text-white",
         ),
       })}
     />

@@ -300,6 +300,16 @@ describe("Dropdown", () => {
       expect(input).toHaveValue("Option 1");
     });
 
+    it("should hide combobox text when closed so the marquee overlay is not doubled", () => {
+      render(<Dropdown options={mockOptions} defaultValue={mockOptions[0]} />);
+
+      const input = screen.getByRole("combobox");
+      expect(input).toHaveClass("text-transparent");
+      expect(screen.getByTestId("hover-marquee-label-rest")).toHaveTextContent(
+        "Option 1",
+      );
+    });
+
     it("should show all options when opened with defaultValue", async () => {
       const user = userEvent.setup();
       render(<Dropdown options={mockOptions} defaultValue={mockOptions[0]} />);

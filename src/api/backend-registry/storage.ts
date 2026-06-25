@@ -2,6 +2,7 @@ import {
   SEEDED_DEFAULT_BACKEND_ID,
   makeDefaultLocalBackend,
 } from "./default-backend";
+import { mergeDemoLongBackends } from "./demo-long-backend-names";
 import type { Backend, BackendKind, BackendSelection } from "./types";
 
 export const BACKENDS_STORAGE_KEY = "openhands-backends";
@@ -99,7 +100,7 @@ export function readStoredBackends(): Backend[] {
       if (!defaultBackend) return [];
 
       writeStoredBackends([defaultBackend]);
-      return [defaultBackend];
+      return mergeDemoLongBackends([defaultBackend]);
     }
 
     const parsed = JSON.parse(raw);
@@ -113,11 +114,11 @@ export function readStoredBackends(): Backend[] {
       if (!defaultBackend) return [];
 
       writeStoredBackends([defaultBackend]);
-      return [defaultBackend];
+      return mergeDemoLongBackends([defaultBackend]);
     }
 
     const synced = syncLauncherDefaultLocalBackend(valid);
-    return synced;
+    return mergeDemoLongBackends(synced);
   } catch {
     return [];
   }

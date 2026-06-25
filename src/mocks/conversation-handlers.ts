@@ -6,6 +6,12 @@ import {
   type OpenHandsEvent,
 } from "#/types/agent-server/core";
 import { GetMicroagentsResponse } from "#/api/open-hands.types";
+import {
+  getDemoLongCloudCurrentKeyResponse,
+  getDemoLongCloudOrganizationMeResponse,
+  getDemoLongCloudOrganizationsResponse,
+  isDemoLongBackendNamesEnabled,
+} from "#/api/backend-registry/demo-long-backend-names";
 
 /** Map from conversation id → events returned by GET /events/search */
 const CONVERSATION_EVENTS: Record<string, unknown[]> = {};
@@ -375,24 +381,41 @@ export const CONVERSATION_HANDLERS = [
     }
 
     if (upstreamUrl.pathname === "/api/keys/current") {
-      return HttpResponse.json({
-        id: "mock-key",
-        name: "Mock key",
-        org_id: "org-1",
-        user_id: "user-1",
-        auth_type: "api_key",
-      });
+      return HttpResponse.json(
+        isDemoLongBackendNamesEnabled()
+          ? getDemoLongCloudCurrentKeyResponse()
+          : {
+              id: "mock-key",
+              name: "Mock key",
+              org_id: "org-1",
+              user_id: "user-1",
+              auth_type: "api_key",
+            },
+      );
     }
 
     if (upstreamUrl.pathname === "/api/organizations") {
-      return HttpResponse.json({
-        items: [{ id: "org-1", name: "Mock Org", is_personal: true }],
-        current_org_id: "org-1",
-      });
+      return HttpResponse.json(
+        isDemoLongBackendNamesEnabled()
+          ? getDemoLongCloudOrganizationsResponse()
+          : {
+              items: [{ id: "org-1", name: "Mock Org", is_personal: true }],
+              current_org_id: "org-1",
+            },
+      );
     }
 
-    if (upstreamUrl.pathname === "/api/organizations/org-1/me") {
-      return HttpResponse.json({ org_id: "org-1", user_id: "org-1" });
+    if (upstreamUrl.pathname.startsWith("/api/organizations/")) {
+      const orgId = upstreamUrl.pathname
+        .slice("/api/organizations/".length)
+        .replace(/\/me$/, "");
+      if (upstreamUrl.pathname.endsWith("/me")) {
+        return HttpResponse.json(
+          isDemoLongBackendNamesEnabled()
+            ? getDemoLongCloudOrganizationMeResponse(orgId)
+            : { org_id: "org-1", user_id: "org-1" },
+        );
+      }
     }
 
     if (upstreamUrl.pathname === "/api/authenticate") {
