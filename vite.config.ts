@@ -265,6 +265,11 @@ export default defineConfig(({ mode }) => {
         "uuid",
         "zustand",
         "zustand/middleware",
+        // Zustand/React Query dependencies can import the CJS
+        // use-sync-external-store shim. Pre-bundle it so dev route modules do
+        // not request the raw CJS entry and crash on missing named exports.
+        "use-sync-external-store/shim",
+        "use-sync-external-store/shim/with-selector",
         // Syntax highlighter language definitions - Safari fails if these are
         // optimized at runtime. Include all commonly used languages.
         "react-syntax-highlighter/dist/esm/languages/prism/bash",

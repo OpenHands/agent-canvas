@@ -17,6 +17,8 @@ describe("vite optimizeDeps", () => {
         "react/jsx-runtime",
         "react-dom/client",
         "react-router/dom",
+        "use-sync-external-store/shim",
+        "use-sync-external-store/shim/with-selector",
       ]),
     );
   });
@@ -36,33 +38,23 @@ describe("vite path resolution", () => {
 });
 
 describe("vite app build", () => {
-  it("configures Rolldown code splitting for large vendor chunks", async () => {
+  it("leaves app chunking to the bundler defaults", async () => {
     const config = await viteConfig({ mode: "production", command: "build" });
     const appBuild = config as {
       build?: {
         rolldownOptions?: {
           output?: {
             codeSplitting?: {
-              groups?: Array<{
-                name?: string;
-                maxSize?: number;
-                entriesAware?: boolean;
-              }>;
+              groups?: unknown;
             };
           };
         };
       };
     };
 
-    expect(appBuild.build?.rolldownOptions?.output?.codeSplitting?.groups).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          name: "vendor",
-          maxSize: 450 * 1024,
-          entriesAware: true,
-        }),
-      ]),
-    );
+    expect(
+      appBuild.build?.rolldownOptions?.output?.codeSplitting?.groups,
+    ).toBeUndefined();
   });
 });
 

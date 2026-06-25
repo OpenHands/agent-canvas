@@ -16,6 +16,33 @@ import { test, expect } from "@playwright/test";
  * Advisory for now — it builds trust; it does not gate.
  */
 test("cockpit shell loads and the launcher is ready", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("analytics-consent", "false");
+    window.localStorage.setItem("openhands-telemetry-consent", "denied");
+    window.localStorage.setItem("openhands-telemetry-first-use", "true");
+    window.localStorage.setItem("openhands-onboarded", "1");
+    const activeBackend = { backendId: "default-local", orgId: null };
+    window.localStorage.setItem(
+      "openhands-active-backend",
+      JSON.stringify(activeBackend),
+    );
+    window.sessionStorage.setItem(
+      "openhands-active-backend",
+      JSON.stringify(activeBackend),
+    );
+    window.localStorage.setItem(
+      "openhands-backends",
+      JSON.stringify([
+        {
+          id: "default-local",
+          name: "Local",
+          host: window.location.origin,
+          apiKey: "",
+          kind: "local",
+        },
+      ]),
+    );
+  });
   await page.goto("/");
 
   // The home launcher is the cockpit's entry affordance; if it renders, the
