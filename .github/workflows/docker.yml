@@ -21,7 +21,7 @@ on:
       image:
         description: GHCR image name
         type: string
-        default: ghcr.io/openhands/agent-canvas
+        default: ghcr.io/spotwiseai/agent-canvas
 
 # Cancel redundant runs for the same branch/PR.
 concurrency:
@@ -33,7 +33,7 @@ permissions:
   packages: write
 
 env:
-  IMAGE: ${{ inputs.image != '' && inputs.image || 'ghcr.io/openhands/agent-canvas' }}
+  IMAGE: ${{ inputs.image != '' && inputs.image || 'ghcr.io/spotwiseai/agent-canvas' }}
   # Use the PR head SHA for PR events so tags point at the actual code.
   RELEVANT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
   RELEVANT_REF: ${{ github.head_ref != '' && format('refs/heads/{0}', github.head_ref) || github.ref }}
