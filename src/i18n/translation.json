@@ -32588,6 +32588,23 @@
     "uk": "Ці перевірки є рекомендаційними.",
     "ca": "Aquestes comprovacions són només informatives."
   },
+  "CHECKS$DECISIONS": {
+    "en": "Decisions",
+    "ja": "判断",
+    "zh-CN": "决策",
+    "zh-TW": "決策",
+    "ko-KR": "결정",
+    "no": "Beslutninger",
+    "it": "Decisioni",
+    "pt": "Decisões",
+    "es": "Decisiones",
+    "ar": "القرارات",
+    "fr": "Décisions",
+    "tr": "Kararlar",
+    "de": "Entscheidungen",
+    "uk": "Рішення",
+    "ca": "Decisions"
+  },
   "CHECKS$EMPTY": {
     "en": "No checks yet",
     "ja": "チェックはまだありません",

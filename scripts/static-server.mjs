@@ -251,6 +251,38 @@ function makeConfigInjectionScript(
         `}` +
         `}catch(e){}`,
     );
+    // Keep the backend registry in sync too. Returning users can carry a
+    // stale `openhands-backends` or tab-scoped active backend from an older
+    // launcher/session; the injected runtime key is the server's truth.
+    parts.push(
+      `try{` +
+        `var _bk='openhands-backends',_ak='openhands-active-backend',` +
+        `_origin=window.location.origin,_id='default-local',_name='Local';` +
+        `var _isLoop=function(h){try{var n=new URL(h).hostname;` +
+        `return n==='localhost'||n==='127.0.0.1'||n==='::1'||n==='[::1]';` +
+        `}catch(e){return false}};` +
+        `var _same=function(h){return h===_origin||(_isLoop(h)&&_isLoop(_origin))};` +
+        `var _raw=localStorage.getItem(_bk),_arr=JSON.parse(_raw||'[]');` +
+        `if(!Array.isArray(_arr))_arr=[];` +
+        `var _found=false;` +
+        `_arr=_arr.map(function(b){` +
+        `if(!b||b.kind!=='local'||typeof b.host!=='string')return b;` +
+        `if(b.id===_id||_same(b.host)){_found=true;` +
+        `return Object.assign({},b,{id:b.id||_id,name:b.name||_name,` +
+        `host:_origin,apiKey:${keyLiteral},kind:'local'});}` +
+        `return b;});` +
+        `if(!_found)_arr.unshift({id:_id,name:_name,host:_origin,` +
+        `apiKey:${keyLiteral},kind:'local'});` +
+        `localStorage.setItem(_bk,JSON.stringify(_arr));` +
+        `var _active=function(s){try{var a=JSON.parse(s||'null');` +
+        `return a&&typeof a.backendId==='string'?a:null}catch(e){return null}};` +
+        `var _sel=_active(sessionStorage.getItem(_ak))||_active(localStorage.getItem(_ak));` +
+        `var _ids=_arr.map(function(b){return b&&b.id});` +
+        `if(!_sel||_ids.indexOf(_sel.backendId)===-1){` +
+        `var _v=JSON.stringify({backendId:_arr[0].id,orgId:null});` +
+        `sessionStorage.setItem(_ak,_v);localStorage.setItem(_ak,_v);}` +
+        `}catch(e){}`,
+    );
   }
 
   if (authRequired) {

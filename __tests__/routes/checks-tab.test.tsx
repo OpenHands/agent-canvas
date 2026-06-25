@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import ChecksTab from "#/routes/checks-tab";
 import { CHECK_RESULT_PATH } from "#/utils/check-result";
+import { DECISIONS_PATH } from "#/utils/decision-log";
 import { renderWithProviders } from "../../test-utils";
 
 // The tab reads `.checks/result.json` (and any recording) through this hook,
@@ -57,10 +58,11 @@ const passedJson = JSON.stringify({
   ],
 });
 
-/** Route the mock by requested path: result file vs. recording vs. disabled. */
+/** Route the mock by path: result file vs. decision log vs. recording. */
 function wire({
   result,
   video,
+  decisions,
 }: {
   result:
     | ReturnType<typeof textResult>
@@ -69,9 +71,11 @@ function wire({
   video?:
     | ReturnType<typeof videoContent>
     | { data: undefined; isLoading: boolean; isError: boolean };
+  decisions?: ReturnType<typeof textResult>;
 }) {
   useWorkspaceFileContentMock.mockImplementation((path: string | null) => {
     if (path === CHECK_RESULT_PATH) return result;
+    if (path === DECISIONS_PATH) return decisions ?? missingResult;
     return video ?? missingResult;
   });
 }
@@ -256,5 +260,41 @@ describe("ChecksTab", () => {
 
     expect(screen.getByTestId("checks-tab-video-loading")).toBeInTheDocument();
     expect(screen.queryByTestId("checks-tab-video")).not.toBeInTheDocument();
+  });
+
+  it("renders the decision log beside the verdict, in order", () => {
+    const decisions = [
+      {
+        decision: "use the existing Playwright runner",
+        why: "avoids a new dependency",
+        evidence: "playwright.config.ts:14",
+        outcome: "verified-dev passed",
+      },
+      { decision: "ship advisory, not blocking" },
+    ]
+      .map((d) => JSON.stringify(d))
+      .join("\n");
+
+    wire({ result: textResult(passedJson), decisions: textResult(decisions) });
+    renderWithProviders(<ChecksTab />);
+
+    const rows = screen.getAllByTestId("checks-tab-decision");
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("use the existing Playwright runner");
+    expect(rows[0]).toHaveTextContent("avoids a new dependency");
+    expect(rows[0]).toHaveTextContent("playwright.config.ts:14");
+    expect(rows[0]).toHaveTextContent("verified-dev passed");
+    expect(rows[1]).toHaveTextContent("ship advisory, not blocking");
+    // The section heading is present.
+    expect(screen.getByText("CHECKS$DECISIONS")).toBeInTheDocument();
+  });
+
+  it("renders no Decisions section when the log is absent or empty", () => {
+    wire({ result: textResult(passedJson), decisions: textResult("   \n") });
+    renderWithProviders(<ChecksTab />);
+
+    expect(screen.getByTestId("checks-tab")).toBeInTheDocument();
+    expect(screen.queryByTestId("checks-tab-decision")).not.toBeInTheDocument();
+    expect(screen.queryByText("CHECKS$DECISIONS")).not.toBeInTheDocument();
   });
 });
