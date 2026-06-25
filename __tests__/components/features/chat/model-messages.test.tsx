@@ -53,7 +53,7 @@ describe("ModelMessages", () => {
     expect(screen.getByTestId("model-messages")).toBeInTheDocument();
     expect(screen.getByText("Available profiles (1)")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Expand" }));
+    await user.click(screen.getByRole("button", { name: "BUTTON$EXPAND" }));
 
     const profileToggle = screen.getByRole("button", {
       name: "Toggle details for haiku",

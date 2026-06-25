@@ -35,7 +35,7 @@ export function DeleteConfirmationModal({
           type="button"
           onClick={onCancel}
           className="absolute right-4 top-4 text-muted hover:text-foreground"
-          aria-label="Close"
+          aria-label={t(I18nKey.BUTTON$CLOSE)}
         >
           <XMarkIcon className="size-5" />
         </button>

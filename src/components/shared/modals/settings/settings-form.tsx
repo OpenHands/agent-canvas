@@ -94,6 +94,7 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
             label={t(I18nKey.SETTINGS_FORM$API_KEY)}
             type="password"
             className="w-full"
+            // eslint-disable-next-line i18next/no-literal-string -- masked-key sentinel, not translatable
             placeholder={isLLMKeySet ? "<hidden>" : ""}
             labelClassName={SETTINGS_FORM.LABEL_CLASSNAME}
           />

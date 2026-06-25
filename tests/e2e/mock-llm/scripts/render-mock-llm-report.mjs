@@ -14,8 +14,7 @@
  */
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-
-// Each CI run posts a fresh comment (no upsert), so no dedup marker needed.
+import { pathToFileURL } from "node:url";
 
 // ── CLI args ───────────────────────────────────────────────────────────
 
@@ -84,7 +83,10 @@ function collectTests(suites, parents = [], parentFile = "") {
 function extractError(result) {
   if (!result) return "";
   const errorMessages = Array.isArray(result.errors)
-    ? result.errors.map((e) => e.message).filter(Boolean).join("\n\n")
+    ? result.errors
+        .map((e) => e.message)
+        .filter(Boolean)
+        .join("\n\n")
     : "";
   const msg = result.error?.message ?? errorMessages;
   // Trim to avoid bloating the comment
@@ -145,7 +147,7 @@ function overallIcon(status) {
 
 // ── Report rendering ───────────────────────────────────────────────────
 
-function renderReport({
+export function renderReport({
   tests,
   workflowUrl,
   commit,
@@ -163,7 +165,8 @@ function renderReport({
   const skipped = tests.filter((t) => t.status === "skipped").length;
   const total = tests.length;
   const wasKilledMidSuite =
-    markerMeta?.status === "in_progress" && markerMeta.total > markerMeta.completed;
+    markerMeta?.status === "in_progress" &&
+    markerMeta.total > markerMeta.completed;
 
   // Determine which tests are new (from newly added spec files).
   // Playwright's JSON file paths are relative to testDir (e.g. "mock-llm-skills.spec.ts")
@@ -197,7 +200,9 @@ function renderReport({
   if (newCount) parts.push(`🆕 ${newCount} new`);
   if (wasKilledMidSuite) {
     const notRun = markerMeta.total - markerMeta.completed;
-    parts.push(`⚠️ **${notRun} not run** (process killed at ${markerMeta.completed}/${markerMeta.total})`);
+    parts.push(
+      `⚠️ **${notRun} not run** (process killed at ${markerMeta.completed}/${markerMeta.total})`,
+    );
   }
   lines.push(parts.join(" · "));
   lines.push("");
@@ -212,6 +217,10 @@ function renderReport({
     lines.push("");
   }
 
+  lines.push("<details>");
+  lines.push("<summary>Details</summary>");
+  lines.push("");
+
   // New-tests callout (prominent, above the table)
   if (newCount > 0) {
     const newTests = tests.filter(isNewTest);
@@ -222,10 +231,14 @@ function renderReport({
       if (!byFile.has(key)) byFile.set(key, []);
       byFile.get(key).push(t);
     }
-    lines.push(`> **🟢 ${newCount} new test${newCount === 1 ? "" : "s"} added in this PR**`);
+    lines.push(
+      `> **🟢 ${newCount} new test${newCount === 1 ? "" : "s"} added in this PR**`,
+    );
     for (const [file, fileTests] of byFile) {
       for (const t of fileTests) {
-        lines.push(`> - ${statusIcon(t.status)} \`${file}\` › ${t.title.replace(/^.*› /, "")}`);
+        lines.push(
+          `> - ${statusIcon(t.status)} \`${file}\` › ${t.title.replace(/^.*› /, "")}`,
+        );
       }
     }
     lines.push("");
@@ -244,8 +257,7 @@ function renderReport({
 
   // Error details for failed tests
   const failures = tests.filter(
-    (t) =>
-      (t.status === "failed" || t.status === "timedOut") && t.error,
+    (t) => (t.status === "failed" || t.status === "timedOut") && t.error,
   );
   if (failures.length > 0) {
     lines.push("<details>");
@@ -267,114 +279,125 @@ function renderReport({
     "<sub>Posted by the Mock-LLM E2E workflow · results are deterministic (scripted LLM responses)</sub>",
   );
   lines.push("");
+  lines.push("</details>");
+  lines.push("");
 
   return lines.join("\n");
 }
 
 // ── Main ───────────────────────────────────────────────────────────────
 
-const args = parseArgs(process.argv.slice(2));
-const resultsPath = args.results || "test-results-mock-llm/results.json";
-const outputPath = args.output || "mock-llm-report.md";
+function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const resultsPath = args.results || "test-results-mock-llm/results.json";
+  const outputPath = args.output || "mock-llm-report.md";
 
-const data = loadResults(resultsPath);
-let tests = data ? collectTests(data.suites) : [];
+  const data = loadResults(resultsPath);
+  let tests = data ? collectTests(data.suites) : [];
 
-// When Playwright is killed during webServer teardown (or mid-suite),
-// the JSON reporter never flushes results.json. Fall back to .results.json
-// written incrementally by DoneMarkerReporter after every onTestEnd().
-let markerMeta = null;
-if (!data || tests.length === 0) {
-  const markerDir = args.marker_dir || ".mock-llm-markers";
-  const markerResultsPath = `${markerDir}/.results.json`;
-  const donePath = `${markerDir}/.tests-done`;
+  // When Playwright is killed during webServer teardown (or mid-suite),
+  // the JSON reporter never flushes results.json. Fall back to .results.json
+  // written incrementally by DoneMarkerReporter after every onTestEnd().
+  let markerMeta = null;
+  if (!data || tests.length === 0) {
+    const markerDir = args.marker_dir || ".mock-llm-markers";
+    const markerResultsPath = `${markerDir}/.results.json`;
+    const donePath = `${markerDir}/.tests-done`;
 
-  if (existsSync(markerResultsPath)) {
-    // Rich results from DoneMarkerReporter — has per-test timing & errors.
-    // May be partial (status: "in_progress") if the process was killed
-    // before all tests finished.
-    const markerData = JSON.parse(readFileSync(markerResultsPath, "utf8"));
-    tests = (markerData.tests ?? []).map((t) => ({
-      title: t.title,
-      status: t.status,
-      durationMs: t.durationMs ?? 0,
-      retryCount: 0,
-      error: t.error ?? "",
-    }));
-    markerMeta = {
-      status: markerData.status,
-      completed: markerData.completed ?? tests.length,
-      total: markerData.total ?? tests.length,
-    };
-    console.log(
-      `No results.json; using marker results (${tests.length} tests run, ${markerMeta.completed}/${markerMeta.total} completed, status: ${markerData.status})`,
-    );
-  } else if (existsSync(donePath)) {
-    // Minimal fallback — just pass/fail status, no timing
-    const markerStatus = readFileSync(donePath, "utf8").trim();
-    console.log(
-      `No results.json; using done marker (status: ${markerStatus})`,
-    );
-    tests = [
-      {
-        title: "mock-LLM agent-server conversation",
-        status: markerStatus === "passed" ? "passed" : "failed",
-        durationMs: 0,
+    if (existsSync(markerResultsPath)) {
+      // Rich results from DoneMarkerReporter — has per-test timing & errors.
+      // May be partial (status: "in_progress") if the process was killed
+      // before all tests finished.
+      const markerData = JSON.parse(readFileSync(markerResultsPath, "utf8"));
+      tests = (markerData.tests ?? []).map((t) => ({
+        title: t.title,
+        status: t.status,
+        durationMs: t.durationMs ?? 0,
         retryCount: 0,
-        error:
-          markerStatus !== "passed"
-            ? "Test failed (details in workflow logs)"
-            : "",
-      },
-    ];
-  } else {
-    // No results file AND no marker files — Playwright was likely killed
-    // before the DoneMarkerReporter could run. Check the exit code to
-    // distinguish a genuine timeout from other failures.
-    const exitCode = args.exit_code || "";
-    if (exitCode === "124") {
-      console.warn(
-        `Warning: test suite timed out (exit code 124) — no results were collected`,
+        error: t.error ?? "",
+      }));
+      markerMeta = {
+        status: markerData.status,
+        completed: markerData.completed ?? tests.length,
+        total: markerData.total ?? tests.length,
+      };
+      console.log(
+        `No results.json; using marker results (${tests.length} tests run, ${markerMeta.completed}/${markerMeta.total} completed, status: ${markerData.status})`,
+      );
+    } else if (existsSync(donePath)) {
+      // Minimal fallback — just pass/fail status, no timing
+      const markerStatus = readFileSync(donePath, "utf8").trim();
+      console.log(
+        `No results.json; using done marker (status: ${markerStatus})`,
       );
       tests = [
         {
-          title: "(test suite timed out before completing)",
-          status: "timedOut",
+          title: "mock-LLM agent-server conversation",
+          status: markerStatus === "passed" ? "passed" : "failed",
           durationMs: 0,
           retryCount: 0,
           error:
-            "The CI wrapper killed the Playwright process after the 5-minute deadline. " +
-            "No test results were collected. Check the workflow logs for details.",
+            markerStatus !== "passed"
+              ? "Test failed (details in workflow logs)"
+              : "",
         },
       ];
     } else {
-      console.warn(
-        `Warning: no results file at ${resultsPath} and no marker files` +
-          (exitCode ? ` (exit code: ${exitCode})` : ""),
-      );
+      // No results file AND no marker files — Playwright was likely killed
+      // before the DoneMarkerReporter could run. Check the exit code to
+      // distinguish a genuine timeout from other failures.
+      const exitCode = args.exit_code || "";
+      if (exitCode === "124") {
+        console.warn(
+          `Warning: test suite timed out (exit code 124) — no results were collected`,
+        );
+        tests = [
+          {
+            title: "(test suite timed out before completing)",
+            status: "timedOut",
+            durationMs: 0,
+            retryCount: 0,
+            error:
+              "The CI wrapper killed the Playwright process after the 5-minute deadline. " +
+              "No test results were collected. Check the workflow logs for details.",
+          },
+        ];
+      } else {
+        console.warn(
+          `Warning: no results file at ${resultsPath} and no marker files` +
+            (exitCode ? ` (exit code: ${exitCode})` : ""),
+        );
+      }
     }
   }
+
+  // Parse --new-files: comma-separated list of spec file paths added in this PR
+  const newFiles = args.new_files
+    ? args.new_files
+        .split(",")
+        .map((f) => f.trim())
+        .filter(Boolean)
+    : [];
+
+  const report = renderReport({
+    tests,
+    workflowUrl: args.workflow_url || "",
+    commit: args.commit || "",
+    artifactUrl: args.artifact_url || "",
+    title: args.title || "",
+    newFiles,
+    markerMeta,
+  });
+
+  writeFileSync(outputPath, report);
+  console.log(
+    `Report written to ${outputPath} (${tests.length} tests, ${overallStatus(tests)})`,
+  );
 }
 
-// Parse --new-files: comma-separated list of spec file paths added in this PR
-const newFiles = args.new_files
-  ? args.new_files
-      .split(",")
-      .map((f) => f.trim())
-      .filter(Boolean)
-  : [];
-
-const report = renderReport({
-  tests,
-  workflowUrl: args.workflow_url || "",
-  commit: args.commit || "",
-  artifactUrl: args.artifact_url || "",
-  title: args.title || "",
-  newFiles,
-  markerMeta,
-});
-
-writeFileSync(outputPath, report);
-console.log(
-  `Report written to ${outputPath} (${tests.length} tests, ${overallStatus(tests)})`,
-);
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
+  main();
+}
