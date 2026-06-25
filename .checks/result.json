@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "title": "cockpit shell loads and the launcher is ready",
+      "status": "passed",
+      "durationMs": 3900,
+      "error": null
+    }
+  ],
+  "spec": "tests/e2e/verified/cockpit-loads.spec.ts",
+  "video": "https://raw.githubusercontent.com/SpotwiseAI/agent-canvas/checks-media/.checks/c5669391-2026-06-25T21-19-33-585Z/0-cockpit-shell-loads-and-the-launcher-is-ready.webm",
+  "trace": "https://raw.githubusercontent.com/SpotwiseAI/agent-canvas/checks-media/.checks/c5669391-2026-06-25T21-19-33-585Z/0-cockpit-shell-loads-and-the-launcher-is-ready.zip",
+  "commit": "c5669391",
+  "createdAt": "2026-06-25T21:19:43.653Z"
+}
