@@ -97,21 +97,14 @@ function buildOptions(
 
       for (const org of entry.orgs) {
         const isPersonal = !!userIdForBackend && userIdForBackend === org.id;
-        if (isPersonal) {
-          options.push({
-            value: makeOptionValue(b.id, org.id),
-            label: `${b.name} – ${personalOrgLabel}`,
-            displayLabel: b.name,
-            suffix: <CloudOrgLabelPill>{personalOrgLabel}</CloudOrgLabelPill>,
-            prefix,
-          });
-        } else {
-          options.push({
-            value: makeOptionValue(b.id, org.id),
-            label: `${b.name} – ${org.name}`,
-            prefix,
-          });
-        }
+        const orgLabel = isPersonal ? personalOrgLabel : org.name;
+        options.push({
+          value: makeOptionValue(b.id, org.id),
+          label: `${b.name} – ${orgLabel}`,
+          displayLabel: b.name,
+          suffix: <CloudOrgLabelPill>{orgLabel}</CloudOrgLabelPill>,
+          prefix,
+        });
       }
     }
   }

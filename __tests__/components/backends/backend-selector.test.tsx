@@ -97,10 +97,28 @@ async function openDropdown() {
   return user;
 }
 
+function getCloudOrgOption(backendName: string, orgLabel: string) {
+  const options = screen.getAllByRole("option");
+  const match = options.find((option) => {
+    const marquee = within(option).queryByTestId("hover-marquee-label-rest");
+    const pill = within(option).queryByTestId("cloud-org-label-pill");
+    return marquee?.textContent === backendName && pill?.textContent === orgLabel;
+  });
+
+  if (!match) {
+    throw new Error(
+      `No cloud org option for backend "${backendName}" with org "${orgLabel}"`,
+    );
+  }
+
+  return match;
+}
+
 beforeEach(() => {
   window.localStorage.clear();
   vi.stubEnv("VITE_BACKEND_BASE_URL", "http://localhost:9000");
   vi.stubEnv("VITE_SESSION_API_KEY", "session-key");
+  vi.stubEnv("VITE_DEMO_LONG_BACKEND_NAMES", "false");
   __resetActiveStoreForTests();
   vi.mocked(getCloudOrganizations).mockReset();
   vi.mocked(getCloudOrganizations).mockResolvedValue({
@@ -219,11 +237,11 @@ describe("BackendSelector", () => {
     const user = await openDropdown();
 
     await waitFor(() => {
-      expect(screen.getByText("Production – Personal")).toBeInTheDocument();
+      expect(getCloudOrgOption("Production", "Personal")).toBeInTheDocument();
     });
-    expect(screen.getByText("Production – Acme Inc")).toBeInTheDocument();
+    expect(getCloudOrgOption("Production", "Acme Inc")).toBeInTheDocument();
 
-    await user.click(screen.getByText("Production – Acme Inc"));
+    await user.click(getCloudOrgOption("Production", "Acme Inc"));
 
     // Selecting an org row updates the active selection locally only —
     // it must never trigger the cloud-mutating /switch call that used to
@@ -280,14 +298,24 @@ describe("BackendSelector", () => {
     await openDropdown();
 
     await waitFor(() => {
-      expect(screen.getByText("ProdPersonal – Personal")).toBeInTheDocument();
+      expect(getCloudOrgOption("ProdPersonal", "Personal")).toBeInTheDocument();
     });
-    expect(screen.getByText("ProdAcme – Acme Inc")).toBeInTheDocument();
+    expect(getCloudOrgOption("ProdAcme", "Acme Inc")).toBeInTheDocument();
     // Inaccessible orgs must not appear under either backend.
     expect(
-      screen.queryByText("ProdPersonal – Acme Inc"),
+      screen.queryByRole("option", {
+        name: (accessibleName) =>
+          accessibleName.includes("ProdPersonal") &&
+          accessibleName.includes("Acme Inc"),
+      }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText("ProdAcme – Personal")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", {
+        name: (accessibleName) =>
+          accessibleName.includes("ProdAcme") &&
+          accessibleName.includes("Personal"),
+      }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/Beta Co/)).not.toBeInTheDocument();
   });
 
@@ -328,14 +356,23 @@ describe("BackendSelector", () => {
     await openDropdown();
 
     await waitFor(() => {
-      expect(screen.getByText("Production")).toBeInTheDocument();
-      expect(screen.getByText("COMMON$PERSONAL")).toBeInTheDocument();
+      expect(getCloudOrgOption("Production", "COMMON$PERSONAL")).toBeInTheDocument();
     });
-    expect(screen.getAllByTestId("cloud-org-label-pill")).toHaveLength(1);
-    expect(screen.getByText("Production – Acme Inc")).toBeInTheDocument();
+    expect(screen.getAllByTestId("cloud-org-label-pill")).toHaveLength(2);
+    expect(getCloudOrgOption("Production", "Acme Inc")).toBeInTheDocument();
+    expect(
+      within(getCloudOrgOption("Production", "COMMON$PERSONAL")).getByTestId(
+        "cloud-org-label-pill",
+      ),
+    ).toHaveTextContent("COMMON$PERSONAL");
+    expect(
+      within(getCloudOrgOption("Production", "Acme Inc")).getByTestId(
+        "cloud-org-label-pill",
+      ),
+    ).toHaveTextContent("Acme Inc");
     // The auto-generated org name must NOT be rendered.
     expect(
-      screen.queryByText(`Production – user_${personalOrgId}_org`),
+      screen.queryByText(`user_${personalOrgId}_org`),
     ).not.toBeInTheDocument();
   });
 

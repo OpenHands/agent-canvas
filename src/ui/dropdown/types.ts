@@ -6,7 +6,7 @@ export interface DropdownOption {
   label: string;
   /**
    * Primary marquee text when {@link suffix} carries the org qualifier
-   * (e.g. cloud personal workspace rows).
+   * (cloud org rows show the backend name plus an org pill).
    */
   displayLabel?: string;
   /**
