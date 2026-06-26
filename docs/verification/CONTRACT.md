@@ -91,6 +91,36 @@ defense is the **durable artifact**: the human reads the committed `spec` and
 watches the `video`. For non-web work where there is no video, **the committed
 test is the sole corroborator** — so always emit `spec`.
 
+## Approval gate
+
+A passed verification result can be promoted from advisory proof to trusted
+operator-approved proof by writing a second durable file:
+
+- **Path:** `.checks/approval.json`, at the **worktree root** (the constant
+  `CHECK_APPROVAL_PATH`).
+- **Reader:** [`src/utils/check-approval.ts`](../../src/utils/check-approval.ts)
+  (`CheckApproval.parse`) is the authoritative schema.
+- **Scope:** approval is only valid for a parsed `result.json` whose status is
+  `passed`. Failed, missing, or unreadable evidence cannot be approved without a
+  future explicit override design.
+
+```jsonc
+{
+  "version": 1,
+  "status": "approved",
+  "approvedAt": "2026-06-26T08:10:00.000Z",
+  "approvedBy": "operator@example.com",
+  "resultStatus": "passed",
+  "resultCreatedAt": "2026-06-26T08:00:00.000Z",
+  "notes": null
+}
+```
+
+Approval is intentionally separate from `result.json`: the writer/agent owns the
+verification facts, while the operator or a governed approval route owns the
+human trust decision. Telegram buttons, cockpit UI, and future PR-promotion gates
+should all write this same file rather than inventing parallel approval state.
+
 ## Writing it
 
 Three rules every writer must honor (the reader enforces #1–#3 above, but emit

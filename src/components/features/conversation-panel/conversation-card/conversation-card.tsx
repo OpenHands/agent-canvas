@@ -26,6 +26,7 @@ import type { ConversationStatusBucketId } from "../conversation-panel-list-help
 import { useDownloadConversation } from "#/hooks/use-download-conversation";
 import { useConversationDiffStat } from "#/hooks/query/use-conversation-diff-stat";
 import { useConversationCheckResult } from "#/hooks/query/use-conversation-check-result";
+import { useConversationCheckApproval } from "#/hooks/query/use-conversation-check-approval";
 
 const RIGHT_CLICK_MENU_WIDTH = 240;
 const RIGHT_CLICK_MENU_HEIGHT = 300;
@@ -147,6 +148,14 @@ export function ConversationCard({
     sessionApiKey,
     executionStatus,
     sandboxStatus,
+  });
+  const checkApproval = useConversationCheckApproval({
+    conversationId,
+    conversationUrl,
+    sessionApiKey,
+    executionStatus,
+    sandboxStatus,
+    enabled: checkResult.data?.status === "passed",
   });
 
   const onTitleSave = (newTitle: string) => {
@@ -304,6 +313,7 @@ export function ConversationCard({
           />
           <VerificationVerdictBadge
             status={checkResult.data?.status ?? null}
+            approved={!!checkApproval.data}
             onOpenChecks={onOpenVerificationChecks}
           />
           {sandboxStatus === "ERROR" && <ConversationStatusBadges />}

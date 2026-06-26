@@ -35,6 +35,16 @@ describe("VerificationVerdictBadge", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders approved passed evidence as an approved verdict", () => {
+    renderWithProviders(<VerificationVerdictBadge status="passed" approved />);
+    const badge = screen.getByTestId("verification-verdict-badge");
+    expect(badge).toHaveAttribute("data-status", "passed");
+    expect(badge).toHaveAttribute("data-approved", "true");
+    expect(
+      screen.getByText("CONVERSATION_PANEL$VERIFICATION_APPROVED"),
+    ).toBeInTheDocument();
+  });
+
   it("hides the colored icon from assistive tech (color is not the sole signal)", () => {
     renderWithProviders(<VerificationVerdictBadge status="passed" />);
     const icon = screen

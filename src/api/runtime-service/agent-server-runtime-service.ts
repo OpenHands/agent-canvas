@@ -11,6 +11,33 @@ export interface CommandResult {
   stderr: string;
 }
 
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function encodeBase64Utf8(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+}
+
+function assertSafeRelativePath(path: string): void {
+  if (path.startsWith("/") || path.includes("\\")) {
+    throw new Error("Workspace write path must be relative");
+  }
+
+  const parts = path.split("/").filter(Boolean);
+  if (
+    parts.length === 0 ||
+    parts.some((part) => part === "." || part === "..")
+  ) {
+    throw new Error("Workspace write path must stay inside the workspace");
+  }
+}
+
 /**
  * Cloud-aware runtime operations for agent-server conversations.
  *
@@ -90,6 +117,38 @@ class AgentServerRuntimeService {
     return new FileClient(
       getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
     ).downloadFile(path);
+  }
+
+  static async writeTextFile(
+    conversationUrl: string | null | undefined,
+    sessionApiKey: string | null | undefined,
+    path: string,
+    text: string,
+    cwd?: string | null,
+  ): Promise<void> {
+    assertSafeRelativePath(path);
+    const directory = path.split("/").slice(0, -1).join("/");
+    const encoded = encodeBase64Utf8(text);
+    const command = [
+      directory ? `mkdir -p ${shellQuote(directory)}` : null,
+      `printf %s ${shellQuote(encoded)} | base64 -d > ${shellQuote(path)}`,
+    ]
+      .filter(Boolean)
+      .join(" && ");
+
+    const result = await this.executeCommand(
+      conversationUrl,
+      sessionApiKey,
+      command,
+      cwd ?? undefined,
+      10,
+    );
+
+    if (result.exit_code !== 0) {
+      throw new Error(
+        result.stderr?.trim() || "Failed to write workspace file",
+      );
+    }
   }
 }
 

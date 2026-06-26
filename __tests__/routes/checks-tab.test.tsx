@@ -1,4 +1,5 @@
 import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import ChecksTab from "#/routes/checks-tab";
@@ -10,6 +11,7 @@ import { renderWithProviders } from "../../test-utils";
 // and drives live-refresh through the auto-refresh hook. Both are mocked so
 // the tests exercise the tab's own render logic in isolation.
 const useWorkspaceFileContentMock = vi.fn();
+const writeTextFileMock = vi.fn();
 
 vi.mock("#/hooks/query/use-workspace-file-content", () => ({
   useWorkspaceFileContent: (path: string | null) =>
@@ -18,6 +20,27 @@ vi.mock("#/hooks/query/use-workspace-file-content", () => ({
 
 vi.mock("#/hooks/use-auto-refresh-files-on-edit", () => ({
   useAutoRefreshFilesOnEdit: vi.fn(),
+}));
+
+vi.mock("#/hooks/query/use-active-conversation", () => ({
+  useActiveConversation: () => ({
+    data: {
+      id: "conversation-1",
+      conversation_url: "https://agent.example/conversations/1",
+      session_api_key: "session-key",
+      workspace: { working_dir: "/workspace/project" },
+    },
+  }),
+}));
+
+vi.mock("#/hooks/use-current-user-email", () => ({
+  useCurrentUserEmail: () => "operator@example.com",
+}));
+
+vi.mock("#/api/runtime-service/agent-server-runtime-service", () => ({
+  default: {
+    writeTextFile: (...args: unknown[]) => writeTextFileMock(...args),
+  },
 }));
 
 /** A settled query carrying the decoded text of `.checks/result.json`. */
@@ -83,6 +106,7 @@ function wire({
 describe("ChecksTab", () => {
   beforeEach(() => {
     useWorkspaceFileContentMock.mockReset();
+    writeTextFileMock.mockReset();
   });
 
   it("shows a loading indicator while the result query is in flight", () => {
@@ -116,8 +140,63 @@ describe("ChecksTab", () => {
       screen.getByText("tests/e2e/verified/cockpit-loads.spec.ts"),
     ).toBeInTheDocument();
     expect(screen.getByText("cockpit shell loads")).toBeInTheDocument();
+    expect(screen.getByTestId("checks-tab-approve-button")).toBeInTheDocument();
     // Advisory note is always present on a loaded result.
     expect(screen.getByText("CHECKS$ADVISORY")).toBeInTheDocument();
+  });
+
+  it("records operator approval for passed evidence", async () => {
+    wire({ result: textResult(passedJson) });
+    renderWithProviders(<ChecksTab />);
+
+    await userEvent.click(screen.getByTestId("checks-tab-approve-button"));
+
+    expect(writeTextFileMock).toHaveBeenCalledTimes(1);
+    expect(writeTextFileMock.mock.calls[0][0]).toBe(
+      "https://agent.example/conversations/1",
+    );
+    expect(writeTextFileMock.mock.calls[0][1]).toBe("session-key");
+    expect(writeTextFileMock.mock.calls[0][2]).toBe(".checks/approval.json");
+    expect(JSON.parse(writeTextFileMock.mock.calls[0][3])).toMatchObject({
+      version: 1,
+      status: "approved",
+      approvedBy: "operator@example.com",
+      resultStatus: "passed",
+    });
+    expect(writeTextFileMock.mock.calls[0][4]).toBe("/workspace/project");
+  });
+
+  it("renders existing operator approval instead of another approve button", () => {
+    wire({
+      result: textResult(passedJson),
+      decisions: textResult(""),
+    });
+    useWorkspaceFileContentMock.mockImplementation((path: string | null) => {
+      if (path === CHECK_RESULT_PATH) return textResult(passedJson);
+      if (path === ".checks/approval.json") {
+        return textResult(
+          JSON.stringify({
+            version: 1,
+            status: "approved",
+            approvedAt: "2026-06-26T08:00:00.000Z",
+            approvedBy: "operator@example.com",
+            resultStatus: "passed",
+            resultCreatedAt: null,
+            notes: null,
+          }),
+        );
+      }
+      return missingResult;
+    });
+
+    renderWithProviders(<ChecksTab />);
+
+    expect(screen.getByTestId("checks-tab-approval")).toHaveTextContent(
+      "operator@example.com",
+    );
+    expect(
+      screen.queryByTestId("checks-tab-approve-button"),
+    ).not.toBeInTheDocument();
   });
 
   it("renders a failed verdict and surfaces the failing check's error", () => {

@@ -23,7 +23,7 @@ const CHECK_RESULT_READABLE_STATUSES = new Set<ExecutionStatus>([
   ExecutionStatus.STUCK,
 ]);
 
-function canReadCheckResult(
+export function canReadCheckResult(
   executionStatus: ExecutionStatus | null | undefined,
   sandboxStatus: SandboxStatus | null | undefined,
 ): boolean {

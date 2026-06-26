@@ -554,10 +554,57 @@ describe("ConversationCard", () => {
 
     const badge = await screen.findByTestId("verification-verdict-badge");
     expect(badge).toHaveAttribute("data-status", "failed");
+    expect(badge).toHaveAttribute("data-approved", "false");
     expect(downloadFileMock).toHaveBeenCalledWith(
       "https://agent.example.com/conversations/1",
       "session-key",
       ".checks/result.json",
+    );
+  });
+
+  it("renders approved verification evidence in the conversation row", async () => {
+    downloadFileMock.mockImplementation(
+      async (
+        _conversationUrl: string | null,
+        _sessionApiKey: string | null,
+        path: string,
+      ) => {
+        if (path === ".checks/result.json") {
+          return arrayBufferFromString(JSON.stringify({ status: "passed" }));
+        }
+        if (path === ".checks/approval.json") {
+          return arrayBufferFromString(
+            JSON.stringify({
+              version: 1,
+              status: "approved",
+              approvedAt: "2026-06-26T08:00:00.000Z",
+              approvedBy: "operator@example.com",
+              resultStatus: "passed",
+              resultCreatedAt: null,
+              notes: null,
+            }),
+          );
+        }
+        throw new Error("unexpected path");
+      },
+    );
+
+    renderWithProviders(
+      <ConversationCard
+        title="Conversation 1"
+        selectedRepository={null}
+        lastUpdatedAt="2021-10-01T12:00:00Z"
+        conversationId="conversation-1"
+        conversationUrl="https://agent.example.com/conversations/1"
+        sessionApiKey="session-key"
+        executionStatus={ExecutionStatus.FINISHED}
+      />,
+    );
+
+    const badge = await screen.findByTestId("verification-verdict-badge");
+    expect(badge).toHaveAttribute("data-status", "passed");
+    await vi.waitFor(() =>
+      expect(badge).toHaveAttribute("data-approved", "true"),
     );
   });
 

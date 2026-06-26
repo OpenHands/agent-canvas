@@ -44,6 +44,22 @@ export const CHECK_RESULT_QUERY_KEYS = {
     ] as const,
 } as const;
 
+export const CHECK_APPROVAL_QUERY_KEYS = {
+  byConversation: (
+    conversationId: string | undefined,
+    conversationUrl: string | null | undefined,
+    sessionApiKey: string | null | undefined,
+    workspaceMutationCount: number,
+  ) =>
+    [
+      "conversation-check-approval",
+      conversationId,
+      conversationUrl,
+      sessionApiKey,
+      workspaceMutationCount,
+    ] as const,
+} as const;
+
 /** Cache configuration shared across all config-related queries */
 export const CONFIG_CACHE_OPTIONS = {
   staleTime: 1000 * 60 * 5, // 5 minutes

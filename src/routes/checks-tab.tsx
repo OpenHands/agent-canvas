@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import {
   BadgeCheck,
@@ -19,9 +20,18 @@ import {
   type CheckStatus,
   type VerifiedCheck,
 } from "#/utils/check-result";
+import {
+  buildCheckApproval,
+  CHECK_APPROVAL_PATH,
+  CheckApproval,
+} from "#/utils/check-approval";
 import { DecisionLog, DECISIONS_PATH } from "#/utils/decision-log";
 import { useWorkspaceFileContent } from "#/hooks/query/use-workspace-file-content";
 import { useAutoRefreshFilesOnEdit } from "#/hooks/use-auto-refresh-files-on-edit";
+import { useActiveConversation } from "#/hooks/query/use-active-conversation";
+import { useCurrentUserEmail } from "#/hooks/use-current-user-email";
+import AgentServerRuntimeService from "#/api/runtime-service/agent-server-runtime-service";
+import { useWorkspaceMutationCounter } from "#/stores/use-workspace-mutation-counter";
 import { ConversationTabEmptyState } from "#/components/features/conversation/conversation-tab-empty-state";
 import LinkExternalIcon from "#/icons/link-external.svg?react";
 
@@ -138,6 +148,43 @@ function ChecksTab() {
   const text = resultQuery.data?.text ?? null;
   const result = useMemo(() => (text ? CheckResult.parse(text) : null), [text]);
 
+  const { data: conversation } = useActiveConversation();
+  const currentUserEmail = useCurrentUserEmail();
+  const workingDir = conversation?.workspace?.working_dir?.trim() || null;
+
+  const approvalText =
+    useWorkspaceFileContent(CHECK_APPROVAL_PATH).data?.text ?? null;
+  const approval = useMemo(
+    () => (approvalText ? CheckApproval.parse(approvalText) : null),
+    [approvalText],
+  );
+
+  const approveMutation = useMutation({
+    mutationFn: async () => {
+      if (result?.status !== "passed") {
+        throw new Error("Only passed check results can be approved");
+      }
+      if (!currentUserEmail) throw new Error("No current user identity");
+      if (!workingDir) throw new Error("No conversation workspace");
+
+      const nextApproval = buildCheckApproval({
+        approvedBy: currentUserEmail,
+        resultCreatedAt: result.createdAt,
+      });
+
+      await AgentServerRuntimeService.writeTextFile(
+        conversation?.conversation_url,
+        conversation?.session_api_key,
+        CHECK_APPROVAL_PATH,
+        CheckApproval.stringify(nextApproval),
+        workingDir,
+      );
+    },
+    onSuccess: () => {
+      useWorkspaceMutationCounter.getState().bump();
+    },
+  });
+
   // The agent's reasoning trail, shown beside the verdict ("show me your work").
   // Append-only and best-effort — absent until the agent logs one; a single
   // malformed line is dropped, never the whole log.
@@ -227,9 +274,43 @@ function ChecksTab() {
           ) : null}
         </div>
 
-        <p className="text-xs text-[var(--oh-muted)]">
-          {t(I18nKey.CHECKS$ADVISORY)}
-        </p>
+        <div className="flex flex-col gap-2 rounded-lg border border-[var(--oh-border)] p-3">
+          {approval ? (
+            <div
+              data-testid="checks-tab-approval"
+              className="flex flex-col gap-1"
+            >
+              <span className="text-sm font-medium text-foreground">
+                {t(I18nKey.CHECKS$APPROVED)}
+              </span>
+              <span className="text-xs text-[var(--oh-muted)]">
+                {approval.approvedBy}
+              </span>
+            </div>
+          ) : result.status === "passed" ? (
+            <button
+              type="button"
+              data-testid="checks-tab-approve-button"
+              disabled={
+                approveMutation.isPending || !currentUserEmail || !workingDir
+              }
+              onClick={() => approveMutation.mutate()}
+              className="self-start rounded-md border border-[var(--oh-border)] px-3 py-1.5 text-sm font-medium text-foreground hover:bg-[var(--oh-interactive-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {approveMutation.isPending
+                ? t(I18nKey.CHECKS$APPROVING)
+                : t(I18nKey.CHECKS$APPROVE)}
+            </button>
+          ) : null}
+          <p className="text-xs text-[var(--oh-muted)]">
+            {t(I18nKey.CHECKS$ADVISORY)}
+          </p>
+          {approveMutation.isError ? (
+            <p className="text-xs text-red-200">
+              {t(I18nKey.CHECKS$APPROVAL_ERROR)}
+            </p>
+          ) : null}
+        </div>
 
         {result.spec ? (
           <section className="flex flex-col gap-1.5">

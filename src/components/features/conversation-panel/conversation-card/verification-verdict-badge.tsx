@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { CircleCheck, CircleX } from "lucide-react";
+import { BadgeCheck, CircleCheck, CircleX } from "lucide-react";
 
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
@@ -28,20 +28,25 @@ import type { CheckStatus } from "#/utils/check-result";
 export function VerificationVerdictBadge({
   status,
   onOpenChecks,
+  approved = false,
 }: {
   status: CheckStatus | null;
   onOpenChecks?: () => void;
+  approved?: boolean;
 }) {
   const { t } = useTranslation("openhands");
 
   if (status === null) return null;
 
   const passed = status === "passed";
-  const Icon = passed ? CircleCheck : CircleX;
+  const isApproved = passed && approved;
+  const Icon = isApproved ? BadgeCheck : passed ? CircleCheck : CircleX;
   const label = t(
-    passed
-      ? I18nKey.CONVERSATION_PANEL$VERIFICATION_PASSED
-      : I18nKey.CONVERSATION_PANEL$VERIFICATION_FAILED,
+    isApproved
+      ? I18nKey.CONVERSATION_PANEL$VERIFICATION_APPROVED
+      : passed
+        ? I18nKey.CONVERSATION_PANEL$VERIFICATION_PASSED
+        : I18nKey.CONVERSATION_PANEL$VERIFICATION_FAILED,
   );
 
   const icon = (
@@ -49,7 +54,7 @@ export function VerificationVerdictBadge({
       <Icon
         className={cn(
           "size-3",
-          passed
+          isApproved || passed
             ? "text-[var(--oh-status-success)]"
             : "text-[var(--oh-status-error)]",
         )}
@@ -65,6 +70,7 @@ export function VerificationVerdictBadge({
         type="button"
         data-testid="verification-verdict-badge"
         data-status={status}
+        data-approved={isApproved ? "true" : "false"}
         aria-label={label}
         onClick={(event) => {
           event.preventDefault();
@@ -82,6 +88,7 @@ export function VerificationVerdictBadge({
     <span
       data-testid="verification-verdict-badge"
       data-status={status}
+      data-approved={isApproved ? "true" : "false"}
       className="inline-flex shrink-0 items-center"
     >
       {icon}
