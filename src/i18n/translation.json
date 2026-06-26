@@ -27777,6 +27777,23 @@
     "uk": "Ці налаштування синхронізовано з бекендом {{name}} ({{host}})",
     "ca": "Aquesta configuració està sincronitzada amb el backend {{name}} ({{host}})"
   },
+  "SETTINGS$CLOUD_SETTINGS_LINK": {
+    "en": "Cloud",
+    "ja": "Cloud",
+    "zh-CN": "Cloud",
+    "zh-TW": "Cloud",
+    "ko-KR": "Cloud",
+    "no": "Cloud",
+    "it": "Cloud",
+    "pt": "Cloud",
+    "es": "Cloud",
+    "ar": "Cloud",
+    "fr": "Cloud",
+    "tr": "Cloud",
+    "de": "Cloud",
+    "uk": "Cloud",
+    "ca": "Cloud"
+  },
   "BACKEND$REMOVE": {
     "en": "Remove",
     "ja": "削除",
