@@ -900,5 +900,68 @@ describe("InstallServerModal", () => {
         (persisted.headers as Record<string, unknown>).Authorization,
       ).toBeUndefined();
     });
+
+    it("uses the user-edited URL when the transport opts into urlEditable", async () => {
+      const entry = {
+        ...DATADOG_STYLE_ENTRY,
+        connectionOptions: [
+          {
+            ...DATADOG_STYLE_ENTRY.connectionOptions[0],
+            transport: {
+              ...DATADOG_STYLE_ENTRY.connectionOptions[0].transport,
+              urlEditable: true,
+            },
+          },
+        ],
+      } as unknown as MarketplaceEntry;
+      vi.spyOn(McpService, "testServer").mockResolvedValue({
+        ok: true,
+        tools: [],
+      });
+      const saveSpy = vi
+        .spyOn(SettingsService, "saveSettings")
+        .mockResolvedValue(true);
+
+      renderWith(<InstallServerModal entry={entry} onClose={vi.fn()} />);
+      await screen.findByTestId("mcp-install-modal");
+      await waitFor(() =>
+        expect(SettingsService.getSettings).toHaveBeenCalled(),
+      );
+
+      // The URL input is editable and pre-filled with the catalog URL.
+      const urlInput = screen.getByTestId(
+        "mcp-install-field-url",
+      ) as HTMLInputElement;
+      expect(urlInput).not.toBeDisabled();
+      expect(urlInput.value).toBe("https://mcp.example.com/mcp");
+
+      // Edit it to a site-specific URL and fill the headers.
+      fireEvent.change(urlInput, {
+        target: { value: "https://mcp.us5.example.com/v1/mcp" },
+      });
+      fireEvent.change(screen.getByTestId("mcp-install-field-DD-API-KEY"), {
+        target: { value: "dd-api-secret" },
+      });
+      fireEvent.change(
+        screen.getByTestId("mcp-install-field-DD-APPLICATION-KEY"),
+        { target: { value: "dd-app-secret" } },
+      );
+      fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+      await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+      const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
+        .agent_settings_diff as {
+        mcp_config: { mcpServers: Record<string, unknown> };
+      };
+      expect(sent.mcp_config.mcpServers).toMatchObject({
+        "datadog-style": {
+          url: "https://mcp.us5.example.com/v1/mcp",
+          headers: {
+            "DD-API-KEY": "dd-api-secret",
+            "DD-APPLICATION-KEY": "dd-app-secret",
+          },
+        },
+      });
+    });
   });
 });

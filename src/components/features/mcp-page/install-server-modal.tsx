@@ -142,6 +142,15 @@ function makeInitialState(entry: MarketplaceEntry): FieldState {
       savedAsSecret[field.key] = field.type === "password";
     }
   }
+  // Seed the editable URL when the transport opts in (e.g. Datadog's
+  // site-specific mcp.<site>.datadoghq.com). Read-only URLs don't need state.
+  if (
+    option?.transport &&
+    (option.transport.kind === "shttp" || option.transport.kind === "sse") &&
+    option.transport.urlEditable
+  ) {
+    values.url = option.transport.url;
+  }
   return { values, errors: {}, savedAsSecret };
 }
 
@@ -302,8 +311,15 @@ export function InstallServerModal({
     const apiKey = state.values.api_key?.trim() ?? "";
     const needsCredential = optionNeedsCredentialField(option);
     const headerFields = remoteHeaderFields(option);
+    const urlEditable = template.urlEditable === true;
+    const url = (urlEditable ? state.values.url : template.url)?.trim() ?? "";
 
     const errors: Record<string, string | null> = {};
+    // Validate the editable URL (site-specific servers) before building the
+    // payload. Read-only URLs are trusted from the catalog.
+    if (urlEditable && !url) {
+      errors.url = t(I18nKey.SETTINGS$MCP_ERROR_URL_REQUIRED);
+    }
     // Validate required header fields (e.g. Datadog DD-API-KEY /
     // DD-APPLICATION-KEY) before building the payload. The api_key field is
     // only required when the option uses a Bearer-style strategy.
@@ -337,7 +353,7 @@ export function InstallServerModal({
       // get a referenceable mcp_config key instead of the auto-generated
       // "sse"/"shttp" fallback. Stdio installs already carry serverName.
       name: entry.id,
-      url: template.url,
+      url: url || template.url,
       ...(apiKey && { api_key: apiKey }),
       ...(Object.keys(headers).length > 0 && { headers }),
     };
@@ -411,6 +427,12 @@ export function InstallServerModal({
         !!option &&
         ["api_key", "bearer", "basic"].includes(option.auth.strategy);
       const headerFields = remoteHeaderFields(option);
+      // Site-specific servers (e.g. Datadog's mcp.<site>.datadoghq.com) opt
+      // in to an editable URL so the user can point at their region/account.
+      const urlEditable = template.urlEditable === true;
+      const effectiveUrl = urlEditable
+        ? (state.values.url ?? template.url)
+        : template.url;
       return (
         <>
           <SettingsInput
@@ -418,11 +440,15 @@ export function InstallServerModal({
             name="url"
             type="url"
             label={t(I18nKey.SETTINGS$MCP_URL)}
-            value={template.url}
-            onChange={() => {}}
-            isDisabled
+            value={effectiveUrl}
+            onChange={urlEditable ? (v) => setValue("url", v) : () => {}}
+            isDisabled={!urlEditable}
+            required={urlEditable}
             className="w-full"
           />
+          {state.errors.url && (
+            <p className="text-xs text-red-500 -mt-2">{state.errors.url}</p>
+          )}
           {showApiKeyField ? (
             <div className="flex flex-col gap-1">
               <SettingsInput

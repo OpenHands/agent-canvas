@@ -23,6 +23,12 @@ export type McpRemoteTransport = Extract<
   { url: string }
 > & {
   headerFields?: MarketplaceField[];
+  /**
+   * When true, the install modal renders the URL as an editable input
+   * pre-filled with `url` instead of read-only. Added by extensions PR #364
+   * for site-specific servers (e.g. Datadog's `mcp.<site>.datadoghq.com`).
+   */
+  urlEditable?: boolean;
 };
 
 type McpIntegrationAuthConfig = IntegrationAuthConfig & {
