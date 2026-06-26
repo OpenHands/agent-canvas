@@ -471,6 +471,51 @@ Each milestone is independently reviewable and demoable.
 
 ---
 
+## 5b. Implementation status (this branch)
+
+A working foundation for milestones **M1–M4** is implemented on
+`feature/ui-extensions` under `src/extensions/` (plus `ExtensionWebview` in
+`src/components/features/extensions/`), with 53 unit/integration tests. The full
+existing suite (3462 tests) still passes, and `npm run lint` / `typecheck` are clean.
+
+Built and tested:
+
+- **M1 – Registry-driven sidebar:** `contribution-registry.ts` (zustand, stable
+  derived selectors), `use-contributions.ts`, and `SidebarContributionButton` wired
+  into `sidebar-rail-body.tsx`. Contributed rail items render natively; built-ins
+  unchanged.
+- **M2 – Manifest + loader:** `manifest.ts` (dependency-free `extension.json`
+  validator with precise error paths) and `loader.ts` (validate → resolve icons →
+  build resolved contributions → register; host-bridge injectable).
+- **M3 – Isolated extension host:** `host/rpc.ts` (transport-agnostic JSON-RPC),
+  `host/host-api.ts` (capability-gated `agentCanvas` surface), `host/extension-host.ts`
+  (lazy per-extension Web Worker lifecycle), `sdk/runtime.ts` + `sdk/worker-bootstrap.ts`
+  (off-thread runtime, no DOM), `sdk/api-proxy.ts`.
+- **M4 – Webviews:** `host/webview-transport.ts` + `components/.../extension-webview.tsx`
+  (sandboxed `allow-scripts`, no `allow-same-origin`) reusing the same capability-gated
+  host API; `sdk/webview-client.ts` for the iframe side.
+- **Wiring:** `extension-manager.ts` ties loader + host + worker factory into one
+  `install()` / `uninstall()` entry point (the production seam), demonstrated
+  end-to-end in tests (declarative button appears on install → selecting it activates
+  the worker → worker calls a host API).
+
+Not yet done (remaining work):
+
+- **App mounting:** instantiate a single `ExtensionManager` at app start with *real*
+  `HostApiDeps` (active conversation from the conversation store, `showInformationMessage`
+  via the toast system, `executeCommand` via the command registry), mount opened
+  webview panels into a host-owned panel container, and surface contributed commands in
+  the Command-K menu.
+- **M5 – Distribution + management UI:** `ui-extensions-service` /
+  `ui-extensions-management-service`, `use-ui-extensions-*` hooks, a `/extensions` route,
+  install-time capability consent, and cloud-backend gating (mirroring the plugins
+  pipeline).
+- **CSP/origin hardening:** serve webview assets from an isolated origin (or finalize
+  the `blob:` + CSP approach) and add the security review.
+- **Real `BundleSource` implementations:** installed-folder source (agent-server) and a
+  default `Worker` factory verified in a browser (the unit tests use an in-memory fake
+  worker).
+
 ## 6. Explicitly out of scope (initial)
 
 - Extension-to-extension APIs / dependency graph.

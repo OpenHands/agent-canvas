@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline';"
+    />
+    <title>Hello panel</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        padding: 16px;
+        color: #e5e7eb;
+        background: #0b0f17;
+      }
+      button {
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Hello from a sandboxed webview</h1>
+    <p id="status">Loading active conversation…</p>
+    <button id="say">Show a host message</button>
+
+    <script type="module">
+      // In a real bundle this import resolves to the published webview client.
+      // Here it illustrates the contract: acquire the API, then call host methods.
+      import { acquireAgentCanvasApi } from "@agent-canvas/extension-api/webview";
+
+      const api = acquireAgentCanvasApi();
+
+      api.conversation
+        .getActive()
+        .then((c) => {
+          document.getElementById("status").textContent = c
+            ? `Active conversation: ${c.title ?? c.id}`
+            : "No active conversation.";
+        })
+        .catch((e) => {
+          document.getElementById("status").textContent = `Error: ${e.message}`;
+        });
+
+      document.getElementById("say").addEventListener("click", () => {
+        api.window.showInformationMessage("Hello from the webview button!");
+      });
+    </script>
+  </body>
+</html>
