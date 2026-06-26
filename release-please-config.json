@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "include-component-in-tag": false,
+  "include-v-in-tag": true,
+  "draft-pull-request": true,
+  "last-release-sha": "7b9c17e35a09b35701eb53ac6563fee143ec0522",
+  "packages": {
+    ".": {
+      "release-type": "node",
+      "changelog-type": "github",
+      "skip-changelog": true,
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "config/defaults.json",
+          "jsonpath": "$.versions.agentCanvas"
+        },
+        "README.md",
+        "README.windows.md"
+      ]
+    }
+  }
+}
