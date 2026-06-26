@@ -140,7 +140,57 @@ export default [
       "prettier/prettier": "error",
 
       // Project conventions previously enforced via airbnb / custom rules.
-      "i18next/no-literal-string": "error",
+      // Lint JSX *attributes* (not just text between tags) for hard-coded
+      // user-facing strings. The plugin default (`mode: 'jsx-text-only'`)
+      // never checks attribute values, which let untranslated strings like
+      // `aria-label="Close"` / `placeholder="..."` slip past lint (cf. #1306).
+      //
+      // `jsx-only` checks every literal inside a JSX subtree, so we scope it:
+      //  - jsx-attributes.include: only attributes that carry translatable
+      //    text. Everything else (testId, name, color, to, href, className,
+      //    data-*, …) is ignored automatically — no brittle deny-list.
+      //  - callees/object-properties: re-list the plugin defaults (the option
+      //    merge is shallow, so providing a key replaces it) and add
+      //    `cn`/`className` so Tailwind class strings built via `cn(...)` or
+      //    `{ className: "..." }` aren't flagged.
+      "i18next/no-literal-string": [
+        "error",
+        {
+          mode: "jsx-only",
+          "jsx-attributes": {
+            include: [
+              "placeholder",
+              "alt",
+              "aria-label",
+              "title",
+              "label",
+              "heading",
+              "text",
+            ],
+          },
+          callees: {
+            exclude: [
+              "i18n(ext)?",
+              "t",
+              "require",
+              "addEventListener",
+              "removeEventListener",
+              "postMessage",
+              "getElementById",
+              "dispatch",
+              "commit",
+              "includes",
+              "indexOf",
+              "endsWith",
+              "startsWith",
+              "cn",
+            ],
+          },
+          "object-properties": {
+            exclude: ["[A-Z_-]+", "className"],
+          },
+        },
+      ],
       "unused-imports/no-unused-imports": "error",
       "@typescript-eslint/prefer-optional-chain": "error",
       "no-restricted-imports": [

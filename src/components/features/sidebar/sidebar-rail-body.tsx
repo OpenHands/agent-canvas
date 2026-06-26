@@ -16,6 +16,7 @@ import { cn } from "#/utils/utils";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import { BackendSelector } from "#/components/features/backends/backend-selector";
 import { BackendStatusDot } from "#/components/features/backends/backend-status-dot";
+import { CommandMenuTrigger } from "#/components/features/command-menu/command-menu-trigger";
 import { SidebarConversationList } from "./sidebar-conversation-list";
 import AutomationsIcon from "#/icons/automations.svg?react";
 import {
@@ -156,10 +157,11 @@ export function SidebarRailBody({
       </div>
 
       <nav className={sidebarNavListClassName(collapsed)}>
+        <CommandMenuTrigger collapsed={collapsed} />
         <SidebarNavLink
           to="/conversations"
           end
-          label="New Chat"
+          label={t(I18nKey.SIDEBAR$NEW_CHAT)}
           testId="sidebar-conversations-link"
           disabled={linkDisabled}
           collapsed={collapsed}
@@ -167,7 +169,7 @@ export function SidebarRailBody({
         />
         <SidebarNavLink
           to="/customize"
-          label="Customize"
+          label={t(I18nKey.NAV$CUSTOMIZE)}
           testId="sidebar-skills-link"
           disabled={linkDisabled}
           collapsed={collapsed}

@@ -12,6 +12,8 @@ const EMPTY_MCP_CONFIG: MCPConfig = {
   shttp_servers: [],
 };
 
+export const REDACTED_MCP_SECRET_VALUE = "<redacted>";
+
 const LINEAR_DEPRECATED_SSE_URL = "https://mcp.linear.app/sse";
 const LINEAR_SHTTP_URL = "https://mcp.linear.app/mcp";
 
@@ -85,6 +87,19 @@ function getAuthorizationHeaders(apiKey: string | undefined) {
       Authorization: `Bearer ${apiKey}`,
     },
   };
+}
+
+function getRemoteCredentialFields(entry: {
+  api_key?: string;
+  headers?: Record<string, string>;
+}): Partial<SdkMcpServerConfig> {
+  if (entry.api_key && entry.api_key !== REDACTED_MCP_SECRET_VALUE) {
+    return getAuthorizationHeaders(entry.api_key);
+  }
+  if (entry.headers && Object.keys(entry.headers).length > 0) {
+    return { headers: entry.headers };
+  }
+  return {};
 }
 
 /**
@@ -206,7 +221,7 @@ export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
     } else {
       name = entry.name;
       server.url = entry.url;
-      Object.assign(server, getAuthorizationHeaders(entry.api_key));
+      Object.assign(server, getRemoteCredentialFields(entry));
     }
     server.transport = "sse";
     mcpServers[reserve(name || "sse")] = server;
@@ -220,7 +235,7 @@ export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
     } else {
       name = entry.name;
       server.url = entry.url;
-      Object.assign(server, getAuthorizationHeaders(entry.api_key));
+      Object.assign(server, getRemoteCredentialFields(entry));
       if (entry.timeout != null) server.timeout = entry.timeout;
     }
     mcpServers[reserve(name || "shttp")] = server;

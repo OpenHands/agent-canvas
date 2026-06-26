@@ -6,6 +6,7 @@ import {
   getAgentServerFormDefaults,
   getAgentServerSessionApiKey,
   getAgentServerWorkingDir,
+  getLockedCloudHost,
   isAuthRequired,
   isAuthRequiredAndMissing,
 } from "#/api/agent-server-config";
@@ -24,6 +25,8 @@ afterEach(() => {
   vi.unstubAllEnvs();
   delete (window as unknown as Record<string, unknown>)
     .__AGENT_CANVAS_SESSION_API_KEY__;
+  delete (window as unknown as Record<string, unknown>)
+    .__AGENT_CANVAS_LOCK_TO_CLOUD__;
   Object.defineProperty(window, "location", {
     configurable: true,
     value: ORIGINAL_LOCATION,
@@ -72,6 +75,45 @@ describe("agent server config", () => {
     expect(
       buildConversationWorkingDir("4a8dca37-3bf0-48de-a0af-949d711c3d48"),
     ).toBe("/srv/workspaces/4a8dca373bf048dea0af949d711c3d48");
+  });
+});
+
+describe("getLockedCloudHost", () => {
+  function setInjectedCloudHost(value: unknown) {
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_LOCK_TO_CLOUD__ = value;
+  }
+
+  it("returns null when no Cloud lock is configured", () => {
+    expect(getLockedCloudHost()).toBeNull();
+  });
+
+  it("uses VITE_LOCK_TO_CLOUD when it is provided", () => {
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://cloud.example.com/");
+    setInjectedCloudHost("https://runtime.example.com");
+
+    expect(getLockedCloudHost()).toBe("https://cloud.example.com");
+  });
+
+  it("falls back to the runtime-injected Cloud URL", () => {
+    setInjectedCloudHost("https://runtime.example.com/");
+
+    expect(getLockedCloudHost()).toBe("https://runtime.example.com");
+  });
+
+  it("adds https:// to hostnames without an explicit scheme", () => {
+    setInjectedCloudHost("cloud.example.com/");
+
+    expect(getLockedCloudHost()).toBe("https://cloud.example.com");
+  });
+
+  it("ignores blank and non-string runtime values", () => {
+    setInjectedCloudHost("   ");
+    expect(getLockedCloudHost()).toBeNull();
+
+    setInjectedCloudHost(12345);
+    expect(getLockedCloudHost()).toBeNull();
   });
 });
 

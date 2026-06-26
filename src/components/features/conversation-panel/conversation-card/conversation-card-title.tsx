@@ -52,7 +52,6 @@ export function ConversationCardTitle({
         "text-xs leading-6 font-semibold bg-transparent truncate overflow-hidden",
         isConversationArchived && "opacity-60",
       )}
-      title={title}
     >
       {title}
     </p>
