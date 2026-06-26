@@ -73,10 +73,14 @@ export function SidebarNavLink({
       data-testid={testId}
       tabIndex={disabled ? -1 : 0}
       aria-label={collapsed ? label : undefined}
-      // Announce the disabled state to assistive tech. The visual disable
-      // (opacity + pointer-events) plus tabIndex=-1 + preventDefault gives
-      // sighted/keyboard users the right behaviour already; this closes
-      // the screen-reader gap so the link doesn't sound "actionable."
+      // Announce the disabled state to assistive tech. Navigation is already
+      // blocked by preventDefault below, and tabIndex=-1 + aria-disabled cover
+      // keyboard/AT — so we do NOT need pointer-events-none for correctness.
+      // Crucially, when there is a disabledReason tooltip, the link must keep
+      // receiving pointer events or the hover tooltip (HeroUI, pointer-driven)
+      // can never open — which is exactly why the "Disabled while {agent} is
+      // active" hint never showed. So only suppress pointer events when there
+      // is no reason to explain on hover.
       aria-disabled={disabled || undefined}
       onClick={(e) => {
         if (disabled) {
@@ -89,7 +93,8 @@ export function SidebarNavLink({
           (active
             ? SIDEBAR_ROW_INTERACTIVE_CLASS.active
             : SIDEBAR_ROW_INTERACTIVE_CLASS.idle),
-        disabled && "pointer-events-none opacity-50",
+        disabled && "opacity-50",
+        disabled && !disabledReason && "pointer-events-none",
       )}
     >
       {icon ? (
