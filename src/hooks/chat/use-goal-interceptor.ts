@@ -43,7 +43,10 @@ export const useGoalInterceptor = (
       }
 
       const objective = rest;
-      if (!objective) return; // bare /goal (or just the flag) — nothing to pursue
+      if (!objective) {
+        displayErrorToast(t(I18nKey.GOAL$OBJECTIVE_REQUIRED)); // bare /goal — no objective to pursue
+        return;
+      }
 
       const request: StartGoalRequest = { objective };
       if (maxIterations && maxIterations >= 1) {
