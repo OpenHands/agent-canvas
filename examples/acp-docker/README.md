@@ -30,16 +30,14 @@ npm run example:acp-docker:env   # from the repo root; writes examples/acp-docke
 cd examples/acp-docker && docker compose up
 ```
 
-> **Minimum version.** Canvas enforces `compatibility.minimumAgentServer` from
-> `config/defaults.json`; an image below it renders "Disconnected — requires
-> _N_ or newer". `latest-python` is always at or above that floor. (The deeper
-> functional floor is software-agent-sdk#3510, first released in v1.25.0:
-> Canvas delivers every ACP credential as a loopback `LookupSecret`, and only
-> #3510 resolves it off the event loop — an older image deadlocks the first ACP
-> turn with `Failed to start ACP server: timed out`. The compatibility pin sits
-> at or above #3510.)
+> **Version compatibility.** The common paths keep Canvas and agent-server in
+> sync: zero-config Compose uses `latest-python`, while the pinned path reads
+> `versions.agentServer` from the same `config/defaults.json` used by the Canvas
+> launchers. If you carry an old hand-written `.env` with `AGENT_SERVER_IMAGE`,
+> rerun `npm run example:acp-docker:env` or remove that override so the example
+> does not stay pinned below `compatibility.minimumAgentServer`.
 
-To pin a newer release or a post-#3510 main build by hand instead:
+To pin a newer release or a current main build by hand instead:
 
 ```bash
 AGENT_SERVER_IMAGE=ghcr.io/openhands/agent-server:$(gh api repos/OpenHands/software-agent-sdk/commits/main --jq '.sha[0:7]')-python docker compose up
