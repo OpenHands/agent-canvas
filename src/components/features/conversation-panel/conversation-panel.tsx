@@ -69,6 +69,8 @@ import { useMutedConversationsStore } from "#/stores/muted-conversations-store";
 import { useArchivedConversationsStore } from "#/stores/archived-conversations-store";
 import { useUnreadConversationsStore } from "#/stores/unread-conversations-store";
 import { useConversationStatusOverrideStore } from "#/stores/conversation-status-override-store";
+import { useConversationStore } from "#/stores/conversation-store";
+import { setConversationState } from "#/utils/conversation-local-storage";
 
 interface ConversationPanelProps {
   onClose?: () => void;
@@ -127,6 +129,15 @@ export function ConversationPanel({
   const { t } = useTranslation("openhands");
   const { conversationId: currentConversationId, navigate } = useNavigation();
   const { backend: activeBackend } = useActiveBackend();
+  const setRightPanelShown = useConversationStore(
+    (state) => state.setIsRightPanelShown,
+  );
+  const setHasRightPanelToggled = useConversationStore(
+    (state) => state.setHasRightPanelToggled,
+  );
+  const setSelectedConversationTab = useConversationStore(
+    (state) => state.setSelectedTab,
+  );
   // Click-outside is only relevant in the legacy drawer mode where an
   // onClose handler is provided. When the panel is rendered inline (e.g.
   // as the always-visible conversation list pane), clicking outside should
@@ -969,6 +980,17 @@ export function ConversationPanel({
                 currentUserEmail,
               )}
               tags={conversation.tags}
+              onOpenVerificationChecks={() => {
+                if (isUnread) markRead(activeBackend.id, conversation.id);
+                setConversationState(conversation.id, {
+                  selectedTab: "checks",
+                });
+                setSelectedConversationTab("checks");
+                setHasRightPanelToggled(true);
+                setRightPanelShown(true);
+                navigate(`/conversations/${conversation.id}`);
+                onClose?.();
+              }}
               isPinned={isPinned}
               onTogglePin={() => togglePin(activeBackend.id, conversation.id)}
               isMuted={isMuted}
@@ -1018,6 +1040,10 @@ export function ConversationPanel({
       toggleArchive,
       toggleUnread,
       markRead,
+      navigate,
+      setHasRightPanelToggled,
+      setRightPanelShown,
+      setSelectedConversationTab,
       setStatusOverride,
       clearStatusOverride,
     ],

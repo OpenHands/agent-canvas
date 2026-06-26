@@ -24,12 +24,25 @@ import { createRoutesStub } from "react-router";
 import React from "react";
 import { renderWithProviders } from "test-utils";
 import { ConversationPanel } from "#/components/features/conversation-panel/conversation-panel";
+import { useConversationStore } from "#/stores/conversation-store";
 import { useConversationPanelPreferencesStore } from "#/stores/conversation-panel-preferences-store";
 import { usePinnedConversationsStore } from "#/stores/pinned-conversations-store";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
+import { getConversationState } from "#/utils/conversation-local-storage";
+
+const downloadFileMock = vi.hoisted(() => vi.fn());
+vi.mock("#/api/runtime-service/agent-server-runtime-service", () => ({
+  default: {
+    downloadFile: (...args: unknown[]) => downloadFileMock(...args),
+  },
+}));
+
+function arrayBufferFromString(value: string): ArrayBuffer {
+  return new TextEncoder().encode(value).buffer as ArrayBuffer;
+}
 
 // Mock the unified stop conversation hook
 const mockStopConversationMutate = vi.fn();
@@ -117,6 +130,13 @@ describe("ConversationPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockStopConversationMutate.mockClear();
+    downloadFileMock.mockReset();
+    localStorage.clear();
+    useConversationStore.setState({
+      isRightPanelShown: false,
+      selectedTab: "files",
+      hasRightPanelToggled: false,
+    });
     _mockConversationCounter = 0;
     usePinnedConversationsStore.setState({ pinsByBackendId: {} });
     // Setup default mock for searchConversations
@@ -140,6 +160,47 @@ describe("ConversationPanel", () => {
     // NOTE that we filter out conversations that don't have a created_at property
     // (mock data has 4 conversations, but only 3 have a created_at property)
     expect(cards).toHaveLength(3);
+  });
+
+  it("opens a verified row directly to the Checks tab evidence", async () => {
+    const navigate = vi.fn();
+    vi.spyOn(
+      AgentServerConversationService,
+      "searchConversations",
+    ).mockResolvedValue({
+      items: [
+        createMockConversation({
+          id: "verified-conversation",
+          title: "Verified Conversation",
+          conversation_url: "https://agent.example.com/conversations/1",
+          session_api_key: "session-key",
+          execution_status: ExecutionStatus.FINISHED,
+        }),
+      ],
+      next_page_id: null,
+    });
+    downloadFileMock.mockResolvedValue(
+      arrayBufferFromString(JSON.stringify({ status: "passed" })),
+    );
+
+    renderConversationPanel({
+      navigation: { currentPath: "/conversations", conversationId: null, navigate },
+    });
+
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: "CONVERSATION_PANEL$VERIFICATION_PASSED",
+      }),
+    );
+
+    expect(navigate).toHaveBeenCalledWith(
+      "/conversations/verified-conversation",
+    );
+    expect(getConversationState("verified-conversation").selectedTab).toBe(
+      "checks",
+    );
+    expect(useConversationStore.getState().selectedTab).toBe("checks");
+    expect(useConversationStore.getState().isRightPanelShown).toBe(true);
   });
 
   it("should display an empty state when there are no conversations", async () => {

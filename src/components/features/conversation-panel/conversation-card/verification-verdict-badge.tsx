@@ -27,8 +27,10 @@ import type { CheckStatus } from "#/utils/check-result";
  */
 export function VerificationVerdictBadge({
   status,
+  onOpenChecks,
 }: {
   status: CheckStatus | null;
+  onOpenChecks?: () => void;
 }) {
   const { t } = useTranslation("openhands");
 
@@ -42,12 +44,8 @@ export function VerificationVerdictBadge({
       : I18nKey.CONVERSATION_PANEL$VERIFICATION_FAILED,
   );
 
-  return (
-    <span
-      data-testid="verification-verdict-badge"
-      data-status={status}
-      className="inline-flex shrink-0 items-center"
-    >
+  const icon = (
+    <>
       <Icon
         className={cn(
           "size-3",
@@ -58,6 +56,35 @@ export function VerificationVerdictBadge({
         aria-hidden
       />
       <span className="sr-only">{label}</span>
+    </>
+  );
+
+  if (onOpenChecks) {
+    return (
+      <button
+        type="button"
+        data-testid="verification-verdict-badge"
+        data-status={status}
+        aria-label={label}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onOpenChecks();
+        }}
+        className="inline-flex shrink-0 cursor-pointer items-center rounded-sm"
+      >
+        {icon}
+      </button>
+    );
+  }
+
+  return (
+    <span
+      data-testid="verification-verdict-badge"
+      data-status={status}
+      className="inline-flex shrink-0 items-center"
+    >
+      {icon}
     </span>
   );
 }

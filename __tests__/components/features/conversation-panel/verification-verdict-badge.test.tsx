@@ -1,5 +1,6 @@
 import { screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 import { renderWithProviders } from "test-utils";
 import { VerificationVerdictBadge } from "#/components/features/conversation-panel/conversation-card/verification-verdict-badge";
 
@@ -40,5 +41,20 @@ describe("VerificationVerdictBadge", () => {
       .getByTestId("verification-verdict-badge")
       .querySelector("svg");
     expect(icon).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("can open the detailed verification evidence when activated", async () => {
+    const onOpenChecks = vi.fn();
+    renderWithProviders(
+      <VerificationVerdictBadge status="passed" onOpenChecks={onOpenChecks} />,
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "CONVERSATION_PANEL$VERIFICATION_PASSED",
+      }),
+    );
+
+    expect(onOpenChecks).toHaveBeenCalledTimes(1);
   });
 });

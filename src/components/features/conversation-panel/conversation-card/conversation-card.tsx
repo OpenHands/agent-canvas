@@ -73,6 +73,8 @@ interface ConversationCardProps {
   alwaysShowPinIcon?: boolean;
   /** Server-stamped tags; source/linear/requester render as provenance badges. */
   tags?: AppConversation["tags"];
+  /** Opens the full Checks tab evidence for this row's compact verdict. */
+  onOpenVerificationChecks?: () => void;
   isUnread?: boolean;
   onToggleUnread?: () => void;
   isArchived?: boolean;
@@ -115,6 +117,7 @@ export function ConversationCard({
   onToggleMute,
   alwaysShowPinIcon = false,
   tags = null,
+  onOpenVerificationChecks,
   isUnread = false,
   onToggleUnread,
   isArchived = false,
@@ -299,7 +302,10 @@ export function ConversationCard({
             executionStatus={executionStatus}
             sandboxStatus={sandboxStatus}
           />
-          <VerificationVerdictBadge status={checkResult.data?.status ?? null} />
+          <VerificationVerdictBadge
+            status={checkResult.data?.status ?? null}
+            onOpenChecks={onOpenVerificationChecks}
+          />
           {sandboxStatus === "ERROR" && <ConversationStatusBadges />}
         </div>
 
