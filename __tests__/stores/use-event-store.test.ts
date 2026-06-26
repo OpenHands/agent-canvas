@@ -8,6 +8,7 @@ import {
   SecurityRisk,
 } from "#/types/agent-server/core";
 import { StreamingDeltaEvent } from "#/types/agent-server/core/events/streaming-delta-event";
+import { ACPToolCallEvent } from "#/types/agent-server/core/events/acp-tool-call-event";
 
 const mockUserMessageEvent: MessageEvent = {
   id: "test-event-1",
@@ -91,6 +92,41 @@ const makeUserMessageEvent = (id: string, timestamp: string): MessageEvent => ({
   ...mockUserMessageEvent,
   id,
   timestamp,
+});
+
+const makeAgentMessageEvent = (
+  id: string,
+  timestamp: string,
+  text: string,
+): MessageEvent => ({
+  id,
+  timestamp,
+  source: "agent",
+  llm_message: {
+    role: "assistant",
+    content: [{ type: "text", text }],
+  },
+  activated_microagents: [],
+  extended_content: [],
+});
+
+const makeACPToolCallEvent = (
+  id: string,
+  timestamp: string,
+  status: ACPToolCallEvent["status"],
+): ACPToolCallEvent => ({
+  kind: "ACPToolCallEvent",
+  id,
+  timestamp,
+  source: "agent",
+  tool_call_id: "acp-tool-1",
+  title: "python train.py",
+  tool_kind: "execute",
+  status,
+  raw_input: { command: "python train.py" },
+  raw_output: status === "completed" ? "done" : null,
+  content: null,
+  is_error: false,
 });
 
 describe("useEventStore", () => {
@@ -215,6 +251,75 @@ describe("useEventStore", () => {
       mockUserMessageEvent,
       mockObservationEvent,
     ]);
+  });
+
+  it("keeps ACP terminal tool calls at their started position after history normalization", () => {
+    const { result } = renderHook(() => useEventStore());
+    const user = makeUserMessageEvent("user-1", "2024-03-01T00:00:00Z");
+    const firstDelta = makeStreamingDeltaEvent("delta-1", "The rerun failed.");
+    const toolStarted = makeACPToolCallEvent(
+      "acp-started",
+      "2024-03-01T00:00:02Z",
+      "in_progress",
+    );
+    const secondDelta = makeStreamingDeltaEvent("delta-3", "I am checking it.");
+    const toolCompleted = makeACPToolCallEvent(
+      "acp-completed",
+      "2024-03-01T00:00:04Z",
+      "completed",
+    );
+
+    act(() => {
+      result.current.addEvents([
+        user,
+        firstDelta,
+        toolStarted,
+        secondDelta,
+        toolCompleted,
+      ]);
+    });
+
+    expect(result.current.uiEvents.map((event) => event.id)).toEqual([
+      "user-1",
+      "delta-1",
+      "acp-completed",
+      "delta-3",
+    ]);
+  });
+
+  it("rebuilds UI events when replayed ACP deltas arrive before an existing final message", () => {
+    const { result } = renderHook(() => useEventStore());
+    const user = makeUserMessageEvent("user-1", "2024-03-01T00:00:00Z");
+    const tool = makeACPToolCallEvent(
+      "acp-completed",
+      "2024-03-01T00:00:03Z",
+      "completed",
+    );
+    const finalMessage = makeAgentMessageEvent(
+      "agent-final",
+      "2024-03-01T00:00:04Z",
+      "The rerun failed. I am checking it.",
+    );
+    const replayedDelta = makeStreamingDeltaEvent(
+      "delta-1",
+      "The rerun failed.",
+    );
+    replayedDelta.timestamp = "2024-03-01T00:00:01Z";
+
+    act(() => {
+      result.current.addEvents([user, tool, finalMessage]);
+      result.current.addEvent(replayedDelta);
+    });
+
+    expect(result.current.uiEvents.map((event) => event.id)).toEqual([
+      "user-1",
+      "delta-1",
+      "acp-completed",
+    ]);
+    expect(result.current.uiEvents[1]).toMatchObject({
+      id: "delta-1",
+      content: "The rerun failed. I am checking it.",
+    });
   });
 
   it("should clear all events when clearEvents is called", () => {

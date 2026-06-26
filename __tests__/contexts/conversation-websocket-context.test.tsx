@@ -9,13 +9,14 @@ import { useBrowserStore } from "#/stores/browser-store";
 import { useUserConversation } from "#/hooks/query/use-user-conversation";
 import EventService from "#/api/event-service/event-service.api";
 import { getStoredConversationMetadata } from "#/api/conversation-metadata-store";
-import type { MessageEvent } from "#/types/agent-server/core";
+import { ExecutionStatus, type MessageEvent } from "#/types/agent-server/core";
 
 // Captures the main socket's `onMessage` (`handleMainMessage`) so tests can
 // drive the live message path without a real WebSocket. Only the main socket
 // gets a non-empty url (planning stays ""), so url presence discriminates it.
 const wsCapture = vi.hoisted(() => ({
   mainOnMessage: null as null | ((event: { data: string }) => void),
+  mainQueryParams: null as null | Record<string, string | boolean>,
 }));
 
 // Keep the units under test real (the provider, `useConversationHistory`, the
@@ -25,10 +26,14 @@ vi.mock("#/hooks/use-websocket", () => ({
   useWebSocket: vi.fn(
     (
       url: string,
-      options?: { onMessage?: (event: { data: string }) => void },
+      options?: {
+        onMessage?: (event: { data: string }) => void;
+        queryParams?: Record<string, string | boolean>;
+      },
     ) => {
       if (url && options?.onMessage) {
         wsCapture.mainOnMessage = options.onMessage;
+        wsCapture.mainQueryParams = options.queryParams ?? null;
       }
       return { socket: null, reconnect: vi.fn() };
     },
@@ -71,6 +76,7 @@ describe("ConversationWebSocketProvider — conversation-scoped event store", ()
 
   beforeEach(() => {
     wsCapture.mainOnMessage = null;
+    wsCapture.mainQueryParams = null;
     window.localStorage.clear();
     queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -150,6 +156,47 @@ describe("ConversationWebSocketProvider — conversation-scoped event store", ()
     // stamp this stays null and the header falls back to ambiguous matching.
     expect(getStoredConversationMetadata("conv-switch")?.active_profile).toBe(
       "fast-opus",
+    );
+  });
+
+  it("replays ACP sockets from the latest user message to backfill streaming deltas", async () => {
+    const user = {
+      ...createUserMessageEvent("user-anchor"),
+      timestamp: "2024-03-01T00:00:00Z",
+    };
+    const agent = {
+      ...createUserMessageEvent("agent-after-user"),
+      timestamp: "2024-03-01T00:00:05Z",
+      source: "agent",
+      llm_message: {
+        role: "assistant",
+        content: [{ type: "text", text: "Persisted final text" }],
+      },
+    } as MessageEvent;
+
+    vi.mocked(EventService.searchEvents).mockResolvedValueOnce({
+      items: [agent, user],
+      next_page_id: null,
+    });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ConversationWebSocketProvider
+          conversationId="conv-acp"
+          conversationUrl="http://localhost/api"
+          agentKind="acp"
+          executionStatus={ExecutionStatus.RUNNING}
+        >
+          <div />
+        </ConversationWebSocketProvider>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(wsCapture.mainQueryParams).toMatchObject({
+        resend_mode: "since",
+        after_timestamp: "2024-03-01T00:00:00Z",
+      }),
     );
   });
 

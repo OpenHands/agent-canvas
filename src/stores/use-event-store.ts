@@ -121,11 +121,43 @@ const appendEvent = (state: EventState, event: OHEvent): EventState => {
   };
 };
 
-const sortEventState = (state: EventState): EventState => ({
-  ...state,
-  events: [...state.events].sort(compareEventsByTimestamp),
-  uiEvents: [...state.uiEvents].sort(compareEventsByTimestamp),
-});
+const compactConsecutiveStreamingDeltas = (events: OHEvent[]): OHEvent[] => {
+  const compacted: OHEvent[] = [];
+
+  for (const event of events) {
+    const lastIndex = compacted.length - 1;
+    const lastEvent = compacted[lastIndex];
+    if (
+      lastEvent &&
+      isStreamingDeltaEvent(event) &&
+      isStreamingDeltaEvent(lastEvent)
+    ) {
+      compacted[lastIndex] = mergeStreamingDeltaEvent(event, lastEvent);
+    } else {
+      compacted.push(event);
+    }
+  }
+
+  return compacted;
+};
+
+const buildUiEvents = (events: OHEvent[]): OHEvent[] =>
+  events.reduce<OHEvent[]>(
+    (uiEvents, event) => handleEventForUI(event, uiEvents),
+    [],
+  );
+
+const normalizeEventState = (state: EventState): EventState => {
+  const events = compactConsecutiveStreamingDeltas(
+    [...state.events].sort(compareEventsByTimestamp),
+  );
+
+  return {
+    ...state,
+    events,
+    uiEvents: buildUiEvents(events),
+  };
+};
 
 const applyAddEvent = (state: EventState, event: OHEvent): EventState => {
   const next = appendEvent(state, event);
@@ -140,7 +172,7 @@ const applyAddEvent = (state: EventState, event: OHEvent): EventState => {
     return next;
   }
 
-  return sortEventState(next);
+  return normalizeEventState(next);
 };
 
 export const useEventStore = create<EventState>()((set) => ({
@@ -188,7 +220,7 @@ export const useEventStore = create<EventState>()((set) => ({
         return state;
       }
 
-      return sortEventState({
+      return normalizeEventState({
         ...state,
         events,
         eventIds,

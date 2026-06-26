@@ -44,6 +44,7 @@ import type {
   ConversationErrorEvent,
   ServerErrorEvent,
 } from "#/types/agent-server/core/events/conversation-state-event";
+import { ExecutionStatus } from "#/types/agent-server/core";
 import { handleActionEventCacheInvalidation } from "#/utils/cache-utils";
 import { buildWebSocketUrl } from "#/utils/websocket-url";
 import type {
@@ -115,6 +116,8 @@ export function ConversationWebSocketProvider({
   conversationId,
   conversationUrl,
   sessionApiKey,
+  agentKind,
+  executionStatus,
   subConversations,
   subConversationIds,
 }: {
@@ -122,6 +125,8 @@ export function ConversationWebSocketProvider({
   conversationId?: string;
   conversationUrl?: string | null;
   sessionApiKey?: string | null;
+  agentKind?: "openhands" | "acp" | null;
+  executionStatus?: ExecutionStatus | null;
   subConversations?: AppConversation[];
   subConversationIds?: string[];
 }) {
@@ -292,24 +297,46 @@ export function ConversationWebSocketProvider({
   ]);
 
   /**
-   * Timestamp of the latest event we already have from REST. Used as
-   * `after_timestamp` when opening the WebSocket so the server only resends
-   * events strictly after this point. `null` until the REST query settles
-   * (we hold the WS connection open until then to avoid an `all` resend).
+   * Timestamp used for the main WebSocket's `resend_mode='since'` replay.
+   * REST history can omit ACP streaming deltas while a turn is active, so ACP
+   * sockets replay from the latest user message instead of the latest REST
+   * event. The event store de-dupes persisted tool events and backfills the
+   * streaming assistant messages at their original positions.
    */
   const initialAfterTimestamp = useMemo<string | null>(() => {
     if (isPreloadingHistory) return null;
     const events = preloadedHistory?.events ?? [];
+
+    if (agentKind === "acp") {
+      const latestUserMessage = [...events]
+        .reverse()
+        .find((event) => isUserMessageEvent(event));
+      if (
+        latestUserMessage &&
+        "timestamp" in latestUserMessage &&
+        latestUserMessage.timestamp
+      ) {
+        return latestUserMessage.timestamp;
+      }
+
+      const shouldReplayAllForActiveAcp =
+        executionStatus === ExecutionStatus.RUNNING ||
+        executionStatus === ExecutionStatus.PAUSED ||
+        executionStatus === ExecutionStatus.WAITING_FOR_CONFIRMATION;
+      if (shouldReplayAllForActiveAcp) return null;
+    }
+
     const latest = events[events.length - 1];
     if (!latest || !("timestamp" in latest) || !latest.timestamp) return null;
     return latest.timestamp;
-  }, [preloadedHistory, isPreloadingHistory]);
+  }, [agentKind, executionStatus, preloadedHistory, isPreloadingHistory]);
 
   // Build WebSocket URL from props.
   //
   // We deliberately wait for the initial REST history fetch to settle before
   // opening the socket so the WS subscription can use `resend_mode='since'`
-  // with a meaningful `after_timestamp`. Without this gate, the WS would open
+  // with a meaningful `after_timestamp` (latest REST event normally, latest
+  // user message for ACP backfill). Without this gate, the WS would open
   // immediately and either replay the entire conversation (when falling back
   // to `resend_mode='all'`) or miss events that arrived between REST and WS.
   const wsUrl = useMemo(() => {
@@ -821,11 +848,12 @@ export function ConversationWebSocketProvider({
   // Separate WebSocket options for main connection
   const mainWebsocketOptions: WebSocketHookOptions = useMemo(() => {
     // History was already loaded over REST (`useConversationHistory`).
-    // Subscribe with `resend_mode='since'` so the server only resends events
-    // strictly after the latest one we already have. If REST returned no
-    // events at all (brand-new conversation), fall back to `'all'` so any
-    // events that may have been written between the REST call and the WS
-    // handshake still show up. Dedup in the event store handles overlap.
+    // Subscribe with `resend_mode='since'` so the server only resends from the
+    // selected replay anchor. For ACP conversations that anchor is the latest
+    // user message, because ACP streaming deltas can be missing from REST while
+    // still replayable over the socket. If no anchor is available, fall back to
+    // `'all'` so events written between REST and the WS handshake still show up.
+    // Dedup in the event store handles overlap.
     const queryParams: Record<string, string | boolean> = initialAfterTimestamp
       ? { resend_mode: "since", after_timestamp: initialAfterTimestamp }
       : { resend_mode: "all" };
