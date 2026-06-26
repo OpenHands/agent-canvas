@@ -34,6 +34,12 @@ export interface ConversationMetadata {
    * is ambiguous (issue #1082).
    */
   active_profile?: string | null;
+  /**
+   * Local-only client-managed planning conversation id. Cloud backends expose
+   * real sub-conversations through `sub_conversation_ids`; local agent-server
+   * backends do not, so Canvas stores the relationship here.
+   */
+  local_planning_conversation_id?: string | null;
 }
 
 type StoredMetadata = Record<string, ConversationMetadata>;

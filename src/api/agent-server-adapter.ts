@@ -28,6 +28,14 @@ import {
   OPENAI_SUBSCRIPTION_VENDOR,
   isSubscriptionLlmConfig,
 } from "#/constants/llm-subscription";
+import {
+  buildPlanPath,
+  LOCAL_PLANNER_PARENT_TAG_KEY,
+  PLAN_STRUCTURE_TEXT,
+  PLANNING_AGENT_INSTRUCTION,
+  PLANNING_FILE_EDITOR_TOOL_NAME,
+  PLANNING_SYSTEM_PROMPT_FILENAME,
+} from "#/utils/plan-file";
 
 export interface DirectConversationInfo {
   id: string;
@@ -373,7 +381,9 @@ export function toConversationPage(data: {
   next_page_id?: string | null;
 }): AppConversationPage {
   return {
-    items: data.items.map(toAppConversation),
+    items: data.items
+      .filter((item) => !item.tags?.[LOCAL_PLANNER_PARENT_TAG_KEY])
+      .map(toAppConversation),
     next_page_id: data.next_page_id ?? null,
   };
 }
@@ -435,6 +445,41 @@ function normalizeSecretString(value: unknown): string | undefined {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function buildNormalizedLlmSettings(value: unknown): SettingsRecord {
+  const llm = toRecord(value);
+
+  llm.model =
+    typeof llm.model === "string" && llm.model.trim().length > 0
+      ? llm.model
+      : DEFAULT_SETTINGS.llm_model;
+
+  const apiKey = normalizeSecretString(llm.api_key);
+  if (apiKey) {
+    llm.api_key = apiKey;
+  } else {
+    delete llm.api_key;
+  }
+
+  const baseUrl = normalizeSecretString(llm.base_url);
+  if (baseUrl) {
+    llm.base_url = baseUrl;
+  } else {
+    delete llm.base_url;
+  }
+
+  if (isSubscriptionLlmConfig(llm)) {
+    llm.auth_type = LLM_AUTH_TYPE_SUBSCRIPTION;
+    llm.subscription_vendor = OPENAI_SUBSCRIPTION_VENDOR;
+    delete llm.api_key;
+    delete llm.base_url;
+  } else {
+    delete llm.auth_type;
+    delete llm.subscription_vendor;
+  }
+
+  return llm;
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
@@ -743,40 +788,11 @@ function buildConfiguredOpenHandsAgentSettings(
   settings: Settings,
 ): AgentSettingsPayload {
   const agentSettings = toRecord(settings.agent_settings);
-  const llm = toRecord(agentSettings.llm);
-
-  llm.model =
-    typeof llm.model === "string" && llm.model.trim().length > 0
-      ? llm.model
-      : DEFAULT_SETTINGS.llm_model;
+  const llm = buildNormalizedLlmSettings(agentSettings.llm);
 
   // Stream assistant tokens (parity with ACP agents). The agent-server only
   // emits StreamingDeltaEvents for SDK LLM agents when an LLM has stream=True.
   llm.stream = true;
-
-  const apiKey = normalizeSecretString(llm.api_key);
-  if (apiKey) {
-    llm.api_key = apiKey;
-  } else {
-    delete llm.api_key;
-  }
-
-  const baseUrl = normalizeSecretString(llm.base_url);
-  if (baseUrl) {
-    llm.base_url = baseUrl;
-  } else {
-    delete llm.base_url;
-  }
-
-  if (isSubscriptionLlmConfig(llm)) {
-    llm.auth_type = LLM_AUTH_TYPE_SUBSCRIPTION;
-    llm.subscription_vendor = OPENAI_SUBSCRIPTION_VENDOR;
-    delete llm.api_key;
-    delete llm.base_url;
-  } else {
-    delete llm.auth_type;
-    delete llm.subscription_vendor;
-  }
 
   const mcpConfig = toRecord(agentSettings.mcp_config);
   if (Object.keys(mcpConfig).length === 0 || !("mcpServers" in mcpConfig)) {
@@ -852,21 +868,30 @@ interface LookupSecret {
   description?: string;
 }
 
-type StartConversationPayload = Record<string, unknown> & {
-  agent_settings: AgentSettingsPayload;
+type StartConversationPayloadBase = Record<string, unknown> & {
   workspace: LocalWorkspacePayload;
   confirmation_policy: SettingsRecord;
   security_analyzer?: SettingsRecord;
   initial_message?: InitialMessagePayload;
   max_iterations: number;
   stuck_detection: true;
-  autotitle: true;
+  autotitle: boolean;
   worktree: boolean;
   secrets_encrypted?: true;
   conversation_id?: string;
   secrets?: Record<string, LookupSecret>;
   tags?: Record<string, string>;
   tool_module_qualnames?: Record<string, string>;
+};
+
+type AgentSettingsStartConversationPayload = StartConversationPayloadBase & {
+  agent_settings: AgentSettingsPayload;
+  agent?: never;
+};
+
+type RawAgentStartConversationPayload = StartConversationPayloadBase & {
+  agent: SettingsRecord;
+  agent_settings?: never;
 };
 
 export interface StartConversationOptions {
@@ -883,9 +908,41 @@ export interface StartConversationOptions {
   customSecrets?: Array<{ name: string; description?: string }>;
 }
 
+/**
+ * Build the `request.secrets` map shared by the standard and planning
+ * conversation builders. Every saved secret rides as a LookupSecret the
+ * agent-server resolves from its own store at spawn time — `request.secrets` is
+ * the sole channel, uniform for ACP and non-ACP (agent-canvas#1039). For ACP the
+ * resolution runs off the event loop (software-agent-sdk#3510, >=1.25.0), so the
+ * loopback fetch can't deadlock. Returns `undefined` when there are no custom
+ * secrets so callers can omit the field.
+ */
+function buildCustomSecrets(
+  customSecrets: Array<{ name: string; description?: string }> | undefined,
+): Record<string, LookupSecret> | undefined {
+  if (!customSecrets?.length) return undefined;
+
+  const backend = getEffectiveLocalBackend();
+  const headers = backend ? buildAuthHeaders(backend) : {};
+
+  const secrets: Record<string, LookupSecret> = {};
+  for (const secret of customSecrets) {
+    const lookupSecret: LookupSecret = {
+      kind: "LookupSecret",
+      url: `/api/settings/secrets/${encodeURIComponent(secret.name)}`,
+      description: secret.description,
+    };
+    if (Object.keys(headers).length > 0) {
+      lookupSecret.headers = headers;
+    }
+    secrets[secret.name] = lookupSecret;
+  }
+  return secrets;
+}
+
 export function buildStartConversationRequest(
   options: StartConversationOptions,
-): StartConversationPayload {
+): AgentSettingsStartConversationPayload {
   const sourceAgentSettings = options.encryptedAgentSettings
     ? { ...options.settings, agent_settings: options.encryptedAgentSettings }
     : options.settings;
@@ -910,7 +967,7 @@ export function buildStartConversationRequest(
     sourceConversationOptions,
   );
 
-  const payload: StartConversationPayload = {
+  const payload: AgentSettingsStartConversationPayload = {
     agent_settings: agentSettings,
     workspace: conversationSettings.workspace,
     confirmation_policy:
@@ -985,34 +1042,121 @@ export function buildStartConversationRequest(
     payload.agent_definitions = conversationSettings.agent_definitions;
   }
 
-  // Every saved secret rides as a LookupSecret the agent-server resolves back
-  // from its own store at spawn time — ``request.secrets`` is the sole channel,
-  // uniform for ACP and non-ACP (agent-canvas#1039). For ACP the resolution
-  // runs off the event loop (software-agent-sdk#3510, >=1.25.0), so the loopback
-  // fetch can't deadlock.
-  if (options.customSecrets && options.customSecrets.length > 0) {
-    const backend = getEffectiveLocalBackend();
-    const headers = backend ? buildAuthHeaders(backend) : {};
-
-    const secrets: Record<string, LookupSecret> = {};
-    for (const secret of options.customSecrets) {
-      const lookupSecret: LookupSecret = {
-        kind: "LookupSecret",
-        url: `/api/settings/secrets/${encodeURIComponent(secret.name)}`,
-        description: secret.description,
-      };
-
-      if (Object.keys(headers).length > 0) {
-        lookupSecret.headers = headers;
-      }
-
-      secrets[secret.name] = lookupSecret;
-    }
-
+  const secrets = buildCustomSecrets(options.customSecrets);
+  if (secrets) {
     payload.secrets = secrets;
   }
 
   return payload;
+}
+
+export function buildStartPlanningConversationRequest(options: {
+  encryptedAgentSettings: Record<string, SettingsValue>;
+  workingDir: string;
+  parentConversationId: string;
+  initialMessage?: string;
+  secretsEncrypted?: boolean;
+  customSecrets?: Array<{ name: string; description?: string }>;
+}): RawAgentStartConversationPayload {
+  const agentSettings = toRecord(options.encryptedAgentSettings);
+  const llm = buildNormalizedLlmSettings(agentSettings.llm);
+
+  const planPath = buildPlanPath(options.workingDir);
+
+  // Put the planner's directive + boundaries in the system prompt (matching the
+  // OpenHands app-server's PLANNING_AGENT_INSTRUCTION), preserving any suffix
+  // buildAgentContext already set (e.g. the runtime-services block).
+  const agentContext = buildAgentContext(agentSettings);
+  const existingSuffix = agentContext.system_message_suffix;
+  agentContext.system_message_suffix =
+    typeof existingSuffix === "string"
+      ? `${PLANNING_AGENT_INSTRUCTION}\n\n${existingSuffix}`
+      : PLANNING_AGENT_INSTRUCTION;
+
+  // Idle planner: "Create a Plan" only switches to plan mode and provisions
+  // this conversation; the user sends the first message themselves, so nothing
+  // is injected into the chat. An explicit initialMessage is still honored.
+  const initialMessage = buildInitialMessage(options.initialMessage);
+
+  const payload: RawAgentStartConversationPayload = {
+    agent: {
+      kind: "Agent",
+      llm,
+      tools: [
+        { name: "glob", params: {} },
+        { name: "grep", params: {} },
+        {
+          name: PLANNING_FILE_EDITOR_TOOL_NAME,
+          params: { plan_path: planPath },
+        },
+      ],
+      system_prompt_filename: PLANNING_SYSTEM_PROMPT_FILENAME,
+      system_prompt_kwargs: { plan_structure: PLAN_STRUCTURE_TEXT },
+      // agent_context (skills + project context) is intentionally included so
+      // the planner shares the code agent's project context. This goes beyond
+      // the bare SDK `get_planning_agent()` preset (which sets no context); it
+      // mirrors how the frontend builds every agent, so the local planner is
+      // not context-starved relative to the code agent.
+      agent_context: agentContext,
+      // Mirror the SDK planning preset's condenser (openhands-tools preset
+      // `get_planning_condenser`): a larger rolling window and more pinned
+      // initial context than the default, with its own usage_id so its
+      // summarization LLM calls are attributed separately. The planning
+      // conversation is sent as a raw agent spec (it bypasses the agent-server's
+      // default agent assembly), so without this it would never condense —
+      // diverging from the canonical planning agent on long sessions.
+      condenser: {
+        kind: "LLMSummarizingCondenser",
+        llm: { ...llm, usage_id: "planning_condenser" },
+        max_size: 100,
+        keep_first: 6,
+      },
+    },
+    workspace: {
+      kind: "LocalWorkspace",
+      working_dir: options.workingDir,
+    },
+    confirmation_policy: { kind: "NeverConfirm" },
+    max_iterations: 500,
+    stuck_detection: true,
+    autotitle: false,
+    worktree: false,
+    tags: { [LOCAL_PLANNER_PARENT_TAG_KEY]: options.parentConversationId },
+    ...(initialMessage ? { initial_message: initialMessage } : {}),
+  };
+
+  if (options.secretsEncrypted) {
+    payload.secrets_encrypted = true;
+  }
+
+  const secrets = buildCustomSecrets(options.customSecrets);
+  if (secrets) {
+    payload.secrets = secrets;
+  }
+
+  return payload;
+}
+
+export async function buildStartPlanningConversationRequestWithEncryptedSettings(options: {
+  workingDir: string;
+  parentConversationId: string;
+  initialMessage?: string;
+}): Promise<RawAgentStartConversationPayload> {
+  const { SecretsService } = await import("./secrets-service");
+
+  const [settingsResult, customSecrets] = await Promise.all([
+    SettingsService.getSettingsForConversation(),
+    SecretsService.getSecrets(),
+  ]);
+
+  await assertSubscriptionAuthReady(settingsResult.agentSettings);
+
+  return buildStartPlanningConversationRequest({
+    ...options,
+    encryptedAgentSettings: settingsResult.agentSettings,
+    secretsEncrypted: settingsResult.secretsEncrypted,
+    customSecrets,
+  });
 }
 
 export const SUBSCRIPTION_LOGIN_REQUIRED_ERROR =
