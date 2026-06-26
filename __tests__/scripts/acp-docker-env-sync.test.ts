@@ -1,16 +1,11 @@
 // @vitest-environment node
 //
-// Drift-detection: the examples/acp-docker quickstart must inherit its
-// agent-server image from the single source of truth (config/defaults.json)
-// instead of hardcoding a version that silently falls below the Canvas
-// compatibility floor (compatibility.minimumAgentServer).
-//
-// Before this guard, examples/acp-docker/docker-compose.yml pinned
-// `1.25.0-python` directly. When defaults.json bumped the compatibility floor
-// to 1.28.0, the example default started rendering "Disconnected — requires
-// 1.28.0 or newer". This test fails if the generator's pinned tag drifts from
-// versions.agentServer, if the no-config compose fallback stops using
-// `latest-python`, or if the pinned version ever falls below the floor.
+// Drift-detection for the examples/acp-docker quickstart. Invariants enforced:
+// the generated pin must equal versions.agentServer from the single source of
+// truth (config/defaults.json); the no-config compose fallback must stay on
+// `latest-python`; and the pinned tag must never fall below the Canvas
+// compatibility floor (compatibility.minimumAgentServer). Any of those drifting
+// fails this test.
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";

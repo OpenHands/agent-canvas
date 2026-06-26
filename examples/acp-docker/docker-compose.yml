@@ -19,20 +19,11 @@
 
 services:
   agent-server:
-    # No-config default is `latest-python`, which is always >= the version
-    # Canvas requires. Canvas enforces `compatibility.minimumAgentServer` from
-    # the repo's single source of truth (config/defaults.json); a hardcoded tag
-    # below it renders "Disconnected — requires <floor> or newer". (The deeper
-    # functional floor is software-agent-sdk#3510 — first shipped in v1.25.0 —
-    # which resolves the loopback LookupSecret credentials Canvas delivers
-    # without self-deadlocking the first ACP turn; the compatibility pin sits
-    # at or above it.)
-    #
-    # For a reproducible, pinned image, generate `.env` from defaults.json first:
-    #   npm run example:acp-docker:env   # pins AGENT_SERVER_IMAGE to the SoT version
-    # Or override per-run with a newer release or a post-#3510 main sha:
-    #   AGENT_SERVER_IMAGE=ghcr.io/openhands/agent-server:<sha>-python docker compose up
-    #   gh api repos/OpenHands/software-agent-sdk/commits/main --jq '.sha[0:7]'
+    # Default `latest-python` is always >= the version Canvas requires. To pin a
+    # reproducible image (driven by config/defaults.json) or override per-run:
+    #   npm run example:acp-docker:env   # writes AGENT_SERVER_IMAGE to .env
+    # (Rationale — the compatibility floor and the #3510 LookupSecret fix — is in
+    # README.md §1 and the env-sync test.)
     image: ${AGENT_SERVER_IMAGE:-ghcr.io/openhands/agent-server:latest-python}
     container_name: oh-acp
     ports:
