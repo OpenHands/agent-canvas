@@ -86,6 +86,13 @@ const DEFAULT_AUTOMATION_VERSION = SHARED_DEFAULTS.versions.automation;
 const DEFAULT_AUTOMATION_SDK_VERSION = SHARED_DEFAULTS.versions.agentServer;
 const DEFAULT_BACKEND_PORT = SHARED_DEFAULTS.ports.agentServer;
 const DEFAULT_AUTOMATION_PORT = SHARED_DEFAULTS.ports.automation;
+const DEFAULT_WORK_RUNTIME_PORT = SHARED_DEFAULTS.ports.workRuntime;
+const DEFAULT_WORK_RUNTIME_API_KEY_PATH = join(
+  homedir(),
+  ".openhands",
+  "agent-canvas",
+  "work-runtime-api-key.txt",
+);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Terminal Styling
@@ -325,6 +332,22 @@ function buildAutomationCommand(env = process.env) {
   };
 }
 
+function buildWorkRuntimeCommand() {
+  const workRuntimeDir = join(projectRoot, "services", "work-runtime");
+  return {
+    command: "uv",
+    args: [
+      "run",
+      "--directory",
+      workRuntimeDir,
+      "uvicorn",
+      "openhands_work_runtime.app:app",
+    ],
+    source: "local (services/work-runtime)",
+    cwd: workRuntimeDir,
+  };
+}
+
 async function buildConfig(args, env = process.env) {
   // Apply args to env for buildAutomationCommand
   if (args.automationGitRef) {
@@ -370,12 +393,14 @@ async function buildConfig(args, env = process.env) {
     parseInt(env.OH_CANVAS_SAFE_BACKEND_PORT, 10) || DEFAULT_BACKEND_PORT;
   const preferredAutomationPort =
     parseInt(env.OH_CANVAS_SAFE_AUTOMATION_PORT, 10) || DEFAULT_AUTOMATION_PORT;
+  const preferredWorkRuntimePort = DEFAULT_WORK_RUNTIME_PORT;
   const preferredVitePort = parseInt(env.OH_CANVAS_SAFE_VITE_PORT, 10) || 3001;
 
   // Fail fast if any preferred port for a service in this mode is already in use.
   const requiredPorts = [{ name: "ingress", port: preferredIngressPort }];
   if (launchAgentServer) {
     requiredPorts.push({ name: "agent-server", port: preferredBackendPort });
+    requiredPorts.push({ name: "workRuntime", port: preferredWorkRuntimePort });
   }
   if (launchAutomation) {
     requiredPorts.push({ name: "automation", port: preferredAutomationPort });
@@ -404,6 +429,11 @@ async function buildConfig(args, env = process.env) {
     OH_CANVAS_SAFE_VSCODE_PORT: vscodePort.toString(),
   });
   const sessionApiKey = safeConfig.sessionApiKey;
+  const workRuntimeApiKeyPath =
+    env.OH_WORK_RUNTIME_API_KEY_PATH || DEFAULT_WORK_RUNTIME_API_KEY_PATH;
+  const workRuntimeApiKey =
+    env.WORK_RUNTIME_LOCAL_API_KEY ||
+    getOrCreatePersistedApiKey(workRuntimeApiKeyPath, "work-runtime");
 
   if (isPublic) {
     logService(
@@ -425,6 +455,7 @@ async function buildConfig(args, env = process.env) {
     // Service ports (internal)
     agentServerPort: preferredBackendPort,
     autoBackendPort: preferredAutomationPort,
+    workRuntimePort: preferredWorkRuntimePort,
     vitePort: preferredVitePort,
     vscodePort,
 
@@ -443,6 +474,7 @@ async function buildConfig(args, env = process.env) {
 
     // Auth — single key for both backends
     sessionApiKey,
+    workRuntimeApiKey,
 
     // Public mode — the session key should NOT be baked into the frontend
     isPublic,
@@ -640,6 +672,7 @@ async function waitForService(name, url, timeoutMs = 30000) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const AUTOMATION_ROUTE_PREFIX = "/api/automation";
+const WORK_RUNTIME_ROUTE_PREFIX = "/api/work";
 const AGENT_SERVER_ROUTE_PREFIXES = [
   "/api",
   "/sockets",
@@ -659,6 +692,13 @@ function getLocalServiceRoutes(config) {
     routes.push([
       AUTOMATION_ROUTE_PREFIX,
       `http://localhost:${config.autoBackendPort}`,
+    ]);
+  }
+
+  if (config.launchAgentServer) {
+    routes.push([
+      WORK_RUNTIME_ROUTE_PREFIX,
+      `http://localhost:${config.workRuntimePort}`,
     ]);
   }
 
@@ -684,6 +724,9 @@ function getRejectPrefixes(config) {
   const prefixes = [];
   if (!config.launchAutomation) {
     prefixes.push(AUTOMATION_ROUTE_PREFIX);
+  }
+  if (!config.launchAgentServer) {
+    prefixes.push(WORK_RUNTIME_ROUTE_PREFIX);
   }
   if (!config.launchAgentServer) {
     for (const prefix of AGENT_SERVER_ROUTE_PREFIXES) {
@@ -724,6 +767,7 @@ function buildAgentServerAutomationEnv(config) {
     // exposing it here keeps that path working even before/without
     // secret-registry env expansion.
     OPENHANDS_AUTOMATION_API_KEY: config.sessionApiKey,
+    OPENHANDS_WORK_RUNTIME_API_KEY: config.workRuntimeApiKey,
   };
 }
 
@@ -875,6 +919,42 @@ function startAutomationBackend(config) {
   );
 }
 
+function startWorkRuntimeBackend(config) {
+  logService(
+    "work-runtime",
+    `Starting on port ${config.workRuntimePort}...`,
+    c.cyan,
+  );
+
+  const workRuntimeCmd = buildWorkRuntimeCommand();
+  logService("work-runtime", `Using ${workRuntimeCmd.source}`, c.dim);
+
+  spawnService(
+    "work-runtime",
+    workRuntimeCmd.command,
+    [
+      ...workRuntimeCmd.args,
+      "--host",
+      "127.0.0.1",
+      "--port",
+      config.workRuntimePort.toString(),
+    ],
+    {
+      cwd: workRuntimeCmd.cwd,
+      env: {
+        WORK_RUNTIME_MANIFEST_PATH: join(
+          config.stateDir,
+          "work-runtime",
+          "manifest.json",
+        ),
+        WORK_RUNTIME_LOCAL_API_KEY: config.workRuntimeApiKey,
+        OPENHANDS_SUPPRESS_BANNER: "1",
+      },
+      color: c.cyan,
+    },
+  );
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Main
 // ═══════════════════════════════════════════════════════════════════════════
@@ -952,6 +1032,9 @@ export function buildAutomationRuntimeServicesInfo(config) {
     automation: config.launchAutomation
       ? { port: config.autoBackendPort }
       : undefined,
+    workRuntime: config.launchAgentServer
+      ? { port: config.workRuntimePort }
+      : undefined,
   });
 }
 
@@ -987,6 +1070,7 @@ function startVite(config) {
     viteEnv.VITE_AUTH_REQUIRED = "true";
   } else if (config.launchAgentServer) {
     viteEnv.VITE_SESSION_API_KEY = config.sessionApiKey;
+    viteEnv.VITE_WORK_RUNTIME_API_KEY = config.workRuntimeApiKey;
   }
 
   spawnService("vite", frontendCommand.command, frontendCommand.args, {
@@ -1330,6 +1414,10 @@ async function main(options = {}) {
     startAutomationBackend(config);
   }
 
+  if (config.launchAgentServer) {
+    startWorkRuntimeBackend(config);
+  }
+
   // 4. Start frontend server (Vite dev server OR static server)
   if (config.launchFrontend) {
     if (useStaticMode) {
@@ -1405,6 +1493,7 @@ function startStaticFrontend(config, staticDir) {
 export {
   buildAgentServerAutomationEnv,
   buildAutomationCommand,
+  buildWorkRuntimeCommand,
   buildConfig,
   buildRouteArgs,
   buildViteBackendEnv,
@@ -1425,6 +1514,8 @@ export {
   DEFAULT_AUTOMATION_SDK_VERSION,
   DEFAULT_BACKEND_PORT,
   DEFAULT_AUTOMATION_PORT,
+  DEFAULT_WORK_RUNTIME_PORT,
+  DEFAULT_WORK_RUNTIME_API_KEY_PATH,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

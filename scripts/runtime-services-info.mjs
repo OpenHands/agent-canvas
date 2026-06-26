@@ -55,6 +55,12 @@ import { pathToFileURL } from "node:url";
  *   prefix all automation routes are mounted under.
  * @param {string} [options.automation.authEnvVar="OPENHANDS_AUTOMATION_API_KEY"]
  *   - Env var holding the API key.
+ * @param {object} [options.workRuntime] - Work Runtime backend info. Skipped
+ *   unless `.port` is provided.
+ * @param {number} [options.workRuntime.port] - Work Runtime port.
+ * @param {string} [options.workRuntime.apiPrefix="/api/work"] - Path prefix.
+ * @param {string} [options.workRuntime.authEnvVar="OPENHANDS_WORK_RUNTIME_API_KEY"]
+ *   - Env var holding the API key.
  * @returns {object} A JSON-serializable runtime services info object.
  */
 export function buildRuntimeServicesInfo(options) {
@@ -69,6 +75,7 @@ export function buildRuntimeServicesInfo(options) {
     frontendPort = vitePort,
     frontendKind = "vite",
     automation,
+    workRuntime,
   } = options;
 
   // Prefer an explicit URL (containers reach the agent-server over a specific
@@ -99,9 +106,9 @@ export function buildRuntimeServicesInfo(options) {
   if (ingressPort !== undefined) {
     services.ingress = {
       description:
-        "Unified entry point. Routes /api/automation/* to the automation " +
-        "backend, /api/* and /sockets to the agent-server, and /* to the " +
-        "frontend.",
+        "Unified entry point. Routes /api/work/* to the Work Runtime, " +
+        "/api/automation/* to the automation backend, /api/* and /sockets " +
+        "to the agent-server, and /* to the frontend.",
       url_from_agent: `http://${agentHostAlias}:${ingressPort}`,
     };
   }
@@ -137,6 +144,24 @@ export function buildRuntimeServicesInfo(options) {
       api_prefix: apiPrefix,
       docs_url: `${automationBaseUrl}${apiPrefix}/docs`,
       openapi_url: `${automationBaseUrl}${apiPrefix}/openapi.json`,
+      auth_env_var: authEnvVar,
+    };
+  }
+
+  if (workRuntime?.port !== undefined && workRuntime.port !== null) {
+    const apiPrefix = workRuntime.apiPrefix ?? "/api/work";
+    const authEnvVar =
+      workRuntime.authEnvVar ?? "OPENHANDS_WORK_RUNTIME_API_KEY";
+    const baseUrl = `http://${agentHostAlias}:${workRuntime.port}`;
+    services.work_runtime = {
+      description:
+        "OpenHands Work Runtime. Manages Work mode folder grants and " +
+        `workspace manifests under '${apiPrefix}'. Authenticate with header ` +
+        `'X-API-Key: $${authEnvVar}'.`,
+      url_from_agent: baseUrl,
+      api_prefix: apiPrefix,
+      docs_url: `${baseUrl}${apiPrefix}/docs`,
+      openapi_url: `${baseUrl}${apiPrefix}/openapi.json`,
       auth_env_var: authEnvVar,
     };
   }

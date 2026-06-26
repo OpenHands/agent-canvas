@@ -28,6 +28,13 @@ import { StartTaskCard } from "./start-task-card/start-task-card";
 import { ConversationCardSkeleton } from "./conversation-card/conversation-card-skeleton";
 import { CompactConversationRow } from "./compact-conversation-row";
 import { useConversationPanelPreferencesStore } from "#/stores/conversation-panel-preferences-store";
+import { useAppModeStore } from "#/stores/app-mode-store";
+import { useWorkModeCapabilityContext } from "#/hooks/use-work-mode-availability";
+import { getEffectiveAppMode } from "#/utils/app-mode-capabilities";
+import {
+  getConversationHref,
+  isWorkConversation,
+} from "#/utils/work-conversations";
 import { cn } from "#/utils/utils";
 import { ConversationPanelFilterMenu } from "./conversation-panel-filter-menu";
 import { ConversationPanelNewThreadPicker } from "./conversation-panel-new-thread-picker";
@@ -88,6 +95,9 @@ export function ConversationPanel({
   const { t } = useTranslation("openhands");
   const { conversationId: currentConversationId, navigate } = useNavigation();
   const { backend: activeBackend } = useActiveBackend();
+  const appMode = useAppModeStore((state) => state.mode);
+  const capabilityContext = useWorkModeCapabilityContext();
+  const effectiveMode = getEffectiveAppMode(appMode, capabilityContext);
   // Click-outside is only relevant in the legacy drawer mode where an
   // onClose handler is provided. When the panel is rendered inline (e.g.
   // as the always-visible conversation list pane), clicking outside should
@@ -274,10 +284,15 @@ export function ConversationPanel({
   }, [pinnedIds.length]);
 
   const scopedConversations = React.useMemo(() => {
+    const modeFiltered = conversations.filter((conversation) => {
+      const workConversation = isWorkConversation(conversation.tags);
+      return effectiveMode === "work" ? workConversation : !workConversation;
+    });
+
     const scopeFiltered =
       threadScope === "relevant"
-        ? conversations.filter((c) => isExecutionActive(c.execution_status))
-        : conversations;
+        ? modeFiltered.filter((c) => isExecutionActive(c.execution_status))
+        : modeFiltered;
 
     // In the expanded panel, pinned conversations should only appear inside
     // the dedicated pinned section (not duplicated in grouped/flat lists).
@@ -286,7 +301,7 @@ export function ConversationPanel({
     }
 
     return filterOutPinnedConversations(scopeFiltered, pinnedIds);
-  }, [compact, conversations, pinnedIds, threadScope]);
+  }, [compact, conversations, effectiveMode, pinnedIds, threadScope]);
 
   const { recent: recentScoped, older: olderScoped } = React.useMemo(
     () => partitionByCutoff(scopedConversations),
@@ -631,7 +646,7 @@ export function ConversationPanel({
           }
         >
           <NavigationLink
-            to={`/conversations/${conversation.id}`}
+            to={getConversationHref(conversation.id, conversation.tags)}
             onClick={onClose}
             className={cn(
               "block rounded-md transition-colors",

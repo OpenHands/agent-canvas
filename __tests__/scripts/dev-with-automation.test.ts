@@ -123,9 +123,13 @@ describe("buildAutomationCommand", () => {
 describe("buildAgentServerAutomationEnv", () => {
   it("exposes the session API key as OPENHANDS_AUTOMATION_API_KEY for agent curl commands", () => {
     expect(
-      buildAgentServerAutomationEnv({ sessionApiKey: "shared-session-key" }),
+      buildAgentServerAutomationEnv({
+        sessionApiKey: "shared-session-key",
+        workRuntimeApiKey: "work-runtime-key",
+      }),
     ).toEqual({
       OPENHANDS_AUTOMATION_API_KEY: "shared-session-key",
+      OPENHANDS_WORK_RUNTIME_API_KEY: "work-runtime-key",
     });
   });
 });

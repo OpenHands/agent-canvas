@@ -9,6 +9,8 @@ export default [
   layout("routes/root-layout.tsx", [
     index("routes/index-redirect.tsx"),
     route("conversations", "routes/home.tsx"),
+    route("work", "routes/work-home.tsx"),
+    route("work/tasks/:taskId", "routes/work-task.tsx"),
     route(
       "conversations/:conversationId/panel",
       "routes/conversation-panel.tsx",
@@ -26,6 +28,7 @@ export default [
       route("condenser", "routes/condenser-settings.tsx"),
       route("verification", "routes/verification-settings.tsx"),
       route("app", "routes/app-settings.tsx"),
+      route("work", "routes/work-settings.tsx"),
       route("secrets", "routes/secrets-settings.tsx"),
     ]),
     route("oauth/device/verify", "routes/device-verify.tsx"),

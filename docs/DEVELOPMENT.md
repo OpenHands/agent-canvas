@@ -165,3 +165,13 @@ You can create a `.env` file in the project directory with these variables based
 | `VITE_USE_TLS`              | Use HTTPS/WSS for the Vite proxy target                                                   | `false`                |
 | `VITE_FRONTEND_PORT`        | Port to run the frontend application                                                      | `3001`                 |
 | `VITE_INSECURE_SKIP_VERIFY` | Skip TLS certificate verification for proxied backend requests                            | `false`                |
+
+## Feature specs
+
+Stable spec IDs live under `specs/`. Tag implementation and tests with
+`// @spec WM-00N` comments when touching Work mode (see [AGENTS.md](../AGENTS.md)).
+
+| Spec | Topic |
+|------|--------|
+| [specs/work-mode.md](../specs/work-mode.md) | Code/Work toggle, execution targets (`local` / `hosted` / `none`), hybrid cloud |
+| [specs/backend-management.md](../specs/backend-management.md) | Backend registry and active selection |

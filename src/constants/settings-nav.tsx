@@ -1,4 +1,4 @@
-import { AppWindow, Shield } from "lucide-react";
+import { AppWindow, Briefcase, Shield } from "lucide-react";
 import KeyIcon from "#/icons/key.svg?react";
 import MemoryIcon from "#/icons/memory_icon.svg?react";
 import CircuitIcon from "#/icons/u-circuit.svg?react";
@@ -52,6 +52,12 @@ export const OSS_NAV_ITEMS: SettingsNavItem[] = [
     to: "/settings/app",
     text: "SETTINGS$NAV_APPLICATION",
     subtitle: "SETTINGS$PAGE_APPLICATION_SUBLINE",
+  },
+  {
+    icon: <Briefcase className="size-4" strokeWidth={2} aria-hidden />,
+    to: "/settings/work",
+    text: "SETTINGS$NAV_WORK",
+    subtitle: "SETTINGS$PAGE_WORK_SUBLINE",
   },
   {
     icon: <KeyIcon width={16} height={16} />,

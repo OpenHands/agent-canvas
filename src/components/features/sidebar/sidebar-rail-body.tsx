@@ -18,6 +18,11 @@ import { BackendSelector } from "#/components/features/backends/backend-selector
 import { BackendStatusDot } from "#/components/features/backends/backend-status-dot";
 import { CommandMenuTrigger } from "#/components/features/command-menu/command-menu-trigger";
 import { SidebarConversationList } from "./sidebar-conversation-list";
+import { AppModeToggle } from "./app-mode-toggle";
+import { useAppModeStore } from "#/stores/app-mode-store";
+import { useWorkModeCapabilityContext } from "#/hooks/use-work-mode-availability";
+import { getHomePathForAppMode } from "#/utils/app-mode";
+import { getEffectiveAppMode } from "#/utils/app-mode-capabilities";
 import AutomationsIcon from "#/icons/automations.svg?react";
 import {
   SIDEBAR_COLLAPSE_TOGGLE_OVERLAY_CLASS,
@@ -78,91 +83,112 @@ export function SidebarRailBody({
   onOpenManageBackends,
 }: SidebarRailBodyProps) {
   const { t } = useTranslation("openhands");
+  const appMode = useAppModeStore((state) => state.mode);
+  const capabilityContext = useWorkModeCapabilityContext();
+  const effectiveMode = getEffectiveAppMode(appMode, capabilityContext);
+  const homePath = getHomePathForAppMode(effectiveMode);
+  const newSessionLabel = effectiveMode === "work" ? "New Task" : "New Chat";
   const backendCloseTimerRef = collapsedBackendCloseTimer;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className={sidebarHeaderRowClassName(collapsed)}>
-        <div
-          className={cn(
-            collapsed && showCollapseToggle
-              ? SIDEBAR_COLLAPSED_LOGO_WRAPPER_CLASS
-              : "flex min-w-0 shrink-0 items-center",
-          )}
-        >
+        {collapsed ? (
           <div
             className={cn(
-              collapsed &&
-                showCollapseToggle &&
-                "flex h-full w-full items-center justify-start pl-2.5 transition-opacity duration-150",
-              collapsed && showCollapsedExpandButton && "opacity-0",
+              showCollapseToggle
+                ? SIDEBAR_COLLAPSED_LOGO_WRAPPER_CLASS
+                : "flex min-w-0 shrink-0 items-center",
             )}
           >
+            <div
+              className={cn(
+                showCollapseToggle &&
+                  "flex h-full w-full items-center justify-start pl-2.5 transition-opacity duration-150",
+                showCollapsedExpandButton && "opacity-0",
+              )}
+            >
+              <OpenHandsLogoButton
+                logoWidth={SIDEBAR_LOGO_WIDTH}
+                logoHeight={SIDEBAR_LOGO_HEIGHT}
+                logoClassName="max-w-none"
+                className={cn(SIDEBAR_ICON_SLOT_CLASS, "overflow-visible")}
+              />
+            </div>
+            {showCollapseToggle ? (
+              <button
+                type="button"
+                data-testid="sidebar-collapse-toggle"
+                aria-pressed={collapsed}
+                aria-label={collapseToggleLabel}
+                onClick={onExpand}
+                className={cn(
+                  SIDEBAR_COLLAPSE_TOGGLE_OVERLAY_CLASS,
+                  showCollapsedExpandButton
+                    ? "opacity-100 pointer-events-auto"
+                    : "opacity-0 pointer-events-none",
+                )}
+              >
+                <ChevronRight width={14} height={14} />
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <>
             <OpenHandsLogoButton
               logoWidth={SIDEBAR_LOGO_WIDTH}
               logoHeight={SIDEBAR_LOGO_HEIGHT}
               logoClassName="max-w-none"
-              className={cn(SIDEBAR_ICON_SLOT_CLASS, "overflow-visible")}
-            />
-          </div>
-          {collapsed && showCollapseToggle ? (
-            <button
-              type="button"
-              data-testid="sidebar-collapse-toggle"
-              aria-pressed={collapsed}
-              aria-label={collapseToggleLabel}
-              onClick={onExpand}
               className={cn(
-                SIDEBAR_COLLAPSE_TOGGLE_OVERLAY_CLASS,
-                showCollapsedExpandButton
-                  ? "opacity-100 pointer-events-auto"
-                  : "opacity-0 pointer-events-none",
+                SIDEBAR_ICON_SLOT_CLASS,
+                "shrink-0 overflow-visible",
               )}
-            >
-              <ChevronRight width={14} height={14} />
-            </button>
-          ) : null}
-        </div>
-        {!collapsed && showCollapseToggle ? (
-          <button
-            type="button"
-            data-testid="sidebar-collapse-toggle"
-            aria-pressed={collapsed}
-            aria-label={collapseToggleLabel}
-            onClick={onCollapse}
-            className={cn(
-              "hidden md:inline-flex ml-auto",
-              SIDEBAR_ICON_BUTTON_CLASS,
-              "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
-            )}
-          >
-            <ChevronLeft width={14} height={14} />
-          </button>
-        ) : null}
-        {!collapsed && showMobileCloseButton ? (
-          <button
-            type="button"
-            data-testid="sidebar-mobile-drawer-close"
-            onClick={onCloseMobile}
-            aria-label={t(I18nKey.SIDEBAR$CLOSE_MENU)}
-            className={cn(
-              "inline-flex ml-auto",
-              SIDEBAR_ICON_BUTTON_CLASS,
-              "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
-            )}
-          >
-            <ChevronLeft width={14} height={14} />
-          </button>
-        ) : null}
+            />
+            <div className="flex min-w-0 flex-1 justify-center">
+              <AppModeToggle collapsed={collapsed} />
+            </div>
+            {showCollapseToggle ? (
+              <button
+                type="button"
+                data-testid="sidebar-collapse-toggle"
+                aria-pressed={collapsed}
+                aria-label={collapseToggleLabel}
+                onClick={onCollapse}
+                className={cn(
+                  "hidden shrink-0 md:inline-flex",
+                  SIDEBAR_ICON_BUTTON_CLASS,
+                  "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
+                )}
+              >
+                <ChevronLeft width={14} height={14} />
+              </button>
+            ) : null}
+            {showMobileCloseButton ? (
+              <button
+                type="button"
+                data-testid="sidebar-mobile-drawer-close"
+                onClick={onCloseMobile}
+                aria-label={t(I18nKey.SIDEBAR$CLOSE_MENU)}
+                className={cn(
+                  "inline-flex shrink-0",
+                  SIDEBAR_ICON_BUTTON_CLASS,
+                  "text-[var(--oh-muted)] hover:text-white hover:bg-[var(--oh-surface-raised)]",
+                )}
+              >
+                <ChevronLeft width={14} height={14} />
+              </button>
+            ) : null}
+          </>
+        )}
       </div>
 
       <nav className={sidebarNavListClassName(collapsed)}>
         <CommandMenuTrigger collapsed={collapsed} />
         <SidebarNavLink
-          to="/conversations"
+          to={homePath}
           end
-          label={t(I18nKey.SIDEBAR$NEW_CHAT)}
-          testId="sidebar-conversations-link"
+          label={newSessionLabel}
+          testId="sidebar-home-link"
           disabled={linkDisabled}
           collapsed={collapsed}
           icon={<Plus width={ICON_SIZE} height={ICON_SIZE} />}

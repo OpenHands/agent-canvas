@@ -2,6 +2,9 @@ import { useTranslation } from "react-i18next";
 import OpenHandsLogo from "#/assets/branding/openhands-logo.svg?react";
 import { NavigationLink } from "#/components/shared/navigation-link";
 import { I18nKey } from "#/i18n/declaration";
+import { useAppModeStore } from "#/stores/app-mode-store";
+import { useWorkModeCapabilityContext } from "#/hooks/use-work-mode-availability";
+import { getEffectiveHomePath } from "#/utils/app-mode-capabilities";
 import { cn } from "#/utils/utils";
 
 const DEFAULT_LOGO_WIDTH = 46;
@@ -22,12 +25,14 @@ export function OpenHandsLogoButton({
   logoHeight = DEFAULT_LOGO_HEIGHT,
 }: OpenHandsLogoButtonProps = {}) {
   const { t } = useTranslation("openhands");
+  const mode = useAppModeStore((state) => state.mode);
+  const capabilityContext = useWorkModeCapabilityContext();
 
   const ariaLabel = t(I18nKey.BRANDING$OPENHANDS_LOGO);
 
   return (
     <NavigationLink
-      to="/conversations"
+      to={getEffectiveHomePath(mode, capabilityContext)}
       aria-label={ariaLabel}
       className={cn(className)}
     >

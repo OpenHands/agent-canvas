@@ -182,6 +182,7 @@ export interface AppConversation {
   active_profile?: string | null;
   public?: boolean;
   sub_conversation_ids: string[];
+  tags?: Record<string, string>;
 }
 
 export interface AppConversationPage {

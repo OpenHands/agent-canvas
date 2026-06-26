@@ -25,6 +25,15 @@ vi.mock("#/contexts/active-backend-context", () => ({
   useActiveBackend: () => useActiveBackendMock(),
 }));
 
+vi.mock("#/hooks/use-work-mode-availability", () => ({
+  useWorkModeAvailability: () => ({
+    workAllowed: true,
+    workExecution: "local",
+    hasLocalBackend: true,
+    backendKind: "local",
+  }),
+}));
+
 const createConfig = (
   feature_flags: Partial<WebClientConfig["feature_flags"]> = {},
 ): WebClientConfig => ({
@@ -103,6 +112,7 @@ describe("useSettingsNavItems", () => {
 
     expect(paths).not.toContain("/settings/llm");
     expect(paths).toContain("/settings/app");
+    expect(paths).toContain("/settings/work");
     expect(paths).toContain("/settings/secrets");
   });
 

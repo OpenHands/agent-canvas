@@ -19,6 +19,7 @@
   "ports": {
     "agentServer": 18000,
     "automation": 18001,
+    "workRuntime": 18002,
     "proxy": 8000
   },
 
@@ -26,7 +27,8 @@
     "stateSubdir": "agent-canvas",
     "conversations": "agent-canvas/conversations",
     "bashEvents": "agent-canvas/bash_events",
-    "automationDb": "automation/automations.db"
+    "automationDb": "automation/automations.db",
+    "workRuntimeManifest": "work-runtime/manifest.json"
   },
 
   "packages": {

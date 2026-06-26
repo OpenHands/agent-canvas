@@ -26,6 +26,7 @@ import { ConversationMobilePanelPage } from "#/components/features/conversation/
 
 import { WebSocketProviderWrapper } from "#/contexts/websocket-provider-wrapper";
 import { useErrorMessageStore } from "#/stores/error-message-store";
+import { useWorkToolRequestStore } from "#/stores/work-tool-request-store";
 import { I18nKey } from "#/i18n/declaration";
 import { resumeCloudSandbox } from "#/api/cloud/conversation-service.api";
 
@@ -76,6 +77,7 @@ function AppContent() {
     resetConversationRuntimeState();
     setCurrentAgentState(AgentState.LOADING);
     removeErrorMessage();
+    useWorkToolRequestStore.getState().reset();
   }, [
     conversationId,
     clearTerminal,

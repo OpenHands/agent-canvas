@@ -143,3 +143,4 @@ The Agent Server is often paired with an [Automation Server](https://github.com/
 - [Architecture overview](./docs/architecture.md)
 - [Development guide](./docs/DEVELOPMENT.md)
 - [Self-hosting guide](./docs/SELF_HOSTING.md)
+- [Work mode spec](./specs/work-mode.md) (in progress)
