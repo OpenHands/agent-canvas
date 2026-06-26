@@ -221,6 +221,7 @@ export function Dropdown({
         <>
           <input
             {...getInputPropsWithCursorFix({
+              // eslint-disable-next-line i18next/no-literal-string -- i18n-free UI primitive; callers supply translated labels
               "aria-label": placeholder ?? "Filter options",
               tabIndex: -1,
             })}

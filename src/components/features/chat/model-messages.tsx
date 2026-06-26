@@ -36,6 +36,7 @@ function ProfileRow({ profile }: ProfileRowProps) {
           <div className="px-3 py-2 text-xs text-neutral-300 font-mono whitespace-pre-wrap">
             {`model:    ${profile.model ?? "—"}\n` +
               `base_url: ${profile.base_url ?? "—"}\n` +
+              // eslint-disable-next-line i18next/no-literal-string -- diagnostic readout; field labels are intentionally untranslated
               `api_key:  ${profile.api_key_set ? "set" : "not set"}`}
           </div>
         </>

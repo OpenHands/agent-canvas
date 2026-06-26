@@ -70,7 +70,7 @@ jobs:
           SHOULD_RUN=false
           while IFS= read -r file; do
             case "$file" in
-              src/*|public/*|scripts/*|bin/*|config/*|docker/*|tests/e2e/mock-llm/*|tests/e2e/support/*|package.json|package-lock.json|vite.config.ts|tsconfig.json|react-router.config.ts|playwright.mock-llm.config.ts|playwright.mock-llm-docker.config.ts|tailwind.config.js|hero.ts|.github/workflows/mock-llm-docker-e2e.yml)
+              src/*|public/*|scripts/*|bin/*|config/*|docker/*|tests/e2e/mock-llm/*|tests/e2e/support/*|package.json|package-lock.json|vite.config.ts|tsconfig.json|react-router.config.ts|playwright.mock-llm.config.ts|playwright.mock-llm-docker.config.ts|tailwind.config.js|hero.ts|.github/workflows/docker.yml|.github/workflows/mock-llm-docker-e2e.yml)
                 SHOULD_RUN=true
                 break
                 ;;
@@ -403,8 +403,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          gh pr comment "${{ steps.ctx.outputs.pr_number }}" \
-            --body-file "$MOCK_LLM_REPORT_PATH"
+          node tests/e2e/mock-llm/scripts/upsert-pr-comment.mjs \
+            --issue-number "${{ steps.ctx.outputs.pr_number }}" \
+            --body-file "$MOCK_LLM_REPORT_PATH" \
+            --marker "<!-- agent-canvas-mock-llm-docker-e2e-report -->" \
+            --legacy-title "Mock-LLM Docker E2E Test Results"
 
       - name: Fail job when tests fail
         if: always()
