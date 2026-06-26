@@ -57,7 +57,7 @@ invents a green.
 | `status`    | Overall verdict               | A red check **overrides** this — see the trust model.                                                                                             |
 | `checks[]`  | One row per verified behavior | `title` is cosmetic; a missing title is **never** a reason to drop a row.                                                                         |
 | `spec`      | The committed test source     | **The load-bearing review artifact.** Worktree-relative path; never a URL. For non-web stacks it is often the _only_ artifact — make it non-null. |
-| `video`     | The human-watchable proof     | Worktree-relative path, **or** an allowlisted HTTPS raw media URL. Null is fine (non-UI work).                                                     |
+| `video`     | The human-watchable proof     | Worktree-relative path, **or** an allowlisted HTTPS raw media URL. Null is fine (non-UI work).                                                    |
 | `trace`     | Deep replay artifact          | Worktree-relative path, **or** an allowlisted HTTPS raw media URL. Playwright emitters use a trace `.zip`; non-Playwright emitters leave it null. |
 | `commit`    | Provenance                    | Short sha the run executed against.                                                                                                               |
 | `createdAt` | When the run finished         | ISO-8601.                                                                                                                                         |
@@ -112,7 +112,7 @@ operator-approved proof by writing a second durable file:
   "approvedBy": "operator@example.com",
   "resultStatus": "passed",
   "resultCreatedAt": "2026-06-26T08:00:00.000Z",
-  "notes": null
+  "notes": null,
 }
 ```
 
@@ -120,6 +120,43 @@ Approval is intentionally separate from `result.json`: the writer/agent owns the
 verification facts, while the operator or a governed approval route owns the
 human trust decision. Telegram buttons, cockpit UI, and future PR-promotion gates
 should all write this same file rather than inventing parallel approval state.
+
+## PR promotion record
+
+Once evidence has both a passed `result.json` and an `approval.json`, the cockpit
+can promote the current worktree branch into a GitHub draft PR and write the
+promotion metadata back into the worktree:
+
+- **Path:** `.checks/pr.json`, at the **worktree root** (the constant
+  `CHECK_PR_PROMOTION_PATH`).
+- **Reader:** [`src/utils/check-pr-promotion.ts`](../../src/utils/check-pr-promotion.ts)
+  (`CheckPrPromotion.parse`) is the authoritative schema.
+- **Scope:** promotion is only valid for approved passed evidence. The promotion
+  route refuses failed evidence, missing approval, detached HEAD,
+  non-GitHub origins, and default-branch self-promotion. If the worktree is
+  dirty, it creates a commit before pushing so the approved evidence and code
+  land in the draft PR together.
+
+```jsonc
+{
+  "version": 1,
+  "status": "created" | "updated",
+  "url": "https://github.com/OWNER/REPO/pull/123",
+  "number": 123,
+  "branch": "openhands/conversation-123",
+  "base": "main",
+  "promotedAt": "2026-06-26T08:20:00.000Z",
+  "promotedBy": "operator@example.com",
+  "resultCreatedAt": "2026-06-26T08:00:00.000Z",
+  "approvalApprovedAt": "2026-06-26T08:10:00.000Z"
+}
+```
+
+`status: "updated"` means an existing open PR for the same head/base pair was
+found and refreshed with the latest title/body instead of creating a duplicate.
+The generated PR body links the durable evidence files (`.checks/result.json`,
+`.checks/approval.json`, `.checks/decisions.jsonl`) on the promoted branch plus
+any external video/trace URLs from `result.json`.
 
 ## Writing it
 

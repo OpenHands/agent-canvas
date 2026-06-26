@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import ChecksTab from "#/routes/checks-tab";
 import { CHECK_RESULT_PATH } from "#/utils/check-result";
+import { CHECK_PR_PROMOTION_PATH } from "#/utils/check-pr-promotion";
 import { DECISIONS_PATH } from "#/utils/decision-log";
 import { renderWithProviders } from "../../test-utils";
 
@@ -12,6 +13,7 @@ import { renderWithProviders } from "../../test-utils";
 // the tests exercise the tab's own render logic in isolation.
 const useWorkspaceFileContentMock = vi.fn();
 const writeTextFileMock = vi.fn();
+const promoteApprovedCheckMock = vi.fn();
 
 vi.mock("#/hooks/query/use-workspace-file-content", () => ({
   useWorkspaceFileContent: (path: string | null) =>
@@ -40,6 +42,13 @@ vi.mock("#/hooks/use-current-user-email", () => ({
 vi.mock("#/api/runtime-service/agent-server-runtime-service", () => ({
   default: {
     writeTextFile: (...args: unknown[]) => writeTextFileMock(...args),
+  },
+}));
+
+vi.mock("#/api/pr-promotion-service", () => ({
+  default: {
+    promoteApprovedCheck: (...args: unknown[]) =>
+      promoteApprovedCheckMock(...args),
   },
 }));
 
@@ -98,6 +107,7 @@ function wire({
 }) {
   useWorkspaceFileContentMock.mockImplementation((path: string | null) => {
     if (path === CHECK_RESULT_PATH) return result;
+    if (path === CHECK_PR_PROMOTION_PATH) return missingResult;
     if (path === DECISIONS_PATH) return decisions ?? missingResult;
     return video ?? missingResult;
   });
@@ -107,6 +117,7 @@ describe("ChecksTab", () => {
   beforeEach(() => {
     useWorkspaceFileContentMock.mockReset();
     writeTextFileMock.mockReset();
+    promoteApprovedCheckMock.mockReset();
   });
 
   it("shows a loading indicator while the result query is in flight", () => {
@@ -196,6 +207,88 @@ describe("ChecksTab", () => {
     );
     expect(
       screen.queryByTestId("checks-tab-approve-button"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("promotes approved evidence to a draft PR", async () => {
+    const approvalJson = JSON.stringify({
+      version: 1,
+      status: "approved",
+      approvedAt: "2026-06-26T08:00:00.000Z",
+      approvedBy: "operator@example.com",
+      resultStatus: "passed",
+      resultCreatedAt: null,
+      notes: null,
+    });
+    useWorkspaceFileContentMock.mockImplementation((path: string | null) => {
+      if (path === CHECK_RESULT_PATH) return textResult(passedJson);
+      if (path === ".checks/approval.json") return textResult(approvalJson);
+      return missingResult;
+    });
+    promoteApprovedCheckMock.mockResolvedValue({
+      version: 1,
+      status: "created",
+      url: "https://github.com/SpotwiseAI/spotwise-ui/pull/123",
+      number: 123,
+      branch: "openhands/conversation-1",
+      base: "main",
+      promotedAt: "2026-06-26T08:01:00.000Z",
+      promotedBy: "operator@example.com",
+      resultCreatedAt: null,
+      approvalApprovedAt: "2026-06-26T08:00:00.000Z",
+    });
+
+    renderWithProviders(<ChecksTab />);
+    await userEvent.click(screen.getByTestId("checks-tab-promote-pr-button"));
+
+    expect(promoteApprovedCheckMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationUrl: "https://agent.example/conversations/1",
+        sessionApiKey: "session-key",
+        workingDir: "/workspace/project",
+        conversationLink: "http://localhost:3000/conversations/conversation-1",
+        promotedBy: "operator@example.com",
+      }),
+    );
+  });
+
+  it("renders an existing draft PR link instead of another promotion button", () => {
+    const approvalJson = JSON.stringify({
+      version: 1,
+      status: "approved",
+      approvedAt: "2026-06-26T08:00:00.000Z",
+      approvedBy: "operator@example.com",
+      resultStatus: "passed",
+      resultCreatedAt: null,
+      notes: null,
+    });
+    const promotionJson = JSON.stringify({
+      version: 1,
+      status: "created",
+      url: "https://github.com/SpotwiseAI/spotwise-ui/pull/123",
+      number: 123,
+      branch: "openhands/conversation-1",
+      base: "main",
+      promotedAt: "2026-06-26T08:01:00.000Z",
+      promotedBy: "operator@example.com",
+      resultCreatedAt: null,
+      approvalApprovedAt: "2026-06-26T08:00:00.000Z",
+    });
+    useWorkspaceFileContentMock.mockImplementation((path: string | null) => {
+      if (path === CHECK_RESULT_PATH) return textResult(passedJson);
+      if (path === ".checks/approval.json") return textResult(approvalJson);
+      if (path === CHECK_PR_PROMOTION_PATH) return textResult(promotionJson);
+      return missingResult;
+    });
+
+    renderWithProviders(<ChecksTab />);
+
+    expect(screen.getByTestId("checks-tab-pr-link")).toHaveAttribute(
+      "href",
+      "https://github.com/SpotwiseAI/spotwise-ui/pull/123",
+    );
+    expect(
+      screen.queryByTestId("checks-tab-promote-pr-button"),
     ).not.toBeInTheDocument();
   });
 

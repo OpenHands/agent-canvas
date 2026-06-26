@@ -7,6 +7,7 @@ import {
   CircleX,
   Clapperboard,
   FileCode,
+  GitPullRequest,
   Loader2,
   ScrollText,
   TriangleAlert,
@@ -25,11 +26,16 @@ import {
   CHECK_APPROVAL_PATH,
   CheckApproval,
 } from "#/utils/check-approval";
+import {
+  CHECK_PR_PROMOTION_PATH,
+  CheckPrPromotion,
+} from "#/utils/check-pr-promotion";
 import { DecisionLog, DECISIONS_PATH } from "#/utils/decision-log";
 import { useWorkspaceFileContent } from "#/hooks/query/use-workspace-file-content";
 import { useAutoRefreshFilesOnEdit } from "#/hooks/use-auto-refresh-files-on-edit";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useCurrentUserEmail } from "#/hooks/use-current-user-email";
+import PrPromotionService from "#/api/pr-promotion-service";
 import AgentServerRuntimeService from "#/api/runtime-service/agent-server-runtime-service";
 import { useWorkspaceMutationCounter } from "#/stores/use-workspace-mutation-counter";
 import { ConversationTabEmptyState } from "#/components/features/conversation/conversation-tab-empty-state";
@@ -159,6 +165,18 @@ function ChecksTab() {
     [approvalText],
   );
 
+  const promotionText =
+    useWorkspaceFileContent(CHECK_PR_PROMOTION_PATH).data?.text ?? null;
+  const promotion = useMemo(
+    () => (promotionText ? CheckPrPromotion.parse(promotionText) : null),
+    [promotionText],
+  );
+
+  const conversationLink =
+    conversation?.id && typeof window !== "undefined"
+      ? `${window.location.origin}/conversations/${conversation.id}`
+      : null;
+
   const approveMutation = useMutation({
     mutationFn: async () => {
       if (result?.status !== "passed") {
@@ -179,6 +197,31 @@ function ChecksTab() {
         CheckApproval.stringify(nextApproval),
         workingDir,
       );
+    },
+    onSuccess: () => {
+      useWorkspaceMutationCounter.getState().bump();
+    },
+  });
+
+  const promoteMutation = useMutation({
+    mutationFn: async () => {
+      if (result?.status !== "passed") {
+        throw new Error("Only passed check results can be promoted");
+      }
+      if (!approval) throw new Error("No operator approval");
+      if (!currentUserEmail) throw new Error("No current user identity");
+      if (!workingDir) throw new Error("No conversation workspace");
+
+      return PrPromotionService.promoteApprovedCheck({
+        conversationUrl: conversation?.conversation_url,
+        sessionApiKey: conversation?.session_api_key,
+        workingDir,
+        conversationTitle: conversation?.title,
+        conversationLink,
+        promotedBy: currentUserEmail,
+        result,
+        approval,
+      });
     },
     onSuccess: () => {
       useWorkspaceMutationCounter.getState().bump();
@@ -302,12 +345,44 @@ function ChecksTab() {
                 : t(I18nKey.CHECKS$APPROVE)}
             </button>
           ) : null}
+          {promotion ? (
+            <a
+              href={promotion.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="checks-tab-pr-link"
+              className="inline-flex w-fit items-center gap-1.5 rounded-md border border-[var(--oh-border)] px-3 py-1.5 text-sm font-medium text-foreground hover:bg-[var(--oh-interactive-hover)]"
+            >
+              <GitPullRequest className="size-4" aria-hidden />
+              {t(I18nKey.CHECKS$DRAFT_PR_READY)} #{promotion.number}
+            </a>
+          ) : approval && result.status === "passed" ? (
+            <button
+              type="button"
+              data-testid="checks-tab-promote-pr-button"
+              disabled={
+                promoteMutation.isPending || !currentUserEmail || !workingDir
+              }
+              onClick={() => promoteMutation.mutate()}
+              className="inline-flex w-fit items-center gap-1.5 rounded-md border border-[var(--oh-border)] px-3 py-1.5 text-sm font-medium text-foreground hover:bg-[var(--oh-interactive-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <GitPullRequest className="size-4" aria-hidden />
+              {promoteMutation.isPending
+                ? t(I18nKey.CHECKS$PROMOTING_PR)
+                : t(I18nKey.CHECKS$PROMOTE_PR)}
+            </button>
+          ) : null}
           <p className="text-xs text-[var(--oh-muted)]">
             {t(I18nKey.CHECKS$ADVISORY)}
           </p>
           {approveMutation.isError ? (
             <p className="text-xs text-red-200">
               {t(I18nKey.CHECKS$APPROVAL_ERROR)}
+            </p>
+          ) : null}
+          {promoteMutation.isError ? (
+            <p className="text-xs text-red-200">
+              {t(I18nKey.CHECKS$PR_PROMOTION_ERROR)}
             </p>
           ) : null}
         </div>
