@@ -1,4 +1,5 @@
 import { CustomChatInput } from "./custom-chat-input";
+import { WorkConversationToolsBar } from "#/components/features/work/work-conversation-tools-bar";
 import { useBtwInterceptor } from "#/hooks/chat/use-btw-interceptor";
 import { useModelInterceptor } from "#/hooks/chat/use-model-interceptor";
 import { useChatAttachmentUpload } from "#/hooks/chat/use-chat-attachment-upload";
@@ -62,6 +63,7 @@ export function InteractiveChatBox({
 
   return (
     <div data-testid="interactive-chat-box">
+      <WorkConversationToolsBar />
       <CustomChatInput
         disabled={isDisabled}
         isNewConversationPending={disabled}

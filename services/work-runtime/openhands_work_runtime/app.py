@@ -21,6 +21,7 @@ class WorkManifest(BaseModel):
     name: str = "Default Work Workspace"
     grantedFolders: list[str] = Field(default_factory=list)
     deliverablesPath: str = ""
+    defaultOptionalTools: list[str] = Field(default_factory=list)
 
 
 class ValidatePathsRequest(BaseModel):

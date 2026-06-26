@@ -5,6 +5,7 @@ import type {
   WorkManifest,
   WorkRuntimeHealthResponse,
 } from "#/types/work-manifest";
+import { normalizeWorkManifest } from "#/types/work-manifest";
 
 export const WORK_RUNTIME_BASE_PATH = "/api/work";
 
@@ -47,7 +48,7 @@ class WorkRuntimeService {
     const { data } = await localWorkRuntimeAxios.get<WorkManifest>(
       `${WORK_RUNTIME_BASE_PATH}/manifest`,
     );
-    return data;
+    return normalizeWorkManifest(data) ?? data;
   }
 
   static async updateManifest(manifest: WorkManifest): Promise<WorkManifest> {
@@ -55,7 +56,7 @@ class WorkRuntimeService {
       `${WORK_RUNTIME_BASE_PATH}/manifest`,
       manifest,
     );
-    return data;
+    return normalizeWorkManifest(data) ?? data;
   }
 
   static async validatePaths(paths: string[]): Promise<ValidatePathsResponse> {

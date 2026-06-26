@@ -54,6 +54,7 @@ describe("WorkRuntimeService", () => {
       name: "Work",
       grantedFolders: ["/tmp/docs"],
       deliverablesPath: "/tmp/docs/deliverables",
+      defaultOptionalTools: [],
     };
     mockGet.mockResolvedValue({ data: manifest });
     mockPut.mockResolvedValue({ data: manifest });

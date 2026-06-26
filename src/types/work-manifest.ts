@@ -1,8 +1,25 @@
+import type { WorkOptionalToolId } from "#/types/work-tools";
+
 export interface WorkManifest {
   id: string;
   name: string;
   grantedFolders: string[];
   deliverablesPath: string;
+  /** Optional Work tools enabled by default for new tasks (e.g. `"browser"`). */
+  defaultOptionalTools: WorkOptionalToolId[];
+}
+
+export function normalizeWorkManifest(
+  manifest: WorkManifest | null | undefined,
+): WorkManifest | null {
+  if (!manifest) {
+    return null;
+  }
+
+  return {
+    ...manifest,
+    defaultOptionalTools: manifest.defaultOptionalTools ?? [],
+  };
 }
 
 export interface WorkRuntimeHealthResponse {

@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Work mode MVP (local): Code/Work toggle, Work Runtime sidecar, folder setup,
   restricted Work task creation, `/work/tasks/:id` chat, and tag-filtered task
   lists. See [specs/work-mode.md](./specs/work-mode.md).
+- Work tool policy: manifest defaults for optional tools (e.g. browser/internet),
+  in-conversation toggles, and agent `<WORK_TOOL_REQUEST/>` permit flow.
+- **Work Settings** tab under Settings (`/settings/work`) for workspace folders,
+  deliverables path, default tools, and Work Runtime status.
 
 ## [1.0.0-alpha.2] - 2025-05-11
 

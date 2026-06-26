@@ -11,6 +11,13 @@ vi.mock("#/hooks/mutation/use-update-work-manifest", () => ({
   }),
 }));
 
+vi.mock("#/hooks/query/use-work-runtime-health", () => ({
+  useWorkRuntimeHealth: () => ({
+    data: { status: "ok" },
+    isSuccess: true,
+  }),
+}));
+
 vi.mock("#/components/features/home/workspace-dropdown/folder-browser-modal", () => ({
   FolderBrowserModal: ({
     isOpen,
@@ -49,6 +56,7 @@ describe("WorkWorkspaceSetup", () => {
           name: "Default",
           grantedFolders: [],
           deliverablesPath: "",
+          defaultOptionalTools: [],
         }}
       />,
     );
@@ -62,6 +70,7 @@ describe("WorkWorkspaceSetup", () => {
         grantedFolders: ["/tmp/work"],
         deliverablesPath: "/tmp/work/Work Deliverables",
       }),
+      expect.any(Object),
     );
   });
 });

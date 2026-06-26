@@ -183,6 +183,13 @@ Cloud coding sandboxes cannot access the user's desktop folders.
 ### WM-010: Work task route and list
 - [x] `/work/tasks/:taskId` and tag-filtered sidebar/home lists.
 
+### WM-011: Work tool policy
+- [x] `WorkManifest.defaultOptionalTools` persisted in Work Runtime.
+- [x] Setup + in-conversation toggles for optional tools (browser/internet first).
+- [x] Conversation tag `worktools` and agent `<WORK_TOOL_REQUEST tool="…"/>` permit UI.
+- [x] `POST /switch_tools` when agent-server supports it (SDK #1787).
+- [x] Fork-with-agent fallback, then recreate Work task with tools at creation time.
+
 ---
 
 ## Key implementation files
@@ -192,6 +199,7 @@ Cloud coding sandboxes cannot access the user's desktop folders.
 | App mode type | `src/types/app-mode.ts` |
 | Work execution types | `src/types/work-mode-capabilities.ts` |
 | Work manifest types | `src/types/work-manifest.ts` |
+| Work optional tools | `src/types/work-tools.ts` |
 | Work Runtime (Python) | `services/work-runtime/openhands_work_runtime/app.py` |
 | Work Runtime client | `src/api/work-runtime-service/work-runtime-service.api.ts` |
 | Backend optional override | `src/api/backend-registry/types.ts` → `Backend.workExecution` |
@@ -203,6 +211,7 @@ Cloud coding sandboxes cannot access the user's desktop folders.
 | Backend/mode sync | `src/hooks/use-app-mode-backend-sync.ts` |
 | Sidebar toggle | `src/components/features/sidebar/app-mode-toggle.tsx` |
 | Work home + setup | `src/components/features/work/` |
+| Work settings page | `src/routes/work-settings.tsx`, `src/components/features/work/work-settings-form.tsx` |
 | Task route | `src/routes/work-task.tsx` |
 | Tests | `__tests__/utils/app-mode-capabilities.test.ts`, `__tests__/api/work-runtime-service.test.ts` |
 

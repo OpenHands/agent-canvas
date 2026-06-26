@@ -34,6 +34,14 @@ import {
   WORK_MODE_TAG_VALUE,
   WORK_WORKSPACE_ID_TAG,
 } from "#/types/work-manifest";
+import {
+  getAvailableWorkOptionalTools,
+  resolveWorkAgentToolNames,
+  serializeWorkOptionalToolIds,
+  WORK_ENABLED_TOOLS_TAG,
+  WORK_TOOL_REQUEST_TAG,
+} from "#/types/work-tools";
+import type { WorkOptionalToolId } from "#/types/work-tools";
 
 export interface DirectConversationInfo {
   id: string;
@@ -1073,36 +1081,105 @@ export async function assertSubscriptionAuthReady(
   }
 }
 
-const WORK_TOOL_NAMES = [
-  "file_editor",
-  "task_tracker",
-  CANVAS_UI_TOOL_NAME,
-] as const;
+export function getWorkAgentTools(
+  enabledOptionalToolIds: Iterable<string> = [],
+): AgentToolSpec[] {
+  return resolveWorkAgentToolNames(enabledOptionalToolIds).map((name) => ({
+    name,
+    params: {},
+  }));
+}
 
-export function buildWorkSystemSuffix(manifest: {
-  grantedFolders: string[];
-  deliverablesPath: string;
-}): string {
-  return [
+export function buildWorkSystemSuffix(
+  manifest: Pick<
+    WorkManifest,
+    "grantedFolders" | "deliverablesPath" | "defaultOptionalTools"
+  >,
+  enabledOptionalToolIds: Iterable<string> = manifest.defaultOptionalTools ??
+    [],
+): string {
+  const enabledOptional = Array.from(
+    new Set(
+      Array.from(enabledOptionalToolIds).filter(
+        (id): id is WorkOptionalToolId =>
+          typeof id === "string" && id.length > 0,
+      ),
+    ),
+  );
+  const availableOptional = getAvailableWorkOptionalTools();
+  const disabledOptional = availableOptional.filter(
+    (tool) => !enabledOptional.includes(tool.id),
+  );
+
+  const lines = [
     "<WORK_MODE>",
     "You are running in Work mode for desktop knowledge work.",
-    "Do not use shell, terminal, git, or browser tools.",
+    "Do not use shell, terminal, or git tools.",
     `Granted folders: ${manifest.grantedFolders.join(", ")}`,
     `Deliverables path: ${manifest.deliverablesPath}`,
     "Save finished outputs for the user under the deliverables path.",
-    "</WORK_MODE>",
-  ].join("\n");
+  ];
+
+  if (enabledOptional.length > 0) {
+    lines.push(
+      `Enabled optional tools: ${enabledOptional.join(", ")}.`,
+      "You may use enabled optional tools when needed.",
+    );
+  }
+
+  if (disabledOptional.length > 0) {
+    lines.push(
+      `Optional tools currently off: ${disabledOptional.map((tool) => tool.id).join(", ")}.`,
+      "Do not use optional tools until the user enables them.",
+      `To request an optional tool, include a self-closing tag on its own line:`,
+      `<${WORK_TOOL_REQUEST_TAG} tool="browser" reason="why you need it"/>`,
+      "Wait for the user to approve in the UI before using the requested tool.",
+    );
+  }
+
+  lines.push("</WORK_MODE>");
+  return lines.join("\n");
 }
 
-function getWorkAgentTools(): AgentToolSpec[] {
-  return WORK_TOOL_NAMES.map((name) => ({ name, params: {} }));
+/** Patch a running conversation agent when granting Work optional tools. */
+export function buildWorkToolGrantAgentPatch(
+  sourceAgent: unknown,
+  workManifest: Pick<
+    WorkManifest,
+    "grantedFolders" | "deliverablesPath" | "defaultOptionalTools"
+  >,
+  enabledOptionalToolIds: Iterable<string>,
+): Record<string, unknown> {
+  const agent = toRecord(sourceAgent);
+  const workSuffix = buildWorkSystemSuffix(
+    workManifest,
+    enabledOptionalToolIds,
+  );
+  const runtimeServicesSuffix = buildRuntimeServicesSystemSuffix();
+  const combinedSuffix = [workSuffix, runtimeServicesSuffix]
+    .filter(Boolean)
+    .join("\n\n");
+
+  return {
+    ...agent,
+    tools: getWorkAgentTools(enabledOptionalToolIds),
+    agent_context: {
+      ...toRecord(agent.agent_context),
+      ...(combinedSuffix ? { system_message_suffix: combinedSuffix } : {}),
+    },
+  };
 }
 
 function buildWorkAgentContext(
   agentSettings: SettingsRecord,
   workManifest: WorkManifest,
+  enabledOptionalToolIds: Iterable<string> = workManifest.defaultOptionalTools ??
+    [],
 ): SettingsRecord {
-  const workSuffix = buildWorkSystemSuffix(workManifest);
+  const workSuffix = buildWorkSystemSuffix(
+    workManifest,
+    enabledOptionalToolIds,
+  );
   const runtimeServicesSuffix = buildRuntimeServicesSystemSuffix();
   const combinedSuffix = [workSuffix, runtimeServicesSuffix]
     .filter(Boolean)
@@ -1128,12 +1205,14 @@ export function buildWorkStartConversationRequest(
   const sourceAgentSettings = options.encryptedAgentSettings
     ? { ...options.settings, agent_settings: options.encryptedAgentSettings }
     : options.settings;
+  const enabledOptionalTools = options.workManifest.defaultOptionalTools ?? [];
   const agentSettings = {
     ...payload.agent_settings,
-    tools: getWorkAgentTools(),
+    tools: getWorkAgentTools(enabledOptionalTools),
     agent_context: buildWorkAgentContext(
       toRecord(sourceAgentSettings.agent_settings),
       options.workManifest,
+      enabledOptionalTools,
     ),
   };
 
@@ -1146,6 +1225,8 @@ export function buildWorkStartConversationRequest(
       [WORK_WORKSPACE_ID_TAG]: options.workManifest.id
         .replace(/[^a-z0-9]/gi, "")
         .toLowerCase(),
+      [WORK_ENABLED_TOOLS_TAG]:
+        serializeWorkOptionalToolIds(enabledOptionalTools),
     },
   };
 }

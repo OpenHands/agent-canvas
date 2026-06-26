@@ -28,6 +28,7 @@ export default [
       route("condenser", "routes/condenser-settings.tsx"),
       route("verification", "routes/verification-settings.tsx"),
       route("app", "routes/app-settings.tsx"),
+      route("work", "routes/work-settings.tsx"),
       route("secrets", "routes/secrets-settings.tsx"),
     ]),
     route("oauth/device/verify", "routes/device-verify.tsx"),

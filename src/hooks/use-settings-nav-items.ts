@@ -5,6 +5,7 @@ import { ACP_PROVIDERS } from "#/constants/acp-providers";
 import { isSettingsPageHidden } from "#/utils/settings-utils";
 import { I18nKey } from "#/i18n/declaration";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import { useWorkModeAvailability } from "#/hooks/use-work-mode-availability";
 
 export type SettingsNavRenderedItem =
   | {
@@ -20,6 +21,7 @@ export function useSettingsNavItems(): SettingsNavRenderedItem[] {
   const { data: config } = useConfig();
   const { data: settings } = useSettings();
   const { backend } = useActiveBackend();
+  const { workAllowed } = useWorkModeAvailability();
   const featureFlags = config?.feature_flags;
 
   const agentSettings = settings?.agent_settings ?? null;
@@ -34,7 +36,9 @@ export function useSettingsNavItems(): SettingsNavRenderedItem[] {
     : undefined;
 
   return OSS_NAV_ITEMS.filter(
-    (item) => !isSettingsPageHidden(item.to, featureFlags),
+    (item) =>
+      !isSettingsPageHidden(item.to, featureFlags) &&
+      (item.to !== "/settings/work" || workAllowed),
   ).map((item) => {
     // Local backends present "LLM Profiles" as the section name + subtitle
     // for the ``/settings`` entry; cloud backends keep the canonical "LLM".

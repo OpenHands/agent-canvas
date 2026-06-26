@@ -12,6 +12,82 @@ import { v4 as uuidv4 } from "uuid";
 import { Provider } from "#/types/settings";
 import type { ConversationRuntimeContext } from "#/api/conversation-file-upload.api";
 import type { WorkManifest } from "#/types/work-manifest";
+import {
+  getWorkAgentTools,
+  buildWorkToolGrantAgentPatch,
+  DirectConversationInfo,
+  assertSubscriptionAuthReady,
+  buildStartConversationRequestWithEncryptedSettings,
+  buildWorkStartConversationRequestWithEncryptedSettings,
+  emptyHooksResponse,
+  getDefaultConversationTitle,
+  toAppConversation,
+  toConversationPage,
+} from "#/api/agent-server-adapter";
+import WorkRuntimeService from "#/api/work-runtime-service/work-runtime-service.api";
+import { normalizeWorkManifest } from "#/types/work-manifest";
+import type { WorkOptionalToolId } from "#/types/work-tools";
+import {
+  parseWorkOptionalToolIds,
+  WORK_ENABLED_TOOLS_TAG,
+} from "#/types/work-tools";
+import { withWorkEnabledOptionalToolIds } from "#/utils/work-conversations";
+
+export type WorkToolsApplyMethod =
+  | "switch_tools"
+  | "fork"
+  | "recreate"
+  | "none";
+
+export interface WorkConversationToolsUpdateResult {
+  tagsUpdated: boolean;
+  toolsApplied: boolean;
+  appliedVia: WorkToolsApplyMethod;
+  /** Conversation id that now has the updated tools (may differ after fork). */
+  conversationId: string;
+}
+
+async function trySwitchTools(
+  host: string,
+  apiKey: string | undefined,
+  conversationId: string,
+  tools: ReturnType<typeof getWorkAgentTools>,
+): Promise<boolean> {
+  try {
+    const response = await fetch(
+      `${host}/api/conversations/${conversationId}/switch_tools`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(apiKey ? { "X-Session-API-Key": apiKey } : {}),
+        },
+        body: JSON.stringify({ tools }),
+      },
+    );
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function tryForkWithTools(
+  conversationClient: ConversationClient,
+  conversationId: string,
+  nextTags: Record<string, string>,
+  agentPatch: Record<string, unknown>,
+): Promise<string | null> {
+  try {
+    const fork = await conversationClient.forkConversation(conversationId, {
+      tags: nextTags,
+      // Agent-server >= SDK #2840 accepts an agent override for tool changes.
+      agent: agentPatch,
+    } as Parameters<ConversationClient["forkConversation"]>[1]);
+    return typeof fork?.id === "string" ? fork.id : null;
+  } catch {
+    return null;
+  }
+}
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import {
   buildConversationWorkingDir,
@@ -33,16 +109,6 @@ import {
   searchCloudConversations,
   updateCloudConversationPublicFlag,
 } from "../cloud/conversation-service.api";
-import {
-  DirectConversationInfo,
-  assertSubscriptionAuthReady,
-  buildStartConversationRequestWithEncryptedSettings,
-  buildWorkStartConversationRequestWithEncryptedSettings,
-  emptyHooksResponse,
-  getDefaultConversationTitle,
-  toAppConversation,
-  toConversationPage,
-} from "../agent-server-adapter";
 import { GetVSCodeUrlResponse } from "../open-hands.types";
 import {
   getAgentServerClientOptions,
@@ -806,6 +872,141 @@ class AgentServerConversationService {
       conversationId,
       model,
     );
+  }
+
+  /**
+   * Updates optional Work tools on a running conversation.
+   * Persists enabled ids in conversation tags and calls agent-server
+   * `POST /switch_tools` when available (SDK #1787).
+   */
+  static async updateWorkConversationTools(
+    conversationId: string,
+    enabledOptionalToolIds: WorkOptionalToolId[],
+    options?: {
+      conversationUrl?: string | null;
+      sessionApiKey?: string | null;
+      existingTags?: Record<string, string> | null;
+      workManifest?: WorkManifest | null;
+    },
+  ): Promise<WorkConversationToolsUpdateResult> {
+    if (getActiveBackend().backend.kind === "cloud") {
+      throw new Error("Work tool grants require a local backend.");
+    }
+
+    const clientOptions = getAgentServerClientOptions({
+      conversationUrl: options?.conversationUrl,
+      sessionApiKey: options?.sessionApiKey,
+    });
+    const conversationClient = new ConversationClient(clientOptions);
+    const nextTags = withWorkEnabledOptionalToolIds(
+      options?.existingTags,
+      enabledOptionalToolIds,
+    );
+
+    await conversationClient.updateConversation(conversationId, {
+      tags: nextTags,
+    });
+
+    const previousIds = parseWorkOptionalToolIds(
+      options?.existingTags?.[WORK_ENABLED_TOOLS_TAG],
+    );
+    const isAddingTools = enabledOptionalToolIds.some(
+      (id) => !previousIds.includes(id),
+    );
+
+    if (!isAddingTools) {
+      return {
+        tagsUpdated: true,
+        toolsApplied: false,
+        appliedVia: "none",
+        conversationId,
+      };
+    }
+
+    const tools = getWorkAgentTools(enabledOptionalToolIds);
+
+    if (
+      await trySwitchTools(
+        clientOptions.host,
+        clientOptions.apiKey,
+        conversationId,
+        tools,
+      )
+    ) {
+      return {
+        tagsUpdated: true,
+        toolsApplied: true,
+        appliedVia: "switch_tools",
+        conversationId,
+      };
+    }
+
+    const manifest =
+      normalizeWorkManifest(options?.workManifest) ??
+      normalizeWorkManifest(await WorkRuntimeService.getManifest());
+    if (!manifest) {
+      return {
+        tagsUpdated: true,
+        toolsApplied: false,
+        appliedVia: "none",
+        conversationId,
+      };
+    }
+
+    const sourceConversation =
+      await conversationClient.getConversation(conversationId);
+    const agentPatch = buildWorkToolGrantAgentPatch(
+      (sourceConversation as { agent?: unknown }).agent,
+      manifest,
+      enabledOptionalToolIds,
+    );
+
+    const forkId = await tryForkWithTools(
+      conversationClient,
+      conversationId,
+      nextTags,
+      agentPatch,
+    );
+
+    if (forkId) {
+      return {
+        tagsUpdated: true,
+        toolsApplied: true,
+        appliedVia: "fork",
+        conversationId: forkId,
+      };
+    }
+
+    // Agent-server 1.29 lacks switch_tools and may ignore fork agent overrides.
+    // Starting a fresh Work task with the tool profile applied at creation time
+    // is the reliable fallback (history is not copied).
+    try {
+      const updatedManifest: WorkManifest = {
+        ...manifest,
+        defaultOptionalTools: enabledOptionalToolIds,
+      };
+      await WorkRuntimeService.updateManifest(updatedManifest);
+      const task = await AgentServerConversationService.createWorkConversation(
+        "Browser access is now enabled for this Work task. Please continue.",
+        updatedManifest,
+      );
+      const newConversationId = task.app_conversation_id ?? task.id;
+      return {
+        tagsUpdated: true,
+        toolsApplied: true,
+        appliedVia: "recreate",
+        conversationId: newConversationId,
+      };
+    } catch {
+      // fall through
+    }
+
+    return {
+      tagsUpdated: true,
+      toolsApplied: false,
+      appliedVia: "none",
+      conversationId,
+    };
   }
 }
 
