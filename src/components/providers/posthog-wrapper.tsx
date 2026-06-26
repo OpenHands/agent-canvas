@@ -73,8 +73,9 @@ export function PostHogWrapper({ children }: { children: React.ReactNode }) {
     <PostHogProvider
       apiKey={posthogClientKey}
       options={{
-        api_host: "https://us.i.posthog.com",
-        person_profiles: "identified_only",
+        api_host: "https://z.openhands.dev",
+        ui_host: "https://us.posthog.com",
+        person_profiles: "always",
         bootstrap: bootstrapIds,
       }}
     >

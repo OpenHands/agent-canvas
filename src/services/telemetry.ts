@@ -146,6 +146,8 @@ async function initializePostHog(
     api_host: POSTHOG_HOST,
     // UI host is required when using a reverse proxy so PostHog features work correctly
     ui_host: POSTHOG_UI_HOST,
+    // Create person profiles for all users (anonymous and identified)
+    person_profiles: "always",
     // Start with capturing disabled by default - we enable it explicitly when needed
     opt_out_capturing_by_default: !enableCapturing,
     // Don't auto-capture page views - we control when to track
