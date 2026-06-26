@@ -1110,7 +1110,7 @@ function buildWorkAgentContext(
 
   return {
     ...toRecord(agentSettings.agent_context),
-    load_public_skills: shouldLoadPublicSkills(),
+    load_public_skills: import.meta.env.VITE_LOAD_PUBLIC_SKILLS === "true",
     load_user_skills: true,
     ...(combinedSuffix ? { system_message_suffix: combinedSuffix } : {}),
   };

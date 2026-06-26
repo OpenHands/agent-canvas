@@ -14,7 +14,7 @@ function getWorkRuntimeBaseUrl(): string {
     return window.location.origin;
   }
 
-  return getEffectiveLocalBackend().host;
+  return getEffectiveLocalBackend()?.host ?? "http://127.0.0.1:8000";
 }
 
 const localWorkRuntimeAxios = axios.create();
