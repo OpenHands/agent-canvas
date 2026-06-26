@@ -114,7 +114,7 @@ export function PluginCard({
       {plugin.installed && plugin.version ? (
         <span
           data-testid={`plugin-version-${plugin.name}`}
-          className={extensionModuleCardPillClassName}
+          className={cn(extensionModuleCardPillClassName, "self-start")}
         >
           {t(I18nKey.SETTINGS$SKILLS_VERSION, { version: plugin.version })}
         </span>

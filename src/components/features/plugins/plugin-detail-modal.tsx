@@ -112,7 +112,7 @@ export function PluginDetailModal({
               </BrandButton>
               <BrandButton
                 type="button"
-                variant="danger"
+                variant="secondary"
                 testId={`plugin-detail-uninstall-${plugin.name}`}
                 isDisabled={actionsDisabled}
                 onClick={onUninstall}
