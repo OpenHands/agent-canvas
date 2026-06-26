@@ -8,11 +8,20 @@ import type {
 
 export const WORK_RUNTIME_BASE_PATH = "/api/work";
 
+/** Work Runtime is mounted on the same ingress/proxy as the UI (`/api/work/*`). */
+function getWorkRuntimeBaseUrl(): string {
+  if (typeof window !== "undefined") {
+    return window.location.origin;
+  }
+
+  return getEffectiveLocalBackend().host;
+}
+
 const localWorkRuntimeAxios = axios.create();
 
 localWorkRuntimeAxios.interceptors.request.use((config) => {
   // eslint-disable-next-line no-param-reassign
-  if (!config.baseURL) config.baseURL = getEffectiveLocalBackend().host;
+  if (!config.baseURL) config.baseURL = getWorkRuntimeBaseUrl();
 
   const apiKey = import.meta.env.VITE_WORK_RUNTIME_API_KEY?.trim();
   if (apiKey) {

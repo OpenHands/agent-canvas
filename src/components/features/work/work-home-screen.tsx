@@ -3,7 +3,6 @@ import { useNavigation } from "#/context/navigation-context";
 import { CustomChatInput } from "#/components/features/chat/custom-chat-input";
 import { WorkModeCloudGuard } from "#/components/features/work/work-mode-cloud-guard";
 import { WorkWorkspaceSetup } from "#/components/features/work/work-workspace-setup";
-import { WorkRecentTasks } from "#/components/features/work/work-recent-tasks";
 import { useModelInterceptor } from "#/hooks/chat/use-model-interceptor";
 import { useCreateWorkTask } from "#/hooks/mutation/use-create-work-task";
 import { useWorkManifest } from "#/hooks/query/use-work-manifest";
@@ -19,11 +18,13 @@ import toast from "react-hot-toast";
 export function WorkHomeScreen() {
   const { t } = useTranslation("openhands");
   const { navigate } = useNavigation();
-  const { data: healthData } = useWorkRuntimeHealth();
+  const { data: healthData, isSuccess: isHealthResolved } =
+    useWorkRuntimeHealth();
   const { data: manifest, isLoading: isManifestLoading } = useWorkManifest();
   const { mutate: createWorkTask, isPending } = useCreateWorkTask();
 
   const runtimeReady = healthData?.status === "ok";
+  const showRuntimeUnavailable = isHealthResolved && !runtimeReady;
   const manifestReady = isWorkManifestReady(manifest);
   const composerDisabled =
     !runtimeReady || !manifestReady || isManifestLoading || isPending;
@@ -65,7 +66,7 @@ export function WorkHomeScreen() {
         <div className="flex w-full max-w-[800px] flex-col gap-4 md:px-4">
           <WorkModeCloudGuard />
 
-          {!runtimeReady ? (
+          {showRuntimeUnavailable ? (
             <p
               data-testid="work-runtime-unavailable"
               className="rounded-lg border border-[var(--oh-border-input)] bg-[var(--oh-surface-raised)] px-4 py-3 text-sm text-tertiary-light"
@@ -91,8 +92,6 @@ export function WorkHomeScreen() {
             onSubmit={interceptedSubmit}
             disabled={composerDisabled}
           />
-
-          {manifestReady ? <WorkRecentTasks /> : null}
         </div>
       </div>
     </div>
