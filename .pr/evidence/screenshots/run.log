@@ -1,0 +1,20 @@
+[2026-06-26T14:26:20.264Z] navigating to http://127.0.0.1:18080/
+[2026-06-26T14:26:24.384Z] page title: OpenHands
+[2026-06-26T14:26:24.426Z] screenshot saved: .pr/evidence/screenshots/01-landing.png
+[2026-06-26T14:26:24.426Z] pressing Ctrl+K to open command menu
+[2026-06-26T14:26:25.256Z] command-menu element count after Ctrl+K: 1
+[2026-06-26T14:26:25.326Z] screenshot saved: .pr/evidence/screenshots/02-menu-open.png
+[2026-06-26T14:26:25.340Z] menu options visible: ["New chatStart a fresh OpenHands conversation.Go","CustomizeBrowse skills, plugins, and integrations.Go","AutomationsReview scheduled and webhook automations.Go","MCP serversManage Model Context Protocol integrations.Go","SettingsOpen the settings overview.Go","Agent settingsConfigure agent type and delegation.Go","LLM profilesManage models, providers, and API keys.Go","Condenser settingsTune context condensation behavior.Go","Verification settingsAdjust risk and confirmation controls.Go","Application settingsChange app language, theme, and preferences.Go","Secrets settingsCreate and edit saved runtime secrets.Go","Toggle sidebarCollapse or expand the navigation rail.Run"]
+[2026-06-26T14:26:25.861Z] filtered options for 'settings': ["SettingsOpen the settings overview.Go","Agent settingsConfigure agent type and delegation.Go","Condenser settingsTune context condensation behavior.Go","Verification settingsAdjust risk and confirmation controls.Go","Application settingsChange app language, theme, and preferences.Go","Secrets settingsCreate and edit saved runtime secrets.Go"]
+[2026-06-26T14:26:25.926Z] screenshot saved: .pr/evidence/screenshots/03-filtered.png
+[2026-06-26T26:26.345Z] active element id after 2x ArrowDown (input focused): command-menu-search
+[2026-06-26T14:26:26.347Z] active/aria-selected option count: 1
+[2026-06-26T14:26:26.394Z] screenshot saved: .pr/evidence/screenshots/04-navigated.png
+[2026-06-26T14:26:26.660Z] screenshot saved: .pr/evidence/screenshots/05-navigated-up.png
+[2026-06-26T14:26:26.662Z] filtered option count before Enter: 6
+[2026-06-26T14:26:27.473Z] command-menu count after Enter: 0 (0 = closed = action ran)
+[2026-06-26T14:26:27.509Z] screenshot saved: .pr/evidence/screenshots/06-after-enter.png
+[2026-06-26T14:26:28.118Z] command-menu count after reopen Ctrl+K: 1
+[2026-06-26T14:26:28.524Z] command-menu count after Escape: 0
+[2026-06-26T14:26:28.556Z] screenshot saved: .pr/evidence/screenshots/07-after-escape.png
+[2026-06-26T14:26:28.576Z] done
