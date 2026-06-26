@@ -655,13 +655,13 @@ describe("ConversationCard", () => {
           showLlmProfiles
           agentKind="acp"
           acpServer="claude-code"
-          llmModel="sonnet"
+          llmModel="raw-model-id"
         />,
       );
 
       const chip = screen.getByTestId("conversation-card-agent-chip");
-      expect(chip).toHaveTextContent("sonnet");
-      expect(chip).toHaveAttribute("title", "Claude Code · sonnet");
+      expect(chip).toHaveTextContent("raw-model-id");
+      expect(chip).toHaveAttribute("title", "Claude Code · raw-model-id");
       expect(
         within(chip).getByTestId("agent-brand-icon-claude-code"),
       ).toBeInTheDocument();
@@ -669,7 +669,7 @@ describe("ConversationCard", () => {
 
     it("shows the provider's picker label for a known model ID", () => {
       // When ``llm_model`` is a registry-known ID, the chip renders the
-      // human label ("Claude Opus 4.8") instead of the raw ID — matching
+      // human label ("Claude Opus 4.8 (1M)") instead of the raw ID — matching
       // what the Settings → Agent picker shows for the same value.
       renderWithProviders(
         <ConversationCard
@@ -679,13 +679,16 @@ describe("ConversationCard", () => {
           showLlmProfiles
           agentKind="acp"
           acpServer="claude-code"
-          llmModel="claude-opus-4-8"
+          llmModel="opus[1m]"
         />,
       );
 
       const chip = screen.getByTestId("conversation-card-agent-chip");
-      expect(chip).toHaveTextContent("Claude Opus 4.8");
-      expect(chip).toHaveAttribute("title", "Claude Code · Claude Opus 4.8");
+      expect(chip).toHaveTextContent("Claude Opus 4.8 (1M)");
+      expect(chip).toHaveAttribute(
+        "title",
+        "Claude Code · Claude Opus 4.8 (1M)",
+      );
     });
 
     it("falls back to the provider display name for an ACP conversation with no model", () => {
