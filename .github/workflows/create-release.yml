@@ -114,4 +114,4 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Downstream workflows triggered by the same tag push:" >> "$GITHUB_STEP_SUMMARY"
           echo "- **npm-publish.yml** — publish \`@openhands/agent-canvas\` to npm" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **docker.yml** — build and push \`ghcr.io/openhands/agent-canvas\` Docker images" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **docker.yml** — build and push \`ghcr.io/spotwiseai/agent-canvas\` Docker images" >> "$GITHUB_STEP_SUMMARY"

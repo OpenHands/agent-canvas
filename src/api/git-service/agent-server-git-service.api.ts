@@ -16,6 +16,23 @@ function readLineCount(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function mapAgentServerGitChange(change: AgentServerGitChange): GitChange {
+  return {
+    status: mapAnyGitStatusToClientStatus(
+      String(change.status) as Parameters<
+        typeof mapAnyGitStatusToClientStatus
+      >[0],
+    ),
+    path: change.path,
+    ...(Object.hasOwn(change, "additions")
+      ? { additions: readLineCount(change.additions) }
+      : {}),
+    ...(Object.hasOwn(change, "deletions")
+      ? { deletions: readLineCount(change.deletions) }
+      : {}),
+  };
+}
+
 /**
  * Git operations for agent-server conversations.
  *
@@ -64,16 +81,7 @@ class AgentServerGitService {
           "Invalid response from runtime - runtime may be unavailable",
         );
       }
-      return data.map((change) => ({
-        status: mapAnyGitStatusToClientStatus(
-          String(change.status) as Parameters<
-            typeof mapAnyGitStatusToClientStatus
-          >[0],
-        ),
-        path: change.path,
-        additions: readLineCount(change.additions),
-        deletions: readLineCount(change.deletions),
-      }));
+      return data.map(mapAgentServerGitChange);
     }
 
     const changes = await new RemoteWorkspace(
@@ -86,16 +94,9 @@ class AgentServerGitService {
       );
     }
 
-    return changes.map((change) => ({
-      status: mapAnyGitStatusToClientStatus(
-        String(change.status) as Parameters<
-          typeof mapAnyGitStatusToClientStatus
-        >[0],
-      ),
-      path: change.path,
-      additions: readLineCount((change as { additions?: unknown }).additions),
-      deletions: readLineCount((change as { deletions?: unknown }).deletions),
-    }));
+    return changes.map((change) =>
+      mapAgentServerGitChange(change as AgentServerGitChange),
+    );
   }
 
   static async getGitChangeDiff(
