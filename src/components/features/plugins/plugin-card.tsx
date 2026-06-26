@@ -39,8 +39,8 @@ export function PluginCard({
     }
   };
 
-  const handleInstall = (event: React.MouseEvent) => {
-    event.stopPropagation();
+  const handleInstall = (event?: React.MouseEvent<HTMLButtonElement>) => {
+    event?.stopPropagation();
     onInstall();
   };
 
