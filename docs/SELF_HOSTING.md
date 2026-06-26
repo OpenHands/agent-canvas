@@ -168,6 +168,17 @@ before they can use it. Without `--public`, the key is auto-injected into
 the frontend (convenient for local-only use, but unsafe for a
 publicly-reachable deployment).
 
+If you intentionally access a trusted LAN or lab host over plain HTTP instead
+of HTTPS, workspace file previews may need:
+
+```bash
+export LOCAL_BACKEND_API_KEY=<your-saved-key>
+npx @openhands/agent-canvas --public --disable-secure
+```
+
+Use this only for trusted non-HTTPS environments. Internet-facing deployments
+should keep the default cookie behavior and use TLS through step 4.
+
 ## 4. (Optional) Get a domain and put nginx + Let's Encrypt in front
 
 If you want to reach the UI from a browser without an SSH tunnel — for

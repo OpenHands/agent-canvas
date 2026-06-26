@@ -1,4 +1,4 @@
-import { createServer, type Server } from "node:http";
+import { createServer, request as httpRequest, type Server } from "node:http";
 import { connect as netConnect, type AddressInfo, type Socket } from "node:net";
 import type { Duplex } from "node:stream";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -116,6 +116,20 @@ async function stopChild(child?: ChildProcess) {
     child.kill("SIGKILL");
     await Promise.race([exited, delay(1000)]);
   }
+}
+
+async function requestSetCookieHeaders(url: string, method = "GET") {
+  return new Promise<string[]>((resolve, reject) => {
+    const req = httpRequest(url, { method }, (res) => {
+      res.resume();
+      res.on("end", () => {
+        const setCookie = res.headers["set-cookie"];
+        resolve(Array.isArray(setCookie) ? setCookie : [setCookie ?? ""]);
+      });
+    });
+    req.on("error", reject);
+    req.end();
+  });
 }
 
 describe("ingress.mjs CLI", () => {
@@ -412,6 +426,98 @@ describe("ingress route matching", () => {
   it("returns 503 for unmatched routes with no default", async () => {
     const response = await fetch(`${originForPort(ingressPort)}/unknown`);
     expect(response.status).toBe(503);
+  });
+});
+
+describe("ingress workspace-session cookie handling", () => {
+  let backend: Server;
+  let backendPort: number;
+
+  beforeAll(async () => {
+    backend = createServer((req, res) => {
+      if (req.url?.startsWith("/api/auth/workspace-session")) {
+        res.writeHead(204, {
+          "Set-Cookie":
+            "oh_workspace_session_key=abc; Path=/api/conversations; HttpOnly; Secure; SameSite=Lax",
+        });
+        res.end();
+        return;
+      }
+
+      res.writeHead(204, {
+        "Set-Cookie": "other=abc; Path=/; Secure; SameSite=Lax",
+      });
+      res.end();
+    });
+    backendPort = await listenOnLoopback(backend);
+  });
+
+  afterAll(async () => {
+    await closeServer(backend);
+  });
+
+  async function startIngressWithCookieMode(disableSecure: boolean) {
+    const ingressPort = await getFreePort();
+    const child = spawn(
+      process.execPath,
+      [
+        ingressScript,
+        "--port",
+        ingressPort.toString(),
+        "--default",
+        originForPort(backendPort),
+        ...(disableSecure ? ["--disable-secure"] : []),
+      ],
+      {
+        cwd: repoRoot,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    await waitForPort(ingressPort, child);
+    return { child, origin: originForPort(ingressPort) };
+  }
+
+  it("preserves Secure on workspace-session cookies by default", async () => {
+    const { child, origin } = await startIngressWithCookieMode(false);
+    try {
+      const cookies = await requestSetCookieHeaders(
+        `${origin}/api/auth/workspace-session`,
+        "POST",
+      );
+
+      expect(cookies.join("\n")).toContain("Secure");
+    } finally {
+      await stopChild(child);
+    }
+  });
+
+  it("strips Secure from workspace-session cookies when --disable-secure is set", async () => {
+    const { child, origin } = await startIngressWithCookieMode(true);
+    try {
+      const cookies = await requestSetCookieHeaders(
+        `${origin}/api/auth/workspace-session`,
+        "POST",
+      );
+
+      const cookieText = cookies.join("\n");
+      expect(cookieText).toContain("oh_workspace_session_key=abc");
+      expect(cookieText).not.toContain("Secure");
+    } finally {
+      await stopChild(child);
+    }
+  });
+
+  it("does not strip Secure from unrelated cookies when --disable-secure is set", async () => {
+    const { child, origin } = await startIngressWithCookieMode(true);
+    try {
+      const cookies = await requestSetCookieHeaders(`${origin}/api/settings`);
+
+      const cookieText = cookies.join("\n");
+      expect(cookieText).toContain("other=abc");
+      expect(cookieText).toContain("Secure");
+    } finally {
+      await stopChild(child);
+    }
   });
 });
 

@@ -34,6 +34,8 @@ import { extname, isAbsolute, normalize, relative, resolve } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
+import { maybeRewriteWorkspaceSessionCookieHeaders } from "./proxy-cookie-utils.mjs";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MIME types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -77,6 +79,7 @@ export function parseArgs(argv = process.argv.slice(2)) {
     authRequired: false,
     runtimeServicesInfo: null,
     lockToCloud: null,
+    disableSecureWorkspaceSession: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -117,6 +120,9 @@ export function parseArgs(argv = process.argv.slice(2)) {
         break;
       case "--lock-to-cloud":
         config.lockToCloud = argv[++i] || null;
+        break;
+      case "--disable-secure":
+        config.disableSecureWorkspaceSession = true;
         break;
 
       case "--auth-required":
@@ -185,6 +191,8 @@ OPTIONS:
   --lock-to-cloud <cloud-url>  Lock backend setup to a single OpenHands Cloud
                                URL. Hides manual/local backend setup and the
                                custom Cloud URL field in the pre-built frontend.
+  --disable-secure             Remove the Secure attribute from workspace
+                               session cookies for plain-HTTP lab hosts.
   --reject-prefix <prefix>     Return 503 for requests matching <prefix>
                                instead of SPA-fallbacking to index.html;
                                may be repeated. Useful in --frontend-only
@@ -366,7 +374,7 @@ function parseBackendUrl(backendUrl) {
   };
 }
 
-function proxyRequest(req, res, backendUrl) {
+function proxyRequest(req, res, backendUrl, proxyOptions = {}) {
   const backend = parseBackendUrl(backendUrl);
 
   const proxyReq = httpRequest(
@@ -381,7 +389,12 @@ function proxyRequest(req, res, backendUrl) {
       },
     },
     (proxyRes) => {
-      res.writeHead(proxyRes.statusCode ?? 502, proxyRes.headers);
+      const headers = maybeRewriteWorkspaceSessionCookieHeaders(
+        proxyRes.headers,
+        req.url,
+        proxyOptions,
+      );
+      res.writeHead(proxyRes.statusCode ?? 502, headers);
       proxyRes.pipe(res, { end: true });
     },
   );
@@ -633,11 +646,15 @@ export function startStaticServer(config) {
     lockToCloud: config.lockToCloud || null,
   };
   const rejectPrefixes = config.rejectPrefixes ?? [];
+  const proxyOptions = {
+    disableSecureWorkspaceSession:
+      config.disableSecureWorkspaceSession || false,
+  };
 
   const server = createServer((req, res) => {
     const backend = route(req.url);
     if (backend) {
-      proxyRequest(req, res, backend);
+      proxyRequest(req, res, backend, proxyOptions);
       return;
     }
     handleStatic(req, res, dirAbs, injectionOpts, rejectPrefixes).catch(

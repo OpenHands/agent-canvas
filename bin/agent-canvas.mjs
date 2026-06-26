@@ -52,6 +52,7 @@ Override versions via environment variables:
   process.exit(0);
 }
 const isPublic = args.includes("--public");
+const isDisableSecure = args.includes("--disable-secure");
 const isFrontendOnly = args.includes("--frontend-only");
 const isBackendOnly = args.includes("--backend-only");
 
@@ -76,6 +77,8 @@ AUTH MODES:
 OPTIONS:
   -p, --port <port>     Ingress port (default: 8000)
   --public              Enable public mode (see above)
+  --disable-secure      Allow workspace file preview over plain HTTP by
+                        removing Secure from workspace session cookies
   --frontend-only       Start only the static frontend behind ingress
   --backend-only        Start only agent-server + automation behind ingress
   -v, --version         Show version number
@@ -103,6 +106,9 @@ EXAMPLES:
 
   # Public mode — users must enter the API key in the browser
   LOCAL_BACKEND_API_KEY=my-secret npx @openhands/agent-canvas --public
+
+  # Public mode on a trusted plain-HTTP LAN/lab host
+  LOCAL_BACKEND_API_KEY=my-secret npx @openhands/agent-canvas --public --disable-secure
 
   # Use a specific port
   npx @openhands/agent-canvas --port 3000
@@ -164,6 +170,7 @@ main({
   staticDir: BUILD_DIR,
   mode: "agent-canvas",
   isPublic,
+  disableSecureWorkspaceSession: isDisableSecure,
 }).catch((err) => {
   console.error(`Fatal error: ${err.message}`);
   if (err.stack) {

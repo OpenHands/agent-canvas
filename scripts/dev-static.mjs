@@ -109,6 +109,7 @@ export function parseArgs(argv = process.argv.slice(2)) {
     automationRepo: null,
     skipBuild: false,
     verbose: false,
+    disableSecureWorkspaceSession: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -125,6 +126,9 @@ export function parseArgs(argv = process.argv.slice(2)) {
         break;
       case "--skip-build":
         config.skipBuild = true;
+        break;
+      case "--disable-secure":
+        config.disableSecureWorkspaceSession = true;
         break;
       case "-v":
       case "--verbose":
@@ -156,6 +160,8 @@ OPTIONS:
   --automation-ref <ref>      Git ref for automation backend (default: main)
   --automation-repo <url>     Git repo URL for automation
   --skip-build                Reuse existing build/ directory (faster restart)
+  --disable-secure            Allow workspace file preview over plain HTTP by
+                              removing Secure from workspace session cookies
   -v, --verbose               Show detailed output
   -h, --help                  Show this help
 
@@ -391,6 +397,7 @@ function startStaticServer(config) {
       ...(config.sessionApiKey
         ? ["--session-api-key", config.sessionApiKey]
         : []),
+      ...(config.disableSecureWorkspaceSession ? ["--disable-secure"] : []),
       "--route",
       `/api/automation=http://localhost:${config.autoBackendPort}`,
       "--route",
@@ -453,6 +460,7 @@ function startIngress(config) {
       `/openapi.json=http://localhost:${config.agentServerPort}`,
       "--default",
       `http://localhost:${config.vitePort}`,
+      ...(config.disableSecureWorkspaceSession ? ["--disable-secure"] : []),
     ],
     {
       cwd: projectRoot,

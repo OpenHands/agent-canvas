@@ -172,6 +172,7 @@ function parseArgs() {
     staticDir: null,
     skipBuild: false,
     public: false,
+    disableSecureWorkspaceSession: false,
     frontendOnly: false,
     backendOnly: false,
   };
@@ -206,6 +207,9 @@ function parseArgs() {
         break;
       case "--public":
         config.public = true;
+        break;
+      case "--disable-secure":
+        config.disableSecureWorkspaceSession = true;
         break;
       case "--frontend-only":
         config.frontendOnly = true;
@@ -243,6 +247,8 @@ OPTIONS:
   --dynamic                   Force Vite dev server when a wrapper defaults static
   --frontend-only             Start only the frontend behind ingress
   --backend-only              Start only agent-server + automation behind ingress
+  --disable-secure            Allow workspace file preview over plain HTTP by
+                              removing Secure from workspace session cookies
   -v, --verbose               Show detailed output
   -h, --help                  Show this help
 
@@ -446,6 +452,7 @@ async function buildConfig(args, env = process.env) {
 
     // Public mode — the session key should NOT be baked into the frontend
     isPublic,
+    disableSecureWorkspaceSession: Boolean(args.disableSecureWorkspaceSession),
 
     frontendOnly,
     backendOnly,
@@ -924,6 +931,7 @@ function startIngress(config) {
       config.ingressPort.toString(),
       ...buildRouteArgs(getLocalServiceRoutes(config)),
       ...(frontendBackend ? ["--default", frontendBackend] : []),
+      ...(config.disableSecureWorkspaceSession ? ["--disable-secure"] : []),
     ],
     {
       cwd: projectRoot,
@@ -987,6 +995,9 @@ function startVite(config) {
     viteEnv.VITE_AUTH_REQUIRED = "true";
   } else if (config.launchAgentServer) {
     viteEnv.VITE_SESSION_API_KEY = config.sessionApiKey;
+  }
+  if (config.disableSecureWorkspaceSession) {
+    viteEnv.VITE_DISABLE_SECURE_WORKSPACE_SESSION = "true";
   }
 
   spawnService("vite", frontendCommand.command, frontendCommand.args, {
@@ -1206,6 +1217,7 @@ async function main(options = {}) {
     // When true, enable public mode (require LOCAL_BACKEND_API_KEY,
     // don't bake session key into frontend).
     isPublic: isPublicOverride,
+    disableSecureWorkspaceSession: disableSecureWorkspaceSessionOverride,
   } = options;
 
   const args = parseArgs();
@@ -1213,6 +1225,9 @@ async function main(options = {}) {
   // Allow options to override CLI args for public mode
   if (isPublicOverride != null) {
     args.public = isPublicOverride;
+  }
+  if (disableSecureWorkspaceSessionOverride != null) {
+    args.disableSecureWorkspaceSession = disableSecureWorkspaceSessionOverride;
   }
 
   // Allow options to override CLI args (for bin/agent-canvas.mjs)
@@ -1387,6 +1402,7 @@ function startStaticFrontend(config, staticDir) {
         : []),
       // Proxy routes only to services that this launch mode started.
       ...buildRouteArgs(getLocalServiceRoutes(config)),
+      ...(config.disableSecureWorkspaceSession ? ["--disable-secure"] : []),
       // Reject known API prefixes that have no backend — returns 503
       // instead of SPA-fallbacking to index.html.
       ...buildRejectPrefixArgs(getRejectPrefixes(config)),

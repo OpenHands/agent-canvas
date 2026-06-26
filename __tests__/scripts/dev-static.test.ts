@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { buildAutomationBackendEnv } from "../../scripts/dev-static.mjs";
+import {
+  buildAutomationBackendEnv,
+  parseArgs,
+} from "../../scripts/dev-static.mjs";
 
 describe("dev-static", () => {
   it("uses the same session key for both agent-server and automation backend auth", () => {
@@ -16,6 +19,12 @@ describe("dev-static", () => {
       AUTOMATION_AGENT_SERVER_URL: "http://localhost:18000",
       AUTOMATION_AGENT_SERVER_API_KEY: "shared-session-key",
       AUTOMATION_LOCAL_API_KEY: "shared-session-key",
+    });
+  });
+
+  it("parses --disable-secure", () => {
+    expect(parseArgs(["--disable-secure"])).toMatchObject({
+      disableSecureWorkspaceSession: true,
     });
   });
 });

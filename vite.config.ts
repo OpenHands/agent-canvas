@@ -60,17 +60,49 @@ export default defineConfig(({ mode }) => {
     VITE_USE_TLS = "false",
     VITE_FRONTEND_PORT = "3001",
     VITE_INSECURE_SKIP_VERIFY = "false",
+    VITE_DISABLE_SECURE_WORKSPACE_SESSION = "false",
   } = loadEnv(mode, process.cwd());
 
   const isLibraryBuild = process.env.BUILD_LIB === "true";
   const USE_TLS = VITE_USE_TLS === "true";
   const INSECURE_SKIP_VERIFY = VITE_INSECURE_SKIP_VERIFY === "true";
+  const DISABLE_SECURE_WORKSPACE_SESSION =
+    VITE_DISABLE_SECURE_WORKSPACE_SESSION === "true";
   const PROTOCOL = USE_TLS ? "https" : "http";
   const WS_PROTOCOL = USE_TLS ? "wss" : "ws";
 
   const API_URL = `${PROTOCOL}://${VITE_BACKEND_HOST}/`;
   const WS_URL = `${WS_PROTOCOL}://${VITE_BACKEND_HOST}/`;
   const FE_PORT = Number.parseInt(VITE_FRONTEND_PORT, 10);
+  const configureWorkspaceSessionProxy = (proxy: {
+    on: (
+      event: "proxyRes",
+      listener: (
+        proxyRes: { headers: Record<string, string | string[] | undefined> },
+        req: { url?: string },
+      ) => void,
+    ) => void;
+  }) => {
+    if (!DISABLE_SECURE_WORKSPACE_SESSION) return;
+
+    proxy.on("proxyRes", (proxyRes, req) => {
+      if (
+        req.url !== "/api/auth/workspace-session" &&
+        !req.url?.startsWith("/api/auth/workspace-session?")
+      ) {
+        return;
+      }
+
+      const setCookie = proxyRes.headers["set-cookie"];
+      if (!setCookie) return;
+
+      const stripSecure = (cookie: string) =>
+        cookie.replace(/;\s*Secure(?=;|$)/gi, "");
+      proxyRes.headers["set-cookie"] = Array.isArray(setCookie)
+        ? setCookie.map(stripSecure)
+        : stripSecure(setCookie);
+    });
+  };
 
   return {
     define: {
@@ -352,6 +384,7 @@ export default defineConfig(({ mode }) => {
           target: API_URL,
           changeOrigin: true,
           secure: !INSECURE_SKIP_VERIFY,
+          configure: configureWorkspaceSessionProxy,
         },
         "/server_info": {
           target: API_URL,

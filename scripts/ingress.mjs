@@ -22,6 +22,8 @@
 import { createServer, request as httpRequest } from "node:http";
 import process from "node:process";
 
+import { maybeRewriteWorkspaceSessionCookieHeaders } from "./proxy-cookie-utils.mjs";
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Configuration
 // ═══════════════════════════════════════════════════════════════════════════
@@ -32,6 +34,7 @@ function parseArgs() {
     port: 8000,
     routes: {},
     defaultBackend: null,
+    disableSecureWorkspaceSession: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -49,6 +52,9 @@ function parseArgs() {
       case "-d":
       case "--default":
         config.defaultBackend = args[++i];
+        break;
+      case "--disable-secure":
+        config.disableSecureWorkspaceSession = true;
         break;
       case "-h":
       case "--help":
@@ -73,6 +79,8 @@ OPTIONS:
   -p, --port <port>           Port to listen on (default: 8000)
   -r, --route <path=url>      Add a route (can be repeated)
   -d, --default <url>         Default backend for unmatched routes
+  --disable-secure            Remove the Secure attribute from workspace
+                              session cookies for plain-HTTP lab hosts
   -h, --help                  Show this help
 
 ENVIRONMENT VARIABLES:
@@ -118,6 +126,9 @@ function buildConfig(args, env = process.env) {
     port: args.port || parseInt(env.INGRESS_PORT, 10) || 8000,
     routes,
     defaultBackend: args.defaultBackend || env.INGRESS_DEFAULT || null,
+    disableSecureWorkspaceSession:
+      args.disableSecureWorkspaceSession ||
+      env.INGRESS_DISABLE_SECURE === "true",
   };
 }
 
@@ -128,12 +139,16 @@ function buildConfig(args, env = process.env) {
 function createRouter(routes, defaultBackend) {
   // Sort routes by path length (longest first) for most-specific matching
   const sortedRoutes = Object.entries(routes).sort(
-    ([a], [b]) => b.length - a.length
+    ([a], [b]) => b.length - a.length,
   );
 
   return function route(url) {
     for (const [prefix, backend] of sortedRoutes) {
-      if (url === prefix || url.startsWith(prefix + "/") || url.startsWith(prefix + "?")) {
+      if (
+        url === prefix ||
+        url.startsWith(prefix + "/") ||
+        url.startsWith(prefix + "?")
+      ) {
         return backend;
       }
     }
@@ -167,7 +182,7 @@ function isBenignSocketError(err) {
   return Boolean(err && BENIGN_SOCKET_ERRORS.has(err.code));
 }
 
-function proxyRequest(req, res, backendUrl) {
+function proxyRequest(req, res, backendUrl, proxyOptions = {}) {
   const backend = parseBackendUrl(backendUrl);
 
   const options = {
@@ -194,7 +209,12 @@ function proxyRequest(req, res, backendUrl) {
       }
     });
 
-    res.writeHead(proxyRes.statusCode, proxyRes.headers);
+    const headers = maybeRewriteWorkspaceSessionCookieHeaders(
+      proxyRes.headers,
+      req.url,
+      proxyOptions,
+    );
+    res.writeHead(proxyRes.statusCode, headers);
     proxyRes.pipe(res, { end: true });
   });
 
@@ -253,7 +273,10 @@ function proxyWebSocket(req, socket, head, backendUrl) {
   // TCP socket would crash the entire ingress process.
   socket.on("error", (err) => {
     if (!isBenignSocketError(err)) {
-      console.error(`WebSocket client socket error for ${req.url}:`, err.message);
+      console.error(
+        `WebSocket client socket error for ${req.url}:`,
+        err.message,
+      );
     }
     proxyReq.destroy();
   });
@@ -278,10 +301,12 @@ function proxyWebSocket(req, socket, head, backendUrl) {
     proxySocket.on("close", () => socket.destroy());
 
     socket.write(
-      `HTTP/${proxyRes.httpVersion} ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`
+      `HTTP/${proxyRes.httpVersion} ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`,
     );
     for (let i = 0; i < proxyRes.rawHeaders.length; i += 2) {
-      socket.write(`${proxyRes.rawHeaders[i]}: ${proxyRes.rawHeaders[i + 1]}\r\n`);
+      socket.write(
+        `${proxyRes.rawHeaders[i]}: ${proxyRes.rawHeaders[i + 1]}\r\n`,
+      );
     }
     socket.write("\r\n");
 
@@ -309,6 +334,9 @@ function proxyWebSocket(req, socket, head, backendUrl) {
 
 function startIngress(config) {
   const route = createRouter(config.routes, config.defaultBackend);
+  const proxyOptions = {
+    disableSecureWorkspaceSession: config.disableSecureWorkspaceSession,
+  };
 
   const server = createServer((req, res) => {
     const backend = route(req.url);
@@ -319,7 +347,7 @@ function startIngress(config) {
       return;
     }
 
-    proxyRequest(req, res, backend);
+    proxyRequest(req, res, backend, proxyOptions);
   });
 
   // Handle WebSocket upgrades
@@ -349,15 +377,27 @@ function startIngress(config) {
 
   server.listen(config.port, () => {
     console.log("");
-    console.log("╔═══════════════════════════════════════════════════════════════╗");
-    console.log("║  Ingress Proxy                                                ║");
-    console.log("╠═══════════════════════════════════════════════════════════════╣");
-    console.log(`║  Listening on: http://localhost:${config.port}/`.padEnd(66) + "║");
-    console.log("╠═══════════════════════════════════════════════════════════════╣");
-    console.log("║  Routes:                                                      ║");
+    console.log(
+      "╔═══════════════════════════════════════════════════════════════╗",
+    );
+    console.log(
+      "║  Ingress Proxy                                                ║",
+    );
+    console.log(
+      "╠═══════════════════════════════════════════════════════════════╣",
+    );
+    console.log(
+      `║  Listening on: http://localhost:${config.port}/`.padEnd(66) + "║",
+    );
+    console.log(
+      "╠═══════════════════════════════════════════════════════════════╣",
+    );
+    console.log(
+      "║  Routes:                                                      ║",
+    );
 
     const sortedRoutes = Object.entries(config.routes).sort(
-      ([a], [b]) => b.length - a.length
+      ([a], [b]) => b.length - a.length,
     );
     for (const [path, backend] of sortedRoutes) {
       const line = `    ${path} → ${backend}`;
@@ -369,8 +409,12 @@ function startIngress(config) {
       console.log(`║  ${line.padEnd(61)}║`);
     }
 
-    console.log("║                                                               ║");
-    console.log("╚═══════════════════════════════════════════════════════════════╝");
+    console.log(
+      "║                                                               ║",
+    );
+    console.log(
+      "╚═══════════════════════════════════════════════════════════════╝",
+    );
     console.log("");
   });
 
@@ -385,7 +429,9 @@ const args = parseArgs();
 const config = buildConfig(args);
 
 if (Object.keys(config.routes).length === 0 && !config.defaultBackend) {
-  console.error("Error: No routes configured. Use --route or --default options.");
+  console.error(
+    "Error: No routes configured. Use --route or --default options.",
+  );
   console.error("Run with --help for usage information.");
   process.exit(1);
 }

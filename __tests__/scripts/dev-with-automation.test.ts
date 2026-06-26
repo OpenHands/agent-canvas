@@ -330,6 +330,21 @@ describe("buildConfig", () => {
 
     expect(config.sessionApiKey).toBe("my-api-key");
   });
+
+  it("keeps workspace-session cookie rewriting disabled by default", async () => {
+    const config = await buildConfig({}, envWithIsolatedKeyPath());
+
+    expect(config.disableSecureWorkspaceSession).toBe(false);
+  });
+
+  it("enables workspace-session cookie rewriting when requested", async () => {
+    const config = await buildConfig(
+      { disableSecureWorkspaceSession: true },
+      envWithIsolatedKeyPath(),
+    );
+
+    expect(config.disableSecureWorkspaceSession).toBe(true);
+  });
 });
 
 describe("stack mode routing", () => {
@@ -525,6 +540,7 @@ describe("dev-with-automation CLI", () => {
     expect(output).toContain("--dynamic");
     expect(output).toContain("--frontend-only");
     expect(output).toContain("--backend-only");
+    expect(output).toContain("--disable-secure");
     expect(output).toContain("OH_AUTOMATION_GIT_REF");
     expect(output).toContain("OH_AGENT_SERVER_LOCAL_PATH");
     expect(output).toContain("OPENHANDS_AUTOMATION_API_KEY");

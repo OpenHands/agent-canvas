@@ -1,4 +1,5 @@
 import type { Server } from "node:http";
+import { createServer, request as httpRequest } from "node:http";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -40,6 +41,39 @@ describe("static-server.mjs", () => {
     }
 
     return `http://127.0.0.1:${address.port}`;
+  }
+
+  async function listenOnLoopback(server: Server) {
+    await new Promise<void>((resolve, reject) => {
+      const onError = (error: Error) => {
+        server.off("error", onError);
+        reject(error);
+      };
+      server.once("error", onError);
+      server.listen(0, "127.0.0.1", () => {
+        server.off("error", onError);
+        resolve();
+      });
+    });
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Expected server to listen on a TCP port");
+    }
+    return `http://127.0.0.1:${address.port}`;
+  }
+
+  async function requestSetCookieHeaders(url: string, method = "GET") {
+    return new Promise<string[]>((resolve, reject) => {
+      const req = httpRequest(url, { method }, (res) => {
+        res.resume();
+        res.on("end", () => {
+          const setCookie = res.headers["set-cookie"];
+          resolve(Array.isArray(setCookie) ? setCookie : [setCookie ?? ""]);
+        });
+      });
+      req.on("error", reject);
+      req.end();
+    });
   }
 
   describe("parseArgs", () => {
@@ -90,6 +124,86 @@ describe("static-server.mjs", () => {
     it("treats empty string as null for runtime services info", () => {
       const config = parseArgs(["--runtime-services-info", ""]);
       expect(config.runtimeServicesInfo).toBeNull();
+    });
+
+    it("parses --disable-secure", () => {
+      const config = parseArgs(["--disable-secure"]);
+      expect(config.disableSecureWorkspaceSession).toBe(true);
+    });
+  });
+
+  describe("proxy workspace-session cookie handling", () => {
+    function createCookieBackend() {
+      return createServer((req, res) => {
+        if (req.url?.startsWith("/api/auth/workspace-session")) {
+          res.writeHead(204, {
+            "Set-Cookie":
+              "oh_workspace_session_key=abc; Path=/api/conversations; HttpOnly; Secure; SameSite=Lax",
+          });
+          res.end();
+          return;
+        }
+
+        res.writeHead(204, {
+          "Set-Cookie": "other=abc; Path=/; Secure; SameSite=Lax",
+        });
+        res.end();
+      });
+    }
+
+    async function startProxy(disableSecureWorkspaceSession: boolean) {
+      const backend = createCookieBackend();
+      const backendOrigin = await listenOnLoopback(backend);
+      servers.push(backend);
+
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(path.join(buildDir, "index.html"), "<main>app</main>");
+
+      const server = await startStaticServer({
+        port: 0,
+        host: "127.0.0.1",
+        dir: buildDir,
+        routes: {
+          "/api": backendOrigin,
+        },
+        disableSecureWorkspaceSession,
+      });
+      servers.push(server);
+      const address = server.address();
+      if (!address || typeof address === "string") throw new Error("No port");
+      return `http://127.0.0.1:${address.port}`;
+    }
+
+    it("preserves Secure on workspace-session cookies by default", async () => {
+      const origin = await startProxy(false);
+      const cookies = await requestSetCookieHeaders(
+        `${origin}/api/auth/workspace-session`,
+        "POST",
+      );
+
+      expect(cookies.join("\n")).toContain("Secure");
+    });
+
+    it("strips Secure from workspace-session cookies when enabled", async () => {
+      const origin = await startProxy(true);
+      const cookies = await requestSetCookieHeaders(
+        `${origin}/api/auth/workspace-session`,
+        "POST",
+      );
+
+      const cookieText = cookies.join("\n");
+      expect(cookieText).toContain("oh_workspace_session_key=abc");
+      expect(cookieText).not.toContain("Secure");
+    });
+
+    it("does not strip Secure from unrelated cookies when enabled", async () => {
+      const origin = await startProxy(true);
+      const cookies = await requestSetCookieHeaders(`${origin}/api/settings`);
+
+      const cookieText = cookies.join("\n");
+      expect(cookieText).toContain("other=abc");
+      expect(cookieText).toContain("Secure");
     });
   });
 
