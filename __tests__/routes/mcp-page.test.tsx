@@ -128,6 +128,22 @@ describe("MCPPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("does not show OAuth-only Atlassian/Jira MCP entries in the local install marketplace", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
+
+    renderPage();
+
+    const search = await screen.findByTestId("mcp-search-input");
+    fireEvent.change(search, { target: { value: "jira" } });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("mcp-marketplace-empty")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("mcp-marketplace-card-atlassian"),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps installed custom servers visible and searchable even when they are not in the marketplace catalog", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       buildSettings({

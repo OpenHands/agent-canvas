@@ -131,6 +131,31 @@ describe("getInstallableMcpConnectionOption", () => {
   });
 });
 
+describe("getMcpMarketplaceCatalog", () => {
+  it("excludes OAuth-only MCP entries that the local install modal cannot install", () => {
+    const oauthOnlyEntry: Parameters<
+      typeof getMcpMarketplaceCatalog
+    >[0][number] = {
+      ...slackEntry,
+      id: "oauth-only",
+      connectionOptions: [
+        {
+          id: "oauth",
+          provider: "mcp",
+          auth: { strategy: "oauth2" },
+          transport: { kind: "shttp", url: "https://example.com/mcp" },
+        } as Parameters<
+          typeof getMcpMarketplaceCatalog
+        >[0][number]["connectionOptions"][number],
+      ],
+    };
+
+    const catalog = getMcpMarketplaceCatalog([oauthOnlyEntry, slackEntry]);
+
+    expect(catalog.map((entry) => entry.id)).toEqual(["slack"]);
+  });
+});
+
 describe("marketplaceEntryMatchesQuery", () => {
   it("matches by name (case-insensitive)", () => {
     expect(marketplaceEntryMatchesQuery(slackEntry, "slack")).toBe(true);
