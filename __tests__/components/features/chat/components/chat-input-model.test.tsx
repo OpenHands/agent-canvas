@@ -89,7 +89,7 @@ describe("ChatInputModel", () => {
         conversation_id: "test-conversation-id",
         agent_kind: "acp",
         acp_server: "claude-code",
-        llm_model: "claude-sonnet-4-6",
+        llm_model: "sonnet",
       },
     });
 
@@ -216,10 +216,10 @@ describe("ChatInputModel", () => {
     renderWithProviders(<ChatInputModel />);
 
     const model = screen.getByTestId("chat-input-llm-model");
-    // Claude Code's registered default (``claude-opus-4-8``), shown as its
+    // Claude Code's registered default (``opus[1m]``), shown as its
     // human label to match the conversation list chip. See CLAUDE_MODELS in
     // acp-providers.ts.
-    expect(model).toHaveAttribute("title", "Claude Opus 4.8");
+    expect(model).toHaveAttribute("title", "Claude Opus 4.8 (1M)");
     fireEvent.click(model);
     expect(screen.getByRole("link")).toHaveAttribute("href", "/settings/agent");
   });
@@ -230,7 +230,7 @@ describe("ChatInputModel", () => {
         conversation_id: "test-conversation-id",
         agent_kind: "acp",
         acp_server: "claude-code",
-        llm_model: "claude-sonnet-4-6",
+        llm_model: "sonnet",
       },
     });
 
@@ -239,14 +239,14 @@ describe("ChatInputModel", () => {
     fireEvent.click(screen.getByTestId("chat-input-llm-model"));
 
     // Every registered Claude Code model is offered as a row, and the running
-    // one (claude-sonnet-4-6) is marked selected.
+    // one (sonnet) is marked selected.
     const selectedRow = screen.getByTestId(
-      "chat-input-acp-model-option-claude-sonnet-4-6",
+      "chat-input-acp-model-option-sonnet",
     );
     expect(selectedRow).toBeInTheDocument();
     expect(selectedRow).toHaveTextContent("Claude Sonnet 4.6");
     expect(
-      screen.getByTestId("chat-input-acp-model-option-claude-opus-4-8"),
+      screen.getByTestId("chat-input-acp-model-option-opus[1m]"),
     ).toBeInTheDocument();
   });
 
@@ -256,22 +256,20 @@ describe("ChatInputModel", () => {
         conversation_id: "test-conversation-id",
         agent_kind: "acp",
         acp_server: "claude-code",
-        llm_model: "claude-sonnet-4-6",
+        llm_model: "sonnet",
       },
     });
 
     renderWithProviders(<ChatInputModel />);
 
     fireEvent.click(screen.getByTestId("chat-input-llm-model"));
-    fireEvent.click(
-      screen.getByTestId("chat-input-acp-model-option-claude-opus-4-8"),
-    );
+    fireEvent.click(screen.getByTestId("chat-input-acp-model-option-opus[1m]"));
 
     // Active conversation → live switch keyed by the conversation id from the
     // navigation context (test-conversation-id), default-write NOT used.
     expect(switchAcpModelMutate).toHaveBeenCalledWith({
       conversationId: "test-conversation-id",
-      model: "claude-opus-4-8",
+      model: "opus[1m]",
     });
     // Popover closes after a selection.
     expect(
@@ -291,15 +289,13 @@ describe("ChatInputModel", () => {
     renderWithProviders(<ChatInputModel />);
 
     fireEvent.click(screen.getByTestId("chat-input-llm-model"));
-    fireEvent.click(
-      screen.getByTestId("chat-input-acp-model-option-claude-sonnet-4-6"),
-    );
+    fireEvent.click(screen.getByTestId("chat-input-acp-model-option-sonnet"));
 
     // Home / no session → null conversationId routes the hook to the
     // settings-default write path.
     expect(switchAcpModelMutate).toHaveBeenCalledWith({
       conversationId: null,
-      model: "claude-sonnet-4-6",
+      model: "sonnet",
     });
   });
 
@@ -310,7 +306,7 @@ describe("ChatInputModel", () => {
         conversation_id: "test-conversation-id",
         agent_kind: "acp",
         acp_server: "claude-code",
-        llm_model: "claude-sonnet-4-6",
+        llm_model: "sonnet",
       },
     });
 
@@ -321,12 +317,12 @@ describe("ChatInputModel", () => {
     // Cloud ACP conversations support mid-conversation model switching,
     // so selectable model rows are shown.
     const selectedRow = screen.getByTestId(
-      "chat-input-acp-model-option-claude-sonnet-4-6",
+      "chat-input-acp-model-option-sonnet",
     );
     expect(selectedRow).toBeInTheDocument();
     expect(selectedRow).toHaveTextContent("Claude Sonnet 4.6");
     expect(
-      screen.getByTestId("chat-input-acp-model-option-claude-opus-4-8"),
+      screen.getByTestId("chat-input-acp-model-option-opus[1m]"),
     ).toBeInTheDocument();
     const popover = screen.getByTestId("chat-input-llm-model-popover");
     expect(popover).toHaveTextContent("Claude Sonnet 4.6");
