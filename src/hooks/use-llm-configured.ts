@@ -1,8 +1,15 @@
+import { useQuery } from "@tanstack/react-query";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useConfig } from "#/hooks/query/use-config";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { isSettingsPageHidden } from "#/utils/settings-utils";
+import ProfilesService from "#/api/profiles-service/profiles-service.api";
+import {
+  CONFIG_CACHE_OPTIONS,
+  LLM_PROFILES_QUERY_KEYS,
+} from "#/hooks/query/query-keys";
+import { isSubscriptionLlmConfig } from "#/constants/llm-subscription";
 
 interface LlmConfiguredResult {
   /**
@@ -44,7 +51,7 @@ export function useLlmConfigured(): LlmConfiguredResult {
     isLoading: profilesLoading,
     isError: profilesError,
   } = useLlmProfiles();
-  const { backend } = useActiveBackend();
+  const { backend, orgId } = useActiveBackend();
   const isLocal = backend.kind === "local";
 
   const isAcpAgent = settings?.agent_settings?.agent_kind === "acp";
@@ -53,17 +60,45 @@ export function useLlmConfigured(): LlmConfiguredResult {
     (profile) => profile.name === profilesData.active_profile,
   );
   const hasActiveProfileApiKey = activeProfile?.api_key_set === true;
+  const shouldLoadActiveProfileDetail =
+    isLocal && !!activeProfile && !hasActiveProfileApiKey;
+  const {
+    data: activeProfileDetail,
+    isLoading: activeProfileDetailLoading,
+    isError: activeProfileDetailError,
+  } = useQuery({
+    queryKey: [
+      ...LLM_PROFILES_QUERY_KEYS.all,
+      backend.id,
+      orgId,
+      "detail",
+      activeProfile?.name,
+    ],
+    queryFn: () => ProfilesService.getProfile(activeProfile!.name),
+    ...CONFIG_CACHE_OPTIONS,
+    enabled: shouldLoadActiveProfileDetail,
+    meta: { disableToast: true },
+  });
+  const hasActiveProfileSubscription =
+    shouldLoadActiveProfileDetail &&
+    isSubscriptionLlmConfig(
+      activeProfileDetail?.config as Record<string, unknown> | undefined,
+    );
   const llmSettingsHidden = isSettingsPageHidden(
     "/settings/llm",
     config?.feature_flags,
   );
 
   // In local mode, profiles are the source of truth: a usable LLM must be
-  // backed by an active profile that still exists and has a key. The raw
-  // settings key can be a stale copy left behind by a deleted profile
+  // backed by an active profile that still exists and is authenticated. API-key
+  // profiles use the list endpoint's api_key_set flag; subscription profiles
+  // intentionally have no key, so we inspect the active profile detail config.
+  // The raw settings key can be a stale copy left behind by a deleted profile
   // (settings are not cleared on delete), so we don't count it here. Cloud
   // backends don't use profiles and keep the settings-key signal.
-  const hasUsableLlm = isLocal ? hasActiveProfileApiKey : hasApiKey;
+  const hasUsableActiveProfile =
+    hasActiveProfileApiKey || hasActiveProfileSubscription;
+  const hasUsableLlm = isLocal ? hasUsableActiveProfile : hasApiKey;
 
   // Treat a fetch failure as indeterminate (same as loading) only when it
   // leaves us with no data to decide from — otherwise a transient network
@@ -76,10 +111,17 @@ export function useLlmConfigured(): LlmConfiguredResult {
   const configIndeterminate = configLoading || (configError && !config);
   const profilesIndeterminate =
     profilesLoading || (profilesError && !profilesData);
+  const activeProfileDetailIndeterminate =
+    shouldLoadActiveProfileDetail &&
+    (activeProfileDetailLoading ||
+      (activeProfileDetailError && !activeProfileDetail));
 
   return {
     isConfigured: isAcpAgent || llmSettingsHidden || hasUsableLlm,
     isLoading:
-      settingsIndeterminate || configIndeterminate || profilesIndeterminate,
+      settingsIndeterminate ||
+      configIndeterminate ||
+      profilesIndeterminate ||
+      activeProfileDetailIndeterminate,
   };
 }

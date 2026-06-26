@@ -790,6 +790,10 @@ function buildConfiguredOpenHandsAgentSettings(
   const agentSettings = toRecord(settings.agent_settings);
   const llm = buildNormalizedLlmSettings(agentSettings.llm);
 
+  // Stream assistant tokens (parity with ACP agents). The agent-server only
+  // emits StreamingDeltaEvents for SDK LLM agents when an LLM has stream=True.
+  llm.stream = true;
+
   const mcpConfig = toRecord(agentSettings.mcp_config);
   if (Object.keys(mcpConfig).length === 0 || !("mcpServers" in mcpConfig)) {
     delete agentSettings.mcp_config;
