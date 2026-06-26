@@ -69,10 +69,11 @@ async function buildActivityBarItems(
         title: container.title,
         iconUrl,
         onSelect: () => {
-          void host.activate(
-            manifest,
-            `onView:${firstView?.id ?? container.id}`,
-          );
+          // Fire-and-forget: activation rejections (e.g. teardown races) must not
+          // surface as unhandled rejections from a click handler.
+          Promise.resolve(
+            host.activate(manifest, `onView:${firstView?.id ?? container.id}`),
+          ).catch(() => {});
           if (firstView) {
             host.openView(manifest.id, firstView.id);
           }
@@ -91,7 +92,9 @@ function buildCommands(
     command: cmd.command,
     title: cmd.title,
     run: () => {
-      void host.activate(manifest, `onCommand:${cmd.command}`);
+      Promise.resolve(
+        host.activate(manifest, `onCommand:${cmd.command}`),
+      ).catch(() => {});
       return host.runCommand(manifest.id, cmd.command);
     },
   }));
