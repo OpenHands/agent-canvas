@@ -36,8 +36,10 @@ export interface ConversationMetadata {
    */
   active_profile?: string | null;
   /**
-   * Plugins explicitly attached at creation (coordinates only — `parameters`
-   * are stripped). The agent-server doesn't expose a live conversation's
+   * Snapshot of the plugins loaded into the conversation, captured at creation
+   * (coordinates only — `parameters` are stripped): plugins explicitly attached
+   * at creation plus the enabled installed plugins the SDK auto-loads into new
+   * local conversations. The agent-server doesn't expose a live conversation's
    * loaded plugins, so this is the client-side source for the in-conversation
    * plugins view. Local + forward-only: only set for conversations created
    * after this shipped, and only when `app_conversation_id` is known.

@@ -5,6 +5,11 @@ import { SuggestedTask } from "#/utils/types";
 import { Provider } from "#/types/settings";
 import { useTracking } from "#/hooks/use-tracking";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
+import PluginsManagementService, {
+  type InstalledPluginInfo,
+} from "#/api/plugins-management-service";
+import { PLUGINS_QUERY_KEYS } from "#/hooks/query/query-keys";
+import { pluginReferenceKey } from "#/utils/plugin-display";
 import {
   getStoredConversationMetadata,
   setStoredConversationMetadata,
@@ -82,18 +87,47 @@ export const useCreateConversation = () => {
       // (app_conversation_id stays null until the sandbox is READY). Merge so
       // the repo/workspace metadata the service just persisted is preserved.
       const localConversationId = conversation.app_conversation_id;
-      // Persist explicitly-attached plugins (coordinates only — strip
-      // parameters, which may carry secrets) so the in-conversation plugins
-      // view can show what was attached; the agent-server doesn't return a
-      // live conversation's loaded plugins.
-      const attachedPlugins =
+      // Snapshot the conversation's plugins into client-side metadata so the
+      // in-conversation plugins view can show what's loaded (coordinates only
+      // — strip parameters, which may carry secrets). The agent-server doesn't
+      // return a live conversation's loaded plugins, so this snapshot is the
+      // source for that view. Two sources, deduped by coordinates:
+      //   1. plugins explicitly attached at creation (e.g. the /launch flow);
+      //   2. enabled installed plugins, which the SDK auto-loads into every new
+      //      local conversation (see use-set-plugin-enabled).
+      const explicitPlugins =
         plugins?.map((plugin) => ({
           source: plugin.source,
           ref: plugin.ref ?? null,
           repo_path: plugin.repo_path ?? null,
-        })) ?? null;
+        })) ?? [];
+      let attachedPlugins: PluginSpec[] = explicitPlugins;
+      if (localConversationId) {
+        let installed: InstalledPluginInfo[] = [];
+        try {
+          installed = await queryClient.ensureQueryData({
+            queryKey: PLUGINS_QUERY_KEYS.installed,
+            queryFn: () => PluginsManagementService.listInstalledPlugins(),
+          });
+        } catch {
+          // Best-effort: never let plugin lookup block conversation creation.
+        }
+        const seen = new Set(explicitPlugins.map(pluginReferenceKey));
+        const enabledInstalled = installed
+          .filter((plugin) => plugin.enabled)
+          .map((plugin) => ({
+            source: plugin.source,
+            ref: plugin.resolved_ref ?? null,
+            repo_path: plugin.repo_path ?? null,
+            // Keep the human-friendly name so the plugins view shows e.g.
+            // "city-weather" rather than deriving "local" from the source.
+            name: plugin.name,
+          }))
+          .filter((plugin) => !seen.has(pluginReferenceKey(plugin)));
+        attachedPlugins = [...explicitPlugins, ...enabledInstalled];
+      }
       const activeProfile = llmProfiles?.active_profile ?? null;
-      if (localConversationId && (activeProfile || attachedPlugins?.length)) {
+      if (localConversationId && (activeProfile || attachedPlugins.length)) {
         const prev = getStoredConversationMetadata(localConversationId);
         setStoredConversationMetadata(localConversationId, {
           selected_repository: prev?.selected_repository ?? null,
@@ -102,7 +136,7 @@ export const useCreateConversation = () => {
           selected_workspace: prev?.selected_workspace ?? null,
           workspace_mode: prev?.workspace_mode ?? null,
           active_profile: activeProfile ?? prev?.active_profile ?? null,
-          plugins: attachedPlugins?.length
+          plugins: attachedPlugins.length
             ? attachedPlugins
             : (prev?.plugins ?? null),
         });

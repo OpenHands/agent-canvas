@@ -32996,6 +32996,23 @@
     "uk": "Плагіни, явно додані на початку цієї розмови.",
     "ca": "Connectors adjuntats explícitament quan ha començat aquesta conversa."
   },
+  "PLUGINS_MODAL$SOURCE_LOCAL": {
+    "en": "Local",
+    "ja": "ローカル",
+    "zh-CN": "本地",
+    "zh-TW": "本機",
+    "ko-KR": "로컬",
+    "no": "Lokal",
+    "it": "Locale",
+    "pt": "Local",
+    "es": "Local",
+    "ar": "محلي",
+    "fr": "Local",
+    "tr": "Yerel",
+    "de": "Lokal",
+    "uk": "Локальний",
+    "ca": "Local"
+  },
   "PLUGINS_MODAL$EMPTY": {
     "en": "No plugins attached to this conversation.",
     "ja": "この会話に添付されたプラグインはありません。",

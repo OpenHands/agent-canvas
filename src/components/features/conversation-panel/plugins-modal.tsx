@@ -9,6 +9,7 @@ import { useConversationPlugins } from "#/hooks/use-conversation-plugins";
 import {
   getPluginDisplayName,
   getPluginSourceLabel,
+  isLocalPluginSource,
   pluginReferenceKey,
 } from "#/utils/plugin-display";
 
@@ -17,10 +18,11 @@ interface PluginsModalProps {
 }
 
 /**
- * Display-only view of the plugins explicitly attached to the current
- * conversation at creation. Mirrors {@link SkillsModal}. The agent-server
- * doesn't expose a live conversation's loaded plugins, so this reads the
- * client-side metadata and shows attached plugins only.
+ * Display-only view of the plugins loaded into the current conversation,
+ * captured in client-side metadata at creation (explicitly attached plugins
+ * plus the enabled installed plugins the SDK auto-loads). Mirrors
+ * {@link SkillsModal}. The agent-server doesn't expose a live conversation's
+ * loaded plugins, so this reads that client-side snapshot.
  */
 export function PluginsModal({ onClose }: PluginsModalProps) {
   const { t } = useTranslation("openhands");
@@ -60,7 +62,9 @@ export function PluginsModal({ onClose }: PluginsModalProps) {
                     {getPluginDisplayName(plugin)}
                   </Typography.Text>
                   <Typography.Text className="text-xs text-tertiary-alt">
-                    {getPluginSourceLabel(plugin)}
+                    {isLocalPluginSource(plugin)
+                      ? t(I18nKey.PLUGINS_MODAL$SOURCE_LOCAL)
+                      : getPluginSourceLabel(plugin)}
                   </Typography.Text>
                 </li>
               ))}
