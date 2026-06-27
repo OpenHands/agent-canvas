@@ -149,7 +149,42 @@ describe("AgentSettingsScreen", () => {
     expect(call.agent_settings_diff).toEqual({
       agent_kind: "openhands",
       enable_sub_agents: true,
+      tool_concurrency_limit: 1,
     });
+  });
+
+  it("saves tool_concurrency_limit when changed on the OpenHands path", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          agent_kind: "openhands",
+          enable_sub_agents: false,
+          tool_concurrency_limit: 1,
+        },
+      }),
+    );
+    const save = vi.spyOn(SettingsService, "saveSettings");
+
+    renderAgentSettingsScreen();
+    await screen.findByTestId("agent-settings-screen");
+
+    const input = screen.getByTestId("sdk-settings-tool_concurrency_limit");
+    await user.clear(input);
+    await user.type(input, "4");
+
+    await user.click(screen.getByTestId("agent-save-button"));
+
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledTimes(1);
+    });
+    const call = save.mock.calls[0]?.[0] as {
+      agent_settings_diff?: Record<string, unknown>;
+    };
+    // Coerced to a number (not the raw input string) via the shared
+    // schema-driven coercion.
+    expect(call.agent_settings_diff?.tool_concurrency_limit).toBe(4);
   });
 
   it("hides sub-agents toggle when ACP is selected", async () => {
@@ -231,7 +266,7 @@ describe("AgentSettingsScreen", () => {
 
     await screen.findByTestId("agent-command-input");
     expect(screen.getByLabelText("SETTINGS$AGENT_MODEL")).toHaveValue(
-      "Claude Opus 4.8",
+      "Claude Opus 4.8 (1M)",
     );
   });
 
@@ -262,7 +297,7 @@ describe("AgentSettingsScreen", () => {
     const call = save.mock.calls[0]?.[0] as {
       agent_settings_diff?: Record<string, unknown>;
     };
-    expect(call.agent_settings_diff?.acp_model).toBe("claude-haiku-4-5");
+    expect(call.agent_settings_diff?.acp_model).toBe("haiku");
   });
 
   it("clears the model when switching from a built-in provider to Custom", async () => {
@@ -289,7 +324,7 @@ describe("AgentSettingsScreen", () => {
     await screen.findByTestId("agent-command-input");
     // Form loads with the Claude Code default visible.
     expect(screen.getByLabelText("SETTINGS$AGENT_MODEL")).toHaveValue(
-      "Claude Opus 4.8",
+      "Claude Opus 4.8 (1M)",
     );
 
     // Switch to the Custom preset, then enter a different command — the
@@ -345,18 +380,18 @@ describe("AgentSettingsScreen", () => {
     renderAgentSettingsScreen();
     await screen.findByTestId("agent-command-input");
     expect(screen.getByLabelText("SETTINGS$AGENT_MODEL")).toHaveValue(
-      "Claude Opus 4.8",
+      "Claude Opus 4.8 (1M)",
     );
 
     const commandInput = screen.getByTestId(
       "agent-command-input",
     ) as HTMLTextAreaElement;
     await user.clear(commandInput);
-    await user.type(commandInput, "npx -y @zed-industries/codex-acp@0.15.0");
+    await user.type(commandInput, "npx -y @zed-industries/codex-acp@0.16.0");
 
     // The model field now reflects the Codex default, not the stale Claude one.
     expect(screen.getByLabelText("SETTINGS$AGENT_MODEL")).toHaveValue(
-      "GPT-5.5 (medium)",
+      "GPT-5.5",
     );
 
     await user.click(screen.getByTestId("agent-save-button"));
@@ -368,7 +403,7 @@ describe("AgentSettingsScreen", () => {
       agent_settings_diff?: Record<string, unknown>;
     };
     expect(call.agent_settings_diff?.acp_server).toBe("codex");
-    expect(call.agent_settings_diff?.acp_model).toBe("gpt-5.5/medium");
+    expect(call.agent_settings_diff?.acp_model).toBe("gpt-5.5");
   });
 
   it("saves an ACP diff when switching to ACP + Claude Code", async () => {
@@ -397,10 +432,10 @@ describe("AgentSettingsScreen", () => {
       "agent-command-input",
     )) as HTMLTextAreaElement;
     expect(commandInput.value).toBe(
-      "npx -y @agentclientprotocol/claude-agent-acp@0.30.0",
+      "npx -y @agentclientprotocol/claude-agent-acp@0.44.0",
     );
     expect(screen.getByLabelText("SETTINGS$AGENT_MODEL")).toHaveValue(
-      "Claude Opus 4.8",
+      "Claude Opus 4.8 (1M)",
     );
 
     await user.click(screen.getByTestId("agent-save-button"));
@@ -422,7 +457,7 @@ describe("AgentSettingsScreen", () => {
       // ``acp_args`` can't survive and concatenate onto the spawn
       // command at conversation-create time.
       acp_args: [],
-      acp_model: "claude-opus-4-8",
+      acp_model: "opus[1m]",
     });
   });
 
@@ -460,6 +495,7 @@ describe("AgentSettingsScreen", () => {
     expect(call.agent_settings_diff).toEqual({
       agent_kind: "openhands",
       enable_sub_agents: false,
+      tool_concurrency_limit: 1,
     });
   });
 
@@ -589,7 +625,7 @@ describe("AgentSettingsScreen", () => {
       "agent-command-input",
     )) as HTMLTextAreaElement;
     expect(cmd.value).toBe(
-      "npx -y @agentclientprotocol/claude-agent-acp@0.30.0 --extra-arg",
+      "npx -y @agentclientprotocol/claude-agent-acp@0.44.0 --extra-arg",
     );
 
     // Touch the form to mark it dirty (Save is disabled until isDirty),
@@ -611,7 +647,7 @@ describe("AgentSettingsScreen", () => {
     expect(call.agent_settings_diff?.acp_command).toEqual([
       "npx",
       "-y",
-      "@agentclientprotocol/claude-agent-acp@0.30.0",
+      "@agentclientprotocol/claude-agent-acp@0.44.0",
       "--extra-arg",
     ]);
     // ``acp_args: []`` resets the API-set args so they don't double up
