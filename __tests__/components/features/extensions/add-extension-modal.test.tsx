@@ -76,7 +76,7 @@ describe("AddExtensionModal", () => {
         {
           name: "hello-sidebar",
           description: "Adds a Hello panel.",
-          bundleUrl: "https://raw.example/hello-sidebar",
+          installSource: "https://raw.example/hello-sidebar",
         },
       ],
     });

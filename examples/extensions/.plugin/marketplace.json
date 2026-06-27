@@ -14,6 +14,23 @@
       "version": "1.0.0",
       "author": { "name": "Acme" },
       "homepage": "https://example.com/hello-sidebar"
+    },
+    {
+      "name": "hello-npm",
+      "source": "npm:@acme/hello-extension@^1",
+      "description": "Versioned: published to npm, loaded via jsDelivr at a pinned version.",
+      "author": { "name": "Acme" }
+    },
+    {
+      "name": "hello-gh-monorepo",
+      "source": {
+        "source": "gh",
+        "repo": "acme/extensions",
+        "path": "packages/hello",
+        "ref": "^2"
+      },
+      "description": "Versioned: a GitHub repo at a tag; 'path' selects one extension in a monorepo.",
+      "author": { "name": "Acme" }
     }
   ]
 }

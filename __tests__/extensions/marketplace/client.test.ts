@@ -18,6 +18,20 @@ const CATALOG = {
       version: "1.0.0",
       author: { name: "Acme" },
     },
+    {
+      name: "versioned-npm",
+      source: "npm:@acme/hello@^1",
+      version: "1.2.0",
+    },
+    {
+      name: "versioned-gh",
+      source: {
+        source: "gh",
+        repo: "acme/exts",
+        path: "packages/hello",
+        ref: "^2",
+      },
+    },
   ],
 };
 
@@ -42,8 +56,24 @@ describe("fetchMarketplace", () => {
         version: "1.0.0",
         author: "Acme",
         homepage: undefined,
-        bundleUrl:
+        installSource:
           "https://raw.githubusercontent.com/acme/repo/main/hello-sidebar",
+      },
+      {
+        name: "versioned-npm",
+        description: undefined,
+        version: "1.2.0",
+        author: undefined,
+        homepage: undefined,
+        installSource: "npm:@acme/hello@^1",
+      },
+      {
+        name: "versioned-gh",
+        description: undefined,
+        version: undefined,
+        author: undefined,
+        homepage: undefined,
+        installSource: "gh:acme/exts/packages/hello@^2",
       },
     ]);
   });

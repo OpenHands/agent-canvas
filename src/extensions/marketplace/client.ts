@@ -3,7 +3,7 @@
  * UI-extension entries, resolved to bundle URLs ready for the install/consent flow.
  */
 
-import { parseCatalog, resolveEntryBundleUrl } from "./catalog";
+import { parseCatalog, resolveEntryInstallSource } from "./catalog";
 import { marketplaceCatalogCandidates, parseMarketplaceSource } from "./source";
 
 export interface UiExtensionListing {
@@ -12,8 +12,11 @@ export interface UiExtensionListing {
   version?: string;
   author?: string;
   homepage?: string;
-  /** Raw base URL of the bundle directory. */
-  bundleUrl: string;
+  /**
+   * The install source handed to the installer: a versioned source ref (`npm:…`/`gh:…`)
+   * when the entry declares one, otherwise a resolved raw bundle URL.
+   */
+  installSource: string;
 }
 
 export interface MarketplaceResult {
@@ -68,15 +71,15 @@ export async function fetchMarketplace(
 
   const listings: UiExtensionListing[] = [];
   for (const entry of parsed.catalog.uiExtensions ?? []) {
-    const bundleUrl = resolveEntryBundleUrl(source, catalogUrl, entry);
-    if (!bundleUrl) continue;
+    const installSource = resolveEntryInstallSource(source, catalogUrl, entry);
+    if (!installSource) continue;
     listings.push({
       name: entry.name,
       description: entry.description,
       version: entry.version,
       author: entry.author?.name,
       homepage: entry.homepage,
-      bundleUrl,
+      installSource,
     });
   }
 

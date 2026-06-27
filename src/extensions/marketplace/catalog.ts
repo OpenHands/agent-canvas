@@ -44,8 +44,37 @@ export interface UrlEntrySource {
   sha?: string;
 }
 
-/** A plugin entry's source: a string path (relative to the catalog repo) or an object. */
-export type EntrySource = string | GithubEntrySource | UrlEntrySource;
+/** A versioned npm package source (resolved via the source-ref pipeline). */
+export interface NpmEntrySource {
+  source: "npm";
+  name: string;
+  range?: string;
+}
+
+/** A versioned GitHub source (resolved via the source-ref pipeline). `repo` is `owner/repo`. */
+export interface GhEntrySource {
+  source: "gh";
+  repo: string;
+  /** Subdirectory within the repo (monorepo support). */
+  path?: string;
+  /** Semver range / tag. */
+  ref?: string;
+}
+
+/**
+ * A plugin entry's source. A **string** is either a versioned source ref
+ * (`npm:…`, `gh:…`), an absolute `https://` bundle URL, or a path relative to the
+ * catalog repo (legacy). The object forms are explicit equivalents.
+ */
+export type EntrySource =
+  | string
+  | GithubEntrySource
+  | UrlEntrySource
+  | NpmEntrySource
+  | GhEntrySource;
+
+/** A string source that is a versioned ref or absolute URL, not a repo-relative path. */
+const DIRECT_SOURCE_PATTERN = /^(npm:|gh:|https?:\/\/)/i;
 
 export interface MarketplaceEntry {
   name: string;
@@ -85,7 +114,7 @@ function validateEntrySource(value: unknown, path: string, errors: string[]) {
     return;
   }
   const kind = value.source;
-  if (kind === "github") {
+  if (kind === "github" || kind === "gh") {
     if (typeof value.repo !== "string" || !value.repo.includes("/")) {
       errors.push(`${path}.repo: expected "owner/repo"`);
     }
@@ -93,8 +122,12 @@ function validateEntrySource(value: unknown, path: string, errors: string[]) {
     if (typeof value.url !== "string" || !value.url) {
       errors.push(`${path}.url: expected a non-empty string`);
     }
+  } else if (kind === "npm") {
+    if (typeof value.name !== "string" || !value.name) {
+      errors.push(`${path}.name: expected a non-empty string`);
+    }
   } else {
-    errors.push(`${path}.source: expected "github" or "url"`);
+    errors.push(`${path}.source: expected "npm", "gh", "github", or "url"`);
   }
 }
 
@@ -182,10 +215,52 @@ export function resolveEntryBundleUrl(
   }
 
   // entrySource.source === "url": only github web URLs can be mapped to a raw base.
-  const gh = githubUrlToSource(entrySource.url);
-  if (gh) {
-    if (entrySource.ref) gh.ref = entrySource.ref;
-    return rawGithubUrl(gh, githubUrlPath(entrySource.url) ?? "");
+  if (entrySource.source === "url") {
+    const gh = githubUrlToSource(entrySource.url);
+    if (gh) {
+      if (entrySource.ref) gh.ref = entrySource.ref;
+      return rawGithubUrl(gh, githubUrlPath(entrySource.url) ?? "");
+    }
   }
   return null;
+}
+
+/**
+ * Resolve a UI-extension entry to the **install source string** handed to the installer
+ * — a versioned source ref (`npm:…`/`gh:…`) when the entry declares one, otherwise the
+ * resolved raw bundle URL (legacy, unversioned). Returns null when it can't be installed
+ * directly from the browser.
+ *
+ * Preferring a ref keeps the install versioned end-to-end (jsDelivr resolution +
+ * `engines` enforcement + update detection); legacy relative/github/url entries continue
+ * to work as pinned-by-branch raw URLs.
+ */
+export function resolveEntryInstallSource(
+  source: MarketplaceSource,
+  catalogUrl: string,
+  entry: MarketplaceEntry,
+): string | null {
+  const entrySource = entry.source;
+
+  if (typeof entrySource === "string") {
+    if (DIRECT_SOURCE_PATTERN.test(entrySource.trim())) {
+      return entrySource.trim();
+    }
+    return resolveEntryBundleUrl(source, catalogUrl, entry);
+  }
+
+  if (entrySource.source === "npm") {
+    return `npm:${entrySource.name}${entrySource.range ? `@${entrySource.range}` : ""}`;
+  }
+
+  if (entrySource.source === "gh") {
+    const path = entrySource.path
+      ? `/${entrySource.path.replace(/^\/+/, "").replace(/\/+$/, "")}`
+      : "";
+    const ref = entrySource.ref ? `@${entrySource.ref}` : "";
+    return `gh:${entrySource.repo}${path}${ref}`;
+  }
+
+  // Legacy github/url object sources: fall back to a resolved raw URL.
+  return resolveEntryBundleUrl(source, catalogUrl, entry);
 }

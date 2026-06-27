@@ -210,12 +210,12 @@ export function AddExtensionModal({ onClose }: AddExtensionModalProps) {
                     </li>
                   ) : (
                     listings.map((listing) => (
-                      <li key={listing.bundleUrl}>
+                      <li key={listing.installSource}>
                         <button
                           type="button"
                           data-testid={`marketplace-listing-${listing.name}`}
                           disabled={isPending}
-                          onClick={() => reviewTarget(listing.bundleUrl)}
+                          onClick={() => reviewTarget(listing.installSource)}
                           className="w-full rounded-lg border border-[var(--oh-border)] p-3 text-left hover:border-primary disabled:opacity-50"
                         >
                           <span className="block truncate text-sm font-medium text-white">

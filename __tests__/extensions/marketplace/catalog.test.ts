@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseCatalog,
   resolveEntryBundleUrl,
+  resolveEntryInstallSource,
   type MarketplaceEntry,
 } from "#/extensions/marketplace/catalog";
 import type { MarketplaceSource } from "#/extensions/marketplace/source";
@@ -100,5 +101,99 @@ describe("resolveEntryBundleUrl", () => {
         entry,
       ),
     ).toBe("https://cdn.example/repo/hello");
+  });
+});
+
+describe("resolveEntryInstallSource", () => {
+  const catalogUrl =
+    "https://raw.githubusercontent.com/acme/repo/main/.plugin/marketplace.json";
+
+  it("returns string npm/gh refs verbatim", () => {
+    expect(
+      resolveEntryInstallSource(github, catalogUrl, {
+        name: "x",
+        source: "npm:@acme/hello@^1",
+      }),
+    ).toBe("npm:@acme/hello@^1");
+    expect(
+      resolveEntryInstallSource(github, catalogUrl, {
+        name: "x",
+        source: "gh:acme/exts/packages/hello@^2",
+      }),
+    ).toBe("gh:acme/exts/packages/hello@^2");
+  });
+
+  it("returns absolute https string sources verbatim", () => {
+    expect(
+      resolveEntryInstallSource(github, catalogUrl, {
+        name: "x",
+        source: "https://cdn.example/ext",
+      }),
+    ).toBe("https://cdn.example/ext");
+  });
+
+  it("builds a ref from an npm object source", () => {
+    expect(
+      resolveEntryInstallSource(github, catalogUrl, {
+        name: "x",
+        source: { source: "npm", name: "@acme/hello", range: "^1" },
+      }),
+    ).toBe("npm:@acme/hello@^1");
+    expect(
+      resolveEntryInstallSource(github, catalogUrl, {
+        name: "x",
+        source: { source: "npm", name: "hello" },
+      }),
+    ).toBe("npm:hello");
+  });
+
+  it("builds a ref from a gh object source, trimming the subpath", () => {
+    expect(
+      resolveEntryInstallSource(github, catalogUrl, {
+        name: "x",
+        source: {
+          source: "gh",
+          repo: "acme/exts",
+          path: "/packages/hello/",
+          ref: "^2",
+        },
+      }),
+    ).toBe("gh:acme/exts/packages/hello@^2");
+    expect(
+      resolveEntryInstallSource(github, catalogUrl, {
+        name: "x",
+        source: { source: "gh", repo: "acme/hello" },
+      }),
+    ).toBe("gh:acme/hello");
+  });
+
+  it("falls back to a resolved raw URL for relative/legacy sources", () => {
+    expect(
+      resolveEntryInstallSource(github, catalogUrl, {
+        name: "x",
+        source: "./hello",
+      }),
+    ).toBe("https://raw.githubusercontent.com/acme/repo/main/hello");
+  });
+
+  it("accepts npm and gh object sources in catalog validation", () => {
+    const result = parseCatalog({
+      name: "x",
+      owner: { name: "y" },
+      uiExtensions: [
+        { name: "a", source: { source: "npm", name: "@acme/hello" } },
+        { name: "b", source: { source: "gh", repo: "acme/exts", path: "p" } },
+      ],
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects an npm object source without a name", () => {
+    const result = parseCatalog({
+      name: "x",
+      owner: { name: "y" },
+      uiExtensions: [{ name: "a", source: { source: "npm" } }],
+    });
+    expect(result.ok).toBe(false);
   });
 });
