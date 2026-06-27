@@ -1,4 +1,3 @@
-import type { IntegrationCatalogEntry } from "@openhands/extensions/integrations";
 import {
   McpLogoBadge,
   type McpLogoEntry,
@@ -9,12 +8,7 @@ const STACK_CONTAINER_CLASS_NAME =
   "inline-flex h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-surface-raised shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]";
 
 interface McpLogoStackBadgeProps {
-  entries: Array<
-    Pick<
-      IntegrationCatalogEntry,
-      "id" | "name" | "iconBg" | "iconColor" | "logoUrl"
-    >
-  >;
+  entries: McpLogoEntry[];
   className?: string;
   testId?: string;
 }

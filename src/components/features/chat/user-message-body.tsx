@@ -80,6 +80,7 @@ export function UserMessageBody({
         <MarkdownRenderer
           includeStandard
           includeHeadings
+          allowHtml={false}
           components={chatBubbleMarkdownComponents}
         >
           {message}
