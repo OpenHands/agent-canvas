@@ -62,4 +62,37 @@ describe("chooseOpenHandsFallbackModel", () => {
 
     expect(chooseOpenHandsFallbackModel("gpt-4o", available)).toBe("GPT-4O");
   });
+
+  it("resolves a bare alias to a provider-prefixed catalog id", () => {
+    // The proxy's /v1/models lists underlying-provider-prefixed ids while the
+    // dropdown offers the bare verified name. See issue #1111.
+    const available = [
+      "anthropic/claude-sonnet-4-5",
+      "anthropic/claude-haiku-4-5",
+    ];
+
+    expect(chooseOpenHandsFallbackModel("claude-sonnet-4-5", available)).toBe(
+      "anthropic/claude-sonnet-4-5",
+    );
+  });
+
+  it("resolves a bare alias to the latest dated provider-prefixed id", () => {
+    const available = [
+      "anthropic/claude-sonnet-4-5-20250101",
+      "anthropic/claude-sonnet-4-5-20250929",
+      "anthropic/claude-opus-4-5-20251101",
+    ];
+
+    expect(chooseOpenHandsFallbackModel("claude-sonnet-4-5", available)).toBe(
+      "anthropic/claude-sonnet-4-5-20250929",
+    );
+  });
+
+  it("prefers an exact bare id over a provider-prefixed variant", () => {
+    const available = ["claude-sonnet-4-5", "anthropic/claude-sonnet-4-5"];
+
+    expect(chooseOpenHandsFallbackModel("claude-sonnet-4-5", available)).toBe(
+      "claude-sonnet-4-5",
+    );
+  });
 });

@@ -1,8 +1,10 @@
 import { describe, expect, it, vi, beforeEach, type Mock } from "vitest";
+import { http, HttpResponse } from "msw";
 import { AxiosError } from "axios";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "test-utils";
+import { server } from "#/mocks/node";
 import {
   LlmSettingsLocalView,
   shouldReapplyProfileAfterSave,
@@ -631,6 +633,122 @@ describe("LlmSettingsLocalView", () => {
       expect(savedLlm.temperature).toBe(0.7);
       expect(savedLlm.model).toBe("anthropic/claude-opus-4-5-20251101");
       expect(savedLlm.api_key).toBe("gAAAA_encrypted_key");
+    });
+  });
+
+  describe("model resolution on save", () => {
+    it("resolves an OpenHands alias to a callable catalog id when a key is entered", async () => {
+      // Arrange — a profile whose model is the bare OpenHands alias that the
+      // proxy rejects at runtime (issue #1111). The proxy's /v1/models lists the
+      // underlying-provider-prefixed id instead. When the user enters a usable
+      // API key, the save flow should resolve the alias to that callable id.
+      const user = userEvent.setup();
+      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
+        name: "gpt-4-profile",
+        api_key_set: true,
+        config: {
+          model: "openhands/claude-sonnet-4-5",
+          api_key: "gAAAA_encrypted_key",
+          base_url: OPENHANDS_LLM_PROXY_BASE_URL,
+        },
+      });
+      mockSaveMutateAsync.mockResolvedValueOnce({ success: true });
+
+      let modelsCalls = 0;
+      let capturedAuth: string | null = null;
+      server.use(
+        http.get(
+          "https://llm-proxy.app.all-hands.dev/v1/models",
+          ({ request }) => {
+            modelsCalls += 1;
+            capturedAuth = request.headers.get("authorization");
+            return HttpResponse.json({
+              data: [
+                { id: "anthropic/claude-sonnet-4-5" },
+                { id: "anthropic/claude-haiku-4-5" },
+              ],
+            });
+          },
+        ),
+      );
+
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      // Act — open the profile, force the Basic tab, type a fresh API key, save.
+      await user.click(screen.getAllByTestId("profile-menu-trigger")[0]);
+      await user.click(screen.getByTestId("profile-edit"));
+      await waitFor(() => {
+        expect(screen.getByTestId("profile-name-input")).toHaveValue(
+          "gpt-4-profile",
+        );
+      });
+      await user.click(await screen.findByTestId("sdk-section-basic-toggle"));
+      const apiKeyInput = await screen.findByTestId("llm-api-key-input");
+      await user.clear(apiKeyInput);
+      await user.type(apiKeyInput, "sk-fresh-key");
+      await waitFor(() => {
+        expect(screen.getByTestId("save-profile-btn")).not.toBeDisabled();
+      });
+      await user.click(screen.getByTestId("save-profile-btn"));
+
+      // Assert — the key's /v1/models was queried with the typed bearer token,
+      // and the persisted model is the resolved, callable catalog id.
+      await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
+      expect(modelsCalls).toBe(1);
+      expect(capturedAuth).toBe("Bearer sk-fresh-key");
+
+      const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
+      expect(savedLlm.model).toBe("openhands/anthropic/claude-sonnet-4-5");
+    });
+
+    it("does not query /v1/models when no fresh API key is entered", async () => {
+      // Arrange — edit a profile and change only a non-key field. With no usable
+      // raw credential, resolution must be skipped (the preserved key is the
+      // encrypted token) and the model persisted unchanged.
+      const user = userEvent.setup();
+      vi.mocked(ProfilesService.getProfile).mockResolvedValue({
+        name: "gpt-4-profile",
+        api_key_set: true,
+        config: {
+          model: "openhands/claude-sonnet-4-5",
+          api_key: "gAAAA_encrypted_key",
+          base_url: OPENHANDS_LLM_PROXY_BASE_URL,
+        },
+      });
+      mockSaveMutateAsync.mockResolvedValueOnce({ success: true });
+
+      let modelsCalls = 0;
+      server.use(
+        http.get("https://llm-proxy.app.all-hands.dev/v1/models", () => {
+          modelsCalls += 1;
+          return HttpResponse.json({ data: [] });
+        }),
+      );
+
+      renderWithProviders(<LlmSettingsLocalView />);
+
+      await user.click(screen.getAllByTestId("profile-menu-trigger")[0]);
+      await user.click(screen.getByTestId("profile-edit"));
+      await waitFor(() => {
+        expect(screen.getByTestId("profile-name-input")).toHaveValue(
+          "gpt-4-profile",
+        );
+      });
+      await user.click(await screen.findByTestId("sdk-section-all-toggle"));
+      const temperatureInput = await screen.findByTestId(
+        "sdk-settings-llm.temperature",
+      );
+      await user.clear(temperatureInput);
+      await user.type(temperatureInput, "0.5");
+      await waitFor(() => {
+        expect(screen.getByTestId("save-profile-btn")).not.toBeDisabled();
+      });
+      await user.click(screen.getByTestId("save-profile-btn"));
+
+      await waitFor(() => expect(mockSaveMutateAsync).toHaveBeenCalled());
+      expect(modelsCalls).toBe(0);
+      const savedLlm = mockSaveMutateAsync.mock.calls[0][0].request.llm;
+      expect(savedLlm.model).toBe("openhands/claude-sonnet-4-5");
     });
   });
 });

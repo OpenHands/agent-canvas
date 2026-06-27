@@ -44,14 +44,19 @@ export const parseModelIdsFromModelsResponse = (payload: unknown): string[] => {
   return Array.from(unique);
 };
 
+const lastModelSegment = (model: string): string =>
+  model.split("/").pop() ?? model;
+
 export const chooseOpenHandsFallbackModel = (
   requestedModel: string,
   availableModels: string[],
 ): string | null => {
+  // 1. Exact id match.
   if (availableModels.includes(requestedModel)) {
     return requestedModel;
   }
 
+  // 2. Case-insensitive id match.
   const caseInsensitiveMatch = availableModels.find(
     (model) => model.toLowerCase() === requestedModel.toLowerCase(),
   );
@@ -59,8 +64,32 @@ export const chooseOpenHandsFallbackModel = (
     return caseInsensitiveMatch;
   }
 
+  // 3. Provider-prefixed match. A key's `/v1/models` catalog frequently lists
+  //    ids with an underlying-provider prefix (e.g. `anthropic/claude-sonnet-4-5`)
+  //    while the verified OpenHands list / dropdown offers the bare name
+  //    (`claude-sonnet-4-5`). Compare the trailing path segment so the bare
+  //    request still resolves to the callable prefixed id instead of falling
+  //    through and persisting the unusable alias.
+  const requestedSegment = lastModelSegment(requestedModel).toLowerCase();
+  const segmentMatch = availableModels.find(
+    (model) => lastModelSegment(model).toLowerCase() === requestedSegment,
+  );
+  if (segmentMatch) {
+    return segmentMatch;
+  }
+
+  // 4. Dated variants — match either the full id or the trailing segment
+  //    (e.g. request `claude-sonnet-4-5` -> `claude-sonnet-4-5-20250929` or
+  //    `anthropic/claude-sonnet-4-5-20250929`). Prefer the newest by descending
+  //    sort.
+  const datedPrefix = `${requestedModel}-`;
+  const datedSegmentPrefix = `${lastModelSegment(requestedModel)}-`;
   const datedMatches = availableModels
-    .filter((model) => model.startsWith(`${requestedModel}-`))
+    .filter(
+      (model) =>
+        model.startsWith(datedPrefix) ||
+        lastModelSegment(model).startsWith(datedSegmentPrefix),
+    )
     .sort((a, b) => b.localeCompare(a));
 
   return datedMatches[0] ?? null;

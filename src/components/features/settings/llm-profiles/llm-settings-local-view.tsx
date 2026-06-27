@@ -39,6 +39,8 @@ import {
   OPENHANDS_LLM_PROXY_BASE_URL,
   isOpenHandsProviderModel,
 } from "#/utils/openhands-llm";
+import { extractModelAndProvider } from "#/utils/extract-model-and-provider";
+import { resolveOpenHandsModelForApiKey } from "#/utils/resolve-openhands-model";
 
 type ViewMode = "list" | "create" | "edit";
 
@@ -287,6 +289,38 @@ export function LlmSettingsLocalView() {
     if (!model) {
       displayErrorToast(t(I18nKey.SETTINGS$MODEL_REQUIRED));
       return;
+    }
+
+    // Resolve the chosen model against the API key before persisting, so we
+    // don't save an OpenHands alias the key isn't entitled to call — otherwise
+    // the first conversation fails at runtime with a LiteLLM
+    // "Invalid model name" error (see issue #1111). Mirrors the onboarding
+    // flow's `persistAsProfile`.
+    //
+    // We only resolve with a freshly entered key (a new profile, or a replaced
+    // key). Resolution calls the provider's `/v1/models` with that key as a
+    // bearer token, which only works with a usable raw credential — in edit mode
+    // the preserved `api_key` is the agent-server's encrypted token, so we skip
+    // resolution when the key is unchanged. Resolution is best-effort:
+    // `resolveOpenHandsModelForApiKey` returns the requested model unchanged on
+    // any failure.
+    const existingApiKey =
+      typeof baseConfig.api_key === "string" ? baseConfig.api_key : "";
+    const candidateApiKey =
+      typeof llmConfig.api_key === "string" ? llmConfig.api_key.trim() : "";
+    const hasFreshApiKey =
+      candidateApiKey !== "" && candidateApiKey !== existingApiKey;
+    const { provider, model: providerModel } = extractModelAndProvider(model);
+    if (hasFreshApiKey && provider && providerModel) {
+      const baseUrlForResolve =
+        typeof llmConfig.base_url === "string" ? llmConfig.base_url : undefined;
+      const resolvedModelId = await resolveOpenHandsModelForApiKey({
+        provider,
+        requestedModel: providerModel,
+        apiKey: candidateApiKey,
+        baseUrl: baseUrlForResolve,
+      });
+      llmConfig.model = `${provider}/${resolvedModelId}`;
     }
 
     const trimmedName = profileName.trim();
