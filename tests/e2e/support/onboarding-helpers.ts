@@ -134,12 +134,61 @@ export async function getOnboardingStepLayout(
   page: Page,
 ): Promise<OnboardingStepLayout> {
   await waitForOnboardingStep(page, ONBOARDING_BACKEND_STEP);
-  const hasBackendStep = await page
-    .getByTestId("onboarding-step-check-backend")
-    .isVisible()
-    .catch(() => false);
 
-  return hasBackendStep
+  const firstStep: { value: "agent" | "backend" | "pending" } = {
+    value: "pending",
+  };
+
+  await expect
+    .poll(
+      async () => {
+        if (
+          await page
+            .getByTestId("onboarding-step-choose-agent")
+            .isVisible()
+            .catch(() => false)
+        ) {
+          firstStep.value = "agent";
+          return firstStep.value;
+        }
+
+        const backendStepVisible = await page
+          .getByTestId("onboarding-step-check-backend")
+          .isVisible()
+          .catch(() => false);
+
+        if (!backendStepVisible) {
+          firstStep.value = "pending";
+          return firstStep.value;
+        }
+
+        const backendStepReady = await Promise.all([
+          page
+            .getByTestId("onboarding-backend-connected")
+            .isVisible()
+            .catch(() => false),
+          page
+            .getByTestId("onboarding-backend-disconnected")
+            .isVisible()
+            .catch(() => false),
+          page
+            .getByTestId("onboarding-backend-next")
+            .isVisible()
+            .catch(() => false),
+        ]).then((states) => states.some(Boolean));
+
+        firstStep.value = backendStepReady ? "backend" : "pending";
+        return firstStep.value;
+      },
+      {
+        message:
+          "onboarding should settle on either backend setup or agent selection",
+        timeout: 15_000,
+      },
+    )
+    .toMatch(/^(agent|backend)$/);
+
+  return firstStep.value === "backend"
     ? {
         hasBackendStep: true,
         agentStep: ONBOARDING_AGENT_STEP,
