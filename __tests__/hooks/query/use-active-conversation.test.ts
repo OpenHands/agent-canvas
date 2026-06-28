@@ -11,12 +11,9 @@
  * the hook picks up the PAUSED → RUNNING transition within ~3 s regardless of
  * whether conversation_url is present.
  *
- * Issue #1508: the title is generated asynchronously a few seconds after the
- * conversation starts, by which point conversation_url is already set — so the
- * header title only refreshed on the slow 30 s tick. The callback now also
- * fast-polls while the title is still unset AND the agent is actively
- * executing, bounded by isExecutionActive so terminal/paused titleless
- * conversations don't fast-poll forever.
+ * It also fast-polls while the title is still unset and the agent is actively
+ * executing, so the header title (which lands asynchronously) refreshes within
+ * ~3 s instead of on the slow 30 s tick.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
@@ -168,9 +165,9 @@ describe("useActiveConversation — refetchInterval callback", () => {
     expect(intervalFn(makeQuery(undefined))).toBe(30000);
   });
 
-  // ── Issue #1508: fast-poll until the title is set ──────────────────────────
+  // ── fast-poll until the title is set ───────────────────────────────────────
 
-  it("returns 3000 when title is unset and the agent is actively executing (#1508)", () => {
+  it("returns 3000 when title is unset and the agent is actively executing", () => {
     const intervalFn = renderAndCaptureIntervalFn();
 
     const result = intervalFn(

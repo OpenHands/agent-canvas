@@ -16,18 +16,10 @@ export const useActiveConversation = () => {
 
   const userConversation = useUserConversation(
     actualConversationId,
-    // Poll at 3 s while the sandbox URL is absent OR while the sandbox is
-    // PAUSED. A paused sandbox still carries the old conversation_url (it isn't
-    // cleared), so checking only for a missing URL would leave us on the slow
-    // 30 s interval while the sandbox is waking up after a resume call.
-    //
-    // Also fast-poll while the conversation has no title yet but the agent is
-    // still actively executing. The title is generated asynchronously shortly
-    // after the conversation starts — by then conversation_url is already set,
-    // so without this the header title would only refresh on the slow 30 s tick
-    // (issue #1508). Gating on isExecutionActive bounds the fast poll to the
-    // window where a title can still appear, so terminal/paused conversations
-    // that never received a title don't poll at 3 s forever.
+    // Fast-poll (3 s) while: the sandbox URL is absent; the sandbox is PAUSED
+    // (it keeps the stale conversation_url, so a missing-URL check alone misses
+    // the wake-up); or the agent is executing but has no title yet (the title
+    // lands asynchronously after conversation_url is already set).
     (query) => {
       const data = query.state.data;
       if (
