@@ -25,6 +25,9 @@ import {
   TOAST_OPTIONS,
 } from "#/utils/custom-toast-handlers";
 import { getWorkspacesUnsupportedMessage } from "#/utils/workspaces-compatibility";
+import type { PluginSpec } from "#/api/conversation-service/agent-server-conversation-service.types";
+import { PluginPickerModal } from "#/components/features/plugins/plugin-picker-modal";
+import { PluginPickerTrigger } from "#/components/features/plugins/plugin-picker-trigger";
 import { HomeHeaderTitle } from "./home-header/home-header-title";
 import { HomeProjectSelector } from "./home-project-selector";
 import { OpenLauncherButton } from "./open-launcher-button";
@@ -47,6 +50,8 @@ export function HomeChatLauncher() {
   const [pendingProvider, setPendingProvider] = useState<Provider | null>(null);
   const [workspaceMode, setWorkspaceMode] =
     useState<WorkspaceMode>("new_worktree");
+  const [selectedPlugins, setSelectedPlugins] = useState<PluginSpec[]>([]);
+  const [isPluginPickerOpen, setIsPluginPickerOpen] = useState(false);
 
   const { mutate: createConversation, isPending } = useCreateConversation();
   const isCreatingElsewhere = useIsCreatingConversation();
@@ -107,6 +112,13 @@ export function HomeChatLauncher() {
           branch: pendingBranch.name,
         },
       };
+    }
+
+    // Explicitly-attached plugins are additive on top of any ambient set and
+    // are resolved from git at run time. Omitted entirely when none selected so
+    // nothing attaches unless the user picked it.
+    if (selectedPlugins.length > 0) {
+      variables = { ...variables, plugins: selectedPlugins };
     }
 
     // Loading toast gives the user a clear signal that the request is in
@@ -240,6 +252,11 @@ export function HomeChatLauncher() {
           />
         )}
         <HomeProjectSelector />
+        <PluginPickerTrigger
+          count={selectedPlugins.length}
+          onClick={() => setIsPluginPickerOpen(true)}
+          disabled={isCreating}
+        />
       </div>
 
       {isLocal ? (
@@ -265,6 +282,14 @@ export function HomeChatLauncher() {
             setPendingWorkspace(null);
             setWorkspaceMode("local_repo");
           }}
+        />
+      )}
+
+      {isPluginPickerOpen && (
+        <PluginPickerModal
+          selected={selectedPlugins}
+          onChange={setSelectedPlugins}
+          onClose={() => setIsPluginPickerOpen(false)}
         />
       )}
     </div>

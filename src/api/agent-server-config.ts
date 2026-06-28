@@ -17,6 +17,12 @@ export interface AgentServerFormDefaults {
   sessionApiKey: string;
 }
 
+// Window-global key the static server injects `--lock-to-cloud` into; kept
+// module-private because only `getLockedCloudHost()` reads it. The static
+// server (`scripts/static-server.mjs`) and its tests reference the literal
+// string directly, not this constant.
+const LOCK_TO_CLOUD_WINDOW_KEY = "__AGENT_CANVAS_LOCK_TO_CLOUD__";
+
 function trimToNull(value?: string | null): string | null {
   return value?.trim() || null;
 }
@@ -36,6 +42,19 @@ function normalizeBaseUrl(value?: string | null): string | null {
   }
 
   return `http://${trimmed}`;
+}
+
+function normalizeCloudHost(value?: string | null): string | null {
+  if (!value) return null;
+
+  const trimmed = value.trim().replace(/\/+$/, "");
+  if (!trimmed) return null;
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  return `https://${trimmed}`;
 }
 
 function getConfiguredBaseUrl(): string | null {
@@ -79,6 +98,42 @@ export function getAgentServerFormDefaults(): AgentServerFormDefaults {
     baseUrl: getAgentServerBaseUrl() ?? "",
     sessionApiKey: getAgentServerSessionApiKey() ?? "",
   };
+}
+
+export function getLockedCloudHost(): string | null {
+  const envHost = normalizeCloudHost(import.meta.env.VITE_LOCK_TO_CLOUD);
+  if (envHost) return envHost;
+
+  if (typeof window !== "undefined") {
+    const injected = (window as unknown as Record<string, unknown>)[
+      LOCK_TO_CLOUD_WINDOW_KEY
+    ];
+    if (typeof injected === "string") {
+      return normalizeCloudHost(injected);
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Compare a backend host against the locked Cloud host, normalizing
+ * trailing slashes, protocol, and case so that e.g.
+ * `https://app.all-hands.dev/` matches `https://app.all-hands.dev`.
+ *
+ * Used by the locked-to-Cloud gates (`root.tsx`,
+ * `onboarding-modal.tsx`) to decide whether the active backend is the
+ * configured locked Cloud host — a Cloud backend on a *different* host
+ * (or a stale Local backend) must not be treated as the locked backend.
+ */
+export function isSameCloudHost(
+  host: string | null | undefined,
+  lockedHost: string | null | undefined,
+): boolean {
+  const a = normalizeCloudHost(host);
+  const b = normalizeCloudHost(lockedHost);
+  if (!a || !b) return false;
+  return a.toLowerCase() === b.toLowerCase();
 }
 
 export function getAgentServerBaseUrl(): string | null {

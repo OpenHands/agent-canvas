@@ -1,9 +1,13 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { SuggestedTask } from "#/utils/types";
+import {
+  getStoredConversationMetadata,
+  removeStoredConversationMetadata,
+} from "#/api/conversation-metadata-store";
 
 vi.mock("#/hooks/use-tracking", () => ({
   useTracking: () => ({
@@ -23,6 +27,8 @@ vi.mock("#/hooks/query/use-llm-profiles", () => ({
 }));
 
 describe("useCreateConversation", () => {
+  afterEach(() => removeStoredConversationMetadata("conv-with-plugins"));
+
   it("passes suggested tasks to the V1 create conversation API", async () => {
     const createConversationSpy = vi
       .spyOn(AgentServerConversationService, "createConversation")
@@ -151,5 +157,60 @@ describe("useCreateConversation", () => {
         queryKey: ["start-tasks"],
       });
     });
+  });
+
+  it("persists explicitly-attached plugins (coordinates only) to conversation metadata at creation", async () => {
+    vi.spyOn(
+      AgentServerConversationService,
+      "createConversation",
+    ).mockResolvedValue({
+      id: "task-id",
+      created_by_user_id: null,
+      status: "READY",
+      detail: null,
+      app_conversation_id: "conv-with-plugins",
+      agent_server_url: "http://agent-server.local",
+      request: {
+        initial_message: null,
+        processors: [],
+        llm_model: null,
+        selected_repository: null,
+        selected_branch: null,
+        git_provider: "github",
+        suggested_task: null,
+        title: null,
+        trigger: null,
+        pr_number: [],
+        parent_conversation_id: null,
+        agent_type: "default",
+      },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    const { result } = renderHook(() => useCreateConversation(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={new QueryClient()}>
+          {children}
+        </QueryClientProvider>
+      ),
+    });
+
+    await result.current.mutateAsync({
+      plugins: [
+        {
+          source: "github:o/a",
+          ref: null,
+          repo_path: "plugins/a",
+          parameters: { token: "secret" },
+        },
+      ],
+    });
+
+    await waitFor(() =>
+      expect(
+        getStoredConversationMetadata("conv-with-plugins")?.plugins,
+      ).toEqual([{ source: "github:o/a", ref: null, repo_path: "plugins/a" }]),
+    );
   });
 });

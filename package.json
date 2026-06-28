@@ -1,6 +1,6 @@
 {
   "name": "@openhands/agent-canvas",
-  "version": "1.0.0-rc.6",
+  "version": "1.1.0",
   "description": "Agent Canvas UI for OpenHands - run AI coding agents with a visual interface",
   "license": "MIT",
   "private": false,
@@ -20,17 +20,17 @@
     "node": ">=22.12.0"
   },
   "dependencies": {
-    "@base-ui/react": "^1.6.0",
+    "@base-ui/react": "1.6.0",
     "@heroui/react": "2.8.10",
     "@microlink/react-json-view": "1.31.20",
     "@monaco-editor/react": "4.7.0",
-    "@openhands/extensions": "0.5.0",
-    "@openhands/typescript-client": "1.25.0",
+    "@openhands/extensions": "0.7.0",
+    "@openhands/typescript-client": "1.28.0",
     "@react-router/node": "7.17.0",
     "@react-router/serve": "7.17.0",
     "@tailwindcss/vite": "4.2.4",
     "@tanstack/react-query": "5.100.9",
-    "@types/shell-quote": "^1.7.5",
+    "@types/shell-quote": "1.7.5",
     "@uidotdev/usehooks": "2.4.1",
     "@xterm/addon-fit": "0.11.0",
     "@xterm/xterm": "6.0.0",
@@ -58,15 +58,15 @@
     "rehype-sanitize": "6.0.0",
     "remark-breaks": "4.0.0",
     "remark-gfm": "4.0.1",
-    "shell-quote": "^1.8.3",
+    "shell-quote": "1.8.4",
     "sirv-cli": "3.0.1",
     "tailwind-merge": "3.5.0",
     "tailwind-scrollbar": "4.0.2",
     "unist-util-visit": "5.1.0",
     "uuid": "14.0.0",
     "vite": "8.0.10",
-    "winston": "^3.19.0",
-    "winston-daily-rotate-file": "^5.0.0",
+    "winston": "3.19.0",
+    "winston-daily-rotate-file": "5.0.0",
     "zustand": "5.0.12"
   },
   "scripts": {
@@ -98,7 +98,8 @@
     "check-translation-completeness": "node scripts/check-translation-completeness.cjs",
     "build:app": "npm run make-i18n && react-router build",
     "build:lib": "npm run make-i18n && react-router typegen && cross-env BUILD_LIB=true VITE_APP_ENV=production vite build && tsc -p tsconfig.lib.json",
-    "build:docker": "node scripts/docker-build.mjs"
+    "build:docker": "node scripts/docker-build.mjs",
+    "example:acp-docker:env": "node scripts/gen-acp-docker-env.mjs"
   },
   "lint-staged": {
     "src/**/*.{ts,tsx,js}": [

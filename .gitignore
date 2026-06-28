@@ -37,3 +37,7 @@ ralph/
 
 # Generated local design/context artifacts
 .context/
+
+# Local runtime artifacts produced by static-server / agent-server runs
+workspace/
+build-fresh/

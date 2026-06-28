@@ -21,7 +21,6 @@ import {
   findInstalledEntryMatch,
   getMarketplaceEntryById,
   getMcpMarketplaceCatalog,
-  isMarketplaceEntryAvailable,
 } from "#/utils/mcp-marketplace-utils";
 import { cn } from "#/utils/utils";
 import {
@@ -98,13 +97,16 @@ function automationMatchesQuery(
   return haystack.includes(query);
 }
 
-function isAutomationAvailable(
-  automation: RecommendedAutomation,
-  backendKind: "local" | "cloud",
-) {
-  return getRequiredEntries(automation).every((entry) =>
-    isMarketplaceEntryAvailable(entry, backendKind),
-  );
+/**
+ * Returns true only when at least one of the automation's required integration
+ * IDs resolves to a known marketplace entry.  An empty result means none of
+ * the required integrations are in our catalog (or the array itself is empty),
+ * so there is nothing for the user to set up — hide the card.
+ * NOTE: intentionally no local/cloud backend availability filter; every entry
+ * with a catalog match is shown regardless of runtimeAvailability.
+ */
+function isAutomationAvailable(automation: RecommendedAutomation) {
+  return getRequiredEntries(automation).length > 0;
 }
 
 function buildRecommendedAutomationPills(
@@ -222,7 +224,7 @@ function AutomationCardGrid({
 }
 
 export function RecommendedAutomationsSection({
-  backendKind,
+  backendKind: _backendKind,
   installedServers,
   query = "",
   onSelect,
@@ -233,7 +235,7 @@ export function RecommendedAutomationsSection({
   const visibleAutomations = RECOMMENDED_AUTOMATIONS.filter((automation) => {
     const requiredEntries = getRequiredEntries(automation);
     return (
-      isAutomationAvailable(automation, backendKind) &&
+      isAutomationAvailable(automation) &&
       automationMatchesQuery(automation, requiredEntries, query)
     );
   });

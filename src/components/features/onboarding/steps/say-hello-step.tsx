@@ -4,6 +4,7 @@ import { ChatSendButton } from "#/components/features/chat/chat-send-button";
 import { RecommendedAutomationsLauncher } from "#/components/features/automations/recommended-automations-launcher";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { useNavigation } from "#/context/navigation-context";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { useIsCreatingConversation } from "#/hooks/use-is-creating-conversation";
 import { I18nKey } from "#/i18n/declaration";
@@ -29,6 +30,8 @@ export function SayHelloStep({
 }: SayHelloStepProps) {
   const { t } = useTranslation("openhands");
   const { navigate } = useNavigation();
+  const { backend } = useActiveBackend();
+  const showRecommendedAutomations = backend.kind !== "cloud";
   const defaultMessage = t(I18nKey.ONBOARDING$HELLO_DEFAULT_MESSAGE);
   const [message, setMessage] = React.useState(defaultMessage);
 
@@ -117,26 +120,30 @@ export function SayHelloStep({
         </div>
       </form>
 
-      <div
-        data-testid="onboarding-hello-or-separator"
-        className="mt-6 flex w-full items-center gap-3"
-      >
-        <div className="h-px flex-1 bg-[var(--oh-border)]" />
-        <span className="text-xs uppercase text-[var(--oh-muted)]">
-          {t(I18nKey.LANDING$OR)}
-        </span>
-        <div className="h-px flex-1 bg-[var(--oh-border)]" />
-      </div>
+      {showRecommendedAutomations ? (
+        <>
+          <div
+            data-testid="onboarding-hello-or-separator"
+            className="mt-6 flex w-full items-center gap-3"
+          >
+            <div className="h-px flex-1 bg-[var(--oh-border)]" />
+            <span className="text-xs uppercase text-[var(--oh-muted)]">
+              {t(I18nKey.LANDING$OR)}
+            </span>
+            <div className="h-px flex-1 bg-[var(--oh-border)]" />
+          </div>
 
-      <div
-        data-testid="onboarding-recommended-automations"
-        className="flex min-h-0 flex-1 flex-col"
-      >
-        <RecommendedAutomationsLauncher
-          onLaunched={onLaunched}
-          scrollableGrid
-        />
-      </div>
+          <div
+            data-testid="onboarding-recommended-automations"
+            className="flex min-h-0 flex-1 flex-col"
+          >
+            <RecommendedAutomationsLauncher
+              onLaunched={onLaunched}
+              scrollableGrid
+            />
+          </div>
+        </>
+      ) : null}
 
       <div className="flex shrink-0 items-center justify-between gap-2 bg-base-secondary pt-7 pb-7">
         <BrandButton

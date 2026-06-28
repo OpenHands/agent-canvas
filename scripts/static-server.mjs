@@ -76,6 +76,7 @@ export function parseArgs(argv = process.argv.slice(2)) {
     sessionApiKey: null,
     authRequired: false,
     runtimeServicesInfo: null,
+    lockToCloud: null,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -114,6 +115,10 @@ export function parseArgs(argv = process.argv.slice(2)) {
       case "--runtime-services-info":
         config.runtimeServicesInfo = argv[++i] || null;
         break;
+      case "--lock-to-cloud":
+        config.lockToCloud = argv[++i] || null;
+        break;
+
       case "--auth-required":
         config.authRequired = true;
         break;
@@ -177,6 +182,9 @@ OPTIONS:
                                frontend can populate the agent's
                                <RUNTIME_SERVICES> system-prompt block without
                                VITE_RUNTIME_SERVICES_INFO baked in.
+  --lock-to-cloud <cloud-url>  Lock backend setup to a single OpenHands Cloud
+                               URL. Hides manual/local backend setup and the
+                               custom Cloud URL field in the pre-built frontend.
   --reject-prefix <prefix>     Return 503 for requests matching <prefix>
                                instead of SPA-fallbacking to index.html;
                                may be repeated. Useful in --frontend-only
@@ -225,11 +233,17 @@ ROUTING:
  *   `parseRuntimeServicesInfo()` in `agent-server-adapter.ts` as a fallback
  *   when `VITE_RUNTIME_SERVICES_INFO` is empty, so static builds (Docker /
  *   published binary) still populate the agent's `<RUNTIME_SERVICES>` block.
+ *
+ * - `lockToCloud`: an OpenHands Cloud URL exposed as
+ *   `window.__AGENT_CANVAS_LOCK_TO_CLOUD__`. Read by `getLockedCloudHost()` in
+ *   `agent-server-config.ts` so pre-built frontend bundles can hide manual
+ *   backend setup and the custom Cloud URL field at runtime.
  */
 function makeConfigInjectionScript(
   sessionApiKey,
   authRequired,
   runtimeServicesInfo,
+  lockToCloud,
 ) {
   const parts = [];
 
@@ -299,6 +313,12 @@ function makeConfigInjectionScript(
     );
   }
 
+  if (lockToCloud) {
+    parts.push(
+      `window.__AGENT_CANVAS_LOCK_TO_CLOUD__=${JSON.stringify(lockToCloud)};`,
+    );
+  }
+
   if (parts.length === 0) return "";
 
   return `<script>(function(){${parts.join("")}}());</script>`;
@@ -312,7 +332,7 @@ async function serveInjectedIndexHtml(
   req,
   res,
   indexPath,
-  { sessionApiKey, authRequired, runtimeServicesInfo } = {},
+  { sessionApiKey, authRequired, runtimeServicesInfo, lockToCloud } = {},
 ) {
   let content;
   try {
@@ -325,6 +345,7 @@ async function serveInjectedIndexHtml(
     sessionApiKey,
     authRequired,
     runtimeServicesInfo,
+    lockToCloud,
   );
   // Inject right before </head> so the key is available before any app code runs.
   // replace() targets the first (and only) </head> in well-formed HTML.
@@ -449,11 +470,17 @@ function proxyWebSocket(req, socket, head, backendUrl) {
     // EPIPE) during test cleanup doesn't crash the process with an
     // uncaught 'error' event.
     proxySocket.on("error", (err) => {
-      console.error(`WebSocket proxy backend socket error (${req.url}):`, err.message);
+      console.error(
+        `WebSocket proxy backend socket error (${req.url}):`,
+        err.message,
+      );
       socket.destroy();
     });
     socket.on("error", (err) => {
-      console.error(`WebSocket proxy client socket error (${req.url}):`, err.message);
+      console.error(
+        `WebSocket proxy client socket error (${req.url}):`,
+        err.message,
+      );
       proxySocket.destroy();
     });
     proxySocket.pipe(socket, { end: true });
@@ -580,7 +607,8 @@ async function handleStatic(
   const needsInjection =
     injectionOpts.sessionApiKey ||
     injectionOpts.authRequired ||
-    injectionOpts.runtimeServicesInfo;
+    injectionOpts.runtimeServicesInfo ||
+    injectionOpts.lockToCloud;
 
   // Serve index.html with runtime config injection when configured.
   if (needsInjection && filePath.endsWith("index.html")) {
@@ -634,6 +662,7 @@ export function startStaticServer(config) {
     sessionApiKey: config.sessionApiKey || null,
     authRequired: config.authRequired || false,
     runtimeServicesInfo: config.runtimeServicesInfo || null,
+    lockToCloud: config.lockToCloud || null,
   };
   const rejectPrefixes = config.rejectPrefixes ?? [];
 
@@ -643,13 +672,15 @@ export function startStaticServer(config) {
       proxyRequest(req, res, backend);
       return;
     }
-    handleStatic(req, res, dirAbs, injectionOpts, rejectPrefixes).catch((err) => {
-      console.error(`Static handler error for ${req.url}:`, err);
-      if (!res.headersSent) {
-        res.writeHead(500);
-        res.end("Internal Server Error");
-      }
-    });
+    handleStatic(req, res, dirAbs, injectionOpts, rejectPrefixes).catch(
+      (err) => {
+        console.error(`Static handler error for ${req.url}:`, err);
+        if (!res.headersSent) {
+          res.writeHead(500);
+          res.end("Internal Server Error");
+        }
+      },
+    );
   });
 
   server.on("upgrade", (req, socket, head) => {
@@ -678,6 +709,9 @@ export function startStaticServer(config) {
         for (const prefix of rejectPrefixes) {
           console.log(`  ${prefix} -> 503 (rejected)`);
         }
+      }
+      if (config.lockToCloud) {
+        console.log(`  Backend setup locked to Cloud: ${config.lockToCloud}`);
       }
       console.log("  * (default) -> static files + SPA fallback");
       console.log("");

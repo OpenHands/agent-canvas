@@ -23,10 +23,6 @@ interface SetupLlmStepProps {
  */
 export const ONBOARDING_DEFAULT_LLM_MODEL = "openai/gpt-5.5";
 
-const ONBOARDING_LLM_OVERRIDES = {
-  "llm.model": ONBOARDING_DEFAULT_LLM_MODEL,
-} as const;
-
 /**
  * Step 2: embed the LLM settings form. The screen runs in `embedded`
  * mode (so it doesn't render its own sticky Save bar) and with
@@ -38,6 +34,11 @@ const ONBOARDING_LLM_OVERRIDES = {
  * If the form happens to be untouched (no dirty fields), Next falls
  * through to advancing without a save call, so users with already-
  * configured settings aren't blocked.
+ *
+ * Note: returning Cloud users who already have an LLM configured are
+ * intercepted upstream by `OnboardingHost`, so they never reach this
+ * step. Users who do reach it are first-time installs (Cloud or Local)
+ * who want the OpenAI/GPT-5.5 default pre-filled.
  */
 export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
   const { t } = useTranslation("openhands");
@@ -125,7 +126,9 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
           embedded
           hideSaveButton
           suppressSuccessToast
-          initialValueOverrides={ONBOARDING_LLM_OVERRIDES}
+          initialValueOverrides={{
+            "llm.model": ONBOARDING_DEFAULT_LLM_MODEL,
+          }}
           onSaveSuccess={handleSaveSuccess}
           onSaveControlChange={setSaveControl}
         />
