@@ -317,7 +317,7 @@ export function ConversationWebSocketProvider({
   // immediately and either replay the entire conversation (when falling back
   // to `resend_mode='all'`) or miss events that arrived between REST and WS.
   const wsUrl = useMemo(() => {
-    if (!conversationId) {
+    if (!conversationId || !conversationUrl) {
       return null;
     }
     // Don't connect while we're still fetching the initial history. If the
