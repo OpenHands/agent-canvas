@@ -10,11 +10,19 @@
  * The fix adds sandbox_status === "PAUSED" as a second fast-poll trigger so
  * the hook picks up the PAUSED → RUNNING transition within ~3 s regardless of
  * whether conversation_url is present.
+ *
+ * Issue #1508: the title is generated asynchronously a few seconds after the
+ * conversation starts, by which point conversation_url is already set — so the
+ * header title only refreshed on the slow 30 s tick. The callback now also
+ * fast-polls while the title is still unset AND the agent is actively
+ * executing, bounded by isExecutionActive so terminal/paused titleless
+ * conversations don't fast-poll forever.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
+import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -26,8 +34,7 @@ const { mockUseUserConversation, mockSetCurrentConversation } = vi.hoisted(
 );
 
 vi.mock("#/hooks/query/use-user-conversation", () => ({
-  useUserConversation: (...args: unknown[]) =>
-    mockUseUserConversation(...args),
+  useUserConversation: (...args: unknown[]) => mockUseUserConversation(...args),
 }));
 
 vi.mock("#/hooks/use-conversation-id", () => ({
@@ -69,9 +76,9 @@ function renderAndCaptureIntervalFn(): IntervalFn {
   return captured;
 }
 
-function makeQuery(
-  data: Partial<AppConversation> | null | undefined,
-): { state: { data: AppConversation | null | undefined } } {
+function makeQuery(data: Partial<AppConversation> | null | undefined): {
+  state: { data: AppConversation | null | undefined };
+} {
   if (!data) return { state: { data: data as null | undefined } };
   return {
     state: {
@@ -89,7 +96,8 @@ function makeQuery(
         created_at: "2024-01-01T00:00:00Z",
         updated_at: "2024-01-01T00:00:00Z",
         execution_status: null,
-        conversation_url: "https://sandbox.example.com/api/conversations/conv-1",
+        conversation_url:
+          "https://sandbox.example.com/api/conversations/conv-1",
         session_api_key: null,
         sandbox_id: null,
         sub_conversation_ids: [],
@@ -112,7 +120,8 @@ describe("useActiveConversation — refetchInterval callback", () => {
     const result = intervalFn(
       makeQuery({
         sandbox_status: "PAUSED",
-        conversation_url: "https://sandbox.example.com/api/conversations/conv-1",
+        conversation_url:
+          "https://sandbox.example.com/api/conversations/conv-1",
       }),
     );
 
@@ -143,7 +152,8 @@ describe("useActiveConversation — refetchInterval callback", () => {
     const result = intervalFn(
       makeQuery({
         sandbox_status: "RUNNING",
-        conversation_url: "https://sandbox.example.com/api/conversations/conv-1",
+        conversation_url:
+          "https://sandbox.example.com/api/conversations/conv-1",
       }),
     );
 
@@ -156,5 +166,87 @@ describe("useActiveConversation — refetchInterval callback", () => {
     // data is null / undefined — the `if (data && ...)` guard returns false
     expect(intervalFn(makeQuery(null))).toBe(30000);
     expect(intervalFn(makeQuery(undefined))).toBe(30000);
+  });
+
+  // ── Issue #1508: fast-poll until the title is set ──────────────────────────
+
+  it("returns 3000 when title is unset and the agent is actively executing (#1508)", () => {
+    const intervalFn = renderAndCaptureIntervalFn();
+
+    const result = intervalFn(
+      makeQuery({
+        title: null,
+        execution_status: ExecutionStatus.RUNNING,
+        conversation_url:
+          "https://sandbox.example.com/api/conversations/conv-1",
+        sandbox_status: "RUNNING",
+      }),
+    );
+
+    expect(result).toBe(3000);
+  });
+
+  it("returns 3000 when title is an empty string and the agent is actively executing", () => {
+    const intervalFn = renderAndCaptureIntervalFn();
+
+    const result = intervalFn(
+      makeQuery({
+        title: "",
+        execution_status: ExecutionStatus.IDLE,
+        conversation_url:
+          "https://sandbox.example.com/api/conversations/conv-1",
+        sandbox_status: "RUNNING",
+      }),
+    );
+
+    expect(result).toBe(3000);
+  });
+
+  it("returns 30000 when title is set, even while the agent is executing", () => {
+    const intervalFn = renderAndCaptureIntervalFn();
+
+    const result = intervalFn(
+      makeQuery({
+        title: "Generated title",
+        execution_status: ExecutionStatus.RUNNING,
+        conversation_url:
+          "https://sandbox.example.com/api/conversations/conv-1",
+        sandbox_status: "RUNNING",
+      }),
+    );
+
+    expect(result).toBe(30000);
+  });
+
+  it("returns 30000 when title is unset but execution has errored (no title is coming)", () => {
+    const intervalFn = renderAndCaptureIntervalFn();
+
+    const result = intervalFn(
+      makeQuery({
+        title: null,
+        execution_status: ExecutionStatus.ERROR,
+        conversation_url:
+          "https://sandbox.example.com/api/conversations/conv-1",
+        sandbox_status: "RUNNING",
+      }),
+    );
+
+    expect(result).toBe(30000);
+  });
+
+  it("returns 30000 when title is unset and execution_status is null (idle/terminal, not active)", () => {
+    const intervalFn = renderAndCaptureIntervalFn();
+
+    const result = intervalFn(
+      makeQuery({
+        title: null,
+        execution_status: null,
+        conversation_url:
+          "https://sandbox.example.com/api/conversations/conv-1",
+        sandbox_status: "RUNNING",
+      }),
+    );
+
+    expect(result).toBe(30000);
   });
 });
