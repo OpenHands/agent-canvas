@@ -28,6 +28,18 @@ Implemented in this branch:
 
 This gives the minimum viable Conductor behavior: pick repo → task prompt → dedicated worktree/branch.
 
+## Milestone 1.5 — plugin extension surface
+
+OpenHands' upstream plugin support is a good fit for Conductor mode. Use plugins as the default extension seam for Spotwise-specific launch affordances, command-menu actions, repo/operator packs, verification shortcuts, and optional integrations that should not be hardcoded into core navigation or provider logic.
+
+Boundary rule:
+
+- **plugins**: UI commands, repo-specific helpers, governed launch affordances, optional integrations
+- **skills**: agent behavior, repo context, policy/context instructions
+- **core fork code**: durable product primitives only — project scoping, checks contracts, approval gates, PR promotion, worktree launch guarantees
+
+First candidate: a Spotwise operator/plugin pack that exposes trusted-loop entry points, common repo tasks, `.checks/*` helpers, and links to the installed operator skills.
+
 ## Milestone 2 — workspace status cards
 
 Goal: sidebar/home should show task cards grouped by repository with at-a-glance status.
