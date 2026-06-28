@@ -1,6 +1,6 @@
 # Telegram Agent Control Plane PRD and Architecture
 
-Updated: 2026-06-26
+Updated: 2026-06-28
 Status: v0 implementation plan
 
 ## Summary
@@ -138,9 +138,36 @@ Agent Canvas remains the system of record for visual inspection:
 - budget/policy state
 - kill switch and audit timeline
 
+## Field notes incorporated
+
+External Hermes/Telegram usage reinforces the current split:
+
+- Telegram is an excellent operator surface, but it is a poor place to understand
+  long-running execution. Keep Telegram concise and thread-aware; link every
+  meaningful state change back to Agent Canvas.
+- Thread organization is a product problem, not only a bot problem. Preserve the
+  originating Telegram message/thread IDs, but make Agent Canvas the canonical
+  run timeline with project, owner, status, evidence, approval, and PR filters.
+- Hermes profile switching is important for one bot/server controlling multiple
+  agent identities or work modes. Model this explicitly as `project`, `repo`,
+  and `agent_profile` routing metadata; avoid hidden global profile mutation for
+  governed work.
+- Browser operation needs capture, not just control. Visual/UI bug loops should
+  produce screenshots, console/errors JSON, video/trace when available, and a
+  `.checks/result.json` evidence bundle. Existing Chrome-session operation is
+  useful for human-supervised operator profiles, but production automations must
+  stay allowlisted and auditable.
+- TraceDecay-style local code intelligence is a promising optional pack: local
+  semantic graph, impact analysis, test mapping, and Hermes/Codex plugin hooks
+  can reduce agent exploration and make context more deterministic. Pilot it as
+  a Spotwise operator/plugin pack before making it a platform dependency.
+- Codex/Hermes can operate the whole machine out of the box. Treat that power as
+  privileged execution: worktree isolation, allowlists, budgets, kill switches,
+  repo `AGENTS.md`, and evidence gates remain mandatory.
+
 ## Current foundation
 
-Already available in Agent Canvas production as of `agent-canvas@1baf6a56`:
+Already available in Agent Canvas production as of `agent-canvas@bbcaa6dd`:
 
 - Row-level check result trust from `.checks/result.json`.
 - Badge jump into the Checks tab.
@@ -149,7 +176,9 @@ Already available in Agent Canvas production as of `agent-canvas@1baf6a56`:
 - Row-level approved verification badge.
 - Draft-PR promotion after approved green evidence.
 - `.checks/pr.json` written after promotion.
-- Production image: `ghcr.io/spotwiseai/agent-canvas:sha-1baf6a5`.
+- Production image: `ghcr.io/spotwiseai/agent-canvas:sha-bbcaa6d`.
+- Upstream plugin support is available and should be used for Spotwise operator,
+  repo, and verification packs when possible.
 
 ## System architecture
 
