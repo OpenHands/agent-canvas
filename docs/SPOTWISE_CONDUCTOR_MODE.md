@@ -2,6 +2,23 @@
 
 Spotwise runs Agent Canvas as an internal background-coding cockpit. The fork aims to keep OpenHands' subscription-friendly ACP/Codex runtime while moving the product shape closer to Conductor: repository-first task launch, isolated workspaces, visible status, checks, and PR handoff.
 
+## Fork strategy decision
+
+Decision: keep the Spotwise fork for now, but keep shrinking the fork surface.
+
+The fork is justified by durable product primitives that upstream Agent Canvas does not yet provide:
+
+- verification trust contracts: `.checks/result.json`, `.checks/approval.json`, `.checks/pr.json`
+- Checks tab, row verification badges, approval gate, and draft-PR promotion
+- project/repository scoping for operator-launched work (`tags.project`, source badges, project registry)
+- Conductor/firehose cockpit behavior: attention, ownership, mute/archive/unread, project filters, and row actions
+- production self-host hardening for `agents.spotwise.ai`: static session-key self-heal, OAuth/public-mode fixes, Spotwise image/deploy workflows
+- Telegram/trusted-loop integration points that make evidence and PR handoff visible in Agent Canvas
+
+The fork is **not** justified by generic UI drift, scattered style changes, or permanent local patches for issues that should live upstream. Generic fixes should be upstreamed or deleted once upstream has an equivalent. Spotwise-only behavior should move behind plugins, config, or narrowly named modules where possible.
+
+Practical rule: preserve fork code that supports verification, project-scoped operator control, production stability, or trusted-loop evidence. Push everything else toward upstream, plugins, or removal.
+
 ## Non-negotiable workspace model
 
 Every task launched from a local/self-hosted backend must use an isolated git worktree.
