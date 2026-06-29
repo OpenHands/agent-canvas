@@ -110,8 +110,8 @@ export function RecommendedAutomationsLauncher({
                 draftMessage: prompt,
               });
             }
-            onLaunched?.();
             navigate?.(`/conversations/${conversation.conversation_id}`);
+            onLaunched?.();
             window.setTimeout(() => setMessageToSend(prompt), 0);
           },
           onError: () => {

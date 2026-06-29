@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { EditAutomationModal } from "#/components/features/automations/detail/edit-automation-modal";
 import AutomationService from "#/api/automation-service/automation-service.api";
+import ProfilesService from "#/api/profiles-service/profiles-service.api";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import {
   __resetActiveStoreForTests,
@@ -21,6 +22,12 @@ import type { Backend } from "#/api/backend-registry/types";
 vi.mock("#/api/automation-service/automation-service.api", () => ({
   default: {
     updateAutomation: vi.fn(),
+  },
+}));
+
+vi.mock("#/api/profiles-service/profiles-service.api", () => ({
+  default: {
+    listProfiles: vi.fn(),
   },
 }));
 
@@ -55,6 +62,32 @@ const customAutomation: Automation = {
   trigger: { type: "cron", schedule: "0 9,17 * * *" },
 };
 
+// A schedule automation pinned to a concrete LLM profile, used to exercise
+// the profile picker (the base fixtures intentionally leave `model` unset).
+const modeledAutomation: Automation = {
+  ...dailyAutomation,
+  id: "auto-3",
+  model: "fast",
+};
+
+const profilesResponse = {
+  profiles: [
+    {
+      name: "fast",
+      model: "anthropic/claude-haiku-4-5",
+      base_url: null,
+      api_key_set: true,
+    },
+    {
+      name: "careful",
+      model: "anthropic/claude-opus-4-8",
+      base_url: null,
+      api_key_set: true,
+    },
+  ],
+  active_profile: "fast",
+};
+
 function renderModal(automation: Automation) {
   const onClose = vi.fn();
   const queryClient = new QueryClient({
@@ -79,6 +112,11 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   setRegisteredBackends([localBackend]);
   setActiveSelection({ backendId: localBackend.id });
+  // Default to no profiles; tests that exercise the picker override this.
+  vi.mocked(ProfilesService.listProfiles).mockResolvedValue({
+    profiles: [],
+    active_profile: null,
+  });
 });
 
 describe("EditAutomationModal", () => {
@@ -200,5 +238,79 @@ describe("EditAutomationModal", () => {
       expect(displayErrorToast).toHaveBeenCalledTimes(1);
     });
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("persists the newly selected LLM profile in the update payload", async () => {
+    // Arrange — automation currently runs on the "fast" profile, with a
+    // second "careful" profile available to switch to.
+    vi.mocked(ProfilesService.listProfiles).mockResolvedValue(profilesResponse);
+    vi.mocked(AutomationService.updateAutomation).mockResolvedValue({
+      ...modeledAutomation,
+      model: "careful",
+    });
+    const user = userEvent.setup();
+    const { onClose } = renderModal(modeledAutomation);
+
+    // The picker pre-fills with the automation's current profile once the
+    // available profiles have loaded.
+    await waitFor(() =>
+      expect(screen.getByLabelText("AUTOMATIONS$DETAIL$MODEL")).toHaveValue(
+        "fast",
+      ),
+    );
+
+    // Act — switch to "careful" and save.
+    await user.click(screen.getByLabelText("AUTOMATIONS$DETAIL$MODEL"));
+    await user.click(await screen.findByText("careful"));
+    await user.click(screen.getByTestId("edit-automation-save"));
+
+    // Assert — only the profile changed, so the PATCH carries just `model`.
+    await waitFor(() => {
+      expect(AutomationService.updateAutomation).toHaveBeenCalledTimes(1);
+    });
+    expect(AutomationService.updateAutomation).toHaveBeenCalledWith("auto-3", {
+      model: "careful",
+    });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("omits the LLM profile from the payload when it is left unchanged", async () => {
+    // Arrange — profiles available; the user will only rename the automation.
+    vi.mocked(ProfilesService.listProfiles).mockResolvedValue(profilesResponse);
+    vi.mocked(AutomationService.updateAutomation).mockResolvedValue(
+      modeledAutomation,
+    );
+    const user = userEvent.setup();
+    renderModal(modeledAutomation);
+
+    // Ensure we're on the profiles-available path before editing.
+    await screen.findByLabelText("AUTOMATIONS$DETAIL$MODEL");
+
+    // Act — change only the name; leave the profile on "fast".
+    const nameInput = screen.getByTestId("edit-automation-name");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Renamed digest");
+    await user.click(screen.getByTestId("edit-automation-save"));
+
+    // Assert — the PATCH renames but does not resend the unchanged profile.
+    await waitFor(() => {
+      expect(AutomationService.updateAutomation).toHaveBeenCalledTimes(1);
+    });
+    const [, body] = vi.mocked(AutomationService.updateAutomation).mock
+      .calls[0];
+    expect(body).toMatchObject({ name: "Renamed digest" });
+    expect(body).not.toHaveProperty("model");
+  });
+
+  it("hides the LLM profile picker when no profiles are available", async () => {
+    // Arrange — beforeEach already mocks an empty profile list.
+    renderModal(dailyAutomation);
+
+    // Assert — once the (empty) profile list resolves, no picker is offered.
+    await waitFor(() => {
+      expect(
+        screen.queryByLabelText("AUTOMATIONS$DETAIL$MODEL"),
+      ).not.toBeInTheDocument();
+    });
   });
 });
