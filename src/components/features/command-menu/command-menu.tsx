@@ -203,11 +203,10 @@ export function CommandMenu() {
       <div
         className={cn(
           "relative flex max-h-[min(720px,78vh)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl",
-          "border border-[var(--oh-border)] bg-[linear-gradient(180deg,var(--oh-surface),var(--oh-surface-raised))]",
+          "border border-[var(--oh-border)] bg-[var(--oh-surface)]",
           "shadow-[0_24px_90px_rgba(0,0,0,0.52),0_0_0_1px_rgba(255,255,255,0.03)_inset]",
         )}
       >
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.12),transparent_42%)]" />
         <div className="relative flex items-center gap-3 border-b border-[var(--oh-border)] px-4 py-3">
           <Search className="size-5 shrink-0 text-[var(--oh-text-dim)]" />
           <input
