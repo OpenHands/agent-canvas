@@ -108,6 +108,29 @@ describe("App root agent-server availability guard", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows first-run onboarding before the recovery modal when no backend is configured", async () => {
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_SESSION_API_KEY__;
+    window.localStorage.clear();
+    __resetActiveStoreForTests();
+
+    renderApp(["/"]);
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("first-run-onboarding-screen"),
+      ).toBeInTheDocument();
+    });
+    expect(await screen.findByTestId("onboarding-modal")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("agent-server-onboarding-screen"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("manage-backends-modal"),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows first-run onboarding before the recovery modal when locked to Cloud with no backend", async () => {
     vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
     vi.stubEnv("VITE_SESSION_API_KEY", "");
@@ -204,13 +227,9 @@ describe("App root agent-server availability guard", () => {
 
   it("forces first-run onboarding in locked mode even when a stale Local backend reports a configured LLM", async () => {
     // Critical regression for PR #1389 review: in locked-to-Cloud mode the
-    // ready-backend fast-path must NOT skip onboarding for a reachable
-    // stale Local backend that happens to report a configured LLM. The
-    // fast-path may only fire when the active backend IS the locked Cloud
-    // host; otherwise the user must be routed through the Cloud login /
-    // replacement flow. Here the agent-server (stale Local backend) reports
-    // `llm_api_key_is_set: true` and a configured model, which previously
-    // made `isBackendLlmReady` true and bypassed onboarding entirely.
+    // stale Local backend must not bypass onboarding, even when it happens
+    // to report a configured LLM. The user must be routed through the Cloud
+    // login / replacement flow instead.
     vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
     vi.stubEnv("VITE_SESSION_API_KEY", "");
     delete (window as unknown as Record<string, unknown>)
@@ -257,7 +276,7 @@ describe("App root agent-server availability guard", () => {
     expect(
       screen.queryByTestId("manage-backends-modal"),
     ).not.toBeInTheDocument();
-    // The ready-backend fast-path must NOT have persisted completion.
+    // Backend readiness must NOT persist onboarding completion.
     expect(
       window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
     ).toBeNull();
@@ -367,6 +386,7 @@ describe("App root agent-server availability guard", () => {
   });
 
   it("shows the manage-backends modal when the connected server reports an old version", async () => {
+    window.localStorage.setItem(ONBOARDING_COMPLETED_STORAGE_KEY, "1");
     server.use(
       http.get("/server_info", () =>
         HttpResponse.json({ uptime: 0, idle_time: 0, version: "1.27.1" }),
@@ -388,6 +408,7 @@ describe("App root agent-server availability guard", () => {
   });
 
   it("shows the manage-backends modal when the server omits a version field", async () => {
+    window.localStorage.setItem(ONBOARDING_COMPLETED_STORAGE_KEY, "1");
     server.use(
       http.get("/server_info", () =>
         HttpResponse.json({ uptime: 0, idle_time: 0 }),
@@ -406,6 +427,7 @@ describe("App root agent-server availability guard", () => {
 
   it("shows the manage-backends modal when the backend is unreachable", async () => {
     let serverInfoRequests = 0;
+    window.localStorage.setItem(ONBOARDING_COMPLETED_STORAGE_KEY, "1");
 
     // Use "*" prefix to match both relative paths and absolute URLs (e.g.,
     // http://127.0.0.1:8000/server_info) when VITE_BACKEND_BASE_URL is configured.
@@ -456,6 +478,7 @@ describe("App root agent-server availability guard", () => {
       "openhands-active-backend",
       JSON.stringify({ backendId: cloudBackend.id, orgId: null }),
     );
+    window.localStorage.setItem(ONBOARDING_COMPLETED_STORAGE_KEY, "1");
     __resetActiveStoreForTests();
     server.use(
       http.get("https://app.all-hands.dev/api/keys/current", () =>
@@ -479,6 +502,8 @@ describe("App root agent-server availability guard", () => {
   });
 
   it("renders the routed page when the agent server is reachable", async () => {
+    window.localStorage.setItem(ONBOARDING_COMPLETED_STORAGE_KEY, "1");
+
     renderApp(["/"]);
 
     await waitFor(() => {
@@ -490,7 +515,7 @@ describe("App root agent-server availability guard", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("does not mark onboarding complete for the launcher-seeded default-local backend even when the agent-server reports a configured LLM", async () => {
+  it("shows first-run onboarding for the launcher-seeded default-local backend even when the agent-server reports a configured LLM", async () => {
     // Regression for mock-llm-onboarding-regressions.spec.ts:16
     // ("keeps the modal open on backdrop click and Escape") and
     // mock-llm-auth-modes.spec.ts:57 ("reaches the onboarding modal
@@ -498,9 +523,7 @@ describe("App root agent-server availability guard", () => {
     // agent-server retains a previously-configured LLM across browser
     // sessions, so a genuinely fresh browser install (launcher-seeded
     // default-local backend, no `openhands-onboarded` flag) must NOT
-    // have onboarding auto-marked complete by the returning-user
-    // fast-path. The settings-based LLM-ready signal is unreliable for
-    // the launcher-seeded default backend and must be suppressed there.
+    // have onboarding auto-marked complete by backend readiness.
     vi.stubEnv("VITE_BACKEND_BASE_URL", "http://127.0.0.1:8000");
     vi.stubEnv("VITE_SESSION_API_KEY", "test-session-key");
     // The launcher-seeded default-local backend (id
@@ -524,10 +547,12 @@ describe("App root agent-server availability guard", () => {
     renderApp(["/"]);
 
     await waitFor(() => {
-      expect(screen.getByTestId("app-outlet")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("first-run-onboarding-screen"),
+      ).toBeInTheDocument();
     });
+    expect(screen.queryByTestId("app-outlet")).not.toBeInTheDocument();
 
-    // The returning-user fast-path must NOT have persisted completion.
     expect(
       window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
     ).toBeNull();
@@ -544,8 +569,8 @@ describe("App root agent-server availability guard", () => {
     // post-login state (active locked Cloud backend + completion flag
     // set by the modal's onClose) with the Cloud settings probe
     // reporting NO configured LLM, which is exactly the window where
-    // the old gate (`!isActiveLockedCloudBackend || !backendLlmReady`)
-    // kept the first-run screen mounted and caused the reopen.
+    // the old LLM-readiness gate kept the first-run screen mounted and
+    // caused the reopen.
     vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
     vi.stubEnv("VITE_SESSION_API_KEY", "");
     delete (window as unknown as Record<string, unknown>)
@@ -570,10 +595,9 @@ describe("App root agent-server availability guard", () => {
     // resolves. Seed it to reproduce the post-login moment.
     window.localStorage.setItem(ONBOARDING_COMPLETED_STORAGE_KEY, "1");
     __resetActiveStoreForTests();
-    // Cloud settings probe reports no configured LLM. This is the
-    // critical condition: the old gate treated `!backendLlmReady` as
-    // "keep showing first-run onboarding" even though the user had
-    // just finished Cloud login, so the modal reappeared.
+    // Cloud settings probe reports no configured LLM. The completed
+    // onboarding flag should still hide first-run onboarding once the
+    // locked Cloud backend is active.
     server.use(
       http.get("https://app.all-hands.dev/api/v1/settings", () =>
         HttpResponse.json({ llm_api_key_set: false }),
