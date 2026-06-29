@@ -171,9 +171,8 @@ describe("LlmSettingsScreen", () => {
 
     await waitFor(() => expect(saveSettingsSpy).toHaveBeenCalled());
     const payload = saveSettingsSpy.mock.calls[0][0] as Record<string, unknown>;
-    const llmPayload = (
-      payload.agent_settings_diff as Record<string, unknown>
-    ).llm as Record<string, unknown>;
+    const llmPayload = (payload.agent_settings_diff as Record<string, unknown>)
+      .llm as Record<string, unknown>;
     expect(llmPayload.api_key).toBe("test-api-key");
     expect(llmPayload).not.toHaveProperty("base_url");
   });
@@ -361,7 +360,7 @@ describe("LlmSettingsRoute - backend mode rendering", () => {
     expect(screen.getByTestId("add-llm-profile")).toBeInTheDocument();
   });
 
-  it("renders standard LlmSettingsScreen (no profiles) for cloud backends", async () => {
+  it("renders LlmSettingsLocalView (profile manager) for cloud backends", async () => {
     vi.spyOn(activeBackendContext, "useActiveBackend").mockReturnValue({
       backend: mockCloudBackend,
       orgId: "org-123",
@@ -384,11 +383,10 @@ describe("LlmSettingsRoute - backend mode rendering", () => {
 
     renderLlmSettingsRoute();
 
-    // Cloud mode shows the standard LLM settings form (not profile manager)
-    await screen.findByTestId("llm-settings-screen");
-    expect(screen.getByTestId("llm-settings-screen")).toBeInTheDocument();
-
-    // Should NOT show the "Add LLM Profile" button
-    expect(screen.queryByTestId("add-llm-profile")).not.toBeInTheDocument();
+    // Cloud now manages the LLM through profiles too (app-server
+    // /api/v1/settings/profiles), so the route renders the profile manager
+    // — same view as local — rather than the plain settings form.
+    await screen.findByTestId("add-llm-profile");
+    expect(screen.getByTestId("add-llm-profile")).toBeInTheDocument();
   });
 });
