@@ -88,13 +88,21 @@ export async function getCurrentCloudApiKey(
  * whether `orgId` is the user's personal workspace — that's the cloud
  * contract (the auto-generated personal-workspace org has the same id as
  * the user).
+ *
+ * `role` is the caller's role in the org (`owner` | `admin` | `member`, or
+ * `null` if the upstream omits it). Profile/LLM-settings mutations require an
+ * `owner`/`admin` role — see `useCanManageLlmProfiles`.
  */
 export async function getCloudOrganizationMe(
   orgId: string,
   backend?: Backend,
-): Promise<{ orgId: string; userId: string }> {
+): Promise<{ orgId: string; userId: string; role: string | null }> {
   const target = resolveBackend(backend);
-  const data = await callCloudProxy<{ org_id: string; user_id: string }>({
+  const data = await callCloudProxy<{
+    org_id: string;
+    user_id: string;
+    role?: string;
+  }>({
     backend: target,
     method: "GET",
     path: `/api/organizations/${encodeURIComponent(orgId)}/me`,
@@ -102,5 +110,6 @@ export async function getCloudOrganizationMe(
   return {
     orgId: data?.org_id ?? orgId,
     userId: data?.user_id ?? "",
+    role: data?.role ?? null,
   };
 }

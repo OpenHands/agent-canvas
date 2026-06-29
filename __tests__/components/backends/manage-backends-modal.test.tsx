@@ -103,6 +103,7 @@ beforeEach(() => {
   vi.mocked(getCloudOrganizationMe).mockResolvedValue({
     orgId: "",
     userId: "",
+    role: null,
   });
   vi.mocked(getCurrentCloudApiKey).mockReset();
   vi.mocked(getCurrentCloudApiKey).mockResolvedValue({
@@ -416,6 +417,7 @@ describe("ManageBackendsModal", () => {
     vi.mocked(getCloudOrganizationMe).mockResolvedValue({
       orgId: personalOrgId,
       userId: personalOrgId,
+      role: null,
     });
 
     renderWithProviders(

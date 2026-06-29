@@ -14,6 +14,11 @@ import * as useLlmProfilesHook from "#/hooks/query/use-llm-profiles";
 import LLMSubscriptionService from "#/api/llm-subscription-service";
 
 vi.mock("#/hooks/query/use-llm-profiles");
+// The profile manager gates mutate controls on this hook; default to a user
+// who can manage so the manager renders its full (editable) surface.
+vi.mock("#/hooks/use-can-manage-llm-profiles", () => ({
+  useCanManageLlmProfiles: () => true,
+}));
 
 function buildSettings(overrides: Partial<Settings> = {}): Settings {
   return {

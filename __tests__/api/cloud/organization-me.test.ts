@@ -51,6 +51,6 @@ describe("cloud organization /me", () => {
       method: "GET",
       headers: { Authorization: "Bearer bearer-token" },
     });
-    expect(result).toEqual({ orgId, userId: orgId });
+    expect(result).toEqual({ orgId, userId: orgId, role: "owner" });
   });
 });
