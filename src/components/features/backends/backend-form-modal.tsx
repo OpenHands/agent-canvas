@@ -906,11 +906,6 @@ export function BackendFormModal({
             </h2>
           </div>
 
-          {/* Two-column body. `items-start` keeps each column at its natural
-              height so the shorter cloud column doesn't get stretched to match
-              the manual one — that stretching left the "Login with OpenHands
-              Cloud" button visually pinned to the bottom of the dialog. The
-              divider uses `self-stretch` so it still spans the full height. */}
           <div className="flex items-start gap-6 px-6 pb-6 pt-2">
             {/* Left: manual connection */}
             <div className="flex-1 min-w-0">
