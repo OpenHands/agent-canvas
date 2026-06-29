@@ -1,6 +1,7 @@
 import {
   getAgentServerBaseUrl,
   getAgentServerSessionApiKey,
+  getLockedCloudHost,
 } from "../agent-server-config";
 import type { Backend } from "./types";
 
@@ -22,8 +23,19 @@ export const DEFAULT_LOCAL_BACKEND_NAME = "Local";
  * Used as the seed entry written to `openhands-backends` on first load;
  * if it returns null, onboarding is responsible for collecting backend
  * connection details from the user.
+ *
+ * Returns null when the deployment is locked to a single OpenHands Cloud
+ * host (`VITE_LOCK_TO_CLOUD` / `--lock-to-cloud`). In locked mode the user
+ * can only authenticate against the configured Cloud URL, so seeding a
+ * Local backend from a baked/injected session key would short-circuit the
+ * first-run onboarding gate and strand the user on the Manage Backends
+ * recovery modal with a disconnected Local entry.
  */
 export function makeDefaultLocalBackend(): Backend | null {
+  // Locked-to-Cloud deployments must never auto-seed a Local backend —
+  // see the docblock above.
+  if (getLockedCloudHost()) return null;
+
   const host = getAgentServerBaseUrl();
   const apiKey = getAgentServerSessionApiKey();
 

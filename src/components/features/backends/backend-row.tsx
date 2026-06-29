@@ -20,6 +20,7 @@ const ROW_ACTION_BUTTON_CLASS =
 interface BackendRowProps {
   backend: Backend;
   health: BackendHealth | undefined;
+  orgLabel?: string;
   onSelect: () => void;
   onEdit: () => void;
   onRemove: () => void;
@@ -29,6 +30,7 @@ interface BackendRowProps {
 export function BackendRow({
   backend,
   health,
+  orgLabel,
   onSelect,
   onEdit,
   onRemove,
@@ -80,6 +82,14 @@ export function BackendRow({
             <span className="truncate text-sm text-white">{backend.name}</span>
             <BackendVersion backend={backend} />
           </div>
+          {orgLabel ? (
+            <span
+              data-testid={`manage-backends-org-${backend.name}`}
+              className="truncate text-xs text-[var(--oh-text-secondary)]"
+            >
+              {orgLabel}
+            </span>
+          ) : null}
           <span className="truncate text-xs text-[var(--oh-muted)]">
             {backend.host}
           </span>

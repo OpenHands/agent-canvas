@@ -198,6 +198,30 @@ vi.mock("#/components/features/home/home-git-control-bar-preview", () => ({
   ),
 }));
 
+// Stub the picker modal: pressing it selects one plugin then closes, mirroring
+// the real modal's `onChange` + `onClose` contract. The picker catalog itself
+// is covered by plugin-picker.test.tsx.
+vi.mock("#/components/features/plugins/plugin-picker-modal", () => ({
+  PluginPickerModal: ({
+    onChange,
+    onClose,
+  }: {
+    onChange: (next: { source: string; ref: null; repo_path: null }[]) => void;
+    onClose: () => void;
+  }) => (
+    <button
+      type="button"
+      data-testid="stub-plugin-pick"
+      onClick={() => {
+        onChange([{ source: "github:o/a", ref: null, repo_path: null }]);
+        onClose();
+      }}
+    >
+      pick
+    </button>
+  ),
+}));
+
 const renderLauncher = () =>
   render(<HomeChatLauncher />, {
     wrapper: ({ children }) => (
@@ -569,6 +593,31 @@ describe("HomeChatLauncher", () => {
       expect(mockNavigate).toHaveBeenCalledWith(
         "/conversations/task-start-task-2",
       ),
+    );
+  });
+
+  it("attaches the picked plugins to the created conversation", async () => {
+    const createSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue(makeConversationResponse());
+
+    renderLauncher();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("open-plugin-picker"));
+    await user.click(await screen.findByTestId("stub-plugin-pick"));
+    await user.click(screen.getByTestId("stub-chat-submit"));
+
+    await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1));
+    expect(createSpy).toHaveBeenCalledWith(
+      "hello world",
+      undefined,
+      [{ source: "github:o/a", ref: null, repo_path: null }],
+      null,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
     );
   });
 });

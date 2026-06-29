@@ -11,6 +11,7 @@ import { I18nKey } from "#/i18n/declaration";
 
 import CodeBranchIcon from "#/icons/u-code-branch.svg?react";
 import SkillsIcon from "#/icons/skills.svg?react";
+import PuzzleIcon from "#/icons/u-puzzle-piece.svg?react";
 import FishingHookIcon from "#/icons/fishing-hook.svg?react";
 import ToolsIcon from "#/icons/u-tools.svg?react";
 import SettingsIcon from "#/icons/settings.svg?react";
@@ -24,10 +25,12 @@ import { useIsArchivedConversation } from "#/hooks/use-is-archived-conversation"
 interface ToolsContextMenuProps {
   onClose: () => void;
   onShowSkills: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onShowPlugins: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onShowHooks: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onShowAgentTools: (event: React.MouseEvent<HTMLButtonElement>) => void;
   shouldShowAgentTools?: boolean;
   shouldShowHooks?: boolean;
+  shouldShowPlugins?: boolean;
   /** When set, renders a divider and this action as the last menu item. */
   footerAction?: {
     testId: string;
@@ -40,10 +43,12 @@ interface ToolsContextMenuProps {
 export function ToolsContextMenu({
   onClose,
   onShowSkills,
+  onShowPlugins,
   onShowHooks,
   onShowAgentTools,
   shouldShowAgentTools = true,
   shouldShowHooks = false,
+  shouldShowPlugins = false,
   footerAction,
 }: ToolsContextMenuProps) {
   const { t } = useTranslation("openhands");
@@ -164,6 +169,22 @@ export function ToolsContextMenu({
           />
         </ContextMenuListItem>
       </ArchivedDisabledTooltip>
+
+      {/* Show Plugins - only when this conversation has attached plugins */}
+      {shouldShowPlugins && (
+        <ArchivedDisabledTooltip isDisabled={isArchivedConversation}>
+          <ContextMenuListItem
+            testId="show-plugins-button"
+            onClick={onShowPlugins}
+            isDisabled={isArchivedConversation}
+          >
+            <ToolsContextMenuIconText
+              icon={<PuzzleIcon width={16} height={16} aria-hidden />}
+              text={t(I18nKey.CONVERSATION$SHOW_PLUGINS)}
+            />
+          </ContextMenuListItem>
+        </ArchivedDisabledTooltip>
+      )}
 
       {/* Show Hooks - Only show for V1 conversations */}
       {shouldShowHooks && (

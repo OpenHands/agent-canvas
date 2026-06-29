@@ -8,7 +8,10 @@ import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-
 import { useBrowserStore } from "#/stores/browser-store";
 import { useUserConversation } from "#/hooks/query/use-user-conversation";
 import EventService from "#/api/event-service/event-service.api";
-import { getStoredConversationMetadata } from "#/api/conversation-metadata-store";
+import {
+  getStoredConversationMetadata,
+  setStoredConversationMetadata,
+} from "#/api/conversation-metadata-store";
 import type { MessageEvent } from "#/types/agent-server/core";
 
 // Captures the main socket's `onMessage` (`handleMainMessage`) so tests can
@@ -151,6 +154,41 @@ describe("ConversationWebSocketProvider — conversation-scoped event store", ()
     expect(getStoredConversationMetadata("conv-switch")?.active_profile).toBe(
       "fast-opus",
     );
+  });
+
+  it("preserves the conversation's attached plugins across an agent-triggered model switch", async () => {
+    // Arrange: the conversation's metadata already carries an attached plugin.
+    setStoredConversationMetadata("conv-switch", {
+      selected_repository: null,
+      selected_branch: null,
+      git_provider: null,
+      plugins: [
+        { source: "github:acme/city-weather", ref: null, repo_path: null },
+      ],
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ConversationWebSocketProvider
+          conversationId="conv-switch"
+          conversationUrl="http://localhost/api"
+        >
+          <div />
+        </ConversationWebSocketProvider>
+      </QueryClientProvider>,
+    );
+    await waitFor(() => expect(wsCapture.mainOnMessage).not.toBeNull());
+
+    // Act: the agent switches model via the SwitchLLM tool.
+    act(() => {
+      wsCapture.mainOnMessage!({
+        data: JSON.stringify(makeAgentSwitchObservation("fast-opus")),
+      });
+    });
+
+    // Assert: the plugins snapshot survives the full-object metadata replace.
+    expect(getStoredConversationMetadata("conv-switch")?.plugins).toEqual([
+      { source: "github:acme/city-weather", ref: null, repo_path: null },
+    ]);
   });
 
   it("clears the previous conversation's events when switching conversations", async () => {

@@ -15,6 +15,7 @@ import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useNavigation } from "#/context/navigation-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
+import { getLockedCloudHost } from "#/api/agent-server-config";
 import {
   assertAgentServerVersionIsSupported,
   getDisplayAgentServerVersion,
@@ -556,6 +557,7 @@ export function BackendForm({
             setConnectionError(null);
           }}
           onBlur={() => setNameTouched(true)}
+          // eslint-disable-next-line i18next/no-literal-string -- example placeholder, not user-facing copy
           placeholder="Production"
           className="w-full"
           showRequiredTag
@@ -687,6 +689,24 @@ export function BackendConnectionOptions({
   manualSubmitTestId,
 }: BackendConnectionOptionsProps) {
   const { t } = useTranslation("openhands");
+  const lockedCloudHost = getLockedCloudHost();
+
+  if (lockedCloudHost) {
+    return (
+      <div
+        data-testid={`${testIdRoot}-connection-options`}
+        className="flex justify-center"
+      >
+        <div className="w-full">
+          <CloudLoginColumn
+            onConnected={onConnected}
+            testIdRoot={testIdRoot}
+            lockedHost={lockedCloudHost}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -706,14 +726,6 @@ export function BackendConnectionOptions({
           }
           submitTestId={manualSubmitTestId}
         />
-      </div>
-
-      <div className="flex shrink-0 flex-row items-center md:flex-col">
-        <div className="h-px flex-1 bg-[var(--oh-border)] md:h-auto md:w-px" />
-        <span className="px-3 py-0 text-xs uppercase text-[var(--oh-muted)] md:px-0 md:py-3">
-          {t(I18nKey.BACKEND$LOGIN_OR)}
-        </span>
-        <div className="h-px flex-1 bg-[var(--oh-border)] md:h-auto md:w-px" />
       </div>
 
       <div className="flex-1 min-w-0">
@@ -796,6 +808,7 @@ function ManualConnectionColumn({
             setName(value);
             setConnectionError(null);
           }}
+          // eslint-disable-next-line i18next/no-literal-string -- example placeholder, not user-facing copy
           placeholder="e.g. My Server"
           className="w-full"
         />
@@ -815,6 +828,7 @@ function ManualConnectionColumn({
             setHost(value);
             setConnectionError(null);
           }}
+          // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
           placeholder="http://localhost:8000"
           className="w-full"
         />
@@ -836,6 +850,7 @@ function ManualConnectionColumn({
           setApiKey(value);
           setConnectionError(null);
         }}
+        // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
         placeholder="sk-••••••••••"
         className="w-full"
       />
@@ -866,6 +881,7 @@ function ManualConnectionColumn({
 interface CloudLoginColumnProps {
   onConnected: (payload: BackendFormSubmitPayload) => void;
   testIdRoot: string;
+  lockedHost?: string;
 }
 
 /**
@@ -873,13 +889,18 @@ interface CloudLoginColumnProps {
  * disclosure for users who self-host OpenHands Cloud and need to override the
  * host.
  */
-function CloudLoginColumn({ onConnected, testIdRoot }: CloudLoginColumnProps) {
+function CloudLoginColumn({
+  onConnected,
+  testIdRoot,
+  lockedHost,
+}: CloudLoginColumnProps) {
   const { t } = useTranslation("openhands");
 
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
   const [customHost, setCustomHost] = React.useState("");
 
-  const effectiveHost = customHost.trim() || DEFAULT_OPENHANDS_CLOUD_HOST;
+  const effectiveHost =
+    lockedHost ?? (customHost.trim() || DEFAULT_OPENHANDS_CLOUD_HOST);
 
   const handleLoginSuccess = (apiKey: string) => {
     onConnected({
@@ -913,45 +934,47 @@ function CloudLoginColumn({ onConnected, testIdRoot }: CloudLoginColumnProps) {
         testIdRoot={testIdRoot}
       />
 
-      <div className="w-full">
-        <button
-          type="button"
-          onClick={() => setAdvancedOpen((open) => !open)}
-          aria-expanded={advancedOpen}
-          data-testid={`${testIdRoot}-advanced-toggle`}
-          className="flex w-full cursor-pointer items-center justify-center gap-1 text-center text-xs text-[var(--oh-muted)] transition-colors hover:text-content-2"
-        >
-          <span>{t(I18nKey.BACKEND$ADVANCED)}</span>
-          <ChevronDownSmallIcon
+      {lockedHost ? null : (
+        <div className="w-full">
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((open) => !open)}
+            aria-expanded={advancedOpen}
+            data-testid={`${testIdRoot}-advanced-toggle`}
+            className="flex w-full cursor-pointer items-center justify-center gap-1 text-center text-xs text-[var(--oh-muted)] transition-colors hover:text-content-2"
+          >
+            <span>{t(I18nKey.BACKEND$ADVANCED)}</span>
+            <ChevronDownSmallIcon
+              className={cn(
+                "h-4 w-4 shrink-0 text-muted transition-transform",
+                advancedOpen && "rotate-180",
+              )}
+              aria-hidden
+            />
+          </button>
+          <div
             className={cn(
-              "h-4 w-4 shrink-0 text-muted transition-transform",
-              advancedOpen && "rotate-180",
+              "pt-2",
+              !advancedOpen && "pointer-events-none invisible",
             )}
-            aria-hidden
-          />
-        </button>
-        <div
-          className={cn(
-            "pt-2",
-            !advancedOpen && "pointer-events-none invisible",
-          )}
-          aria-hidden={!advancedOpen}
-        >
-          <SettingsInput
-            testId={`${testIdRoot}-cloud-host`}
-            name={`${testIdRoot}-cloud-host`}
-            type="text"
-            label={t(I18nKey.BACKEND$HOST_LABEL)}
-            value={customHost}
-            onChange={setCustomHost}
-            placeholder={DEFAULT_OPENHANDS_CLOUD_HOST}
-            className="w-full"
-          />
-          <p className="mt-1 text-xs text-[var(--oh-muted)]">
-            {t(I18nKey.BACKEND$LOGIN_CLOUD_HINT)}
-          </p>
+            aria-hidden={!advancedOpen}
+          >
+            <SettingsInput
+              testId={`${testIdRoot}-cloud-host`}
+              name={`${testIdRoot}-cloud-host`}
+              type="text"
+              label={t(I18nKey.BACKEND$HOST_LABEL)}
+              value={customHost}
+              onChange={setCustomHost}
+              placeholder={DEFAULT_OPENHANDS_CLOUD_HOST}
+              className="w-full"
+            />
+            <p className="mt-1 text-xs text-[var(--oh-muted)]">
+              {t(I18nKey.BACKEND$LOGIN_CLOUD_HINT)}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
