@@ -6,6 +6,9 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLocation,
+  useNavigate,
+  useNavigation as useRouterNavigation,
 } from "react-router";
 import "./tailwind.css";
 import "./index.css";
@@ -35,6 +38,7 @@ import { useConfig } from "#/hooks/query/use-config";
 import { QUERY_KEYS } from "#/hooks/query/query-keys";
 import { AgentServerUIRoot } from "#/components/providers";
 import { useOnboardingCompletion } from "#/components/features/onboarding/use-onboarding-completion";
+import { NavigationProvider } from "#/context/navigation-context";
 import {
   applyColorTheme,
   readPersistedColorTheme,
@@ -139,14 +143,32 @@ function MissingAgentServerScreen() {
   );
 }
 function FirstRunOnboardingScreen({ onClose }: { onClose: () => void }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const routerNavigation = useRouterNavigation();
+  const conversationId =
+    location.pathname.match(/^\/conversations\/([^/]+)/)?.[1] ?? null;
+  const navigationValue = React.useMemo(
+    () => ({
+      currentPath: location.pathname,
+      conversationId,
+      isNavigating: Boolean(routerNavigation.location),
+      navigate: (to: string, options?: { replace?: boolean }) =>
+        navigate(to, options),
+    }),
+    [conversationId, location.pathname, navigate, routerNavigation.location],
+  );
+
   return (
     <main
       data-testid="first-run-onboarding-screen"
       className="min-h-screen bg-base"
     >
-      <React.Suspense fallback={<AgentServerBootstrapLoading />}>
-        <OnboardingModal onClose={onClose} />
-      </React.Suspense>
+      <NavigationProvider value={navigationValue}>
+        <React.Suspense fallback={<AgentServerBootstrapLoading />}>
+          <OnboardingModal onClose={onClose} />
+        </React.Suspense>
+      </NavigationProvider>
     </main>
   );
 }

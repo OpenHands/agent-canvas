@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoutesStub } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -34,13 +34,35 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-vi.mock("#/components/features/onboarding/onboarding-modal", () => ({
-  OnboardingModal: () => (
-    <div data-testid="onboarding-modal">
-      <div data-testid="onboarding-step-check-backend" />
-    </div>
-  ),
-}));
+vi.mock("#/components/features/onboarding/onboarding-modal", async () => {
+  const React = await import("react");
+  const { useNavigation } = await import("#/context/navigation-context");
+
+  return {
+    OnboardingModal: ({ onClose }: { onClose: () => void }) => {
+      const { navigate } = useNavigation();
+      return React.createElement(
+        "div",
+        { "data-testid": "onboarding-modal" },
+        React.createElement("div", {
+          "data-testid": "onboarding-step-check-backend",
+        }),
+        React.createElement(
+          "button",
+          {
+            type: "button",
+            "data-testid": "mock-onboarding-launch",
+            onClick: () => {
+              navigate("/conversations/mock-conversation");
+              onClose();
+            },
+          },
+          "Launch conversation",
+        ),
+      );
+    },
+  };
+});
 
 const RouterStub = createRoutesStub([
   {
@@ -50,6 +72,12 @@ const RouterStub = createRoutesStub([
       {
         Component: () => <div data-testid="app-outlet">app outlet</div>,
         path: "/",
+      },
+      {
+        Component: () => (
+          <div data-testid="conversation-outlet">conversation outlet</div>
+        ),
+        path: "/conversations/:conversationId",
       },
     ],
   },
@@ -128,6 +156,28 @@ describe("App root agent-server availability guard", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("manage-backends-modal"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lets root-level onboarding navigate to the launched conversation before closing", async () => {
+    server.use(
+      http.get("*/server_info", () =>
+        HttpResponse.json({ uptime: 0, idle_time: 0, version: "1.28.1" }),
+      ),
+    );
+
+    renderApp(["/"]);
+
+    fireEvent.click(await screen.findByTestId("mock-onboarding-launch"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("conversation-outlet")).toBeInTheDocument();
+    });
+    expect(window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY)).toBe(
+      "1",
+    );
+    expect(
+      screen.queryByTestId("first-run-onboarding-screen"),
     ).not.toBeInTheDocument();
   });
 
