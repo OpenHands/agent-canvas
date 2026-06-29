@@ -5,8 +5,8 @@ import {
   type IntegrationCatalogEntry as MarketplaceEntry,
 } from "@openhands/extensions/integrations";
 import {
+  getInstallableMcpMarketplaceCatalog,
   getMarketplaceEntriesByPopularity,
-  getMcpMarketplaceCatalog,
   marketplaceEntryMatchesQuery,
 } from "#/utils/mcp-marketplace-utils";
 import { MarketplaceCard } from "./marketplace-card";
@@ -30,7 +30,7 @@ export function MarketplaceSection({
   const { t } = useTranslation("openhands");
 
   const visibleEntries = getMarketplaceEntriesByPopularity(
-    getMcpMarketplaceCatalog(MCP_MARKETPLACE),
+    getInstallableMcpMarketplaceCatalog(MCP_MARKETPLACE),
   ).filter((entry) => marketplaceEntryMatchesQuery(entry, query));
 
   return (

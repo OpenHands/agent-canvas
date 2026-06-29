@@ -61,6 +61,12 @@ export function getDefaultMcpTransport(
 export function getMcpMarketplaceCatalog(
   catalog: MarketplaceEntry[],
 ): MarketplaceEntry[] {
+  return catalog.filter((entry) => !!getDefaultMcpConnectionOption(entry));
+}
+
+export function getInstallableMcpMarketplaceCatalog(
+  catalog: MarketplaceEntry[],
+): MarketplaceEntry[] {
   return catalog.filter((entry) => !!getInstallableMcpConnectionOption(entry));
 }
 

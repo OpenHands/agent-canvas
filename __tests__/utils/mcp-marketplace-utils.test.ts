@@ -3,6 +3,7 @@ import {
   findCatalogEntryForServer,
   findInstalledMatch,
   getDefaultMcpTransport,
+  getInstallableMcpMarketplaceCatalog,
   getInstallableMcpConnectionOption,
   getMcpMarketplaceCatalog,
   installedServerMatchesQuery,
@@ -132,7 +133,7 @@ describe("getInstallableMcpConnectionOption", () => {
 });
 
 describe("getMcpMarketplaceCatalog", () => {
-  it("excludes OAuth-only MCP entries that the local install modal cannot install", () => {
+  it("keeps OAuth-only MCP entries for installed-server metadata", () => {
     const oauthOnlyEntry: Parameters<
       typeof getMcpMarketplaceCatalog
     >[0][number] = {
@@ -151,6 +152,34 @@ describe("getMcpMarketplaceCatalog", () => {
     };
 
     const catalog = getMcpMarketplaceCatalog([oauthOnlyEntry, slackEntry]);
+
+    expect(catalog.map((entry) => entry.id)).toEqual(["oauth-only", "slack"]);
+  });
+});
+
+describe("getInstallableMcpMarketplaceCatalog", () => {
+  it("excludes OAuth-only MCP entries that the local install modal cannot install", () => {
+    const oauthOnlyEntry: Parameters<
+      typeof getInstallableMcpMarketplaceCatalog
+    >[0][number] = {
+      ...slackEntry,
+      id: "oauth-only",
+      connectionOptions: [
+        {
+          id: "oauth",
+          provider: "mcp",
+          auth: { strategy: "oauth2" },
+          transport: { kind: "shttp", url: "https://example.com/mcp" },
+        } as Parameters<
+          typeof getInstallableMcpMarketplaceCatalog
+        >[0][number]["connectionOptions"][number],
+      ],
+    };
+
+    const catalog = getInstallableMcpMarketplaceCatalog([
+      oauthOnlyEntry,
+      slackEntry,
+    ]);
 
     expect(catalog.map((entry) => entry.id)).toEqual(["slack"]);
   });
