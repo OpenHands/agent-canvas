@@ -57,8 +57,8 @@ export function SayHelloStep({
       { query: message.trim() },
       {
         onSuccess: (data) => {
-          onLaunched();
           navigate(`/conversations/${data.conversation_id}`);
+          onLaunched();
         },
         onError: () => {
           launchInFlightRef.current = false;

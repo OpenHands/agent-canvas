@@ -212,10 +212,9 @@ export default function App() {
   // active suppresses reopen flicker. (The flag is only honored when the
   // active backend really is the locked Cloud host, so the stale-flag bypass
   // concerns above don't apply here.)
-  const shouldShowFirstRunOnboarding = isLockedToCloud
+  const showFirstRunOnboarding = isLockedToCloud
     ? !isActiveLockedCloudBackend || !onboardingCompleted
     : !onboardingCompleted;
-  const showFirstRunOnboarding = shouldShowFirstRunOnboarding;
 
   // Skip the /server_info probe entirely when we already know auth is
   // required and missing — it would just 401 and waste time. Also keep the
