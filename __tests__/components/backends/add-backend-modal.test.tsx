@@ -253,6 +253,28 @@ describe("AddBackendModal – two-column layout", () => {
   });
 });
 
+describe("AddBackendModal – two-column body layout", () => {
+  it("does not stretch the columns to match the taller manual column", () => {
+    // Regression: the shorter cloud column used to be stretched to match the
+    // taller manual one (default `items-stretch`), which pinned the
+    // "Login with OpenHands Cloud" button visually against the bottom of the
+    // dialog. The body now uses `items-start` so each column keeps its natural
+    // height; the divider opts back in via `self-stretch`.
+    renderWithProviders(<AddBackendModal onClose={vi.fn()} />);
+
+    const modal = screen.getByTestId("add-backend-modal");
+    const body = modal.querySelector(":scope > div.flex");
+
+    expect(body).not.toBeNull();
+    expect(body!.className).toContain("items-start");
+    expect(body!.className).not.toContain("items-stretch");
+
+    const divider = body!.querySelector(':scope > div.flex[class*="flex-col"]');
+    expect(divider).not.toBeNull();
+    expect(divider!.className).toContain("self-stretch");
+  });
+});
+
 // @spec BM-002 — adding a backend auto-switches the active selection, so a
 // backend-scoped detail page is now stale; the user must land on the section
 // list rather than the previous backend's detail page.

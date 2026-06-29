@@ -906,15 +906,19 @@ export function BackendFormModal({
             </h2>
           </div>
 
-          {/* Two-column body */}
-          <div className="flex gap-6 px-6 pb-6 pt-2">
+          {/* Two-column body. `items-start` keeps each column at its natural
+              height so the shorter cloud column doesn't get stretched to match
+              the manual one — that stretching left the "Login with OpenHands
+              Cloud" button visually pinned to the bottom of the dialog. The
+              divider uses `self-stretch` so it still spans the full height. */}
+          <div className="flex items-start gap-6 px-6 pb-6 pt-2">
             {/* Left: manual connection */}
             <div className="flex-1 min-w-0">
               <ManualConnectionColumn onClose={onClose} />
             </div>
 
             {/* Vertical OR divider */}
-            <div className="flex shrink-0 flex-col items-center">
+            <div className="flex shrink-0 self-stretch flex-col items-center">
               <div className="flex-1 w-px bg-[var(--oh-border)]" />
               <span className="py-3 text-xs uppercase text-[var(--oh-muted)]">
                 {t(I18nKey.BACKEND$LOGIN_OR)}
