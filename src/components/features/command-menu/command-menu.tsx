@@ -65,7 +65,7 @@ export function CommandMenu() {
   const [query, setQuery] = React.useState(EMPTY_QUERY);
   const [activeIndex, setActiveIndex] = React.useState(0);
   const inputRef = React.useRef<HTMLInputElement>(null);
-  const optionRefs = React.useRef(new Map<string, HTMLButtonElement>());
+  const optionRefs = React.useRef(new Map<string, HTMLElement>());
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -203,11 +203,10 @@ export function CommandMenu() {
       <div
         className={cn(
           "relative flex max-h-[min(720px,78vh)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl",
-          "border border-[var(--oh-border)] bg-[linear-gradient(180deg,var(--oh-surface),var(--oh-surface-raised))]",
+          "border border-[var(--oh-border)] bg-[var(--oh-surface)]",
           "shadow-[0_24px_90px_rgba(0,0,0,0.52),0_0_0_1px_rgba(255,255,255,0.03)_inset]",
         )}
       >
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.12),transparent_42%)]" />
         <div className="relative flex items-center gap-3 border-b border-[var(--oh-border)] px-4 py-3">
           <Search className="size-5 shrink-0 text-[var(--oh-text-dim)]" />
           <input
@@ -280,30 +279,25 @@ export function CommandMenu() {
                     {groupItems.map((item) => {
                       const itemIndex = filteredItems.indexOf(item);
                       const isActive = itemIndex === activeIndex;
+                      const to = item.to;
 
-                      return (
-                        <button
-                          key={item.id}
-                          ref={(node) => {
-                            if (node) {
-                              optionRefs.current.set(item.id, node);
-                            } else {
-                              optionRefs.current.delete(item.id);
-                            }
-                          }}
-                          id={getOptionId(item)}
-                          type="button"
-                          role="option"
-                          aria-selected={isActive}
-                          onMouseEnter={() => setActiveIndex(itemIndex)}
-                          onClick={() => runItem(item)}
-                          className={cn(
-                            "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors duration-150",
-                            isActive
-                              ? "bg-white/[0.09] text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset]"
-                              : "text-[var(--oh-muted)] hover:bg-white/[0.05] hover:text-white",
-                          )}
-                        >
+                      const assignRef = (node: HTMLElement | null) => {
+                        if (node) {
+                          optionRefs.current.set(item.id, node);
+                        } else {
+                          optionRefs.current.delete(item.id);
+                        }
+                      };
+
+                      const optionClassName = cn(
+                        "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors duration-150",
+                        isActive
+                          ? "bg-white/[0.09] text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset]"
+                          : "text-[var(--oh-muted)] hover:bg-white/[0.05] hover:text-white",
+                      );
+
+                      const content = (
+                        <>
                           <span
                             className={cn(
                               "flex size-9 shrink-0 items-center justify-center rounded-lg border transition-colors duration-150",
@@ -324,10 +318,55 @@ export function CommandMenu() {
                             </span>
                           </span>
                           <span className="hidden shrink-0 rounded-md border border-[var(--oh-border)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--oh-text-dim)] sm:inline-flex">
-                            {item.to
+                            {to
                               ? t(I18nKey.COMMAND_MENU$GO_HINT)
                               : t(I18nKey.COMMAND_MENU$RUN_HINT)}
                           </span>
+                        </>
+                      );
+
+                      if (to) {
+                        return (
+                          <a
+                            key={item.id}
+                            ref={assignRef}
+                            id={getOptionId(item)}
+                            href={to}
+                            role="option"
+                            aria-selected={isActive}
+                            onMouseEnter={() => setActiveIndex(itemIndex)}
+                            onClick={(event) => {
+                              if (
+                                event.metaKey ||
+                                event.ctrlKey ||
+                                event.shiftKey ||
+                                event.altKey
+                              ) {
+                                return;
+                              }
+                              event.preventDefault();
+                              runItem(item);
+                            }}
+                            className={optionClassName}
+                          >
+                            {content}
+                          </a>
+                        );
+                      }
+
+                      return (
+                        <button
+                          key={item.id}
+                          ref={assignRef}
+                          id={getOptionId(item)}
+                          type="button"
+                          role="option"
+                          aria-selected={isActive}
+                          onMouseEnter={() => setActiveIndex(itemIndex)}
+                          onClick={() => runItem(item)}
+                          className={optionClassName}
+                        >
+                          {content}
                         </button>
                       );
                     })}
