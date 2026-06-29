@@ -27,40 +27,49 @@
  *     --route "/sockets=http://localhost:18000"
  */
 
-import { createServer, request as httpRequest } from "node:http";
-import { createReadStream } from "node:fs";
-import { readFile, stat } from "node:fs/promises";
-import { extname, isAbsolute, normalize, relative, resolve } from "node:path";
+import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
+import { extname, resolve } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
+import sirv from "sirv";
+
+import {
+  createProxyHandlers,
+  createRouter,
+  matchesPathPrefix,
+} from "./proxy-utils.mjs";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MIME types
+// SPA fallback helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-const MIME = {
-  ".html": "text/html; charset=utf-8",
-  ".js": "application/javascript; charset=utf-8",
-  ".mjs": "application/javascript; charset=utf-8",
-  ".css": "text/css; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".svg": "image/svg+xml",
-  ".png": "image/png",
-  ".jpg": "image/jpeg",
-  ".jpeg": "image/jpeg",
-  ".gif": "image/gif",
-  ".ico": "image/x-icon",
-  ".webp": "image/webp",
-  ".woff": "font/woff",
-  ".woff2": "font/woff2",
-  ".ttf": "font/ttf",
-  ".wav": "audio/wav",
-  ".mp3": "audio/mpeg",
-  ".webmanifest": "application/manifest+json",
-  ".txt": "text/plain; charset=utf-8",
-  ".xml": "application/xml",
-  ".map": "application/json",
-};
+const ASSET_LIKE_EXTENSIONS = new Set([
+  ".br",
+  ".css",
+  ".gif",
+  ".gz",
+  ".html",
+  ".htm",
+  ".ico",
+  ".jpeg",
+  ".jpg",
+  ".js",
+  ".json",
+  ".map",
+  ".mjs",
+  ".mp3",
+  ".png",
+  ".svg",
+  ".ttf",
+  ".txt",
+  ".wav",
+  ".webmanifest",
+  ".webp",
+  ".woff",
+  ".woff2",
+  ".xml",
+]);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Args
@@ -329,294 +338,114 @@ async function serveInjectedIndexHtml(
     "Content-Length": buf.length,
     "Cache-Control": "no-cache",
   });
-  if (req.method !== "HEAD") res.end(buf);
+  if (req.method === "HEAD") {
+    res.end();
+  } else {
+    res.end(buf);
+  }
   return true;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Router (kept structurally identical to scripts/ingress.mjs)
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function createRouter(routes) {
-  const sortedRoutes = Object.entries(routes).sort(
-    ([a], [b]) => b.length - a.length,
-  );
-
-  return function route(url) {
-    for (const [prefix, backend] of sortedRoutes) {
-      if (
-        url === prefix ||
-        url.startsWith(prefix + "/") ||
-        url.startsWith(prefix + "?")
-      ) {
-        return backend;
-      }
-    }
-    return null;
-  };
-}
-
-function parseBackendUrl(backendUrl) {
-  const url = new URL(backendUrl);
-  return {
-    hostname: url.hostname,
-    port:
-      Number.parseInt(url.port, 10) || (url.protocol === "https:" ? 443 : 80),
-    protocol: url.protocol,
-  };
-}
-
-function proxyRequest(req, res, backendUrl) {
-  const backend = parseBackendUrl(backendUrl);
-
-  const proxyReq = httpRequest(
-    {
-      hostname: backend.hostname,
-      port: backend.port,
-      path: req.url,
-      method: req.method,
-      headers: {
-        ...req.headers,
-        host: `${backend.hostname}:${backend.port}`,
-      },
-    },
-    (proxyRes) => {
-      res.writeHead(proxyRes.statusCode ?? 502, proxyRes.headers);
-      proxyRes.pipe(res, { end: true });
-    },
-  );
-
-  // Absorb client-disconnect errors (EPIPE/ECONNRESET) so the server
-  // process survives abrupt navigations and health-check probes.
-  req.on("error", () => {});
-  res.on("error", () => {});
-
-  proxyReq.on("error", (err) => {
-    console.error(`Proxy error for ${req.url} -> ${backendUrl}:`, err.message);
-    if (!res.headersSent) {
-      res.writeHead(502);
-      res.end(`Bad Gateway: ${err.message}`);
-    }
-  });
-
-  req.pipe(proxyReq, { end: true });
-}
-
-function proxyWebSocket(req, socket, head, backendUrl) {
-  const backend = parseBackendUrl(backendUrl);
-
-  const proxyReq = httpRequest({
-    hostname: backend.hostname,
-    port: backend.port,
-    path: req.url,
-    method: req.method,
-    headers: {
-      ...req.headers,
-      host: `${backend.hostname}:${backend.port}`,
-    },
-  });
-
-  // Absorb socket errors so the process survives mid-flight disconnects.
-  socket.on("error", () => socket.destroy());
-
-  proxyReq.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
-    proxySocket.on("error", () => proxySocket.destroy());
-
-    socket.write(
-      `HTTP/${proxyRes.httpVersion} ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`,
-    );
-    for (let i = 0; i < proxyRes.rawHeaders.length; i += 2) {
-      socket.write(
-        `${proxyRes.rawHeaders[i]}: ${proxyRes.rawHeaders[i + 1]}\r\n`,
-      );
-    }
-    socket.write("\r\n");
-    if (proxyHead.length > 0) {
-      socket.write(proxyHead);
-    }
-    // Handle errors on both sockets so an abrupt disconnect (ECONNRESET,
-    // EPIPE) during test cleanup doesn't crash the process with an
-    // uncaught 'error' event.
-    proxySocket.on("error", (err) => {
-      console.error(
-        `WebSocket proxy backend socket error (${req.url}):`,
-        err.message,
-      );
-      socket.destroy();
-    });
-    socket.on("error", (err) => {
-      console.error(
-        `WebSocket proxy client socket error (${req.url}):`,
-        err.message,
-      );
-      proxySocket.destroy();
-    });
-    proxySocket.pipe(socket, { end: true });
-    socket.pipe(proxySocket, { end: true });
-  });
-
-  proxyReq.on("error", (err) => {
-    console.error(
-      `WebSocket proxy error for ${req.url} -> ${backendUrl}:`,
-      err.message,
-    );
-    socket.destroy();
-  });
-
-  proxyReq.end();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Static file serving
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function tryStat(path) {
+function parseUrlPath(req, res) {
+  const rawPath = (req.url ?? "/").split("?")[0];
   try {
-    const result = await stat(path);
-    return result.isFile() ? result : null;
+    return decodeURIComponent(rawPath);
   } catch {
+    res.writeHead(400);
+    res.end("Bad Request");
     return null;
   }
 }
 
-function makeEtag(stats) {
-  // Match sirv's weak-ETag format: W/"<size>-<mtime ms>"
-  return `W/"${stats.size}-${Math.floor(stats.mtimeMs)}"`;
+function isGetOrHead(req) {
+  return req.method === "GET" || req.method === "HEAD";
 }
 
-function pickContentType(filePath) {
-  return MIME[extname(filePath).toLowerCase()] || "application/octet-stream";
-}
-
-function pickCacheControl(urlPath) {
-  // Vite/react-router builds emit content-hashed assets under /assets/.
-  // Those are safe to cache forever; everything else (index.html, public/
-  // copies, locales) should revalidate so a rebuild is picked up.
-  if (urlPath.startsWith("/assets/")) {
-    return "public, max-age=31536000, immutable";
-  }
-  return "no-cache";
-}
-
-function looksLikeAssetRequest(urlPath) {
-  // If the last path segment has a known file extension, treat 404s as 404
-  // instead of falling back to the SPA shell. Avoids serving index.html for
-  // missing /favicon.ico, missing source maps, etc.
-  const last = urlPath.split("/").pop() ?? "";
-  const ext = extname(last).toLowerCase();
-  return Boolean(ext) && ext in MIME;
-}
-
-function isPathInsideDir(dirAbs, filePath) {
-  const relativePath = relative(dirAbs, filePath);
-  return (
-    relativePath === "" ||
-    (!relativePath.startsWith("..") && !isAbsolute(relativePath))
+function needsRuntimeInjection(injectionOpts) {
+  return Boolean(
+    injectionOpts.sessionApiKey ||
+    injectionOpts.authRequired ||
+    injectionOpts.runtimeServicesInfo ||
+    injectionOpts.lockToCloud,
   );
 }
 
-async function serveFile(req, res, filePath, urlPath) {
-  const stats = await tryStat(filePath);
-  if (!stats) return false;
+function looksLikeAssetRequest(urlPath) {
+  const last = urlPath.split("/").pop() ?? "";
+  return ASSET_LIKE_EXTENSIONS.has(extname(last).toLowerCase());
+}
 
-  const etag = makeEtag(stats);
-  if (req.headers["if-none-match"] === etag) {
-    res.writeHead(304, { ETag: etag });
-    res.end();
-    return true;
+function matchesAnyPrefix(urlPath, prefixes) {
+  return prefixes.some((prefix) => matchesPathPrefix(urlPath, prefix));
+}
+
+function rejectUnavailable(res) {
+  res.writeHead(503, { "Content-Type": "text/plain; charset=utf-8" });
+  res.end("Service Unavailable (no backend configured for this route)");
+}
+
+function notFound(res) {
+  res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+  res.end("Not Found");
+}
+
+function setStaticHeaders(res, pathname) {
+  if (pathname.startsWith("/assets/")) {
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    return;
   }
+  res.setHeader("Cache-Control", "no-cache");
+}
 
-  res.writeHead(200, {
-    "Content-Type": pickContentType(filePath),
-    "Content-Length": stats.size,
-    "Cache-Control": pickCacheControl(urlPath),
-    ETag: etag,
+function createStaticMiddleware(dirAbs) {
+  return sirv(dirAbs, {
+    etag: true,
+    single: false,
+    setHeaders: setStaticHeaders,
   });
-
-  if (req.method === "HEAD") {
-    res.end();
-    return true;
-  }
-
-  createReadStream(filePath).pipe(res);
-  return true;
 }
 
 async function handleStatic(
   req,
   res,
   dirAbs,
+  staticMiddleware,
   injectionOpts = {},
   rejectPrefixes = [],
 ) {
-  const rawPath = req.url.split("?")[0];
-  let urlPath;
-  try {
-    urlPath = decodeURIComponent(rawPath);
-  } catch {
-    res.writeHead(400);
-    res.end("Bad Request");
-    return;
+  const urlPath = parseUrlPath(req, res);
+  if (urlPath === null) return;
+
+  const injectRuntimeConfig = needsRuntimeInjection(injectionOpts);
+  const indexPath = resolve(dirAbs, "index.html");
+
+  if (
+    injectRuntimeConfig &&
+    isGetOrHead(req) &&
+    (urlPath === "/" || urlPath === "/index.html")
+  ) {
+    if (await serveInjectedIndexHtml(req, res, indexPath, injectionOpts))
+      return;
   }
 
-  const safe = normalize(urlPath);
-  let filePath = resolve(dirAbs, "." + safe);
-  if (!isPathInsideDir(dirAbs, filePath)) {
-    res.writeHead(403);
-    res.end("Forbidden");
-    return;
-  }
+  staticMiddleware(req, res, async () => {
+    if (matchesAnyPrefix(urlPath, rejectPrefixes)) {
+      rejectUnavailable(res);
+      return;
+    }
 
-  // Directory request -> /index.html
-  if (urlPath.endsWith("/")) {
-    filePath = resolve(filePath, "index.html");
-  }
-
-  const needsInjection =
-    injectionOpts.sessionApiKey ||
-    injectionOpts.authRequired ||
-    injectionOpts.runtimeServicesInfo ||
-    injectionOpts.lockToCloud;
-
-  // Serve index.html with runtime config injection when configured.
-  if (needsInjection && filePath.endsWith("index.html")) {
-    if (await serveInjectedIndexHtml(req, res, filePath, injectionOpts)) return;
-    // Fall through to regular serveFile (handles 404 path correctly).
-  }
-
-  if (await serveFile(req, res, filePath, urlPath)) return;
-
-  // Reject prefixes: return 503 for known API paths that have no backend
-  // configured (e.g. in --frontend-only mode). Checked before SPA fallback
-  // so these paths never silently serve index.html.
-  if (rejectPrefixes.length > 0) {
-    for (const prefix of rejectPrefixes) {
-      if (
-        urlPath === prefix ||
-        urlPath.startsWith(prefix + "/") ||
-        urlPath.startsWith(prefix + "?")
-      ) {
-        res.writeHead(503, { "Content-Type": "text/plain; charset=utf-8" });
-        res.end("Service Unavailable (no backend configured for this route)");
+    if (isGetOrHead(req) && !looksLikeAssetRequest(urlPath)) {
+      if (await serveInjectedIndexHtml(req, res, indexPath, injectionOpts)) {
         return;
       }
     }
-  }
 
-  // SPA fallback: only for non-asset requests, and not for non-GET/HEAD.
-  if (
-    (req.method === "GET" || req.method === "HEAD") &&
-    !looksLikeAssetRequest(urlPath)
-  ) {
-    const indexPath = resolve(dirAbs, "index.html");
-    if (needsInjection) {
-      if (await serveInjectedIndexHtml(req, res, indexPath, injectionOpts))
-        return;
-    } else if (await serveFile(req, res, indexPath, "/")) return;
-  }
-
-  res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
-  res.end("Not Found");
+    notFound(res);
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -625,6 +454,7 @@ async function handleStatic(
 
 export function startStaticServer(config) {
   const route = createRouter(config.routes);
+  const proxy = createProxyHandlers({ label: `static:${config.port}` });
   const dirAbs = resolve(config.dir);
   const injectionOpts = {
     sessionApiKey: config.sessionApiKey || null,
@@ -633,28 +463,36 @@ export function startStaticServer(config) {
     lockToCloud: config.lockToCloud || null,
   };
   const rejectPrefixes = config.rejectPrefixes ?? [];
+  const staticMiddleware = createStaticMiddleware(dirAbs);
+
+  proxy.installDiagnostics();
 
   const server = createServer((req, res) => {
-    const backend = route(req.url);
+    const backend = route(req.url ?? "/");
     if (backend) {
-      proxyRequest(req, res, backend);
+      proxy.proxyHttp(req, res, backend);
       return;
     }
-    handleStatic(req, res, dirAbs, injectionOpts, rejectPrefixes).catch(
-      (err) => {
-        console.error(`Static handler error for ${req.url}:`, err);
-        if (!res.headersSent) {
-          res.writeHead(500);
-          res.end("Internal Server Error");
-        }
-      },
-    );
+    handleStatic(
+      req,
+      res,
+      dirAbs,
+      staticMiddleware,
+      injectionOpts,
+      rejectPrefixes,
+    ).catch((err) => {
+      console.error(`Static handler error for ${req.url}:`, err);
+      if (!res.headersSent) {
+        res.writeHead(500);
+        res.end("Internal Server Error");
+      }
+    });
   });
 
   server.on("upgrade", (req, socket, head) => {
-    const backend = route(req.url);
+    const backend = route(req.url ?? "/");
     if (backend) {
-      proxyWebSocket(req, socket, head, backend);
+      proxy.proxyWebSocket(req, socket, head, backend);
       return;
     }
     socket.destroy();
