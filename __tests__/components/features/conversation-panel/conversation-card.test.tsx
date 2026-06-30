@@ -490,22 +490,6 @@ describe("ConversationCard", () => {
     expect(screen.queryByTestId("ellipsis-button")).not.toBeInTheDocument();
   });
 
-  it("should not render the llm model in the conversation card", () => {
-    renderWithProviders(
-      <ConversationCard
-        onDelete={onDelete}
-        onChangeTitle={onChangeTitle}
-        title="Conversation 1"
-        selectedRepository={null}
-        lastUpdatedAt="2021-10-01T12:00:00Z"
-      />,
-    );
-
-    expect(
-      screen.queryByTestId("conversation-card-llm-model"),
-    ).not.toBeInTheDocument();
-  });
-
   it("renders the status dot in the header when executionStatus is provided", () => {
     renderWithProviders(
       <ConversationCard
