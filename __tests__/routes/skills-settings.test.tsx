@@ -15,7 +15,7 @@ import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 
 const navigateMock = vi.fn();
 
-vi.mock("#/context/navigation-context", () => ({
+vi.mock("#/contexts/navigation-context", () => ({
   useNavigation: () => ({
     navigate: navigateMock,
     currentPath: "/skills",

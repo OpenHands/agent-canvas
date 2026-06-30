@@ -12,7 +12,7 @@ import { ModalCloseButton } from "#/components/shared/modals/modal-close-button"
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
-import { useNavigation } from "#/context/navigation-context";
+import { useNavigation } from "#/contexts/navigation-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { getLockedCloudHost } from "#/api/agent-server-config";

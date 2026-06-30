@@ -6,7 +6,7 @@ import { useNewConversationCommand } from "#/hooks/mutation/use-new-conversation
 
 const mockNavigate = vi.fn();
 
-vi.mock("#/context/navigation-context", () => ({
+vi.mock("#/contexts/navigation-context", () => ({
   useNavigation: () => ({
     currentPath: "/conversations/conv-123",
     conversationId: "conv-123",

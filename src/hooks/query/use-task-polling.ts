@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
-import { useNavigation } from "#/context/navigation-context";
+import { useNavigation } from "#/contexts/navigation-context";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import {
   consumePendingTaskDraft,

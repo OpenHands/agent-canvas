@@ -15,7 +15,7 @@ import {
 } from "#/hooks/query/use-automations";
 import { useAutomationHealth } from "#/hooks/query/use-automation-health";
 import { useActiveBackend } from "#/contexts/active-backend-context";
-import { useNavigation } from "#/context/navigation-context";
+import { useNavigation } from "#/contexts/navigation-context";
 import { BackLink } from "#/components/features/automations/detail/back-link";
 import { DetailHeader } from "#/components/features/automations/detail/detail-header";
 import { PromptSection } from "#/components/features/automations/detail/prompt-section";
