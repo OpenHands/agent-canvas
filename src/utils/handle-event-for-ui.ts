@@ -91,58 +91,66 @@ const findTextSegmentsInOrder = (
   return { matched: true, lastMatchEnd };
 };
 
+// The current turn's content-bearing streaming deltas (those after the last
+// user message that actually carry `content`). Reasoning-only deltas are
+// excluded on purpose: reasoning renders in its own collapsed bubble and never
+// overlaps the assistant's regular message text, so it doesn't participate in
+// text reconciliation.
+const getCurrentTurnContentDeltas = (
+  uiEvents: OpenHandsEvent[],
+): { event: StreamingDeltaEvent; index: number }[] => {
+  const lastUserMessageIndex = findLastUserMessageIndex(uiEvents);
+  return uiEvents
+    .map((event, index) => ({ event, index }))
+    .filter(
+      (item): item is { event: StreamingDeltaEvent; index: number } =>
+        item.index > lastUserMessageIndex &&
+        isStreamingDeltaEvent(item.event) &&
+        (item.event.content?.length ?? 0) > 0,
+    );
+};
+
+// Whether the streamed `segments` (in order) reconcile against `targetText`.
+// `lastMatchEnd` is the offset just past the matched streamed text, so callers
+// can recover any not-yet-streamed suffix.
+const matchStreamedSegments = (
+  targetText: string,
+  segments: string[],
+): { matched: boolean; lastMatchEnd: number } => {
+  const streamedText = segments.join("");
+  if (targetText.startsWith(streamedText)) {
+    return { matched: true, lastMatchEnd: streamedText.length };
+  }
+  return findTextSegmentsInOrder(targetText, segments);
+};
+
 const finalizeStreamingDeltasInPlace = (
   finalEvent: OpenHandsEvent,
   uiEvents: OpenHandsEvent[],
 ): OpenHandsEvent[] | null => {
-  const lastUserMessageIndex = findLastUserMessageIndex(uiEvents);
-  const currentTurnStreamingDeltaIndexes = uiEvents
-    .map((uiEvent, index) => ({ uiEvent, index }))
-    .filter(
-      ({ uiEvent, index }) =>
-        index > lastUserMessageIndex && isStreamingDeltaEvent(uiEvent),
-    )
-    .map(({ index }) => index);
-
-  if (currentTurnStreamingDeltaIndexes.length === 0) {
+  const contentStreamingDeltas = getCurrentTurnContentDeltas(uiEvents);
+  if (contentStreamingDeltas.length === 0) {
     return null;
   }
 
   const finalText = getFinalAgentText(finalEvent);
-  // Only the regular `content` field participates in reconciliation.
-  // Reasoning-only deltas (those that carry only `reasoning_content`) produce
-  // an empty streamingSegments list, causing the function to return null so
-  // the finalEvent is appended normally.  This is intentional: reasoning
-  // content renders in its own collapsed bubble and never overlaps with the
-  // assistant's regular message text in `FinishAction.message`.
-  const contentStreamingDeltas = currentTurnStreamingDeltaIndexes
-    .map((index) => ({ event: uiEvents[index], index }))
-    .filter(
-      (item): item is { event: StreamingDeltaEvent; index: number } =>
-        isStreamingDeltaEvent(item.event) &&
-        (item.event.content?.length ?? 0) > 0,
-    );
+  if (!finalText) {
+    return null;
+  }
+
   const streamingSegments = contentStreamingDeltas.map(
     ({ event }) => event.content ?? "",
   );
-
-  if (!finalText || streamingSegments.length === 0) {
+  const { matched, lastMatchEnd } = matchStreamedSegments(
+    finalText,
+    streamingSegments,
+  );
+  if (!matched) {
     return null;
   }
 
   const nextUiEvents = [...uiEvents];
-  const streamedText = streamingSegments.join("");
-  let unstreamedSuffix = "";
-
-  if (finalText.startsWith(streamedText)) {
-    unstreamedSuffix = finalText.slice(streamedText.length);
-  } else {
-    const match = findTextSegmentsInOrder(finalText, streamingSegments);
-    if (!match.matched) {
-      return null;
-    }
-    unstreamedSuffix = finalText.slice(match.lastMatchEnd);
-  }
+  const unstreamedSuffix = finalText.slice(lastMatchEnd);
 
   const lastDeltaIndex = contentStreamingDeltas.at(-1)?.index;
   const lastDelta =
@@ -199,44 +207,31 @@ const supersedeStreamedThoughtWithAction = (
     return null;
   }
 
-  const lastUserMessageIndex = findLastUserMessageIndex(uiEvents);
-  const contentDeltas = uiEvents
-    .map((uiEvent, index) => ({ uiEvent, index }))
-    .filter(
-      (item): item is { uiEvent: StreamingDeltaEvent; index: number } =>
-        item.index > lastUserMessageIndex &&
-        isStreamingDeltaEvent(item.uiEvent) &&
-        (item.uiEvent.content?.length ?? 0) > 0,
-    );
-
+  const contentDeltas = getCurrentTurnContentDeltas(uiEvents);
   if (contentDeltas.length === 0) {
     return null;
   }
 
   const streamingSegments = contentDeltas.map(
-    ({ uiEvent }) => uiEvent.content ?? "",
+    ({ event }) => event.content ?? "",
   );
-  const streamedText = streamingSegments.join("");
 
   // Only strip when the streamed text is actually what this action renders as
   // its thought, so unrelated streamed text is never hidden.
-  const matched =
-    thoughtText.startsWith(streamedText) ||
-    findTextSegmentsInOrder(thoughtText, streamingSegments).matched;
-  if (!matched) {
+  if (!matchStreamedSegments(thoughtText, streamingSegments).matched) {
     return null;
   }
 
   const indexesToStrip = new Set(contentDeltas.map(({ index }) => index));
   const nextUiEvents: OpenHandsEvent[] = [];
-  uiEvents.forEach((uiEvent, index) => {
-    if (!indexesToStrip.has(index) || !isStreamingDeltaEvent(uiEvent)) {
-      nextUiEvents.push(uiEvent);
+  uiEvents.forEach((event, index) => {
+    if (!indexesToStrip.has(index) || !isStreamingDeltaEvent(event)) {
+      nextUiEvents.push(event);
       return;
     }
     // Keep the delta only while it still carries reasoning to render.
-    if (uiEvent.reasoning_content) {
-      nextUiEvents.push({ ...uiEvent, content: null });
+    if (event.reasoning_content) {
+      nextUiEvents.push({ ...event, content: null });
     }
   });
 
