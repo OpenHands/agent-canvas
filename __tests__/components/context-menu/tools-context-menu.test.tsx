@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import React from "react";
 import { adaptSystemMessage } from "#/utils/system-message-adapter";
 import { EventState } from "#/stores/use-event-store";
@@ -44,6 +45,7 @@ describe("SystemMessage UI Rendering", () => {
       <ToolsContextMenu
         onClose={() => {}}
         onShowSkills={() => {}}
+        onShowPlugins={() => {}}
         onShowHooks={() => {}}
         onShowAgentTools={() => {}}
       />,
@@ -65,5 +67,39 @@ describe("SystemMessage UI Rendering", () => {
 
     expect(messageElement).toBeDefined();
     expect(messageElement).toBeVisible();
+  });
+});
+
+describe("ToolsContextMenu - Show Plugins", () => {
+  it("renders the Show Plugins item and calls onShowPlugins when clicked", async () => {
+    const onShowPlugins = vi.fn();
+    render(
+      <ToolsContextMenu
+        onClose={() => {}}
+        onShowSkills={() => {}}
+        onShowPlugins={onShowPlugins}
+        onShowHooks={() => {}}
+        onShowAgentTools={() => {}}
+        shouldShowPlugins
+      />,
+    );
+
+    await userEvent.click(screen.getByTestId("show-plugins-button"));
+
+    expect(onShowPlugins).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the Show Plugins item when the conversation has no attached plugins", () => {
+    render(
+      <ToolsContextMenu
+        onClose={() => {}}
+        onShowSkills={() => {}}
+        onShowPlugins={() => {}}
+        onShowHooks={() => {}}
+        onShowAgentTools={() => {}}
+      />,
+    );
+
+    expect(screen.queryByTestId("show-plugins-button")).not.toBeInTheDocument();
   });
 });

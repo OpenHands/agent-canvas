@@ -343,6 +343,7 @@ test.describe("auth mode: public gate", () => {
             },
           ]),
         );
+        window.localStorage.setItem("openhands-onboarded", "1");
       },
       { staleKey: STALE_KEY, host: PUBLIC_MODE_URL },
     );

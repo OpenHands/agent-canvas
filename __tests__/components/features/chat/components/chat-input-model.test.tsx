@@ -216,9 +216,9 @@ describe("ChatInputModel", () => {
     renderWithProviders(<ChatInputModel />);
 
     const model = screen.getByTestId("chat-input-llm-model");
-    // Claude Code's registered default (``opus[1m]``), shown as its human
-    // label to match the conversation list chip. See the claude-code entry
-    // in the ts-client ACP registry mirrored by acp-providers.ts.
+    // Claude Code's registered default (``opus[1m]``), shown as its
+    // human label to match the conversation list chip. See CLAUDE_MODELS in
+    // acp-providers.ts.
     expect(model).toHaveAttribute("title", "Claude Opus 4.8 (1M)");
     fireEvent.click(model);
     expect(screen.getByRole("link")).toHaveAttribute("href", "/settings/agent");

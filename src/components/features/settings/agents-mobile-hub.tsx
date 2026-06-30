@@ -4,6 +4,7 @@ import { I18nKey } from "#/i18n/declaration";
 import { SettingsNavRenderedItem } from "#/constants/settings-nav";
 import { SidebarNavLink } from "#/components/features/sidebar/sidebar-nav-link";
 import { BackendSyncedSettingsBadge } from "#/components/features/settings/backend-synced-settings-badge";
+import { CloudSettingsLink } from "#/components/features/settings/cloud-settings-link";
 
 interface AgentsMobileHubProps {
   navigationItems: SettingsNavRenderedItem[];
@@ -40,6 +41,7 @@ export function AgentsMobileHub({ navigationItems }: AgentsMobileHubProps) {
             icon={renderedItem.item.icon}
           />
         ))}
+        <CloudSettingsLink />
       </nav>
       <div className="pt-1">
         <BackendSyncedSettingsBadge />

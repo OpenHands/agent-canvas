@@ -1,18 +1,19 @@
 import React from "react";
 import { AxiosError } from "axios";
+import { ExtensionsNavigation } from "#/components/features/skills/extensions-navigation";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useDeleteMcpServer } from "#/hooks/mutation/use-delete-mcp-server";
-import { useActiveBackend } from "#/contexts/active-backend-context";
 import { parseMcpConfig } from "#/utils/mcp-config";
 import {
   displayErrorToast,
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
+import { settingsLikeMainScrollClassName } from "#/utils/settings-like-page-layout-classes";
 import {
   findCatalogEntryForServer,
   getMcpMarketplaceCatalog,
@@ -39,17 +40,11 @@ import {
 // both OpenHands and ACP agents. The same editor and `mcp_config` storage
 // drive both kinds.
 
-// Rendered inside the Agents hub (#1456); the hub supplies the nav + scroll
-// container, so this page renders content only and owns its own header.
-export const handle = { hideTitle: true };
-
 export default function MCPPage() {
   const { t } = useTranslation("openhands");
   const { data: settings, isLoading } = useSettings();
   const { mutate: deleteMcpServer, isPending: isDeleting } =
     useDeleteMcpServer();
-  const activeBackend = useActiveBackend();
-  const backendKind = activeBackend.backend.kind;
 
   const [installEntry, setInstallEntry] =
     React.useState<MarketplaceEntry | null>(null);
@@ -113,95 +108,103 @@ export default function MCPPage() {
     return (
       <div
         data-testid="mcp-page"
-        className="flex h-full flex-1 items-center justify-center"
+        className="flex h-full gap-4 md:gap-6 md:pl-8 lg:gap-10 lg:pl-10"
       >
-        <div className="h-8 w-8 rounded-full border-2 border-transparent border-t-white animate-spin" />
+        <ExtensionsNavigation />
+        <div className="flex h-full flex-1 items-center justify-center px-4 md:px-0">
+          <div className="h-8 w-8 rounded-full border-2 border-transparent border-t-white animate-spin" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div data-testid="mcp-page" className="min-w-0">
-      <div className="flex w-full min-w-0 flex-col gap-6">
-        <div className="min-w-0">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1">
-              <h2 className="text-xl font-medium leading-6 text-foreground">
-                {t(I18nKey.SETTINGS$MCP_TITLE)}
-              </h2>
-              <div className="max-w-2xl text-sm text-tertiary-light">
-                {t(I18nKey.MCP$PAGE_DESCRIPTION)}
+    <div
+      data-testid="mcp-page"
+      className="flex h-full gap-4 md:gap-6 md:pl-8 lg:gap-10 lg:pl-10"
+    >
+      <ExtensionsNavigation />
+      <main className={settingsLikeMainScrollClassName}>
+        <div className="mx-auto flex w-full min-w-0 max-w-[800px] flex-col gap-6">
+          <div className="min-w-0">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1">
+                <h2 className="text-xl font-medium leading-6 text-foreground">
+                  {t(I18nKey.SETTINGS$MCP_TITLE)}
+                </h2>
+                <div className="max-w-2xl text-sm text-tertiary-light">
+                  {t(I18nKey.MCP$PAGE_DESCRIPTION)}
+                </div>
               </div>
+              <BrandButton
+                type="button"
+                variant="secondary"
+                testId="mcp-add-custom-server"
+                className="flex-shrink-0 whitespace-nowrap"
+                onClick={() => setEditingServer({ id: "", type: "sse" })}
+              >
+                {t(I18nKey.MCP$ADD_CUSTOM)}
+              </BrandButton>
             </div>
-            <BrandButton
-              type="button"
-              variant="secondary"
-              testId="mcp-add-custom-server"
-              className="flex-shrink-0 whitespace-nowrap"
-              onClick={() => setEditingServer({ id: "", type: "sse" })}
-            >
-              {t(I18nKey.MCP$ADD_CUSTOM)}
-            </BrandButton>
           </div>
+
+          <McpToolbar
+            search={searchQuery}
+            onSearchChange={setSearchQuery}
+            sectionFilter={sectionFilter}
+            onSectionFilterChange={setSectionFilter}
+          />
+
+          {sectionFilter !== "library" ? (
+            <section className="flex flex-col gap-3">
+              <h2 className="text-base font-semibold text-foreground">
+                {t(I18nKey.MCP$INSTALLED_TITLE)}
+              </h2>
+              <InstalledServersSection
+                servers={filteredInstalledServers}
+                hasAnyInstalled={allServers.length > 0}
+                query={searchQuery}
+                onEdit={handleEdit}
+                onDelete={handleDeleteClick}
+              />
+            </section>
+          ) : null}
+
+          {sectionFilter !== "installed" ? (
+            <MarketplaceSection
+              onSelect={handleMarketplaceInstall}
+              onAdd={handleMarketplaceInstall}
+              query={searchQuery}
+            />
+          ) : null}
         </div>
 
-        <McpToolbar
-          search={searchQuery}
-          onSearchChange={setSearchQuery}
-          sectionFilter={sectionFilter}
-          onSectionFilterChange={setSectionFilter}
-        />
-
-        {sectionFilter !== "library" ? (
-          <section className="flex flex-col gap-3">
-            <h2 className="text-base font-semibold text-foreground">
-              {t(I18nKey.MCP$INSTALLED_TITLE)}
-            </h2>
-            <InstalledServersSection
-              servers={filteredInstalledServers}
-              hasAnyInstalled={allServers.length > 0}
-              query={searchQuery}
-              onEdit={handleEdit}
-              onDelete={handleDeleteClick}
-            />
-          </section>
-        ) : null}
-
-        {sectionFilter !== "installed" ? (
-          <MarketplaceSection
-            backendKind={backendKind}
-            onSelect={handleMarketplaceInstall}
-            onAdd={handleMarketplaceInstall}
-            query={searchQuery}
+        {installEntry && (
+          <InstallServerModal
+            entry={installEntry}
+            onClose={() => setInstallEntry(null)}
           />
-        ) : null}
-      </div>
+        )}
 
-      {installEntry && (
-        <InstallServerModal
-          entry={installEntry}
-          onClose={() => setInstallEntry(null)}
-        />
-      )}
-
-      {/* Custom (or non-marketplace) server editor. The empty-id
+        {/* Custom (or non-marketplace) server editor. The empty-id
             sentinel (`{ id: "", type: "sse" }`) means "add new". */}
-      {editingServer && (
-        <CustomServerEditor
-          server={editingServer}
-          existingServers={allServers}
-          onClose={() => setEditingServer(null)}
-        />
-      )}
+        {editingServer && (
+          <CustomServerEditor
+            server={editingServer}
+            existingServers={allServers}
+            onClose={() => setEditingServer(null)}
+          />
+        )}
 
-      {serverToDelete && (
-        <ConfirmationModal
-          text={t(I18nKey.SETTINGS$MCP_CONFIRM_DELETE)}
-          onCancel={() => setServerToDelete(null)}
-          onConfirm={handleConfirmDelete}
-          isConfirming={isDeleting}
-        />
-      )}
+        {serverToDelete && (
+          <ConfirmationModal
+            text={t(I18nKey.SETTINGS$MCP_CONFIRM_DELETE)}
+            onCancel={() => setServerToDelete(null)}
+            onConfirm={handleConfirmDelete}
+            isConfirming={isDeleting}
+          />
+        )}
+      </main>
     </div>
   );
 }

@@ -29,11 +29,11 @@ export function LlmNotConfiguredBanner() {
     <div
       data-testid="home-llm-not-configured-banner"
       role="alert"
-      className="bg-base border border-primary text-white p-4 rounded flex flex-row items-center justify-between gap-3 mt-3"
+      className="mt-3 flex w-full flex-col gap-3 rounded-xl border border-[var(--oh-border)] bg-[var(--oh-surface-raised)] px-4 py-3 text-[var(--oh-foreground)] sm:flex-row sm:items-center sm:justify-between sm:py-4"
     >
-      <div className="flex items-center">
+      <div className="flex min-w-0 items-start sm:items-center">
         <div className="flex-shrink-0">
-          <FaTriangleExclamation className="text-primary align-middle" />
+          <FaTriangleExclamation className="align-middle text-yellow-400" />
         </div>
         <Typography.Text className="ml-3 text-sm font-medium">
           {t(I18nKey.HOME$LLM_NOT_CONFIGURED_MESSAGE)}
@@ -44,7 +44,8 @@ export function LlmNotConfiguredBanner() {
         testId="home-llm-not-configured-action"
         type="button"
         variant="primary"
-        onClick={() => navigate("/agents/llm")}
+        className="w-fit shrink-0 self-start whitespace-nowrap sm:self-auto"
+        onClick={() => navigate("/settings/llm")}
       >
         {t(I18nKey.HOME$LLM_NOT_CONFIGURED_ACTION)}
       </BrandButton>

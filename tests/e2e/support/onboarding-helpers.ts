@@ -5,6 +5,13 @@ export const ONBOARDING_AGENT_STEP = 1;
 export const ONBOARDING_LLM_STEP = 2;
 export const ONBOARDING_HELLO_STEP = 3;
 
+export type OnboardingStepLayout = {
+  hasBackendStep: boolean;
+  agentStep: number;
+  llmStep: number;
+  helloStep: number;
+};
+
 export async function routeOnboardingLlmCatalog(page: Page) {
   await page.route("**/api/llm/models/verified", async (route) => {
     await route.fulfill({
@@ -123,15 +130,47 @@ export async function clickOnboardingStepButton(page: Page, testId: string) {
   await page.getByTestId(testId).dispatchEvent("click");
 }
 
-export async function advanceOnboardingToLlmStep(page: Page) {
+export async function getOnboardingStepLayout(
+  page: Page,
+): Promise<OnboardingStepLayout> {
   await waitForOnboardingStep(page, ONBOARDING_BACKEND_STEP);
-  await waitForOnboardingBackendConnected(page);
-  await clickOnboardingStepButton(page, "onboarding-backend-next");
+  const hasBackendStep = await page
+    .getByTestId("onboarding-step-check-backend")
+    .isVisible()
+    .catch(() => false);
 
-  await waitForOnboardingStep(page, ONBOARDING_AGENT_STEP);
+  return hasBackendStep
+    ? {
+        hasBackendStep: true,
+        agentStep: ONBOARDING_AGENT_STEP,
+        llmStep: ONBOARDING_LLM_STEP,
+        helloStep: ONBOARDING_HELLO_STEP,
+      }
+    : {
+        hasBackendStep: false,
+        agentStep: ONBOARDING_BACKEND_STEP,
+        llmStep: ONBOARDING_AGENT_STEP,
+        helloStep: ONBOARDING_LLM_STEP,
+      };
+}
+
+export async function advanceOnboardingToLlmStep(page: Page) {
+  const layout = await getOnboardingStepLayout(page);
+
+  if (layout.hasBackendStep) {
+    await waitForOnboardingBackendConnected(page);
+    await clickOnboardingStepButton(page, "onboarding-backend-next");
+    await waitForOnboardingStep(page, layout.agentStep);
+  } else {
+    await expect(
+      page.getByTestId("onboarding-step-choose-agent"),
+      "onboarding should start on agent selection when backend is healthy",
+    ).toBeVisible({ timeout: 10_000 });
+  }
+
   await clickOnboardingStepButton(page, "onboarding-agent-next");
 
-  await waitForOnboardingStep(page, ONBOARDING_LLM_STEP);
+  await waitForOnboardingStep(page, layout.llmStep);
   await expect(
     page.getByTestId("onboarding-step-setup-llm"),
     "onboarding LLM setup step should be visible after advancing",

@@ -145,6 +145,37 @@ describe("SettingsNavigation", () => {
     ).toHaveAttribute("aria-disabled", "true");
   });
 
+  it("keeps pointer events on disabled-by-ACP items so the hover tooltip can open", () => {
+    // Regression for the missing "Disabled while {agent} is active" tooltip
+    // on desktop: the disabled link used to also get ``pointer-events-none``,
+    // which stops HeroUI's pointer-driven Tooltip from ever firing — so the
+    // explanation never reached the user (reported on macOS desktop). A
+    // disabled item that HAS a reason must stay greyed (opacity-50) but keep
+    // receiving pointer events.
+    renderSettingsNavigation(
+      <SettingsNavigation
+        isMobileMenuOpen={false}
+        onCloseMobileMenu={vi.fn()}
+        navigationItems={[
+          {
+            type: "item",
+            item: llmItem,
+            disabled: true,
+            disabledAgentName: "Claude Code",
+          },
+        ]}
+      />,
+    );
+
+    const desktopNav = screen.getByTestId("settings-navbar-desktop");
+    const llmLink = within(desktopNav).getByTestId(
+      "sidebar-settings-/settings/llm",
+    );
+    expect(llmLink).toHaveAttribute("aria-disabled", "true");
+    expect(llmLink.className).toContain("opacity-50");
+    expect(llmLink.className).not.toContain("pointer-events-none");
+  });
+
   it("leaves enabled items clickable in the desktop sidebar", () => {
     renderSettingsNavigation(
       <SettingsNavigation

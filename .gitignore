@@ -28,3 +28,7 @@ __pycache__
 ralph/
 .vercel
 *.tgz
+
+# Local runtime artifacts produced by static-server / agent-server runs
+workspace/
+build-fresh/

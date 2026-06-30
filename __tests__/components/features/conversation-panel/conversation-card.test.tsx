@@ -655,15 +655,15 @@ describe("ConversationCard", () => {
           showLlmProfiles
           agentKind="acp"
           acpServer="claude-code"
-          llmModel="claude-sonnet-4-6"
+          llmModel="raw-model-id"
         />,
       );
 
       const chip = screen.getByTestId("conversation-card-agent-chip");
       // A raw model string not in the registry passes through verbatim
       // (label resolution for known IDs is covered by the next test).
-      expect(chip).toHaveTextContent("claude-sonnet-4-6");
-      expect(chip).toHaveAttribute("title", "Claude Code · claude-sonnet-4-6");
+      expect(chip).toHaveTextContent("raw-model-id");
+      expect(chip).toHaveAttribute("title", "Claude Code · raw-model-id");
       expect(
         within(chip).getByTestId("agent-brand-icon-claude-code"),
       ).toBeInTheDocument();
@@ -671,8 +671,8 @@ describe("ConversationCard", () => {
 
     it("shows the provider's picker label for a known model ID", () => {
       // When ``llm_model`` is a registry-known ID, the chip renders the
-      // human label ("Claude Opus 4.8 (1M)") instead of the raw ID —
-      // matching what the Settings → Agent picker shows for the same value.
+      // human label ("Claude Opus 4.8 (1M)") instead of the raw ID — matching
+      // what the Settings → Agent picker shows for the same value.
       renderWithProviders(
         <ConversationCard
           title="Conversation 1"

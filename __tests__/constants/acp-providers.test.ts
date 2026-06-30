@@ -54,17 +54,18 @@ describe("ACP provider registry", () => {
   });
 
   it("does not suggest generic default model placeholders", () => {
-    // ``default`` (claude-agent-acp 0.44+) and ``auto`` (gemini-cli) are now
-    // real, server-selectable model ids in the upstream registry — not generic
-    // placeholders — so they (and their "Default (recommended)" label) are
-    // legitimate. The check still catches any *other* bare "default"-style id
-    // that leaks in as a placeholder rather than a concrete model.
-    const REGISTRY_DEFAULT_IDS = new Set(["default", "auto"]);
+    // Model lists are SDK-owned (see ACP_PROVIDERS) — Canvas no longer hand-keeps
+    // them. The claude-code registry intentionally offers an id ``default``
+    // labeled "Default (recommended)", a legitimate, well-labeled choice. Guard
+    // against genuinely empty ids and bare placeholder labels, not the qualified
+    // "Default (recommended)" entry.
     for (const provider of ACP_PROVIDERS) {
       for (const model of provider.available_models ?? []) {
-        if (REGISTRY_DEFAULT_IDS.has(model.id.toLowerCase())) continue;
-        expect(model.id.toLowerCase()).not.toBe("default");
-        expect(model.label.toLowerCase()).not.toContain("default");
+        expect(model.id.trim(), provider.key).toBeTruthy();
+        expect(
+          model.label.trim().toLowerCase(),
+          `${provider.key}:${model.id}`,
+        ).not.toBe("default");
       }
     }
   });

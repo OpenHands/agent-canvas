@@ -46,6 +46,9 @@ export function useSwitchLlmProfileAndLog() {
                 git_provider: prev?.git_provider ?? null,
                 selected_workspace: prev?.selected_workspace ?? null,
                 active_profile: profileName,
+                // Full-object replace: carry the plugins snapshot forward so
+                // the in-conversation plugins view survives a profile switch.
+                plugins: prev?.plugins ?? null,
               });
             }
           },

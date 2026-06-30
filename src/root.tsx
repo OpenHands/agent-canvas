@@ -6,6 +6,9 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLocation,
+  useNavigate,
+  useNavigation as useRouterNavigation,
 } from "react-router";
 import "./tailwind.css";
 import "./index.css";
@@ -17,7 +20,11 @@ import {
   isAgentServerUnavailableError,
   isAgentServerAuthError,
 } from "#/api/agent-server-compatibility";
-import { isAuthRequiredAndMissing } from "#/api/agent-server-config";
+import {
+  getLockedCloudHost,
+  isAuthRequiredAndMissing,
+  isSameCloudHost,
+} from "#/api/agent-server-config";
 import { getEffectiveLocalBackend } from "#/api/backend-registry/active-store";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import {
@@ -31,6 +38,7 @@ import { useConfig } from "#/hooks/query/use-config";
 import { QUERY_KEYS } from "#/hooks/query/query-keys";
 import { AgentServerUIRoot } from "#/components/providers";
 import { useOnboardingCompletion } from "#/components/features/onboarding/use-onboarding-completion";
+import { NavigationProvider } from "#/context/navigation-context";
 import {
   applyColorTheme,
   readPersistedColorTheme,
@@ -135,14 +143,32 @@ function MissingAgentServerScreen() {
   );
 }
 function FirstRunOnboardingScreen({ onClose }: { onClose: () => void }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const routerNavigation = useRouterNavigation();
+  const conversationId =
+    location.pathname.match(/^\/conversations\/([^/]+)/)?.[1] ?? null;
+  const navigationValue = React.useMemo(
+    () => ({
+      currentPath: location.pathname,
+      conversationId,
+      isNavigating: Boolean(routerNavigation.location),
+      navigate: (to: string, options?: { replace?: boolean }) =>
+        navigate(to, options),
+    }),
+    [conversationId, location.pathname, navigate, routerNavigation.location],
+  );
+
   return (
     <main
       data-testid="first-run-onboarding-screen"
       className="min-h-screen bg-base"
     >
-      <React.Suspense fallback={<AgentServerBootstrapLoading />}>
-        <OnboardingModal onClose={onClose} />
-      </React.Suspense>
+      <NavigationProvider value={navigationValue}>
+        <React.Suspense fallback={<AgentServerBootstrapLoading />}>
+          <OnboardingModal onClose={onClose} />
+        </React.Suspense>
+      </NavigationProvider>
     </main>
   );
 }
@@ -171,22 +197,46 @@ export default function App() {
   const bakedKeyMissing = isAuthRequiredAndMissing();
   const hasRegisteredKey = Boolean(getEffectiveLocalBackend()?.apiKey);
   const authMissing = bakedKeyMissing && !hasRegisteredKey;
+  const { active } = useActiveBackendContext();
+  // In locked-to-Cloud mode the only valid backend is a Cloud backend whose
+  // host matches the configured locked Cloud host. A missing backend, a stale
+  // Local backend (e.g. one persisted from a previous non-locked session), or
+  // a Cloud backend pointing at a *different* host must all trigger first-run
+  // onboarding instead of the Manage Backends recovery modal — the onboarding
+  // flow owns the Cloud login that replaces the stale backend.
+  const lockedCloudHost = getLockedCloudHost();
+  const isLockedToCloud = lockedCloudHost !== null;
+  // True only when the active backend IS the configured locked Cloud host
+  // (normalized comparison so trailing slash / case / protocol differences
+  // don't cause false negatives). This is the single signal the locked-mode
+  // gates key off of: a reachable stale Local backend or a Cloud backend on
+  // another host must never be treated as the locked backend.
+  const isActiveLockedCloudBackend =
+    isLockedToCloud &&
+    active.backend.kind === "cloud" &&
+    isSameCloudHost(active.backend.host, lockedCloudHost);
   const { isCompleted: onboardingCompleted, markCompleted } =
     useOnboardingCompletion();
-  const [showFirstRunOnboarding, setShowFirstRunOnboarding] = React.useState(
-    () => authMissing && !onboardingCompleted,
-  );
 
-  React.useEffect(() => {
-    if (authMissing && !onboardingCompleted) {
-      setShowFirstRunOnboarding(true);
-      return;
-    }
-
-    if (onboardingCompleted) {
-      setShowFirstRunOnboarding(false);
-    }
-  }, [authMissing, onboardingCompleted]);
+  // In locked-to-Cloud mode the `openhands-onboarded` localStorage flag is
+  // not trustworthy: it may have been set during a previous non-locked
+  // session on the same origin, and origin-scoped localStorage cannot tell
+  // the two deployments apart. So when the active backend is not the locked
+  // Cloud host we ignore the completion flag and force first-run onboarding
+  // (which owns the Cloud login). A stale completion flag must never strand
+  // the user on the Manage Backends recovery modal ("Add Backend") in locked
+  // mode.
+  //
+  // Once the active backend IS the locked Cloud host, a Cloud login that
+  // just succeeded (markCompleted fired via the onboarding modal's onClose)
+  // must hide first-run onboarding immediately. Treating
+  // `onboardingCompleted` as authoritative once the locked Cloud backend is
+  // active suppresses reopen flicker. (The flag is only honored when the
+  // active backend really is the locked Cloud host, so the stale-flag bypass
+  // concerns above don't apply here.)
+  const showFirstRunOnboarding = isLockedToCloud
+    ? !isActiveLockedCloudBackend || !onboardingCompleted
+    : !onboardingCompleted;
 
   // Skip the /server_info probe entirely when we already know auth is
   // required and missing — it would just 401 and waste time. Also keep the
@@ -195,7 +245,6 @@ export default function App() {
   const config = useConfig({
     enabled: !authMissing && !showFirstRunOnboarding,
   });
-  const { active } = useActiveBackendContext();
   const activeCloudHealth = useBackendsHealth(
     active.backend.kind === "cloud" ? [active.backend] : [],
   )[active.backend.id];

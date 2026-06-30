@@ -13,6 +13,8 @@ import {
 import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
+import { useAllCloudOrganizations } from "#/hooks/query/use-cloud-organizations";
+import { useCloudCurrentUserId } from "#/hooks/query/use-cloud-current-user-id";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import { modalTitleLgClassName } from "#/utils/modal-classes";
@@ -33,6 +35,29 @@ interface PendingRemoval {
   name: string;
 }
 
+/**
+ * Resolve the connected organization label for a backend row, mirroring the
+ * per-org labelling used by the backend selector. Cloud API keys are bound to
+ * a single org (legacy keys may expose several, joined here); local backends
+ * and unresolved/errored lookups yield no label.
+ */
+function resolveBackendOrgLabel(
+  backend: Backend,
+  cloudOrgs: ReturnType<typeof useAllCloudOrganizations>,
+  currentUserIds: ReturnType<typeof useCloudCurrentUserId>,
+  personalWorkspaceLabel: string,
+): string | undefined {
+  if (backend.kind !== "cloud") return undefined;
+  const entry = cloudOrgs[backend.id];
+  if (!entry || entry.orgs.length === 0) return undefined;
+  const userId = currentUserIds[backend.id]?.userId ?? null;
+  return entry.orgs
+    .map((org) =>
+      !!userId && userId === org.id ? personalWorkspaceLabel : org.name,
+    )
+    .join(", ");
+}
+
 export function ManageBackendsModal({
   onClose,
   recoveryMode = false,
@@ -43,6 +68,9 @@ export function ManageBackendsModal({
   const healthByBackendId = useBackendsHealth(backends, {
     probeDisabledOnce: true,
   });
+  const cloudOrgs = useAllCloudOrganizations();
+  const currentUserIds = useCloudCurrentUserId();
+  const personalWorkspaceLabel = t(I18nKey.BACKEND$PERSONAL_WORKSPACE);
   const [pendingRemoval, setPendingRemoval] =
     React.useState<PendingRemoval | null>(null);
   const [editingBackend, setEditingBackend] = React.useState<Backend | null>(
@@ -118,6 +146,12 @@ export function ManageBackendsModal({
                       key={backend.id}
                       backend={backend}
                       health={healthByBackendId[backend.id]}
+                      orgLabel={resolveBackendOrgLabel(
+                        backend,
+                        cloudOrgs,
+                        currentUserIds,
+                        personalWorkspaceLabel,
+                      )}
                       onSelect={() => handleSelectBackend(backend)}
                       onEdit={() => setEditingBackend(backend)}
                       onRemove={() =>
