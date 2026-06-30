@@ -12,55 +12,79 @@ import { callCloudProxy } from "./proxy";
 /**
  * Cloud LLM-profile service.
  *
- * The cloud app-server exposes the same LLM-profile machinery as the local
- * agent-server, but mounted on the settings router: `/api/v1/settings/profiles`
- * (vs the agent-server's `/api/profiles`). The request/response shapes match
- * the SDK profile models field-for-field, so we reuse those types directly and
- * only swap the transport — org-scoped `callCloudProxy` instead of the SDK's
- * `ProfilesClient`. Mirrors `src/api/cloud/settings-service.api.ts`.
+ * Profile CRUD is routed to the org-scoped endpoints
+ * `/api/organizations/{orgId}/profiles`, which enforce `EDIT_ORG_SETTINGS`
+ * server-side — so a member's mutation is rejected with 403 even on a direct
+ * API call, not just hidden in the UI. When the active cloud backend has no org
+ * bound (legacy API keys), we fall back to the ungated per-user settings route
+ * `/api/v1/settings/profiles`, where there is no org role to enforce against.
  *
- * Secrets are never exposed by the cloud endpoints: `GET .../profiles/{name}`
- * always returns `config.api_key === null` alongside an `api_key_set` flag
- * (same convention as `/api/v1/settings`). The local client's `exposeSecrets`
- * option is therefore not forwarded — there is nothing for the cloud to expose.
+ * The two routes share shapes except `get` (org returns `llm`, settings returns
+ * `config`) and `activate` (org returns `llm`, settings returns `model`); both
+ * are normalized to the SDK profile types below. Neither route exposes secrets.
  */
 
-const PROFILES_PATH = "/api/v1/settings/profiles";
+const SETTINGS_PROFILES_PATH = "/api/v1/settings/profiles";
 
-function getActiveCloudBackend(): Backend {
-  const active = getActiveBackend().backend;
-  if (active.kind !== "cloud") {
+/**
+ * Resolve the backend + base path for the active cloud backend's profiles:
+ * the org-gated route when an org is bound, else the per-user settings route.
+ */
+function cloudProfilesTarget(): { backend: Backend; base: string } {
+  const { backend, orgId } = getActiveBackend();
+  if (backend.kind !== "cloud") {
     throw new Error("Cloud profiles call requires a cloud backend.");
   }
-  return active;
+  return {
+    backend,
+    base: orgId
+      ? `/api/organizations/${encodeURIComponent(orgId)}/profiles`
+      : SETTINGS_PROFILES_PATH,
+  };
 }
 
 export async function fetchCloudProfiles(): Promise<ProfileListResponse> {
+  const { backend, base } = cloudProfilesTarget();
   return callCloudProxy<ProfileListResponse>({
-    backend: getActiveCloudBackend(),
+    backend,
     method: "GET",
-    path: PROFILES_PATH,
+    path: base,
   });
 }
 
 export async function fetchCloudProfile(
   name: string,
 ): Promise<ProfileDetailResponse> {
-  return callCloudProxy<ProfileDetailResponse>({
-    backend: getActiveCloudBackend(),
+  const { backend, base } = cloudProfilesTarget();
+  // Org returns `{ name, llm }`; settings returns `{ name, config, api_key_set }`.
+  // Normalize to the SDK detail shape. Neither route exposes the key, and the
+  // GUI never reads the detail's `api_key_set` (only list-item `api_key_set`).
+  const result = await callCloudProxy<{
+    name: string;
+    config?: Record<string, unknown>;
+    llm?: Record<string, unknown>;
+    api_key_set?: boolean;
+  }>({
+    backend,
     method: "GET",
-    path: `${PROFILES_PATH}/${encodeURIComponent(name)}`,
+    path: `${base}/${encodeURIComponent(name)}`,
   });
+  return {
+    name: result.name,
+    config: result.config ?? result.llm ?? {},
+    api_key_set: result.api_key_set ?? false,
+  };
 }
 
 export async function saveCloudProfile(
   name: string,
   request: SaveProfileRequest,
 ): Promise<ProfileMutationResponse> {
+  const { backend, base } = cloudProfilesTarget();
   return callCloudProxy<ProfileMutationResponse>({
-    backend: getActiveCloudBackend(),
+    backend,
     method: "POST",
-    path: `${PROFILES_PATH}/${encodeURIComponent(name)}`,
+    path: `${base}/${encodeURIComponent(name)}`,
     body: request,
   });
 }
@@ -68,10 +92,11 @@ export async function saveCloudProfile(
 export async function deleteCloudProfile(
   name: string,
 ): Promise<ProfileMutationResponse> {
+  const { backend, base } = cloudProfilesTarget();
   return callCloudProxy<ProfileMutationResponse>({
-    backend: getActiveCloudBackend(),
+    backend,
     method: "DELETE",
-    path: `${PROFILES_PATH}/${encodeURIComponent(name)}`,
+    path: `${base}/${encodeURIComponent(name)}`,
   });
 }
 
@@ -79,10 +104,11 @@ export async function renameCloudProfile(
   name: string,
   newName: string,
 ): Promise<ProfileMutationResponse> {
+  const { backend, base } = cloudProfilesTarget();
   return callCloudProxy<ProfileMutationResponse>({
-    backend: getActiveCloudBackend(),
+    backend,
     method: "POST",
-    path: `${PROFILES_PATH}/${encodeURIComponent(name)}/rename`,
+    path: `${base}/${encodeURIComponent(name)}/rename`,
     body: { new_name: newName },
   });
 }
@@ -90,23 +116,25 @@ export async function renameCloudProfile(
 export async function activateCloudProfile(
   name: string,
 ): Promise<ActivateProfileResponse> {
-  // The cloud endpoint returns `{ name, message, model }`, whereas the SDK's
-  // ActivateProfileResponse carries `llm_applied`. Consumers only read
-  // `name`/`message` (the activate hook just invalidates caches), so we map the
-  // presence of a resolved `model` onto `llm_applied` to keep one return type.
+  const { backend, base } = cloudProfilesTarget();
+  // Org returns `{ name, message, llm }`; settings returns `{ name, message,
+  // model }`. The SDK type carries `llm_applied`; derive it from whichever the
+  // route provided (consumers only read name/message — the hook just
+  // invalidates caches).
   const result = await callCloudProxy<{
     name: string;
     message: string;
-    model: string | null;
+    model?: string | null;
+    llm?: Record<string, unknown> | null;
   }>({
-    backend: getActiveCloudBackend(),
+    backend,
     method: "POST",
-    path: `${PROFILES_PATH}/${encodeURIComponent(name)}/activate`,
+    path: `${base}/${encodeURIComponent(name)}/activate`,
     body: {},
   });
   return {
     name: result.name,
     message: result.message,
-    llm_applied: result.model != null,
+    llm_applied: result.model != null || result.llm != null,
   };
 }
