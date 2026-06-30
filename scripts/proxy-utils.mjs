@@ -156,6 +156,9 @@ export function createProxyHandlers({
 
   function installDiagnostics(signal = "SIGUSR1") {
     process.on(signal, dumpMetrics);
+    return () => {
+      process.off(signal, dumpMetrics);
+    };
   }
 
   return {

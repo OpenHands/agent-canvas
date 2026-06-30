@@ -394,6 +394,11 @@ function notFound(res) {
 }
 
 function setStaticHeaders(res, pathname) {
+  const extension = extname(pathname).toLowerCase();
+  if (extension === ".js" || extension === ".mjs") {
+    res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+  }
+
   if (pathname.startsWith("/assets/")) {
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
     return;
@@ -465,7 +470,7 @@ export function startStaticServer(config) {
   const rejectPrefixes = config.rejectPrefixes ?? [];
   const staticMiddleware = createStaticMiddleware(dirAbs);
 
-  proxy.installDiagnostics();
+  const uninstallDiagnostics = proxy.installDiagnostics();
 
   const server = createServer((req, res) => {
     const backend = route(req.url ?? "/");
@@ -497,6 +502,7 @@ export function startStaticServer(config) {
     }
     socket.destroy();
   });
+  server.on("close", uninstallDiagnostics);
 
   return new Promise((resolveListen) => {
     server.listen(config.port, config.host, () => {

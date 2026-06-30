@@ -135,7 +135,7 @@ function buildConfig(args, env = process.env) {
 export function startIngress(config) {
   const route = createRouter(config.routes, config.defaultBackend);
   const proxy = createProxyHandlers({ label: `ingress:${config.port}` });
-  proxy.installDiagnostics();
+  const uninstallDiagnostics = proxy.installDiagnostics();
 
   const server = createServer((req, res) => {
     const backend = route(req.url ?? "/");
@@ -173,6 +173,7 @@ export function startIngress(config) {
       socket.destroy();
     }
   });
+  server.on("close", uninstallDiagnostics);
 
   server.listen(config.port, () => {
     console.log("");
