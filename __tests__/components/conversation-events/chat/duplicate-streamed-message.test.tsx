@@ -131,6 +131,30 @@ describe("issue #1534 — streamed intermediate message duplication", () => {
     ).toContain("Considering the request before acting.");
   });
 
+  it("renders a single Thinking section when the action carries its own reasoning", () => {
+    // When the finalized action also reports reasoning, the streamed delta's
+    // reasoning would duplicate the action's "Thinking" — so the delta is
+    // dropped and only one Thinking section renders.
+    const reasoningAction: ActionEvent = {
+      ...action,
+      reasoning_content: "Considering the request before acting.",
+    };
+    const allEvents = [
+      userMessage,
+      streamingDelta,
+      reasoningAction,
+      observation,
+    ];
+    const uiEvents = reduce(allEvents);
+
+    const { container } = renderWithProviders(
+      <Messages messages={uiEvents} allEvents={allEvents} />,
+    );
+
+    expect(screen.getAllByTestId("collapsible-thinking")).toHaveLength(1);
+    expect(countOccurrences(container.textContent ?? "", THOUGHT)).toBe(1);
+  });
+
   it("still renders a final agent message exactly once (unchanged)", () => {
     const finalMessage: MessageEvent = {
       id: "agent-msg-1",

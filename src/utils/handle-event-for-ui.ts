@@ -11,6 +11,7 @@ import {
   isStreamingDeltaEvent,
 } from "#/types/agent-server/type-guards";
 import { StreamingDeltaEvent } from "#/types/agent-server/core/events/streaming-delta-event";
+import { getReasoningContent } from "#/components/conversation-events/chat/event-thought-helpers";
 
 export const mergeStreamingDeltaEvent = (
   incoming: StreamingDeltaEvent,
@@ -110,18 +111,53 @@ const getCurrentTurnContentDeltas = (
     );
 };
 
+// The current step's streaming delta(s): the trailing run at the end of
+// `uiEvents`. Consecutive deltas are already merged into one by
+// `handleEventForUI`, and deltas from earlier steps are separated by their
+// observations, so this isolates the text streamed for the event about to be
+// added and never folds in an earlier step's delta.
+const getTrailingContentDeltas = (
+  uiEvents: OpenHandsEvent[],
+): { event: StreamingDeltaEvent; index: number }[] => {
+  const deltas: { event: StreamingDeltaEvent; index: number }[] = [];
+  for (let index = uiEvents.length - 1; index >= 0; index -= 1) {
+    const event = uiEvents[index];
+    if (!isStreamingDeltaEvent(event)) {
+      break;
+    }
+    if ((event.content?.length ?? 0) > 0) {
+      deltas.unshift({ event, index });
+    }
+  }
+  return deltas;
+};
+
 // Whether the streamed `segments` (in order) reconcile against `targetText`.
 // `lastMatchEnd` is the offset just past the matched streamed text, so callers
 // can recover any not-yet-streamed suffix.
+//
+// The finalized text (FinishAction.message / agent message / action thought) is
+// stripped by the SDK, so it can lack trailing whitespace the model streamed
+// before a tool call; the match tolerates that by also trying the
+// trailing-trimmed streamed text.
 const matchStreamedSegments = (
   targetText: string,
   segments: string[],
 ): { matched: boolean; lastMatchEnd: number } => {
   const streamedText = segments.join("");
-  if (targetText.startsWith(streamedText)) {
-    return { matched: true, lastMatchEnd: streamedText.length };
+  for (const candidate of [streamedText, streamedText.trimEnd()]) {
+    if (candidate && targetText.startsWith(candidate)) {
+      return { matched: true, lastMatchEnd: candidate.length };
+    }
   }
-  return findTextSegmentsInOrder(targetText, segments);
+  // Segments may be interleaved with not-yet-streamed text in `targetText` (an
+  // aggregated final message); locate them in order, trimming the last
+  // segment's trailing whitespace so a streamed-only newline doesn't defeat it.
+  const lastIndex = segments.length - 1;
+  const searchSegments = segments.map((segment, index) =>
+    index === lastIndex ? segment.trimEnd() : segment,
+  );
+  return findTextSegmentsInOrder(targetText, searchSegments);
 };
 
 const finalizeStreamingDeltasInPlace = (
@@ -189,14 +225,18 @@ const finalizeStreamingDeltasInPlace = (
  * Unlike a `FinishAction` / agent `MessageEvent` (handled by
  * `finalizeStreamingDeltasInPlace`, which keeps the delta and drops the final
  * event), the action must stay — it owns the tool call and the hoisted thought.
- * So the streamed text is cleared from the delta instead. The delta's
- * `reasoning_content` is preserved: for many models the streamed delta is the
- * only carrier of reasoning, so the collapsible "Thinking" section must survive
- * even when the action itself reports none. A delta left with neither content
- * nor reasoning is dropped entirely.
+ * So the streamed text is cleared from the delta instead:
+ *   - if the action carries its own reasoning, it renders the "Thinking"
+ *     section too, so the delta is fully redundant and dropped;
+ *   - otherwise the delta is kept as reasoning-only, because for many models
+ *     the streamed delta is the only carrier of reasoning and the "Thinking"
+ *     section must survive. A delta with no reasoning either is dropped.
+ *
+ * Only the CURRENT step's streamed text (the trailing delta run) is considered,
+ * so an earlier step's still-rendered delta is never folded into the match.
  *
  * Returns the updated array, or `null` when there is nothing to reconcile (no
- * current-turn content delta, or the streamed text doesn't match the thought).
+ * trailing content delta, or the streamed text doesn't match the thought).
  */
 const supersedeStreamedThoughtWithAction = (
   action: ActionEvent,
@@ -207,7 +247,7 @@ const supersedeStreamedThoughtWithAction = (
     return null;
   }
 
-  const contentDeltas = getCurrentTurnContentDeltas(uiEvents);
+  const contentDeltas = getTrailingContentDeltas(uiEvents);
   if (contentDeltas.length === 0) {
     return null;
   }
@@ -222,6 +262,9 @@ const supersedeStreamedThoughtWithAction = (
     return null;
   }
 
+  // The action renders the "Thinking" section itself when it carries reasoning,
+  // so keeping the delta's reasoning would duplicate it.
+  const actionRendersReasoning = getReasoningContent(action).trim().length > 0;
   const indexesToStrip = new Set(contentDeltas.map(({ index }) => index));
   const nextUiEvents: OpenHandsEvent[] = [];
   uiEvents.forEach((event, index) => {
@@ -229,8 +272,8 @@ const supersedeStreamedThoughtWithAction = (
       nextUiEvents.push(event);
       return;
     }
-    // Keep the delta only while it still carries reasoning to render.
-    if (event.reasoning_content) {
+    // Keep the delta only to render reasoning the action itself lacks.
+    if (!actionRendersReasoning && event.reasoning_content) {
       nextUiEvents.push({ ...event, content: null });
     }
   });

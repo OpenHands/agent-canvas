@@ -645,5 +645,71 @@ describe("handleEventForUI", () => {
         action,
       ]);
     });
+
+    it("reconciles even when the thought is whitespace-trimmed vs the stream (BUG 1)", () => {
+      // The SDK strips assistant text, so the action's thought can lack the
+      // trailing newline the model streamed before the tool call.
+      const delta = makeStreamingDelta(
+        "delta-1",
+        "Let me gather information.\n",
+      );
+      const action = makeThoughtAction(
+        "intermediate-1",
+        "Let me gather information.",
+      );
+
+      const result = handleEventForUI(action, [mockMessageEvent, delta]);
+
+      // Match succeeds despite the trailing newline, so the delta is dropped.
+      expect(result).toEqual([mockMessageEvent, action]);
+    });
+
+    it("only folds in the current step's trailing delta, not an earlier step's (BUG 2)", () => {
+      // An earlier step's delta still carrying content sits before this step's
+      // observation; it must NOT be joined into the match.
+      const earlierDelta = makeStreamingDelta(
+        "delta-early",
+        "Earlier step text.",
+      );
+      const currentDelta = makeStreamingDelta(
+        "delta-current",
+        "Current step text.",
+      );
+      const action = makeThoughtAction("intermediate-2", "Current step text.");
+
+      const result = handleEventForUI(action, [
+        mockMessageEvent,
+        earlierDelta,
+        mockObservationEvent,
+        currentDelta,
+      ]);
+
+      // Only the trailing (current) delta is reconciled and dropped; the
+      // earlier delta is untouched.
+      expect(result).toEqual([
+        mockMessageEvent,
+        earlierDelta,
+        mockObservationEvent,
+        action,
+      ]);
+    });
+
+    it("drops the delta instead of keeping its reasoning when the action carries reasoning (BUG 3)", () => {
+      const thought = "Let me gather accurate information.";
+      const delta: StreamingDeltaEvent = {
+        ...makeStreamingDelta("delta-1", thought),
+        reasoning_content: "streamed reasoning",
+      };
+      const action: ActionEvent = {
+        ...makeThoughtAction("intermediate-1", thought),
+        reasoning_content: "finalized reasoning",
+      };
+
+      const result = handleEventForUI(action, [mockMessageEvent, delta]);
+
+      // The action renders the Thinking section itself, so the delta is fully
+      // redundant and dropped — no leftover reasoning-only delta.
+      expect(result).toEqual([mockMessageEvent, action]);
+    });
   });
 });
