@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { isMobileUserAgent } from "#/utils/utils";
+import { isMobileUserAgent } from "#/utils/dom";
 import {
   ensureCursorVisible,
   clearEmptyContent,

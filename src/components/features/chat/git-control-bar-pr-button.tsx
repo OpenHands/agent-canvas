@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import PRIcon from "#/icons/u-pr.svg?react";
-import { cn, getCreatePRPrompt } from "#/utils/utils";
+import { cn } from "#/utils/utils";
+import { getCreatePRPrompt } from "#/utils/git";
 import {
   gitControlBarActionButtonClassName,
   gitControlBarActionIconColor,

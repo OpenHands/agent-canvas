@@ -1,7 +1,7 @@
 import { useCallback, useEffect, RefObject, useRef } from "react";
 import { IMessageToSend } from "#/stores/conversation-store";
 import { EPS } from "#/utils/constants";
-import { getStyleHeightPx, setStyleHeightPx } from "#/utils/utils";
+import { getStyleHeightPx, setStyleHeightPx } from "#/utils/dom";
 import { focusContentEditableAtEnd } from "#/components/features/chat/utils/chat-input.utils";
 import { useDragResize } from "./use-drag-resize";
 

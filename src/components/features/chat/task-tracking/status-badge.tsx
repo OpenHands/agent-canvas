@@ -1,4 +1,5 @@
-import { cn, getStatusClassName } from "#/utils/utils";
+import { cn } from "#/utils/utils";
+import { getStatusClassName } from "#/utils/status";
 
 interface StatusBadgeProps {
   status: string;

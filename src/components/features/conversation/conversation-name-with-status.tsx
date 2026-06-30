@@ -6,17 +6,17 @@ import { useUnifiedPauseConversation } from "#/hooks/mutation/use-unified-stop-c
 import { useUnifiedResumeConversation } from "#/hooks/mutation/use-unified-start-conversation";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { useUserProviders } from "#/hooks/use-user-providers";
-import { getStatusColor } from "#/utils/utils";
+import {
+  getStatusColor,
+  isExecutionActive,
+  isExecutionErrored,
+  isExecutionPaused,
+} from "#/utils/status";
 import { AgentState } from "#/types/agent-state";
 import DebugStackframeDot from "#/icons/debug-stackframe-dot.svg?react";
 import { ServerStatusContextMenu } from "../controls/server-status-context-menu";
 import { ConversationName } from "./conversation-name";
 import { RightPanelToggle } from "./right-panel-toggle";
-import {
-  isExecutionActive,
-  isExecutionErrored,
-  isExecutionPaused,
-} from "#/utils/status";
 
 export function ConversationNameWithStatus() {
   const { conversationId } = useConversationId();

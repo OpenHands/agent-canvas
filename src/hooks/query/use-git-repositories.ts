@@ -5,7 +5,7 @@ import { useActiveBackend } from "#/contexts/active-backend-context";
 import { RepositoryPage } from "../../types/git";
 import { Provider } from "../../types/settings";
 import GitService from "#/api/git-service/git-service.api";
-import { shouldUseInstallationRepos } from "#/utils/utils";
+import { shouldUseInstallationRepos } from "#/utils/git";
 
 interface UseGitRepositoriesOptions {
   provider: Provider | null;

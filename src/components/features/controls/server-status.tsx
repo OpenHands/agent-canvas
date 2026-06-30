@@ -3,10 +3,14 @@ import DebugStackframeDot from "#/icons/debug-stackframe-dot.svg?react";
 import { AgentState } from "#/types/agent-state";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { useTaskPolling } from "#/hooks/query/use-task-polling";
-import { getStatusColor, getStatusText } from "#/utils/utils";
+import {
+  getStatusColor,
+  getStatusText,
+  isExecutionErrored,
+  isExecutionPaused,
+} from "#/utils/status";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
-import { isExecutionErrored, isExecutionPaused } from "#/utils/status";
 
 export interface ServerStatusProps {
   className?: string;

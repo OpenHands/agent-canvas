@@ -10,7 +10,7 @@ import { useConversationStore } from "#/stores/conversation-store";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { useSubConversationTaskPolling } from "#/hooks/query/use-sub-conversation-task-polling";
 import { partitionImagesForUpload } from "#/components/features/chat/utils/chat-input.utils";
-import { isTaskPolling } from "#/utils/utils";
+import { isTaskPolling } from "#/utils/status";
 
 interface InteractiveChatBoxProps {
   onSubmit: (message: string, images: File[], files: File[]) => void;
