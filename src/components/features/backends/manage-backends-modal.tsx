@@ -193,7 +193,11 @@ export function ManageBackendsModal({
       </ModalBackdrop>
 
       {showAddForm ? (
-        <BackendFormModal mode="add" onClose={() => setShowAddForm(false)} />
+        <BackendFormModal
+          mode="add"
+          source="manage_backends_modal"
+          onClose={() => setShowAddForm(false)}
+        />
       ) : null}
 
       {editingBackend ? (

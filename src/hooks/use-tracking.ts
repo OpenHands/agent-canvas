@@ -1,6 +1,7 @@
 import { usePostHog } from "posthog-js/react";
 import { useSettings } from "./query/use-settings";
 import { Provider } from "#/types/settings";
+import type { BackendKind } from "#/api/backend-registry/types";
 
 /**
  * Hook that provides tracking functions with automatic data collection
@@ -146,6 +147,31 @@ export const useTracking = () => {
     track("download_trajectory_button_clicked");
   };
 
+  const trackBackendAdded = ({
+    backendKind,
+    connectionMethod,
+    isOpenhandsCloud,
+    isCustomHost,
+    hasApiKey,
+    source,
+  }: {
+    backendKind: BackendKind;
+    connectionMethod: "manual" | "cloud_login";
+    isOpenhandsCloud: boolean;
+    isCustomHost: boolean;
+    hasApiKey: boolean;
+    source?: "add_backend_modal" | "manage_backends_modal";
+  }) => {
+    track("backend_added", {
+      backend_kind: backendKind,
+      connection_method: connectionMethod,
+      is_openhands_cloud: isOpenhandsCloud,
+      is_custom_host: isCustomHost,
+      has_api_key: hasApiKey,
+      source,
+    });
+  };
+
   return {
     trackLoginButtonClick,
     trackConversationCreated,
@@ -160,5 +186,6 @@ export const useTracking = () => {
     trackSettingsSaved,
     trackMcpConfigUpdated,
     trackDownloadTrajectoryButtonClicked,
+    trackBackendAdded,
   };
 };
