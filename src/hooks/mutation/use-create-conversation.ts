@@ -79,8 +79,32 @@ export const useCreateConversation = () => {
         agentProfileId,
       } = variables;
 
-      const effectiveAgentProfileId =
+      const requestedAgentProfileId =
         agentProfileId ?? agentProfiles?.active_agent_profile_id ?? undefined;
+
+      // Fall back to the legacy agent_settings launch when the resolved agent
+      // profile can't resolve its LLM. The agent-server seeds a `default`
+      // openhands profile whose `llm_profile_ref` can point at an LLM profile
+      // that doesn't exist (fresh store, or one configured with named profiles
+      // only); launching from it 404s ("LLM profile '<ref>' not found") and
+      // would brick home-launch. agent_settings reflects the active LLM, so the
+      // fallback degrades cleanly until the seed mirrors it (SDK #3933).
+      // ACP profiles carry no llm_profile_ref, so they're never gated here.
+      const resolvedAgentProfile = requestedAgentProfileId
+        ? agentProfiles?.profiles?.find(
+            (profile) => profile.id === requestedAgentProfileId,
+          )
+        : undefined;
+      const hasDanglingLlmRef =
+        resolvedAgentProfile?.agent_kind === "openhands" &&
+        !!resolvedAgentProfile.llm_profile_ref &&
+        !!llmProfiles?.profiles &&
+        !llmProfiles.profiles.some(
+          (profile) => profile.name === resolvedAgentProfile.llm_profile_ref,
+        );
+      const effectiveAgentProfileId = hasDanglingLlmRef
+        ? undefined
+        : requestedAgentProfileId;
 
       // Only extend the call with the [sandboxId, agentProfileId] tail when
       // launching from a profile, so a plain create stays byte-identical to
