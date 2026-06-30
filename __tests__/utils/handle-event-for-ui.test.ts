@@ -530,4 +530,120 @@ describe("handleEventForUI", () => {
     expect(result).toEqual([mockMessageEvent]);
     expect(result).not.toBe(initialUiEvents);
   });
+
+  // Regression for issue #1534: with stream=true an agent step streams its
+  // pre-tool-call text as a StreamingDeltaEvent, then the step arrives as an
+  // intermediate ActionEvent whose `thought` is that same text. The chat hoists
+  // the action's thought into its own message, so the leftover streaming delta
+  // must not also render the text or it appears twice.
+  describe("intermediate action / streamed thought reconciliation (#1534)", () => {
+    const makeThoughtAction = (id: string, thought: string): ActionEvent => ({
+      ...mockActionEvent,
+      id,
+      tool_call_id: `call_${id}`,
+      thought: [{ type: "text", text: thought }],
+    });
+
+    it("clears the streamed content from the delta, keeping its reasoning", () => {
+      const thought = "Let me gather accurate information.";
+      const delta: StreamingDeltaEvent = {
+        ...makeStreamingDelta("delta-1", thought),
+        reasoning_content: "pondering the request",
+      };
+      const action = makeThoughtAction("intermediate-1", thought);
+
+      const result = handleEventForUI(action, [mockMessageEvent, delta]);
+
+      expect(result).toEqual([
+        mockMessageEvent,
+        { ...delta, content: null },
+        action,
+      ]);
+    });
+
+    it("drops the delta entirely when it has no reasoning left to render", () => {
+      const thought = "Let me gather accurate information.";
+      const delta = makeStreamingDelta("delta-1", thought);
+      const action = makeThoughtAction("intermediate-1", thought);
+
+      const result = handleEventForUI(action, [mockMessageEvent, delta]);
+
+      expect(result).toEqual([mockMessageEvent, action]);
+    });
+
+    it("reconciles across multiple streamed segments in order", () => {
+      const first = makeStreamingDelta("delta-1", "Let me gather ");
+      const merged = handleEventForUI(
+        makeStreamingDelta("delta-2", "accurate information."),
+        handleEventForUI(first, [mockMessageEvent]),
+      );
+      const action = makeThoughtAction(
+        "intermediate-1",
+        "Let me gather accurate information.",
+      );
+
+      const result = handleEventForUI(action, merged);
+
+      // The merged content delta is fully streamed and has no reasoning, so it
+      // is dropped and only the action remains.
+      expect(result).toEqual([mockMessageEvent, action]);
+    });
+
+    it("leaves the delta untouched when streamed text does not match the thought", () => {
+      const delta = makeStreamingDelta(
+        "delta-1",
+        "some unrelated streamed text",
+      );
+      const action = makeThoughtAction(
+        "intermediate-1",
+        "An unrelated thought.",
+      );
+
+      const result = handleEventForUI(action, [mockMessageEvent, delta]);
+
+      expect(result).toEqual([mockMessageEvent, delta, action]);
+    });
+
+    it("does not reconcile a ThinkAction (its thought renders separately)", () => {
+      const thought = "A reasoning step.";
+      const delta = makeStreamingDelta("delta-1", thought);
+      const thinkAction: ActionEvent = {
+        ...mockActionEvent,
+        id: "think-1",
+        tool_name: "think",
+        tool_call_id: "call_think_1",
+        thought: [{ type: "text", text: thought }],
+        action: { kind: "ThinkAction", thought },
+      };
+
+      const result = handleEventForUI(thinkAction, [mockMessageEvent, delta]);
+
+      expect(result).toEqual([mockMessageEvent, delta, thinkAction]);
+    });
+
+    it("only reconciles the current turn's delta (after the last user message)", () => {
+      const thought = "Let me gather accurate information.";
+      const earlierTurnDelta = makeStreamingDelta("delta-old", thought);
+      const laterUserMessage: MessageEvent = {
+        ...mockMessageEvent,
+        id: "user-2",
+      };
+      const action = makeThoughtAction("intermediate-1", thought);
+
+      const result = handleEventForUI(action, [
+        mockMessageEvent,
+        earlierTurnDelta,
+        laterUserMessage,
+      ]);
+
+      // The delta belongs to a turn before the latest user message, so it is
+      // left intact and the action is appended normally.
+      expect(result).toEqual([
+        mockMessageEvent,
+        earlierTurnDelta,
+        laterUserMessage,
+        action,
+      ]);
+    });
+  });
 });

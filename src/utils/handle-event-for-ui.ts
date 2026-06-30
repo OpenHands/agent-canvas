@@ -1,4 +1,8 @@
-import { MessageEvent, OpenHandsEvent } from "#/types/agent-server/core";
+import {
+  ActionEvent,
+  MessageEvent,
+  OpenHandsEvent,
+} from "#/types/agent-server/core";
 import {
   isACPToolCallEvent,
   isActionEvent,
@@ -58,6 +62,15 @@ const getFinalAgentText = (event: OpenHandsEvent): string | null => {
 
   return null;
 };
+
+// The agent's pre-tool-call text, reconstructed the same way as
+// `getAgentMessageText` (no separator) so it reconciles against the streamed
+// `content` of the StreamingDeltaEvent that produced it.
+const getAgentActionThoughtText = (event: ActionEvent): string =>
+  event.thought
+    .filter((content) => content.type === "text")
+    .map((content) => content.text)
+    .join("");
 
 const findTextSegmentsInOrder = (
   text: string,
@@ -155,6 +168,82 @@ const finalizeStreamingDeltasInPlace = (
 };
 
 /**
+ * Reconcile the streaming delta(s) of the current turn when an INTERMEDIATE
+ * (tool-calling) `ActionEvent` materializes.
+ *
+ * With `stream=true` an agent step streams its pre-tool-call text as
+ * StreamingDeltaEvent `content`; that step then arrives as an `ActionEvent`
+ * whose `thought` is the same text, which the chat hoists into its own message
+ * (see `group-events.ts`). Without this reconciliation the text renders twice —
+ * once from the leftover streaming delta and once from the hoisted thought
+ * (issue #1534).
+ *
+ * Unlike a `FinishAction` / agent `MessageEvent` (handled by
+ * `finalizeStreamingDeltasInPlace`, which keeps the delta and drops the final
+ * event), the action must stay — it owns the tool call and the hoisted thought.
+ * So the streamed text is cleared from the delta instead. The delta's
+ * `reasoning_content` is preserved: for many models the streamed delta is the
+ * only carrier of reasoning, so the collapsible "Thinking" section must survive
+ * even when the action itself reports none. A delta left with neither content
+ * nor reasoning is dropped entirely.
+ *
+ * Returns the updated array, or `null` when there is nothing to reconcile (no
+ * current-turn content delta, or the streamed text doesn't match the thought).
+ */
+const supersedeStreamedThoughtWithAction = (
+  action: ActionEvent,
+  uiEvents: OpenHandsEvent[],
+): OpenHandsEvent[] | null => {
+  const thoughtText = getAgentActionThoughtText(action);
+  if (!thoughtText) {
+    return null;
+  }
+
+  const lastUserMessageIndex = findLastUserMessageIndex(uiEvents);
+  const contentDeltas = uiEvents
+    .map((uiEvent, index) => ({ uiEvent, index }))
+    .filter(
+      (item): item is { uiEvent: StreamingDeltaEvent; index: number } =>
+        item.index > lastUserMessageIndex &&
+        isStreamingDeltaEvent(item.uiEvent) &&
+        (item.uiEvent.content?.length ?? 0) > 0,
+    );
+
+  if (contentDeltas.length === 0) {
+    return null;
+  }
+
+  const streamingSegments = contentDeltas.map(
+    ({ uiEvent }) => uiEvent.content ?? "",
+  );
+  const streamedText = streamingSegments.join("");
+
+  // Only strip when the streamed text is actually what this action renders as
+  // its thought, so unrelated streamed text is never hidden.
+  const matched =
+    thoughtText.startsWith(streamedText) ||
+    findTextSegmentsInOrder(thoughtText, streamingSegments).matched;
+  if (!matched) {
+    return null;
+  }
+
+  const indexesToStrip = new Set(contentDeltas.map(({ index }) => index));
+  const nextUiEvents: OpenHandsEvent[] = [];
+  uiEvents.forEach((uiEvent, index) => {
+    if (!indexesToStrip.has(index) || !isStreamingDeltaEvent(uiEvent)) {
+      nextUiEvents.push(uiEvent);
+      return;
+    }
+    // Keep the delta only while it still carries reasoning to render.
+    if (uiEvent.reasoning_content) {
+      nextUiEvents.push({ ...uiEvent, content: null });
+    }
+  });
+
+  return nextUiEvents;
+};
+
+/**
  * Handles adding an event to the UI events array
  * Replaces actions with observations when they arrive (so UI shows observation instead of action)
  * Exception: ThinkAction is NOT replaced because the thought content is in the action, not in the observation
@@ -203,6 +292,28 @@ export const handleEventForUI = (
       // microagents becomes meaningful for streamed responses, add a rendered
       // wrapper that carries both the stable delta identity and that metadata.
       return finalizedUiEvents;
+    }
+  }
+
+  // Intermediate (non-finish) tool-calling action whose thought was streamed:
+  // clear the now-duplicated text from the current turn's streaming delta so it
+  // doesn't render alongside the action's hoisted thought (issue #1534). The
+  // action still falls through to the normal append below — it owns the tool
+  // call and the hoisted thought. ThinkAction is excluded: its thought renders
+  // through its own collapsible codepath, not a hoisted thought, so there is no
+  // duplicate to reconcile.
+  if (
+    isActionEvent(event) &&
+    event.action.kind !== "FinishAction" &&
+    event.action.kind !== "ThinkAction"
+  ) {
+    const reconciledUiEvents = supersedeStreamedThoughtWithAction(
+      event,
+      newUiEvents,
+    );
+    if (reconciledUiEvents) {
+      reconciledUiEvents.push(event);
+      return reconciledUiEvents;
     }
   }
 
