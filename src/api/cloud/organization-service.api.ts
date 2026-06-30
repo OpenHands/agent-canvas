@@ -90,18 +90,26 @@ export async function getCurrentCloudApiKey(
  * the user).
  *
  * `role` is the caller's role in the org (`owner` | `admin` | `member`, or
- * `null` if the upstream omits it). Profile/LLM-settings mutations require an
- * `owner`/`admin` role — see `useCanManageLlmProfiles`.
+ * `null` if the upstream omits it). `permissions` is the server-defined
+ * permission set for that role (e.g. `edit_org_settings`); it is `null` on
+ * older app-servers that don't return it, so callers fall back to the role.
+ * See `useCanManageLlmProfiles`.
  */
 export async function getCloudOrganizationMe(
   orgId: string,
   backend?: Backend,
-): Promise<{ orgId: string; userId: string; role: string | null }> {
+): Promise<{
+  orgId: string;
+  userId: string;
+  role: string | null;
+  permissions?: string[] | null;
+}> {
   const target = resolveBackend(backend);
   const data = await callCloudProxy<{
     org_id: string;
     user_id: string;
     role?: string;
+    permissions?: string[];
   }>({
     backend: target,
     method: "GET",
@@ -111,5 +119,8 @@ export async function getCloudOrganizationMe(
     orgId: data?.org_id ?? orgId,
     userId: data?.user_id ?? "",
     role: data?.role ?? null,
+    // `null` when the field is absent (older app-server) so callers can fall
+    // back to a role check; a present array is the server's source of truth.
+    permissions: Array.isArray(data?.permissions) ? data.permissions : null,
   };
 }

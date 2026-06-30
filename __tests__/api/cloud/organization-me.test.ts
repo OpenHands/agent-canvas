@@ -40,6 +40,7 @@ describe("cloud organization /me", () => {
         user_id: orgId,
         email: "hieptl.developer@gmail.com",
         role: "owner",
+        permissions: ["view_org_settings", "edit_org_settings"],
       },
     });
 
@@ -51,6 +52,33 @@ describe("cloud organization /me", () => {
       method: "GET",
       headers: { Authorization: "Bearer bearer-token" },
     });
-    expect(result).toEqual({ orgId, userId: orgId, role: "owner" });
+    expect(result).toEqual({
+      orgId,
+      userId: orgId,
+      role: "owner",
+      permissions: ["view_org_settings", "edit_org_settings"],
+    });
+  });
+
+  it("returns null permissions when the app-server omits them (older version)", async () => {
+    const orgId = "0b93b5f2-5396-49f2-8d98-61f906184270";
+    vi.mocked(axios.request).mockResolvedValue({
+      data: {
+        org_id: orgId,
+        user_id: orgId,
+        email: "x@example.com",
+        role: "member",
+      },
+    });
+
+    const result = await getCloudOrganizationMe(orgId);
+
+    // Absent `permissions` → null, so callers fall back to the role check.
+    expect(result).toEqual({
+      orgId,
+      userId: orgId,
+      role: "member",
+      permissions: null,
+    });
   });
 });
