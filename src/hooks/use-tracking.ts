@@ -1,6 +1,7 @@
 import { usePostHog } from "posthog-js/react";
 import { useSettings } from "./query/use-settings";
 import { Provider } from "#/types/settings";
+import type { BackendKind } from "#/api/backend-registry/types";
 
 /**
  * Hook that provides tracking functions with automatic data collection
@@ -146,6 +147,46 @@ export const useTracking = () => {
     track("download_trajectory_button_clicked");
   };
 
+  const trackAutomationCreated = ({
+    backendKind,
+  }: {
+    backendKind: BackendKind;
+  }) => {
+    track("automation_created", { backend_kind: backendKind });
+  };
+
+  const trackAutomationExecuted = ({
+    backendKind,
+  }: {
+    backendKind: BackendKind;
+  }) => {
+    track("automation_executed", { backend_kind: backendKind });
+  };
+
+  const trackAutomationDeleted = ({
+    backendKind,
+  }: {
+    backendKind: BackendKind;
+  }) => {
+    track("automation_deleted", { backend_kind: backendKind });
+  };
+
+  const trackAutomationDeactivated = ({
+    backendKind,
+  }: {
+    backendKind: BackendKind;
+  }) => {
+    track("automation_deactivated", { backend_kind: backendKind });
+  };
+
+  const trackAutomationEdited = ({
+    backendKind,
+  }: {
+    backendKind: BackendKind;
+  }) => {
+    track("automation_edited", { backend_kind: backendKind });
+  };
+
   return {
     trackLoginButtonClick,
     trackConversationCreated,
@@ -160,5 +201,10 @@ export const useTracking = () => {
     trackSettingsSaved,
     trackMcpConfigUpdated,
     trackDownloadTrajectoryButtonClicked,
+    trackAutomationCreated,
+    trackAutomationExecuted,
+    trackAutomationDeleted,
+    trackAutomationDeactivated,
+    trackAutomationEdited,
   };
 };
