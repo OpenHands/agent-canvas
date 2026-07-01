@@ -37,6 +37,8 @@ export function ActivityLogItem({ run }: ActivityLogItemProps) {
   const { t, i18n } = useTranslation("openhands");
   const hasConversation = !!run.conversation_id;
   const hasBashCommand = !!run.bash_command_id;
+  const hasErrorDetail = !!run.error_detail?.trim();
+  const hasDebugInfo = hasBashCommand || hasErrorDetail;
   // Only surface "Conversation not created" when the run has reached a
   // terminal status without a conversation — i.e. the conversation truly
   // will not be created (e.g. sandbox provisioning failed). While
@@ -73,7 +75,7 @@ export function ActivityLogItem({ run }: ActivityLogItemProps) {
     setLogsOpen(true);
   };
 
-  const logsButton = hasBashCommand ? (
+  const logsButton = hasDebugInfo ? (
     <button
       type="button"
       onClick={handleLogsClick}
@@ -120,10 +122,11 @@ export function ActivityLogItem({ run }: ActivityLogItemProps) {
         </div>
       )}
 
-      {hasBashCommand && (
+      {hasDebugInfo && (
         <RunLogsModal
           conversationId={run.conversation_id}
           bashCommandId={run.bash_command_id}
+          errorDetail={run.error_detail}
           isOpen={logsOpen}
           onClose={() => setLogsOpen(false)}
         />
