@@ -23,6 +23,10 @@ const statusConfig: Record<
     label: I18nKey.AUTOMATIONS$DETAIL$FAILED,
     style: "border-[var(--oh-danger)]/50 bg-[var(--oh-danger)]/10 text-danger",
   },
+  [AutomationRunStatus.CANCELLED]: {
+    label: I18nKey.AUTOMATIONS$DETAIL$CANCELLED,
+    style: "border-[var(--oh-danger)]/50 bg-[var(--oh-danger)]/10 text-danger",
+  },
   [AutomationRunStatus.PENDING]: {
     label: I18nKey.AUTOMATIONS$DETAIL$PENDING,
     style: "border-[var(--oh-border)] bg-surface-raised text-muted",
@@ -46,6 +50,13 @@ function StatusIcon({ status }: { status: AutomationRunStatus }) {
       return (
         <XCircleIcon
           data-testid="run-status-icon-failed"
+          className="size-3.5"
+        />
+      );
+    case AutomationRunStatus.CANCELLED:
+      return (
+        <XCircleIcon
+          data-testid="run-status-icon-cancelled"
           className="size-3.5"
         />
       );

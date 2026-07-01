@@ -2,9 +2,16 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import TerminalIcon from "#/icons/terminal.svg?react";
+import XCircleIcon from "#/icons/x-circle.svg?react";
 import { AutomationRunStatus, type AutomationRun } from "#/types/automation";
+import { useCancelRun } from "#/hooks/query/use-automations";
+import {
+  displaySuccessToast,
+  displayErrorToast,
+} from "#/utils/custom-toast-handlers";
 import { RunStatusBadge } from "./run-status-badge";
 import { RunLogsModal } from "./run-logs-modal";
+import { CancelRunModal } from "./cancel-run-modal";
 
 interface ActivityLogItemProps {
   run: AutomationRun;
@@ -35,8 +42,12 @@ function getConversationUrl(conversationId: string): string {
 
 export function ActivityLogItem({ run }: ActivityLogItemProps) {
   const { t, i18n } = useTranslation("openhands");
+  const cancelRun = useCancelRun();
   const hasConversation = !!run.conversation_id;
   const hasBashCommand = !!run.bash_command_id;
+  const isCancellable =
+    run.status === AutomationRunStatus.PENDING ||
+    run.status === AutomationRunStatus.RUNNING;
   // Only surface "Conversation not created" when the run has reached a
   // terminal status without a conversation — i.e. the conversation truly
   // will not be created (e.g. sandbox provisioning failed). While
@@ -45,9 +56,11 @@ export function ActivityLogItem({ run }: ActivityLogItemProps) {
   // state.
   const isTerminal =
     run.status === AutomationRunStatus.COMPLETED ||
-    run.status === AutomationRunStatus.FAILED;
+    run.status === AutomationRunStatus.FAILED ||
+    run.status === AutomationRunStatus.CANCELLED;
   const showNoConversationLabel = !hasConversation && isTerminal;
   const [logsOpen, setLogsOpen] = useState(false);
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
   // The backend leaves started_at unset (epoch/zero) while a run is Pending
   // and only populates it once execution begins. Show the user's local time
   // at first render in that window so the row doesn't read "Jan 1, 1970".
@@ -61,6 +74,29 @@ export function ActivityLogItem({ run }: ActivityLogItemProps) {
     i18n.language,
   );
 
+  const handleCancelClick = (
+    e:
+      | React.MouseEvent<HTMLButtonElement>
+      | React.KeyboardEvent<HTMLButtonElement>,
+  ) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setCancelModalOpen(true);
+  };
+
+  const handleCancelConfirm = () => {
+    cancelRun.mutate(run.id, {
+      onSuccess: () => {
+        displaySuccessToast(t(I18nKey.AUTOMATIONS$DETAIL$CANCEL_SUCCESS));
+        setCancelModalOpen(false);
+      },
+      onError: () => {
+        displayErrorToast(t(I18nKey.AUTOMATIONS$DETAIL$CANCEL_ERROR));
+        setCancelModalOpen(false);
+      },
+    });
+  };
+
   const handleLogsClick = (
     e:
       | React.MouseEvent<HTMLButtonElement>
@@ -72,6 +108,19 @@ export function ActivityLogItem({ run }: ActivityLogItemProps) {
     e.preventDefault();
     setLogsOpen(true);
   };
+
+  const cancelButton = isCancellable ? (
+    <button
+      type="button"
+      onClick={handleCancelClick}
+      disabled={cancelRun.isPending}
+      className="rounded-md p-1 text-muted hover:bg-surface-raised hover:text-danger focus:bg-surface-raised focus:outline-none disabled:opacity-50"
+      aria-label={t(I18nKey.AUTOMATIONS$DETAIL$CANCEL_RUN)}
+      title={t(I18nKey.AUTOMATIONS$DETAIL$CANCEL_RUN)}
+    >
+      <XCircleIcon className="size-4" />
+    </button>
+  ) : null;
 
   const logsButton = hasBashCommand ? (
     <button
@@ -98,6 +147,7 @@ export function ActivityLogItem({ run }: ActivityLogItemProps) {
         )}
       </div>
       <div className="flex items-center gap-2">
+        {cancelButton}
         {logsButton}
         <RunStatusBadge status={run.status} />
       </div>
@@ -128,6 +178,13 @@ export function ActivityLogItem({ run }: ActivityLogItemProps) {
           onClose={() => setLogsOpen(false)}
         />
       )}
+
+      <CancelRunModal
+        isOpen={cancelModalOpen}
+        isPending={cancelRun.isPending}
+        onConfirm={handleCancelConfirm}
+        onCancel={() => setCancelModalOpen(false)}
+      />
     </>
   );
 }
