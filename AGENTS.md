@@ -32,6 +32,7 @@ by a human, report the exact validator error rather than editing them yourself.
 Two distinct PostHog systems exist. **Never mix them at a call site.**
 
 ### System 1 — `telemetry.ts` (library-level, anonymous)
+
 - **Purpose**: anonymous npm-consumer telemetry (`canvas_install`, `canvas_new_session`)
 - **Keys**: hardcoded staging/prod keys in `telemetry.ts`; routed through `https://z.openhands.dev`
 - **Consent**: `localStorage["openhands-telemetry-consent"]` via `useTelemetry` / `TelemetryConsentBanner`
@@ -40,6 +41,7 @@ Two distinct PostHog systems exist. **Never mix them at a call site.**
 - **Rule**: Do NOT import `trackEvent` from `#/services/telemetry` in app routes or components
 
 ### System 2 — `useTracking` hook (app-level, identified)
+
 - **Purpose**: product analytics for app behaviour events
 - **Key**: `VITE_POSTHOG_CLIENT_KEY` env var → `OptionService.getConfig()` → `PostHogWrapper` → `PostHogProvider`; routed to `https://us.i.posthog.com`
 - **Consent**: `user_consents_to_analytics` (backend setting) + `useSyncPostHogConsent` in `root-layout`; `AnalyticsConsentFormModal` also calls `setTelemetryConsent` to keep both systems in sync
@@ -48,29 +50,32 @@ Two distinct PostHog systems exist. **Never mix them at a call site.**
 - **Rule**: Do NOT use raw `usePostHog()` + `posthog.capture()` in components — always go through `useTracking`
 
 ### Adding a new event
+
 1. Add a typed function to `useTracking` in `src/hooks/use-tracking.ts`
 2. Add the function to the hook's `return` object
 3. Destructure and call it from the component: `const { trackFoo } = useTracking()`
 
 ### Env var
+
 `VITE_POSTHOG_CLIENT_KEY` — see `.env.sample`. Without it, `PostHogProvider` never mounts and all `useTracking` calls are silently dropped (safe default for local dev).
 
 ## Runtime Services in Dev Stacks
 
-- When the agent-canvas dev launchers (`npm run dev` / `dev:minimal` / the published `agent-canvas` binary) start a stack, they set a `VITE_RUNTIME_SERVICES_INFO` env var on the frontend describing which services are running and how the agent should reach them. The frontend forwards this verbatim as `AgentContext.system_message_suffix` on every `POST /api/conversations`, so conversations land with a `<RUNTIME_SERVICES>` block appended to the system prompt.
+- When the agent-canvas dev launchers (`npm run dev` / `dev:static` / the published `agent-canvas` binary) start a stack with ingress/static-server, the backend-facing server appends runtime service metadata to `/server_info` as the optional `runtime_services` field. The frontend reads that backend-provided value when creating conversations and forwards it as `AgentContext.system_message_suffix` on `POST /api/conversations`, so conversations land with a `<RUNTIME_SERVICES>` block appended to the system prompt.
 - The block lists URLs **from the agent's point of view**:
   - The Agent Server is always reachable as `http://localhost:<port>` from inside the sandbox — but that is _you_, not the automation backend.
   - Host-side services (ingress, Vite, automation) are reachable as `http://localhost:<port>`.
 - Agents should treat the `<RUNTIME_SERVICES>` block as authoritative: don't hardcode `localhost:8000` for "the automation server", and don't probe random ports trying to discover services. If the block says automation is not running, skip `/api/automation` calls; otherwise use the listed `url_from_agent` + `api_prefix` (default `/api/automation`) and the `X-Session-API-Key: $OPENHANDS_AUTOMATION_API_KEY` header.
-- The launcher → frontend → suffix plumbing is:
+- The launcher → backend → frontend → suffix plumbing is:
   - `scripts/runtime-services-info.mjs::buildRuntimeServicesInfo()` — dependency-free module that constructs the info object; also runs as a CLI for the Docker entrypoint. Re-exported by `scripts/dev-safe.mjs` for backward compat.
-  - `scripts/dev-with-automation.mjs::buildAutomationRuntimeServicesInfo()` — wraps it with automation details; called from Vite spawn (`startVite`), static frontend spawn (`startStaticFrontend` → `--runtime-services-info` flag), and the static build (`static-build.mjs`).
-  - `src/api/agent-server-adapter.ts::buildRuntimeServicesSystemSuffix()` reads `VITE_RUNTIME_SERVICES_INFO` (Vite dev) or `window.__AGENT_CANVAS_RUNTIME_SERVICES_INFO__` (static builds, injected by `static-server.mjs`) and renders the `<RUNTIME_SERVICES>` markdown block; `buildAgentContext()` attaches it to `agent_context.system_message_suffix` when present.
+  - `scripts/dev-with-automation.mjs::buildAutomationRuntimeServicesInfo()` — wraps it with automation details. `dev-with-automation`, `dev-static`, and the published binary pass the JSON to `scripts/ingress.mjs` or `scripts/static-server.mjs` via `--runtime-services-info`.
+  - `scripts/ingress.mjs` and `scripts/static-server.mjs` proxy the real agent-server `/server_info` response and append `runtime_services` when configured. This keeps version/tool compatibility fields authoritative from the SDK while letting the Agent Canvas stack advertise automation/frontend/ingress topology.
+  - `src/api/agent-server-adapter.ts::fetchBackendRuntimeServicesInfo()` reads `runtime_services` from cached or freshly fetched `/server_info`; `buildRuntimeServicesSystemSuffix()` renders the `<RUNTIME_SERVICES>` markdown block; `buildAgentContext()` attaches it to `agent_context.system_message_suffix` when present.
   - E2E coverage: the mock-LLM automation test (`tests/e2e/mock-llm/mock-llm-automation.spec.ts`) verifies the `<RUNTIME_SERVICES>` block reaches the LLM via `getMockLLMRequests()` and checks for Agent Server, Automation backend, and `/api/automation` entries.
 
-### `VITE_RUNTIME_SERVICES_INFO` shape
+### `/server_info.runtime_services` shape
 
-The env var is a JSON string of:
+The `runtime_services` value is a JSON object of:
 
 ```json
 {
@@ -201,23 +206,30 @@ you are running inside of — NOT the automation backend.
 When an E2E test fails in CI, use this workflow to diagnose the root cause efficiently:
 
 ### 1. Read the PR comment first
+
 The mock-LLM E2E workflow posts a structured comment on the PR with a test results table, pass/fail status, and collapsible failure details including the Playwright error message. **Start here** — the error message usually reveals whether the failure is a locator mismatch, a timeout, or a missing element.
 
 ### 2. Download CI artifacts
+
 Every failing test run uploads artifacts (`mock-llm-e2e-results` for npm, `test-results-mock-llm-docker` for Docker). Download them with:
+
 ```bash
 gh run download <run_id> --repo OpenHands/agent-canvas --name mock-llm-e2e-results --dir /tmp/artifacts
 ```
+
 Artifacts contain:
+
 - `test-results-mock-llm/` — per-test directories with `test-failed-N.png` (screenshot at failure) and `error-context.md` (Playwright page snapshot as YAML accessibility tree + test source with the failing line marked)
 - `playwright-report-mock-llm/` — full HTML report (`npx playwright show-report /tmp/artifacts/playwright-report-mock-llm`)
 
 ### 3. Inspect the error-context.md page snapshot
+
 The `error-context.md` file contains a YAML accessibility tree of the entire page at the moment of failure. This is the single most useful artifact — it shows exactly what DOM elements exist, which tabs are selected, what text is in inputs, and whether a component rendered at all. Search for the element your test expects (e.g. `llm-provider-input`) to see if it's present or absent, and check surrounding context (tab selection state, form view mode, etc.) to understand why.
 
 ### 4. Common failure patterns
 
 **"element(s) not found"** — The locator matched zero elements. The component either:
+
 - Didn't render (conditional rendering path not taken — check the page snapshot for what DID render)
 - Has a different `name`/`data-testid` than expected
 - Is behind a lazy-load boundary that hasn't resolved
@@ -229,6 +241,7 @@ The `error-context.md` file contains a YAML accessibility tree of the entire pag
 **Playwright route interception vs real server** — In mock-LLM tests, routes registered with `page.route()` intercept at the browser level before requests reach the real agent-server. However, `page.route()` must be set up BEFORE `page.goto()`. The `showOnboarding` helper handles this correctly (routes are registered before navigation). Non-GET methods should use `route.fallback()` to pass through to the real server.
 
 ### 5. Running locally
+
 ```bash
 npm run test:e2e:mock-llm                    # full suite
 npm run test:e2e:mock-llm -- --headed        # watch in browser
@@ -599,7 +612,7 @@ When adding code that needs a new string, decide up front which rule it falls un
 - Custom secrets are NOT auto-attached by the agent-server. `POST /api/conversations` only persists what the client sends in `request.secrets`; the persisted secrets store (`/api/settings/secrets`) is never read at conversation-start. `buildStartConversationRequestWithEncryptedSettings` enumerates `SecretsService.getSecrets()` and turns each entry into a `LookupSecret` whose `url` points back at `/api/settings/secrets/{name}` and whose `headers` carry `X-Session-API-Key` for auth. Pre-1.21.x agent-server SDKs would silently drop that header during validation when `secrets_encrypted=true` (the cipher in the validation context tried to `cipher.decrypt(plaintext_session_key)`, failed, and the validator removed the header — the conversation runtime then got 401s for every saved secret). The SDK fix preserves plaintext header values when decryption fails; if you still see saved secrets unavailable inside a conversation, verify the running agent-server bundles a `LookupSecret._validate_secrets` that falls back to plaintext on decrypt failure.
 
 - MCP page layout: MCP is a **top-level** nav entry at `/mcp` (rendered by `src/routes/mcp.tsx`), shown right below "Skills" in `src/components/features/sidebar/sidebar.tsx`. `src/routes/mcp-settings.tsx` re-exports the new page so the published `MCPSettings` library symbol (in `src/components/settings/index.ts`) keeps the same shape. The legacy `/settings/mcp` redirect was removed in issue #1337. Marketplace catalog data and MCP logo mappings live in the MCP-capable entries from `@openhands/extensions/integrations`; the Slack API catalog option should point at `https://github.com/zencoderai/slack-mcp-server` and use `@zencoderai/slack-mcp-server`. Deprecated marketplace entries removed upstream (for example GitLab / Google Maps / Postgres / Puppeteer / SQLite) should disappear from the marketplace grid. The Installed section still needs to render and search arbitrary non-catalog custom servers via the raw server `name` / `command` fallback in `src/utils/mcp-marketplace-utils.ts` + `InstalledServerCard`. Tavily is a regular stdio MCP entry (`tavily-mcp` + `TAVILY_API_KEY`), not a special built-in sentinel anymore. Components are colocated under `src/components/features/mcp-page/` and reuse the existing `MCPServerForm` for the "Add custom server" / edit flow.
-- MCP catalog runtime patching: `getMcpMarketplaceCatalog()` in `src/utils/mcp-marketplace-utils.ts` pipes every catalog entry through patch functions before the UI sees it. Two patches exist: `patchLinearEntry` (rewrites the deprecated Linear SSE endpoint to streamable HTTP) and `patchGitHubEntry` (rewrites the `docker run` transport to the native `github-mcp-server stdio` binary, only when `getDeploymentMode() === "docker"`). The `getDeploymentMode()` helper is exported from `src/api/agent-server-adapter.ts` and reads the `mode` field from the runtime services info. The Docker image pre-installs the `github-mcp-server` Go binary at `/usr/local/bin/github-mcp-server` via a dedicated Dockerfile download stage (`github-mcp-download`). This avoids a Docker-in-Docker requirement — GitHub is the only catalog entry that uses `docker` as its stdio command; all others use `npx` or `uvx`. When adding similar patches for other entries, follow the same pattern: guard on `entry.id`, check environment conditionally, spread immutably.
+- MCP catalog runtime patching: `getMcpMarketplaceCatalog()` in `src/utils/mcp-marketplace-utils.ts` pipes every catalog entry through patch functions before the UI sees it. Two patches exist: `patchLinearEntry` (rewrites the deprecated Linear SSE endpoint to streamable HTTP) and `patchGitHubEntry` (rewrites the `docker run` transport to the native `github-mcp-server stdio` binary, only when the backend-provided runtime services mode is `"docker"`). The `getDeploymentMode(runtimeServicesInfo)` helper is exported from `src/api/agent-server-adapter.ts` and reads the `mode` field from the supplied runtime services info. The Docker image pre-installs the `github-mcp-server` Go binary at `/usr/local/bin/github-mcp-server` via a dedicated Dockerfile download stage (`github-mcp-download`). This avoids a Docker-in-Docker requirement — GitHub is the only catalog entry that uses `docker` as its stdio command; all others use `npx` or `uvx`. When adding similar patches for other entries, follow the same pattern: guard on `entry.id`, check environment conditionally, spread immutably.
 
 - Library packaging notes:
   - Public npm entrypoints now come from `src/index.ts` → `src/lib/index.ts`, with domain barrels under `src/components/{conversation,terminal,browser,files,settings,sidebar}/index.ts`.

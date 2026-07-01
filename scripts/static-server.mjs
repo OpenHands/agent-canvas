@@ -27,7 +27,7 @@
  *     --route "/sockets=http://localhost:18000"
  */
 
-import { createServer } from "node:http";
+import { createServer, request as httpRequest } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, resolve } from "node:path";
 import process from "node:process";
@@ -37,8 +37,11 @@ import sirv from "sirv";
 import {
   createProxyHandlers,
   createRouter,
+  isBenignSocketError,
   matchesPathPrefix,
 } from "./proxy-utils.mjs";
+
+const SERVER_INFO_PATH = "/server_info";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SPA fallback helpers
@@ -186,11 +189,9 @@ OPTIONS:
                                pre-built frontend shows the API key entry screen
                                (public mode) without VITE_AUTH_REQUIRED baked in.
   --runtime-services-info <json>
-                               Inject a JSON description of the local runtime
-                               services into index.html so the pre-built
-                               frontend can populate the agent's
-                               <RUNTIME_SERVICES> system-prompt block without
-                               VITE_RUNTIME_SERVICES_INFO baked in.
+                               Serve a JSON description of the local runtime
+                               services in ${SERVER_INFO_PATH} and inject it
+                               into index.html for legacy builds.
   --lock-to-cloud <cloud-url>  Lock backend setup to a single OpenHands Cloud
                                URL. Hides manual/local backend setup and the
                                custom Cloud URL field in the pre-built frontend.
@@ -237,11 +238,9 @@ ROUTING:
  *   VITE_AUTH_REQUIRED baked in.
  *
  * - `runtimeServicesInfo`: a JSON string describing the local services
- *   (agent-server, automation, …), exposed as
- *   `window.__AGENT_CANVAS_RUNTIME_SERVICES_INFO__`. Read by
- *   `parseRuntimeServicesInfo()` in `agent-server-adapter.ts` as a fallback
- *   when `VITE_RUNTIME_SERVICES_INFO` is empty, so static builds (Docker /
- *   published binary) still populate the agent's `<RUNTIME_SERVICES>` block.
+ *   (agent-server, automation, …). The current frontend reads this from the
+ *   backend's `/server_info.runtime_services`; the injected window global is
+ *   retained for compatibility with older pre-built frontend bundles.
  *
  * - `lockToCloud`: an OpenHands Cloud URL exposed as
  *   `window.__AGENT_CANVAS_LOCK_TO_CLOUD__`. Read by `getLockedCloudHost()` in
@@ -281,10 +280,9 @@ function makeConfigInjectionScript(
   }
 
   if (runtimeServicesInfo) {
-    // Stored as the raw JSON string so the browser-side parser
-    // (parseRuntimeServicesInfo) can JSON.parse it exactly like the
-    // VITE_RUNTIME_SERVICES_INFO env var. JSON.stringify produces a safe JS
-    // string literal for the inline <script>.
+    // Legacy compatibility for older frontend bundles that read runtime
+    // services from a window global. New bundles read /server_info instead.
+    // JSON.stringify produces a safe JS string literal for the inline script.
     parts.push(
       `window.__AGENT_CANVAS_RUNTIME_SERVICES_INFO__=${JSON.stringify(runtimeServicesInfo)};`,
     );
@@ -344,6 +342,116 @@ async function serveInjectedIndexHtml(
     res.end(buf);
   }
   return true;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Runtime services injection (/server_info)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function parseBackendUrl(backendUrl) {
+  const url = new URL(backendUrl);
+  return {
+    hostname: url.hostname,
+    port:
+      Number.parseInt(url.port, 10) || (url.protocol === "https:" ? 443 : 80),
+    protocol: url.protocol,
+  };
+}
+
+function isServerInfoRequest(req) {
+  const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+  return pathname === SERVER_INFO_PATH;
+}
+
+// Proxy the upstream /server_info response, appending the configured
+// `runtime_services` block before forwarding it to the client. This is the
+// path that lets the frontend learn runtime services through server_info
+// rather than a baked-in env/window global.
+function proxyServerInfoRequest(req, res, backendUrl, runtimeServicesInfo) {
+  const backend = parseBackendUrl(backendUrl);
+
+  const proxyReq = httpRequest(
+    {
+      hostname: backend.hostname,
+      port: backend.port,
+      path: req.url,
+      method: req.method,
+      headers: {
+        ...req.headers,
+        host: `${backend.hostname}:${backend.port}`,
+      },
+    },
+    (proxyRes) => {
+      const chunks = [];
+
+      proxyRes.on("data", (chunk) => {
+        chunks.push(Buffer.from(chunk));
+      });
+
+      proxyRes.on("end", () => {
+        const statusCode = proxyRes.statusCode ?? 502;
+        const headers = { ...proxyRes.headers };
+        const originalBody = Buffer.concat(chunks);
+
+        if (statusCode < 200 || statusCode >= 300 || req.method === "HEAD") {
+          res.writeHead(statusCode, headers);
+          res.end(req.method === "HEAD" ? "" : originalBody);
+          return;
+        }
+
+        try {
+          const serverInfo = JSON.parse(originalBody.toString("utf8"));
+          const runtimeServices = JSON.parse(runtimeServicesInfo);
+          const body = Buffer.from(
+            JSON.stringify({
+              ...serverInfo,
+              runtime_services: runtimeServices,
+            }),
+            "utf8",
+          );
+
+          delete headers["content-length"];
+          headers["content-type"] = "application/json; charset=utf-8";
+          headers["cache-control"] = "no-store";
+          res.writeHead(statusCode, headers);
+          res.end(body);
+        } catch (err) {
+          console.warn(
+            `Could not append runtime_services to ${SERVER_INFO_PATH}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+          res.writeHead(statusCode, headers);
+          res.end(originalBody);
+        }
+      });
+    },
+  );
+
+  req.on("error", (err) => {
+    if (!isBenignSocketError(err)) {
+      console.error(`Client request error for ${req.url}:`, err.message);
+    }
+    proxyReq.destroy();
+  });
+  res.on("error", (err) => {
+    if (!isBenignSocketError(err)) {
+      console.error(`Client response error for ${req.url}:`, err.message);
+    }
+    proxyReq.destroy();
+  });
+
+  proxyReq.on("error", (err) => {
+    if (!isBenignSocketError(err)) {
+      console.error(`Proxy error for ${req.url} -> ${backendUrl}:`, err.message);
+    }
+    if (!res.headersSent) {
+      res.writeHead(502);
+      res.end(`Bad Gateway: ${err.message}`);
+    }
+  });
+
+  req.pipe(proxyReq, { end: true });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -475,6 +583,14 @@ export function startStaticServer(config) {
   const server = createServer((req, res) => {
     const backend = route(req.url ?? "/");
     if (backend) {
+      if (
+        config.runtimeServicesInfo &&
+        isServerInfoRequest(req) &&
+        (req.method === "GET" || req.method === "HEAD")
+      ) {
+        proxyServerInfoRequest(req, res, backend, config.runtimeServicesInfo);
+        return;
+      }
       proxy.proxyHttp(req, res, backend);
       return;
     }
@@ -524,6 +640,9 @@ export function startStaticServer(config) {
       }
       if (config.lockToCloud) {
         console.log(`  Backend setup locked to Cloud: ${config.lockToCloud}`);
+      }
+      if (config.runtimeServicesInfo) {
+        console.log(`  ${SERVER_INFO_PATH} includes runtime_services`);
       }
       console.log("  * (default) -> static files + SPA fallback");
       console.log("");
