@@ -31,6 +31,7 @@ function makeContext() {
     checkForUpdate: vi.fn().mockResolvedValue(null),
     updateExtension: vi.fn(),
     uninstall: vi.fn(),
+    fetchMarketplace: vi.fn(),
   };
 }
 
@@ -49,10 +50,12 @@ function addHello() {
 describe("ExtensionsScreen", () => {
   beforeEach(() => {
     ctx.value = null;
+    localStorage.clear();
     useInstalledExtensionsStore.getState().clear();
   });
   afterEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     useInstalledExtensionsStore.getState().clear();
   });
 
@@ -68,7 +71,7 @@ describe("ExtensionsScreen", () => {
   it("shows the empty state when enabled with nothing installed", () => {
     ctx.value = makeContext();
     render(<ExtensionsScreen />);
-    expect(screen.getByTestId("extensions-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("extension-list-empty")).toBeInTheDocument();
     expect(screen.getByTestId("extensions-add-button")).toBeInTheDocument();
   });
 
@@ -86,7 +89,7 @@ describe("ExtensionsScreen", () => {
 
     render(<ExtensionsScreen />);
     expect(
-      screen.getByTestId("installed-extension-card-acme.hello"),
+      screen.getByTestId("extension-card-acme.hello"),
     ).toBeInTheDocument();
 
     await user.click(screen.getByTestId("extensions-add-button"));
@@ -109,10 +112,10 @@ describe("ExtensionsScreen", () => {
     render(<ExtensionsScreen />);
 
     const updateButton = await screen.findByTestId(
-      "update-extension-acme.hello",
+      "extension-update-acme.hello",
     );
     expect(
-      screen.getByTestId("installed-extension-update-badge-acme.hello"),
+      screen.getByTestId("extension-update-badge-acme.hello"),
     ).toBeInTheDocument();
 
     await user.click(updateButton);
@@ -126,13 +129,13 @@ describe("ExtensionsScreen", () => {
 
     render(<ExtensionsScreen />);
     expect(
-      await screen.findByTestId("installed-extension-card-acme.hello"),
+      await screen.findByTestId("extension-card-acme.hello"),
     ).toBeInTheDocument();
     await waitFor(() =>
       expect(ctx.value!.checkForUpdate).toHaveBeenCalledWith("acme.hello"),
     );
     expect(
-      screen.queryByTestId("update-extension-acme.hello"),
+      screen.queryByTestId("extension-update-acme.hello"),
     ).not.toBeInTheDocument();
   });
 });
