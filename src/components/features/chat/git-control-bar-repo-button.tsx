@@ -15,6 +15,7 @@ interface GitControlBarRepoButtonProps {
   emptyStateLabel?: string;
   onClick?: () => void;
   disabled?: boolean;
+  dataTestId?: string;
 }
 
 export function GitControlBarRepoButton({
@@ -24,6 +25,7 @@ export function GitControlBarRepoButton({
   emptyStateLabel: _emptyStateLabel,
   onClick,
   disabled,
+  dataTestId,
 }: GitControlBarRepoButtonProps) {
   const { t } = useTranslation("openhands");
   const { data: settings } = useSettings();
@@ -53,6 +55,7 @@ export function GitControlBarRepoButton({
         href={repositoryUrl}
         target="_blank"
         rel="noopener noreferrer"
+        data-testid={dataTestId}
         className={cn(
           "group flex flex-row items-center justify-between gap-2 pl-2.5 pr-2.5 py-1 rounded-[100px] flex-1 truncate relative",
           "border border-[var(--oh-border)] bg-transparent hover:border-[var(--oh-border-subtle)] cursor-pointer",
@@ -80,6 +83,7 @@ export function GitControlBarRepoButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      data-testid={dataTestId}
       className={cn(
         "group flex flex-row items-center justify-between gap-2 pl-2.5 pr-2.5 py-1 rounded-[100px] truncate relative",
         "border border-[rgba(71,74,84,0.50)] bg-transparent",

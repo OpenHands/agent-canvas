@@ -4,17 +4,21 @@ export function getGitPath(
   selectedRepository: string | null | undefined,
   workingDir?: string | null,
 ): string {
+  // When a repository is selected, derive the path from selectedRepository.
+  // We prioritize selectedRepository over workingDir because workingDir is
+  // updated asynchronously by the agent after cloning and may be stale
+  // during repository switches, while selectedRepository is set immediately
+  // when the user selects a repository.
+  if (selectedRepository) {
+    const parts = selectedRepository.split("/");
+    const repoName = parts[parts.length - 1];
+    return `${DEFAULT_WORKING_DIR}/${repoName}`;
+  }
+
   const normalizedWorkingDir = workingDir?.trim();
   if (normalizedWorkingDir) {
     return normalizedWorkingDir;
   }
 
-  if (!selectedRepository) {
-    return DEFAULT_WORKING_DIR;
-  }
-
-  const parts = selectedRepository.split("/");
-  const repoName = parts[parts.length - 1];
-
-  return `${DEFAULT_WORKING_DIR}/${repoName}`;
+  return DEFAULT_WORKING_DIR;
 }

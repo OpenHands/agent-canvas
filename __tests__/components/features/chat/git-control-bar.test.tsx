@@ -209,6 +209,86 @@ describe("GitControlBar repo button visibility", () => {
     const button = screen.getByTestId("git-control-bar-repo-button");
     expect(button).toHaveAttribute("data-disabled", "true");
   });
+
+  it("shows the repo button when localGitInfo detects a repository", () => {
+    vi.mocked(useActiveBackend).mockReturnValue(makeBackend("local"));
+    vi.mocked(useLocalGitInfo).mockReturnValue({
+      data: {
+        repository: "owner/repo",
+        branch: "main",
+        provider: "github",
+        remoteUrl: "https://github.com/owner/repo",
+      },
+    } as unknown as ReturnType<typeof useLocalGitInfo>);
+
+    renderWithProviders(<GitControlBar onSuggestionsClick={vi.fn()} />);
+
+    expect(
+      screen.getByTestId("git-control-bar-repo-button"),
+    ).toBeInTheDocument();
+  });
+
+  it("renders the repo button as NOT disabled on local backend when localGitInfo detects repo", () => {
+    vi.mocked(useActiveBackend).mockReturnValue(makeBackend("local"));
+    vi.mocked(useLocalGitInfo).mockReturnValue({
+      data: {
+        repository: "owner/repo",
+        branch: "main",
+        provider: "github",
+        remoteUrl: "https://github.com/owner/repo",
+      },
+    } as unknown as ReturnType<typeof useLocalGitInfo>);
+
+    renderWithProviders(<GitControlBar onSuggestionsClick={vi.fn()} />);
+
+    const button = screen.getByTestId("git-control-bar-repo-button");
+    expect(button).toHaveAttribute("data-disabled", "false");
+  });
+
+  it("renders the bar when localGitInfo detects a repo with no selectedRepository on local backend", () => {
+    // When localGitInfo detects a repo on local backend (without a selectedRepository
+    // set via UI), the bar should still render — hasAnyContent must be true.
+    vi.mocked(useActiveBackend).mockReturnValue(makeBackend("local"));
+    vi.mocked(getStoredConversationMetadata).mockReturnValue(null);
+    vi.mocked(useLocalGitInfo).mockReturnValue({
+      data: {
+        repository: "owner/repo",
+        branch: "main",
+        provider: "github",
+        remoteUrl: "https://github.com/owner/repo",
+      },
+    } as unknown as ReturnType<typeof useLocalGitInfo>);
+
+    renderWithProviders(<GitControlBar onSuggestionsClick={vi.fn()} />);
+
+    // The button must be present — this is what hasAnyContent guards on
+    expect(
+      screen.getByTestId("git-control-bar-repo-button"),
+    ).toBeInTheDocument();
+  });
+
+  it("does not render the repo button when localGitInfo detects a repo with no provider on local backend", () => {
+    // localGitInfo may detect a repo without a recognized provider; such a repo
+    // is informational only (hasRepository=false) and the button should be inert
+    // (disabled) on local backend so clicks are a no-op.
+    vi.mocked(useActiveBackend).mockReturnValue(makeBackend("local"));
+    vi.mocked(useLocalGitInfo).mockReturnValue({
+      data: {
+        repository: null,
+        branch: "main",
+        provider: null,
+        remoteUrl: null,
+      },
+    } as unknown as ReturnType<typeof useLocalGitInfo>);
+
+    renderWithProviders(<GitControlBar onSuggestionsClick={vi.fn()} />);
+
+    // Button should be absent because localGitInfo returned null repository
+    // (localGitDetectedRepo is false when repository is null)
+    expect(
+      screen.queryByTestId("git-control-bar-repo-button"),
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe("GitControlBar - Auto-scroll on clone (issue #817)", () => {

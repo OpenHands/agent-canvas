@@ -2,12 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useRef } from "react";
 
 import type { CommandResult } from "#/api/runtime-service/agent-server-runtime-service";
-import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 import { useBashCommandRunner } from "#/hooks/use-bash-command-runner";
 import { Provider } from "#/types/settings";
 import { parseGitRemoteUrl } from "#/utils/parse-git-remote-url";
+import { getGitPath } from "#/utils/get-git-path";
 
 export interface LocalGitInfo {
   repository: string | null;
@@ -75,20 +75,18 @@ async function probeGitInfo(
 }
 
 /**
- * Probe git metadata for a **local** backend's workspace checkout by
+ * Probe git metadata for the active conversation's workspace checkout by
  * shelling out via the agent server using a single consolidated bash
  * script (see `GIT_INFO_COMMAND`).
  *
- * Local-only by design. On cloud backends the conversation metadata
- * (`selected_repository`, `git_provider`, `selected_branch`) is the
- * source of truth, and probing via `/api/bash/execute_bash_command`
- * would (a) leak the user's local `getAgentServerWorkingDir()` path to
- * the cloud runtime when `workspace.working_dir` is missing, and
- * (b) hit a bash endpoint we don't want the frontend driving on cloud.
+ * Works for both local and cloud backends. The probe runs via the
+ * conversation's WebSocket URL (conversationUrl) which is safe for both:
+ * - Local: uses the local agent-server URL
+ * - Cloud: uses the cloud runtime URL (e.g. *.prod-runtime.all-hands.dev)
  *
- * On local, we keep the probe enabled until the active conversation
- * has a complete repo tuple so the control bar can recover from
- * partial metadata hydration after connect/clone flows.
+ * We keep the probe enabled until the active conversation has a complete
+ * repo tuple so the control bar can recover from partial metadata
+ * hydration after connect/clone flows.
  *
  * Returns `null` fields when the working dir is not a git checkout —
  * callers should treat that the same as "no repo detected".
@@ -96,8 +94,6 @@ async function probeGitInfo(
 export const useLocalGitInfo = () => {
   const { data: conversation } = useActiveConversation();
   const runtimeIsReady = useRuntimeIsReady();
-  const { backend } = useActiveBackend();
-  const isLocalBackend = backend.kind === "local";
 
   const conversationId = conversation?.id;
   const conversationUrl = conversation?.conversation_url;
@@ -108,7 +104,6 @@ export const useLocalGitInfo = () => {
   const hasConversationBranch = !!conversation?.selected_branch;
 
   const queryEnabled =
-    isLocalBackend &&
     runtimeIsReady &&
     !!conversationId &&
     !!workingDir &&
@@ -131,23 +126,26 @@ export const useLocalGitInfo = () => {
   const runCommandRef = useRef(runCommand);
   runCommandRef.current = runCommand;
 
+  const gitPath = getGitPath(conversation?.selected_repository, workingDir);
   // runCommandRef is a ref (always stable); the linter cannot infer this so
   // we disable the exhaustive-deps check here.
   // eslint-disable-next-line @tanstack/query/exhaustive-deps
   return useQuery<LocalGitInfo>({
+    // queryKey — swap workingDir for gitPath so cache busts on path change
     queryKey: [
       "local-git-info",
       conversationId,
       conversationUrl,
       sessionApiKey,
-      workingDir,
+      gitPath, // <— was workingDir
     ],
+
     queryFn: async () => {
       const run: RunCommand = (command, cwd, timeout) =>
         runCommandRef.current(command, cwd, timeout);
-      // workingDir is guaranteed non-empty by the queryEnabled guard above.
-      return probeGitInfo(run, workingDir!);
+      return probeGitInfo(run, gitPath); // <— was workingDir!
     },
+
     enabled: queryEnabled,
     retry: false,
     // Re-probe the workspace every 10s so the UI reflects branch/repo
