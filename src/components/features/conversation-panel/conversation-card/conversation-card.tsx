@@ -38,6 +38,7 @@ interface ConversationCardProps {
   showLlmProfiles?: boolean;
   agentKind?: "openhands" | "acp" | null;
   acpServer?: string | null;
+  searchQuery?: string;
   isPinned?: boolean;
   onTogglePin?: () => void;
   /** When true and pinned, keep the pin icon visible without hovering. */
@@ -66,6 +67,7 @@ export function ConversationCard({
   showLlmProfiles = false,
   agentKind = null,
   acpServer = null,
+  searchQuery = "",
   isPinned = false,
   onTogglePin,
   alwaysShowPinIcon = false,
@@ -201,6 +203,7 @@ export function ConversationCard({
             onTitleSave={onTitleSave}
             executionStatus={executionStatus}
             sandboxStatus={sandboxStatus}
+            searchQuery={searchQuery}
           />
           {sandboxStatus === "ERROR" && <ConversationStatusBadges />}
         </div>
