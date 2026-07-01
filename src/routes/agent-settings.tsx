@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AxiosError } from "axios";
 import { useSettings } from "#/hooks/query/use-settings";
@@ -18,7 +18,6 @@ import { cn } from "#/utils/utils";
 import { SettingsFieldSchema, SettingsValue } from "#/types/settings";
 import {
   coerceFieldValue,
-  getAgentSettingValue,
   normalizeFieldValue,
 } from "#/utils/sdk-settings-schema";
 import {
@@ -91,9 +90,73 @@ function isKnownAcpModel(
   );
 }
 
-function AgentSettingsScreen() {
+/**
+ * Variant-specific AgentProfile fields derived from the form state. The
+ * OpenHands branch omits `llm_profile_ref` — the profile editor supplies it.
+ */
+export type AgentProfileFieldsDraft =
+  | {
+      agent_kind: "openhands";
+      enable_sub_agents: boolean;
+      tool_concurrency_limit?: number;
+    }
+  | {
+      agent_kind: "acp";
+      acp_server: string;
+      acp_model: string | null;
+      acp_command: string | null;
+      acp_args: string[] | null;
+    };
+
+/**
+ * Handle the embedded form exposes to its parent (the Agent-profile editor) so
+ * it can read the current state and persist it as an AgentProfile.
+ */
+export interface AgentSettingsSaveControl {
+  agentType: AgentType;
+  /** False when the current form can't be saved (e.g. an empty ACP command). */
+  isValid: boolean;
+  /**
+   * Build the variant-specific AgentProfile fields from the live form state.
+   * Throws a user-facing Error on invalid input (e.g. a bad concurrency value).
+   */
+  buildAgentProfileFields: () => AgentProfileFieldsDraft;
+  /** Shared ACP credential form (writes to global secrets). */
+  credentials: {
+    isDirty: boolean;
+    save: (opts?: { silent?: boolean }) => Promise<boolean>;
+    reset: () => void;
+  };
+}
+
+interface AgentSettingsScreenProps {
+  /**
+   * Embedded mode reuses this form as the Agent-profile editor: it hides the
+   * page header + the global Save button, seeds from `agentSettingsOverride`
+   * instead of the live global settings, and reports its state through
+   * `onSaveControlChange` so the parent can persist it as an AgentProfile.
+   */
+  embedded?: boolean;
+  /**
+   * When set (embedded mode), seed the form from this `agent_settings`-shaped
+   * object instead of the live global settings — lets the editor open on a
+   * stored profile's fields.
+   */
+  agentSettingsOverride?: Record<string, SettingsValue> | null;
+  onSaveControlChange?: (control: AgentSettingsSaveControl) => void;
+}
+
+function AgentSettingsScreen({
+  embedded = false,
+  agentSettingsOverride = null,
+  onSaveControlChange,
+}: AgentSettingsScreenProps = {}) {
   const { t } = useTranslation("openhands");
   const { data: settings, isLoading } = useSettings();
+  // In embedded (profile-editor) mode the parent seeds the form from a stored
+  // profile via `agentSettingsOverride`; otherwise use the live global settings.
+  const agentSettingsSource: Record<string, SettingsValue> | null =
+    agentSettingsOverride ?? settings?.agent_settings ?? null;
   const { mutate: saveSettings, isPending: isSaving } = useSaveSettings();
   const { data: schema } = useAgentSettingsSchema(
     settings?.agent_settings_schema,
@@ -108,10 +171,10 @@ function AgentSettingsScreen() {
   const initialSubAgentsEnabled = React.useMemo(
     () =>
       getEnableSubAgentsValue(
-        settings?.agent_settings?.[ENABLE_SUB_AGENTS_FIELD_KEY],
+        agentSettingsSource?.[ENABLE_SUB_AGENTS_FIELD_KEY],
         subAgentsField,
       ),
-    [subAgentsField, settings?.agent_settings],
+    [subAgentsField, agentSettingsSource],
   );
   const [subAgentsEnabled, setSubAgentsEnabled] = useState(
     initialSubAgentsEnabled,
@@ -125,11 +188,9 @@ function AgentSettingsScreen() {
   );
   const initialToolConcurrency = React.useMemo(() => {
     if (!toolConcurrencyField) return "";
-    const raw = settings
-      ? getAgentSettingValue(settings, TOOL_CONCURRENCY_FIELD_KEY)
-      : undefined;
+    const raw = agentSettingsSource?.[TOOL_CONCURRENCY_FIELD_KEY];
     return normalizeFieldValue(toolConcurrencyField, raw);
-  }, [toolConcurrencyField, settings]);
+  }, [toolConcurrencyField, agentSettingsSource]);
   const [toolConcurrency, setToolConcurrency] = useState<string | boolean>(
     initialToolConcurrency,
   );
@@ -159,27 +220,30 @@ function AgentSettingsScreen() {
   const loadedCommandTextRef = useRef<string>("");
 
   useEffect(() => {
-    if (!settings) return;
-    if (lastInitializedSettingsRef.current === settings) return;
+    // Seed from the profile override (embedded) or the live global settings.
+    const source = agentSettingsOverride ?? settings?.agent_settings ?? null;
+    if (!source && !settings) return;
+    const initIdentity = agentSettingsOverride ?? settings;
+    if (lastInitializedSettingsRef.current === initIdentity) return;
 
-    lastInitializedSettingsRef.current = settings;
-    const kind = settings.agent_settings?.agent_kind;
+    lastInitializedSettingsRef.current = initIdentity;
+    const kind = source?.agent_kind;
 
     if (kind === "acp") {
       setAgentType("acp");
 
-      const rawAcpServer = settings.agent_settings?.acp_server;
+      const rawAcpServer = source?.acp_server;
       const acpServer =
         typeof rawAcpServer === "string" ? rawAcpServer : undefined;
       const provider = getAcpProvider(acpServer);
-      const storedCommand = toStringArray(settings.agent_settings?.acp_command);
+      const storedCommand = toStringArray(source?.acp_command);
       const effectiveBaseCommand =
         storedCommand.length > 0
           ? storedCommand
           : (provider?.default_command ?? []);
       const tokens = [
         ...effectiveBaseCommand,
-        ...toStringArray(settings.agent_settings?.acp_args),
+        ...toStringArray(source?.acp_args),
       ];
       const renderedCommandText =
         tokens.length > 0 ? formatCommand(tokens) : "";
@@ -187,7 +251,7 @@ function AgentSettingsScreen() {
       loadedAcpServerRef.current = acpServer ?? null;
       loadedCommandTextRef.current = renderedCommandText;
 
-      const savedModel = settings.agent_settings?.acp_model;
+      const savedModel = source?.acp_model;
       const normalizedSavedModel =
         typeof savedModel === "string" ? savedModel.trim() : "";
       setAcpModel(
@@ -206,7 +270,7 @@ function AgentSettingsScreen() {
       setIsCustomAcpModel(false);
     }
     setIsDirty(false);
-  }, [settings]);
+  }, [settings, agentSettingsOverride]);
 
   // Sync the sub-agents toggle when settings reload
   useEffect(() => {
@@ -217,6 +281,51 @@ function AgentSettingsScreen() {
   useEffect(() => {
     setToolConcurrency(initialToolConcurrency);
   }, [initialToolConcurrency]);
+
+  // --- Embedded (Agent-profile editor) save control ---
+  // Ref-backed so the exposed builder/credential fns read the freshest state at
+  // call time without re-emitting the control on every keystroke (mirrors
+  // ``sdk-section-page``). The body is (re)assigned during render below.
+  const buildFieldsRef = useRef<() => AgentProfileFieldsDraft>(() => ({
+    agent_kind: "openhands",
+    enable_sub_agents: false,
+  }));
+  const stableBuildFields = useCallback(() => buildFieldsRef.current(), []);
+  const credFormRef = useRef(acpCredentialForm);
+  credFormRef.current = acpCredentialForm;
+  const stableCredSave = useCallback(
+    (opts?: { silent?: boolean }) => credFormRef.current.save(opts),
+    [],
+  );
+  const stableCredReset = useCallback(() => credFormRef.current.reset(), []);
+
+  // Validity/kind are computed here (before the loading early-return) so the
+  // emit effect can depend on them; the full ACP derivation lives after it.
+  const acpCommandEmpty =
+    agentType === "acp" && parseCommand(commandText).length === 0;
+  const embeddedCredentialsDirty = acpCredentialForm.isDirty;
+  useEffect(() => {
+    if (!embedded || !onSaveControlChange) return;
+    onSaveControlChange({
+      agentType,
+      isValid: !acpCommandEmpty,
+      buildAgentProfileFields: stableBuildFields,
+      credentials: {
+        isDirty: embeddedCredentialsDirty,
+        save: stableCredSave,
+        reset: stableCredReset,
+      },
+    });
+  }, [
+    embedded,
+    onSaveControlChange,
+    agentType,
+    acpCommandEmpty,
+    embeddedCredentialsDirty,
+    stableBuildFields,
+    stableCredSave,
+    stableCredReset,
+  ]);
 
   if (isLoading) return null;
 
@@ -238,6 +347,42 @@ function AgentSettingsScreen() {
   const commandPlaceholder =
     formatCommand(ACP_PROVIDERS[0]?.default_command ?? []) ||
     COMMAND_PLACEHOLDER_FALLBACK;
+
+  // Assign the embedded control's field builder from the live render state.
+  // Built-in providers on their default command store no explicit command
+  // (the profile resolver falls back to the provider default); a customized or
+  // ``custom`` command is stored verbatim as a shell string. Throws only when
+  // called (at save time), never during render.
+  buildFieldsRef.current = (): AgentProfileFieldsDraft => {
+    if (isAcp) {
+      const isBuiltinDefault =
+        isDefaultProviderCommand && selectedPreset !== ACP_CUSTOM_PRESET_KEY;
+      return {
+        agent_kind: "acp",
+        acp_server: selectedPreset,
+        acp_model: acpModel.trim() || null,
+        acp_command: isBuiltinDefault
+          ? null
+          : formatCommand(commandTokens) || null,
+        acp_args: null,
+      };
+    }
+    const fields: Extract<
+      AgentProfileFieldsDraft,
+      { agent_kind: "openhands" }
+    > = {
+      agent_kind: "openhands",
+      enable_sub_agents: subAgentsEnabled,
+    };
+    if (toolConcurrencyField) {
+      // Reuse the schema-driven coercion/validation; throws on bad input.
+      const coerced = coerceFieldValue(toolConcurrencyField, toolConcurrency);
+      if (coerced != null) {
+        fields.tool_concurrency_limit = Number(coerced);
+      }
+    }
+    return fields;
+  };
 
   // Dirty tracking: for OpenHands path, also check sub-agents toggle and the
   // parallel-tool-calls input.
@@ -370,14 +515,16 @@ function AgentSettingsScreen() {
       data-testid="agent-settings-screen"
       className="flex flex-col gap-6 pb-8 max-w-2xl"
     >
-      <div>
-        <Typography.H2 className="mb-2">
-          {t(I18nKey.SETTINGS$NAV_AGENT)}
-        </Typography.H2>
-        <Typography.Paragraph className="text-sm text-[#A3A3A3]">
-          {t(I18nKey.SETTINGS$AGENT_PAGE_DESCRIPTION)}
-        </Typography.Paragraph>
-      </div>
+      {!embedded && (
+        <div>
+          <Typography.H2 className="mb-2">
+            {t(I18nKey.SETTINGS$NAV_AGENT)}
+          </Typography.H2>
+          <Typography.Paragraph className="text-sm text-[#A3A3A3]">
+            {t(I18nKey.SETTINGS$AGENT_PAGE_DESCRIPTION)}
+          </Typography.Paragraph>
+        </div>
+      )}
 
       <SettingsDropdownInput
         testId="agent-type-selector"
@@ -584,19 +731,21 @@ function AgentSettingsScreen() {
         </>
       )}
 
-      <div>
-        <BrandButton
-          testId="agent-save-button"
-          type="button"
-          variant="primary"
-          isDisabled={isSavingAny || !isAnyDirty || isAcpInvalid}
-          onClick={handleSave}
-        >
-          {isSavingAny
-            ? t(I18nKey.SETTINGS$SAVING)
-            : t(I18nKey.SETTINGS$SAVE_CHANGES)}
-        </BrandButton>
-      </div>
+      {!embedded && (
+        <div>
+          <BrandButton
+            testId="agent-save-button"
+            type="button"
+            variant="primary"
+            isDisabled={isSavingAny || !isAnyDirty || isAcpInvalid}
+            onClick={handleSave}
+          >
+            {isSavingAny
+              ? t(I18nKey.SETTINGS$SAVING)
+              : t(I18nKey.SETTINGS$SAVE_CHANGES)}
+          </BrandButton>
+        </div>
+      )}
     </div>
   );
 }

@@ -35,34 +35,40 @@ export function useSettingsNavItems(): SettingsNavRenderedItem[] {
 
   return OSS_NAV_ITEMS.filter(
     (item) => !isSettingsPageHidden(item.to, featureFlags),
-  ).map((item) => {
-    // Local backends present "LLM Profiles" as the section name + subtitle
-    // for the ``/settings`` entry; cloud backends keep the canonical "LLM".
-    // Apply the rename before the ACP disable check so the disabled tooltip
-    // still names the visible label, not a stale one.
-    const renamedItem =
-      item.to === "/settings"
-        ? {
-            ...item,
-            text:
-              backend.kind === "local"
-                ? I18nKey.SETTINGS$LLM_PROFILES
-                : item.text,
-            subtitle:
-              backend.kind === "local"
-                ? I18nKey.SETTINGS$PAGE_LLM_PROFILES_SUBLINE
-                : item.subtitle,
-          }
-        : item;
+  )
+    .filter(
+      // Agent profiles exist only on local backends — the cloud app-server has
+      // no `/api/agent-profiles` surface yet (epic #3730).
+      (item) => item.to !== "/settings/agents" || backend.kind === "local",
+    )
+    .map((item) => {
+      // Local backends present "LLM Profiles" as the section name + subtitle
+      // for the ``/settings`` entry; cloud backends keep the canonical "LLM".
+      // Apply the rename before the ACP disable check so the disabled tooltip
+      // still names the visible label, not a stale one.
+      const renamedItem =
+        item.to === "/settings"
+          ? {
+              ...item,
+              text:
+                backend.kind === "local"
+                  ? I18nKey.SETTINGS$LLM_PROFILES
+                  : item.text,
+              subtitle:
+                backend.kind === "local"
+                  ? I18nKey.SETTINGS$PAGE_LLM_PROFILES_SUBLINE
+                  : item.subtitle,
+            }
+          : item;
 
-    if (isAcpAgent && item.disabledByAcp) {
-      return {
-        type: "item",
-        item: renamedItem,
-        disabled: true,
-        disabledAgentName: acpServerName,
-      };
-    }
-    return { type: "item", item: renamedItem };
-  });
+      if (isAcpAgent && item.disabledByAcp) {
+        return {
+          type: "item",
+          item: renamedItem,
+          disabled: true,
+          disabledAgentName: acpServerName,
+        };
+      }
+      return { type: "item", item: renamedItem };
+    });
 }

@@ -86,9 +86,30 @@ describe("useSettingsNavItems", () => {
 
     const { result } = renderHook(() => useSettingsNavItems());
 
+    // Agent profiles are local-only, so cloud drops that one entry.
     expect(result.current).toEqual(
-      OSS_NAV_ITEMS.map((item) => ({ type: "item", item })),
+      OSS_NAV_ITEMS.filter((item) => item.to !== "/settings/agents").map(
+        (item) => ({ type: "item", item }),
+      ),
     );
+  });
+
+  it("lists the Agent profiles item on local but hides it on cloud", () => {
+    useConfigMock.mockReturnValue({ data: createConfig() });
+
+    const localPaths = renderHook(() => useSettingsNavItems())
+      .result.current.filter((item) => item.type === "item")
+      .map((item) => (item.type === "item" ? item.item.to : null));
+    expect(localPaths).toContain("/settings/agents");
+
+    useActiveBackendMock.mockReturnValue({
+      backend: { kind: "cloud" },
+      orgId: "org-123",
+    });
+    const cloudPaths = renderHook(() => useSettingsNavItems())
+      .result.current.filter((item) => item.type === "item")
+      .map((item) => (item.type === "item" ? item.item.to : null));
+    expect(cloudPaths).not.toContain("/settings/agents");
   });
 
   it("filters hidden routes from the OSS settings items", () => {
