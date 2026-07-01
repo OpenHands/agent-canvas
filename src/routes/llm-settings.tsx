@@ -85,6 +85,34 @@ const isProviderDefaultBaseUrl = (model: string, baseUrl: string) => {
   );
 };
 
+const validateBaseUrl = (baseUrl: string) => {
+  const trimmedBaseUrl = baseUrl.trim();
+  if (!trimmedBaseUrl) return null;
+
+  try {
+    const parsedUrl = new URL(trimmedBaseUrl);
+    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+      return "Base URL must start with http:// or https://.";
+    }
+    if (parsedUrl.username || parsedUrl.password) {
+      return "Base URL must not include credentials.";
+    }
+  } catch {
+    return "Enter a valid base URL.";
+  }
+
+  return null;
+};
+
+const validateApiKey = (apiKey: string) => {
+  const trimmedApiKey = apiKey.trim();
+  if (trimmedApiKey.length > 0 && trimmedApiKey.length < 8) {
+    return "API key must be at least 8 characters.";
+  }
+
+  return null;
+};
+
 interface OpenHandsApiKeyHelpProps {
   testId: string;
 }
@@ -152,6 +180,10 @@ export function LlmSettingsScreen({
     (isSubscriptionModelsLoading || isSubscriptionModelsFetching);
   const lastApiKeyModelRef = React.useRef<string | null>(null);
   const lastSubscriptionModelRef = React.useRef<string | null>(null);
+  const [llmValidationErrors, setLlmValidationErrors] = React.useState<{
+    apiKey?: string;
+    baseUrl?: string;
+  }>({});
 
   React.useEffect(() => {
     if (initialAuthType === LLM_AUTH_TYPE_SUBSCRIPTION) {
@@ -222,11 +254,18 @@ export function LlmSettingsScreen({
             value={apiKeyValue}
             // eslint-disable-next-line i18next/no-literal-string -- masked-key sentinel, not translatable
             placeholder={apiKeyIsSet ? "<hidden>" : ""}
-            onChange={(value) => onChange("llm.api_key", value)}
+            onChange={(value) => {
+              setLlmValidationErrors((errors) => ({
+                ...errors,
+                apiKey: undefined,
+              }));
+              onChange("llm.api_key", value);
+            }}
             isDisabled={isDisabled}
             startContent={
               apiKeyIsSet ? <KeyStatusIcon isSet={apiKeyIsSet} /> : undefined
             }
+            error={llmValidationErrors.apiKey}
           />
 
           <HelpLink
@@ -399,8 +438,15 @@ export function LlmSettingsScreen({
                     value={baseUrlValue}
                     // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
                     placeholder="https://api.openai.com"
-                    onChange={(value) => onChange("llm.base_url", value)}
+                    onChange={(value) => {
+                      setLlmValidationErrors((errors) => ({
+                        ...errors,
+                        baseUrl: undefined,
+                      }));
+                      onChange("llm.base_url", value);
+                    }}
                     isDisabled={isDisabled}
+                    error={llmValidationErrors.baseUrl}
                   />
 
                   {renderApiKeyInput(
@@ -420,6 +466,8 @@ export function LlmSettingsScreen({
       defaultModel,
       embedded,
       isWaitingForSubscriptionModels,
+      llmValidationErrors.apiKey,
+      llmValidationErrors.baseUrl,
       settings?.llm_api_key_set,
       subscriptionModels,
       t,
@@ -445,6 +493,7 @@ export function LlmSettingsScreen({
       const authType = resolveLlmAuthType(context.values[LLM_AUTH_TYPE_KEY]);
 
       if (authType === LLM_AUTH_TYPE_SUBSCRIPTION) {
+        setLlmValidationErrors({});
         llm.auth_type = LLM_AUTH_TYPE_SUBSCRIPTION;
         llm.subscription_vendor = OPENAI_SUBSCRIPTION_VENDOR;
         const model =
@@ -468,6 +517,24 @@ export function LlmSettingsScreen({
           llm.auth_type = LLM_AUTH_TYPE_API_KEY;
           llm.subscription_vendor = null;
         }
+        const apiKeyValue =
+          typeof context.values["llm.api_key"] === "string"
+            ? context.values["llm.api_key"]
+            : "";
+        const baseUrlValue =
+          typeof context.values["llm.base_url"] === "string"
+            ? context.values["llm.base_url"]
+            : "";
+        const nextValidationErrors = {
+          apiKey: validateApiKey(apiKeyValue) ?? undefined,
+          baseUrl: validateBaseUrl(baseUrlValue) ?? undefined,
+        };
+        if (nextValidationErrors.apiKey || nextValidationErrors.baseUrl) {
+          setLlmValidationErrors(nextValidationErrors);
+          throw new Error("Fix the highlighted LLM settings before saving.");
+        }
+        setLlmValidationErrors({});
+
         if (context.view === "basic" && llm.model !== undefined) {
           llm.base_url = getSchemaFieldDefaultValue(schema, "llm.base_url");
         }
