@@ -20076,6 +20076,23 @@
     "uk": "Додати робочі області",
     "ca": "Afegeix espais de treball"
   },
+  "HOME$SHOW_HIDDEN_FOLDERS": {
+    "en": "Show hidden folders",
+    "ja": "隠しフォルダを表示",
+    "zh-CN": "显示隐藏文件夹",
+    "zh-TW": "顯示隱藏資料夾",
+    "ko-KR": "숨김 폴더 표시",
+    "no": "Vis skjulte mapper",
+    "it": "Mostra cartelle nascoste",
+    "pt": "Mostrar pastas ocultas",
+    "es": "Mostrar carpetas ocultas",
+    "ar": "إظهار المجلدات المخفية",
+    "fr": "Afficher les dossiers cachés",
+    "tr": "Gizli klasörleri göster",
+    "de": "Versteckte Ordner anzeigen",
+    "uk": "Показати приховані теки",
+    "ca": "Mostra les carpetes ocultes"
+  },
   "HOME$ADD_THIS_DIRECTORY": {
     "en": "Add this directory",
     "ja": "このディレクトリを追加",

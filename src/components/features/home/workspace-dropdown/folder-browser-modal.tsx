@@ -124,9 +124,12 @@ export function FolderBrowserModal({
 }: FolderBrowserModalProps) {
   const { t } = useTranslation("openhands");
   const [currentPath, setCurrentPath] = useState<string | null>(null);
+  // When enabled, hidden (dot) directories are requested from the agent-server
+  // so they show up in both the sidebar favorites and the main listing.
+  const [showHidden, setShowHidden] = useState(false);
   const active = useActiveBackend();
 
-  const { data: homeData } = useHomeDirectory();
+  const { data: homeData } = useHomeDirectory(showHidden);
 
   // Initialize / reset to home each time the modal is opened
   useEffect(() => {
@@ -151,7 +154,7 @@ export function FolderBrowserModal({
     isLoading,
     isError,
     error,
-  } = useSearchSubdirs(isOpen ? currentPath : null);
+  } = useSearchSubdirs(isOpen ? currentPath : null, showHidden);
 
   const favorites: SidebarEntry[] = useMemo(() => {
     if (!homeData?.home) return [];
@@ -287,6 +290,16 @@ export function FolderBrowserModal({
               >
                 {currentPath ?? ""}
               </span>
+              <label className="ml-auto flex items-center gap-1.5 shrink-0 text-xs text-[var(--oh-text-secondary)] cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showHidden}
+                  onChange={(e) => setShowHidden(e.target.checked)}
+                  data-testid="folder-browser-show-hidden"
+                  className="cursor-pointer accent-primary"
+                />
+                {t(I18nKey.HOME$SHOW_HIDDEN_FOLDERS)}
+              </label>
             </div>
 
             {/* Column headers */}
