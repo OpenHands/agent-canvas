@@ -16,6 +16,12 @@ interface DropdownItemProps<T> {
   isProviderDropdown?: boolean;
   renderIcon?: (item: T) => React.ReactNode;
   itemClassName?: string;
+  /**
+   * Overrides the option's accessible name. Used to fold a group label into the
+   * announced name (e.g. "Projects, alpha") when the visual group header is
+   * presentational and therefore invisible to assistive tech.
+   */
+  ariaLabel?: string;
 }
 
 export function DropdownItem<T>({
@@ -28,10 +34,12 @@ export function DropdownItem<T>({
   isProviderDropdown = false,
   renderIcon,
   itemClassName,
+  ariaLabel,
 }: DropdownItemProps<T>) {
   const itemProps = getItemProps({
     index,
     item,
+    ...(ariaLabel ? { "aria-label": ariaLabel } : {}),
     className: cn(
       isProviderDropdown
         ? "group px-2 py-0 cursor-pointer text-xs rounded-md mx-0 my-0 h-6 flex items-center"

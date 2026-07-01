@@ -19923,6 +19923,23 @@
     "uk": "+ Додати робочу область",
     "ca": "+ Afegeix un espai de treball"
   },
+  "HOME$WORKSPACE_GROUP_OTHER": {
+    "en": "Other",
+    "ja": "その他",
+    "zh-CN": "其他",
+    "zh-TW": "其他",
+    "ko-KR": "기타",
+    "no": "Annet",
+    "it": "Altro",
+    "pt": "Outros",
+    "es": "Otros",
+    "ar": "أخرى",
+    "fr": "Autre",
+    "tr": "Diğer",
+    "de": "Sonstige",
+    "uk": "Інше",
+    "ca": "Altres"
+  },
   "HOME$MANAGE_WORKSPACES": {
     "en": "Manage Workspaces",
     "ja": "ワークスペースを管理",
