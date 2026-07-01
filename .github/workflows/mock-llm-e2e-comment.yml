@@ -30,10 +30,10 @@ jobs:
       github.event.workflow_run.head_repository.full_name != github.repository
     steps:
       - name: Check out base repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Download PR comment payload
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         id: download
         with:
           name: mock-llm-pr-comment-payload
