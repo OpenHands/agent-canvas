@@ -194,6 +194,38 @@ describe("ChatMessage", () => {
     expect(onStop).toHaveBeenCalledTimes(1);
   });
 
+  it("renders a dismiss button in the error state and calls onDismiss when clicked", () => {
+    const onDismiss = vi.fn();
+    render(
+      <ChatMessage
+        type="user"
+        message="won't go through"
+        pendingStatus="error"
+        onRetry={() => {}}
+        onDismiss={onDismiss}
+      />,
+    );
+
+    expect(screen.getByTestId("chat-message-error")).toBeInTheDocument();
+    const dismissButton = screen.getByTestId("chat-message-dismiss");
+    fireEvent.click(dismissButton);
+
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not render a dismiss button when onDismiss is not provided", () => {
+    render(
+      <ChatMessage
+        type="user"
+        message="won't go through"
+        pendingStatus="error"
+        onRetry={() => {}}
+      />,
+    );
+
+    expect(screen.queryByTestId("chat-message-dismiss")).not.toBeInTheDocument();
+  });
+
   it("renders a literal angle-bracket user message as visible text", () => {
     // Regression: user messages were rendered with raw-HTML parsing enabled,
     // so a message like "<something>" was parsed as an unknown HTML tag and

@@ -9230,6 +9230,23 @@
     "uk": "Повторити",
     "ca": "Torna-ho a provar"
   },
+  "CHAT_INTERFACE$MESSAGE_DISMISS": {
+    "en": "Dismiss",
+    "ja": "閉じる",
+    "zh-CN": "忽略",
+    "zh-TW": "忽略",
+    "ko-KR": "무시",
+    "no": "Avvis",
+    "it": "Ignora",
+    "pt": "Ignorar",
+    "es": "Descartar",
+    "ar": "تجاهل",
+    "fr": "Ignorer",
+    "tr": "Kapat",
+    "de": "Verwerfen",
+    "uk": "Відхилити",
+    "ca": "Descarta"
+  },
   "CHAT_INTERFACE$AUGMENTED_PROMPT_FILES_TITLE": {
     "en": "NEW FILES ADDED",
     "de": "NEUE DATEIEN HINZUGEFÜGT",
