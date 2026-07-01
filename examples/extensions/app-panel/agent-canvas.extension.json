@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schemas.openhands.dev/agent-canvas/extension.v1.json",
+  "schemaVersion": 1,
+  "id": "example.app-panel",
+  "displayName": "App Panel",
+  "version": "0.1.0",
+  "description": "Adds an 'App' panel to the conversation view, beside Files, Browser, and Terminal.",
+  "publisher": { "name": "Agent Canvas Examples" },
+  "license": "MIT",
+  "compatibility": {
+    "agentCanvas": ">=1.0.0-rc.6 <2.0.0",
+    "extensionApi": 1
+  },
+  "permissions": {
+    "ui": ["conversationPanels"]
+  },
+  "browser": {
+    "module": "./dist/index.js"
+  },
+  "contributes": {
+    "conversationRightPanels": [
+      {
+        "id": "example.app-panel.app",
+        "title": "App",
+        "icon": "./dist/app-panel.svg",
+        "order": 200
+      }
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "@example/agent-canvas-hello-page",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "description": "Adds a 'Hello' page to the primary navigation with placeholder content.",
+  "agentCanvas": { "manifest": "./agent-canvas.extension.json" },
+  "files": ["agent-canvas.extension.json", "dist"]
+}
