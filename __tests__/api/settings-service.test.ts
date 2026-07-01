@@ -373,6 +373,42 @@ describe("SettingsService", () => {
     });
   });
 
+  it("does not pre-clear cloud mcp_config when rotating a redacted MCP key", async () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+
+    mockFetchCloudSettings.mockResolvedValue({
+      agent_settings: {
+        mcp_config: {
+          mcpServers: {
+            integrations_hub: {
+              url: "https://integrations.staging.all-hands.dev/api/mcp",
+              headers: { Authorization: "<redacted>" },
+            },
+          },
+        },
+      },
+    });
+
+    const nextConfig = {
+      mcpServers: {
+        integrations_hub: {
+          url: "https://integrations.staging.all-hands.dev/api/mcp",
+          headers: { Authorization: "Bearer new-key" },
+        },
+      },
+    };
+
+    await SettingsService.saveSettings({
+      agent_settings_diff: { mcp_config: nextConfig },
+    });
+
+    expect(mockSaveCloudSettings).toHaveBeenCalledTimes(1);
+    expect(mockSaveCloudSettings).toHaveBeenCalledWith({
+      agent_settings_diff: { mcp_config: nextConfig },
+    });
+  });
+
   it("rolls back to the previous mcp_config when the second cloud PATCH fails", async () => {
     // Reviewer-flagged data-loss scenario: the pre-clear succeeds, then
     // the write fails (validation error, transient outage, etc.). The
