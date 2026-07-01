@@ -103,18 +103,35 @@ describe("toSdkMcpConfig", () => {
 
   it("uses a user-given name as the sse/shttp dict key", () => {
     const config: MCPConfig = {
-      sse_servers: [{ name: "my-search", url: "https://sse.example" }],
-      shttp_servers: [{ name: "my-docs", url: "https://shttp.example" }],
+      sse_servers: [{ name: "my_search", url: "https://sse.example" }],
+      shttp_servers: [{ name: "my_docs", url: "https://shttp.example" }],
       stdio_servers: [],
     };
 
     const out = toSdkMcpConfig(config);
 
-    expect(Object.keys(out!.mcpServers)).toEqual(["my-search", "my-docs"]);
-    expect(out!.mcpServers["my-search"]).toMatchObject({
+    expect(Object.keys(out!.mcpServers)).toEqual(["my_search", "my_docs"]);
+    expect(out!.mcpServers["my_search"]).toMatchObject({
       url: "https://sse.example",
       transport: "sse",
     });
+  });
+
+  it("normalizes MCP server names before using them as SDK keys", () => {
+    const config: MCPConfig = {
+      sse_servers: [
+        { name: "integrations-hub", url: "https://hub.example/mcp" },
+      ],
+      shttp_servers: [],
+      stdio_servers: [{ name: "docs-server", command: "npx" }],
+    };
+
+    const out = toSdkMcpConfig(config);
+
+    expect(Object.keys(out!.mcpServers)).toEqual([
+      "integrations_hub",
+      "docs_server",
+    ]);
   });
 
   it("falls back to the base name for unnamed sse/shttp entries", () => {
@@ -147,24 +164,24 @@ describe("toSdkMcpConfig", () => {
   it("round-trips a user-given sse/shttp name through parse → write", () => {
     const persisted = {
       mcpServers: {
-        "my-search": { url: "https://x", transport: "sse" },
-        "my-docs": { url: "https://y" },
+        my_search: { url: "https://x", transport: "sse" },
+        my_docs: { url: "https://y" },
       },
     };
 
     const parsed = parseMcpConfig(persisted);
 
     expect(parsed.sse_servers).toEqual([
-      { name: "my-search", url: "https://x" },
+      { name: "my_search", url: "https://x" },
     ]);
     expect(parsed.shttp_servers).toEqual([
-      { name: "my-docs", url: "https://y" },
+      { name: "my_docs", url: "https://y" },
     ]);
 
     const written = toSdkMcpConfig(parsed);
     expect(Object.keys(written!.mcpServers).sort()).toEqual([
-      "my-docs",
-      "my-search",
+      "my_docs",
+      "my_search",
     ]);
   });
 

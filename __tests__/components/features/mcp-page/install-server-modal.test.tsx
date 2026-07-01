@@ -409,6 +409,44 @@ describe("InstallServerModal", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("normalizes remote marketplace IDs before saving mcp_config keys", async () => {
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+    const entry: MarketplaceEntry = {
+      id: "integrations-hub",
+      name: "Integrations Hub",
+      description: "Hosted integrations hub MCP endpoint.",
+      iconBg: "#000000",
+      connectionOptions: [
+        {
+          id: "api",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://integrations.example/api/mcp",
+            apiKeyOptional: true,
+          },
+          auth: { strategy: "api_key", apiKeyOptional: true },
+        },
+      ],
+    };
+
+    renderWith(<InstallServerModal entry={entry} onClose={vi.fn()} />);
+    await screen.findByTestId("mcp-install-modal");
+    await waitFor(() => expect(SettingsService.getSettings).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
+      .agent_settings_diff as {
+      mcp_config: { mcpServers: Record<string, unknown> };
+    };
+    expect(sent.mcp_config.mcpServers).toHaveProperty("integrations_hub");
+    expect(sent.mcp_config.mcpServers).not.toHaveProperty("integrations-hub");
+  });
+
   it("shows Verifying… on the install button while the pre-flight test is in flight", async () => {
     // Never resolve so the test stays pending long enough to observe the label.
     vi.spyOn(McpService, "testServer").mockImplementation(

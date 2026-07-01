@@ -5,6 +5,7 @@ import {
   MCPStdioServer,
   SettingsValue,
 } from "#/types/settings";
+import { toMcpServerName } from "#/utils/mcp-server-name";
 
 const EMPTY_MCP_CONFIG: MCPConfig = {
   sse_servers: [],
@@ -207,10 +208,11 @@ export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
   const mcpServers: Record<string, SdkMcpServerConfig> = {};
 
   const reserve = (base: string): string => {
-    if (!(base in mcpServers)) return base;
+    const safeBase = toMcpServerName(base);
+    if (!(safeBase in mcpServers)) return safeBase;
     let i = 1;
-    while (`${base}_${i}` in mcpServers) i += 1;
-    return `${base}_${i}`;
+    while (`${safeBase}_${i}` in mcpServers) i += 1;
+    return `${safeBase}_${i}`;
   };
 
   for (const entry of config.sse_servers) {

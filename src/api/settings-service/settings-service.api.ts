@@ -1,5 +1,6 @@
 import { SettingsClient } from "@openhands/typescript-client/clients";
 import { DEFAULT_SETTINGS } from "#/services/settings";
+import { REDACTED_MCP_SECRET_VALUE } from "#/utils/mcp-config";
 import { Settings, SettingsSchema, SettingsValue } from "#/types/settings";
 import { getActiveBackend } from "../backend-registry/active-store";
 import {
@@ -147,6 +148,41 @@ async function withRetry<T>(
 
   throw new Error("Retry attempts exhausted");
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === "object" && !Array.isArray(value);
+
+const mcpServersRecord = (
+  mcpConfig: unknown,
+): Record<string, Record<string, unknown>> | null => {
+  if (!isRecord(mcpConfig) || !isRecord(mcpConfig.mcpServers)) return null;
+  const entries = Object.entries(mcpConfig.mcpServers).filter(
+    (entry): entry is [string, Record<string, unknown>] => isRecord(entry[1]),
+  );
+  return Object.fromEntries(entries);
+};
+
+const recordHasRedactedValue = (value: unknown): boolean =>
+  isRecord(value) &&
+  Object.values(value).some((entry) => entry === REDACTED_MCP_SECRET_VALUE);
+
+const hasRedactedMcpSecrets = (mcpConfig: unknown): boolean => {
+  const servers = mcpServersRecord(mcpConfig);
+  if (!servers) return false;
+  return Object.values(servers).some(
+    (server) =>
+      server.api_key === REDACTED_MCP_SECRET_VALUE ||
+      recordHasRedactedValue(server.headers) ||
+      recordHasRedactedValue(server.env),
+  );
+};
+
+const removesMcpServer = (previous: unknown, next: unknown): boolean => {
+  const previousServers = mcpServersRecord(previous);
+  const nextServers = mcpServersRecord(next);
+  if (!previousServers || !nextServers) return false;
+  return Object.keys(previousServers).some((name) => !(name in nextServers));
+};
 
 /**
  * In-memory cache for settings to avoid repeated network calls.
@@ -493,6 +529,22 @@ class SettingsService {
       }
     }
 
+    // Cloud settings redact MCP env/header secrets and do not provide an
+    // encrypted exposure mode for this endpoint. If we pre-clear before a
+    // normal add/update/key-rotation save, any unchanged redacted credentials
+    // are permanently replaced by missing/placeholder values. For cloud saves
+    // that keep all existing server keys, rely on the backend's deep merge so
+    // existing redacted secrets are preserved while edited fields and newly
+    // typed keys are updated. Still pre-clear deletes, because deep merge
+    // cannot remove omitted mcpServers entries.
+    const shouldUseCloudMergePatchForRedactedMcpSecrets =
+      isCloud &&
+      needsMcpPreClear &&
+      hasRedactedMcpSecrets(mcpConfigSnapshot) &&
+      !removesMcpServer(mcpConfigSnapshot, agentDiff?.mcp_config);
+    const shouldPreClearMcpConfig =
+      needsMcpPreClear && !shouldUseCloudMergePatchForRedactedMcpSecrets;
+
     if (isCloud) {
       const hasCloudWork =
         !!payload.agent_settings_diff ||
@@ -501,7 +553,7 @@ class SettingsService {
       if (!hasCloudWork) {
         return true;
       }
-      if (needsMcpPreClear) {
+      if (shouldPreClearMcpConfig) {
         await withRetry(() =>
           saveCloudSettings({
             agent_settings_diff: { mcp_config: null },
@@ -528,7 +580,7 @@ class SettingsService {
       try {
         await withRetry(() => saveCloudSettings(cloudPayload));
       } catch (err) {
-        if (needsMcpPreClear && mcpConfigSnapshot) {
+        if (shouldPreClearMcpConfig && mcpConfigSnapshot) {
           // Best-effort rollback. We deliberately do not wrap in withRetry:
           // the user's session is already in a degraded state and we want
           // to surface the original error promptly. Swallowing the restore
@@ -555,7 +607,7 @@ class SettingsService {
       if (!hasLocalDiffs) {
         return true;
       }
-      if (needsMcpPreClear) {
+      if (shouldPreClearMcpConfig) {
         await withRetry(() =>
           new SettingsClient(getAgentServerClientOptions()).updateSettings({
             agent_settings_diff: { mcp_config: null },
@@ -569,7 +621,7 @@ class SettingsService {
           ),
         );
       } catch (err) {
-        if (needsMcpPreClear && mcpConfigSnapshot) {
+        if (shouldPreClearMcpConfig && mcpConfigSnapshot) {
           // See cloud branch above for rationale.
           try {
             await new SettingsClient(

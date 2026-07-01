@@ -24,6 +24,7 @@ import {
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import { useSaveFieldsAsSecrets } from "#/hooks/mutation/use-save-fields-as-secrets";
 import { modalTitleLgClassName } from "#/utils/modal-classes";
+import { toMcpServerName } from "#/utils/mcp-server-name";
 
 /**
  * Renders a helperText string as React nodes, converting any `[text](url)`
@@ -262,9 +263,10 @@ export function InstallServerModal({
       id: `${template.kind}-${uuidv4()}`,
       type: template.kind,
       // Name remote servers after the catalog slug (e.g. "github") so they
-      // get a referenceable mcp_config key instead of the auto-generated
-      // "sse"/"shttp" fallback. Stdio installs already carry serverName.
-      name: entry.id,
+      // get a referenceable, LLM-tool-safe mcp_config key instead of the
+      // auto-generated "sse"/"shttp" fallback. Stdio installs already carry
+      // serverName from the catalog.
+      name: toMcpServerName(entry.id),
       url: template.url,
       ...(needsCredential && apiKey && { api_key: apiKey }),
     };
