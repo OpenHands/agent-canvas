@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proposal — Auto-Discover Agent Conversations (#405)</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --surface2: #1c2128; --border: #30363d;
+    --text: #e6edf3; --text-dim: #8b949e;
+    --accent: #58a6ff; --green: #3fb950; --red: #f85149;
+    --yellow: #d29922; --purple: #bc8cff; --orange: #db6d28;
+    --pink: #f778ba; --cyan: #56d4dd;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text);
+    line-height: 1.7; padding: 2rem 1rem;
+  }
+  .container { max-width: 1060px; margin: 0 auto; }
+  h1 { font-size: 1.8rem; margin-bottom: 0.3rem; }
+  h1 span { color: var(--accent); }
+  .subtitle { color: var(--text-dim); font-size: 1rem; margin-bottom: 0.5rem; }
+  .prereq {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    background: rgba(88,166,255,0.08); border: 1px solid rgba(88,166,255,0.25);
+    border-radius: 6px; padding: 0.35rem 0.7rem; font-size: 0.82rem;
+    color: var(--accent); margin-bottom: 2.5rem;
+  }
+  .prereq a { color: var(--accent); text-decoration: underline; }
+  h2 {
+    font-size: 1.3rem; margin: 2.5rem 0 1rem;
+    padding-bottom: 0.4rem; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  h2 .num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--accent); color: var(--bg);
+    font-size: 0.85rem; font-weight: 700; flex-shrink: 0;
+  }
+  h3 { font-size: 1.05rem; margin-bottom: 0.5rem; }
+  p, li { margin-bottom: 0.6rem; }
+  ul, ol { padding-left: 1.4rem; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 1.2rem 1.4rem; margin-bottom: 1.2rem;
+  }
+  code {
+    background: rgba(110,118,129,0.2); padding: 0.15rem 0.4rem;
+    border-radius: 4px; font-size: 0.88em;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+  }
+  .tag {
+    display: inline-block; padding: 0.15rem 0.5rem;
+    border-radius: 4px; font-size: 0.72rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.03em;
+    vertical-align: middle; margin-right: 0.3rem;
+  }
+  .tag.new    { background: rgba(188,140,255,0.15); color: var(--purple); }
+  .tag.sdk    { background: rgba(86,212,221,0.15); color: var(--cyan); }
+  .tag.fe     { background: rgba(88,166,255,0.15); color: var(--accent); }
+  .tag.before { background: rgba(248,81,73,0.12); color: var(--red); }
+  .tag.pr421  { background: rgba(210,153,34,0.12); color: var(--yellow); }
+  .tag.after  { background: rgba(63,185,80,0.12); color: var(--green); }
+
+  .cols3 { display: flex; gap: 0.8rem; margin: 1.2rem 0; }
+  .cols3 > div { flex: 1; min-width: 0; }
+  .vs { display: flex; gap: 1rem; margin: 1.2rem 0; }
+  .vs > div { flex: 1; }
+  @media (max-width: 860px) { .cols3 { flex-direction: column; } .vs { flex-direction: column; } }
+
+  /* ─── Flow step boxes ─── */
+  .flow-row { display: flex; gap: 0.3rem; align-items: center; margin: 0.5rem 0; flex-wrap: wrap; }
+  .flow-step {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; padding: 0.3rem 0.55rem;
+    font-size: 0.72rem; text-align: center; white-space: nowrap;
+  }
+  .flow-step.changed { border-color: var(--green); box-shadow: 0 0 0 1px var(--green); color: var(--green); font-weight: 600; }
+  .flow-step.new-step { border-color: var(--purple); box-shadow: 0 0 0 1px var(--purple); color: var(--purple); font-weight: 600; }
+  .flow-arrow { color: var(--text-dim); font-size: 0.85rem; }
+
+  /* ─── Mockup chrome ─── */
+  .mockup {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 12px; overflow: hidden; margin: 1.4rem 0;
+  }
+  .mockup-bar {
+    background: #21262d; padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 0.5rem;
+    font-size: 0.75rem; color: var(--text-dim);
+  }
+  .mockup-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .mockup-body { padding: 1.5rem 2rem; }
+  .mockup-body h4 { font-size: 1.15rem; margin-bottom: 0.3rem; color: white; }
+  .mockup-body .step-label { font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.8rem; }
+
+  /* ─── Agent cards ─── */
+  .agent-card {
+    display: flex; align-items: start; gap: 0.9rem;
+    border: 2px solid var(--border); border-radius: 10px;
+    padding: 0.9rem 1.1rem; margin-bottom: 0.7rem;
+    transition: border-color 0.15s;
+  }
+  .agent-card.selected { border-color: var(--green); background: rgba(63,185,80,0.04); }
+  .agent-card.disabled { opacity: 0.45; }
+  .agent-icon {
+    width: 38px; height: 38px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; flex-shrink: 0; font-weight: 700; color: white;
+  }
+  .agent-meta { flex: 1; }
+  .agent-name { font-weight: 600; font-size: 0.95rem; }
+  .agent-desc { font-size: 0.78rem; color: var(--text-dim); line-height: 1.4; }
+  .agent-badges { display: flex; gap: 0.3rem; margin-top: 0.3rem; flex-wrap: wrap; }
+  .badge {
+    display: inline-block; padding: 0.1rem 0.45rem;
+    border-radius: 4px; font-size: 0.68rem; font-weight: 600;
+  }
+  .badge.auto { background: rgba(63,185,80,0.15); color: var(--green); }
+  .badge.manual { background: rgba(210,153,34,0.15); color: var(--yellow); }
+  .badge.backend { background: rgba(88,166,255,0.12); color: var(--accent); }
+
+  .agent-check {
+    width: 20px; height: 20px; border-radius: 4px;
+    border: 2px solid var(--border); display: flex;
+    align-items: center; justify-content: center;
+    font-size: 0.7rem; color: transparent; flex-shrink: 0; margin-top: 0.2rem;
+  }
+  .agent-card.selected .agent-check { border-color: var(--green); color: var(--green); background: rgba(63,185,80,0.1); }
+
+  .mock-btn {
+    display: inline-block; padding: 0.45rem 1.2rem;
+    border-radius: 8px; font-size: 0.85rem; font-weight: 600; border: none; cursor: pointer;
+  }
+  .mock-btn.primary { background: var(--accent); color: #000; }
+  .mock-btn.secondary { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+  .mock-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; }
+
+  .progress-bar { display: flex; gap: 4px; margin-bottom: 1rem; }
+  .progress-seg { flex: 1; height: 4px; border-radius: 2px; background: var(--border); }
+  .progress-seg.done { background: var(--accent); }
+  .progress-seg.current { background: var(--accent); opacity: 0.6; }
+
+  /* ─── Conversation sidebar mockup ─── */
+  .sidebar-mockup {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; width: 280px; padding: 0.8rem; margin: 1rem 0;
+  }
+  .sidebar-mockup h5 { font-size: 0.78rem; color: var(--text-dim); margin-bottom: 0.6rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .convo-row {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.45rem 0.5rem; border-radius: 6px; margin-bottom: 0.3rem;
+    font-size: 0.82rem; cursor: pointer;
+  }
+  .convo-row:hover { background: rgba(255,255,255,0.04); }
+  .convo-row.active { background: rgba(88,166,255,0.1); }
+  .convo-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .convo-agent-tag {
+    font-size: 0.62rem; font-weight: 700; padding: 0.05rem 0.35rem;
+    border-radius: 3px; flex-shrink: 0; letter-spacing: 0.02em;
+  }
+
+  /* ─── Sequence / architecture diagram ─── */
+  .arch {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1.5rem; margin: 1.2rem 0;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 0.78rem; line-height: 1.7; white-space: pre; overflow-x: auto;
+    color: var(--text-dim);
+  }
+  .arch .hi { color: var(--accent); }
+  .arch .gr { color: var(--green); }
+  .arch .pu { color: var(--purple); }
+  .arch .ye { color: var(--yellow); }
+  .arch .or { color: var(--orange); }
+  .arch .cy { color: var(--cyan); }
+  .arch .pk { color: var(--pink); }
+
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.86rem; }
+  th, td { padding: 0.5rem 0.8rem; text-align: left; border: 1px solid var(--border); }
+  th { background: var(--surface2); font-weight: 600; }
+  td { background: var(--surface); }
+
+  .summary-box {
+    background: linear-gradient(135deg, rgba(88,166,255,0.08), rgba(188,140,255,0.08));
+    border: 1px solid rgba(88,166,255,0.3); border-radius: 8px;
+    padding: 1.4rem; margin: 2rem 0;
+  }
+  .summary-box h3 { color: var(--accent); margin-bottom: 0.6rem; }
+  .summary-box ul { padding-left: 1.2rem; }
+  .summary-box li { margin-bottom: 0.4rem; }
+
+  .issue-ref {
+    display: inline-block; padding: 0.2rem 0.6rem; border-radius: 4px;
+    font-size: 0.8rem; font-weight: 600;
+    background: rgba(88,166,255,0.1); color: var(--accent);
+    text-decoration: none; border: 1px solid rgba(88,166,255,0.3);
+  }
+  .issue-ref:hover { background: rgba(88,166,255,0.2); }
+
+  .callout {
+    border-left: 3px solid var(--yellow); background: rgba(210,153,34,0.06);
+    padding: 0.8rem 1rem; border-radius: 0 6px 6px 0; margin: 1rem 0;
+    font-size: 0.88rem;
+  }
+  .callout strong { color: var(--yellow); }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Proposal — <span>Auto-Discover Agent Conversations</span></h1>
+<p class="subtitle">SDK aggregates sessions from all ACP agents into one conversation list — canvas just renders it</p>
+
+<div class="prereq">
+  Builds on top of
+  <a href="https://github.com/OpenHands/agent-canvas/pull/421">PR #421</a> (mini setup server + multi-select backend)
+  &nbsp;·&nbsp;
+  <a href="https://github.com/OpenHands/agent-canvas/issues/405">#405</a>
+</div>
+
+<!-- ================================================================== -->
+<h2><span class="num">1</span> Architecture</h2>
+
+<p>The SDK (agent-server) is already the single owner of the conversation list. Instead of adding new frontend-facing endpoints, we tell the SDK which ACP agents to connect to at startup. The SDK calls <code>list_sessions()</code> on each, merges everything into its existing conversation list, and the frontend just renders what it already gets.</p>
+
+<div class="arch" style="font-size:0.76rem; line-height:1.75;"><span class="ye">                    ┌─────────────────────────────────┐</span>
+<span class="ye">                    │  SDK (agent-server)              │</span>
+<span class="ye">                    │                                  │</span>
+  startup config:   │  ┌──────────────────────────┐   │
+  <span class="hi">acp_agents</span>:       │  │  <span class="gr">Conversation List</span>        │   │
+   - openhands      │  │  <span class="gr">(unified, all agents)</span>    │   │
+   - claude-code    │  │                            │   │
+   - codex          │  │  conv-001 <span class="hi">[OH]</span>  running    │   │
+                    │  │  conv-002 <span class="or">[CC]</span>  running    │   │
+                    │  │  conv-003 <span class="cy">[CX]</span>  paused     │   │
+                    │  │  cli-abc  <span class="or">[CC]</span>  paused <span class="pu">←── discovered via list_sessions()</span>
+                    │  │  cli-xyz  <span class="hi">[OH]</span>  paused <span class="pu">←── discovered via list_sessions()</span>
+                    │  └──────────────────────────┘   │
+<span class="ye">                    │         ▲          ▲          ▲  │</span>
+<span class="ye">                    │         │          │          │  │</span>
+                    │    <span class="pu">list_sessions</span>  <span class="pu">list_sessions</span>  │
+<span class="ye">                    │         │          │          │  │</span>
+<span class="ye">                    └─────────┼──────────┼──────────┼──┘</span>
+                              │          │          │
+                    ┌─────────┴──┐ ┌─────┴─────┐ ┌─┴──────────┐
+                    │ <span class="hi">OpenHands</span>  │ │<span class="or">Claude Code</span>│ │   <span class="cy">Codex</span>    │
+                    │ ACP agent  │ │ ACP agent │ │ ACP agent  │
+                    └────────────┘ └───────────┘ └────────────┘
+
+  Frontend calls <span class="gr">GET /api/conversations</span> → gets everything, each tagged with <span class="hi">agent_id</span>
+  No new endpoints needed.</div>
+
+<div class="callout">
+  <strong>Key insight:</strong> The SDK already owns the conversation list. We don't need new
+  <code>/api/agents</code> or <code>/api/sessions</code> endpoints. The SDK connects to
+  ACP agents at startup, calls <code>list_sessions()</code> on each, and merges
+  discovered sessions into its existing list. The frontend changes are minimal —
+  just render the <code>agent_id</code> that's now on each conversation.
+</div>
+
+<!-- ================================================================== -->
+<h2><span class="num">2</span> Three-Stage Onboarding Evolution</h2>
+
+<p>The onboarding flow has been changing incrementally:</p>
+
+<div class="cols3">
+  <!-- Column 1: Current (main) -->
+  <div class="card" style="border-color: rgba(248,81,73,0.3);">
+    <h3><span class="tag before">Current</span> main branch</h3>
+    <div class="flow-row">
+      <div class="flow-step">Step 0<br><strong>Choose Agent</strong><br><span style="font-size:0.65rem;color:var(--text-dim);">Static list:<br>OH / CC / Codex</span></div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-step">Step 1<br><strong>Check Backend</strong><br><span style="font-size:0.65rem;color:var(--text-dim);">Verify single<br>connection</span></div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-step">Step 2<br><strong>Setup LLM</strong></div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-step">Step 3<br><strong>Say Hello</strong></div>
+    </div>
+    <ul style="font-size:0.78rem; margin-top:0.6rem;">
+      <li>Agent list is hard-coded (CC &amp; Codex disabled)</li>
+      <li>Only one backend; fails if Docker absent</li>
+      <li>No agent tags on conversations</li>
+    </ul>
+  </div>
+
+  <!-- Column 2: PR #421 -->
+  <div class="card" style="border-color: rgba(210,153,34,0.3);">
+    <h3><span class="tag pr421">PR #421</span> multi-select backend</h3>
+    <div class="flow-row">
+      <div class="flow-step">Step 0<br><strong>Choose Agent</strong><br><span style="font-size:0.65rem;color:var(--text-dim);">Still static<br>(unchanged)</span></div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-step changed">Step 1<br><strong>Choose Backend</strong><br><span style="font-size:0.65rem;">Multi-select<br>Local + Docker</span></div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-step">Step 2<br><strong>Setup LLM</strong></div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-step">Step 3<br><strong>Say Hello</strong></div>
+    </div>
+    <ul style="font-size:0.78rem; margin-top:0.6rem;">
+      <li>Agent list still hard-coded</li>
+      <li><strong>Step 1 replaced:</strong> pick Local + Docker side-by-side</li>
+      <li>Setup server starts Docker on demand</li>
+    </ul>
+  </div>
+
+  <!-- Column 3: This proposal -->
+  <div class="card" style="border-color: rgba(63,185,80,0.3);">
+    <h3><span class="tag after">This proposal</span> agent discovery</h3>
+    <div class="flow-row">
+      <div class="flow-step changed">Step 0<br><strong>Choose Backend</strong><br><span style="font-size:0.65rem;">From PR #421<br>(moved to Step 0)</span></div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-step">Step 1<br><strong>Setup LLM</strong></div>
+      <span class="flow-arrow">&rarr;</span>
+      <div class="flow-step">Step 2<br><strong>Say Hello</strong></div>
+    </div>
+    <ul style="font-size:0.78rem; margin-top:0.6rem;">
+      <li><strong>Choose Agent step removed</strong> — agents come from ACP config</li>
+      <li>SDK connects to ACP agents, calls <code>list_sessions()</code></li>
+      <li>Conversations from all agents appear automatically</li>
+      <li>Agent tags shown on each conversation card</li>
+    </ul>
+  </div>
+</div>
+
+<div class="callout">
+  <strong>The "Choose Agent" step goes away.</strong> Agents aren't selected by the user — they're whatever the
+  SDK's connected ACP agents provide. The user picks backends (PR #421), configures LLM, and starts chatting.
+  Agent sessions are discovered and shown automatically.
+</div>
+
+<!-- ─── Diff table ─── -->
+<table>
+  <tr>
+    <th>Aspect</th>
+    <th><span class="tag before">Current</span></th>
+    <th><span class="tag pr421">After PR #421</span></th>
+    <th><span class="tag after">After this proposal</span></th>
+  </tr>
+  <tr>
+    <td><strong>Onboarding</strong></td>
+    <td>4 steps: Agent → Backend → LLM → Hello</td>
+    <td>4 steps: Agent → <strong>Choose Backend</strong> → LLM → Hello</td>
+    <td style="color:var(--green);"><strong>3 steps:</strong> Choose Backend → LLM → Hello</td>
+  </tr>
+  <tr>
+    <td><strong>Agent selection</strong></td>
+    <td>Static hard-coded list</td>
+    <td><em>unchanged</em></td>
+    <td style="color:var(--green);"><strong>Removed</strong> — agents come from ACP config at SDK startup</td>
+  </tr>
+  <tr>
+    <td><strong>Conversation list</strong></td>
+    <td>Only OpenHands conversations</td>
+    <td><em>unchanged</em></td>
+    <td style="color:var(--green);">All agents' conversations, unified by SDK</td>
+  </tr>
+  <tr>
+    <td><strong>CLI sessions</strong></td>
+    <td>Invisible to canvas</td>
+    <td><em>unchanged</em></td>
+    <td style="color:var(--green);">Auto-discovered via <code>list_sessions()</code>, resumable</td>
+  </tr>
+</table>
+
+<!-- ================================================================== -->
+<h2><span class="num">3</span> Conversation UI — Before / After</h2>
+
+<p>The real payoff: conversations from <strong>all agents</strong> — OpenHands, Claude Code, Codex — appear together in the conversation panel. Sessions started from CLI (<code>openhands</code>, <code>claude</code>, <code>codex</code>) are automatically discovered and surfaced as resumable.</p>
+
+<!-- ─── Full-width before/after ─── -->
+<div class="vs">
+
+  <!-- ── BEFORE ── -->
+  <div>
+    <p style="font-size:0.85rem; color:var(--text-dim); margin-bottom:0.5rem;"><span class="tag before">Current</span> Only OpenHands conversations, no agent info</p>
+    <div class="mockup" style="max-width:380px;">
+      <div class="mockup-bar">
+        <span class="mockup-dot" style="background:#ff5f57;"></span>
+        <span class="mockup-dot" style="background:#febc2e;"></span>
+        <span class="mockup-dot" style="background:#28c840;"></span>
+        <span style="margin-left:auto;">Conversations</span>
+      </div>
+      <div style="padding:0.6rem;">
+        <!-- card 1 active -->
+        <div style="background:rgba(88,166,255,0.06); border:1px solid rgba(88,166,255,0.2); border-radius:8px; padding:0.6rem 0.7rem; margin-bottom:0.5rem;">
+          <div style="display:flex; align-items:center; gap:0.4rem;">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;"></div>
+            <span style="font-size:0.82rem;font-weight:600;">Fix login bug</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.3rem;padding-left:16px;">
+            <span style="font-size:0.68rem;color:var(--text-dim);">🔗 user/frontend</span>
+            <span style="font-size:0.68rem;color:#a3a3a3;">3m ago</span>
+          </div>
+        </div>
+        <!-- card 2 -->
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:0.6rem 0.7rem; margin-bottom:0.5rem;">
+          <div style="display:flex; align-items:center; gap:0.4rem;">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);flex-shrink:0;"></div>
+            <span style="font-size:0.82rem;font-weight:600;">Refactor auth module</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.3rem;padding-left:16px;opacity:0.6;">
+            <span style="font-size:0.68rem;color:var(--text-dim);">🔗 user/backend</span>
+            <span style="font-size:0.68rem;color:#a3a3a3;">2h ago</span>
+          </div>
+        </div>
+        <!-- card 3 -->
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:0.6rem 0.7rem; margin-bottom:0.5rem;">
+          <div style="display:flex; align-items:center; gap:0.4rem;">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);flex-shrink:0;"></div>
+            <span style="font-size:0.82rem;font-weight:600;">Add unit tests</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.3rem;padding-left:16px;opacity:0.6;">
+            <span style="font-size:0.68rem;color:var(--text-dim);">📁 ~/projects/api</span>
+            <span style="font-size:0.68rem;color:#a3a3a3;">1d ago</span>
+          </div>
+        </div>
+        <p style="text-align:center;font-size:0.72rem;color:var(--text-dim);margin-top:0.6rem;">
+          All conversations are OpenHands.<br>No way to see Claude Code / Codex sessions.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── AFTER ── -->
+  <div>
+    <p style="font-size:0.85rem; color:var(--text-dim); margin-bottom:0.5rem;"><span class="tag after">This proposal</span> All agents' conversations, auto-discovered</p>
+    <div class="mockup" style="max-width:380px;">
+      <div class="mockup-bar">
+        <span class="mockup-dot" style="background:#ff5f57;"></span>
+        <span class="mockup-dot" style="background:#febc2e;"></span>
+        <span class="mockup-dot" style="background:#28c840;"></span>
+        <span style="margin-left:auto;">Conversations</span>
+      </div>
+      <div style="padding:0.6rem;">
+
+        <!-- OH card – active, running -->
+        <div style="background:rgba(88,166,255,0.06); border:1px solid rgba(88,166,255,0.2); border-radius:8px; padding:0.6rem 0.7rem; margin-bottom:0.5rem;">
+          <div style="display:flex; align-items:center; gap:0.4rem;">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;"></div>
+            <span style="font-size:0.82rem;font-weight:600;flex:1;">Fix login bug</span>
+            <span style="font-size:0.58rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:3px;background:rgba(59,130,246,0.15);color:#79b8ff;">OpenHands</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.3rem;padding-left:16px;">
+            <span style="font-size:0.68rem;color:var(--text-dim);">🔗 user/frontend</span>
+            <span style="font-size:0.68rem;color:#a3a3a3;">3m ago</span>
+          </div>
+        </div>
+
+        <!-- CC card – running -->
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:0.6rem 0.7rem; margin-bottom:0.5rem;">
+          <div style="display:flex; align-items:center; gap:0.4rem;">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0;"></div>
+            <span style="font-size:0.82rem;font-weight:600;flex:1;">Write API docs</span>
+            <span style="font-size:0.58rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:3px;background:rgba(230,126,34,0.15);color:#f0a76e;">Claude Code</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.3rem;padding-left:16px;">
+            <span style="font-size:0.68rem;color:var(--text-dim);">🔗 user/backend</span>
+            <span style="font-size:0.68rem;color:#a3a3a3;">8m ago</span>
+          </div>
+        </div>
+
+        <!-- OH card – paused -->
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:0.6rem 0.7rem; margin-bottom:0.5rem;">
+          <div style="display:flex; align-items:center; gap:0.4rem;">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);flex-shrink:0;"></div>
+            <span style="font-size:0.82rem;font-weight:600;flex:1;">Refactor auth module</span>
+            <span style="font-size:0.58rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:3px;background:rgba(59,130,246,0.15);color:#79b8ff;">OpenHands</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.3rem;padding-left:16px;opacity:0.6;">
+            <span style="font-size:0.68rem;color:var(--text-dim);">🔗 user/backend</span>
+            <span style="font-size:0.68rem;color:#a3a3a3;">2h ago</span>
+          </div>
+        </div>
+
+        <!-- Codex card – paused -->
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:0.6rem 0.7rem; margin-bottom:0.5rem;">
+          <div style="display:flex; align-items:center; gap:0.4rem;">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);flex-shrink:0;"></div>
+            <span style="font-size:0.82rem;font-weight:600;flex:1;">Add unit tests</span>
+            <span style="font-size:0.58rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:3px;background:rgba(16,185,129,0.15);color:#6ee7b7;">Codex</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.3rem;padding-left:16px;opacity:0.6;">
+            <span style="font-size:0.68rem;color:var(--text-dim);">📁 ~/projects/api</span>
+            <span style="font-size:0.68rem;color:#a3a3a3;">1d ago</span>
+          </div>
+        </div>
+
+        <!-- Divider: discovered sessions -->
+        <div style="display:flex;align-items:center;gap:0.5rem;margin:0.7rem 0 0.5rem;">
+          <div style="flex:1;height:1px;border-top:1px dashed var(--border);"></div>
+          <span style="font-size:0.62rem;color:var(--purple);font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Discovered from CLI</span>
+          <div style="flex:1;height:1px;border-top:1px dashed var(--border);"></div>
+        </div>
+
+        <!-- Discovered CC CLI session -->
+        <div style="background:rgba(188,140,255,0.04); border:1px dashed rgba(188,140,255,0.3); border-radius:8px; padding:0.6rem 0.7rem; margin-bottom:0.5rem;">
+          <div style="display:flex; align-items:center; gap:0.4rem;">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--yellow);flex-shrink:0;"></div>
+            <span style="font-size:0.82rem;font-weight:600;flex:1;color:var(--text-dim);">Debug payment flow</span>
+            <span style="font-size:0.58rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:3px;background:rgba(230,126,34,0.15);color:#f0a76e;">Claude Code</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.3rem;padding-left:16px;">
+            <span style="font-size:0.68rem;color:var(--purple);">⤴ started via <code style="font-size:0.65rem;padding:0.05rem 0.25rem;">claude</code> CLI · paused</span>
+            <span style="font-size:0.68rem;color:#a3a3a3;">25m ago</span>
+          </div>
+        </div>
+
+        <!-- Discovered OH CLI session -->
+        <div style="background:rgba(188,140,255,0.04); border:1px dashed rgba(188,140,255,0.3); border-radius:8px; padding:0.6rem 0.7rem; margin-bottom:0.3rem;">
+          <div style="display:flex; align-items:center; gap:0.4rem;">
+            <div style="width:8px;height:8px;border-radius:50%;background:var(--yellow);flex-shrink:0;"></div>
+            <span style="font-size:0.82rem;font-weight:600;flex:1;color:var(--text-dim);">Migrate database schema</span>
+            <span style="font-size:0.58rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:3px;background:rgba(59,130,246,0.15);color:#79b8ff;">OpenHands</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.3rem;padding-left:16px;">
+            <span style="font-size:0.68rem;color:var(--purple);">⤴ started via <code style="font-size:0.65rem;padding:0.05rem 0.25rem;">openhands</code> CLI · paused</span>
+            <span style="font-size:0.68rem;color:#a3a3a3;">1h ago</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<p>What powers this — each backend responds to <code>GET /api/sessions</code>:</p>
+
+<div class="arch" style="font-size:0.76rem; line-height:1.65;"><span class="ye">// GET http://localhost:18000/api/sessions?cwd=/home/user/projects</span>
+[
+  {
+    <span class="hi">"session_id"</span>:  <span class="gr">"conv-001"</span>,         <span class="ye">// already tracked → shows as normal card</span>
+    <span class="hi">"agent_id"</span>:    <span class="gr">"openhands"</span>,
+    <span class="hi">"status"</span>:      <span class="gr">"running"</span>,
+    <span class="hi">"title"</span>:       <span class="gr">"Fix login bug"</span>,
+    <span class="hi">"created_at"</span>:  <span class="gr">"2026-05-12T23:50:00Z"</span>
+  },
+  {
+    <span class="hi">"session_id"</span>:  <span class="gr">"cli-abc-123"</span>,       <span class="ye">// NOT tracked → "Discovered from CLI"</span>
+    <span class="hi">"agent_id"</span>:    <span class="gr">"openhands"</span>,
+    <span class="hi">"status"</span>:      <span class="gr">"paused"</span>,
+    <span class="hi">"title"</span>:       <span class="gr">"Migrate database schema"</span>,
+    <span class="hi">"created_at"</span>:  <span class="gr">"2026-05-12T22:30:00Z"</span>
+  }
+]
+
+<span class="ye">// GET http://localhost:18002/api/sessions?cwd=/home/user/projects</span>
+[
+  {
+    <span class="hi">"session_id"</span>:  <span class="gr">"conv-002"</span>,         <span class="ye">// already tracked</span>
+    <span class="hi">"agent_id"</span>:    <span class="gr">"claude-code"</span>,
+    <span class="hi">"status"</span>:      <span class="gr">"running"</span>,
+    <span class="hi">"title"</span>:       <span class="gr">"Write API docs"</span>,
+    <span class="hi">"created_at"</span>:  <span class="gr">"2026-05-12T23:45:00Z"</span>
+  },
+  {
+    <span class="hi">"session_id"</span>:  <span class="gr">"cli-xyz-789"</span>,       <span class="ye">// NOT tracked → "Discovered from CLI"</span>
+    <span class="hi">"agent_id"</span>:    <span class="gr">"claude-code"</span>,
+    <span class="hi">"status"</span>:      <span class="gr">"paused"</span>,
+    <span class="hi">"title"</span>:       <span class="gr">"Debug payment flow"</span>,
+    <span class="hi">"created_at"</span>:  <span class="gr">"2026-05-12T23:28:00Z"</span>
+  }
+]</div>
+
+<div class="callout">
+  <strong>The key idea:</strong> Canvas calls <code>GET /api/sessions</code> on every connected backend, diffs the
+  results against its own conversation list, and surfaces untracked sessions below a "Discovered from CLI" divider.
+  Clicking a discovered session creates a canvas conversation that attaches to the existing ACP session via
+  <code>POST /api/sessions/{id}/resume</code>.
+</div>
+
+<!-- ================================================================== -->
+<h2><span class="num">4</span> SDK-Side Changes</h2>
+
+<p>The SDK (agent-server) needs two additions: accept ACP agent config at startup, and merge their sessions into its conversation list.</p>
+
+<h3>4a. Startup config — tell the SDK which ACP agents to connect to</h3>
+
+<div class="arch" style="font-size:0.76rem; line-height:1.65;"><span class="ye"># config.toml (or however the SDK is configured)</span>
+
+[[<span class="hi">acp_agents</span>]]
+<span class="hi">id</span>       = <span class="gr">"openhands"</span>
+<span class="hi">endpoint</span> = <span class="gr">"http://localhost:3000"</span>    <span class="ye"># ACP protocol endpoint</span>
+
+[[<span class="hi">acp_agents</span>]]
+<span class="hi">id</span>       = <span class="gr">"claude-code"</span>
+<span class="hi">endpoint</span> = <span class="gr">"http://localhost:3001"</span>
+
+[[<span class="hi">acp_agents</span>]]
+<span class="hi">id</span>       = <span class="gr">"codex"</span>
+<span class="hi">endpoint</span> = <span class="gr">"http://localhost:3002"</span></div>
+
+<h3>4b. SDK calls <code>list_sessions()</code> on each ACP agent</h3>
+
+<div class="arch" style="font-size:0.76rem; line-height:1.65;"><span class="ye">SDK startup sequence:</span>
+
+  <span class="gr">SDK (agent-server)</span>                  <span class="cy">OpenHands ACP</span>       <span class="or">Claude Code ACP</span>     <span class="cy">Codex ACP</span>
+    │                                     │                    │                   │
+    │─── <span class="pu">list_sessions(cwd)</span> ─────────────▶│                    │                   │
+    │◀── [sess-001, cli-abc] ─────────────│                    │                   │
+    │                                     │                    │                   │
+    │─── <span class="pu">list_sessions(cwd)</span> ────────────────────────────────────▶│                   │
+    │◀── [sess-002, cli-xyz] ──────────────────────────────────│                   │
+    │                                     │                    │                   │
+    │─── <span class="pu">list_sessions(cwd)</span> ──────────────────────────────────────────────────────▶│
+    │◀── [sess-003] ───────────────────────────────────────────────────────────────│
+    │
+    │  <span class="ye">Merge all into unified conversation list, tag each with agent_id</span>
+    │
+    ▼
+  <span class="gr">Conversation List</span> = [
+    { id: "sess-001", <span class="hi">agent_id: "openhands"</span>,   status: "running", title: "Fix login bug" },
+    { id: "sess-002", <span class="or">agent_id: "claude-code"</span>, status: "running", title: "Write API docs" },
+    { id: "sess-003", <span class="cy">agent_id: "codex"</span>,       status: "paused",  title: "Add unit tests" },
+    { id: "cli-abc",  <span class="hi">agent_id: "openhands"</span>,   status: "paused",  title: "Migrate DB schema" },
+    { id: "cli-xyz",  <span class="or">agent_id: "claude-code"</span>, status: "paused",  title: "Debug payment flow" },
+  ]</div>
+
+<h3>4c. Existing <code>GET /api/conversations</code> — now includes <code>agent_id</code></h3>
+
+<div class="arch" style="font-size:0.76rem; line-height:1.65;"><span class="ye">// GET /api/conversations  (existing endpoint, new field highlighted)</span>
+{
+  <span class="hi">"items"</span>: [
+    {
+      <span class="hi">"conversation_id"</span>: <span class="gr">"sess-001"</span>,
+      <span class="hi">"title"</span>:           <span class="gr">"Fix login bug"</span>,
+      <span class="hi">"status"</span>:          <span class="gr">"running"</span>,
+      <span class="gr"><strong>"agent_id"</strong></span>:         <span class="gr">"openhands"</span>,          <span class="ye">// ← NEW</span>
+      <span class="hi">"selected_repository"</span>: <span class="gr">"user/frontend"</span>,
+      <span class="hi">"created_at"</span>:  <span class="gr">"2026-05-12T23:50:00Z"</span>,
+      <span class="hi">"updated_at"</span>:  <span class="gr">"2026-05-12T23:53:00Z"</span>
+    },
+    {
+      <span class="hi">"conversation_id"</span>: <span class="gr">"sess-002"</span>,
+      <span class="hi">"title"</span>:           <span class="gr">"Write API docs"</span>,
+      <span class="hi">"status"</span>:          <span class="gr">"running"</span>,
+      <span class="gr"><strong>"agent_id"</strong></span>:         <span class="gr">"claude-code"</span>,         <span class="ye">// ← NEW</span>
+      <span class="hi">"selected_repository"</span>: <span class="gr">"user/backend"</span>,
+      <span class="hi">"created_at"</span>:  <span class="gr">"2026-05-12T23:45:00Z"</span>,
+      <span class="hi">"updated_at"</span>:  <span class="gr">"2026-05-12T23:53:00Z"</span>
+    },
+    {
+      <span class="hi">"conversation_id"</span>: <span class="gr">"cli-xyz"</span>,
+      <span class="hi">"title"</span>:           <span class="gr">"Debug payment flow"</span>,
+      <span class="hi">"status"</span>:          <span class="gr">"paused"</span>,
+      <span class="gr"><strong>"agent_id"</strong></span>:         <span class="gr">"claude-code"</span>,         <span class="ye">// ← NEW</span>
+      <span class="gr"><strong>"source"</strong></span>:          <span class="gr">"cli"</span>,                 <span class="ye">// ← NEW: discovered, not started by canvas</span>
+      <span class="hi">"created_at"</span>:  <span class="gr">"2026-05-12T23:28:00Z"</span>,
+      <span class="hi">"updated_at"</span>:  <span class="gr">"2026-05-12T23:28:00Z"</span>
+    }
+  ]
+}</div>
+
+<div class="callout">
+  <strong>No new endpoints.</strong> The existing <code>GET /api/conversations</code> just gains two optional fields:
+  <code>agent_id</code> (which ACP agent owns this session) and <code>source</code> (<code>"canvas"</code> or <code>"cli"</code>).
+  The frontend uses these to render agent tags and "Discovered from CLI" sections.
+</div>
+
+<!-- ================================================================== -->
+<h2><span class="num">5</span> Frontend Changes</h2>
+
+<table>
+  <tr>
+    <th>#</th>
+    <th>What</th>
+    <th>Details</th>
+  </tr>
+  <tr>
+    <td>1</td>
+    <td><span class="tag fe">Frontend</span> Agent tag on <code>ConversationCard</code></td>
+    <td>
+      Read <code>agent_id</code> from the conversation response. Render a small colored badge
+      (e.g. <span style="font-size:0.65rem;font-weight:700;padding:0.1rem 0.35rem;border-radius:3px;background:rgba(59,130,246,0.15);color:#79b8ff;">OpenHands</span>
+      <span style="font-size:0.65rem;font-weight:700;padding:0.1rem 0.35rem;border-radius:3px;background:rgba(230,126,34,0.15);color:#f0a76e;">Claude Code</span>
+      <span style="font-size:0.65rem;font-weight:700;padding:0.1rem 0.35rem;border-radius:3px;background:rgba(16,185,129,0.15);color:#6ee7b7;">Codex</span>)
+      next to the conversation title in the header row.
+    </td>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td><span class="tag fe">Frontend</span> "Discovered from CLI" section</td>
+    <td>
+      Conversations where <code>source === "cli"</code> are grouped below a dashed divider
+      in the conversation panel. Clicking one triggers <code>resume_session()</code> on the SDK,
+      which attaches to the existing ACP session.
+    </td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td><span class="tag fe">Frontend</span> Remove <code>ChooseAgentStep</code></td>
+    <td>
+      Delete the static agent selection step from onboarding. Onboarding becomes
+      3 steps: Choose Backend → Setup LLM → Say Hello.
+    </td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td><span class="tag fe">Frontend</span> Update <code>AppConversation</code> type</td>
+    <td>
+      Add optional <code>agent_id?: string</code> and <code>source?: "canvas" | "cli"</code>
+      to the conversation type. Map <code>agent_id</code> to display name + color via a
+      simple lookup table.
+    </td>
+  </tr>
+</table>
+
+<!-- ================================================================== -->
+<h2><span class="num">6</span> Implementation Phases</h2>
+
+<div class="card">
+  <h3>Phase A — SDK: ACP agent aggregation <span class="tag sdk">SDK</span></h3>
+  <ol style="font-size:0.88rem;">
+    <li>Add <code>acp_agents</code> config to SDK startup</li>
+    <li>On startup (and periodically), call <code>list_sessions(cwd)</code> on each connected ACP agent</li>
+    <li>Merge discovered sessions into the existing conversation list, tagging with <code>agent_id</code> and <code>source</code></li>
+    <li>When the user clicks into a discovered session, call <code>resume_session()</code> on the ACP agent</li>
+  </ol>
+</div>
+
+<div class="card">
+  <h3>Phase B — Frontend: agent tags + CLI section <span class="tag fe">Frontend</span></h3>
+  <ol style="font-size:0.88rem;">
+    <li>Add <code>agent_id</code> / <code>source</code> to <code>AppConversation</code> type</li>
+    <li>Render agent badge on <code>ConversationCardHeader</code></li>
+    <li>"Discovered from CLI" divider + dashed-border cards for <code>source === "cli"</code></li>
+    <li>Remove <code>ChooseAgentStep</code> from onboarding, move Choose Backend to Step 0</li>
+  </ol>
+</div>
+
+<!-- ================================================================== -->
+<h2><span class="num">7</span> Open Questions</h2>
+
+<div class="card">
+  <ol>
+    <li><strong>ACP agent config delivery:</strong> Is <code>config.toml</code> the right place, or should the canvas send ACP agent endpoints to the SDK via an API call at setup time?</li>
+    <li><strong>Polling interval:</strong> How often should the SDK call <code>list_sessions()</code> on each ACP agent? On every <code>GET /api/conversations</code> request, or on a background timer?</li>
+    <li><strong>Session resumption:</strong> When the user clicks a CLI-discovered session, should the canvas replay the full event history or show a "resumed" marker and start fresh?</li>
+    <li><strong>Agent display names:</strong> Should the SDK return a display name + icon key alongside <code>agent_id</code>, or should the frontend maintain a static mapping?</li>
+    <li><strong>Cross-agent "new conversation":</strong> When the user starts a new conversation, should they pick which agent to use? Or default to a configured primary agent?</li>
+  </ol>
+</div>
+
+<!-- ================================================================== -->
+<div class="summary-box">
+  <h3>Summary</h3>
+  <ul>
+    <li><strong>SDK adds:</strong> <code>acp_agents</code> startup config; internal <code>list_sessions()</code> polling; session merging into conversation list</li>
+    <li><strong>SDK extends:</strong> <code>GET /api/conversations</code> response with <code>agent_id</code> and <code>source</code> fields</li>
+    <li><strong>Frontend adds:</strong> agent tags on conversation cards; "Discovered from CLI" section; removes Choose Agent step</li>
+    <li><strong>No new endpoints:</strong> SDK is the aggregation layer; frontend just reads the existing conversation API</li>
+    <li><strong>2 phases:</strong> (A) SDK aggregation → (B) Frontend rendering</li>
+  </ul>
+  <p style="margin-top:0.8rem; font-size:0.88rem;">
+    Related issues:
+    <a class="issue-ref" href="https://github.com/OpenHands/agent-canvas/issues/405">agent-canvas #405</a>
+    <a class="issue-ref" href="https://github.com/OpenHands/software-agent-sdk/issues/3236">software-agent-sdk #3236</a>
+    <a class="issue-ref" href="https://github.com/OpenHands/agent-canvas/issues/348">agent-canvas #348</a>
+  </p>
+</div>
+
+</div>
+</body>
+</html>
