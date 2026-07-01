@@ -17,6 +17,7 @@ interface MCPServerConfig {
   name?: string;
   url?: string;
   api_key?: string;
+  headers?: Record<string, string>;
   timeout?: number;
   command?: string;
   args?: string[];
@@ -44,6 +45,7 @@ export function useAddMcpServer() {
           ...(server.name && { name: server.name }),
           url: server.url!,
           ...(server.api_key && { api_key: server.api_key }),
+          ...(server.headers && { headers: server.headers }),
         };
         newConfig.sse_servers.push(sseServer);
       } else if (server.type === "stdio") {
@@ -59,6 +61,7 @@ export function useAddMcpServer() {
           ...(server.name && { name: server.name }),
           url: server.url!,
           ...(server.api_key && { api_key: server.api_key }),
+          ...(server.headers && { headers: server.headers }),
           ...(server.timeout !== undefined && { timeout: server.timeout }),
         };
         newConfig.shttp_servers.push(shttpServer);

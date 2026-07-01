@@ -80,26 +80,52 @@ function apiKeyFromServerConfig(
   return typeof auth === "string" && auth !== "oauth" ? auth : undefined;
 }
 
-function getAuthorizationHeaders(apiKey: string | undefined) {
-  if (!apiKey) return {};
-  return {
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-    },
-  };
+/**
+ * Extract non-`Authorization` headers from a persisted remote server config.
+ *
+ * `parseMcpConfig` represents the `Authorization` header as `api_key` on the
+ * frontend `MCPSSEServer` / `MCPSHTTPServer` shapes; every *other* header
+ * (e.g. Datadog's `DD-API-KEY` / `DD-APPLICATION-KEY`) must be preserved as
+ * `headers` so it round-trips through `toSdkMcpConfig` on the next save.
+ * Without this, reloading and re-saving a header-based config silently
+ * dropped the custom headers.
+ */
+function extraHeadersFromServerConfig(
+  serverConfig: Record<string, unknown>,
+): Record<string, string> | undefined {
+  const headers = serverConfig.headers;
+  if (!headers || typeof headers !== "object") return undefined;
+  const out: Record<string, string> = {};
+  for (const [name, value] of Object.entries(
+    headers as Record<string, unknown>,
+  )) {
+    if (typeof value !== "string") continue;
+    if (name.toLowerCase() === "authorization") continue;
+    out[name] = value;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
+/**
+ * Build the credential-bearing fragment of a remote server's SDK config.
+ *
+ * A server may carry an `api_key` (serialized as `Authorization: Bearer …`),
+ * an explicit `headers` map (e.g. Datadog's `DD-API-KEY` /
+ * `DD-APPLICATION-KEY`), or both. Merge them into a single `headers` object
+ * so both round-trip through `toSdkMcpConfig` / `parseMcpConfig` without one
+ * clobbering the other. A hand-authored `Authorization` header always wins
+ * over the `api_key`-derived one (`??=`), matching the backend's
+ * `headers.setdefault("Authorization", …)` semantics in `mcp_router.py`.
+ */
 function getRemoteCredentialFields(entry: {
   api_key?: string;
   headers?: Record<string, string>;
 }): Partial<SdkMcpServerConfig> {
+  const headers: Record<string, string> = { ...(entry.headers ?? {}) };
   if (entry.api_key && entry.api_key !== REDACTED_MCP_SECRET_VALUE) {
-    return getAuthorizationHeaders(entry.api_key);
+    headers.Authorization ??= `Bearer ${entry.api_key}`;
   }
-  if (entry.headers && Object.keys(entry.headers).length > 0) {
-    return { headers: entry.headers };
-  }
-  return {};
+  return Object.keys(headers).length > 0 ? { headers } : {};
 }
 
 /**
@@ -139,22 +165,26 @@ export function parseMcpConfig(value: unknown): MCPConfig {
     if (url) {
       const transport = serverConfig.transport as string | undefined;
       const apiKey = apiKeyFromServerConfig(serverConfig);
+      const extraHeaders = extraHeadersFromServerConfig(serverConfig);
 
       if (isDeprecatedLinearSse(url, transport)) {
         const server: MCPSHTTPServer = { url: LINEAR_SHTTP_URL };
         if (apiKey) server.api_key = apiKey;
+        if (extraHeaders) server.headers = extraHeaders;
         migratedShttpServers.push(server);
       } else if (transport === "sse") {
         const name = userGivenServerName(serverName, "sse");
         const server: MCPSSEServer = { url };
         if (name) server.name = name;
         if (apiKey) server.api_key = apiKey;
+        if (extraHeaders) server.headers = extraHeaders;
         sseServers.push(server);
       } else {
         const name = userGivenServerName(serverName, "shttp");
         const server: MCPSHTTPServer = { url };
         if (name) server.name = name;
         if (apiKey) server.api_key = apiKey;
+        if (extraHeaders) server.headers = extraHeaders;
         if (serverConfig.timeout != null) {
           server.timeout = serverConfig.timeout as number;
         }

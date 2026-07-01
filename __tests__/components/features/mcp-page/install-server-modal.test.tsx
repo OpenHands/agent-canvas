@@ -752,4 +752,216 @@ describe("InstallServerModal", () => {
       ).not.toBeInTheDocument();
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // headerFields-based remote MCP installs (e.g. Datadog DD-API-KEY /
+  // DD-APPLICATION-KEY). The published @openhands/extensions types don't
+  // include `headerFields` yet, so the synthetic entry below casts through
+  // `unknown` to attach it.
+  // ---------------------------------------------------------------------------
+  const DATADOG_STYLE_ENTRY = {
+    id: "datadog-style",
+    name: "Datadog-style Server",
+    description: "Remote MCP server that authenticates via two headers.",
+    iconBg: "#632CA6",
+    connectionOptions: [
+      {
+        id: "api",
+        provider: "mcp",
+        transport: {
+          kind: "shttp",
+          url: "https://mcp.example.com/mcp",
+          headerFields: [
+            {
+              key: "DD-API-KEY",
+              label: "Datadog API key",
+              type: "password",
+              required: true,
+              placeholder: "dd-api",
+              helperText: "Created in Datadog.",
+            },
+            {
+              key: "DD-APPLICATION-KEY",
+              label: "Datadog Application key",
+              type: "password",
+              required: true,
+              placeholder: "dd-app",
+              helperText: "Created in Datadog.",
+            },
+          ],
+        },
+        auth: { strategy: "none" },
+      },
+    ],
+  } as unknown as MarketplaceEntry;
+
+  describe("headerFields-based remote installs", () => {
+    it("renders one input per declared header field and no api_key field", async () => {
+      renderWith(
+        <InstallServerModal entry={DATADOG_STYLE_ENTRY} onClose={vi.fn()} />,
+      );
+      await screen.findByTestId("mcp-install-modal");
+
+      expect(
+        screen.getByTestId("mcp-install-field-DD-API-KEY"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByTestId("mcp-install-field-DD-APPLICATION-KEY"),
+      ).toBeInTheDocument();
+      // The Bearer-style api_key input is not rendered for a
+      // headerFields-only option whose strategy is "none".
+      expect(
+        screen.queryByTestId("mcp-install-field-api_key"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("blocks submission when a required header field is empty", async () => {
+      const saveSpy = vi
+        .spyOn(SettingsService, "saveSettings")
+        .mockResolvedValue(true);
+
+      renderWith(
+        <InstallServerModal entry={DATADOG_STYLE_ENTRY} onClose={vi.fn()} />,
+      );
+      await screen.findByTestId("mcp-install-modal");
+      await waitFor(() =>
+        expect(SettingsService.getSettings).toHaveBeenCalled(),
+      );
+
+      // Fill only one of the two required headers.
+      fireEvent.change(screen.getByTestId("mcp-install-field-DD-API-KEY"), {
+        target: { value: "dd-api-secret" },
+      });
+      fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+      await waitFor(() => expect(saveSpy).not.toHaveBeenCalled());
+    });
+
+    it("installs with the headers map and no api_key in the persisted config", async () => {
+      const testSpy = vi
+        .spyOn(McpService, "testServer")
+        .mockResolvedValue({ ok: true, tools: [] });
+      const saveSpy = vi
+        .spyOn(SettingsService, "saveSettings")
+        .mockResolvedValue(true);
+
+      renderWith(
+        <InstallServerModal entry={DATADOG_STYLE_ENTRY} onClose={vi.fn()} />,
+      );
+      await screen.findByTestId("mcp-install-modal");
+      await waitFor(() =>
+        expect(SettingsService.getSettings).toHaveBeenCalled(),
+      );
+
+      fireEvent.change(screen.getByTestId("mcp-install-field-DD-API-KEY"), {
+        target: { value: "dd-api-secret" },
+      });
+      fireEvent.change(
+        screen.getByTestId("mcp-install-field-DD-APPLICATION-KEY"),
+        { target: { value: "dd-app-secret" } },
+      );
+      fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+      await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+
+      // The pre-flight test payload carries the headers map.
+      expect(testSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "shttp",
+          url: "https://mcp.example.com/mcp",
+          headers: {
+            "DD-API-KEY": "dd-api-secret",
+            "DD-APPLICATION-KEY": "dd-app-secret",
+          },
+        }),
+      );
+      expect(testSpy.mock.calls[0][0]).not.toHaveProperty("api_key");
+
+      // The persisted mcp_config carries the headers map (no Authorization).
+      const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
+        .agent_settings_diff as {
+        mcp_config: { mcpServers: Record<string, unknown> };
+      };
+      expect(sent.mcp_config.mcpServers).toMatchObject({
+        "datadog-style": {
+          url: "https://mcp.example.com/mcp",
+          headers: {
+            "DD-API-KEY": "dd-api-secret",
+            "DD-APPLICATION-KEY": "dd-app-secret",
+          },
+        },
+      });
+      const persisted = sent.mcp_config.mcpServers["datadog-style"] as Record<
+        string,
+        unknown
+      >;
+      expect(persisted).not.toHaveProperty("api_key");
+      expect(
+        (persisted.headers as Record<string, unknown>).Authorization,
+      ).toBeUndefined();
+    });
+
+    it("uses the user-edited URL when the transport opts into urlEditable", async () => {
+      const entry = {
+        ...DATADOG_STYLE_ENTRY,
+        connectionOptions: [
+          {
+            ...DATADOG_STYLE_ENTRY.connectionOptions[0],
+            transport: {
+              ...DATADOG_STYLE_ENTRY.connectionOptions[0].transport,
+              urlEditable: true,
+            },
+          },
+        ],
+      } as unknown as MarketplaceEntry;
+      vi.spyOn(McpService, "testServer").mockResolvedValue({
+        ok: true,
+        tools: [],
+      });
+      const saveSpy = vi
+        .spyOn(SettingsService, "saveSettings")
+        .mockResolvedValue(true);
+
+      renderWith(<InstallServerModal entry={entry} onClose={vi.fn()} />);
+      await screen.findByTestId("mcp-install-modal");
+      await waitFor(() =>
+        expect(SettingsService.getSettings).toHaveBeenCalled(),
+      );
+
+      // The URL input is editable and pre-filled with the catalog URL.
+      const urlInput = screen.getByTestId(
+        "mcp-install-field-url",
+      ) as HTMLInputElement;
+      expect(urlInput).not.toBeDisabled();
+      expect(urlInput.value).toBe("https://mcp.example.com/mcp");
+
+      // Edit it to a site-specific URL and fill the headers.
+      fireEvent.change(urlInput, {
+        target: { value: "https://mcp.us5.example.com/v1/mcp" },
+      });
+      fireEvent.change(screen.getByTestId("mcp-install-field-DD-API-KEY"), {
+        target: { value: "dd-api-secret" },
+      });
+      fireEvent.change(
+        screen.getByTestId("mcp-install-field-DD-APPLICATION-KEY"),
+        { target: { value: "dd-app-secret" } },
+      );
+      fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+      await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+      const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
+        .agent_settings_diff as {
+        mcp_config: { mcpServers: Record<string, unknown> };
+      };
+      expect(sent.mcp_config.mcpServers).toMatchObject({
+        "datadog-style": {
+          url: "https://mcp.us5.example.com/v1/mcp",
+          headers: {
+            "DD-API-KEY": "dd-api-secret",
+            "DD-APPLICATION-KEY": "dd-app-secret",
+          },
+        },
+      });
+    });
+  });
 });

@@ -76,7 +76,28 @@ function optionNeedsCredentialField(
   if (option?.transport.kind !== "shttp" && option?.transport.kind !== "sse") {
     return false;
   }
+  // A `headerFields`-based option (e.g. Datadog's DD-API-KEY /
+  // DD-APPLICATION-KEY) needs user input even when the auth strategy is
+  // "none" — the credentials are the headers themselves.
+  if ((option.transport.headerFields?.length ?? 0) > 0) return true;
   return ["api_key", "bearer", "basic"].includes(option.auth.strategy);
+}
+
+/**
+ * Header fields declared by a remote (`shttp`/`sse`) transport, or an empty
+ * list for stdio / transports that don't declare any. Guarded so the modal
+ * works against the published `@openhands/extensions` types, which don't
+ * include `headerFields` until
+ * https://github.com/OpenHands/extensions/pull/364 lands.
+ */
+function remoteHeaderFields(
+  option: McpMarketplaceConnectionOption | undefined,
+): MarketplaceField[] {
+  if (!option) return [];
+  if (option.transport.kind !== "shttp" && option.transport.kind !== "sse") {
+    return [];
+  }
+  return option.transport.headerFields ?? [];
 }
 
 function isCredentialOptional(option: McpMarketplaceConnectionOption): boolean {
@@ -101,11 +122,34 @@ function makeInitialState(entry: MarketplaceEntry): FieldState {
       values[field.key] = "";
     }
   } else if (optionNeedsCredentialField(option)) {
-    values.api_key = "";
-    if (option?.auth.credentialSecretName) {
-      savedAsSecret.api_key =
-        option.auth.saveCredentialAsSecretByDefault ?? false;
+    // For `api_key`/`bearer`/`basic` strategies the single credential is
+    // collected as `api_key`. headerFields-only options skip this.
+    if (
+      option?.auth.strategy === "api_key" ||
+      option?.auth.strategy === "bearer" ||
+      option?.auth.strategy === "basic"
+    ) {
+      values.api_key = "";
+      if (option?.auth.credentialSecretName) {
+        savedAsSecret.api_key =
+          option.auth.saveCredentialAsSecretByDefault ?? false;
+      }
     }
+    // Named request headers (e.g. Datadog DD-API-KEY / DD-APPLICATION-KEY).
+    // Same secret-default convention as stdio envFields.
+    for (const field of remoteHeaderFields(option)) {
+      values[field.key] = "";
+      savedAsSecret[field.key] = field.type === "password";
+    }
+  }
+  // Seed the editable URL when the transport opts in (e.g. Datadog's
+  // site-specific mcp.<site>.datadoghq.com). Read-only URLs don't need state.
+  if (
+    option?.transport &&
+    (option.transport.kind === "shttp" || option.transport.kind === "sse") &&
+    option.transport.urlEditable
+  ) {
+    values.url = option.transport.url;
   }
   return { values, errors: {}, savedAsSecret };
 }
@@ -176,6 +220,16 @@ export function InstallServerModal({
     );
   };
 
+  const saveHostedHeaderFieldsAsSecret = (): Promise<void> => {
+    const fields = remoteHeaderFields(option);
+    if (fields.length === 0) return Promise.resolve();
+    return saveFieldsAsSecrets(
+      fields,
+      stateRef.current.values,
+      stateRef.current.savedAsSecret,
+    );
+  };
+
   const saveSelectedSecrets = (): Promise<void> => {
     if (template?.kind === "stdio") {
       return saveFieldsAsSecrets(
@@ -185,7 +239,12 @@ export function InstallServerModal({
       );
     }
     if (template?.kind === "shttp" || template?.kind === "sse") {
-      return saveHostedCredentialAsSecret();
+      // Save the Bearer-style credential (if any) and any headerFields the
+      // user opted to save as secrets. Run sequentially so a header-field
+      // failure still surfaces after the credential save completes.
+      return saveHostedCredentialAsSecret().then(() =>
+        saveHostedHeaderFieldsAsSecret(),
+      );
     }
     return Promise.resolve();
   };
@@ -251,13 +310,42 @@ export function InstallServerModal({
     if (!option) return;
     const apiKey = state.values.api_key?.trim() ?? "";
     const needsCredential = optionNeedsCredentialField(option);
-    if (needsCredential && !isCredentialOptional(option) && !apiKey) {
-      setState((prev) => ({
-        ...prev,
-        errors: { api_key: t(I18nKey.MCP$ERROR_FIELD_REQUIRED) },
-      }));
+    const headerFields = remoteHeaderFields(option);
+    const urlEditable = template.urlEditable === true;
+    const url = (urlEditable ? state.values.url : template.url)?.trim() ?? "";
+
+    const errors: Record<string, string | null> = {};
+    // Validate the editable URL (site-specific servers) before building the
+    // payload. Read-only URLs are trusted from the catalog.
+    if (urlEditable && !url) {
+      errors.url = t(I18nKey.SETTINGS$MCP_ERROR_URL_REQUIRED);
+    }
+    // Validate required header fields (e.g. Datadog DD-API-KEY /
+    // DD-APPLICATION-KEY) before building the payload. The api_key field is
+    // only required when the option uses a Bearer-style strategy.
+    const apiKeyRequired =
+      needsCredential &&
+      ["api_key", "bearer", "basic"].includes(option.auth.strategy) &&
+      !isCredentialOptional(option);
+    if (apiKeyRequired && !apiKey) {
+      errors.api_key = t(I18nKey.MCP$ERROR_FIELD_REQUIRED);
+    }
+    for (const field of headerFields) {
+      if (field.required && !(state.values[field.key] ?? "").trim()) {
+        errors[field.key] = t(I18nKey.MCP$ERROR_FIELD_REQUIRED);
+      }
+    }
+    if (Object.values(errors).some(Boolean)) {
+      setState((prev) => ({ ...prev, errors }));
       return;
     }
+
+    const headers: Record<string, string> = {};
+    for (const field of headerFields) {
+      const v = state.values[field.key]?.trim();
+      if (v) headers[field.key] = v;
+    }
+
     const payload: MCPServerConfig = {
       id: `${template.kind}-${uuidv4()}`,
       type: template.kind,
@@ -265,8 +353,9 @@ export function InstallServerModal({
       // get a referenceable mcp_config key instead of the auto-generated
       // "sse"/"shttp" fallback. Stdio installs already carry serverName.
       name: entry.id,
-      url: template.url,
-      ...(needsCredential && apiKey && { api_key: apiKey }),
+      url: url || template.url,
+      ...(apiKey && { api_key: apiKey }),
+      ...(Object.keys(headers).length > 0 && { headers }),
     };
     submitServer(payload);
   };
@@ -329,9 +418,21 @@ export function InstallServerModal({
 
   const renderFields = () => {
     if (template?.kind === "shttp" || template?.kind === "sse") {
-      const shouldRenderCredential = optionNeedsCredentialField(option);
       const apiKeyOptional = option ? isCredentialOptional(option) : false;
       const credentialSecretName = option?.auth.credentialSecretName;
+      // The single Bearer-style credential input is shown only for
+      // api_key/bearer/basic strategies. headerFields-only options (e.g.
+      // Datadog) don't use it.
+      const showApiKeyField =
+        !!option &&
+        ["api_key", "bearer", "basic"].includes(option.auth.strategy);
+      const headerFields = remoteHeaderFields(option);
+      // Site-specific servers (e.g. Datadog's mcp.<site>.datadoghq.com) opt
+      // in to an editable URL so the user can point at their region/account.
+      const urlEditable = template.urlEditable === true;
+      const effectiveUrl = urlEditable
+        ? (state.values.url ?? template.url)
+        : template.url;
       return (
         <>
           <SettingsInput
@@ -339,12 +440,16 @@ export function InstallServerModal({
             name="url"
             type="url"
             label={t(I18nKey.SETTINGS$MCP_URL)}
-            value={template.url}
-            onChange={() => {}}
-            isDisabled
+            value={effectiveUrl}
+            onChange={urlEditable ? (v) => setValue("url", v) : () => {}}
+            isDisabled={!urlEditable}
+            required={urlEditable}
             className="w-full"
           />
-          {shouldRenderCredential ? (
+          {state.errors.url && (
+            <p className="text-xs text-red-500 -mt-2">{state.errors.url}</p>
+          )}
+          {showApiKeyField ? (
             <div className="flex flex-col gap-1">
               <SettingsInput
                 testId="mcp-install-field-api_key"
@@ -381,6 +486,49 @@ export function InstallServerModal({
               )}
             </div>
           ) : null}
+          {headerFields.map((field) => (
+            <div key={field.key} className="flex flex-col gap-1">
+              <SettingsInput
+                testId={`mcp-install-field-${field.key}`}
+                name={field.key}
+                type={field.type === "password" ? "password" : "text"}
+                label={field.label}
+                value={state.values[field.key] ?? ""}
+                onChange={(v) => setValue(field.key, v)}
+                placeholder={field.placeholder}
+                required={field.required}
+                showOptionalTag={!field.required}
+                className="w-full"
+              />
+              {field.helperText && (
+                <p className="text-xs text-tertiary-alt">
+                  {renderHelperText(field.helperText)}
+                </p>
+              )}
+              {field.helperLink && (
+                <a
+                  href={field.helperLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-[var(--oh-muted)] hover:text-white hover:underline transition-colors"
+                >
+                  {field.helperLink}
+                </a>
+              )}
+              {state.errors[field.key] && (
+                <p className="text-xs text-red-500">
+                  {state.errors[field.key]}
+                </p>
+              )}
+              {field.key in state.savedAsSecret && (
+                <SaveAsSecretToggle
+                  fieldKey={field.key}
+                  checked={state.savedAsSecret[field.key]}
+                  onToggle={(v) => toggleSecret(field.key, v)}
+                />
+              )}
+            </div>
+          ))}
         </>
       );
     }

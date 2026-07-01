@@ -181,6 +181,13 @@ export function MCPServerForm({
         return t(I18nKey.SETTINGS$MCP_ERROR_NAME_INVALID);
       }
 
+      // Validate optional request headers (KEY=VALUE per line). Lets users
+      // hand-add header-based servers like Datadog (DD-API-KEY / DD-APPLICATION-KEY)
+      // without a catalog entry.
+      const headersString = formData.get("headers")?.toString() ?? "";
+      const headersError = validateHeadersFormat(headersString);
+      if (headersError) return headersError;
+
       // Validate timeout for SHTTP servers only
       if (serverType === "shttp") {
         const timeoutStr = formData.get("timeout")?.toString() || "";
@@ -223,6 +230,29 @@ export function MCPServerForm({
       .join("\n");
   };
 
+  const validateHeadersFormat = (headersString: string): string | null => {
+    // Same KEY=VALUE shape as env; an `Authorization` header is redundant
+    // because the dedicated API Key field already serializes to
+    // `Authorization: Bearer …`, so reject it to avoid a confusing double
+    // header on save.
+    const lines = headersString.split("\n");
+    for (let i = 0; i < lines.length; i += 1) {
+      const trimmed = lines[i].trim();
+      if (!trimmed) continue;
+      const eq = trimmed.indexOf("=");
+      if (eq === -1) return t(I18nKey.SETTINGS$MCP_ERROR_ENV_INVALID_FORMAT);
+      const key = trimmed.substring(0, eq).trim();
+      if (!key) return t(I18nKey.SETTINGS$MCP_ERROR_ENV_INVALID_FORMAT);
+      if (key.toLowerCase() === "authorization") {
+        return t(I18nKey.SETTINGS$MCP_ERROR_HEADERS_AUTHORIZATION_RESERVED);
+      }
+    }
+    return null;
+  };
+
+  const formatHeaders = (headers?: Record<string, string>): string =>
+    formatEnvironmentVariables(headers);
+
   const buildConfig = (formData: FormData): MCPServerConfig => {
     const baseConfig = {
       id: server?.id || `${serverType}-${Date.now()}`,
@@ -233,13 +263,22 @@ export function MCPServerForm({
       const name = formData.get("name")?.toString().trim();
       const url = formData.get("url")?.toString().trim();
       const apiKey = formData.get("api_key")?.toString().trim();
+      const headersString = formData.get("headers")?.toString().trim() ?? "";
       const timeoutStr = formData.get("timeout")?.toString().trim();
+
+      const headers = parseEnvironmentVariables(headersString);
+      // Drop an `Authorization` header if it slipped through validation
+      // (defensive — validateForm rejects it); the dedicated API Key field
+      // is the canonical source for the Bearer token.
+      delete headers.Authorization;
+      delete headers.authorization;
 
       const serverConfig: MCPServerConfig = {
         ...baseConfig,
         ...(name && { name }),
         url: url!,
         ...(apiKey && { api_key: apiKey }),
+        ...(Object.keys(headers).length > 0 && { headers }),
       };
 
       // Only add timeout for SHTTP servers
@@ -367,6 +406,31 @@ export function MCPServerForm({
             defaultValue={server?.api_key || ""}
             placeholder={t(I18nKey.SETTINGS$MCP_API_KEY_PLACEHOLDER)}
           />
+
+          <label className="flex flex-col gap-2.5 w-full min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm">
+                {t(I18nKey.SETTINGS$MCP_HEADERS_LABEL)}
+              </span>
+              <OptionalTag />
+            </div>
+            <textarea
+              data-testid="headers-input"
+              name="headers"
+              rows={4}
+              defaultValue={formatHeaders(server?.headers)}
+              // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
+              placeholder="HEADER_NAME_1=value1&#10;HEADER_NAME_2=value2"
+              className={cn(
+                formControlMultilineFieldClassName,
+                "resize-none placeholder:italic",
+                "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)]",
+              )}
+            />
+            <p className="text-xs text-tertiary-alt">
+              {t(I18nKey.SETTINGS$MCP_HEADERS_HELP)}
+            </p>
+          </label>
 
           {serverType === "shttp" && (
             <SettingsInput

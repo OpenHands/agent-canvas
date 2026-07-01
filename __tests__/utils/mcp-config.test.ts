@@ -408,3 +408,161 @@ describe("parseMcpConfig — deprecated Linear SSE migration", () => {
     });
   });
 });
+
+describe("parseMcpConfig / toSdkMcpConfig — custom request headers", () => {
+  // Datadog-style header auth: DD-API-KEY / DD-APPLICATION-KEY sent as
+  // request headers, with no Bearer token. These must survive a reload
+  // → re-save round trip (parse → write) without being dropped.
+
+  it("preserves non-Authorization headers when parsing a persisted config", () => {
+    const persisted = {
+      mcpServers: {
+        datadog: {
+          url: "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp",
+          headers: {
+            "DD-API-KEY": "dd-api-secret",
+            "DD-APPLICATION-KEY": "dd-app-secret",
+          },
+        },
+      },
+    };
+
+    const parsed = parseMcpConfig(persisted);
+
+    expect(parsed.shttp_servers).toEqual([
+      {
+        url: "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp",
+        name: "datadog",
+        headers: {
+          "DD-API-KEY": "dd-api-secret",
+          "DD-APPLICATION-KEY": "dd-app-secret",
+        },
+      },
+    ]);
+  });
+
+  it("serializes explicit headers through toSdkMcpConfig", () => {
+    const config: MCPConfig = {
+      sse_servers: [],
+      shttp_servers: [
+        {
+          name: "datadog",
+          url: "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp",
+          headers: {
+            "DD-API-KEY": "dd-api-secret",
+            "DD-APPLICATION-KEY": "dd-app-secret",
+          },
+        },
+      ],
+      stdio_servers: [],
+    };
+
+    const out = toSdkMcpConfig(config);
+
+    expect(out).toEqual({
+      mcpServers: {
+        datadog: {
+          url: "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp",
+          headers: {
+            "DD-API-KEY": "dd-api-secret",
+            "DD-APPLICATION-KEY": "dd-app-secret",
+          },
+        },
+      },
+    });
+  });
+
+  it("round-trips custom headers through parse → write without loss", () => {
+    const persisted = {
+      mcpServers: {
+        datadog: {
+          url: "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp",
+          headers: {
+            "DD-API-KEY": "dd-api-secret",
+            "DD-APPLICATION-KEY": "dd-app-secret",
+          },
+        },
+      },
+    };
+
+    const written = toSdkMcpConfig(parseMcpConfig(persisted));
+
+    expect(written).toEqual(persisted);
+  });
+
+  it("merges api_key (Authorization) with explicit headers instead of dropping one", () => {
+    // A server that carries both a Bearer token and extra headers must
+    // keep both in a single headers map. Previously the code emitted
+    // either Authorization OR headers, never both.
+    const config: MCPConfig = {
+      sse_servers: [],
+      shttp_servers: [
+        {
+          url: "https://example.com/mcp",
+          api_key: "bearer-secret",
+          headers: { "X-Custom": "custom-value" },
+        },
+      ],
+      stdio_servers: [],
+    };
+
+    const out = toSdkMcpConfig(config);
+
+    expect(out).toEqual({
+      mcpServers: {
+        shttp: {
+          url: "https://example.com/mcp",
+          headers: {
+            Authorization: "Bearer bearer-secret",
+            "X-Custom": "custom-value",
+          },
+        },
+      },
+    });
+  });
+
+  it("does not clobber a hand-authored Authorization header with api_key", () => {
+    // Matches the backend's headers.setdefault("Authorization", …) semantics.
+    const config: MCPConfig = {
+      sse_servers: [],
+      shttp_servers: [
+        {
+          url: "https://example.com/mcp",
+          api_key: "bearer-secret",
+          headers: { Authorization: "CustomScheme token" },
+        },
+      ],
+      stdio_servers: [],
+    };
+
+    const out = toSdkMcpConfig(config);
+
+    expect(out!.mcpServers.shttp.headers).toEqual({
+      Authorization: "CustomScheme token",
+    });
+  });
+
+  it("parses a config with both Authorization and extra headers into api_key + headers", () => {
+    const persisted = {
+      mcpServers: {
+        shttp: {
+          url: "https://example.com/mcp",
+          headers: {
+            Authorization: "Bearer bearer-secret",
+            "X-Custom": "custom-value",
+          },
+        },
+      },
+    };
+
+    const parsed = parseMcpConfig(persisted);
+
+    expect(parsed.shttp_servers).toEqual([
+      {
+        url: "https://example.com/mcp",
+        api_key: "bearer-secret",
+        headers: { "X-Custom": "custom-value" },
+      },
+    ]);
+  });
+});

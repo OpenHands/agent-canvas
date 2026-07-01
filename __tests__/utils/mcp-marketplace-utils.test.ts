@@ -131,6 +131,40 @@ describe("getInstallableMcpConnectionOption", () => {
   });
 });
 
+describe("getMcpMarketplaceCatalog", () => {
+  it("excludes OAuth-only entries so the marketplace never shows a card with an empty install modal", () => {
+    // An entry whose only MCP option is OAuth has no locally installable
+    // option, so its card would open an empty modal. The catalog filter
+    // must drop it (previously it kept it because it filtered by the
+    // *default* option, which can be OAuth).
+    const oauthOnlyEntry: Parameters<
+      typeof getInstallableMcpConnectionOption
+    >[0] = {
+      ...slackEntry,
+      id: "oauth-only",
+      connectionOptions: [
+        {
+          id: "oauth",
+          provider: "mcp",
+          auth: { strategy: "oauth2" },
+          transport: { kind: "shttp", url: "https://example.com/mcp" },
+        } as Parameters<
+          typeof getInstallableMcpConnectionOption
+        >[0]["connectionOptions"][number],
+      ],
+    };
+    const result = getMcpMarketplaceCatalog([oauthOnlyEntry]);
+    expect(result).toEqual([]);
+  });
+
+  it("keeps entries that expose at least one non-OAuth MCP option", () => {
+    // Slack's default option is OAuth but it also has an `api` (stdio)
+    // fallback, so it must still appear in the marketplace.
+    const result = getMcpMarketplaceCatalog([slackEntry]);
+    expect(result.map((e) => e.id)).toEqual(["slack"]);
+  });
+});
+
 describe("marketplaceEntryMatchesQuery", () => {
   it("matches by name (case-insensitive)", () => {
     expect(marketplaceEntryMatchesQuery(slackEntry, "slack")).toBe(true);

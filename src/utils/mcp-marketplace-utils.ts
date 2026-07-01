@@ -4,9 +4,32 @@ import type {
   IntegrationCatalogEntry as MarketplaceEntry,
   IntegrationConnectionOption,
   IntegrationTransport,
+  MarketplaceField,
 } from "@openhands/extensions/integrations";
 
 export type { MarketplaceEntry };
+
+/**
+ * A remote (`shttp`/`sse`) MCP transport that may declare named request
+ * headers via `headerFields`. The published `@openhands/extensions` type for
+ * the `shttp`/`sse` transports does not yet include `headerFields` (it lands
+ * in https://github.com/OpenHands/extensions/pull/364), so this local view
+ * adds the optional field. Catalog JSON authored with `headerFields` flows
+ * through at runtime regardless of the installed type defs; this just keeps
+ * the compiler happy until the published types catch up.
+ */
+export type McpRemoteTransport = Extract<
+  IntegrationTransport,
+  { url: string }
+> & {
+  headerFields?: MarketplaceField[];
+  /**
+   * When true, the install modal renders the URL as an editable input
+   * pre-filled with `url` instead of read-only. Added by extensions PR #364
+   * for site-specific servers (e.g. Datadog's `mcp.<site>.datadoghq.com`).
+   */
+  urlEditable?: boolean;
+};
 
 type McpIntegrationAuthConfig = IntegrationAuthConfig & {
   credentialSecretName?: string;
@@ -18,7 +41,9 @@ export type McpMarketplaceConnectionOption = Omit<
   "auth" | "provider" | "transport"
 > & {
   provider: "mcp";
-  transport: IntegrationTransport;
+  transport:
+    | McpRemoteTransport
+    | Extract<IntegrationTransport, { kind: "stdio" }>;
   auth: McpIntegrationAuthConfig;
 };
 
@@ -61,7 +86,12 @@ export function getDefaultMcpTransport(
 export function getMcpMarketplaceCatalog(
   catalog: MarketplaceEntry[],
 ): MarketplaceEntry[] {
-  return catalog.filter((entry) => !!getDefaultMcpConnectionOption(entry));
+  // A card is only useful if there's an option the local install modal can
+  // actually render (i.e. a non-OAuth MCP option with a transport). Filtering
+  // by the *default* option instead would surface OAuth-only entries whose
+  // install modal is empty (e.g. the published Datadog entry before its `api`
+  // option lands).
+  return catalog.filter((entry) => !!getInstallableMcpConnectionOption(entry));
 }
 
 const tryUrl = (raw: string): URL | null => {
