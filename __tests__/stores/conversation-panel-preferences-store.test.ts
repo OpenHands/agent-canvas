@@ -12,7 +12,7 @@ describe("conversation-panel-preferences store", () => {
     const state = useConversationPanelPreferencesStore.getState();
     expect(state.showOlderConversations).toBe(true);
     expect(state.showRepoBranchMetadata).toBe(false);
-    expect(state.showLlmProfiles).toBe(false);
+    expect(state.showLlmProfiles).toBe(true);
     expect(state.organizeMode).toBe("chronological");
     expect(state.conversationSort).toBe("updated");
     expect(state.threadScope).toBe("all");
@@ -143,7 +143,7 @@ describe("conversation-panel-preferences store", () => {
       showOlderConversations: false,
       showRepoBranchMetadata: true,
       // Filled with defaults for missing fields.
-      showLlmProfiles: false,
+      showLlmProfiles: true,
       organizeMode: "chronological",
       conversationSort: "updated",
       threadScope: "all",
