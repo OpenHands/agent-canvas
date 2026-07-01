@@ -15,6 +15,9 @@ import {
   linkPendingTaskMessages,
   schedulePendingTaskMessageReassign,
 } from "#/utils/pending-task-message-link";
+import { useActiveBackend } from "#/contexts/active-backend-context";
+import { buildConversationUrl } from "#/api/backend-registry/url-selection";
+import { isNoBackend } from "#/api/backend-registry/active-store";
 
 /**
  * Hook that polls V1 conversation start tasks and navigates when ready.
@@ -36,6 +39,7 @@ export const useTaskPolling = () => {
   // simply no-ops when there's no conversation id yet.
   const { conversationId } = useOptionalConversationId();
   const { navigate } = useNavigation();
+  const { backend: activeBackend, orgId: activeOrgId } = useActiveBackend();
 
   // Check if this is a task ID (format: "task-{uuid}")
   const isTask = !!conversationId && conversationId.startsWith("task-");
@@ -120,9 +124,20 @@ export const useTaskPolling = () => {
         });
       }
 
-      navigate(`/conversations/${task.app_conversation_id}`, { replace: true });
+      navigate(
+        buildConversationUrl(
+          task.app_conversation_id!,
+          isNoBackend(activeBackend)
+            ? null
+            : {
+                backendId: activeBackend.id,
+                orgId: activeOrgId,
+              },
+        ),
+        { replace: true },
+      );
     })();
-  }, [taskQuery.data, navigate, taskId]);
+  }, [activeBackend.id, activeOrgId, taskQuery.data, navigate, taskId]);
 
   useEffect(() => {
     handledReadyTaskIdRef.current = null;

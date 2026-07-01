@@ -3,6 +3,7 @@ import {
   makeDefaultLocalBackend,
 } from "./default-backend";
 import type { Backend, BackendKind, BackendSelection } from "./types";
+import { readBackendSelectionFromLocation } from "./url-selection";
 
 export const BACKENDS_STORAGE_KEY = "openhands-backends";
 export const ACTIVE_BACKEND_STORAGE_KEY = "openhands-active-backend";
@@ -169,6 +170,13 @@ function writeStorageItem(
   }
 }
 
+function serializeBackendSelection(selection: BackendSelection): string {
+  return JSON.stringify({
+    backendId: selection.backendId,
+    orgId: selection.orgId ?? null,
+  });
+}
+
 function removeStorageItem(storage: Storage | undefined, key: string): void {
   try {
     storage?.removeItem(key);
@@ -179,6 +187,16 @@ function removeStorageItem(storage: Storage | undefined, key: string): void {
 
 export function readStoredActiveBackend(): BackendSelection | null {
   if (typeof window === "undefined") return null;
+
+  const urlSelection = readBackendSelectionFromLocation();
+  if (urlSelection) {
+    writeStorageItem(
+      window.sessionStorage,
+      ACTIVE_BACKEND_STORAGE_KEY,
+      serializeBackendSelection(urlSelection),
+    );
+    return urlSelection;
+  }
 
   // Active backend is tab-scoped so reloading tab A does not adopt tab B's
   // backend. localStorage remains a last-used fallback for fresh tabs and old
@@ -204,10 +222,7 @@ export function writeStoredActiveBackend(
     return;
   }
 
-  const serialized = JSON.stringify({
-    backendId: selection.backendId,
-    orgId: selection.orgId ?? null,
-  });
+  const serialized = serializeBackendSelection(selection);
   // Mirror to localStorage only as the default for new tabs/backward
   // compatibility; reads in existing tabs prefer sessionStorage.
   writeStorageItem(

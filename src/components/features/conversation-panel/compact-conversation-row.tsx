@@ -26,6 +26,7 @@ interface CompactConversationRowProps {
   showLlmProfiles?: boolean;
   agentKind?: "openhands" | "acp" | null;
   acpServer?: string | null;
+  conversationUrl?: string;
 }
 
 /**
@@ -49,6 +50,7 @@ export function CompactConversationRow({
   showLlmProfiles = false,
   agentKind = null,
   acpServer = null,
+  conversationUrl,
 }: CompactConversationRowProps) {
   const { t } = useTranslation("openhands");
   const disableAnimation = import.meta.env.MODE === "test";
@@ -89,7 +91,7 @@ export function CompactConversationRow({
       disableAnimation={disableAnimation}
     >
       <NavigationLink
-        to={`/conversations/${conversationId}`}
+        to={conversationUrl ?? `/conversations/${conversationId}`}
         onClick={onClose}
         data-testid="compact-conversation-row"
         data-conversation-id={conversationId}

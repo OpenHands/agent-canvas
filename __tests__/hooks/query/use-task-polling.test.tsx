@@ -86,9 +86,12 @@ describe("useTaskPolling", () => {
 
     await waitFor(() => expect(result.current.taskStatus).toBe("READY"));
     await waitFor(() => {
-      expect(navigate).toHaveBeenCalledWith("/conversations/conversation-1", {
-        replace: true,
-      });
+      expect(navigate).toHaveBeenCalledWith(
+        "/conversations/conversation-1?backendId=default-local",
+        {
+          replace: true,
+        },
+      );
     });
 
     expect(getConversationState("conversation-1").draftMessage).toBe(
@@ -137,9 +140,12 @@ describe("useTaskPolling", () => {
     });
 
     await waitFor(() => {
-      expect(navigate).toHaveBeenCalledWith("/conversations/conversation-1", {
-        replace: true,
-      });
+      expect(navigate).toHaveBeenCalledWith(
+        "/conversations/conversation-1?backendId=default-local",
+        {
+          replace: true,
+        },
+      );
     });
 
     renderHook(() => useTaskPolling(), {
