@@ -646,7 +646,7 @@ describe("handleEventForUI", () => {
       ]);
     });
 
-    it("reconciles even when the thought is whitespace-trimmed vs the stream (BUG 1)", () => {
+    it("reconciles even when the thought is whitespace-trimmed vs the stream", () => {
       // The SDK strips assistant text, so the action's thought can lack the
       // trailing newline the model streamed before the tool call.
       const delta = makeStreamingDelta(
@@ -664,7 +664,7 @@ describe("handleEventForUI", () => {
       expect(result).toEqual([mockMessageEvent, action]);
     });
 
-    it("only folds in the current step's trailing delta, not an earlier step's (BUG 2)", () => {
+    it("only folds in the current step's trailing delta, not an earlier step's", () => {
       // An earlier step's delta still carrying content sits before this step's
       // observation; it must NOT be joined into the match.
       const earlierDelta = makeStreamingDelta(
@@ -694,7 +694,7 @@ describe("handleEventForUI", () => {
       ]);
     });
 
-    it("drops the delta instead of keeping its reasoning when the action carries reasoning (BUG 3)", () => {
+    it("drops the delta instead of keeping its reasoning when the action carries reasoning", () => {
       const thought = "Let me gather accurate information.";
       const delta: StreamingDeltaEvent = {
         ...makeStreamingDelta("delta-1", thought),
