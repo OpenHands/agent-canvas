@@ -58,4 +58,38 @@ describe("ConfigService", () => {
     const openhands = page.items.find((p) => p.name === "openhands");
     expect(openhands).toEqual({ name: "openhands", verified: true });
   });
+
+  it("surfaces providers discoverable only from model IDs (e.g. openrouter)", async () => {
+    // Arrange: mirror the real local agent-server, where OpenRouter ships
+    // namespaced model IDs (`openrouter/...`) but is absent from both
+    // /api/llm/providers and the verified map.
+    server.use(
+      http.get("*/api/llm/providers", () =>
+        HttpResponse.json({ providers: ["anthropic", "openai"] }),
+      ),
+      http.get("*/api/llm/models", () =>
+        HttpResponse.json({
+          models: [
+            "anthropic/claude-opus-4-5-20251101",
+            "openai/gpt-4o",
+            "openrouter/anthropic/claude-3.5-sonnet",
+            "openrouter/google/gemini-2.0-flash",
+          ],
+        }),
+      ),
+      http.get("*/api/llm/models/verified", () =>
+        HttpResponse.json({
+          models: { anthropic: ["claude-opus-4-5-20251101"] },
+        }),
+      ),
+    );
+
+    // Act
+    const page = await ConfigService.searchProviders({ limit: 20 });
+
+    // Assert: openrouter is present (unverified, derived from model IDs) and
+    // appears exactly once despite contributing multiple model entries.
+    const openrouter = page.items.filter((p) => p.name === "openrouter");
+    expect(openrouter).toEqual([{ name: "openrouter", verified: false }]);
+  });
 });
