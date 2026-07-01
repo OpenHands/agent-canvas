@@ -17,7 +17,7 @@ export function useLlmProfiles(options: UseLlmProfilesOptions = {}) {
     queryKey: [...LLM_PROFILES_QUERY_KEYS.all, backend.id, orgId],
     queryFn: ProfilesService.listProfiles,
     ...CONFIG_CACHE_OPTIONS,
-    enabled: options.enabled ?? true,
+    enabled: options.enabled ?? backend.kind === "local",
     meta: { disableToast: true },
   });
 }

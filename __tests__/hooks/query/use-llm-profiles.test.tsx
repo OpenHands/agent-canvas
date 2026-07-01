@@ -33,6 +33,14 @@ const localBackend2: Backend = {
   kind: "local",
 };
 
+const cloudBackend: Backend = {
+  id: "cloud-1",
+  name: "Cloud 1",
+  host: "https://app.all-hands.dev",
+  apiKey: "cloud-key",
+  kind: "cloud",
+};
+
 describe("useLlmProfiles", () => {
   let queryClient: QueryClient;
   let wrapper: ({
@@ -97,6 +105,17 @@ describe("useLlmProfiles", () => {
     expect(ProfilesService.listProfiles).toHaveBeenCalledTimes(1);
     expect(result.current.data).toEqual(mockProfiles);
     expect(result.current.data?.profiles).toHaveLength(2);
+  });
+
+  it("does not fetch profiles while a cloud backend is active", () => {
+    setRegisteredBackends([localBackend1, cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id, orgId: null });
+
+    const { result } = renderHook(() => useLlmProfiles(), { wrapper });
+
+    expect(ProfilesService.listProfiles).not.toHaveBeenCalled();
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(result.current.data).toBeUndefined();
   });
 
   it("includes backend.id and orgId in query key for cache isolation", async () => {
