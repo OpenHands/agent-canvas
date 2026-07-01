@@ -15,6 +15,7 @@ import {
   extensionModuleCardInteractiveClassName,
   extensionModuleCardSurfaceClassName,
 } from "#/utils/extension-module-card-classes";
+import { getInstalledServerTitle } from "#/utils/mcp-installed-server-display";
 
 interface InstalledServerCardProps {
   server: MCPServerConfig;
@@ -33,11 +34,6 @@ function getServerTransportLabel(type: MCPServerConfig["type"]) {
     default:
       return type;
   }
-}
-
-function getServerTitle(server: MCPServerConfig): string {
-  if (server.type === "stdio") return server.name ?? server.command ?? "";
-  return server.url ?? "";
 }
 
 function getServerDetailLine(server: MCPServerConfig): string {
@@ -60,7 +56,7 @@ export function InstalledServerCard({
     getMcpMarketplaceCatalog(MCP_MARKETPLACE),
   );
 
-  const title = catalog?.name ?? getServerTitle(server);
+  const title = getInstalledServerTitle(server, catalog);
   const detailLine = getServerDetailLine(server);
   const transport = getServerTransportLabel(server.type);
 
