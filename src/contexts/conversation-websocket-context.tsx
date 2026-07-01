@@ -46,6 +46,7 @@ import type {
 } from "#/types/agent-server/core/events/conversation-state-event";
 import { handleActionEventCacheInvalidation } from "#/utils/cache-utils";
 import { buildWebSocketUrl } from "#/utils/websocket-url";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import type {
   AppConversation,
   SendMessageRequest,
@@ -114,6 +115,7 @@ export function ConversationWebSocketProvider({
   children,
   conversationId,
   conversationUrl,
+  gatewayWebsocketUrl,
   sessionApiKey,
   subConversations,
   subConversationIds,
@@ -121,6 +123,7 @@ export function ConversationWebSocketProvider({
   children: React.ReactNode;
   conversationId?: string;
   conversationUrl?: string | null;
+  gatewayWebsocketUrl?: string | null;
   sessionApiKey?: string | null;
   subConversations?: AppConversation[];
   subConversationIds?: string[];
@@ -138,6 +141,7 @@ export function ConversationWebSocketProvider({
 
   const posthog = usePostHog();
   const queryClient = useQueryClient();
+  const { backend } = useActiveBackend();
   const addEvent = useEventStore((state) => state.addEvent);
   const addEvents = useEventStore((state) => state.addEvents);
   const clearEventsForConversation = useEventStore(
@@ -322,10 +326,17 @@ export function ConversationWebSocketProvider({
     if (isPreloadingHistory && !isPreloadHistoryError) {
       return null;
     }
-    return buildWebSocketUrl(conversationId, conversationUrl);
+    return buildWebSocketUrl(
+      conversationId,
+      conversationUrl,
+      gatewayWebsocketUrl,
+      backend?.host ?? null,
+    );
   }, [
     conversationId,
     conversationUrl,
+    gatewayWebsocketUrl,
+    backend?.host,
     isPreloadingHistory,
     isPreloadHistoryError,
   ]);
@@ -348,8 +359,10 @@ export function ConversationWebSocketProvider({
     return buildWebSocketUrl(
       planningAgentConversation.id,
       planningAgentConversation.conversation_url,
+      planningAgentConversation.websocket_url,
+      backend?.host ?? null,
     );
-  }, [subConversations]);
+  }, [subConversations, backend?.host]);
 
   // Merged connection state - reflects combined status of both connections
   const connectionState = useMemo<WebSocketConnectionState>(() => {

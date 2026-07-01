@@ -1,4 +1,16 @@
 /**
+ * Check whether the active conversation has a gateway websocket URL from the
+ * OH backend. When present, HTTP/WebSocket calls should be routed through the
+ * app-server proxy instead of connecting directly to the agent-server sandbox.
+ */
+export function shouldUseGateway(
+  conversationUrl: string | null | undefined,
+  websocketUrl?: string | null,
+): boolean {
+  return !!websocketUrl;
+}
+
+/**
  * Extracts the base host from conversation URL
  * @param conversationUrl The conversation URL containing host/port (e.g., "http://localhost:3000/api/conversations/123")
  * @returns Base host (e.g., "localhost:3000") or window.location.host as fallback
@@ -107,17 +119,48 @@ export function buildBashWebSocketUrl(
 }
 
 /**
- * Builds the WebSocket URL for V1 conversations (without query params)
+ * Builds the WebSocket URL for V1 conversations (without query params).
+ *
  * @param conversationId The conversation ID
  * @param conversationUrl The conversation URL containing host/port (e.g., "http://localhost:3000/api/conversations/123")
+ * @param websocketUrl Optional gateway WebSocket URL (relative or absolute).
+ *   When present (e.g. from a cloud app_server that exposes /ws/events/{id}),
+ *   it is resolved against `backendUrl` and used directly instead of deriving
+ *   a URL from the internal conversation_url.
+ * @param backendUrl Optional base URL of the app_server backend (e.g. "https://mydomain.com").
+ *   Used as the origin when resolving a relative `websocketUrl`.
+ *   The gateway endpoint lives on the app_server, not the sandbox, so this
+ *   must be the app_server URL — not the `conversationUrl` (which points to the sandbox).
  * @returns WebSocket URL or null if inputs are invalid
  */
 export function buildWebSocketUrl(
   conversationId: string | undefined,
   conversationUrl: string | null | undefined,
+  websocketUrl?: string | null,
+  backendUrl?: string | null,
 ): string | null {
   if (!conversationId) {
     return null;
+  }
+
+  // Prefer the gateway websocket_url when provided — it already points at the
+  // public endpoint (e.g. /ws/events/{id}) that the browser can reach.
+  if (websocketUrl) {
+    try {
+      // Resolve against the app_server backend origin so the WebSocket
+      // connects to the gateway that proxies to the sandbox. The gateway
+      // lives on the app_server, not on the sandbox (conversationUrl).
+      let backendOrigin: string;
+      if (backendUrl) {
+        backendOrigin = new URL(backendUrl).origin;
+      } else {
+        backendOrigin = window.location.origin;
+      }
+      const resolved = new URL(websocketUrl, backendOrigin);
+      return resolved.toString();
+    } catch {
+      // Fall through to legacy derivation below
+    }
   }
 
   const baseHost = extractBaseHost(conversationUrl);
