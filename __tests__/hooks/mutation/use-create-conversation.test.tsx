@@ -26,8 +26,22 @@ vi.mock("#/hooks/query/use-llm-profiles", () => ({
   useLlmProfiles: () => useLlmProfilesMock(),
 }));
 
+// The hook defaults new local conversations to the active AgentProfile (#3727).
+// Default: no active profile, so a plain create stays on the legacy path.
+const { useAgentProfilesMock } = vi.hoisted(() => ({
+  useAgentProfilesMock: vi.fn(() => ({ data: undefined })),
+}));
+vi.mock("#/hooks/query/use-agent-profiles", () => ({
+  useAgentProfiles: () => useAgentProfilesMock(),
+}));
+
 describe("useCreateConversation", () => {
-  afterEach(() => removeStoredConversationMetadata("conv-with-plugins"));
+  afterEach(() => {
+    // Restore the default (no active AgentProfile) so the override below
+    // doesn't leak into the other create-call assertions.
+    useAgentProfilesMock.mockReturnValue({ data: undefined } as never);
+    removeStoredConversationMetadata("conv-with-plugins");
+  });
 
   it("passes suggested tasks to the V1 create conversation API", async () => {
     const createConversationSpy = vi
@@ -102,6 +116,36 @@ describe("useCreateConversation", () => {
         undefined,
         undefined,
       );
+    });
+  });
+
+  it("launches new local conversations from the active AgentProfile (#3727)", async () => {
+    useAgentProfilesMock.mockReturnValue({
+      data: { profiles: [], active_agent_profile_id: "profile-abc" },
+    } as never);
+    const createConversationSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue({
+        id: "task-id",
+        app_conversation_id: "conv-1",
+        agent_server_url: "http://agent-server.local",
+      } as never);
+
+    const { result } = renderHook(() => useCreateConversation(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={new QueryClient()}>
+          {children}
+        </QueryClientProvider>
+      ),
+    });
+
+    await result.current.mutateAsync({ query: "hello" });
+
+    await waitFor(() => {
+      // sandboxId (#9) is undefined; the active profile id rides as #10.
+      const call = createConversationSpy.mock.lastCall;
+      expect(call?.[8]).toBeUndefined();
+      expect(call?.[9]).toBe("profile-abc");
     });
   });
 

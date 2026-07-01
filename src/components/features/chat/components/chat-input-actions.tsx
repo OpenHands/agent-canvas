@@ -5,7 +5,14 @@ import { Cpu } from "lucide-react";
 import { AgentStatus } from "#/components/features/controls/agent-status";
 import { ChangeAgentButton } from "../change-agent-button";
 import { ChatInputModel, ChatInputModelMenuContent } from "./chat-input-model";
-import { SwitchProfileButton } from "../switch-profile-button";
+import {
+  ChatInputProfilePicker,
+  ChatInputProfileMenuContent,
+} from "./chat-input-profile-picker";
+import {
+  ChatInputLlmProfilePicker,
+  ChatInputLlmProfileMenuContent,
+} from "./chat-input-llm-profile-picker";
 import { ChatAddFileButton } from "../chat-add-file-button";
 import { ChatSendButton } from "../chat-send-button";
 import CarretRightFillIcon from "#/icons/carret-right-fill.svg?react";
@@ -224,6 +231,33 @@ export function ChatInputActions({
     setIsOverflowOpen(false);
   };
 
+  // Which chat-input model/profile picker to show:
+  //  - cloud: the model picker (AgentProfiles are local-first; the cloud
+  //    app-server has no profile surface yet, #3730)
+  //  - local home (no conversation): the AgentProfile picker, which starts a
+  //    new conversation / activates the default (#3727)
+  //  - local in an ACP conversation: the model picker, which live-switches the
+  //    running ACP model (set_session_model)
+  //  - local in an OpenHands conversation: the LLM-profile picker, which
+  //    live-switches the running conversation's LLM profile (/switch_profile)
+  const pickerKind: "model" | "agent-profile" | "llm-profile" = isCloud
+    ? "model"
+    : !conversationId
+      ? "agent-profile"
+      : modelState.isAcpContext
+        ? "model"
+        : "llm-profile";
+
+  // Shared styling for the settings link inside the overflow submenu content.
+  const overflowSettingsLinkClassName = cn(
+    "group",
+    formControlTransitionClassName,
+  );
+  const overflowSettingsIconClassName = cn(
+    "text-[var(--oh-muted)] group-hover:text-[var(--oh-foreground)]",
+    formControlTransitionClassName,
+  );
+
   React.useLayoutEffect(() => {
     if (!isOverflowOpen || !overflowTriggerRef.current) {
       return;
@@ -367,19 +401,29 @@ export function ChatInputActions({
               testId="overflow-model-submenu"
               className="min-w-[220px] max-w-[320px] max-h-[60vh] overflow-y-auto gap-0"
             >
-              <ChatInputModelMenuContent
-                model={modelState}
-                onClose={closeOverflowMenus}
-                dividerInset="menu"
-                settingsLinkClassName={cn(
-                  "group",
-                  formControlTransitionClassName,
-                )}
-                settingsIconClassName={cn(
-                  "text-[var(--oh-muted)] group-hover:text-[var(--oh-foreground)]",
-                  formControlTransitionClassName,
-                )}
-              />
+              {pickerKind === "model" ? (
+                <ChatInputModelMenuContent
+                  model={modelState}
+                  onClose={closeOverflowMenus}
+                  dividerInset="menu"
+                  settingsLinkClassName={overflowSettingsLinkClassName}
+                  settingsIconClassName={overflowSettingsIconClassName}
+                />
+              ) : pickerKind === "agent-profile" ? (
+                <ChatInputProfileMenuContent
+                  onClose={closeOverflowMenus}
+                  dividerInset="menu"
+                  settingsLinkClassName={overflowSettingsLinkClassName}
+                  settingsIconClassName={overflowSettingsIconClassName}
+                />
+              ) : (
+                <ChatInputLlmProfileMenuContent
+                  onClose={closeOverflowMenus}
+                  dividerInset="menu"
+                  settingsLinkClassName={overflowSettingsLinkClassName}
+                  settingsIconClassName={overflowSettingsIconClassName}
+                />
+              )}
             </ContextMenu>
           </div>
         </div>
@@ -406,10 +450,15 @@ export function ChatInputActions({
             </div>
           )}
           <div ref={modelRef} className={cn(!showModelInline && "hidden")}>
-            {isCloud || modelState.isAcpContext ? (
+            {/* Home → AgentProfile picker (start-new/activate, #3727); inside a
+                conversation → live-switch the running model (ACP) or LLM profile
+                (OpenHands); cloud → model picker (#3730). See `pickerKind`. */}
+            {pickerKind === "model" ? (
               <ChatInputModel />
+            ) : pickerKind === "agent-profile" ? (
+              <ChatInputProfilePicker />
             ) : (
-              <SwitchProfileButton />
+              <ChatInputLlmProfilePicker />
             )}
           </div>
 

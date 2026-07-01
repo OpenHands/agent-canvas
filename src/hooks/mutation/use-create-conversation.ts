@@ -5,6 +5,8 @@ import { SuggestedTask } from "#/utils/types";
 import { Provider } from "#/types/settings";
 import { useTracking } from "#/hooks/use-tracking";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
+import { useAgentProfiles } from "#/hooks/query/use-agent-profiles";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import PluginsManagementService, {
   type InstalledPluginInfo,
 } from "#/api/plugins-management-service";
@@ -30,6 +32,10 @@ interface CreateConversationVariables {
   plugins?: PluginSpec[];
   workingDir?: string;
   workspaceMode?: WorkspaceMode;
+  // Launch from a specific AgentProfile (local backend). When omitted, the
+  // active AgentProfile (if any) is used so home-composed conversations
+  // launch from the user's selected profile (#3727).
+  agentProfileId?: string;
 }
 
 interface CreateConversationResponse {
@@ -46,6 +52,15 @@ export const useCreateConversation = () => {
   // Stamped onto the conversation at creation so the switcher can show the
   // exact profile even when several profiles share a model (#1082).
   const { data: llmProfiles } = useLlmProfiles();
+  // The active AgentProfile is the default launch profile for new local
+  // conversations (#3727). Gated to local backends — the cloud app-server has
+  // no /api/agent-profiles surface yet (#3730). Degrades safely: if the query
+  // is disabled or errors, this stays undefined and creation falls back to the
+  // encrypted agent_settings launch path.
+  const { backend } = useActiveBackend();
+  const { data: agentProfiles } = useAgentProfiles({
+    enabled: backend.kind !== "cloud",
+  });
 
   return useMutation({
     mutationKey: ["create-conversation"],
@@ -61,7 +76,44 @@ export const useCreateConversation = () => {
         workspaceMode,
         parentConversationId,
         agentType,
+        agentProfileId,
       } = variables;
+
+      const requestedAgentProfileId =
+        agentProfileId ?? agentProfiles?.active_agent_profile_id ?? undefined;
+
+      // Fall back to the legacy agent_settings launch when the resolved agent
+      // profile can't resolve its LLM. The agent-server seeds a `default`
+      // openhands profile whose `llm_profile_ref` can point at an LLM profile
+      // that doesn't exist (fresh store, or one configured with named profiles
+      // only); launching from it 404s ("LLM profile '<ref>' not found") and
+      // would brick home-launch. agent_settings reflects the active LLM, so the
+      // fallback degrades cleanly until the seed mirrors it (SDK #3933).
+      // ACP profiles carry no llm_profile_ref, so they're never gated here.
+      const resolvedAgentProfile = requestedAgentProfileId
+        ? agentProfiles?.profiles?.find(
+            (profile) => profile.id === requestedAgentProfileId,
+          )
+        : undefined;
+      const hasDanglingLlmRef =
+        resolvedAgentProfile?.agent_kind === "openhands" &&
+        !!resolvedAgentProfile.llm_profile_ref &&
+        !!llmProfiles?.profiles &&
+        !llmProfiles.profiles.some(
+          (profile) => profile.name === resolvedAgentProfile.llm_profile_ref,
+        );
+      const effectiveAgentProfileId = hasDanglingLlmRef
+        ? undefined
+        : requestedAgentProfileId;
+
+      // Only extend the call with the [sandboxId, agentProfileId] tail when
+      // launching from a profile, so a plain create stays byte-identical to
+      // the legacy agent_settings path (#3727). sandboxId is unused here.
+      // TODO: createConversation has grown to 10 positional params; refactor it
+      // to an options object so this position-skipping tail isn't needed.
+      const profileArgs: [undefined, string] | [] = effectiveAgentProfileId
+        ? [undefined, effectiveAgentProfileId]
+        : [];
 
       const conversation =
         await AgentServerConversationService.createConversation(
@@ -79,6 +131,7 @@ export const useCreateConversation = () => {
           workspaceMode,
           parentConversationId,
           agentType,
+          ...profileArgs,
         );
 
       // Stamp the active LLM profile onto the (local) conversation so the
