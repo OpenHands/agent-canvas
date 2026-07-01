@@ -26,6 +26,30 @@ function isFileMutationObservation(event: OHEvent): boolean {
   return true;
 }
 
+const GIT_DIFF_MUTATION_COMMAND =
+  /^git\s+(?:add|apply|checkout|cherry-pick|clean|commit|merge|pull|rebase|reset|restore|stash|switch)\b/;
+
+function isGitDiffMutationObservation(event: OHEvent): boolean {
+  const obs = (
+    event as {
+      observation?: {
+        kind?: string;
+        command?: string | null;
+        exit_code?: number | null;
+      };
+    }
+  ).observation;
+  if (!obs || typeof obs.kind !== "string") return false;
+  if (
+    obs.kind !== "ExecuteBashObservation" &&
+    obs.kind !== "TerminalObservation"
+  ) {
+    return false;
+  }
+  if (obs.exit_code !== 0 || typeof obs.command !== "string") return false;
+  return GIT_DIFF_MUTATION_COMMAND.test(obs.command.trim());
+}
+
 /**
  * Watches the conversation event stream and invalidates the workspace file
  * queries whenever the agent commits a file-editor mutation (create / edit /
@@ -74,6 +98,7 @@ export function useAutoRefreshFilesOnEdit(): void {
 
   useEffect(() => {
     const newMutationEvents: OHEvent[] = [];
+    const newGitDiffMutationEvents: OHEvent[] = [];
     for (const event of events) {
       const id: string | number | undefined =
         "id" in event ? event.id : undefined;
@@ -89,14 +114,25 @@ export function useAutoRefreshFilesOnEdit(): void {
           processedEventsRef.current.add(event);
         }
         if (isFileMutationObservation(event)) newMutationEvents.push(event);
+        if (isGitDiffMutationObservation(event)) {
+          newGitDiffMutationEvents.push(event);
+        }
       }
     }
+
+    if (
+      newMutationEvents.length === 0 &&
+      newGitDiffMutationEvents.length === 0
+    ) {
+      return;
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["file_changes"] });
 
     if (newMutationEvents.length === 0) return;
 
     queryClient.invalidateQueries({ queryKey: ["workspace-files"] });
     queryClient.invalidateQueries({ queryKey: ["workspace-file-content"] });
-    queryClient.invalidateQueries({ queryKey: ["file_changes"] });
     // Force iframes / <img> tags pointing at the static workspace
     // fileserver to re-fetch. Without this they happily keep showing the
     // stale (browser-cached) bytes even after the agent has rewritten the
