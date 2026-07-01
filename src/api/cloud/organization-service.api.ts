@@ -1,7 +1,7 @@
 import axios from "axios";
 import { getActiveBackend } from "../backend-registry/active-store";
 import type { Backend } from "../backend-registry/types";
-import { callCloudProxy } from "./proxy";
+import { callCloudApi } from "./proxy";
 import type {
   CloudApiKeyMetadata,
   CloudOrganization,
@@ -44,7 +44,7 @@ export async function getCloudOrganizations(
   backend?: Backend,
 ): Promise<OrganizationsResult> {
   const target = resolveBackend(backend);
-  const data = await callCloudProxy<CloudOrganizationsResponse>({
+  const data = await callCloudApi<CloudOrganizationsResponse>({
     backend: target,
     method: "GET",
     path: "/api/organizations",
@@ -68,7 +68,7 @@ export async function getCurrentCloudApiKey(
 ): Promise<{ orgId: string | null; isLegacyKey: boolean }> {
   const target = resolveBackend(backend);
   try {
-    const data = await callCloudProxy<CloudApiKeyMetadata>({
+    const data = await callCloudApi<CloudApiKeyMetadata>({
       backend: target,
       method: "GET",
       path: "/api/keys/current",
@@ -94,7 +94,7 @@ export async function getCloudOrganizationMe(
   backend?: Backend,
 ): Promise<{ orgId: string; userId: string }> {
   const target = resolveBackend(backend);
-  const data = await callCloudProxy<{ org_id: string; user_id: string }>({
+  const data = await callCloudApi<{ org_id: string; user_id: string }>({
     backend: target,
     method: "GET",
     path: `/api/organizations/${encodeURIComponent(orgId)}/me`,

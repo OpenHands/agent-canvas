@@ -10,7 +10,7 @@ import {
   getEffectiveLocalBackend,
 } from "../backend-registry/active-store";
 import { NoBackendAvailableError } from "../agent-server-client-options";
-import { callCloudProxy } from "../cloud/proxy";
+import { callCloudApi } from "../cloud/proxy";
 
 const AUTOMATION_BASE_PATH = "/api/automation";
 
@@ -61,7 +61,7 @@ class AutomationService {
     const active = getActiveBackend().backend;
 
     if (active.kind === "cloud") {
-      return callCloudProxy<AutomationsResponse>({
+      return callCloudApi<AutomationsResponse>({
         backend: active,
         method: "GET",
         path: `${AUTOMATION_BASE_PATH}/v1?${buildPaginationQuery(limit, offset)}`,
@@ -87,7 +87,7 @@ class AutomationService {
     const path = `${AUTOMATION_BASE_PATH}/v1/${encodeURIComponent(id)}`;
 
     if (active.kind === "cloud") {
-      return callCloudProxy<Automation>({
+      return callCloudApi<Automation>({
         backend: active,
         method: "GET",
         path,
@@ -106,7 +106,7 @@ class AutomationService {
     const path = `${AUTOMATION_BASE_PATH}/v1/${encodeURIComponent(id)}`;
 
     if (active.kind === "cloud") {
-      return callCloudProxy<Automation>({
+      return callCloudApi<Automation>({
         backend: active,
         method: "PATCH",
         path,
@@ -123,7 +123,7 @@ class AutomationService {
     const path = `${AUTOMATION_BASE_PATH}/v1/${encodeURIComponent(id)}`;
 
     if (active.kind === "cloud") {
-      await callCloudProxy<unknown>({
+      await callCloudApi<unknown>({
         backend: active,
         method: "DELETE",
         path,
@@ -139,7 +139,7 @@ class AutomationService {
     const path = `${AUTOMATION_BASE_PATH}/v1/${encodeURIComponent(id)}/dispatch`;
 
     if (active.kind === "cloud") {
-      return callCloudProxy<AutomationRun>({
+      return callCloudApi<AutomationRun>({
         backend: active,
         method: "POST",
         path,
@@ -159,7 +159,7 @@ class AutomationService {
     const basePath = `${AUTOMATION_BASE_PATH}/v1/${encodeURIComponent(id)}/runs`;
 
     if (active.kind === "cloud") {
-      return callCloudProxy<AutomationRunsResponse>({
+      return callCloudApi<AutomationRunsResponse>({
         backend: active,
         method: "GET",
         path: `${basePath}?${buildPaginationQuery(limit, offset)}`,
@@ -194,7 +194,7 @@ class AutomationService {
 
     let blob: Blob;
     if (active.kind === "cloud") {
-      blob = await callCloudProxy<Blob>({
+      blob = await callCloudApi<Blob>({
         backend: active,
         method: "GET",
         path,
@@ -221,7 +221,7 @@ class AutomationService {
 
     try {
       if (active.kind === "cloud") {
-        const response = await callCloudProxy<AutomationHealthResponse>({
+        const response = await callCloudApi<AutomationHealthResponse>({
           backend: active,
           method: "GET",
           path,

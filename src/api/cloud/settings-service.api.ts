@@ -7,7 +7,7 @@ import {
 import { type AppPreferences } from "../settings-service/settings-service.api";
 import { getActiveBackend } from "../backend-registry/active-store";
 import type { Backend } from "../backend-registry/types";
-import { callCloudProxy } from "./proxy";
+import { callCloudApi } from "./proxy";
 
 /**
  * The cloud Settings response is mostly flat — top-level fields like
@@ -130,7 +130,7 @@ function deriveConversationSettings(
  */
 export async function fetchCloudSettings(): Promise<Partial<Settings>> {
   const backend = getActiveCloudBackend();
-  const flat = await callCloudProxy<CloudSettingsResponse>({
+  const flat = await callCloudApi<CloudSettingsResponse>({
     backend,
     method: "GET",
     path: "/api/v1/settings",
@@ -200,7 +200,7 @@ export async function saveCloudSettings(diff: {
       }
     }
   }
-  await callCloudProxy<unknown>({
+  await callCloudApi<unknown>({
     backend,
     method: "POST",
     path: "/api/v1/settings",
@@ -210,7 +210,7 @@ export async function saveCloudSettings(diff: {
 
 export async function fetchCloudSettingsSchema(): Promise<unknown> {
   const backend = getActiveCloudBackend();
-  return callCloudProxy<unknown>({
+  return callCloudApi<unknown>({
     backend,
     method: "GET",
     path: "/api/v1/settings/agent-schema",
@@ -219,7 +219,7 @@ export async function fetchCloudSettingsSchema(): Promise<unknown> {
 
 export async function fetchCloudConversationSettingsSchema(): Promise<unknown> {
   const backend = getActiveCloudBackend();
-  return callCloudProxy<unknown>({
+  return callCloudApi<unknown>({
     backend,
     method: "GET",
     path: "/api/v1/settings/conversation-schema",

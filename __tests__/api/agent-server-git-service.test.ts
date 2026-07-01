@@ -5,7 +5,7 @@ import {
   setActiveSelection,
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
-import { callCloudProxy } from "#/api/cloud/proxy";
+import { callCloudApi } from "#/api/cloud/proxy";
 import type { Backend } from "#/api/backend-registry/types";
 import AgentServerGitService from "../../src/api/git-service/agent-server-git-service.api";
 
@@ -24,7 +24,7 @@ vi.mock("@openhands/typescript-client/workspace/remote-workspace", () => ({
 }));
 
 vi.mock("#/api/cloud/proxy", () => ({
-  callCloudProxy: vi.fn(),
+  callCloudApi: vi.fn(),
 }));
 
 describe("AgentServerGitService", () => {
@@ -184,7 +184,7 @@ describe("AgentServerGitService", () => {
       __resetActiveStoreForTests();
       setRegisteredBackends([cloudBackend]);
       setActiveSelection({ backendId: cloudBackend.id, orgId: "org-1" });
-      vi.mocked(callCloudProxy).mockReset();
+      vi.mocked(callCloudApi).mockReset();
     });
 
     afterEach(() => {
@@ -195,7 +195,7 @@ describe("AgentServerGitService", () => {
     describe("getGitChanges", () => {
       test("fetches changes via the cloud app-conversations git endpoint and maps statuses", async () => {
         // Arrange
-        vi.mocked(callCloudProxy).mockResolvedValue([
+        vi.mocked(callCloudApi).mockResolvedValue([
           { status: "ADDED", path: "new-file.ts" },
           { status: "UPDATED", path: "changed-file.ts" },
         ]);
@@ -211,7 +211,7 @@ describe("AgentServerGitService", () => {
         // Assert — addressed by conversation id on the cloud API itself
         // (no hostOverride / session-api-key runtime hop), with the
         // relative git path normalized to an absolute runtime path.
-        expect(callCloudProxy).toHaveBeenCalledWith({
+        expect(callCloudApi).toHaveBeenCalledWith({
           backend: cloudBackend,
           method: "GET",
           path: "/api/v1/app-conversations/conv-1/git/changes?path=%2Fworkspace%2Fproject",
@@ -224,7 +224,7 @@ describe("AgentServerGitService", () => {
 
       test("throws when the cloud endpoint returns a non-array response", async () => {
         // Arrange — a dead runtime can surface as a non-JSON-array body.
-        vi.mocked(callCloudProxy).mockResolvedValue(
+        vi.mocked(callCloudApi).mockResolvedValue(
           "<!DOCTYPE html><html>...</html>",
         );
 
@@ -243,7 +243,7 @@ describe("AgentServerGitService", () => {
     describe("getGitChangeDiff", () => {
       test("fetches the diff via the cloud app-conversations git endpoint", async () => {
         // Arrange
-        vi.mocked(callCloudProxy).mockResolvedValue({
+        vi.mocked(callCloudApi).mockResolvedValue({
           original: "old content",
           modified: "new content",
         });
@@ -257,7 +257,7 @@ describe("AgentServerGitService", () => {
         );
 
         // Assert
-        expect(callCloudProxy).toHaveBeenCalledWith({
+        expect(callCloudApi).toHaveBeenCalledWith({
           backend: cloudBackend,
           method: "GET",
           path: "/api/v1/app-conversations/conv-1/git/diff?path=%2Fworkspace%2Fproject%2Fsrc%2Ffile.ts",
@@ -271,7 +271,7 @@ describe("AgentServerGitService", () => {
 
     test("does not touch the runtime workspace SDK on cloud backends", async () => {
       // Arrange
-      vi.mocked(callCloudProxy).mockResolvedValue([]);
+      vi.mocked(callCloudApi).mockResolvedValue([]);
 
       // Act
       await AgentServerGitService.getGitChanges(

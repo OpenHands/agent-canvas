@@ -1,7 +1,7 @@
 import type { SkillInfo } from "#/types/settings";
 import { getActiveBackend } from "../backend-registry/active-store";
 import type { Backend } from "../backend-registry/types";
-import { callCloudProxy } from "./proxy";
+import { callCloudApi } from "./proxy";
 
 interface CloudSkillsPage {
   items: SkillInfo[];
@@ -35,7 +35,7 @@ export async function fetchCloudSkills(): Promise<SkillInfo[]> {
     const query = new URLSearchParams({ limit: String(PAGE_LIMIT) });
     if (pageId) query.set("page_id", pageId);
 
-    const page = await callCloudProxy<CloudSkillsPage>({
+    const page = await callCloudApi<CloudSkillsPage>({
       backend,
       method: "GET",
       path: `/api/v1/skills/search?${query.toString()}`,

@@ -13,12 +13,17 @@ export function getCombinedMetrics(
 ): MetricsSnapshot {
   const { stats } = conversationInfo;
 
-  if (!stats?.usage_to_metrics) {
-    return {
-      accumulated_cost: 0,
-      max_budget_per_task: null,
-      accumulated_token_usage: null,
-    };
+  if (
+    !stats?.usage_to_metrics ||
+    Object.keys(stats.usage_to_metrics).length === 0
+  ) {
+    return (
+      conversationInfo.metrics ?? {
+        accumulated_cost: 0,
+        max_budget_per_task: null,
+        accumulated_token_usage: null,
+      }
+    );
   }
 
   let totalCost = 0;

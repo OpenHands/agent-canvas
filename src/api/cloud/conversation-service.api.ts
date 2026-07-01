@@ -6,8 +6,9 @@ import type {
   AppConversationPage,
   AppConversationStartRequest,
   AppConversationStartTask,
+  SendMessageRequest,
 } from "../conversation-service/agent-server-conversation-service.types";
-import { callCloudProxy } from "./proxy";
+import { callCloudApi } from "./proxy";
 
 /**
  * The cloud backend does not always echo `selected_repository` /
@@ -65,7 +66,7 @@ export async function searchCloudConversations(
   if (pageId) params.set("page_id", pageId);
   params.set("sort_order", "UPDATED_AT_DESC");
 
-  const data = await callCloudProxy<{
+  const data = await callCloudApi<{
     items: AppConversation[];
     next_page_id: string | null;
   }>({
@@ -93,7 +94,7 @@ export async function batchGetCloudConversations(
   const backend = getActiveCloudBackend();
   const params = new URLSearchParams();
   for (const id of ids) params.append("ids", id);
-  const data = await callCloudProxy<(AppConversation | null)[]>({
+  const data = await callCloudApi<(AppConversation | null)[]>({
     backend,
     method: "GET",
     path: `/api/v1/app-conversations?${params.toString()}`,
@@ -121,7 +122,7 @@ export async function createCloudAppConversation(
   request: AppConversationStartRequest,
 ): Promise<AppConversationStartTask> {
   const backend = getActiveCloudBackend();
-  const data = await callCloudProxy<AppConversationStartTask>({
+  const data = await callCloudApi<AppConversationStartTask>({
     backend,
     method: "POST",
     path: "/api/v1/app-conversations",
@@ -141,7 +142,7 @@ export async function downloadCloudConversation(
   conversationId: string,
 ): Promise<Blob> {
   const backend = getActiveCloudBackend();
-  return callCloudProxy<Blob>({
+  return callCloudApi<Blob>({
     backend,
     method: "GET",
     path: `/api/v1/app-conversations/${conversationId}/download`,
@@ -160,7 +161,7 @@ export async function deleteCloudConversation(
   conversationId: string,
 ): Promise<void> {
   const backend = getActiveCloudBackend();
-  await callCloudProxy<unknown>({
+  await callCloudApi<unknown>({
     backend,
     method: "DELETE",
     path: `/api/v1/app-conversations/${conversationId}`,
@@ -178,7 +179,7 @@ export async function updateCloudConversationPublicFlag(
   isPublic: boolean,
 ): Promise<AppConversation> {
   const backend = getActiveCloudBackend();
-  const data = await callCloudProxy<AppConversation>({
+  const data = await callCloudApi<AppConversation>({
     backend,
     method: "PATCH",
     path: `/api/v1/app-conversations/${conversationId}`,
@@ -195,7 +196,7 @@ export async function updateCloudConversationPublicFlag(
  */
 export async function pauseCloudSandbox(sandboxId: string): Promise<void> {
   const backend = getActiveCloudBackend();
-  await callCloudProxy<unknown>({
+  await callCloudApi<unknown>({
     backend,
     method: "POST",
     path: `/api/v1/sandboxes/${sandboxId}/pause`,
@@ -213,10 +214,28 @@ export async function pauseCloudSandbox(sandboxId: string): Promise<void> {
  */
 export async function resumeCloudSandbox(sandboxId: string): Promise<void> {
   const backend = getActiveCloudBackend();
-  await callCloudProxy<unknown>({
+  await callCloudApi<unknown>({
     backend,
     method: "POST",
     path: `/api/v1/sandboxes/${sandboxId}/resume`,
+  });
+}
+
+/**
+ * Send a follow-up message through the cloud app-conversation API. The cloud
+ * backend resolves the live runtime and attaches the sandbox session key
+ * server-side, so the frontend does not need the removed generic cloud proxy.
+ */
+export async function sendCloudConversationMessage(
+  conversationId: string,
+  message: SendMessageRequest,
+): Promise<void> {
+  const backend = getActiveCloudBackend();
+  await callCloudApi<unknown>({
+    backend,
+    method: "POST",
+    path: `/api/v1/app-conversations/${conversationId}/send-message`,
+    body: { ...message, run: true },
   });
 }
 
@@ -233,7 +252,7 @@ export async function readCloudConversationFile(
   const backend = getActiveCloudBackend();
   const params = new URLSearchParams();
   params.append("file_path", filePath);
-  const data = await callCloudProxy<string>({
+  const data = await callCloudApi<string>({
     backend,
     method: "GET",
     path: `/api/v1/app-conversations/${conversationId}/file?${params.toString()}`,
@@ -252,7 +271,7 @@ export async function getCloudAppConversationStartTask(
   const backend = getActiveCloudBackend();
   const params = new URLSearchParams();
   params.set("ids", taskId);
-  const data = await callCloudProxy<(AppConversationStartTask | null)[]>({
+  const data = await callCloudApi<(AppConversationStartTask | null)[]>({
     backend,
     method: "GET",
     path: `/api/v1/app-conversations/start-tasks?${params.toString()}`,

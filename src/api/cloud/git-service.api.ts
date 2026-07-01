@@ -7,7 +7,7 @@ import type {
 import type { Provider } from "#/types/settings";
 import { getActiveBackend } from "../backend-registry/active-store";
 import type { Backend } from "../backend-registry/types";
-import { callCloudProxy } from "./proxy";
+import { callCloudApi } from "./proxy";
 
 function getActiveCloudBackend(): Backend {
   const active = getActiveBackend().backend;
@@ -32,7 +32,7 @@ export async function searchCloudRepositories(args: {
   if (args.pageId) params.set("page_id", args.pageId);
   if (args.installationId) params.set("installation_id", args.installationId);
 
-  const data = await callCloudProxy<{
+  const data = await callCloudApi<{
     items: GitRepository[];
     next_page_id: string | null;
   }>({
@@ -58,7 +58,7 @@ export async function getCloudInstallations(args: {
   params.set("limit", String(args.limit ?? 100));
   if (args.pageId) params.set("page_id", args.pageId);
 
-  const data = await callCloudProxy<{
+  const data = await callCloudApi<{
     items: string[];
     next_page_id: string | null;
   }>({
@@ -88,7 +88,7 @@ export async function getCloudRepositoryBranches(args: {
   params.set("query", args.query ?? "");
   if (args.pageId) params.set("page_id", args.pageId);
 
-  const data = await callCloudProxy<{
+  const data = await callCloudApi<{
     items: BranchPage["items"];
     next_page_id: string | null;
   }>({

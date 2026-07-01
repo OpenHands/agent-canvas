@@ -11,12 +11,12 @@ import {
   searchCloudConversations,
 } from "#/api/cloud/conversation-service.api";
 
-const { mockCallCloudProxy } = vi.hoisted(() => ({
-  mockCallCloudProxy: vi.fn(),
+const { mockCallCloudApi } = vi.hoisted(() => ({
+  mockCallCloudApi: vi.fn(),
 }));
 
 vi.mock("#/api/cloud/proxy", () => ({
-  callCloudProxy: (...args: unknown[]) => mockCallCloudProxy(...args),
+  callCloudApi: (...args: unknown[]) => mockCallCloudApi(...args),
 }));
 
 const cloudBackend: Backend = {
@@ -33,13 +33,13 @@ describe("cloud conversation-service overlay", () => {
     __resetActiveStoreForTests();
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id, orgId: null });
-    mockCallCloudProxy.mockReset();
+    mockCallCloudApi.mockReset();
   });
 
   afterEach(() => {
     window.localStorage.clear();
     __resetActiveStoreForTests();
-    mockCallCloudProxy.mockReset();
+    mockCallCloudApi.mockReset();
   });
 
   it("overlays locally-stored repo selection onto batchGetCloudConversations results when the server returns nulls", async () => {
@@ -49,7 +49,7 @@ describe("cloud conversation-service overlay", () => {
       git_provider: "github",
     });
 
-    mockCallCloudProxy.mockResolvedValueOnce([
+    mockCallCloudApi.mockResolvedValueOnce([
       {
         id: "conv-1",
         title: "Hello",
@@ -74,7 +74,7 @@ describe("cloud conversation-service overlay", () => {
       git_provider: "gitlab",
     });
 
-    mockCallCloudProxy.mockResolvedValueOnce([
+    mockCallCloudApi.mockResolvedValueOnce([
       {
         id: "conv-1",
         title: "Hello",
@@ -92,7 +92,7 @@ describe("cloud conversation-service overlay", () => {
   });
 
   it("leaves null entries untouched when the cloud server returns null for a missing conversation", async () => {
-    mockCallCloudProxy.mockResolvedValueOnce([null]);
+    mockCallCloudApi.mockResolvedValueOnce([null]);
 
     const result = await batchGetCloudConversations(["missing"]);
 
@@ -103,7 +103,7 @@ describe("cloud conversation-service overlay", () => {
     const result = await batchGetCloudConversations([]);
 
     expect(result).toEqual([]);
-    expect(mockCallCloudProxy).not.toHaveBeenCalled();
+    expect(mockCallCloudApi).not.toHaveBeenCalled();
   });
 
   it("only fills server-side nulls — server-populated fields are preserved", async () => {
@@ -113,7 +113,7 @@ describe("cloud conversation-service overlay", () => {
       git_provider: "gitlab",
     });
 
-    mockCallCloudProxy.mockResolvedValueOnce([
+    mockCallCloudApi.mockResolvedValueOnce([
       {
         id: "conv-1",
         title: "Hello",
@@ -139,7 +139,7 @@ describe("cloud conversation-service overlay", () => {
       git_provider: null,
     });
 
-    mockCallCloudProxy.mockResolvedValueOnce([
+    mockCallCloudApi.mockResolvedValueOnce([
       {
         id: "conv-1",
         title: "Hello",
@@ -168,7 +168,7 @@ describe("cloud conversation-service overlay", () => {
       git_provider: "github",
     });
 
-    mockCallCloudProxy.mockResolvedValueOnce([
+    mockCallCloudApi.mockResolvedValueOnce([
       {
         id: "conv-1",
         title: "First",
@@ -219,7 +219,7 @@ describe("cloud conversation-service overlay", () => {
       git_provider: "github",
     });
 
-    mockCallCloudProxy.mockResolvedValueOnce({
+    mockCallCloudApi.mockResolvedValueOnce({
       items: [
         {
           id: "conv-1",

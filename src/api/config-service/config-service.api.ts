@@ -1,7 +1,7 @@
 import { LLMMetadataClient } from "@openhands/typescript-client/clients";
 import { getAgentServerClientOptions } from "../agent-server-client-options";
 import { getActiveBackend } from "../backend-registry/active-store";
-import { callCloudProxy } from "../cloud/proxy";
+import { callCloudApi } from "../cloud/proxy";
 import type {
   LLMModel,
   LLMModelPage,
@@ -78,7 +78,7 @@ class ConfigService {
         verified__eq: params.verified__eq,
         provider__eq: params.provider__eq,
       });
-      return callCloudProxy<LLMModelPage>({
+      return callCloudApi<LLMModelPage>({
         backend: active.backend,
         method: "GET",
         path: `/api/v1/config/models/search${qs}`,
@@ -149,7 +149,7 @@ class ConfigService {
         query: params.query,
         verified__eq: params.verified__eq,
       });
-      return callCloudProxy<ProviderPage>({
+      return callCloudApi<ProviderPage>({
         backend: active.backend,
         method: "GET",
         path: `/api/v1/config/providers/search${qs}`,

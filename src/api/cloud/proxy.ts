@@ -8,124 +8,93 @@ import { NoBackendAvailableError } from "../agent-server-client-options";
 import { buildAuthHeaders } from "../backend-registry/auth";
 import type { Backend } from "../backend-registry/types";
 
-export interface CloudProxyRequest {
-  /**
-   * Cloud backend whose bearer token authenticates the upstream call.
-   * `backend.host` is also the default upstream host unless `hostOverride`
-   * is set.
-   */
+type CloudMethod = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
+
+export interface CloudApiRequest {
   backend: Backend;
-  /** HTTP method against the upstream host. */
-  method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
-  /** Path on the upstream host, e.g. "/api/v1/conversation/123/events/search". */
+  method: CloudMethod;
   path: string;
-  /** Optional JSON body for non-GET methods. */
   body?: unknown;
-  /** Extra headers merged with the auth header for the upstream call. */
   headers?: Record<string, string>;
-  /** Override the upstream timeout, in seconds. */
   timeoutSeconds?: number;
-  /**
-   * Override the upstream host. When set, the proxy targets this host
-   * instead of `backend.host`. Used for runtime-sandbox calls where the
-   * upstream lives at the conversation's runtime URL (e.g.
-   * `http://<id>.prod-runtime.all-hands.dev`) rather than the cloud API.
-   * The host must still pass the proxy's allowlist server-side.
-   */
-  hostOverride?: string;
-  /**
-   * Auth strategy for the upstream call. Defaults to "bearer" (uses the
-   * cloud backend's bearer token via `buildAuthHeaders`). For
-   * runtime-sandbox calls, set to "session-api-key" and pass
-   * `sessionApiKey` — those endpoints don't accept bearer tokens, only
-   * `X-Session-API-Key`. "none" sends no auth header.
-   */
-  authMode?: "bearer" | "session-api-key" | "none";
-  /** Required when `authMode === "session-api-key"`. */
-  sessionApiKey?: string | null;
-  /**
-   * Axios responseType for the inner POST to the bundled agent-server.
-   * Set to "blob" when the upstream cloud endpoint returns a binary
-   * payload (e.g. ZIP downloads); leave undefined for default JSON.
-   */
   responseType?: "blob";
 }
 
-function buildUpstreamAuthHeaders(
-  req: CloudProxyRequest,
-): Record<string, string> {
-  const mode = req.authMode ?? "bearer";
-  if (mode === "bearer") return buildAuthHeaders(req.backend);
-  if (mode === "session-api-key") {
-    return req.sessionApiKey ? { "X-Session-API-Key": req.sessionApiKey } : {};
-  }
-  return {};
+export interface LegacyRuntimeCloudProxyRequest {
+  backend: Backend;
+  method: CloudMethod;
+  host: string;
+  path: string;
+  body?: unknown;
+  headers?: Record<string, string>;
+  timeoutSeconds?: number;
+  sessionApiKey?: string | null;
+  responseType?: "blob";
 }
 
-/**
- * Send a cloud request. App-host calls (`backend.host`) go directly to the
- * cloud API with the cloud backend's auth headers. Runtime-sandbox calls
- * pass `hostOverride`, and those go through `/api/cloud-proxy` because the
- * per-conversation runtime hosts are not the configured cloud app origin.
- *
- * App-host auth headers are sent directly to the cloud host. Proxied auth
- * headers are carried in the proxy envelope and attached server-side.
- */
-export async function callCloudProxy<TResponse = unknown>(
-  req: CloudProxyRequest,
-): Promise<TResponse> {
-  // Send `X-Org-Id` so the upstream scopes per-request to the org the user
-  // selected locally, instead of the user's globally-shared
-  // `current_org_id` on the cloud backend. Restricted to calls against the active
-  // backend: the selector also fans out per-backend bookkeeping calls
-  // (e.g. `getCloudOrganizations(b)`) that would otherwise carry the
-  // active backend's orgId across an unrelated API key, which the cloud backend
-  // rejects when api_key_org_id and X-Org-Id disagree.
+function buildCloudHeaders(req: CloudApiRequest): Record<string, string> {
   const active = getActiveBackend();
-  const orgIdHeader =
+  const orgIdHeader: Record<string, string> =
     active.backend.id === req.backend.id && active.orgId
       ? { "X-Org-Id": active.orgId }
       : {};
-  const upstreamHeaders = {
-    ...buildUpstreamAuthHeaders(req),
+
+  return {
+    ...buildAuthHeaders(req.backend),
     ...orgIdHeader,
     ...(req.headers ?? {}),
   };
-  const upstreamHost = req.hostOverride ?? req.backend.host;
+}
 
-  if (!req.hostOverride) {
-    const response = await axios.request<TResponse>({
-      url: `${upstreamHost.replace(/\/+$/, "")}${req.path}`,
-      method: req.method,
-      headers: upstreamHeaders,
-      ...(req.body !== undefined ? { data: req.body } : {}),
-      timeout: (req.timeoutSeconds ?? 30) * 1000,
-      ...(req.responseType ? { responseType: req.responseType } : {}),
-    });
+/**
+ * Send a first-class request to the configured cloud/app backend.
+ *
+ * This does not use `/api/cloud-proxy`: the browser calls `backend.host`
+ * directly with the cloud backend's auth headers.
+ */
+export async function callCloudApi<TResponse = unknown>(
+  req: CloudApiRequest,
+): Promise<TResponse> {
+  const response = await axios.request<TResponse>({
+    url: `${req.backend.host.replace(/\/+$/, "")}${req.path}`,
+    method: req.method,
+    headers: buildCloudHeaders(req),
+    ...(req.body !== undefined ? { data: req.body } : {}),
+    timeout: (req.timeoutSeconds ?? 30) * 1000,
+    ...(req.responseType ? { responseType: req.responseType } : {}),
+  });
 
-    return response.data;
-  }
+  return response.data;
+}
 
+/**
+ * @deprecated Legacy bridge for runtime-sandbox endpoints that still lack a
+ * first-class cloud/app API. Prefer `callCloudApi` and app-server gateway
+ * routes for any new or migrated code.
+ */
+export async function callLegacyRuntimeCloudProxy<TResponse = unknown>(
+  req: LegacyRuntimeCloudProxyRequest,
+): Promise<TResponse> {
   const proxyBaseUrl = getAgentServerBaseUrl();
   if (!proxyBaseUrl) throw new NoBackendAvailableError();
-  const localAuthHeaders = getAgentServerHeaders();
 
-  // Talk to the configured app/ingress origin that exposes /api/cloud-proxy.
-  // Do not resolve this through the backend registry: when the active backend
-  // is cloud, borrowing some other registered local backend would silently
-  // route cloud traffic through the wrong user-configured server.
+  const headers = {
+    ...(req.sessionApiKey ? { "X-Session-API-Key": req.sessionApiKey } : {}),
+    ...(req.headers ?? {}),
+  };
+
   const response = await axios.post<TResponse>(
     `${proxyBaseUrl.replace(/\/+$/, "")}/api/cloud-proxy`,
     {
-      host: upstreamHost,
+      host: req.host,
       method: req.method,
       path: req.path,
-      headers: upstreamHeaders,
+      headers,
       body: req.body ?? null,
       ...(req.timeoutSeconds ? { timeout_seconds: req.timeoutSeconds } : {}),
     },
     {
-      headers: localAuthHeaders,
+      headers: getAgentServerHeaders(),
       timeout: 30_000,
       ...(req.responseType ? { responseType: req.responseType } : {}),
     },

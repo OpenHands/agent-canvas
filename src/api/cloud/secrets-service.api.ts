@@ -1,7 +1,7 @@
 import { getActiveBackend } from "../backend-registry/active-store";
 import type { Backend } from "../backend-registry/types";
 import type { CustomSecretWithoutValue } from "../secrets-service.types";
-import { callCloudProxy } from "./proxy";
+import { callCloudApi } from "./proxy";
 
 interface CloudSecretsPage {
   items: CustomSecretWithoutValue[];
@@ -33,7 +33,7 @@ export async function fetchCloudSecrets(): Promise<CustomSecretWithoutValue[]> {
     const query = new URLSearchParams({ limit: String(PAGE_LIMIT) });
     if (pageId) query.set("page_id", pageId);
 
-    const page = await callCloudProxy<CloudSecretsPage>({
+    const page = await callCloudApi<CloudSecretsPage>({
       backend,
       method: "GET",
       path: `/api/v1/secrets/search?${query.toString()}`,
@@ -52,7 +52,7 @@ export async function createCloudSecret(
   description?: string,
 ): Promise<void> {
   const backend = getActiveCloudBackend();
-  await callCloudProxy<unknown>({
+  await callCloudApi<unknown>({
     backend,
     method: "POST",
     path: "/api/v1/secrets",
@@ -71,7 +71,7 @@ export async function updateCloudSecret(
   description?: string,
 ): Promise<void> {
   const backend = getActiveCloudBackend();
-  await callCloudProxy<unknown>({
+  await callCloudApi<unknown>({
     backend,
     method: "PUT",
     path: `/api/v1/secrets/${encodeURIComponent(secretToEdit)}`,
@@ -81,7 +81,7 @@ export async function updateCloudSecret(
 
 export async function deleteCloudSecret(name: string): Promise<void> {
   const backend = getActiveCloudBackend();
-  await callCloudProxy<unknown>({
+  await callCloudApi<unknown>({
     backend,
     method: "DELETE",
     path: `/api/v1/secrets/${encodeURIComponent(name)}`,

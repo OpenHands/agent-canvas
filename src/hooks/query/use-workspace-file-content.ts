@@ -176,7 +176,7 @@ export function useWorkspaceFileContent(relativePath: string | null) {
 
       if (isCloud) {
         // Cloud: no static fileserver cookie path is reachable from the
-        // browser. Fetch bytes server-side through callCloudProxy and
+        // browser. Fetch bytes server-side through callLegacyRuntimeCloudProxy and
         // hand the consumer a self-contained `data:` URI for iframe /
         // <img> rendering.
         const buffer = await AgentServerRuntimeService.downloadFile(

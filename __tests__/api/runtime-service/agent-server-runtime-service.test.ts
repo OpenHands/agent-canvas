@@ -7,7 +7,7 @@ import {
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
 import AgentServerRuntimeService from "#/api/runtime-service/agent-server-runtime-service";
-import { callCloudProxy } from "#/api/cloud/proxy";
+import { callLegacyRuntimeCloudProxy } from "#/api/cloud/proxy";
 import type { Backend } from "#/api/backend-registry/types";
 
 // ─── SDK client mocks ───────────────────────────────────────────────────────
@@ -38,7 +38,7 @@ vi.mock("#/api/agent-server-client-options", () => ({
 }));
 
 vi.mock("#/api/cloud/proxy", () => ({
-  callCloudProxy: vi.fn(),
+  callLegacyRuntimeCloudProxy: vi.fn(),
 }));
 
 // ─── Backend fixtures ────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ beforeEach(() => {
   vi.mocked(FileClient).mockClear();
   executeCommandMock.mockReset();
   downloadFileMock.mockReset();
-  vi.mocked(callCloudProxy).mockReset();
+  vi.mocked(callLegacyRuntimeCloudProxy).mockReset();
 });
 
 afterEach(() => {
@@ -107,7 +107,7 @@ describe("AgentServerRuntimeService.executeCommand", () => {
       expect(result).toEqual({ exit_code: 0, stdout: "main\n", stderr: "" });
     });
 
-    it("does not call callCloudProxy for local backends", async () => {
+    it("does not call callLegacyRuntimeCloudProxy for local backends", async () => {
       executeCommandMock.mockResolvedValue({
         exit_code: 0,
         stdout: "",
@@ -116,15 +116,15 @@ describe("AgentServerRuntimeService.executeCommand", () => {
 
       await AgentServerRuntimeService.executeCommand(null, null, "ls", "/", 5);
 
-      expect(callCloudProxy).not.toHaveBeenCalled();
+      expect(callLegacyRuntimeCloudProxy).not.toHaveBeenCalled();
     });
   });
 
   describe("cloud backend", () => {
     beforeEach(activateCloud);
 
-    it("routes through callCloudProxy with correct path, body, and auth", async () => {
-      vi.mocked(callCloudProxy).mockResolvedValue({
+    it("routes through callLegacyRuntimeCloudProxy with correct path, body, and auth", async () => {
+      vi.mocked(callLegacyRuntimeCloudProxy).mockResolvedValue({
         exit_code: 0,
         stdout: "src/index.ts\n",
         stderr: "",
@@ -138,16 +138,15 @@ describe("AgentServerRuntimeService.executeCommand", () => {
         30,
       );
 
-      const proxyCall = vi.mocked(callCloudProxy).mock.calls[0][0];
+      const proxyCall = vi.mocked(callLegacyRuntimeCloudProxy).mock.calls[0][0];
       expect(proxyCall.method).toBe("POST");
       expect(proxyCall.path).toBe("/api/bash/execute_bash_command");
-      expect(proxyCall.hostOverride).toBe("https://runtime.example.com");
+      expect(proxyCall.host).toBe("https://runtime.example.com");
       expect(proxyCall.body).toEqual({
         command: "find . -type f",
         cwd: "/workspace/project",
         timeout: 30,
       });
-      expect(proxyCall.authMode).toBe("session-api-key");
       expect(proxyCall.sessionApiKey).toBe(SESSION_KEY);
       expect(proxyCall.timeoutSeconds).toBe(40);
       expect(result).toEqual({
@@ -158,7 +157,9 @@ describe("AgentServerRuntimeService.executeCommand", () => {
     });
 
     it("omits cwd from proxy body when not provided", async () => {
-      vi.mocked(callCloudProxy).mockResolvedValue({ exit_code: 0 });
+      vi.mocked(callLegacyRuntimeCloudProxy).mockResolvedValue({
+        exit_code: 0,
+      });
 
       await AgentServerRuntimeService.executeCommand(
         CLOUD_CONVERSATION_URL,
@@ -168,13 +169,16 @@ describe("AgentServerRuntimeService.executeCommand", () => {
         10,
       );
 
-      const proxyBody = vi.mocked(callCloudProxy).mock.calls[0][0].body as Record<string, unknown>;
+      const proxyBody = vi.mocked(callLegacyRuntimeCloudProxy).mock.calls[0][0]
+        .body as Record<string, unknown>;
       expect(proxyBody).not.toHaveProperty("cwd");
       expect(proxyBody.command).toBe("echo hi");
     });
 
     it("normalises missing stdout/stderr fields to empty strings", async () => {
-      vi.mocked(callCloudProxy).mockResolvedValue({ exit_code: 1 });
+      vi.mocked(callLegacyRuntimeCloudProxy).mockResolvedValue({
+        exit_code: 1,
+      });
 
       const result = await AgentServerRuntimeService.executeCommand(
         CLOUD_CONVERSATION_URL,
@@ -188,7 +192,9 @@ describe("AgentServerRuntimeService.executeCommand", () => {
     });
 
     it("does not create a RemoteWorkspace for cloud calls", async () => {
-      vi.mocked(callCloudProxy).mockResolvedValue({ exit_code: 0 });
+      vi.mocked(callLegacyRuntimeCloudProxy).mockResolvedValue({
+        exit_code: 0,
+      });
 
       await AgentServerRuntimeService.executeCommand(
         CLOUD_CONVERSATION_URL,
@@ -212,7 +218,7 @@ describe("AgentServerRuntimeService.executeCommand", () => {
         "echo ok",
       );
 
-      expect(callCloudProxy).not.toHaveBeenCalled();
+      expect(callLegacyRuntimeCloudProxy).not.toHaveBeenCalled();
       expect(RemoteWorkspace).toHaveBeenCalledTimes(1);
     });
   });
@@ -239,7 +245,7 @@ describe("AgentServerRuntimeService.downloadFile", () => {
       expect(result).toBe(fileBytes.buffer);
     });
 
-    it("does not call callCloudProxy for local backends", async () => {
+    it("does not call callLegacyRuntimeCloudProxy for local backends", async () => {
       downloadFileMock.mockResolvedValue(new ArrayBuffer(0));
 
       await AgentServerRuntimeService.downloadFile(
@@ -248,16 +254,16 @@ describe("AgentServerRuntimeService.downloadFile", () => {
         "/workspace/file.txt",
       );
 
-      expect(callCloudProxy).not.toHaveBeenCalled();
+      expect(callLegacyRuntimeCloudProxy).not.toHaveBeenCalled();
     });
   });
 
   describe("cloud backend", () => {
     beforeEach(activateCloud);
 
-    it("routes through callCloudProxy with GET and URL-encoded path", async () => {
+    it("routes through callLegacyRuntimeCloudProxy with GET and URL-encoded path", async () => {
       const blob = new Blob([new TextEncoder().encode("file content")]);
-      vi.mocked(callCloudProxy).mockResolvedValue(blob);
+      vi.mocked(callLegacyRuntimeCloudProxy).mockResolvedValue(blob);
 
       const result = await AgentServerRuntimeService.downloadFile(
         CLOUD_CONVERSATION_URL,
@@ -265,13 +271,12 @@ describe("AgentServerRuntimeService.downloadFile", () => {
         "/workspace/project/src/main.ts",
       );
 
-      const proxyCall = vi.mocked(callCloudProxy).mock.calls[0][0];
+      const proxyCall = vi.mocked(callLegacyRuntimeCloudProxy).mock.calls[0][0];
       expect(proxyCall.method).toBe("GET");
       expect(proxyCall.path).toBe(
         "/api/file/download?path=%2Fworkspace%2Fproject%2Fsrc%2Fmain.ts",
       );
-      expect(proxyCall.hostOverride).toBe("https://runtime.example.com");
-      expect(proxyCall.authMode).toBe("session-api-key");
+      expect(proxyCall.host).toBe("https://runtime.example.com");
       expect(proxyCall.sessionApiKey).toBe(SESSION_KEY);
       expect(proxyCall.responseType).toBe("blob");
 
@@ -280,7 +285,7 @@ describe("AgentServerRuntimeService.downloadFile", () => {
     });
 
     it("does not create a FileClient for cloud calls", async () => {
-      vi.mocked(callCloudProxy).mockResolvedValue(new Blob());
+      vi.mocked(callLegacyRuntimeCloudProxy).mockResolvedValue(new Blob());
 
       await AgentServerRuntimeService.downloadFile(
         CLOUD_CONVERSATION_URL,
@@ -300,7 +305,7 @@ describe("AgentServerRuntimeService.downloadFile", () => {
         "/workspace/file.txt",
       );
 
-      expect(callCloudProxy).not.toHaveBeenCalled();
+      expect(callLegacyRuntimeCloudProxy).not.toHaveBeenCalled();
       expect(FileClient).toHaveBeenCalledTimes(1);
     });
   });

@@ -1,6 +1,6 @@
 import { getActiveBackend } from "../backend-registry/active-store";
 import type { Backend } from "../backend-registry/types";
-import { callCloudProxy } from "./proxy";
+import { callCloudApi } from "./proxy";
 import type { V1SandboxInfo } from "./sandbox-service.types";
 
 function getActiveCloudBackend(): Backend {
@@ -30,7 +30,7 @@ export async function batchGetCloudSandboxes(
   const backend = getActiveCloudBackend();
   const params = new URLSearchParams();
   for (const id of ids) params.append("id", id);
-  const data = await callCloudProxy<(V1SandboxInfo | null)[]>({
+  const data = await callCloudApi<(V1SandboxInfo | null)[]>({
     backend,
     method: "GET",
     path: `/api/v1/sandboxes?${params.toString()}`,

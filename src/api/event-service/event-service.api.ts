@@ -3,7 +3,7 @@ import { RemoteEventsList } from "@openhands/typescript-client/events/remote-eve
 import { OpenHandsEvent } from "#/types/agent-server/core";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import { getActiveBackend } from "../backend-registry/active-store";
-import { callCloudProxy } from "../cloud/proxy";
+import { callCloudApi, callLegacyRuntimeCloudProxy } from "../cloud/proxy";
 import {
   getAgentServerClientOptions,
   getAgentServerHttpClientOptions,
@@ -16,25 +16,10 @@ import type {
 } from "./event-service.types";
 
 /**
- * Cloud-mode REST calls are split between two upstream hosts (matching
- * OpenHands' cloud frontend):
- *
- *   - **App API** (`backend.host`, default in `callCloudProxy`):
- *     event *history* (`/api/v1/conversation/{id}/events/search`).
- *     Persisted by the cloud backend — survives the runtime sandbox.
- *
- *   - **Runtime sandbox** (extracted from `conversation.conversation_url`
- *     and passed as `hostOverride`): live runtime endpoints like
- *     `/api/conversations/{id}/events/count` and
- *     `/api/conversations/{id}/events/respond_to_confirmation`. Auth on
- *     these endpoints is `X-Session-API-Key`, not `Authorization: Bearer`.
- *
- * App API calls go directly to the cloud backend with bearer auth. Runtime
- * sandbox calls go through `/api/cloud-proxy`, which avoids depending on CORS
- * for per-conversation runtime hosts.
- *
- * Local mode keeps the existing typescript-client path: it targets the
- * conversation's host directly via typed client classes.
+ * Cloud-mode event history and counts use first-class cloud App API routes.
+ * Responding to confirmation requests still targets the live runtime endpoint,
+ * so it remains behind the explicit legacy runtime proxy until the cloud/app
+ * backend exposes a dedicated gateway route for it.
  */
 class EventService {
   static async respondToConfirmation(
@@ -46,13 +31,12 @@ class EventService {
     const active = getActiveBackend().backend;
 
     if (active.kind === "cloud") {
-      return callCloudProxy<ConfirmationResponseResponse>({
+      return callLegacyRuntimeCloudProxy<ConfirmationResponseResponse>({
         backend: active,
         method: "POST",
-        hostOverride: buildHttpBaseUrl(conversationUrl),
+        host: buildHttpBaseUrl(conversationUrl),
         path: `/api/conversations/${conversationId}/events/respond_to_confirmation`,
         body: request,
-        authMode: "session-api-key",
         sessionApiKey,
       });
     }
@@ -76,13 +60,10 @@ class EventService {
     const active = getActiveBackend().backend;
 
     if (active.kind === "cloud") {
-      return callCloudProxy<number>({
+      return callCloudApi<number>({
         backend: active,
         method: "GET",
-        hostOverride: buildHttpBaseUrl(conversationUrl),
-        path: `/api/conversations/${conversationId}/events/count`,
-        authMode: "session-api-key",
-        sessionApiKey,
+        path: `/api/v1/conversation/${conversationId}/events/count`,
       });
     }
 
@@ -134,7 +115,7 @@ class EventService {
       if (options.timestampLt) params.set("timestamp__lt", options.timestampLt);
 
       const doCloudSearch = (searchParams: URLSearchParams) =>
-        callCloudProxy<EventSearchPage<OpenHandsEvent>>({
+        callCloudApi<EventSearchPage<OpenHandsEvent>>({
           backend: active,
           method: "GET",
           path: `/api/v1/conversation/${conversationId}/events/search?${searchParams.toString()}`,

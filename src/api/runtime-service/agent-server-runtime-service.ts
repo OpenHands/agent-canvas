@@ -2,7 +2,7 @@ import { FileClient } from "@openhands/typescript-client/clients";
 import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { getActiveBackend } from "#/api/backend-registry/active-store";
-import { callCloudProxy } from "#/api/cloud/proxy";
+import { callLegacyRuntimeCloudProxy } from "#/api/cloud/proxy";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
 
 export interface CommandResult {
@@ -17,8 +17,8 @@ export interface CommandResult {
  * In **local** mode the runtime is reachable directly from the browser
  * (e.g. `127.0.0.1:18000`) so the SDK's typed clients work fine.
  * In **cloud** mode the runtime lives at `*.prod-runtime.all-hands.dev`,
- * which doesn't allow CORS from `localhost`, so all calls go through
- * `callCloudProxy` with the runtime URL as `hostOverride` and the
+ * which doesn't allow CORS from `localhost`, so remaining runtime-only calls
+ * go through `callLegacyRuntimeCloudProxy` with the runtime URL and the
  * conversation's `session_api_key` as auth — server-side hop, no CORS.
  */
 class AgentServerRuntimeService {
@@ -32,21 +32,20 @@ class AgentServerRuntimeService {
     const active = getActiveBackend().backend;
 
     if (active.kind === "cloud" && conversationUrl) {
-      const output = await callCloudProxy<{
+      const output = await callLegacyRuntimeCloudProxy<{
         exit_code?: number;
         stdout?: string;
         stderr?: string;
       }>({
         backend: active,
         method: "POST",
-        hostOverride: buildHttpBaseUrl(conversationUrl),
+        host: buildHttpBaseUrl(conversationUrl),
         path: "/api/bash/execute_bash_command",
         body: {
           command,
           ...(cwd ? { cwd } : {}),
           timeout: Math.floor(timeout),
         },
-        authMode: "session-api-key",
         sessionApiKey,
         timeoutSeconds: timeout + 10,
       });
@@ -75,12 +74,11 @@ class AgentServerRuntimeService {
     const active = getActiveBackend().backend;
 
     if (active.kind === "cloud" && conversationUrl) {
-      const blob = await callCloudProxy<Blob>({
+      const blob = await callLegacyRuntimeCloudProxy<Blob>({
         backend: active,
         method: "GET",
-        hostOverride: buildHttpBaseUrl(conversationUrl),
+        host: buildHttpBaseUrl(conversationUrl),
         path: `/api/file/download?path=${encodeURIComponent(path)}`,
-        authMode: "session-api-key",
         sessionApiKey,
         responseType: "blob",
       });

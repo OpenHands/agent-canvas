@@ -15,18 +15,20 @@ const {
   mockPatch,
   mockPost,
   mockDelete,
-  mockCallCloudProxy,
+  mockCallCloudApi,
   mockGetActive,
   mockGetEffectiveLocal,
   capturedInterceptors,
 } = vi.hoisted(() => {
-  const interceptors: Array<(config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig> = [];
+  const interceptors: Array<
+    (config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig
+  > = [];
   return {
     mockGet: vi.fn(),
     mockPatch: vi.fn(),
     mockPost: vi.fn(),
     mockDelete: vi.fn(),
-    mockCallCloudProxy: vi.fn(),
+    mockCallCloudApi: vi.fn(),
     mockGetActive: vi.fn(),
     mockGetEffectiveLocal: vi.fn(),
     capturedInterceptors: interceptors,
@@ -43,7 +45,11 @@ vi.mock("axios", () => ({
       delete: mockDelete,
       interceptors: {
         request: {
-          use: (fn: (config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig) => {
+          use: (
+            fn: (
+              config: InternalAxiosRequestConfig,
+            ) => InternalAxiosRequestConfig,
+          ) => {
             capturedInterceptors.push(fn);
           },
         },
@@ -53,7 +59,7 @@ vi.mock("axios", () => ({
 }));
 
 vi.mock("#/api/cloud/proxy", () => ({
-  callCloudProxy: mockCallCloudProxy,
+  callCloudApi: mockCallCloudApi,
 }));
 
 vi.mock("#/api/backend-registry/active-store", () => ({
@@ -127,7 +133,7 @@ describe("AutomationService", () => {
     mockPatch.mockReset();
     mockPost.mockReset();
     mockDelete.mockReset();
-    mockCallCloudProxy.mockReset();
+    mockCallCloudApi.mockReset();
     // Default: active backend is local. Cloud-routing tests override this.
     mockGetActive.mockReset();
     mockGetActive.mockReturnValue({ backend: localBackend, orgId: null });
@@ -335,7 +341,7 @@ describe("AutomationService", () => {
   });
 
   // When the active backend is cloud the local axios instance must be
-  // bypassed entirely; calls must route through `callCloudProxy`, which
+  // bypassed entirely; calls must route through `callCloudApi`, which
   // sends them directly to the cloud host from the browser (the automation
   // service grants permissive CORS to API-key requests, automation#185).
   describe("cloud routing", () => {
@@ -343,81 +349,86 @@ describe("AutomationService", () => {
       mockGetActive.mockReturnValue({ backend: cloudBackend, orgId: null });
     });
 
-    it("listAutomations routes to callCloudProxy with pagination in the path", async () => {
+    it("listAutomations routes to callCloudApi with pagination in the path", async () => {
       const response: AutomationsResponse = {
         automations: [mockAutomation],
         total: 1,
       };
-      mockCallCloudProxy.mockResolvedValue(response);
+      mockCallCloudApi.mockResolvedValue(response);
 
       const result = await AutomationService.listAutomations({
         limit: 10,
         offset: 5,
       });
 
-      expect(mockCallCloudProxy).toHaveBeenCalledWith({
+      expect(mockCallCloudApi).toHaveBeenCalledWith({
         backend: cloudBackend,
         method: "GET",
-        path: "/api/automation/v1?limit=10&offset=5",      });
+        path: "/api/automation/v1?limit=10&offset=5",
+      });
       expect(mockGet).not.toHaveBeenCalled();
       expect(result).toEqual(response);
     });
 
-    it("getAutomation routes to callCloudProxy with the id in the path", async () => {
-      mockCallCloudProxy.mockResolvedValue(mockAutomation);
+    it("getAutomation routes to callCloudApi with the id in the path", async () => {
+      mockCallCloudApi.mockResolvedValue(mockAutomation);
 
       const result = await AutomationService.getAutomation("abc");
 
-      expect(mockCallCloudProxy).toHaveBeenCalledWith({
+      expect(mockCallCloudApi).toHaveBeenCalledWith({
         backend: cloudBackend,
         method: "GET",
-        path: "/api/automation/v1/abc",      });
+        path: "/api/automation/v1/abc",
+      });
       expect(result).toEqual(mockAutomation);
     });
 
-    it("dispatchAutomation forwards method POST via callCloudProxy", async () => {
-      mockCallCloudProxy.mockResolvedValue(mockRun);
+    it("dispatchAutomation forwards method POST via callCloudApi", async () => {
+      mockCallCloudApi.mockResolvedValue(mockRun);
 
       const result = await AutomationService.dispatchAutomation("abc");
 
-      expect(mockCallCloudProxy).toHaveBeenCalledWith({
+      expect(mockCallCloudApi).toHaveBeenCalledWith({
         backend: cloudBackend,
         method: "POST",
-        path: "/api/automation/v1/abc/dispatch",      });
+        path: "/api/automation/v1/abc/dispatch",
+      });
       expect(mockPost).not.toHaveBeenCalled();
       expect(result).toEqual(mockRun);
     });
 
-    it("updateAutomation forwards method PATCH and body via callCloudProxy", async () => {
+    it("updateAutomation forwards method PATCH and body via callCloudApi", async () => {
       const updated = { ...mockAutomation, enabled: false };
-      mockCallCloudProxy.mockResolvedValue(updated);
+      mockCallCloudApi.mockResolvedValue(updated);
 
       const result = await AutomationService.updateAutomation("abc", {
         enabled: false,
       });
 
-      expect(mockCallCloudProxy).toHaveBeenCalledWith({
+      expect(mockCallCloudApi).toHaveBeenCalledWith({
         backend: cloudBackend,
         method: "PATCH",
         path: "/api/automation/v1/abc",
-        body: { enabled: false },      });
+        body: { enabled: false },
+      });
       expect(mockPatch).not.toHaveBeenCalled();
       expect(result).toEqual(updated);
     });
 
-    it("deleteAutomation forwards method DELETE via callCloudProxy", async () => {
-      mockCallCloudProxy.mockResolvedValue(undefined);
+    it("deleteAutomation forwards method DELETE via callCloudApi", async () => {
+      mockCallCloudApi.mockResolvedValue(undefined);
 
       await AutomationService.deleteAutomation("abc");
 
-      expect(mockCallCloudProxy).toHaveBeenCalledWith({
+      expect(mockCallCloudApi).toHaveBeenCalledWith({
         backend: cloudBackend,
         method: "DELETE",
-        path: "/api/automation/v1/abc",      });
+        path: "/api/automation/v1/abc",
+      });
       expect(mockDelete).not.toHaveBeenCalled();
     });
 
-    it("dispatchAutomation forwards method POST via callCloudProxy", async () => {
+    it("dispatchAutomation forwards method POST via callCloudApi", async () => {
       const run = {
         id: "run-1",
         status: "PENDING",
@@ -427,26 +438,27 @@ describe("AutomationService", () => {
         started_at: "2026-01-01T00:00:00Z",
         completed_at: null,
       };
-      mockCallCloudProxy.mockResolvedValue(run);
+      mockCallCloudApi.mockResolvedValue(run);
 
       const result = await AutomationService.dispatchAutomation("abc");
 
-      expect(mockCallCloudProxy).toHaveBeenCalledWith({
+      expect(mockCallCloudApi).toHaveBeenCalledWith({
         backend: cloudBackend,
         method: "POST",
-        path: "/api/automation/v1/abc/dispatch",      });
+        path: "/api/automation/v1/abc/dispatch",
+      });
       expect(mockPost).not.toHaveBeenCalled();
       expect(result).toEqual(run);
     });
 
     it("checkHealth calls the cloud host with a fail-fast timeout and returns the upstream status", async () => {
-      mockCallCloudProxy.mockResolvedValue({ status: "ok" });
+      mockCallCloudApi.mockResolvedValue({ status: "ok" });
 
       const result = await AutomationService.checkHealth();
 
       // Property access (vs whole-object matching) keeps these assertions
       // resilient to future additive CloudProxyRequest fields.
-      const call = mockCallCloudProxy.mock.calls[0]![0];
+      const call = mockCallCloudApi.mock.calls[0]![0];
       expect(call.method).toBe("GET");
       expect(call.path).toBe("/api/automation/health");
       expect(call.timeoutSeconds).toBe(5);
@@ -455,7 +467,7 @@ describe("AutomationService", () => {
     });
 
     it("checkHealth resolves to an error status instead of throwing when the cloud call fails", async () => {
-      mockCallCloudProxy.mockRejectedValue(new Error("proxy unreachable"));
+      mockCallCloudApi.mockRejectedValue(new Error("proxy unreachable"));
 
       const result = await AutomationService.checkHealth();
 

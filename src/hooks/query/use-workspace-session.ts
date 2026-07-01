@@ -26,11 +26,11 @@ export interface WorkspaceSession {
  * request header.
  *
  * Local-only. The cookie flow is useless on cloud: the POST would be a
- * server-side hop through `callCloudProxy` (so the `Set-Cookie` never
+ * server-side hop through `callLegacyRuntimeCloudProxy` (so the `Set-Cookie` never
  * reaches the browser jar), and the runtime sandbox is cross-origin with
  * the GUI (so `fetch(staticUrl, { credentials: "include" })` couldn't
  * attach the cookie anyway). On cloud, `useWorkspaceFileContent` fetches
- * bytes through `callCloudProxy` directly and renders binary kinds as
+ * bytes through `callLegacyRuntimeCloudProxy` directly and renders binary kinds as
  * `data:` URIs, so this hook stays disabled and returns `data: null`.
  *
  * We treat the call as cache-once-per-conversation: the cookie lives in

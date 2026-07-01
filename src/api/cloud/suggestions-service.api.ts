@@ -1,7 +1,7 @@
 import { SuggestedTask } from "#/utils/types";
 import { getActiveBackend } from "../backend-registry/active-store";
 import type { Backend } from "../backend-registry/types";
-import { callCloudProxy } from "./proxy";
+import { callCloudApi } from "./proxy";
 
 function getActiveCloudBackend(): Backend {
   const active = getActiveBackend().backend;
@@ -20,7 +20,7 @@ export async function getCloudSuggestedTasks(args: {
   params.set("limit", String(args.limit ?? 30));
   if (args.pageId) params.set("page_id", args.pageId);
 
-  const data = await callCloudProxy<{
+  const data = await callCloudApi<{
     items: SuggestedTask[];
     next_page_id: string | null;
   }>({

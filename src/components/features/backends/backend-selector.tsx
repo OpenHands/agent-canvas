@@ -212,7 +212,7 @@ export function BackendSelector({
   // the selection onto the personal-workspace org (or, lacking a /me
   // result, the first org). The selection is recorded locally only;
   // the cloud request scope follows from the API key's bound org and the
-  // X-Org-Id header sent by `callCloudProxy`, so the cloud UI's
+  // X-Org-Id header sent by `callCloudApi`, so the cloud UI's
   // org choice is never mutated as a side effect.
   React.useEffect(() => {
     if (noBackendSelected || active.backend.kind !== "cloud" || active.orgId)

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-import { callCloudProxy } from "#/api/cloud/proxy";
+import { callLegacyRuntimeCloudProxy } from "#/api/cloud/proxy";
 import {
   joinWorkspaceUrl,
   useWorkspaceSession,
@@ -23,9 +23,10 @@ vi.mock("@openhands/typescript-client/workspace/remote-workspace", () => ({
   }),
 }));
 
-const callCloudProxyMock = vi.fn();
+const callLegacyRuntimeCloudProxyMock = vi.fn();
 vi.mock("#/api/cloud/proxy", () => ({
-  callCloudProxy: (...args: unknown[]) => callCloudProxyMock(...args),
+  callLegacyRuntimeCloudProxy: (...args: unknown[]) =>
+    callLegacyRuntimeCloudProxyMock(...args),
 }));
 
 const getAgentServerClientOptionsMock = vi.fn();
@@ -77,7 +78,7 @@ function flushScheduler(ms = 10): Promise<void> {
 
 beforeEach(() => {
   startWorkspaceSessionMock.mockReset();
-  callCloudProxyMock.mockReset();
+  callLegacyRuntimeCloudProxyMock.mockReset();
   getAgentServerClientOptionsMock.mockReset();
   vi.mocked(RemoteWorkspace).mockClear();
   getActiveBackendMock.mockReset();
@@ -94,7 +95,11 @@ describe("useWorkspaceSession", () => {
   describe("local backend", () => {
     it("calls startWorkspaceSession and exposes the returned baseUrl", async () => {
       getActiveBackendMock.mockReturnValue({
-        backend: { id: "local-1", kind: "local", host: "http://localhost:8000" },
+        backend: {
+          id: "local-1",
+          kind: "local",
+          host: "http://localhost:8000",
+        },
       });
       useActiveConversationMock.mockReturnValue({
         data: {
@@ -125,8 +130,7 @@ describe("useWorkspaceSession", () => {
 
       expect(getAgentServerClientOptionsMock).toHaveBeenCalledTimes(1);
       expect(getAgentServerClientOptionsMock).toHaveBeenCalledWith({
-        conversationUrl:
-          "https://agent.example.com/api/conversations/conv-1",
+        conversationUrl: "https://agent.example.com/api/conversations/conv-1",
         sessionApiKey: "key-abc",
       });
       expect(RemoteWorkspace).toHaveBeenCalledTimes(1);
@@ -137,7 +141,7 @@ describe("useWorkspaceSession", () => {
       });
       expect(startWorkspaceSessionMock).toHaveBeenCalledTimes(1);
       expect(startWorkspaceSessionMock).toHaveBeenCalledWith("conv-1");
-      expect(callCloudProxyMock).not.toHaveBeenCalled();
+      expect(callLegacyRuntimeCloudProxyMock).not.toHaveBeenCalled();
     });
   });
 
@@ -164,7 +168,7 @@ describe("useWorkspaceSession", () => {
       });
 
       await flushScheduler();
-      expect(callCloudProxyMock).not.toHaveBeenCalled();
+      expect(callLegacyRuntimeCloudProxyMock).not.toHaveBeenCalled();
       expect(startWorkspaceSessionMock).not.toHaveBeenCalled();
       expect(result.current.data).toBeNull();
     });
@@ -177,8 +181,7 @@ describe("useWorkspaceSession", () => {
     useActiveConversationMock.mockReturnValue({
       data: {
         id: "conv-1",
-        conversation_url:
-          "https://agent.example.com/api/conversations/conv-1",
+        conversation_url: "https://agent.example.com/api/conversations/conv-1",
         session_api_key: "key-abc",
       },
     });
@@ -191,7 +194,7 @@ describe("useWorkspaceSession", () => {
     // Give react-query a tick to schedule (it shouldn't).
     await flushScheduler();
     expect(startWorkspaceSessionMock).not.toHaveBeenCalled();
-    expect(callCloudProxyMock).not.toHaveBeenCalled();
+    expect(callLegacyRuntimeCloudProxyMock).not.toHaveBeenCalled();
     expect(result.current.data).toBeNull();
   });
 
@@ -205,7 +208,7 @@ describe("useWorkspaceSession", () => {
 
     await flushScheduler();
     expect(startWorkspaceSessionMock).not.toHaveBeenCalled();
-    expect(callCloudProxyMock).not.toHaveBeenCalled();
+    expect(callLegacyRuntimeCloudProxyMock).not.toHaveBeenCalled();
   });
 });
 

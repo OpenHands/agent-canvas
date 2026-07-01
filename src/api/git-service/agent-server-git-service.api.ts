@@ -2,7 +2,7 @@ import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-w
 import { mapAnyGitStatusToClientStatus } from "#/utils/git-status-mapper";
 import type { GitChange, GitChangeDiff } from "../open-hands.types";
 import { getActiveBackend } from "../backend-registry/active-store";
-import { callCloudProxy } from "../cloud/proxy";
+import { callCloudApi } from "../cloud/proxy";
 import { getAgentServerClientOptions } from "../agent-server-client-options";
 
 interface AgentServerGitChange {
@@ -48,7 +48,7 @@ class AgentServerGitService {
     if (active.kind === "cloud" && conversationId) {
       const params = new URLSearchParams();
       params.set("path", toAbsoluteRuntimePath(path));
-      const data = await callCloudProxy<AgentServerGitChange[]>({
+      const data = await callCloudApi<AgentServerGitChange[]>({
         backend: active,
         method: "GET",
         path: `/api/v1/app-conversations/${conversationId}/git/changes?${params.toString()}`,
@@ -99,7 +99,7 @@ class AgentServerGitService {
     if (active.kind === "cloud" && conversationId) {
       const params = new URLSearchParams();
       params.set("path", toAbsoluteRuntimePath(path));
-      const diff = await callCloudProxy<GitChangeDiff & { diff?: string }>({
+      const diff = await callCloudApi<GitChangeDiff & { diff?: string }>({
         backend: active,
         method: "GET",
         path: `/api/v1/app-conversations/${conversationId}/git/diff?${params.toString()}`,

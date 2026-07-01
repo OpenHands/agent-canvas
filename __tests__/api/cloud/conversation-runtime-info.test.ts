@@ -61,16 +61,26 @@ describe("AgentServerConversationService.getRuntimeConversation", () => {
       __resetActiveStoreForTests();
       setRegisteredBackends([cloudBackend]);
       setActiveSelection({ backendId: cloudBackend.id });
+      vi.mocked(axios.request).mockReset();
       vi.mocked(axios.post).mockReset();
     });
 
-    it("routes through /api/cloud-proxy targeting the conversation runtime host", async () => {
-      // Arrange
-      vi.mocked(axios.post).mockResolvedValue({ data: runtimeResponse });
+    it("reads runtime info from the first-class app-conversations API", async () => {
+      vi.mocked(axios.request).mockResolvedValue({
+        data: [
+          {
+            ...runtimeResponse,
+            metrics: {
+              accumulated_cost: 1.23,
+              max_budget_per_task: null,
+              accumulated_token_usage: null,
+            },
+          },
+        ],
+      });
       const conversationUrl =
         "http://abc123.runtime.all-hands.dev/api/conversations/conv-abc";
 
-      // Act
       const result =
         await AgentServerConversationService.getRuntimeConversation(
           "conv-abc",
@@ -78,17 +88,15 @@ describe("AgentServerConversationService.getRuntimeConversation", () => {
           "session-xyz",
         );
 
-      // Assert
-      expect(axios.post).toHaveBeenCalledOnce();
-      const [url, body] = vi.mocked(axios.post).mock.calls[0]!;
-      expect(url).toMatch(/\/api\/cloud-proxy$/);
-      expect(body).toMatchObject({
-        host: "http://abc123.runtime.all-hands.dev",
+      expect(axios.post).not.toHaveBeenCalled();
+      expect(axios.request).toHaveBeenCalledOnce();
+      const [config] = vi.mocked(axios.request).mock.calls[0]!;
+      expect(config).toMatchObject({
+        url: `${cloudBackend.host}/api/v1/app-conversations?ids=conv-abc`,
         method: "GET",
-        path: "/api/conversations/conv-abc",
-        headers: { "X-Session-API-Key": "session-xyz" },
       });
-      expect(result.stats.usage_to_metrics.agent?.accumulated_cost).toBe(1.23);
+      expect(result.metrics?.accumulated_cost).toBe(1.23);
+      expect(result.stats).toEqual({ usage_to_metrics: {} });
     });
   });
 

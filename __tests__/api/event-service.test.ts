@@ -5,11 +5,11 @@ import {
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
 import EventService from "#/api/event-service/event-service.api";
-import { callCloudProxy } from "#/api/cloud/proxy";
+import { callCloudApi } from "#/api/cloud/proxy";
 import type { Backend } from "#/api/backend-registry/types";
 
 vi.mock("#/api/cloud/proxy", () => ({
-  callCloudProxy: vi.fn(),
+  callCloudApi: vi.fn(),
 }));
 
 const cloudBackend: Backend = {
@@ -25,8 +25,8 @@ beforeEach(() => {
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id, orgId: "org-1" });
-  vi.mocked(callCloudProxy).mockReset();
-  vi.mocked(callCloudProxy).mockResolvedValue({
+  vi.mocked(callCloudApi).mockReset();
+  vi.mocked(callCloudApi).mockResolvedValue({
     items: [],
     next_page_id: null,
   });
@@ -35,7 +35,7 @@ beforeEach(() => {
 afterEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
-  vi.mocked(callCloudProxy).mockReset();
+  vi.mocked(callCloudApi).mockReset();
 });
 
 describe("EventService.searchEvents — cloud branch", () => {
@@ -50,7 +50,7 @@ describe("EventService.searchEvents — cloud branch", () => {
 
     await EventService.searchEvents("conv-1", null, null, options);
 
-    const proxyCall = vi.mocked(callCloudProxy).mock.calls[0][0];
+    const proxyCall = vi.mocked(callCloudApi).mock.calls[0][0];
     const url = new URL(`https://x${proxyCall.path}`);
     expect(url.searchParams.get("limit")).toBe("100");
     expect(url.searchParams.get("sort_order")).toBe("TIMESTAMP_DESC");
@@ -66,7 +66,7 @@ describe("EventService.searchEvents — cloud branch", () => {
   it("sends only limit when no filter params are provided", async () => {
     await EventService.searchEvents("conv-1", null, null, { limit: 50 });
 
-    const proxyCall = vi.mocked(callCloudProxy).mock.calls[0][0];
+    const proxyCall = vi.mocked(callCloudApi).mock.calls[0][0];
     expect(proxyCall.path).toBe(
       "/api/v1/conversation/conv-1/events/search?limit=50",
     );
@@ -75,7 +75,7 @@ describe("EventService.searchEvents — cloud branch", () => {
   it("returns empty page when full-param request fails (graceful degradation)", async () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
-    vi.mocked(callCloudProxy).mockRejectedValueOnce(
+    vi.mocked(callCloudApi).mockRejectedValueOnce(
       new Error("Internal Server Error"),
     );
 
@@ -86,7 +86,7 @@ describe("EventService.searchEvents — cloud branch", () => {
     });
 
     // Only one call — no retry, just returns empty page to stop pagination.
-    expect(vi.mocked(callCloudProxy)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(callCloudApi)).toHaveBeenCalledTimes(1);
     expect(result.items).toHaveLength(0);
     expect(result.next_page_id).toBeNull();
     expect(warnSpy).toHaveBeenCalledWith(
@@ -97,19 +97,17 @@ describe("EventService.searchEvents — cloud branch", () => {
   });
 
   it("rethrows when a limit-only request (no filter params) fails", async () => {
-    vi.mocked(callCloudProxy).mockRejectedValueOnce(
-      new Error("Network error"),
-    );
+    vi.mocked(callCloudApi).mockRejectedValueOnce(new Error("Network error"));
 
     await expect(
       EventService.searchEvents("conv-1", null, null, { limit: 50 }),
     ).rejects.toThrow("Network error");
 
-    expect(vi.mocked(callCloudProxy)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(callCloudApi)).toHaveBeenCalledTimes(1);
   });
 
   it("stops pagination when server returns fewer items than limit", async () => {
-    vi.mocked(callCloudProxy).mockResolvedValueOnce({
+    vi.mocked(callCloudApi).mockResolvedValueOnce({
       items: [{ id: "evt-1" }, { id: "evt-2" }],
       next_page_id: null,
     });

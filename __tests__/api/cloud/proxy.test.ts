@@ -5,7 +5,7 @@ import {
   setActiveSelection,
   setRegisteredBackends,
 } from "#/api/backend-registry/active-store";
-import { callCloudProxy } from "#/api/cloud/proxy";
+import { callCloudApi, callLegacyRuntimeCloudProxy } from "#/api/cloud/proxy";
 import type { Backend } from "#/api/backend-registry/types";
 
 vi.mock("axios");
@@ -42,27 +42,20 @@ afterEach(() => {
   vi.mocked(axios.post).mockReset();
 });
 
-describe("callCloudProxy X-Org-Id injection", () => {
+describe("callCloudApi X-Org-Id injection", () => {
   it("sends X-Org-Id when targeting the active cloud backend with a selected orgId", async () => {
-    // Arrange — active selection points at the cloud backend with a
-    // resolved orgId. This is the steady-state case after the user picks
-    // an org row in the BackendSelector.
     setRegisteredBackends([cloudPersonal]);
     setActiveSelection({
       backendId: cloudPersonal.id,
       orgId: "org-personal-uuid",
     });
 
-    // Act
-    await callCloudProxy({
+    await callCloudApi({
       backend: cloudPersonal,
       method: "GET",
       path: "/api/v1/app-conversations/search",
     });
 
-    // Assert — the request carries the X-Org-Id of the active selection so the
-    // cloud backend can scope this request to the user's locally-chosen org
-    // without depending on user.current_org_id.
     const [config] = vi.mocked(axios.request).mock.calls[0]!;
     expect(config).toMatchObject({
       url: `${cloudPersonal.host}/api/v1/app-conversations/search`,
@@ -74,24 +67,18 @@ describe("callCloudProxy X-Org-Id injection", () => {
   });
 
   it("omits X-Org-Id when targeting a different cloud backend than the active one", async () => {
-    // Arrange — the BackendSelector fan-out (e.g. useAllCloudOrganizations)
-    // calls callCloudProxy(b) for every registered cloud backend. Sending
-    // the active backend's orgId across an unrelated API key would cause
-    // the cloud backend to 403 on api_key_org_id / X-Org-Id mismatch.
     setRegisteredBackends([cloudPersonal, cloudAcme]);
     setActiveSelection({
       backendId: cloudPersonal.id,
       orgId: "org-personal-uuid",
     });
 
-    // Act — request targets the non-active backend.
-    await callCloudProxy({
+    await callCloudApi({
       backend: cloudAcme,
       method: "GET",
       path: "/api/keys/current",
     });
 
-    // Assert
     const [config] = vi.mocked(axios.request).mock.calls[0]!;
     expect(
       (config as { headers: Record<string, string> }).headers,
@@ -99,26 +86,19 @@ describe("callCloudProxy X-Org-Id injection", () => {
   });
 });
 
-describe("callCloudProxy automation direct routing", () => {
-  it("sends automation requests straight to the cloud host with the API key instead of the /api/cloud-proxy envelope", async () => {
-    // Arrange — the automation service grants permissive CORS to API-key
-    // requests (automation#185), so app-host automation calls no longer
-    // need the same-origin proxy hop through the bundled agent-server.
+describe("callCloudApi direct routing", () => {
+  it("sends automation requests straight to the cloud host with the API key", async () => {
     setRegisteredBackends([cloudPersonal]);
     setActiveSelection({ backendId: cloudPersonal.id, orgId: null });
     const page = { automations: [], total: 0 };
     vi.mocked(axios.request).mockResolvedValue({ data: page });
 
-    // Act
-    const result = await callCloudProxy({
+    const result = await callCloudApi({
       backend: cloudPersonal,
       method: "GET",
       path: "/api/automation/v1?limit=50&offset=0",
     });
 
-    // Assert — the browser calls the automation API on the cloud host
-    // directly, authenticated by the backend's API key, and no envelope
-    // POST reaches /api/cloud-proxy.
     expect(axios.post).not.toHaveBeenCalled();
     const [config] = vi.mocked(axios.request).mock.calls[0]!;
     expect(config).toMatchObject({
@@ -132,14 +112,10 @@ describe("callCloudProxy automation direct routing", () => {
   });
 
   it("forwards the blob responseType and fail-fast timeout to the direct request", async () => {
-    // Arrange — tarball downloads and health probes rely on these
-    // per-request options surviving the switch from the proxy envelope to
-    // the direct call.
     setRegisteredBackends([cloudPersonal]);
     setActiveSelection({ backendId: cloudPersonal.id, orgId: null });
 
-    // Act
-    await callCloudProxy({
+    await callCloudApi({
       backend: cloudPersonal,
       method: "GET",
       path: "/api/automation/v1/auto-1/tarball",
@@ -147,7 +123,6 @@ describe("callCloudProxy automation direct routing", () => {
       timeoutSeconds: 5,
     });
 
-    // Assert
     const [config] = vi.mocked(axios.request).mock.calls[0]!;
     expect(config).toMatchObject({
       responseType: "blob",
@@ -156,28 +131,22 @@ describe("callCloudProxy automation direct routing", () => {
   });
 });
 
-describe("callCloudProxy hostOverride routing", () => {
+describe("callLegacyRuntimeCloudProxy routing", () => {
   const runtimeHost = "https://abc123.prod-runtime.all-hands.dev";
 
-  it("routes through the local /api/cloud-proxy instead of the upstream host when hostOverride is set", async () => {
-    // Arrange — runtime-sandbox endpoints need the proxy hop because the
-    // per-conversation runtime hosts reject browser requests from the
-    // local GUI origin.
+  it("routes through local /api/cloud-proxy instead of the upstream runtime host", async () => {
     setRegisteredBackends([cloudPersonal]);
     setActiveSelection({ backendId: cloudPersonal.id, orgId: null });
     vi.mocked(axios.post).mockResolvedValue({ data: { items: [] } });
 
-    // Act
-    const result = await callCloudProxy({
+    const result = await callLegacyRuntimeCloudProxy({
       backend: cloudPersonal,
       method: "GET",
+      host: runtimeHost,
       path: "/api/bash/bash_events/search",
-      hostOverride: runtimeHost,
+      sessionApiKey: "sandbox-session",
     });
 
-    // Assert — the browser only makes a same-origin POST to the bundled
-    // agent-server's proxy endpoint carrying the upstream call as an
-    // envelope, and the upstream payload is unwrapped for the caller.
     expect(axios.request).not.toHaveBeenCalled();
     const [url, envelope] = vi.mocked(axios.post).mock.calls[0]!;
     expect(url).toMatch(/\/api\/cloud-proxy$/);
@@ -185,35 +154,33 @@ describe("callCloudProxy hostOverride routing", () => {
       host: runtimeHost,
       method: "GET",
       path: "/api/bash/bash_events/search",
+      headers: { "X-Session-API-Key": "sandbox-session" },
     });
     expect(result).toEqual({ items: [] });
   });
 
-  it("carries bearer auth and X-Org-Id inside the proxy envelope", async () => {
-    // Arrange — org scoping must survive the server-side hop: the envelope
-    // headers are what the agent-server attaches to the upstream call in
-    // place of the headers a direct browser request would have sent.
+  it("carries explicit headers inside the proxy envelope", async () => {
     setRegisteredBackends([cloudPersonal]);
     setActiveSelection({
       backendId: cloudPersonal.id,
       orgId: "org-personal-uuid",
     });
 
-    // Act
-    await callCloudProxy({
+    await callLegacyRuntimeCloudProxy({
       backend: cloudPersonal,
       method: "GET",
+      host: runtimeHost,
       path: "/api/bash/bash_events/search",
-      hostOverride: runtimeHost,
+      sessionApiKey: "sandbox-session",
+      headers: { "X-Custom": "custom" },
     });
 
-    // Assert
     const [, envelope] = vi.mocked(axios.post).mock.calls[0]!;
     expect(
       (envelope as { headers: Record<string, string> }).headers,
     ).toMatchObject({
-      Authorization: `Bearer ${cloudPersonal.apiKey}`,
-      "X-Org-Id": "org-personal-uuid",
+      "X-Session-API-Key": "sandbox-session",
+      "X-Custom": "custom",
     });
   });
 });
