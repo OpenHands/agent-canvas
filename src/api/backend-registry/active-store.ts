@@ -138,6 +138,33 @@ export function subscribeActiveBackend(listener: Listener): () => void {
   };
 }
 
+/** Restore the active backend from URL params (?bid=…&oid=…) placed there
+ * by sidebar links. Runs once at module init, before React renders. */
+export function consumeUrlBackendParams(): void {
+  if (typeof window === "undefined") return;
+
+  const params = new URLSearchParams(window.location.search);
+  const bid = params.get("bid");
+  if (!bid) return;
+
+  const oid = params.get("oid") || null;
+
+  if (snapshot.backends.some((b) => b.id === bid)) {
+    setActiveSelection({ backendId: bid, orgId: oid });
+  }
+
+  params.delete("bid");
+  params.delete("oid");
+  const remaining = params.toString();
+  const cleanUrl =
+    window.location.pathname +
+    (remaining ? `?${remaining}` : "") +
+    window.location.hash;
+  window.history.replaceState(window.history.state, "", cleanUrl);
+}
+
+consumeUrlBackendParams();
+
 /** Test-only: re-read storage and clear listeners. */
 
 export function __resetActiveStoreForTests(): void {
