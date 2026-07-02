@@ -9,6 +9,8 @@ import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import i18n from "#/i18n";
 import { useConfig } from "#/hooks/query/use-config";
+import { useActiveBackendContext } from "#/contexts/active-backend-context";
+import { AnalyticsConsentFormModal } from "#/components/features/analytics/analytics-consent-form-modal";
 import { Sidebar } from "#/components/features/sidebar/sidebar";
 import { SidebarMobileNavProvider } from "#/components/features/sidebar/sidebar-mobile-nav-context";
 import { SidebarMobileMenuBar } from "#/components/features/sidebar/sidebar-mobile-menu-bar";
@@ -75,7 +77,9 @@ export default function MainApp() {
   const appTitle = useAppTitle();
   const { data: settings } = useSettings();
   const { migrateUserConsent } = useMigrateUserConsent();
+  const { active } = useActiveBackendContext();
   const config = useConfig();
+  const [consentFormIsOpen, setConsentFormIsOpen] = React.useState(false);
 
   useSyncPostHogConsent();
   usePostHogIdentify();
@@ -89,7 +93,18 @@ export default function MainApp() {
   }, [settings?.language]);
 
   React.useEffect(() => {
-    migrateUserConsent();
+    setConsentFormIsOpen(
+      active.backend.kind === "cloud" &&
+        settings?.user_consents_to_analytics === null,
+    );
+  }, [active.backend.kind, settings?.user_consents_to_analytics]);
+
+  React.useEffect(() => {
+    migrateUserConsent({
+      handleAnalyticsWasPresentInLocalStorage: () => {
+        setConsentFormIsOpen(false);
+      },
+    });
   }, [migrateUserConsent]);
 
   if (config.isLoading) {
@@ -140,6 +155,14 @@ export default function MainApp() {
               <Outlet />
             </div>
           </div>
+
+          {consentFormIsOpen && (
+            <AnalyticsConsentFormModal
+              onClose={() => {
+                setConsentFormIsOpen(false);
+              }}
+            />
+          )}
         </div>
         <React.Suspense fallback={null}>
           <EnvironmentSwitchOverlay />

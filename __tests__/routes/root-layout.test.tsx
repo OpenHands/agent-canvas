@@ -6,6 +6,7 @@ import MainApp from "#/routes/root-layout";
 
 const useConfigMock = vi.fn();
 const useSettingsMock = vi.fn();
+const useActiveBackendContextMock = vi.fn();
 const migrateUserConsentMock = vi.fn();
 
 vi.mock("#/hooks/query/use-config", () => ({
@@ -14,6 +15,11 @@ vi.mock("#/hooks/query/use-config", () => ({
 
 vi.mock("#/hooks/query/use-settings", () => ({
   useSettings: () => useSettingsMock(),
+}));
+
+vi.mock("#/contexts/active-backend-context", () => ({
+  useActiveBackendContext: () => useActiveBackendContextMock(),
+  useActiveBackend: () => useActiveBackendContextMock().active,
 }));
 
 vi.mock("#/hooks/use-migrate-user-consent", () => ({
@@ -36,6 +42,12 @@ vi.mock("#/hooks/use-app-title", () => ({
 
 vi.mock("#/components/features/sidebar/sidebar", () => ({
   Sidebar: () => <div data-testid="sidebar" />,
+}));
+
+vi.mock("#/components/features/analytics/analytics-consent-form-modal", () => ({
+  AnalyticsConsentFormModal: () => (
+    <div data-testid="analytics-consent-modal" />
+  ),
 }));
 
 vi.mock("#/components/features/alerts/alert-banner", () => ({
@@ -99,6 +111,11 @@ describe("root layout", () => {
         user_consents_to_analytics: true,
       },
     });
+    useActiveBackendContextMock.mockReturnValue({
+      active: {
+        backend: { id: "local", kind: "local" },
+      },
+    });
   });
 
   it("shows a loading spinner while config is loading", () => {
@@ -113,7 +130,7 @@ describe("root layout", () => {
     expect(screen.getByTestId("loading-spinner")).toBeInTheDocument();
   });
 
-  it("does not render the analytics consent modal when analytics consent is missing", () => {
+  it("does not show the analytics modal for local backends when consent is missing", () => {
     useSettingsMock.mockReturnValue({
       data: {
         language: "en",
@@ -129,12 +146,36 @@ describe("root layout", () => {
 
     expect(screen.getByTestId("sidebar")).toBeInTheDocument();
     expect(screen.getByTestId("outlet-content")).toBeInTheDocument();
-    // The analytics consent popup was removed from onboarding: a missing
-    // (null) consent value must no longer surface the consent form.
     expect(
-      screen.queryByTestId("user-capture-consent-form"),
+      screen.queryByTestId("analytics-consent-modal"),
     ).not.toBeInTheDocument();
     expect(migrateUserConsentMock).toHaveBeenCalled();
+  });
+
+  it("shows the analytics modal for cloud backends when consent is missing", async () => {
+    useActiveBackendContextMock.mockReturnValue({
+      active: {
+        backend: { id: "cloud", kind: "cloud" },
+      },
+    });
+    useSettingsMock.mockReturnValue({
+      data: {
+        language: "en",
+        user_consents_to_analytics: null,
+      },
+    });
+
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <RouterStub initialEntries={["/"]} />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByTestId("sidebar")).toBeInTheDocument();
+    expect(screen.getByTestId("outlet-content")).toBeInTheDocument();
+    expect(
+      await screen.findByTestId("analytics-consent-modal"),
+    ).toBeInTheDocument();
   });
 
   it("renders an identical root-layout className across routes so navigation never shifts the outer container", () => {

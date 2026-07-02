@@ -62,6 +62,18 @@ describe("AppSettingsScreen", () => {
     );
   });
 
+  it("shows analytics disabled until consent is explicitly granted", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettings({ user_consents_to_analytics: null }),
+    );
+
+    renderAppSettingsScreen();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("enable-analytics-switch")).not.toBeChecked();
+    });
+  });
+
   it("saves updated git author details in OSS mode", async () => {
     const saveSettingsSpy = vi
       .spyOn(SettingsService, "saveSettings")
