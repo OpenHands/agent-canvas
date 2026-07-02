@@ -100,6 +100,34 @@ docker run -it --rm \
   ghcr.io/openhands/agent-canvas:1.1.0
 ```
 
+If you're using rootful Docker Engine on Linux and the container cannot write
+to the mounted `~/.openhands` directory, run it as your host user:
+
+```sh
+docker run -it --rm \
+  --user "$(id -u):$(id -g)" \
+  -p 8000:8000 \
+  -v "$HOME/.openhands:/home/openhands/.openhands" \
+  -v "${PROJECTS_PATH}:/projects" \
+  ghcr.io/openhands/agent-canvas:1.0.0-rc.11
+```
+
+For Docker Compose on rootful Linux, set `user` to your host UID/GID.
+Run `id -u` and `id -g` once on the host and replace the example values
+below:
+
+```yaml
+services:
+  openhands:
+    image: ghcr.io/openhands/agent-canvas:1.0.0-rc.11
+    user: "1000:1000" # replace with id -u:id -g
+    ports:
+      - "8000:8000"
+    volumes:
+      - "${HOME}/.openhands:/home/openhands/.openhands"
+      - "${HOME}/projects:/projects"
+```
+
 **Windows (PowerShell / Windows Terminal):** See [README.windows.md](./README.windows.md) for the equivalent commands.
 
 The agent will be able to access any project under `PROJECTS_PATH`.
