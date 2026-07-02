@@ -36,6 +36,12 @@ interface EditAutomationModalProps {
 
 type FrequencyKey = SchedulePresetKind | "custom";
 
+// Sentinel key for the "Active profile" picker option. Real profile names must
+// start with an alphanumeric (backend MODEL_PROFILE_PATTERN), so this cannot
+// collide with a stored profile name. Maps to an empty `form.model` (= use the
+// active/default profile).
+const ACTIVE_PROFILE_KEY = "__active__";
+
 const WEEKDAY_KEYS: I18nKey[] = [
   I18nKey.AUTOMATIONS$WEEKDAY_SUN,
   I18nKey.AUTOMATIONS$WEEKDAY_MON,
@@ -107,7 +113,10 @@ export function EditAutomationModal({
   const updateMutation = useUpdateAutomation();
   const { data: profilesData, isLoading: isLoadingProfiles } = useLlmProfiles();
   const profiles = profilesData?.profiles ?? [];
-  const modelItems = profiles.map((p) => ({ key: p.name, label: p.name }));
+  const modelItems = [
+    { key: ACTIVE_PROFILE_KEY, label: t(I18nKey.COMMON$ACTIVE_PROFILE) },
+    ...profiles.map((p) => ({ key: p.name, label: p.name })),
+  ];
 
   const initial = useMemo(() => buildInitialState(automation), [automation]);
   const [form, setForm] = useState<FormState>(initial);
@@ -178,8 +187,9 @@ export function EditAutomationModal({
     }
 
     const selectedModel = form.model.trim();
-    if (selectedModel && selectedModel !== (automation.model ?? "")) {
-      body.model = selectedModel;
+    const initialModel = automation.model ?? "";
+    if (selectedModel !== initialModel) {
+      body.model = selectedModel === "" ? null : selectedModel;
     }
 
     if (!form.isCustomSchedule && form.frequency !== "custom") {
@@ -291,11 +301,14 @@ export function EditAutomationModal({
               name="model"
               label={t(I18nKey.AUTOMATIONS$DETAIL$MODEL)}
               items={modelItems}
-              selectedKey={form.model || undefined}
+              selectedKey={form.model || ACTIVE_PROFILE_KEY}
               isLoading={isLoadingProfiles}
               placeholder={t(I18nKey.COMMON$ACTIVE_PROFILE)}
               onSelectionChange={(key) =>
-                setForm((f) => ({ ...f, model: key ? String(key) : "" }))
+                setForm((f) => ({
+                  ...f,
+                  model: key && key !== ACTIVE_PROFILE_KEY ? String(key) : "",
+                }))
               }
             />
           )}

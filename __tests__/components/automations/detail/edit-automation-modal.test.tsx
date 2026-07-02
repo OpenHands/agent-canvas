@@ -274,6 +274,38 @@ describe("EditAutomationModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("resets the LLM profile to active when 'Active profile' is selected", async () => {
+    // Arrange — automation pinned to "fast"; the backend re-resolves a null
+    // model back to whatever profile is active.
+    vi.mocked(ProfilesService.listProfiles).mockResolvedValue(profilesResponse);
+    vi.mocked(AutomationService.updateAutomation).mockResolvedValue({
+      ...modeledAutomation,
+      model: "fast",
+    });
+    const user = userEvent.setup();
+    renderModal(modeledAutomation);
+
+    // The picker pre-fills with the pinned profile once profiles have loaded.
+    await waitFor(() =>
+      expect(screen.getByLabelText("AUTOMATIONS$DETAIL$MODEL")).toHaveValue(
+        "fast",
+      ),
+    );
+
+    // Act — clear the pin via the "Active profile" option, then save.
+    await user.click(screen.getByLabelText("AUTOMATIONS$DETAIL$MODEL"));
+    await user.click(await screen.findByText("COMMON$ACTIVE_PROFILE"));
+    await user.click(screen.getByTestId("edit-automation-save"));
+
+    // Assert — the PATCH carries model: null so the backend resets to active.
+    await waitFor(() => {
+      expect(AutomationService.updateAutomation).toHaveBeenCalledTimes(1);
+    });
+    expect(AutomationService.updateAutomation).toHaveBeenCalledWith("auto-3", {
+      model: null,
+    });
+  });
+
   it("omits the LLM profile from the payload when it is left unchanged", async () => {
     // Arrange — profiles available; the user will only rename the automation.
     vi.mocked(ProfilesService.listProfiles).mockResolvedValue(profilesResponse);
