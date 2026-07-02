@@ -24,6 +24,9 @@ export const useWebSocket = <T = string>(
   const attemptCountRef = React.useRef(0);
   const reconnectTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const shouldReconnectRef = React.useRef(true); // Only set to false by disconnect()
+  // Set to true when the socket was closed because the tab became hidden.
+  // Cleared (and a reconnect triggered) when the tab becomes visible again.
+  const pausedForVisibilityRef = React.useRef(false);
   // Track which WebSocket instances are allowed to reconnect using a WeakSet
   const allowedToReconnectRef = React.useRef<WeakSet<WebSocket>>(new WeakSet());
 
@@ -126,7 +129,47 @@ export const useWebSocket = <T = string>(
       connectWebSocket();
     }
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        // Suspend the connection while the tab is hidden.
+        pausedForVisibilityRef.current = true;
+        // Cancel any scheduled reconnect so it doesn't fire in the background.
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+          reconnectTimeoutRef.current = null;
+        }
+        setIsReconnecting(false);
+        // Close the socket without allowing its onclose to trigger a reconnect.
+        if (wsRef.current) {
+          const wsToClose = wsRef.current;
+          wsRef.current = null;
+          allowedToReconnectRef.current.delete(wsToClose);
+          if (
+            wsToClose.readyState === WebSocket.CONNECTING ||
+            wsToClose.readyState === WebSocket.OPEN
+          ) {
+            wsToClose.close();
+          }
+        }
+        setIsConnected(false);
+      } else if (
+        pausedForVisibilityRef.current &&
+        shouldReconnectRef.current &&
+        url.trim() !== ""
+      ) {
+        // Tab is visible again after a visibility-pause — reconnect.
+        pausedForVisibilityRef.current = false;
+        attemptCountRef.current = 0;
+        connectWebSocket();
+      } else {
+        pausedForVisibilityRef.current = false;
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       // Disable reconnection on unmount to prevent reconnection attempts
       // This must be set BEFORE closing the socket, so the onclose handler sees it
       shouldReconnectRef.current = false;
@@ -178,6 +221,7 @@ export const useWebSocket = <T = string>(
 
   const reconnect = React.useCallback(() => {
     shouldReconnectRef.current = true;
+    pausedForVisibilityRef.current = false;
     attemptCountRef.current = 0;
     setIsReconnecting(true);
     setError(null);

@@ -12,6 +12,7 @@ import {
   it,
   expect,
   beforeAll,
+  beforeEach,
   afterAll,
   afterEach,
   vi,
@@ -469,6 +470,157 @@ describe("useWebSocket", () => {
     // Verify that WebSocket.send was called with the correct message
     expect(sendSpy).toHaveBeenCalledOnce();
     expect(sendSpy).toHaveBeenCalledWith("Hello WebSocket!");
+  });
+
+  describe("tab visibility", () => {
+    class MockWebSocket {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSING = 2;
+      static readonly CLOSED = 3;
+
+      readonly url: string;
+      readyState = MockWebSocket.CONNECTING;
+      onopen: ((event: Event) => void) | null = null;
+      onmessage: ((event: MessageEvent) => void) | null = null;
+      onclose: ((event: CloseEvent) => void) | null = null;
+      onerror: ((event: Event) => void) | null = null;
+
+      constructor(url: string) {
+        this.url = url;
+        queueMicrotask(() => {
+          this.readyState = MockWebSocket.OPEN;
+          this.onopen?.(new Event("open"));
+        });
+      }
+
+      send() {}
+
+      close(code = 1000, reason = "Normal closure") {
+        this.readyState = MockWebSocket.CLOSED;
+        this.onclose?.(
+          new CloseEvent("close", { code, reason, wasClean: code === 1000 }),
+        );
+      }
+    }
+
+    let originalWebSocket: typeof WebSocket;
+    let instances: MockWebSocket[];
+
+    beforeEach(() => {
+      instances = [];
+      originalWebSocket = globalThis.WebSocket;
+      vi.stubGlobal(
+        "WebSocket",
+        class extends MockWebSocket {
+          constructor(url: string) {
+            super(url);
+            instances.push(this);
+          }
+        },
+      );
+    });
+
+    afterEach(() => {
+      globalThis.WebSocket = originalWebSocket;
+    });
+
+    it("closes the WebSocket when the tab becomes hidden", async () => {
+      const { result, unmount } = renderHook(() =>
+        useWebSocket("ws://acme.com/ws"),
+      );
+
+      await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+      const closeSpy = vi.spyOn(instances[0], "close");
+
+      act(() => {
+        Object.defineProperty(document, "visibilityState", {
+          value: "hidden",
+          configurable: true,
+        });
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+
+      await waitFor(() => expect(result.current.isConnected).toBe(false));
+      expect(closeSpy).toHaveBeenCalledOnce();
+
+      unmount();
+    });
+
+    it("reconnects the WebSocket when the tab becomes visible again", async () => {
+      const { result, unmount } = renderHook(() =>
+        useWebSocket("ws://acme.com/ws"),
+      );
+
+      await waitFor(() => expect(result.current.isConnected).toBe(true));
+      expect(instances).toHaveLength(1);
+
+      // Hide the tab
+      act(() => {
+        Object.defineProperty(document, "visibilityState", {
+          value: "hidden",
+          configurable: true,
+        });
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+
+      await waitFor(() => expect(result.current.isConnected).toBe(false));
+
+      // Show the tab again
+      act(() => {
+        Object.defineProperty(document, "visibilityState", {
+          value: "visible",
+          configurable: true,
+        });
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+
+      // A second WebSocket instance should have been created
+      await waitFor(() => expect(instances).toHaveLength(2));
+      await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+      unmount();
+    });
+
+    it("does not reconnect when disconnect() was called while the tab was hidden", async () => {
+      const { result, unmount } = renderHook(() =>
+        useWebSocket("ws://acme.com/ws"),
+      );
+
+      await waitFor(() => expect(result.current.isConnected).toBe(true));
+
+      // Hide the tab
+      act(() => {
+        Object.defineProperty(document, "visibilityState", {
+          value: "hidden",
+          configurable: true,
+        });
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+
+      await waitFor(() => expect(result.current.isConnected).toBe(false));
+
+      // Explicit user disconnect while hidden
+      act(() => {
+        result.current.disconnect();
+      });
+
+      // Show the tab again — should NOT reconnect
+      act(() => {
+        Object.defineProperty(document, "visibilityState", {
+          value: "visible",
+          configurable: true,
+        });
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+
+      // Still only one instance; still disconnected
+      expect(instances).toHaveLength(1);
+      expect(result.current.isConnected).toBe(false);
+
+      unmount();
+    });
   });
 
   it("should not send message when WebSocket is not connected", () => {
