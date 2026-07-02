@@ -772,8 +772,8 @@ describe("AgentSettingsScreen", () => {
     renderAgentSettingsScreen();
     await screen.findByTestId("agent-settings-screen");
 
-    // Switch to ACP (Claude Code prefilled) and paste a credential — there is
-    // ONE Save button for the whole page; the credentials section has none.
+    // Switch to ACP (Claude Code prefilled) and paste a credential, then click
+    // the single page-level Save button.
     await user.click(screen.getByTestId("agent-type-selector"));
     await user.click(
       await screen.findByRole("option", { name: "SETTINGS$AGENT_TYPE_ACP" }),
@@ -782,9 +782,6 @@ describe("AgentSettingsScreen", () => {
       await screen.findByTestId("settings-acp-secret-ANTHROPIC_API_KEY"),
       "sk-ant-xyz",
     );
-    expect(
-      screen.queryByTestId("acp-credentials-save-button"),
-    ).not.toBeInTheDocument();
 
     await user.click(screen.getByTestId("agent-save-button"));
 

@@ -151,7 +151,7 @@ describe("useModelInterceptor", () => {
     expect(mockSwitchAndLog).not.toHaveBeenCalled();
   });
 
-  it("falls through on cloud backends", () => {
+  it("intercepts on cloud backends (cloud also manages the LLM via profiles)", () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
     const onSubmit = vi.fn();
@@ -163,8 +163,8 @@ describe("useModelInterceptor", () => {
 
     act(() => result.current("/model haiku"));
 
-    expect(onSubmit).toHaveBeenCalledWith("/model haiku");
-    expect(mockSwitchAndLog).not.toHaveBeenCalled();
+    expect(mockSwitchAndLog).toHaveBeenCalledWith(CONVERSATION_ID, "haiku");
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it("activates the named profile globally even when no conversation is set", () => {
