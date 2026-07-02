@@ -64,6 +64,12 @@ export function getMcpMarketplaceCatalog(
   return catalog.filter((entry) => !!getDefaultMcpConnectionOption(entry));
 }
 
+export function getInstallableMcpMarketplaceCatalog(
+  catalog: MarketplaceEntry[],
+): MarketplaceEntry[] {
+  return catalog.filter((entry) => !!getInstallableMcpConnectionOption(entry));
+}
+
 const tryUrl = (raw: string): URL | null => {
   try {
     return new URL(raw);
