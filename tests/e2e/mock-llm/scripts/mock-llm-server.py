@@ -256,7 +256,8 @@ def _parse_trajectory_turns(raw_turns: list[dict]) -> list[Message | Exception]:
     """Convert JSON turn descriptors into Message objects.
 
     Each turn is a dict with either:
-      - {"tool_call": {"name": ..., "arguments": ...}}  → tool-call message
+      - {"tool_call": {"name": ..., "arguments": ..., "text": ...}}  → tool-call message
+        (``text`` is optional assistant content streamed alongside the tool call)
       - {"text": "..."}  → text reply message
     """
     messages: list[Message | Exception] = []
@@ -266,7 +267,7 @@ def _parse_trajectory_turns(raw_turns: list[dict]) -> list[Message | Exception]:
             messages.append(
                 Message(
                     role="assistant",
-                    content=[TextContent(text="")],
+                    content=[TextContent(text=tc.get("text", ""))],
                     tool_calls=[
                         MessageToolCall(
                             id=f"call_dyn_{i:03d}",
