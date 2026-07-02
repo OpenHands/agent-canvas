@@ -15,7 +15,10 @@ import type { ActionEvent, MessageEvent } from "#/types/agent-server/core";
 import { SecurityRisk } from "#/types/agent-server/core";
 import type { FinishAction } from "#/types/agent-server/core/base/action";
 import type { CriticResult } from "#/types/agent-server/core/base/critic";
-import { seedLocalStorage, routeSessionApiKey } from "../utils/mock-llm-helpers";
+import {
+  seedLocalStorage,
+  routeSessionApiKey,
+} from "../utils/mock-llm-helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -629,5 +632,41 @@ test.describe("UI regressions", () => {
     const dropdown = page.getByTestId("workspace-dropdown");
     await expect(dropdown).toBeEnabled({ timeout: 15_000 });
     await expect(dropdown).toHaveValue("");
+  });
+
+  // ── #1524: command menu navigation entries are real links ─────────
+
+  test("opens command-menu navigation entries in a new tab with modifier click", async ({
+    page,
+  }) => {
+    await routeSessionApiKey(page);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("root-layout")).toBeVisible({
+      timeout: 15_000,
+    });
+    const originalPath = new URL(page.url()).pathname;
+
+    await page.keyboard.press("Control+K");
+    await expect(page.getByTestId("command-menu")).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const automationsOption = page.getByRole("option", {
+      name: /Automations/,
+    });
+    await expect(automationsOption).toBeVisible();
+    await expect(automationsOption).toHaveAttribute("href", "/automations");
+
+    const popupPromise = page.waitForEvent("popup");
+    await automationsOption.click({ modifiers: ["Control"] });
+    const popup = await popupPromise;
+    await popup.waitForLoadState("domcontentloaded");
+    await expect
+      .poll(() => new URL(popup.url()).pathname, { timeout: 15_000 })
+      .toBe("/automations");
+
+    await expect(page.getByTestId("command-menu")).toBeVisible();
+    await expect.poll(() => new URL(page.url()).pathname).toBe(originalPath);
+    await popup.close();
   });
 });
