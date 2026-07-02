@@ -14,6 +14,8 @@ import {
 interface AgentProfileRowProps {
   profile: AgentProfileSummary;
   isActive: boolean;
+  /** When false, the row is read-only and the actions menu is hidden. */
+  canManage: boolean;
   onActivate: (profile: AgentProfileSummary) => void;
   onEdit: (profile: AgentProfileSummary) => void;
   onDelete: (profile: AgentProfileSummary) => void;
@@ -23,6 +25,7 @@ interface AgentProfileRowProps {
 export function AgentProfileRow({
   profile,
   isActive,
+  canManage,
   onActivate,
   onEdit,
   onDelete,
@@ -67,26 +70,28 @@ export function AgentProfileRow({
           </BrandBadge>
         )}
       </div>
-      <div className="relative shrink-0">
-        <EllipsisButton
-          ref={triggerRef}
-          onClick={() => setMenuOpen((open) => !open)}
-          ariaLabel={t(I18nKey.SETTINGS$PROFILE_MENU)}
-          testId="agent-profile-menu-trigger"
-          className={settingsListIconActionButtonClassName}
-        />
-        {menuOpen && (
-          <AgentProfileActionsMenu
-            anchorRef={triggerRef}
-            onEdit={() => onEdit(profile)}
-            onSetActive={() => onActivate(profile)}
-            onDelete={() => onDelete(profile)}
-            isActive={isActive}
-            isActivating={isActivating}
-            onClose={() => setMenuOpen(false)}
+      {canManage && (
+        <div className="relative shrink-0">
+          <EllipsisButton
+            ref={triggerRef}
+            onClick={() => setMenuOpen((open) => !open)}
+            ariaLabel={t(I18nKey.SETTINGS$PROFILE_MENU)}
+            testId="agent-profile-menu-trigger"
+            className={settingsListIconActionButtonClassName}
           />
-        )}
-      </div>
+          {menuOpen && (
+            <AgentProfileActionsMenu
+              anchorRef={triggerRef}
+              onEdit={() => onEdit(profile)}
+              onSetActive={() => onActivate(profile)}
+              onDelete={() => onDelete(profile)}
+              isActive={isActive}
+              isActivating={isActivating}
+              onClose={() => setMenuOpen(false)}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

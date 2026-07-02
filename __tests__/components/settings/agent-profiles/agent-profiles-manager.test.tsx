@@ -45,6 +45,13 @@ vi.mock("#/contexts/active-backend-context", () => ({
   }),
 }));
 
+// Gating hook: `true` by default (local / owner-admin); flipped per test to
+// exercise the cloud view-only member path.
+const canManage = vi.hoisted(() => ({ value: true }));
+vi.mock("#/hooks/use-can-manage-org-profiles", () => ({
+  useCanManageOrgProfiles: () => canManage.value,
+}));
+
 const mockProfiles: AgentProfileSummary[] = [
   {
     id: "id-oh",
@@ -80,6 +87,7 @@ describe("AgentProfilesManager", () => {
     );
 
   beforeEach(() => {
+    canManage.value = true;
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -133,6 +141,24 @@ describe("AgentProfilesManager", () => {
     const user = userEvent.setup();
     await user.click(screen.getByTestId("add-agent-profile"));
     expect(onAddProfile).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides mutate controls for view-only members (canManage false)", async () => {
+    canManage.value = false;
+    const onAddProfile = vi.fn();
+    vi.mocked(AgentProfilesService.listProfiles).mockResolvedValue({
+      profiles: mockProfiles,
+      active_agent_profile_id: "id-oh",
+    });
+
+    renderManager({ onAddProfile });
+
+    // The list still renders, but there is no Add button and no row actions.
+    await screen.findByText("my-openhands");
+    expect(screen.queryByTestId("add-agent-profile")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("agent-profile-menu-trigger"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the empty state when there are no profiles", async () => {

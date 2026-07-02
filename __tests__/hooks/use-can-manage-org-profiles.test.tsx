@@ -2,7 +2,7 @@ import React from "react";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useCanManageLlmProfiles } from "#/hooks/use-can-manage-llm-profiles";
+import { useCanManageOrgProfiles } from "#/hooks/use-can-manage-org-profiles";
 import * as orgService from "#/api/cloud/organization-service.api";
 import * as activeBackendContext from "#/contexts/active-backend-context";
 import type { Backend } from "#/api/backend-registry/types";
@@ -41,14 +41,14 @@ function mockBackend(backend: Backend, orgId: string | null) {
   });
 }
 
-describe("useCanManageLlmProfiles", () => {
+describe("useCanManageOrgProfiles", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
   it("is always true on local backends (no /me call)", () => {
     mockBackend(localBackend, null);
-    const { result } = renderHook(() => useCanManageLlmProfiles(), { wrapper });
+    const { result } = renderHook(() => useCanManageOrgProfiles(), { wrapper });
     expect(result.current).toBe(true);
     expect(orgService.getCloudOrganizationMe).not.toHaveBeenCalled();
   });
@@ -62,7 +62,7 @@ describe("useCanManageLlmProfiles", () => {
       role: "member",
       permissions: ["view_org_settings", "edit_org_settings"],
     });
-    const { result } = renderHook(() => useCanManageLlmProfiles(), { wrapper });
+    const { result } = renderHook(() => useCanManageOrgProfiles(), { wrapper });
     await waitFor(() => expect(result.current).toBe(true));
   });
 
@@ -75,7 +75,7 @@ describe("useCanManageLlmProfiles", () => {
       role: "owner",
       permissions: ["view_org_settings"],
     });
-    const { result } = renderHook(() => useCanManageLlmProfiles(), { wrapper });
+    const { result } = renderHook(() => useCanManageOrgProfiles(), { wrapper });
     await waitFor(() =>
       expect(orgService.getCloudOrganizationMe).toHaveBeenCalled(),
     );
@@ -90,7 +90,7 @@ describe("useCanManageLlmProfiles", () => {
       role: "admin",
       permissions: null,
     });
-    const { result } = renderHook(() => useCanManageLlmProfiles(), { wrapper });
+    const { result } = renderHook(() => useCanManageOrgProfiles(), { wrapper });
     await waitFor(() => expect(result.current).toBe(true));
   });
 
@@ -102,7 +102,7 @@ describe("useCanManageLlmProfiles", () => {
       role: "member",
       permissions: null,
     });
-    const { result } = renderHook(() => useCanManageLlmProfiles(), { wrapper });
+    const { result } = renderHook(() => useCanManageOrgProfiles(), { wrapper });
     await waitFor(() =>
       expect(orgService.getCloudOrganizationMe).toHaveBeenCalled(),
     );

@@ -15,6 +15,8 @@ interface AgentProfilesBodyProps {
   loadError: Error | null;
   profiles: AgentProfileSummary[];
   activeId: string | null;
+  /** When false, rows are read-only and the actions menu is hidden. */
+  canManage: boolean;
   onActivate: (profile: AgentProfileSummary) => void;
   onEdit: (profile: AgentProfileSummary) => void;
   onDelete: (profile: AgentProfileSummary) => void;
@@ -26,6 +28,7 @@ export function AgentProfilesBody({
   loadError,
   profiles,
   activeId,
+  canManage,
   onActivate,
   onEdit,
   onDelete,
@@ -79,6 +82,7 @@ export function AgentProfilesBody({
           key={profile.name}
           profile={profile}
           isActive={!!profile.id && profile.id === activeId}
+          canManage={canManage}
           onActivate={onActivate}
           onEdit={onEdit}
           onDelete={onDelete}
