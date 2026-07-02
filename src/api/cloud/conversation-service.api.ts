@@ -1,5 +1,6 @@
 import { getActiveBackend } from "../backend-registry/active-store";
 import type { Backend } from "../backend-registry/types";
+import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import { getStoredConversationMetadata } from "../conversation-metadata-store";
 import type {
   AppConversation,
@@ -199,6 +200,27 @@ export async function pauseCloudSandbox(sandboxId: string): Promise<void> {
     backend,
     method: "POST",
     path: `/api/v1/sandboxes/${sandboxId}/pause`,
+  });
+}
+
+/**
+ * Interrupt the running agent loop on a cloud runtime sandbox. This targets the
+ * per-conversation agent-server endpoint through the local cloud proxy so the
+ * browser does not call the runtime host directly.
+ */
+export async function interruptCloudConversation(
+  conversationId: string,
+  conversationUrl: string,
+  sessionApiKey: string,
+): Promise<void> {
+  const backend = getActiveCloudBackend();
+  await callCloudProxy<unknown>({
+    backend,
+    method: "POST",
+    hostOverride: buildHttpBaseUrl(conversationUrl),
+    path: `/api/conversations/${conversationId}/interrupt`,
+    authMode: "session-api-key",
+    sessionApiKey,
   });
 }
 

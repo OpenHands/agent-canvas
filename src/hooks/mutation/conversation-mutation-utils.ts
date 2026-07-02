@@ -2,7 +2,10 @@ import { QueryClient } from "@tanstack/react-query";
 import { ConversationClient } from "@openhands/typescript-client/clients";
 import type { StartGoalRequest } from "@openhands/typescript-client";
 import { getActiveBackend } from "#/api/backend-registry/active-store";
-import { pauseCloudSandbox } from "#/api/cloud/conversation-service.api";
+import {
+  interruptCloudConversation,
+  pauseCloudSandbox,
+} from "#/api/cloud/conversation-service.api";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
@@ -34,9 +37,9 @@ const fetchConversationData = async (
 };
 
 /**
- * Stop a running conversation.
- * - Cloud mode: Pauses the sandbox (waits for current LLM call to finish).
- * - Local mode: Interrupts immediately (cancels in-flight requests).
+ * Stop the runtime backing a conversation.
+ * - Cloud mode: pause the sandbox.
+ * - Local mode: interrupt the local agent loop because there is no separate sandbox.
  */
 export const pauseConversation = async (conversationId: string) => {
   const { conversationUrl, sessionApiKey, sandboxId } =
@@ -48,13 +51,41 @@ export const pauseConversation = async (conversationId: string) => {
         `Cannot stop runtime: cloud conversation ${conversationId} has no sandbox_id.`,
       );
     }
+
     await pauseCloudSandbox(sandboxId);
     return { success: true };
   }
 
-  // In local mode, use /interrupt instead of /pause so in-flight LLM
-  // requests are cancelled immediately rather than waiting for the
-  // current call to finish.
+  return new ConversationClient(
+    getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
+  ).interruptConversation(conversationId);
+};
+
+/**
+ * Interrupt the active agent loop without stopping its backing runtime.
+ */
+export const interruptConversation = async (conversationId: string) => {
+  const { conversationUrl, sessionApiKey } =
+    await fetchConversationData(conversationId);
+
+  if (getActiveBackend().backend.kind === "cloud") {
+    const runtimeUrl = conversationUrl?.trim();
+    const runtimeSessionApiKey = sessionApiKey?.trim();
+
+    if (!runtimeUrl || !runtimeSessionApiKey) {
+      throw new Error(
+        "Conversation sandbox is still starting. Wait for it to finish, then try again.",
+      );
+    }
+
+    await interruptCloudConversation(
+      conversationId,
+      runtimeUrl,
+      runtimeSessionApiKey,
+    );
+    return { success: true };
+  }
+
   return new ConversationClient(
     getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
   ).interruptConversation(conversationId);
