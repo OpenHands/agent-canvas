@@ -37,18 +37,26 @@ describe("OpenHands extensions catalogs", () => {
     const catalog = getMcpMarketplaceCatalog(INTEGRATION_CATALOG);
     const linear = catalog.find((entry) => entry.id === "linear")!;
 
-    expect(getDefaultMcpTransport(linear)).toEqual({
+    // extensions >=0.8.0 lists an OAuth option ahead of the API-key one, so the
+    // default transport is the OAuth shttp /mcp endpoint (no apiKeyOptional).
+    expect(getDefaultMcpTransport(linear)).toMatchObject({
+      kind: "shttp",
+      url: "https://mcp.linear.app/mcp",
+    });
+    expect(linear.docsUrl).toBe("https://linear.app/docs/mcp");
+    const bearerOption = linear.connectionOptions.find(
+      (option) =>
+        option.transport?.kind === "shttp" && option.auth.strategy === "bearer",
+    );
+    expect(bearerOption?.transport).toMatchObject({
       kind: "shttp",
       url: "https://mcp.linear.app/mcp",
       apiKeyOptional: true,
     });
-    expect(linear.docsUrl).toBe("https://linear.app/docs/mcp");
-    const mcpOption = linear.connectionOptions.find(
-      (option) => option.transport?.kind === "shttp",
-    );
-    expect(mcpOption?.auth.strategy).toBe("bearer");
     expect(
-      linear.connectionOptions.some((option) => option.transport?.kind === "sse"),
+      linear.connectionOptions.some(
+        (option) => option.transport?.kind === "sse",
+      ),
     ).toBe(false);
   });
 
