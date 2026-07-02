@@ -14,11 +14,11 @@ import { MODEL_COMMAND } from "#/utils/constants";
 const MODEL_PREFIX = `${MODEL_COMMAND} `;
 
 /**
- * Intercepts "/model" submissions:
+ * Intercepts "/model" submissions (both local and cloud backends manage the
+ * LLM through saved profiles):
  *   - "/model"        → render an inline list of saved profiles in the chat
  *   - "/model <name>" → switch the running conversation's LLM profile
- * Anything else (or when on a cloud backend, which doesn't support profiles)
- * falls through to `onSubmit`.
+ * Anything that isn't a "/model" command falls through to `onSubmit`.
  */
 export const useModelInterceptor = (
   conversationId: string | null | undefined,
@@ -28,7 +28,6 @@ export const useModelInterceptor = (
   const queryClient = useQueryClient();
   const { switchAndLog } = useSwitchLlmProfileAndLog();
   const { backend, orgId } = useActiveBackend();
-  const isLocal = backend.kind === "local";
   const { t } = useTranslation();
 
   return useCallback(
@@ -36,7 +35,7 @@ export const useModelInterceptor = (
       const trimmed = message.trim();
       const isModel =
         trimmed === MODEL_COMMAND || trimmed.startsWith(MODEL_PREFIX);
-      if (!isModel || !isLocal) {
+      if (!isModel) {
         onSubmit(message);
         return;
       }
@@ -81,7 +80,6 @@ export const useModelInterceptor = (
     },
     [
       conversationId,
-      isLocal,
       onSubmit,
       showProfiles,
       queryClient,

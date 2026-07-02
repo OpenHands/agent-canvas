@@ -187,6 +187,77 @@ export const useTracking = () => {
     track("automation_edited", { backend_kind: backendKind });
   };
 
+  const trackBackendAdded = ({
+    backendKind,
+    connectionMethod,
+    isOpenhandsCloud,
+    isCustomHost,
+    hasApiKey,
+    source,
+  }: {
+    backendKind: BackendKind;
+    connectionMethod: "manual" | "cloud_login";
+    isOpenhandsCloud: boolean;
+    isCustomHost: boolean;
+    hasApiKey: boolean;
+    source?: "add_backend_modal" | "manage_backends_modal";
+  }) => {
+    track("backend_added", {
+      backend_kind: backendKind,
+      connection_method: connectionMethod,
+      is_openhands_cloud: isOpenhandsCloud,
+      is_custom_host: isCustomHost,
+      has_api_key: hasApiKey,
+      source,
+    });
+  };
+
+  const trackOnboardingStarted = () => {
+    track("onboarding_started");
+  };
+
+  const trackOnboardingStepViewed = ({
+    step,
+    stepIndex,
+    totalSteps,
+    agent,
+  }: {
+    step: string;
+    stepIndex: number;
+    totalSteps: number;
+    agent: string;
+  }) => {
+    track("onboarding_step_viewed", {
+      step,
+      step_index: stepIndex,
+      total_steps: totalSteps,
+      agent,
+    });
+  };
+
+  const trackOnboardingCompleted = ({ agent }: { agent: string }) => {
+    track("onboarding_completed", { agent });
+  };
+
+  const trackOnboardingSkipped = ({
+    step,
+    stepIndex,
+    totalSteps,
+    agent,
+  }: {
+    step: string;
+    stepIndex: number;
+    totalSteps: number;
+    agent: string;
+  }) => {
+    track("onboarding_skipped", {
+      step,
+      step_index: stepIndex,
+      total_steps: totalSteps,
+      agent,
+    });
+  };
+
   return {
     trackLoginButtonClick,
     trackConversationCreated,
@@ -206,5 +277,10 @@ export const useTracking = () => {
     trackAutomationDeleted,
     trackAutomationDeactivated,
     trackAutomationEdited,
+    trackBackendAdded,
+    trackOnboardingStarted,
+    trackOnboardingStepViewed,
+    trackOnboardingCompleted,
+    trackOnboardingSkipped,
   };
 };

@@ -7,14 +7,14 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => {
       const translations: Record<string, string> = {
-        "SETTINGS$PROFILES_LOAD_ERROR": "Failed to load profiles",
-        "SETTINGS$PROFILES_EMPTY": "No profiles saved yet",
-        "SETTINGS$PROFILE_ACTIVE": "Active",
-        "SETTINGS$PROFILE_MENU": "Profile menu",
-        "SETTINGS$PROFILE_EDIT": "Edit",
-        "BUTTON$RENAME": "Rename",
-        "SETTINGS$PROFILE_SET_ACTIVE": "Set as active",
-        "BUTTON$DELETE": "Delete",
+        SETTINGS$PROFILES_LOAD_ERROR: "Failed to load profiles",
+        SETTINGS$PROFILES_EMPTY: "No profiles saved yet",
+        SETTINGS$PROFILE_ACTIVE: "Active",
+        SETTINGS$PROFILE_MENU: "Profile menu",
+        SETTINGS$PROFILE_EDIT: "Edit",
+        BUTTON$RENAME: "Rename",
+        SETTINGS$PROFILE_SET_ACTIVE: "Set as active",
+        BUTTON$DELETE: "Delete",
       };
       return translations[key] || key;
     },
@@ -41,6 +41,7 @@ const defaultProps = {
   loadError: null,
   profiles: mockProfiles,
   active: "gpt-4-profile",
+  canManage: true,
   onActivate: vi.fn(),
   onEdit: vi.fn(),
   onRename: vi.fn(),
@@ -109,7 +110,9 @@ describe("ProfilesBody", () => {
     );
 
     expect(screen.getByTestId("loading-spinner")).toBeInTheDocument();
-    expect(screen.queryByText("Failed to load profiles")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Failed to load profiles"),
+    ).not.toBeInTheDocument();
   });
 
   it("error state takes priority over empty state", () => {

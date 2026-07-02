@@ -39,9 +39,7 @@ export const useSlashCommand = (
   // slash menu lists the same project skills that were loaded into it.
   const { data: skills, isLoading: isSkillsLoading } = useConversationSkills();
   const isCloud = useActiveBackend().backend.kind === "cloud";
-  const { data: profilesData, isLoading: isProfilesLoading } = useLlmProfiles({
-    enabled: !isCloud,
-  });
+  const { data: profilesData, isLoading: isProfilesLoading } = useLlmProfiles();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [filterText, setFilterText] = useState("");
   const [completionKind, setCompletionKind] =
@@ -51,13 +49,12 @@ export const useSlashCommand = (
   // Build slash command items from built-in commands + skills:
   // - Built-in commands (like /new) are included for V1 conversations
   // - /new is cloud-only — local backends don't surface it
-  // - /model is local-only — cloud backends don't have profiles
+  // - /model lists/switches LLM profiles; both local and cloud support them
   // - Skills with explicit "/" triggers use those triggers
   // - AgentSkills without "/" triggers get a derived "/<name>" command
   const slashItems = useMemo(() => {
     const items: SlashCommandItem[] = BUILT_IN_COMMANDS.filter((cmd) => {
       if (cmd.command === "/new") return isCloud;
-      if (cmd.command === MODEL_COMMAND) return !isCloud;
       return true;
     });
 
@@ -83,8 +80,6 @@ export const useSlashCommand = (
   }, [skills, isSkillsLoading, isCloud]);
 
   const modelProfileItems = useMemo<SlashCommandItem[]>(() => {
-    if (isCloud) return [];
-
     return (profilesData?.profiles ?? []).map((profile) => {
       const command = `${MODEL_COMMAND} ${profile.name}`;
       return {
@@ -99,7 +94,7 @@ export const useSlashCommand = (
         },
       };
     });
-  }, [profilesData?.profiles, isCloud]);
+  }, [profilesData?.profiles]);
 
   // Filter items based on user input after "/"
   const filteredItems = useMemo(() => {
