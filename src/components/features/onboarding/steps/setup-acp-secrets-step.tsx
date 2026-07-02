@@ -8,7 +8,11 @@ import { I18nKey } from "#/i18n/declaration";
 import { useAcpAuthStatus } from "#/hooks/query/use-acp-auth-status";
 import { useAcpCredentialForm } from "#/hooks/use-acp-credential-form";
 import { useActiveBackend } from "#/contexts/active-backend-context";
-import { getAcpProviderDisplayName } from "#/constants/acp-providers";
+import {
+  getAcpProviderDisplayName,
+  getAcpPreferredDefaultModel,
+} from "#/constants/acp-providers";
+import { useApplyOnboardingAgentProfile } from "#/hooks/mutation/use-apply-onboarding-agent-profile";
 import { type OnboardingAgentId } from "./choose-agent-step";
 
 interface SetupAcpSecretsStepProps {
@@ -78,6 +82,7 @@ export function SetupAcpSecretsStep({
     isSaving,
   } = useAcpCredentialForm(providerKey);
 
+  const applyAgentProfile = useApplyOnboardingAgentProfile();
   const providerName = getAcpProviderDisplayName(providerKey) ?? providerKey;
 
   const isAuthenticated = authStatus === "authenticated";
@@ -112,6 +117,18 @@ export function SetupAcpSecretsStep({
 
   const handleNext = async () => {
     if (await save()) {
+      // Land the user's ACP choice on the active AGENT profile so the next
+      // conversation launches that provider (no LLM profile/key needed — the
+      // subprocess owns its LLM). Best-effort; never blocks advancing. This
+      // step never renders for "openhands" (the modal shows SetupLlmStep
+      // there), so the guard just narrows the type for `acp_server`.
+      if (providerKey !== "openhands") {
+        await applyAgentProfile({
+          agent_kind: "acp",
+          acp_server: providerKey,
+          acp_model: getAcpPreferredDefaultModel(providerKey) ?? undefined,
+        });
+      }
       onNext();
     }
   };

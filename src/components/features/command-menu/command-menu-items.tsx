@@ -23,7 +23,7 @@ export const COMMAND_MENU_ROUTE = {
   automations: "/automations",
   mcp: "/mcp",
   settings: "/settings",
-  agentSettings: "/settings/agent",
+  agentSettings: "/settings/agents",
   llmSettings: "/settings/llm",
   condenserSettings: "/settings/condenser",
   verificationSettings: "/settings/verification",

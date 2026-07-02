@@ -93,7 +93,7 @@ export async function getCurrentCloudApiKey(
  * `null` if the upstream omits it). `permissions` is the server-defined
  * permission set for that role (e.g. `edit_org_settings`); it is `null` on
  * older app-servers that don't return it, so callers fall back to the role.
- * See `useCanManageLlmProfiles`.
+ * See `useCanManageOrgProfiles`.
  */
 export async function getCloudOrganizationMe(
   orgId: string,

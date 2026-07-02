@@ -446,6 +446,71 @@ export async function ensureMockLLMProfile(
 
   // ── Activate the profile ────────────────────────────────────────────
   await activateProfileViaUI(page, profileName);
+
+  // ── Point the active agent profile at this LLM profile ──────────────
+  // Conversations launch from the active AGENT profile (#1571), and the home
+  // composer's "LLM ready" gate follows that profile's `llm_profile_ref` — not
+  // the active LLM profile. The seeded "default" agent profile references a
+  // keyless LLM, so activating an LLM profile alone leaves the composer
+  // blocked. Mirror onboarding: wire the "default" agent profile to this key.
+  await ensureMockLLMAgentProfile(page.request, profileName);
+}
+
+/**
+ * Upsert + activate the well-known "default" agent profile so it references the
+ * given LLM profile — the same thing onboarding does for a real user (#1571).
+ *
+ * Reusing the "default" name upserts the seeded profile (its id is preserved on
+ * overwrite) rather than spawning a parallel one.
+ */
+export async function ensureMockLLMAgentProfile(
+  request: APIRequestContext,
+  llmProfileRef = "mock-llm",
+) {
+  const name = "default";
+  const headers = {
+    "X-Session-API-Key": SESSION_API_KEY,
+    "Content-Type": "application/json",
+  };
+
+  const saveResp = await retryOnTransient(
+    request,
+    "POST",
+    `${BACKEND_URL}/api/agent-profiles/${encodeURIComponent(name)}`,
+    {
+      headers,
+      data: { agent_kind: "openhands", llm_profile_ref: llmProfileRef },
+    },
+  );
+  expect(
+    saveResp.ok(),
+    `save agent profile "${name}": ${saveResp.status()}`,
+  ).toBe(true);
+
+  // Activate needs the stable id; the save response only echoes the name.
+  const detailResp = await retryOnTransient(
+    request,
+    "GET",
+    `${BACKEND_URL}/api/agent-profiles/${encodeURIComponent(name)}`,
+    { headers },
+  );
+  expect(
+    detailResp.ok(),
+    `get agent profile "${name}": ${detailResp.status()}`,
+  ).toBe(true);
+  const id = (await detailResp.json())?.profile?.id as string | undefined;
+  expect(id, `agent profile "${name}" id`).toBeTruthy();
+
+  const activateResp = await retryOnTransient(
+    request,
+    "POST",
+    `${BACKEND_URL}/api/agent-profiles/${encodeURIComponent(id!)}/activate`,
+    { headers, data: {} },
+  );
+  expect(
+    activateResp.ok(),
+    `activate agent profile "${name}": ${activateResp.status()}`,
+  ).toBe(true);
 }
 
 /**

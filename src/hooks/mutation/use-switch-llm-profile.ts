@@ -5,6 +5,12 @@ import {
   LLM_PROFILES_QUERY_KEYS,
   SETTINGS_QUERY_KEYS,
 } from "#/hooks/query/query-keys";
+import { getLastRenderableEventId } from "#/hooks/chat/model-command-event-anchor";
+import { recordModelSwitchMessage } from "#/hooks/chat/record-model-switch-message";
+import {
+  getStoredConversationMetadata,
+  setStoredConversationMetadata,
+} from "#/api/conversation-metadata-store";
 import { invalidateConversationQueries } from "./conversation-mutation-utils";
 
 interface SwitchLlmProfileVars {
@@ -18,24 +24,57 @@ interface SwitchLlmProfileVars {
 }
 
 /**
+ * Shared key so any picker instance can observe an in-flight switch via
+ * `useIsMutating` — the pill button and the menu that fires the switch are
+ * separate hook instances, so per-observer `isPending` wouldn't line up.
+ */
+export const SWITCH_LLM_PROFILE_MUTATION_KEY = ["switch-llm-profile"];
+
+/**
  * Switches the LLM profile. Per-conversation when called from inside a
- * conversation; globally activates the profile when called from the home
- * page. Invalidates the conversation query so consumers reading `llm_model`
- * pick up the swap, and the profile list so anything reading `active_profile`
- * stays in sync.
+ * conversation; globally activates the profile when called from the home page.
+ *
+ * The confirmation message, #1082 metadata persist, and cache refresh live in
+ * the mutation-level callbacks (not `mutate(..., callbacks)`) so they still run
+ * after the switcher menu closes on select — React Query drops mutate-scoped
+ * callbacks when the calling component unmounts. Errors surface via the global
+ * mutation toast (no `meta.disableToast`). Mirrors use-switch-acp-model.
  */
 export const useSwitchLlmProfile = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
+    mutationKey: SWITCH_LLM_PROFILE_MUTATION_KEY,
     mutationFn: ({ conversationId, profileName }: SwitchLlmProfileVars) =>
       AgentServerConversationService.switchProfile(conversationId, profileName),
-    onSuccess: (_data, { conversationId }) => {
+    // Anchor the inline message where the user issued the switch; captured
+    // synchronously here because the menu unmounts before the switch resolves.
+    onMutate: ({ conversationId }) => ({
+      anchorEventId: conversationId ? getLastRenderableEventId() : null,
+    }),
+    onSuccess: (_data, { conversationId, profileName }, context) => {
       queryClient.invalidateQueries({
         queryKey: LLM_PROFILES_QUERY_KEYS.all,
       });
       if (conversationId) {
         invalidateConversationQueries(queryClient, conversationId);
+        recordModelSwitchMessage(
+          conversationId,
+          profileName,
+          context?.anchorEventId ?? null,
+        );
+        // Keep the per-conversation profile identity fresh so the chat-header
+        // switcher shows the right name after a reload (the agent-server only
+        // round-trips the model string). #1082
+        const prev = getStoredConversationMetadata(conversationId);
+        setStoredConversationMetadata(conversationId, {
+          selected_repository: prev?.selected_repository ?? null,
+          selected_branch: prev?.selected_branch ?? null,
+          git_provider: prev?.git_provider ?? null,
+          selected_workspace: prev?.selected_workspace ?? null,
+          active_profile: profileName,
+          plugins: prev?.plugins ?? null,
+        });
       } else {
         // Home-page activate path (same server endpoint as
         // useActivateLlmProfile): clear the SettingsService cache so the next
@@ -47,7 +86,5 @@ export const useSwitchLlmProfile = () => {
         });
       }
     },
-    // Caller renders an inline message + handles error toast manually.
-    meta: { disableToast: true },
   });
 };

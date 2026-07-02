@@ -135,14 +135,18 @@ function normalizeAgent(value: unknown): DirectConversationInfo["agent"] {
     ? { model: stringOrNull(value.llm.model) }
     : null;
   // ``kind`` is the SDK's pydantic discriminator (``"Agent"`` vs ``"ACPAgent"``);
-  // ``toAppConversation`` reads it to derive ``agent_kind``. ``acp_model`` is
-  // the Canvas-configured model on the ACPAgent — preserved so the conversation
-  // adapter and the conversation chip can fall back to it when the SDK runtime
-  // model fields aren't populated. Preserving these here makes the wire path
-  // agree with the unit-test path that builds ``DirectConversationInfo``
-  // directly (e.g. ``__tests__/api/agent-server-adapter.test.ts``).
+  // ``toAppConversation`` reads it to derive ``agent_kind``. ``acp_server`` is
+  // the ACP provider identity (``ACPAgent.acp_server``, SDK #3692) — required so
+  // the adapter can source the chip + in-conversation model list from the agent
+  // when the ``acpserver`` tag is absent (a profile launch doesn't stamp it,
+  // #1571). ``acp_model`` is the Canvas-configured model — preserved so the chip
+  // can fall back to it when the SDK runtime model fields aren't populated.
+  // Preserving these makes the wire path agree with the unit-test path that
+  // builds ``DirectConversationInfo`` directly
+  // (e.g. ``__tests__/api/agent-server-adapter.test.ts``).
   return {
     kind: stringOrNull(value.kind),
+    acp_server: stringOrNull(value.acp_server),
     acp_model: stringOrNull(value.acp_model),
     llm,
   };
@@ -352,6 +356,11 @@ class AgentServerConversationService {
     parentConversationId?: string,
     agentType?: "default" | "plan",
     sandboxId?: string,
+    // Launch from a saved AgentProfile (resolved server-side) instead of the
+    // current encrypted agent_settings (#3727). Supported on both local and the
+    // cloud app-server (OpenHands #15060): local threads it through the
+    // encrypted-settings builder; cloud sends it as a flat request field.
+    agentProfileId?: string,
   ): Promise<AppConversationStartTask> {
     if (getActiveBackend().backend.kind === "cloud") {
       // Cloud path mirrors OpenHands' frontend: build a flat
@@ -359,6 +368,8 @@ class AgentServerConversationService {
       // (returns a WORKING task), and let the conversation route's
       // useTaskPolling drive it to READY. NO encrypted-settings
       // round-trip — the cloud backend holds secrets server-side.
+      // When launching from a profile, send `agent_profile_id`; the backend
+      // resolves it to agent_settings server-side.
       const request: AppConversationStartRequest = {
         initial_message: initialUserMsg
           ? {
@@ -374,6 +385,7 @@ class AgentServerConversationService {
         parent_conversation_id: parentConversationId ?? null,
         agent_type: agentType,
         sandbox_id: sandboxId ?? null,
+        agent_profile_id: agentProfileId ?? null,
       };
       return createCloudAppConversation(request);
     }
@@ -401,6 +413,7 @@ class AgentServerConversationService {
       conversationId,
       workingDir,
       worktree: resolvedWorkspaceMode === "new_worktree",
+      agentProfileId,
     });
 
     const data = await new ConversationClient(

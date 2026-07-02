@@ -4,14 +4,15 @@ import { useActiveBackend } from "#/contexts/active-backend-context";
 
 /**
  * Server-defined permission (mirrors the app-server's
- * `authorization.Permission.EDIT_ORG_SETTINGS`) that gates LLM-profile
- * mutations for an org.
+ * `authorization.Permission.EDIT_ORG_SETTINGS`) that gates org-scoped profile
+ * mutations (both LLM profiles and agent profiles).
  */
 const EDIT_ORG_SETTINGS = "edit_org_settings";
 
 /**
- * Whether the current user may MUTATE LLM profiles on the active backend —
- * create, edit, rename, delete, duplicate, or activate/switch.
+ * Whether the current user may MUTATE org-scoped profiles — LLM profiles and
+ * agent profiles alike — on the active backend: create, edit, rename, delete,
+ * duplicate, or activate/switch.
  *
  * - Local agent-server (OSS): always `true`; the user owns their own profiles.
  * - Cloud: profiles are org-scoped. The app-server grants every mutating
@@ -25,7 +26,7 @@ const EDIT_ORG_SETTINGS = "edit_org_settings";
  * Returns `false` while the role/permissions are still loading or unknown on
  * cloud, so mutating controls never flash for a member before they resolve.
  */
-export function useCanManageLlmProfiles(): boolean {
+export function useCanManageOrgProfiles(): boolean {
   const { backend, orgId } = useActiveBackend();
   const isCloud = backend.kind === "cloud";
 

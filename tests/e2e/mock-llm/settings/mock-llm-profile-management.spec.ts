@@ -330,13 +330,16 @@ test.describe("same-model profile identity", () => {
 
     // ── Verify: profile switcher shows BETA, not ALPHA ──
     await test.step("profile switcher shows the correct profile name", async () => {
-      const switchButton = page.getByTestId("switch-profile-button");
-      await expect(switchButton).toBeVisible({ timeout: 10_000 });
-      // The button's visible text should contain PROFILE_BETA.
+      // In a local OpenHands conversation the chat input renders the
+      // in-conversation LLM-profile picker, whose label is the active
+      // profile name (replaces the former switch-profile-button).
+      const profilePicker = page.getByTestId("chat-input-llm-profile");
+      await expect(profilePicker).toBeVisible({ timeout: 10_000 });
+      // The picker's visible text should contain PROFILE_BETA.
       // Before the fix (PR #1123), it would show PROFILE_ALPHA because
       // profiles were matched by model name and .find() returned the
       // first alphabetical match.
-      await expect(switchButton).toContainText(PROFILE_BETA, {
+      await expect(profilePicker).toContainText(PROFILE_BETA, {
         timeout: 10_000,
       });
     });
@@ -348,10 +351,10 @@ test.describe("same-model profile identity", () => {
       // Re-wait for the conversation to load
       await waitForNonUserMessageText(page, REPLY_TOKEN, 30_000);
 
-      const switchButton = page.getByTestId("switch-profile-button");
-      await expect(switchButton).toBeVisible({ timeout: 10_000 });
+      const profilePicker = page.getByTestId("chat-input-llm-profile");
+      await expect(profilePicker).toBeVisible({ timeout: 10_000 });
       await expect(
-        switchButton,
+        profilePicker,
         "Profile identity should persist across page reloads",
       ).toContainText(PROFILE_BETA, { timeout: 10_000 });
     });

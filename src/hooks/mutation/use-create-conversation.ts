@@ -5,10 +5,16 @@ import { SuggestedTask } from "#/utils/types";
 import { Provider } from "#/types/settings";
 import { useTracking } from "#/hooks/use-tracking";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
+import { useAgentProfiles } from "#/hooks/query/use-agent-profiles";
+import { useActiveBackend } from "#/contexts/active-backend-context";
+import ProfilesService from "#/api/profiles-service/profiles-service.api";
 import PluginsManagementService, {
   type InstalledPluginInfo,
 } from "#/api/plugins-management-service";
-import { PLUGINS_QUERY_KEYS } from "#/hooks/query/query-keys";
+import {
+  PLUGINS_QUERY_KEYS,
+  LLM_PROFILES_QUERY_KEYS,
+} from "#/hooks/query/query-keys";
 import { pluginReferenceKey } from "#/utils/plugin-display";
 import {
   getStoredConversationMetadata,
@@ -30,6 +36,10 @@ interface CreateConversationVariables {
   plugins?: PluginSpec[];
   workingDir?: string;
   workspaceMode?: WorkspaceMode;
+  // Launch from a specific AgentProfile (local backend). When omitted, the
+  // active AgentProfile (if any) is used so home-composed conversations
+  // launch from the user's selected profile (#3727).
+  agentProfileId?: string;
 }
 
 interface CreateConversationResponse {
@@ -46,6 +56,13 @@ export const useCreateConversation = () => {
   // Stamped onto the conversation at creation so the switcher can show the
   // exact profile even when several profiles share a model (#1082).
   const { data: llmProfiles } = useLlmProfiles();
+  // The active AgentProfile is the default launch profile for new conversations
+  // (#3727), on both local and cloud (cloud gained /api/agent-profiles in
+  // OpenHands #15060, #3730). Degrades safely: if the query is disabled or
+  // errors, this stays undefined and creation falls back to the encrypted
+  // agent_settings launch path.
+  const { backend, orgId } = useActiveBackend();
+  const { data: agentProfiles } = useAgentProfiles();
 
   return useMutation({
     mutationKey: ["create-conversation"],
@@ -61,7 +78,59 @@ export const useCreateConversation = () => {
         workspaceMode,
         parentConversationId,
         agentType,
+        agentProfileId,
       } = variables;
+
+      const requestedAgentProfileId =
+        agentProfileId ?? agentProfiles?.active_agent_profile_id ?? undefined;
+
+      // Fall back to the legacy agent_settings launch when the resolved agent
+      // profile can't resolve its LLM. The agent-server seeds a `default`
+      // openhands profile whose `llm_profile_ref` can point at an LLM profile
+      // that doesn't exist (fresh store, or one configured with named profiles
+      // only); launching from it 404s ("LLM profile '<ref>' not found") and
+      // would brick home-launch. agent_settings reflects the active LLM, so the
+      // fallback degrades cleanly until the seed mirrors it (SDK #3933).
+      // ACP profiles carry no llm_profile_ref, so they're never gated here.
+      const resolvedAgentProfile = requestedAgentProfileId
+        ? agentProfiles?.profiles?.find(
+            (profile) => profile.id === requestedAgentProfileId,
+          )
+        : undefined;
+      let effectiveAgentProfileId = requestedAgentProfileId;
+      if (
+        resolvedAgentProfile?.agent_kind === "openhands" &&
+        resolvedAgentProfile.llm_profile_ref
+      ) {
+        // Await the LLM-profile list rather than reading the maybe-unresolved
+        // `useLlmProfiles()` result: a send fired before that query loads (or
+        // after it errors) must still validate the ref, not launch blind.
+        let llmProfileExists = false;
+        try {
+          const llm = await queryClient.ensureQueryData({
+            queryKey: [...LLM_PROFILES_QUERY_KEYS.all, backend.id, orgId],
+            queryFn: ProfilesService.listProfiles,
+          });
+          llmProfileExists = llm.profiles.some(
+            (profile) => profile.name === resolvedAgentProfile.llm_profile_ref,
+          );
+        } catch {
+          // List unavailable → can't validate → fall back to agent_settings.
+        }
+        if (!llmProfileExists) {
+          effectiveAgentProfileId = undefined;
+        }
+      }
+
+      // Only extend the call with the [sandboxId, agentProfileId] tail when
+      // launching from a profile, so a plain create stays byte-identical to
+      // the legacy agent_settings path (#3727). sandboxId is unused here.
+      // TODO(#1587): createConversation has grown to 10 positional params;
+      // refactor it to an options object so this position-skipping tail isn't
+      // needed.
+      const profileArgs: [undefined, string] | [] = effectiveAgentProfileId
+        ? [undefined, effectiveAgentProfileId]
+        : [];
 
       const conversation =
         await AgentServerConversationService.createConversation(
@@ -79,6 +148,7 @@ export const useCreateConversation = () => {
           workspaceMode,
           parentConversationId,
           agentType,
+          ...profileArgs,
         );
 
       // Stamp the active LLM profile onto the (local) conversation so the
