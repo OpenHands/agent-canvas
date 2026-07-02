@@ -18,6 +18,8 @@ export interface MCPServerConfig {
   command?: string;
   args?: string[];
   env?: Record<string, string>;
+  /** Set to "oauth" for MCP servers that handle OAuth themselves (fastmcp). */
+  auth?: "oauth";
 }
 
 // Extensions of the published `@openhands/typescript-client` MCP test

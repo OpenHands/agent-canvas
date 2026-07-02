@@ -79,6 +79,12 @@ function optionNeedsCredentialField(
   return ["api_key", "bearer", "basic"].includes(option.auth.strategy);
 }
 
+function isOAuthOption(
+  option: McpMarketplaceConnectionOption | undefined,
+): boolean {
+  return !!option && option.auth.strategy === "oauth2";
+}
+
 function isCredentialOptional(option: McpMarketplaceConnectionOption): boolean {
   if (option.transport.kind === "stdio") {
     return option.auth.apiKeyOptional ?? false;
@@ -250,8 +256,14 @@ export function InstallServerModal({
     }
     if (!option) return;
     const apiKey = state.values.api_key?.trim() ?? "";
+    const oauthMode = isOAuthOption(option);
     const needsCredential = optionNeedsCredentialField(option);
-    if (needsCredential && !isCredentialOptional(option) && !apiKey) {
+    if (
+      !oauthMode &&
+      needsCredential &&
+      !isCredentialOptional(option) &&
+      !apiKey
+    ) {
       setState((prev) => ({
         ...prev,
         errors: { api_key: t(I18nKey.MCP$ERROR_FIELD_REQUIRED) },
@@ -266,7 +278,8 @@ export function InstallServerModal({
       // "sse"/"shttp" fallback. Stdio installs already carry serverName.
       name: entry.id,
       url: template.url,
-      ...(needsCredential && apiKey && { api_key: apiKey }),
+      ...(oauthMode && { auth: "oauth" }),
+      ...(!oauthMode && needsCredential && apiKey && { api_key: apiKey }),
     };
     submitServer(payload);
   };
@@ -329,6 +342,7 @@ export function InstallServerModal({
 
   const renderFields = () => {
     if (template?.kind === "shttp" || template?.kind === "sse") {
+      const oauthMode = isOAuthOption(option);
       const shouldRenderCredential = optionNeedsCredentialField(option);
       const apiKeyOptional = option ? isCredentialOptional(option) : false;
       const credentialSecretName = option?.auth.credentialSecretName;
@@ -344,7 +358,19 @@ export function InstallServerModal({
             isDisabled
             className="w-full"
           />
-          {shouldRenderCredential ? (
+          {oauthMode ? (
+            <div
+              data-testid="mcp-install-oauth-info"
+              className="flex flex-col gap-2 p-3 rounded-lg border border-[var(--oh-border)] bg-base-tertiary"
+            >
+              <p className="text-sm text-secondary-light">
+                {t(I18nKey.MCP$OAUTH_CONNECT_INFO)}
+              </p>
+              <p className="text-xs text-tertiary-alt">
+                {t(I18nKey.MCP$OAUTH_CONNECT_HINT)}
+              </p>
+            </div>
+          ) : shouldRenderCredential ? (
             <div className="flex flex-col gap-1">
               <SettingsInput
                 testId="mcp-install-field-api_key"
