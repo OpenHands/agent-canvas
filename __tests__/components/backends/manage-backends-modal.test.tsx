@@ -83,7 +83,6 @@ function TestSeed({
   const ctx = useActiveBackendContext();
   React.useEffect(() => {
     onMount(ctx);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return children as React.ReactElement;
 }
@@ -129,6 +128,9 @@ beforeEach(() => {
 afterEach(() => {
   window.localStorage.clear();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+  delete (window as unknown as Record<string, unknown>)
+    .__AGENT_CANVAS_LOCK_TO_CLOUD__;
   __resetActiveStoreForTests();
   __resetHealthStoreForTests();
 });
@@ -230,6 +232,13 @@ describe("ManageBackendsModal", () => {
   });
 
   it("opens an edit form pre-filled with the row's backend, and persists changes via updateBackend", async () => {
+    // These tests exercise edit-form behavior, not lock behavior; isolate
+    // them from a local .env that sets VITE_LOCK_TO_CLOUD and would hide the
+    // pencil button this test depends on.
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_LOCK_TO_CLOUD__;
+
     const user = userEvent.setup();
 
     let backendId = "";
@@ -280,6 +289,10 @@ describe("ManageBackendsModal", () => {
   });
 
   it("preserves kind:cloud when renaming a cloud backend on a custom domain", async () => {
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_LOCK_TO_CLOUD__;
+
     const user = userEvent.setup();
 
     let backendId = "";
@@ -329,6 +342,10 @@ describe("ManageBackendsModal", () => {
   });
 
   it("closes the edit form when the header close button is clicked", async () => {
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_LOCK_TO_CLOUD__;
+
     const user = userEvent.setup();
 
     renderWithProviders(
@@ -613,5 +630,116 @@ describe("BackendRow", () => {
     expect(deviceFlowMocks.startDeviceFlow).toHaveBeenCalledWith(
       cloudBackend.host,
     );
+  });
+
+  it("renders edit and remove buttons when the deployment is not locked to a cloud host", async () => {
+    // The repo's .env may set VITE_LOCK_TO_CLOUD; clear it explicitly so this
+    // test exercises the unlocked code path regardless of local env state.
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_LOCK_TO_CLOUD__;
+
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    const onRemove = vi.fn();
+
+    renderInQueryClient(
+      <ul>
+        <BackendRow
+          backend={cloudBackend}
+          health={{
+            isConnected: true,
+            consecutiveFailures: 0,
+            lastError: null,
+            disabled: false,
+          }}
+          onSelect={vi.fn()}
+          onEdit={onEdit}
+          onRemove={onRemove}
+        />
+      </ul>,
+    );
+
+    const row = screen.getByTestId(`manage-backends-row-${cloudBackend.name}`);
+    const editButton = within(row).getByTestId(
+      `manage-backends-edit-${cloudBackend.name}`,
+    );
+    const removeButton = within(row).getByTestId(
+      `manage-backends-remove-${cloudBackend.name}`,
+    );
+
+    expect(editButton).toHaveAccessibleName("BACKEND$EDIT");
+    expect(removeButton).toHaveAccessibleName("BACKEND$REMOVE");
+
+    await user.click(editButton);
+    await user.click(removeButton);
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(onRemove).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides edit and remove buttons when locked to a cloud host via VITE_LOCK_TO_CLOUD", () => {
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://cloud.example.com");
+    const onEdit = vi.fn();
+    const onRemove = vi.fn();
+
+    renderInQueryClient(
+      <ul>
+        <BackendRow
+          backend={cloudBackend}
+          health={{
+            isConnected: true,
+            consecutiveFailures: 0,
+            lastError: null,
+            disabled: false,
+          }}
+          onSelect={vi.fn()}
+          onEdit={onEdit}
+          onRemove={onRemove}
+        />
+      </ul>,
+    );
+
+    const row = screen.getByTestId(`manage-backends-row-${cloudBackend.name}`);
+    expect(
+      within(row).queryByTestId(`manage-backends-edit-${cloudBackend.name}`),
+    ).not.toBeInTheDocument();
+    expect(
+      within(row).queryByTestId(`manage-backends-remove-${cloudBackend.name}`),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides edit and remove buttons when locked to a cloud host via window.__AGENT_CANVAS_LOCK_TO_CLOUD__", () => {
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_LOCK_TO_CLOUD__ = "https://cloud.example.com";
+
+    renderInQueryClient(
+      <ul>
+        <BackendRow
+          backend={cloudBackend}
+          health={{
+            isConnected: true,
+            consecutiveFailures: 0,
+            lastError: null,
+            disabled: false,
+          }}
+          onSelect={vi.fn()}
+          onEdit={vi.fn()}
+          onRemove={vi.fn()}
+        />
+      </ul>,
+    );
+
+    const row = screen.getByTestId(`manage-backends-row-${cloudBackend.name}`);
+    expect(
+      within(row).queryByTestId(`manage-backends-edit-${cloudBackend.name}`),
+    ).not.toBeInTheDocument();
+    expect(
+      within(row).queryByTestId(`manage-backends-remove-${cloudBackend.name}`),
+    ).not.toBeInTheDocument();
+    // Row identity (name + host) is still rendered so the user can see the
+    // locked backend is selected, just not mutate it.
+    expect(within(row).getByText(cloudBackend.name)).toBeInTheDocument();
+    expect(within(row).getByText(cloudBackend.host)).toBeInTheDocument();
   });
 });

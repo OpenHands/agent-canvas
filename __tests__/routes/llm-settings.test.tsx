@@ -318,7 +318,9 @@ describe("LlmSettingsScreen", () => {
 
     await screen.findByTestId("llm-subscription-settings");
     fireEvent.click(screen.getByTestId("subscription-connect"));
-    await screen.findByText("USER-CODE");
+    const userCode = await screen.findByTestId("subscription-user-code");
+    expect(userCode).toHaveTextContent("USER-CODE");
+    expect(userCode.parentElement).toHaveClass("text-white");
 
     expect(openSpy).toHaveBeenCalledWith(
       "https://auth.openai.com/activate?user_code=USER-CODE",
