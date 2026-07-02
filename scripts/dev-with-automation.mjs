@@ -45,7 +45,7 @@
  */
 
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, existsSync, readFileSync } from "node:fs";
+import { mkdirSync, existsSync, readFileSync, unlinkSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { homedir } from "node:os";
@@ -525,9 +525,7 @@ function ensureDirectories(config) {
   if (config.launchAutomation) {
     dirs.push(
       // Automation DB directory — matches docker/entrypoint.sh mkdir -p behaviour.
-      dirname(
-        join(dirname(config.stateDir), SHARED_DEFAULTS.paths.automationDb),
-      ),
+      dirname(getAutomationDbPath(config)),
     );
   }
 
@@ -570,12 +568,16 @@ function spawnService(name, command, args, options = {}) {
       .split("\n")
       .filter(Boolean)
       .forEach((line) => {
-        const parsed = parseLogLine ? parseLogLine(line.trim()) : null;
+        const trimmed = line.trim();
+        const parsed = parseLogLine ? parseLogLine(trimmed) : null;
         logService(
           name,
-          parsed ? parsed.text : line.trim(),
+          parsed ? parsed.text : trimmed,
           parsed ? parsed.color : color,
         );
+        if (typeof options.onOutput === "function") {
+          options.onOutput(trimmed);
+        }
       });
   });
 
@@ -585,12 +587,16 @@ function spawnService(name, command, args, options = {}) {
       .split("\n")
       .filter(Boolean)
       .forEach((line) => {
-        const parsed = parseLogLine ? parseLogLine(line.trim()) : null;
+        const trimmed = line.trim();
+        const parsed = parseLogLine ? parseLogLine(trimmed) : null;
         logService(
           name,
-          parsed ? parsed.text : line.trim(),
+          parsed ? parsed.text : trimmed,
           parsed ? parsed.color : c.yellow,
         );
+        if (typeof options.onOutput === "function") {
+          options.onOutput(trimmed);
+        }
       });
   });
 
@@ -603,6 +609,9 @@ function spawnService(name, command, args, options = {}) {
       logService(name, `Exited with code ${code}`, c.red);
     }
     processes.delete(name);
+    if (typeof options.onExit === "function") {
+      options.onExit(code, signal);
+    }
   });
 
   processes.set(name, proc);
@@ -638,6 +647,17 @@ async function waitForService(name, url, timeoutMs = 30000) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Service Starters
 // ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Resolve the absolute path of the automation SQLite database.
+ *
+ * The path mirrors the logic in `startAutomationBackend()` and
+ * `ensureDirectories()`: `<stateDir>/../automation/automations.db`
+ * (i.e. `~/.openhands/automation/automations.db` by default).
+ */
+function getAutomationDbPath(config) {
+  return join(dirname(config.stateDir), SHARED_DEFAULTS.paths.automationDb);
+}
 
 const AUTOMATION_ROUTE_PREFIX = "/api/automation";
 const AGENT_SERVER_ROUTE_PREFIXES = [
@@ -777,7 +797,7 @@ function startAgentServer(config) {
   );
 }
 
-function startAutomationBackend(config) {
+function startAutomationBackend(config, { isRetry = false } = {}) {
   logService(
     "automation",
     `Starting on port ${config.autoBackendPort}...`,
@@ -786,6 +806,9 @@ function startAutomationBackend(config) {
 
   const automationCmd = buildAutomationCommand(process.env);
   logService("automation", `Using ${automationCmd.source}`, c.dim);
+
+  // Track stderr output to detect migration errors on crash.
+  let sawMigrationError = false;
 
   spawnService(
     "automation",
@@ -830,7 +853,7 @@ function startAutomationBackend(config) {
           : {}),
         AUTOMATION_AGENT_SERVER_API_KEY: config.sessionApiKey,
         // ~/.openhands/automation/automations.db — matches docker/entrypoint.sh.
-        AUTOMATION_DB_URL: `sqlite+aiosqlite:///${join(dirname(config.stateDir), SHARED_DEFAULTS.paths.automationDb)}`,
+        AUTOMATION_DB_URL: `sqlite+aiosqlite:///${getAutomationDbPath(config)}`,
         // The automation backend uses this as its publicly-reachable base
         // URL: it's appended to callback URLs and injected into each
         // sandbox as `AUTOMATION_API_URL` (consumed by setup.sh for
@@ -871,6 +894,37 @@ function startAutomationBackend(config) {
         OPENHANDS_SUPPRESS_BANNER: "1",
       },
       color: c.green,
+      onOutput(line) {
+        if (/migration failed|Can't locate revision/i.test(line)) {
+          sawMigrationError = true;
+        }
+      },
+      onExit(code) {
+        if (code !== 0 && !isRetry && !shuttingDown && sawMigrationError) {
+          const dbPath = getAutomationDbPath(config);
+          logService(
+            "automation",
+            "Detected stale migration in automation database — resetting and retrying...",
+            c.yellow,
+          );
+          try {
+            if (existsSync(dbPath)) {
+              unlinkSync(dbPath);
+              logService(
+                "automation",
+                `Deleted stale database: ${dbPath}`,
+                c.yellow,
+              );
+            }
+          } catch (err) {
+            logError(
+              `Failed to delete automation database at ${dbPath}: ${err.message}`,
+            );
+            return;
+          }
+          startAutomationBackend(config, { isRetry: true });
+        }
+      },
     },
   );
 }
@@ -1408,6 +1462,7 @@ export {
   buildConfig,
   buildRouteArgs,
   buildViteBackendEnv,
+  getAutomationDbPath,
   getFrontendBackend,
   getLocalServiceRoutes,
   main,
