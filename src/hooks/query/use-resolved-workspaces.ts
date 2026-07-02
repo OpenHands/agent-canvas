@@ -1,12 +1,9 @@
 import { useMemo } from "react";
 import { useQueries } from "@tanstack/react-query";
-import {
-  FileClient,
-  isAgentServerVersionError,
-} from "@openhands/typescript-client/clients";
+import { isAgentServerVersionError } from "@openhands/typescript-client/clients";
 
-import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { useLocalWorkspaces } from "#/hooks/query/use-local-workspaces";
+import { searchAllSubdirectories } from "#/hooks/query/use-search-subdirs";
 import { LocalWorkspace, LocalWorkspaceParent } from "#/types/workspace";
 
 interface UseResolvedWorkspacesResult {
@@ -74,10 +71,7 @@ export function useResolvedWorkspaces(): UseResolvedWorkspacesResult {
       ? []
       : workspaceParents.map((parent) => ({
           queryKey: ["file", "search_subdirs", parent.path],
-          queryFn: () =>
-            new FileClient(getAgentServerClientOptions()).searchSubdirectories(
-              parent.path,
-            ),
+          queryFn: () => searchAllSubdirectories(parent.path),
           retry: false,
           meta: { disableToast: true },
         })),
