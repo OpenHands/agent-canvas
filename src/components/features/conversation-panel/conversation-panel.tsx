@@ -354,16 +354,7 @@ export function ConversationPanel({
     [conversationGroups],
   );
 
-  const compactVisibleConversations = React.useMemo(
-    () =>
-      sortConversationsByField(
-        recentScoped.filter((conversation) =>
-          isExecutionActive(conversation.execution_status),
-        ),
-        conversationSort,
-      ),
-    [conversationSort, recentScoped],
-  );
+  const compactVisibleConversations = sortedVisibleConversations;
 
   const visibleFlatCount = sortedVisibleConversations.length;
 
@@ -459,8 +450,8 @@ export function ConversationPanel({
   // pagination, which previously caused the panel to feel like it had stray
   // scrollable space at the bottom.
   const olderHidden = olderScoped.length > 0 && !showOlderConversations;
-  // Compact mode also hides "Load more" — paginating into archived
-  // conversations contradicts the "active only" intent of the icon rail.
+  // Compact mode also hides "Load more" — the icon rail should stay small
+  // and use the same currently visible conversation set as the expanded list.
   // Do not show when the visible list is empty (e.g. filters hide every
   // loaded conversation) — that state already shows "No conversations found".
   const showLoadMore =
