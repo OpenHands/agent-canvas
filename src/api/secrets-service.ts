@@ -8,6 +8,17 @@ import {
 } from "./cloud/secrets-service.api";
 import { getAgentServerClientOptions } from "./agent-server-client-options";
 import { CustomSecretWithoutValue } from "./secrets-service.types";
+import ConversationService from "./conversation-service/conversation-service.api";
+
+async function syncActiveConversationSecret(
+  secret: CustomSecretWithoutValue,
+): Promise<void> {
+  try {
+    await ConversationService.syncCurrentConversationSecret(secret);
+  } catch (error) {
+    console.warn("Failed to refresh active conversation secret:", error);
+  }
+}
 
 /**
  * Retry helper for API calls with exponential backoff.
@@ -78,6 +89,7 @@ export class SecretsService {
   ): Promise<void> {
     if (getActiveBackend().backend.kind === "cloud") {
       await withRetry(() => createCloudSecret(name, value, description));
+      await syncActiveConversationSecret({ name, description });
       return;
     }
     await withRetry(() =>
@@ -87,6 +99,7 @@ export class SecretsService {
         description,
       }),
     );
+    await syncActiveConversationSecret({ name, description });
   }
 
   /**
@@ -109,6 +122,7 @@ export class SecretsService {
       // matching what `useUpdateSecret` actually sends:
       // (secretToEdit=name, newName=value, description).
       await withRetry(() => updateCloudSecret(name, value, description));
+      await syncActiveConversationSecret({ name: value, description });
       return;
     }
     // Agent-server uses upsert, so update is the same as create

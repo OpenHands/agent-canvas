@@ -11,7 +11,9 @@ import {
   getAgentServerClientOptions,
   getAgentServerHttpClientOptions,
 } from "../agent-server-client-options";
+import type { CustomSecretWithoutValue } from "../secrets-service.types";
 import { AppConversation } from "./agent-server-conversation-service.types";
+import { updateConversationSecret } from "./conversation-secret-sync";
 
 class ConversationService {
   private static currentConversation: AppConversation | null = null;
@@ -20,6 +22,13 @@ class ConversationService {
     currentConversation: AppConversation | null,
   ): void {
     this.currentConversation = currentConversation;
+  }
+
+  static async syncCurrentConversationSecret(
+    secret: CustomSecretWithoutValue,
+  ): Promise<boolean> {
+    if (!this.currentConversation) return false;
+    return updateConversationSecret(this.currentConversation, secret);
   }
 
   private static getClientOverrides() {
