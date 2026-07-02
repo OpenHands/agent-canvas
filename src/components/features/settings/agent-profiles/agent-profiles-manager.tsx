@@ -6,10 +6,7 @@ import { DeleteAgentProfileModal } from "./delete-agent-profile-modal";
 import { type AgentProfileSummary } from "#/api/agent-profiles-service/agent-profiles-service.api";
 import { useAgentProfiles } from "#/hooks/query/use-agent-profiles";
 import { useActivateAgentProfile } from "#/hooks/mutation/use-activate-agent-profile";
-import {
-  displayErrorToast,
-  displaySuccessToast,
-} from "#/utils/custom-toast-handlers";
+import { displaySuccessToast } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
 
 interface AgentProfilesManagerProps {
@@ -38,8 +35,8 @@ export function AgentProfilesManager({
         t(I18nKey.SETTINGS$PROFILE_ACTIVATED, { name: profile.name }),
       );
     } catch (error) {
+      // The global mutation error toast reports the failure; just log here.
       console.error("Failed to activate agent profile:", error);
-      displayErrorToast(t(I18nKey.ERROR$GENERIC));
     }
   };
 

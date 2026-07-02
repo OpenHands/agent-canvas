@@ -1,7 +1,11 @@
 import { useCallback } from "react";
+import { useIsMutating } from "@tanstack/react-query";
 import type { AgentProfileSummary } from "#/api/agent-profiles-service/agent-profiles-service.api";
 import { useAgentProfiles } from "#/hooks/query/use-agent-profiles";
-import { useActivateAgentProfile } from "#/hooks/mutation/use-activate-agent-profile";
+import {
+  useActivateAgentProfile,
+  ACTIVATE_AGENT_PROFILE_MUTATION_KEY,
+} from "#/hooks/mutation/use-activate-agent-profile";
 
 export interface ChatInputProfileState {
   profiles: AgentProfileSummary[];
@@ -25,6 +29,11 @@ export interface ChatInputProfileState {
 export function useChatInputProfileState(): ChatInputProfileState {
   const { data: agentProfiles, isLoading } = useAgentProfiles();
   const activateProfile = useActivateAgentProfile();
+  // Observe the activation globally by mutation key so the picker button (a
+  // separate hook instance from the menu that fires it) disables correctly
+  // while a switch is in flight (#1571).
+  const isSwitching =
+    useIsMutating({ mutationKey: ACTIVATE_AGENT_PROFILE_MUTATION_KEY }) > 0;
 
   const profiles = agentProfiles?.profiles ?? [];
   const currentProfileId = agentProfiles?.active_agent_profile_id ?? null;
@@ -45,7 +54,7 @@ export function useChatInputProfileState(): ChatInputProfileState {
     currentProfileId,
     currentProfileName,
     isLoading,
-    isSwitching: activateProfile.isPending,
+    isSwitching,
     selectProfile,
   };
 }

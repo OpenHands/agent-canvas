@@ -1,9 +1,11 @@
 import { useCallback } from "react";
+import { useIsMutating } from "@tanstack/react-query";
 import type { ProfileInfo } from "@openhands/typescript-client";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useSwitchLlmProfileAndLog } from "#/hooks/mutation/use-switch-llm-profile-and-log";
+import { SWITCH_LLM_PROFILE_MUTATION_KEY } from "#/hooks/mutation/use-switch-llm-profile";
 import { useModelStore } from "#/stores/model-store";
 
 export interface ChatInputLlmProfileState {
@@ -32,7 +34,12 @@ export function useChatInputLlmProfileState(): ChatInputLlmProfileState {
   const { conversationId } = useOptionalConversationId();
   const { data: conversation } = useActiveConversation();
   const { data, isLoading } = useLlmProfiles();
-  const { switchAndLog, isPending } = useSwitchLlmProfileAndLog();
+  const { switchAndLog } = useSwitchLlmProfileAndLog();
+  // Read the switch's pending state globally by mutation key: the pill button
+  // and the menu that fires the switch are separate hook instances, so a
+  // per-observer `isPending` would never light up on the button (#1571).
+  const isSwitching =
+    useIsMutating({ mutationKey: SWITCH_LLM_PROFILE_MUTATION_KEY }) > 0;
   // Written by switchAndLog -> recordSwitch on a successful switch, so the
   // label/check update before the conversation refetch lands the new llm_model.
   const optimisticActiveProfile = useModelStore((s) =>
@@ -77,7 +84,7 @@ export function useChatInputLlmProfileState(): ChatInputLlmProfileState {
     currentProfileName,
     currentProfileModel,
     isLoading,
-    isSwitching: isPending,
+    isSwitching,
     selectProfile,
   };
 }

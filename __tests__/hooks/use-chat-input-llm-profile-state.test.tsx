@@ -1,4 +1,5 @@
 import { renderHook } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const useOptionalConversationIdMock = vi.fn();
@@ -30,6 +31,19 @@ vi.mock("#/stores/model-store", () => ({
 // eslint-disable-next-line import/first
 import { useChatInputLlmProfileState } from "#/hooks/use-chat-input-llm-profile-state";
 
+// The hook reads the switch's pending state via `useIsMutating`, which needs a
+// QueryClient in context (the switch mutation itself is mocked out above).
+const renderState = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return renderHook(() => useChatInputLlmProfileState(), {
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    ),
+  });
+};
+
 const PROFILES = [
   { name: "Fast", model: "gpt-4o-mini", base_url: null, api_key_set: true },
   { name: "Smart", model: "claude-opus", base_url: null, api_key_set: true },
@@ -51,7 +65,7 @@ describe("useChatInputLlmProfileState", () => {
     useActiveConversationMock.mockReturnValue({
       data: { active_profile: "Smart", llm_model: "gpt-4o-mini" },
     });
-    const { result } = renderHook(() => useChatInputLlmProfileState());
+    const { result } = renderState();
     // model "gpt-4o-mini" would match "Fast", but the stamped profile wins.
     expect(result.current.currentProfileName).toBe("Smart");
   });
@@ -60,13 +74,13 @@ describe("useChatInputLlmProfileState", () => {
     useActiveConversationMock.mockReturnValue({
       data: { llm_model: "claude-opus" },
     });
-    const { result } = renderHook(() => useChatInputLlmProfileState());
+    const { result } = renderState();
     expect(result.current.currentProfileName).toBe("Smart");
   });
 
   it("falls back to the account active_profile when there is no conversation model", () => {
     useActiveConversationMock.mockReturnValue({ data: { llm_model: null } });
-    const { result } = renderHook(() => useChatInputLlmProfileState());
+    const { result } = renderState();
     expect(result.current.currentProfileName).toBe("Fast");
   });
 
@@ -75,7 +89,7 @@ describe("useChatInputLlmProfileState", () => {
     useActiveConversationMock.mockReturnValue({
       data: { active_profile: "Fast", llm_model: "gpt-4o-mini" },
     });
-    const { result } = renderHook(() => useChatInputLlmProfileState());
+    const { result } = renderState();
     expect(result.current.currentProfileName).toBe("Smart");
   });
 
@@ -83,7 +97,7 @@ describe("useChatInputLlmProfileState", () => {
     useActiveConversationMock.mockReturnValue({
       data: { active_profile: "Deleted", llm_model: "claude-opus" },
     });
-    const { result } = renderHook(() => useChatInputLlmProfileState());
+    const { result } = renderState();
     // Deleted is not in PROFILES → fall through to the model match.
     expect(result.current.currentProfileName).toBe("Smart");
   });
@@ -92,7 +106,7 @@ describe("useChatInputLlmProfileState", () => {
     useActiveConversationMock.mockReturnValue({
       data: { active_profile: "Fast", llm_model: "gpt-4o-mini" },
     });
-    const { result } = renderHook(() => useChatInputLlmProfileState());
+    const { result } = renderState();
     result.current.selectProfile("Smart");
     expect(switchAndLog).toHaveBeenCalledWith("c1", "Smart");
   });
@@ -101,7 +115,7 @@ describe("useChatInputLlmProfileState", () => {
     useActiveConversationMock.mockReturnValue({
       data: { active_profile: "Fast", llm_model: "gpt-4o-mini" },
     });
-    const { result } = renderHook(() => useChatInputLlmProfileState());
+    const { result } = renderState();
     result.current.selectProfile("Fast");
     expect(switchAndLog).not.toHaveBeenCalled();
   });

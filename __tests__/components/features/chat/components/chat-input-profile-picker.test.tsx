@@ -14,6 +14,7 @@ vi.mock("#/hooks/mutation/use-activate-agent-profile", () => ({
     mutate: activateProfileMutate,
     isPending: false,
   }),
+  ACTIVATE_AGENT_PROFILE_MUTATION_KEY: ["activate-agent-profile"],
 }));
 
 import { ChatInputProfilePicker } from "#/components/features/chat/components/chat-input-profile-picker";

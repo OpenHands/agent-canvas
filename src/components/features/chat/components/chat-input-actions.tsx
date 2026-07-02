@@ -24,6 +24,7 @@ import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { usePauseConversation } from "#/hooks/mutation/use-pause-conversation";
 import { useResumeConversation } from "#/hooks/mutation/use-resume-conversation";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import { useAgentProfiles } from "#/hooks/query/use-agent-profiles";
 import { useChatInputModelState } from "#/hooks/use-chat-input-model-state";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useAgentState } from "#/hooks/use-agent-state";
@@ -66,6 +67,16 @@ export function ChatInputActions({
   const { backend } = useActiveBackend();
   const isCloud = backend.kind === "cloud";
   const modelState = useChatInputModelState();
+  // The local home page defaults to the AgentProfile picker (#3727), but an
+  // agent-server without the /api/agent-profiles surface returns none — fall
+  // back to the LLM-profile picker so the composer still shows a model
+  // affordance instead of nothing (#1571). Only fetched for that case.
+  const homeAgentProfiles = useAgentProfiles({
+    enabled: !isCloud && !conversationId,
+  });
+  const agentProfilesUnavailableOnHome =
+    homeAgentProfiles.isFetched &&
+    (homeAgentProfiles.data?.profiles?.length ?? 0) === 0;
   // Code/Plan mode switching is a cloud OpenHands feature — it doesn't apply
   // to ACP conversations (which have no "plan" mode), so hide it when ACP.
   const showChangeAgentButton = isCloud && !modelState.isAcpContext;
@@ -243,7 +254,9 @@ export function ChatInputActions({
   const pickerKind: "model" | "agent-profile" | "llm-profile" = isCloud
     ? "model"
     : !conversationId
-      ? "agent-profile"
+      ? agentProfilesUnavailableOnHome
+        ? "llm-profile"
+        : "agent-profile"
       : modelState.isAcpContext
         ? "model"
         : "llm-profile";

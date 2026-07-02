@@ -57,6 +57,13 @@ export interface DirectConversationInfo {
      */
     kind?: string | null;
     acp_model?: string | null;
+    /**
+     * ACP CLI identity (``claude-code`` / ``codex`` / ``gemini-cli``) from the
+     * SDK's ``ACPAgent.acp_server`` (#3692). Preferred fallback when the
+     * ``acpserver`` tag is absent — e.g. a profile launch doesn't stamp the tag
+     * client-side and the server may not repopulate it. Read by {@link toAppConversation}.
+     */
+    acp_server?: string | null;
     llm?: {
       model?: string | null;
     } | null;
@@ -307,8 +314,13 @@ export function toAppConversation(
   // Only surface ``acp_server`` for ACP conversations even if the wire
   // payload accidentally carries an ``acpserver`` tag on an OpenHands
   // conversation — the chip is identity info for the ACP CLI subprocess,
-  // and showing it on a non-ACP conversation would be a lie.
-  const acpServer = isAcp ? (info.tags?.[ACP_SERVER_TAG_KEY] ?? null) : null;
+  // and showing it on a non-ACP conversation would be a lie. Fall back to the
+  // agent's own ``acp_server`` (#3692) when the tag is missing — a profile
+  // launch doesn't stamp the tag, so tag-only reads would drop the ACP model
+  // picker and degrade the chip to a generic "ACP" (#1571).
+  const acpServer = isAcp
+    ? (info.tags?.[ACP_SERVER_TAG_KEY] ?? info.agent?.acp_server ?? null)
+    : null;
   return {
     id: info.id,
     created_by_user_id: null,

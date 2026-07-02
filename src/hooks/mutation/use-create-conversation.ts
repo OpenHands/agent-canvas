@@ -7,10 +7,14 @@ import { useTracking } from "#/hooks/use-tracking";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useAgentProfiles } from "#/hooks/query/use-agent-profiles";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import ProfilesService from "#/api/profiles-service/profiles-service.api";
 import PluginsManagementService, {
   type InstalledPluginInfo,
 } from "#/api/plugins-management-service";
-import { PLUGINS_QUERY_KEYS } from "#/hooks/query/query-keys";
+import {
+  PLUGINS_QUERY_KEYS,
+  LLM_PROFILES_QUERY_KEYS,
+} from "#/hooks/query/query-keys";
 import { pluginReferenceKey } from "#/utils/plugin-display";
 import {
   getStoredConversationMetadata,
@@ -57,7 +61,7 @@ export const useCreateConversation = () => {
   // no /api/agent-profiles surface yet (#3730). Degrades safely: if the query
   // is disabled or errors, this stays undefined and creation falls back to the
   // encrypted agent_settings launch path.
-  const { backend } = useActiveBackend();
+  const { backend, orgId } = useActiveBackend();
   const { data: agentProfiles } = useAgentProfiles({
     enabled: backend.kind !== "cloud",
   });
@@ -95,16 +99,30 @@ export const useCreateConversation = () => {
             (profile) => profile.id === requestedAgentProfileId,
           )
         : undefined;
-      const hasDanglingLlmRef =
+      let effectiveAgentProfileId = requestedAgentProfileId;
+      if (
         resolvedAgentProfile?.agent_kind === "openhands" &&
-        !!resolvedAgentProfile.llm_profile_ref &&
-        !!llmProfiles?.profiles &&
-        !llmProfiles.profiles.some(
-          (profile) => profile.name === resolvedAgentProfile.llm_profile_ref,
-        );
-      const effectiveAgentProfileId = hasDanglingLlmRef
-        ? undefined
-        : requestedAgentProfileId;
+        resolvedAgentProfile.llm_profile_ref
+      ) {
+        // Await the LLM-profile list rather than reading the maybe-unresolved
+        // `useLlmProfiles()` result: a send fired before that query loads (or
+        // after it errors) must still validate the ref, not launch blind.
+        let llmProfileExists = false;
+        try {
+          const llm = await queryClient.ensureQueryData({
+            queryKey: [...LLM_PROFILES_QUERY_KEYS.all, backend.id, orgId],
+            queryFn: ProfilesService.listProfiles,
+          });
+          llmProfileExists = llm.profiles.some(
+            (profile) => profile.name === resolvedAgentProfile.llm_profile_ref,
+          );
+        } catch {
+          // List unavailable → can't validate → fall back to agent_settings.
+        }
+        if (!llmProfileExists) {
+          effectiveAgentProfileId = undefined;
+        }
+      }
 
       // Only extend the call with the [sandboxId, agentProfileId] tail when
       // launching from a profile, so a plain create stays byte-identical to
