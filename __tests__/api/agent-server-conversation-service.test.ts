@@ -654,6 +654,38 @@ describe("AgentServerConversationService", () => {
       expect(conversation?.llm_model).toBe("Claude Opus 4.7");
     });
 
+    it("sources acp_server from the agent when the acpserver tag is absent", async () => {
+      // Profile launches don't stamp the ``acpserver`` tag client-side, so the
+      // provider identity must survive from ``agent.acp_server`` (SDK #3692)
+      // through ``normalizeAgent``. Without it the chip degrades to a generic
+      // "ACP" and the in-conversation model picker shows no options (#1571).
+      mockHttpGet.mockResolvedValue({
+        data: [
+          {
+            id: "conv-acp-server-from-agent",
+            created_at: "2024-01-01",
+            updated_at: "2024-01-01",
+            agent: {
+              kind: "ACPAgent",
+              acp_server: "claude-code",
+              acp_model: "claude-sonnet-4-5",
+              llm: { model: "acp-managed" },
+            },
+            // No ``acpserver`` tag — mirrors an agent_profile_id launch.
+            tags: {},
+          },
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-acp-server-from-agent",
+        ]);
+
+      expect(conversation?.agent_kind).toBe("acp");
+      expect(conversation?.acp_server).toBe("claude-code");
+    });
+
     it("falls back to acp_model when SDK runtime fields are absent on the wire", async () => {
       // Older agent-servers don't populate ``current_model_*``. The
       // adapter must still surface a model on the chip — falling through

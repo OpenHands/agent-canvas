@@ -134,14 +134,18 @@ function normalizeAgent(value: unknown): DirectConversationInfo["agent"] {
     ? { model: stringOrNull(value.llm.model) }
     : null;
   // ``kind`` is the SDK's pydantic discriminator (``"Agent"`` vs ``"ACPAgent"``);
-  // ``toAppConversation`` reads it to derive ``agent_kind``. ``acp_model`` is
-  // the Canvas-configured model on the ACPAgent — preserved so the conversation
-  // adapter and the conversation chip can fall back to it when the SDK runtime
-  // model fields aren't populated. Preserving these here makes the wire path
-  // agree with the unit-test path that builds ``DirectConversationInfo``
-  // directly (e.g. ``__tests__/api/agent-server-adapter.test.ts``).
+  // ``toAppConversation`` reads it to derive ``agent_kind``. ``acp_server`` is
+  // the ACP provider identity (``ACPAgent.acp_server``, SDK #3692) — required so
+  // the adapter can source the chip + in-conversation model list from the agent
+  // when the ``acpserver`` tag is absent (a profile launch doesn't stamp it,
+  // #1571). ``acp_model`` is the Canvas-configured model — preserved so the chip
+  // can fall back to it when the SDK runtime model fields aren't populated.
+  // Preserving these makes the wire path agree with the unit-test path that
+  // builds ``DirectConversationInfo`` directly
+  // (e.g. ``__tests__/api/agent-server-adapter.test.ts``).
   return {
     kind: stringOrNull(value.kind),
+    acp_server: stringOrNull(value.acp_server),
     acp_model: stringOrNull(value.acp_model),
     llm,
   };
