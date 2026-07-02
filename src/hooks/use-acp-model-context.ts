@@ -17,7 +17,7 @@ export interface AcpModelContext {
   /** Either of the above: the model affordance should defer to the ACP picker. */
   isAcpContext: boolean;
   /** Where the model/settings link should navigate. */
-  destinationPath: "/settings/agent" | "/settings";
+  destinationPath: "/settings/agents" | "/settings";
   /** Translated label for that link. */
   destinationLabel: string;
 }
@@ -44,7 +44,7 @@ export function useAcpModelContext(): AcpModelContext {
     (activeAgentKind ?? settings?.agent_settings?.agent_kind) === "acp";
   const isAcpContext = isActiveAcpConversation || isHomeAcp;
 
-  const destinationPath = isAcpContext ? "/settings/agent" : "/settings";
+  const destinationPath = isAcpContext ? "/settings/agents" : "/settings";
   const destinationLabel = t(
     isAcpContext
       ? I18nKey.SETTINGS$NAV_AGENT

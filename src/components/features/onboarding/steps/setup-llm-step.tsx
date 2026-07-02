@@ -101,6 +101,14 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
       // the next conversation actually uses it (and the "LLM not set up"
       // banner clears). Without this the active agent profile keeps its
       // seeded llm_profile_ref, which has no key.
+      //
+      // Cloud intentionally skips this: `persistAsProfile` only creates/activates
+      // a *local* LLM profile (it early-returns null off local backends), and on
+      // cloud the agent-profile ↔ LLM wiring is resolved server-side from the
+      // settings this step's form save already persisted — there is no
+      // client-writable cloud agent-profile ref to repoint here. The ACP step
+      // still calls applyAgentProfile because ACP agents carry no LLM ref and
+      // persist their kind/model locally regardless of backend.
       if (llmProfileName) {
         await applyAgentProfile({
           agent_kind: "openhands",

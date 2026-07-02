@@ -13,6 +13,7 @@ import {
   ChatInputLlmProfilePicker,
   ChatInputLlmProfileMenuContent,
 } from "./chat-input-llm-profile-picker";
+import { resolvePickerKind } from "./resolve-picker-kind";
 import { ChatAddFileButton } from "../chat-add-file-button";
 import { ChatSendButton } from "../chat-send-button";
 import CarretRightFillIcon from "#/icons/carret-right-fill.svg?react";
@@ -242,31 +243,14 @@ export function ChatInputActions({
     setIsOverflowOpen(false);
   };
 
-  // Which chat-input model/profile picker to show:
-  //  - home (local or cloud): the AgentProfile picker, which starts a new
-  //    conversation / activates the default (#3727, cloud via #15060); when no
-  //    profiles exist yet, fall back (cloud → model, local → LLM-profile).
-  //  - in a cloud conversation, or a local ACP conversation: the model picker.
-  //  - in a local OpenHands conversation: the LLM-profile picker, which
-  //    live-switches the running conversation's LLM profile (/switch_profile).
-  const pickerKind: "model" | "agent-profile" | "llm-profile" = !conversationId
-    ? agentProfilesUnavailableOnHome
-      ? // No profiles to launch from: cloud has no home LLM-profile activate
-        // path, so fall back to its model picker; local falls back to the
-        // LLM-profile picker.
-        isCloud
-        ? "model"
-        : "llm-profile"
-      : "agent-profile"
-    : isCloud
-      ? // In-conversation on cloud uses the model picker (unchanged from before
-        // this PR). In-conversation LLM-profile switching is a local-only
-        // capability by design — cloud has no per-conversation switch endpoint
-        // and masks profile secrets. ACP uses the model picker regardless.
-        "model"
-      : modelState.isAcpContext
-        ? "model"
-        : "llm-profile";
+  // Which chat-input model/profile picker to show (pure matrix, unit-tested in
+  // `resolve-picker-kind.test.ts`).
+  const pickerKind = resolvePickerKind({
+    hasConversation: !!conversationId,
+    isCloud,
+    isAcp: modelState.isAcpContext,
+    profilesAvailable: !agentProfilesUnavailableOnHome,
+  });
 
   // Shared styling for the settings link inside the overflow submenu content.
   const overflowSettingsLinkClassName = cn(

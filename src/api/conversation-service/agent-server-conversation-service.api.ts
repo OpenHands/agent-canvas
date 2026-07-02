@@ -180,24 +180,6 @@ function normalizeTags(value: unknown): Record<string, string> | null {
   return tags;
 }
 
-/**
- * Validate the AgentProfile launch-provenance block. The wire field is
- * ``launched_agent_profile { agent_profile_id, revision }`` (SDK
- * ``LaunchedAgentProfile``, PR #3784), mapped to the canvas-internal
- * ``{ profile_id, revision }``. Returns ``null`` when absent/malformed so older
- * servers stay graceful. Consumed by the chat-input profile picker (#3727).
- */
-function normalizeLaunchedProfile(
-  value: unknown,
-): { profile_id: string; revision: number } | null {
-  if (!isRecord(value)) return null;
-  const { agent_profile_id: profileId, revision } = value;
-  if (typeof profileId === "string" && typeof revision === "number") {
-    return { profile_id: profileId, revision };
-  }
-  return null;
-}
-
 function normalizeAbsolutePath(path: string): string | null {
   if (!path.startsWith("/")) return null;
 
@@ -254,7 +236,6 @@ function requireDirectConversationInfo(item: unknown): DirectConversationInfo {
     // omit these — adapter handles ``undefined`` / ``null`` gracefully.
     current_model_id: stringOrNull(item.current_model_id),
     current_model_name: stringOrNull(item.current_model_name),
-    launched_profile: normalizeLaunchedProfile(item.launched_agent_profile),
   };
 }
 
@@ -388,7 +369,7 @@ class AgentServerConversationService {
       // useTaskPolling drive it to READY. NO encrypted-settings
       // round-trip — the cloud backend holds secrets server-side.
       // When launching from a profile, send `agent_profile_id`; the backend
-      // resolves it to agent_settings and stamps `launched_agent_profile`.
+      // resolves it to agent_settings server-side.
       const request: AppConversationStartRequest = {
         initial_message: initialUserMsg
           ? {

@@ -104,6 +104,28 @@ describe("useLlmConfigured (local, agent-profile-driven)", () => {
     expect(result.current.isConfigured).toBe(false);
   });
 
+  it("falls back to the active LLM profile when the ref is stale (matches the launch fallback)", () => {
+    // The agent profile references "ghost", which no longer exists in the list
+    // (deleted profile / seed ref pointing at a named profile that was never
+    // created). The launch path drops a stale-ref profile launch to an
+    // agent_settings launch on the active LLM ("default", which HAS a key), so
+    // this hook must report configured too — otherwise the composer is
+    // spuriously disabled even though launch succeeds (VascoSch92 review #1571).
+    useLlmProfilesMock.mockReturnValue(
+      llmProfiles("default", [{ name: "default", api_key_set: true }]),
+    );
+    useActiveAgentProfileMock.mockReturnValue({
+      activeProfile: {
+        agent_kind: "openhands",
+        llm_profile_ref: "ghost",
+        name: "MyOH",
+      },
+    });
+
+    const { result } = renderHook(() => useLlmConfigured(), { wrapper });
+    expect(result.current.isConfigured).toBe(true);
+  });
+
   it("is configured for an ACP agent profile regardless of LLM keys", () => {
     useLlmProfilesMock.mockReturnValue(
       llmProfiles("default", [{ name: "default", api_key_set: false }]),

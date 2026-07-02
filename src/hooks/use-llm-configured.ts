@@ -65,17 +65,29 @@ export function useLlmConfigured(): LlmConfiguredResult {
   const hasApiKey = settings?.llm_api_key_set === true;
   // The LLM that will actually power the next conversation is the profile the
   // active AGENT profile references (`llm_profile_ref`) — conversations launch
-  // from the agent profile, not the standalone "active LLM profile". Fall back
-  // to the active LLM profile only when there's no ref yet (list loading, or an
-  // agent profile without a ref).
-  const relevantLlmProfileName =
-    activeAgentProfile?.agent_kind === "openhands" &&
-    activeAgentProfile.llm_profile_ref
+  // from the agent profile, not the standalone "active LLM profile".
+  const referencedLlmProfileName =
+    activeAgentProfile?.agent_kind === "openhands"
       ? activeAgentProfile.llm_profile_ref
-      : profilesData?.active_profile;
-  const activeProfile = profilesData?.profiles.find(
-    (profile) => profile.name === relevantLlmProfileName,
-  );
+      : undefined;
+  const referencedProfile = referencedLlmProfileName
+    ? profilesData?.profiles.find(
+        (profile) => profile.name === referencedLlmProfileName,
+      )
+    : undefined;
+  // Fall back to the active LLM profile when the ref is absent (list loading,
+  // or an agent profile without a ref) OR stale (names a profile that no longer
+  // exists). This mirrors the launch-time fallback in `useCreateConversation`,
+  // which drops a stale-ref profile launch to an `agent_settings` launch on the
+  // active LLM. Without this fallback the two contradict each other: launch
+  // succeeds via the fallback, but this hook reports `isConfigured: false` and
+  // spuriously disables the composer + shows the banner — even inside a running
+  // conversation (VascoSch92 review, #1571).
+  const activeProfile =
+    referencedProfile ??
+    profilesData?.profiles.find(
+      (profile) => profile.name === profilesData?.active_profile,
+    );
   const hasActiveProfileApiKey = activeProfile?.api_key_set === true;
   const shouldLoadActiveProfileDetail =
     isLocal && !!activeProfile && !hasActiveProfileApiKey;
