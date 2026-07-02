@@ -111,6 +111,7 @@ beforeEach(() => {
   vi.mocked(getCloudOrganizationMe).mockResolvedValue({
     orgId: "",
     userId: "",
+    role: null,
   });
   // Default to the legacy-key fallback so existing assertions about
   // multiple orgs being visible still hold. Tests that exercise
@@ -310,6 +311,7 @@ describe("BackendSelector", () => {
     vi.mocked(getCloudOrganizationMe).mockImplementation(async (orgId) => ({
       orgId,
       userId: orgId === personalOrgId ? personalOrgId : "some-user",
+      role: null,
     }));
 
     renderWithProviders(
@@ -351,6 +353,7 @@ describe("BackendSelector", () => {
     vi.mocked(getCloudOrganizationMe).mockResolvedValue({
       orgId: personalOrgId,
       userId: personalOrgId,
+      role: null,
     });
 
     let cloudId = "";

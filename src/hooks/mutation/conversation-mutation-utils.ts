@@ -1,5 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { ConversationClient } from "@openhands/typescript-client/clients";
+import type { StartGoalRequest } from "@openhands/typescript-client";
 import { getActiveBackend } from "#/api/backend-registry/active-store";
 import { pauseCloudSandbox } from "#/api/cloud/conversation-service.api";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
@@ -71,6 +72,46 @@ export const askAgent = async (
   return new ConversationClient(
     getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
   ).askAgent(conversationId, question);
+};
+
+/**
+ * Start a `/goal` loop on a V1 conversation. The agent server drives the agent
+ * toward the objective, judging completion after each run until it is done or
+ * `max_iterations` is reached, streaming progress as goal
+ * ConversationStateUpdateEvents over the conversation's event stream.
+ */
+export const startGoal = async (
+  conversationId: string,
+  request: StartGoalRequest,
+): Promise<void> => {
+  const { conversationUrl, sessionApiKey } =
+    await fetchConversationData(conversationId);
+  await new ConversationClient(
+    getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
+  ).startGoal(conversationId, request);
+};
+
+/**
+ * Stop the active `/goal` loop. The backend only cancels the background loop
+ * (recording an `interrupted` status so {@link resumeGoal} can continue it) and
+ * deliberately leaves the in-flight agent turn running, so callers should also
+ * interrupt the conversation (e.g. `pauseConversation`) to actually halt it.
+ */
+export const stopGoal = async (conversationId: string): Promise<void> => {
+  const { conversationUrl, sessionApiKey } =
+    await fetchConversationData(conversationId);
+  await new ConversationClient(
+    getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
+  ).stopGoal(conversationId);
+};
+
+/** Resume the last interrupted `/goal` loop in this conversation. */
+export const resumeGoal = async (conversationId: string): Promise<void> => {
+  const { conversationUrl, sessionApiKey } =
+    await fetchConversationData(conversationId);
+  await new ConversationClient(
+    getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
+  ).resumeGoal(conversationId);
 };
 
 export const resumeConversation = async (conversationId: string) => {
