@@ -293,4 +293,24 @@ describe("McpService.testServer", () => {
     expect(result).toEqual({ ok: true, tools: [] });
     expect(mockTestServer).not.toHaveBeenCalled();
   });
+
+  it("forwards auth: oauth in the server spec", async () => {
+    mockTestServer.mockResolvedValue({ ok: true, tools: ["send_email"] });
+    const oauthServer: MCPServerConfig = {
+      id: "shttp-oauth-1",
+      type: "shttp",
+      url: "https://mcp.mail.superhuman.com/mcp",
+      auth: "oauth",
+    };
+
+    await McpService.testServer(oauthServer);
+
+    expect(mockTestServer).toHaveBeenCalledWith({
+      server: {
+        type: "shttp",
+        url: "https://mcp.mail.superhuman.com/mcp",
+        auth: "oauth",
+      },
+    });
+  });
 });

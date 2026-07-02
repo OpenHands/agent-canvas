@@ -19,6 +19,8 @@ export type MCPSSEServer = {
   url: string;
   api_key?: string;
   headers?: Record<string, string>;
+  /** Set to "oauth" for servers that handle OAuth themselves (fastmcp). */
+  auth?: "oauth";
 };
 
 export type MCPStdioServer = {
@@ -34,6 +36,8 @@ export type MCPSHTTPServer = {
   api_key?: string;
   headers?: Record<string, string>;
   timeout?: number;
+  /** Set to "oauth" for servers that handle OAuth themselves (fastmcp). */
+  auth?: "oauth";
 };
 
 export type MCPConfig = {

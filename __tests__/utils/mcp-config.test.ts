@@ -408,3 +408,92 @@ describe("parseMcpConfig — deprecated Linear SSE migration", () => {
     });
   });
 });
+
+describe("parseMcpConfig / toSdkMcpConfig — auth: oauth round-trip", () => {
+  it("parses auth: oauth from an shttp server config", () => {
+    const persisted = {
+      mcpServers: {
+        "superhuman-mail": {
+          url: "https://mcp.mail.superhuman.com/mcp",
+          transport: "http",
+          auth: "oauth",
+        },
+      },
+    };
+
+    const parsed = parseMcpConfig(persisted);
+
+    expect(parsed.shttp_servers).toHaveLength(1);
+    expect(parsed.shttp_servers[0]).toMatchObject({
+      url: "https://mcp.mail.superhuman.com/mcp",
+      auth: "oauth",
+    });
+  });
+
+  it("writes auth: oauth back when serializing to SDK config", () => {
+    const config: MCPConfig = {
+      sse_servers: [],
+      stdio_servers: [],
+      shttp_servers: [
+        {
+          url: "https://mcp.mail.superhuman.com/mcp",
+          auth: "oauth",
+        },
+      ],
+    };
+
+    const written = toSdkMcpConfig(config);
+
+    expect(written).toEqual({
+      mcpServers: {
+        shttp: {
+          url: "https://mcp.mail.superhuman.com/mcp",
+          auth: "oauth",
+        },
+      },
+    });
+  });
+
+  it("parses auth: oauth from an SSE server config", () => {
+    const persisted = {
+      mcpServers: {
+        "oauth-sse": {
+          url: "https://mcp.example.com/sse",
+          transport: "sse",
+          auth: "oauth",
+        },
+      },
+    };
+
+    const parsed = parseMcpConfig(persisted);
+
+    expect(parsed.sse_servers).toHaveLength(1);
+    expect(parsed.sse_servers[0]).toMatchObject({
+      url: "https://mcp.example.com/sse",
+      auth: "oauth",
+    });
+  });
+
+  it("round-trips auth: oauth through parse then serialize", () => {
+    const persisted = {
+      mcpServers: {
+        "superhuman-mail": {
+          url: "https://mcp.mail.superhuman.com/mcp",
+          transport: "http",
+          auth: "oauth",
+        },
+      },
+    };
+
+    const roundTripped = toSdkMcpConfig(parseMcpConfig(persisted));
+
+    expect(roundTripped).toEqual({
+      mcpServers: {
+        "superhuman-mail": {
+          url: "https://mcp.mail.superhuman.com/mcp",
+          auth: "oauth",
+        },
+      },
+    });
+  });
+});

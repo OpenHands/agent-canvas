@@ -149,6 +149,7 @@ export function parseMcpConfig(value: unknown): MCPConfig {
         const server: MCPSSEServer = { url };
         if (name) server.name = name;
         if (apiKey) server.api_key = apiKey;
+        if (serverConfig.auth === "oauth") server.auth = "oauth";
         sseServers.push(server);
       } else {
         const name = userGivenServerName(serverName, "shttp");
@@ -158,6 +159,7 @@ export function parseMcpConfig(value: unknown): MCPConfig {
         if (serverConfig.timeout != null) {
           server.timeout = serverConfig.timeout as number;
         }
+        if (serverConfig.auth === "oauth") server.auth = "oauth";
         shttpServers.push(server);
       }
     } else {
@@ -222,6 +224,7 @@ export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
       name = entry.name;
       server.url = entry.url;
       Object.assign(server, getRemoteCredentialFields(entry));
+      if (entry.auth === "oauth") server.auth = "oauth";
     }
     server.transport = "sse";
     mcpServers[reserve(name || "sse")] = server;
@@ -237,6 +240,7 @@ export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
       server.url = entry.url;
       Object.assign(server, getRemoteCredentialFields(entry));
       if (entry.timeout != null) server.timeout = entry.timeout;
+      if (entry.auth === "oauth") server.auth = "oauth";
     }
     mcpServers[reserve(name || "shttp")] = server;
   }

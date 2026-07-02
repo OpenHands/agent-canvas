@@ -33420,5 +33420,39 @@
     "de": "An diese Unterhaltung sind keine Plugins angehängt.",
     "uk": "До цієї розмови не додано жодного плагіна.",
     "ca": "No hi ha cap connector adjuntat a aquesta conversa."
+  },
+  "MCP$OAUTH_CONNECT_INFO": {
+    "en": "This server uses OAuth for authentication. Click Install to connect — you will be redirected to authorize access.",
+    "ja": "このサーバーは認証にOAuthを使用します。「インストール」をクリックして接続してください。アクセスを承認するようにリダイレクトされます。",
+    "zh-CN": "此服务器使用 OAuth 进行身份验证。点击\"安装\"进行连接 — 您将被重定向以授权访问。",
+    "zh-TW": "此伺服器使用 OAuth 進行身分驗證。點擊「安裝」進行連線 — 您將被重新導向以授權存取。",
+    "ko-KR": "이 서버는 인증에 OAuth를 사용합니다. \"설치\"를 클릭하여 연결하세요 — 액세스 권한 부여를 위해 리디렉션됩니다.",
+    "no": "Denne serveren bruker OAuth for autentisering. Klikk Installer for å koble til — du vil bli omdirigert for å godkjenne tilgang.",
+    "it": "Questo server utilizza OAuth per l'autenticazione. Fai clic su Installa per connetterti — verrai reindirizzato per autorizzare l'accesso.",
+    "pt": "Este servidor usa OAuth para autenticação. Clique em Instalar para conectar — você será redirecionado para autorizar o acesso.",
+    "es": "Este servidor utiliza OAuth para la autenticación. Haz clic en Instalar para conectarte — serás redirigido para autorizar el acceso.",
+    "ar": "يستخدم هذا الخادم OAuth للمصادقة. انقر على \"تثبيت\" للاتصال — سيتم إعادة توجيهك لتخويل الوصول.",
+    "fr": "Ce serveur utilise OAuth pour l'authentification. Cliquez sur Installer pour vous connecter — vous serez redirigé pour autoriser l'accès.",
+    "tr": "Bu sunucu kimlik doğrulama için OAuth kullanır. Bağlanmak için Yükle'ye tıklayın — erişimi yetkilendirmek için yönlendirileceksiniz.",
+    "de": "Dieser Server verwendet OAuth für die Authentifizierung. Klicken Sie auf Installieren, um eine Verbindung herzustellen — Sie werden zur Autorisierung des Zugriffs weitergeleitet.",
+    "uk": "Цей сервер використовує OAuth для автентифікації. Натисніть «Встановити», щоб підключитися — ви будете перенаправлені для авторизації доступу.",
+    "ca": "Aquest servidor utilitza OAuth per a l'autenticació. Feu clic a Instal·la per connectar-vos — se us redirigirà per autoritzar l'accés."
+  },
+  "MCP$OAUTH_CONNECT_HINT": {
+    "en": "No API key needed. The server handles the OAuth flow automatically.",
+    "ja": "APIキーは不要です。サーバーがOAuthフローを自動的に処理します。",
+    "zh-CN": "无需 API 密钥。服务器会自动处理 OAuth 流程。",
+    "zh-TW": "無需 API 金鑰。伺服器會自動處理 OAuth 流程。",
+    "ko-KR": "API 키가 필요하지 않습니다. 서버가 OAuth 흐름을 자동으로 처리합니다.",
+    "no": "Ingen API-nøkkel nødvendig. Serveren håndterer OAuth-flyten automatisk.",
+    "it": "Nessuna chiave API necessaria. Il server gestisce automaticamente il flusso OAuth.",
+    "pt": "Nenhuma chave de API necessária. O servidor gerencia o fluxo OAuth automaticamente.",
+    "es": "No se necesita clave de API. El servidor maneja el flujo de OAuth automáticamente.",
+    "ar": "لا مطلوب مفتاح API. يتعامل الخادم مع تدفق OAuth تلقائيًا.",
+    "fr": "Aucune clé API requise. Le serveur gère le flux OAuth automatiquement.",
+    "tr": "API anahtarı gerekmez. Sunucu OAuth akışını otomatik olarak yönetir.",
+    "de": "Kein API-Schlüssel erforderlich. Der Server übernimmt den OAuth-Fluss automatisch.",
+    "uk": "Ключ API не потрібен. Сервер автоматично обробляє процес OAuth.",
+    "ca": "No cal cap clau d'API. El servidor gestiona el flux d'OAuth automàticament."
   }
 }

@@ -17,10 +17,12 @@ interface MCPServerConfig {
   name?: string;
   url?: string;
   api_key?: string;
+  headers?: Record<string, string>;
   timeout?: number;
   command?: string;
   args?: string[];
   env?: Record<string, string>;
+  auth?: "oauth";
 }
 
 export function useAddMcpServer() {
@@ -44,6 +46,7 @@ export function useAddMcpServer() {
           ...(server.name && { name: server.name }),
           url: server.url!,
           ...(server.api_key && { api_key: server.api_key }),
+          ...(server.auth && { auth: server.auth }),
         };
         newConfig.sse_servers.push(sseServer);
       } else if (server.type === "stdio") {
@@ -60,6 +63,7 @@ export function useAddMcpServer() {
           url: server.url!,
           ...(server.api_key && { api_key: server.api_key }),
           ...(server.timeout !== undefined && { timeout: server.timeout }),
+          ...(server.auth && { auth: server.auth }),
         };
         newConfig.shttp_servers.push(shttpServer);
       }

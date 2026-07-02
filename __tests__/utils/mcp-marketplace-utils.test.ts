@@ -97,7 +97,7 @@ describe("getInstallableMcpConnectionOption", () => {
     expect(option?.transport.kind).toBe("stdio");
   });
 
-  it("returns undefined for an OAuth-only entry (no locally installable option)", () => {
+  it("returns the OAuth option for an OAuth-only entry (now supported)", () => {
     const oauthOnlyEntry: Parameters<
       typeof getInstallableMcpConnectionOption
     >[0] = {
@@ -115,7 +115,9 @@ describe("getInstallableMcpConnectionOption", () => {
       ],
     };
     const option = getInstallableMcpConnectionOption(oauthOnlyEntry);
-    expect(option).toBeUndefined();
+    expect(option).toBeDefined();
+    expect(option?.auth.strategy).toBe("oauth2");
+    expect(option?.transport.kind).toBe("shttp");
   });
 
   it("returns undefined when the entry has no MCP connection options", () => {
