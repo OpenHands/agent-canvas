@@ -609,6 +609,9 @@ export function ConversationWebSocketProvider({
               git_provider: prevMetadata?.git_provider ?? null,
               selected_workspace: prevMetadata?.selected_workspace ?? null,
               active_profile: switchLLMObservation.observation.profile_name,
+              // Full-object replace: carry the plugins snapshot forward so the
+              // in-conversation plugins view survives a profile switch.
+              plugins: prevMetadata?.plugins ?? null,
             });
 
             if (switchLLMObservation.observation.active_model) {

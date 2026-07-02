@@ -1,6 +1,6 @@
 {
   "name": "@openhands/agent-canvas",
-  "version": "1.0.0-rc.6",
+  "version": "1.1.0",
   "description": "Agent Canvas UI for OpenHands - run AI coding agents with a visual interface",
   "license": "MIT",
   "private": false,
@@ -23,8 +23,8 @@
     "@heroui/react": "2.8.10",
     "@microlink/react-json-view": "1.31.20",
     "@monaco-editor/react": "4.7.0",
-    "@openhands/extensions": "0.6.0",
-    "@openhands/typescript-client": "1.27.0",
+    "@openhands/extensions": "0.7.0",
+    "@openhands/typescript-client": "1.28.0",
     "@react-router/node": "7.17.0",
     "@react-router/serve": "7.17.0",
     "@tailwindcss/vite": "4.2.4",
@@ -38,6 +38,7 @@
     "clsx": "2.1.1",
     "downshift": "9.3.2",
     "framer-motion": "12.38.0",
+    "httpxy": "0.5.3",
     "i18next": "26.0.8",
     "i18next-browser-languagedetector": "8.2.1",
     "i18next-http-backend": "4.0.0",
@@ -58,6 +59,7 @@
     "remark-breaks": "4.0.0",
     "remark-gfm": "4.0.1",
     "shell-quote": "1.8.4",
+    "sirv": "3.0.2",
     "sirv-cli": "3.0.1",
     "socket.io-client": "4.8.3",
     "tailwind-merge": "3.5.0",
@@ -97,7 +99,8 @@
     "check-translation-completeness": "node scripts/check-translation-completeness.cjs",
     "build:app": "npm run make-i18n && react-router build",
     "build:lib": "npm run make-i18n && react-router typegen && cross-env BUILD_LIB=true VITE_APP_ENV=production vite build && tsc -p tsconfig.lib.json",
-    "build:docker": "node scripts/docker-build.mjs"
+    "build:docker": "node scripts/docker-build.mjs",
+    "example:acp-docker:env": "node scripts/gen-acp-docker-env.mjs"
   },
   "lint-staged": {
     "src/**/*.{ts,tsx,js}": [

@@ -10,6 +10,7 @@ import { useActiveConversation } from "./query/use-active-conversation";
 import { useEventStore } from "#/stores/use-event-store";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
+import { getStoredConversationMetadata } from "#/api/conversation-metadata-store";
 
 import { useDownloadConversation } from "./use-download-conversation";
 import {
@@ -45,6 +46,7 @@ export function useConversationNameContextMenu({
   const [metricsModalVisible, setMetricsModalVisible] = React.useState(false);
   const [systemModalVisible, setSystemModalVisible] = React.useState(false);
   const [skillsModalVisible, setSkillsModalVisible] = React.useState(false);
+  const [pluginsModalVisible, setPluginsModalVisible] = React.useState(false);
   const [hooksModalVisible, setHooksModalVisible] = React.useState(false);
   const [confirmDeleteModalVisible, setConfirmDeleteModalVisible] =
     React.useState(false);
@@ -128,6 +130,12 @@ export function useConversationNameContextMenu({
     onContextMenuToggle?.(false);
   };
 
+  const handleShowPlugins = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    setPluginsModalVisible(true);
+    onContextMenuToggle?.(false);
+  };
+
   const handleShowHooks = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     setHooksModalVisible(true);
@@ -178,6 +186,7 @@ export function useConversationNameContextMenu({
     handleDisplayCost,
     handleShowAgentTools,
     handleShowSkills,
+    handleShowPlugins,
     handleShowHooks,
     handleTogglePublic,
     handleCopyShareLink,
@@ -192,6 +201,8 @@ export function useConversationNameContextMenu({
     setSystemModalVisible,
     skillsModalVisible,
     setSkillsModalVisible,
+    pluginsModalVisible,
+    setPluginsModalVisible,
     hooksModalVisible,
     setHooksModalVisible,
     confirmDeleteModalVisible,
@@ -208,6 +219,11 @@ export function useConversationNameContextMenu({
     shouldShowDisplayCost: showOptions,
     shouldShowAgentTools: Boolean(showOptions && systemMessage),
     shouldShowSkills: Boolean(showOptions && conversationId),
+    shouldShowPlugins: Boolean(
+      showOptions &&
+      conversationId &&
+      (getStoredConversationMetadata(conversationId)?.plugins?.length ?? 0) > 0,
+    ),
     shouldShowHooks: Boolean(
       showOptions && conversationId && isExecutionActive(executionStatus),
     ),

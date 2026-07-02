@@ -151,43 +151,29 @@ async function suppressAnalytics(page: Page) {
   });
 }
 
-/**
- * Add a backend through the Manage Backends modal.
- *
- * Assumes the modal is already visible (shown automatically when no
- * backend is available). Clicks "+ Add Backend", fills in the form,
- * and submits.
- */
-async function addBackendViaModal(
+async function addBackendViaOnboarding(
   page: Page,
   opts: { name: string; host: string; apiKey: string },
 ) {
-  // Click "+ Add Backend" button inside the manage-backends modal
-  await page.getByTestId("manage-backends-add").click();
-
-  // The AddBackendFormModal should appear
-  await expect(page.getByTestId("add-backend-modal")).toBeVisible({
-    timeout: 5_000,
+  await expect(page.getByTestId("onboarding-step-check-backend")).toBeVisible({
+    timeout: 15_000,
   });
 
-  // Fill in the backend details
-  const nameInput = page.getByTestId("add-backend-name");
+  const nameInput = page.getByTestId("onboarding-backend-name");
   await nameInput.click();
   await nameInput.fill(opts.name);
 
-  const hostInput = page.getByTestId("add-backend-host");
+  const hostInput = page.getByTestId("onboarding-backend-host");
   await hostInput.click();
   await hostInput.fill(opts.host);
 
-  const keyInput = page.getByTestId("add-backend-api-key");
+  const keyInput = page.getByTestId("onboarding-backend-api-key");
   await keyInput.click();
   await keyInput.fill(opts.apiKey);
 
-  // Submit — validates connection then saves
-  await page.getByTestId("add-backend-submit").click();
+  await page.getByTestId("onboarding-backend-next").click();
 
-  // Wait for the add-backend modal to close (means connection succeeded)
-  await expect(page.getByTestId("add-backend-modal")).not.toBeVisible({
+  await expect(page.getByTestId("onboarding-step-choose-agent")).toBeVisible({
     timeout: 15_000,
   });
 }
@@ -270,25 +256,24 @@ test.describe("cross-connect: frontend-only → backend-only", () => {
     await suppressAnalytics(page);
     await page.goto(feUrl, { waitUntil: "domcontentloaded" });
 
-    // The app detects no reachable backend and shows the Manage Backends
-    // modal (MissingAgentServerScreen path).
-    await expect(page.getByTestId("manage-backends-modal")).toBeVisible({
-      timeout: 15_000,
+    // First-run onboarding owns the initial backend collection before
+    // the Manage Backends recovery screen is allowed to appear.
+    await expect(page.getByTestId("manage-backends-modal")).not.toBeVisible({
+      timeout: 1_000,
     });
 
-    // ── 5. Add the backend-only instance via the modal ────────────────
-    await addBackendViaModal(page, {
+    // ── 5. Add the backend-only instance via onboarding ───────────────
+    await addBackendViaOnboarding(page, {
       name: "Remote Backend",
       host: beUrl,
       apiKey: beEnv.sessionKey,
     });
+    await page.getByTestId("onboarding-skip").click();
 
     // ── 6. Reload to pick up the new backend ──────────────────────────
-    // After adding a backend through the MissingAgentServerScreen modal,
-    // root.tsx's useConfig still holds the cached AgentServerUnavailable
-    // error (retries are disabled for that error class). A page reload
-    // re-evaluates everything from scratch: getEffectiveLocalBackend()
-    // now returns the newly added backend, and useConfig probes it.
+    // After adding a backend while the root first-run gate is active,
+    // reload once to re-evaluate the root bootstrap against the newly
+    // persisted active backend.
     await page.reload({ waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
 
@@ -411,24 +396,20 @@ test.describe("cross-connect: frontend-only → multiple backends", () => {
     await suppressAnalytics(page);
     await page.goto(feUrl, { waitUntil: "domcontentloaded" });
 
-    // The manage-backends modal should appear (no backend configured).
-    await expect(page.getByTestId("manage-backends-modal")).toBeVisible({
-      timeout: 15_000,
+    // The first-run onboarding backend step should appear before the
+    // Manage Backends recovery modal.
+    await expect(page.getByTestId("manage-backends-modal")).not.toBeVisible({
+      timeout: 1_000,
     });
 
-    // ── 5. Add Backend A ──────────────────────────────────────────────
-    await addBackendViaModal(page, {
+    // ── 5. Add Backend A through onboarding ──────────────────────────
+    await addBackendViaOnboarding(page, {
       name: "Backend A",
       host: beUrlA,
       apiKey: beEnvA.sessionKey,
     });
 
-    // Reload to pick up the new backend (same reason as single-backend
-    // test: useConfig caches the AgentServerUnavailableError).
-    // Also mark onboarding as done so we land on the home page.
-    await page.evaluate(() => {
-      window.localStorage.setItem("openhands-onboarded", "1");
-    });
+    await page.getByTestId("onboarding-skip").click();
     await page.reload({ waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
     await expect(page.getByTestId("home-chat-launcher")).toBeVisible({

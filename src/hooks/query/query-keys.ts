@@ -30,6 +30,13 @@ export const LOCAL_WORKSPACES_QUERY_KEYS = {
   all: ["local-workspaces"] as const,
 } as const;
 
+export const PLUGINS_QUERY_KEYS = {
+  /** Dynamic marketplace catalog (used by `use-plugins-marketplace`). */
+  marketplace: ["plugins-marketplace"] as const,
+  /** Installed plugins from the local agent-server. */
+  installed: ["plugins-installed"] as const,
+} as const;
+
 /** Cache configuration shared across all config-related queries */
 export const CONFIG_CACHE_OPTIONS = {
   staleTime: 1000 * 60 * 5, // 5 minutes
