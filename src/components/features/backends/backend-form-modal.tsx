@@ -934,7 +934,7 @@ function CloudLoginColumn({
   };
 
   return (
-    <div className="flex flex-1 min-w-0 flex-col items-center gap-3">
+    <div className="flex flex-1 min-w-0 flex-col items-center gap-3 pb-7">
       <div className="flex flex-col items-center gap-1">
         <OpenHandsLogoWhite width={56} height={56} aria-hidden />
 

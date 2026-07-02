@@ -22,6 +22,7 @@ import {
   getEffectiveLocalBackend,
 } from "../backend-registry/active-store";
 import { callCloudProxy } from "../cloud/proxy";
+import ProfilesService from "../profiles-service/profiles-service.api";
 import {
   batchGetCloudConversations,
   createCloudAppConversation,
@@ -684,15 +685,34 @@ class AgentServerConversationService {
    * The per-conversation endpoint accepts only the profile name, so the UI does
    * not need to fetch or forward profile secrets. That keeps switching working
    * even when the agent server has no OH_SECRET_KEY for encrypted secret export.
+   *
+   * Cloud backends route to the app-server's per-conversation
+   * `/switch_profile`, which owns the profiles and resolves the swap
+   * server-side (base_url/api_key fixups, usage_id derivation, then the
+   * agent-server's switch_llm) — so the client only forwards the profile name,
+   * mirroring {@link switchAcpModel}.
    */
   static async switchProfile(
     conversationId: string | null,
     profileName: string,
   ): Promise<void> {
-    if (getActiveBackend().backend.kind === "cloud") {
-      throw new Error(
-        "LLM profile switching is only supported for local agent-server backends.",
-      );
+    const { backend } = getActiveBackend();
+
+    if (backend.kind === "cloud") {
+      // No conversation (home page): activate globally so the next
+      // conversation starts with it. ProfilesService routes to the cloud
+      // activate endpoint.
+      if (!conversationId) {
+        await ProfilesService.activateProfile(profileName);
+        return;
+      }
+      await callCloudProxy({
+        backend,
+        method: "POST",
+        path: `/api/v1/app-conversations/${conversationId}/switch_profile`,
+        body: { profile_name: profileName },
+      });
+      return;
     }
 
     if (!conversationId) {

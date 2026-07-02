@@ -20,6 +20,7 @@ import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-
 import { useConversationStateStore } from "#/stores/conversation-state-store";
 import { useCommandStore } from "#/stores/command-store";
 import { useBrowserStore } from "#/stores/browser-store";
+import { useGoalStore } from "#/stores/goal-store";
 import {
   isAgentServerEvent,
   isAgentErrorEvent,
@@ -29,6 +30,7 @@ import {
   isFullStateConversationStateUpdateEvent,
   isAgentStatusConversationStateUpdateEvent,
   isStatsConversationStateUpdateEvent,
+  isGoalConversationStateUpdateEvent,
   isExecuteBashActionEvent,
   isExecuteBashObservationEvent,
   isDisplayableErrorEvent,
@@ -225,9 +227,14 @@ export function ConversationWebSocketProvider({
   const {
     data: preloadedHistory,
     isPending: isPreloadingHistory,
+    isFetching: isFetchingHistory,
     isError: isPreloadHistoryError,
   } = useConversationHistory(conversationId);
 
+  // Skeleton only on the genuine first load (no cached data yet). On return the
+  // cached page is present, so `isPending` is false and we render the
+  // last-known discussion immediately while the tail refetch runs in the
+  // background — see the socket gate below, which waits on `isFetching`.
   const isLoadingHistoryMain = !!conversationId && isPreloadingHistory;
 
   // Clear the (global, not conversation-scoped) event store when the active
@@ -298,35 +305,42 @@ export function ConversationWebSocketProvider({
    * (we hold the WS connection open until then to avoid an `all` resend).
    */
   const initialAfterTimestamp = useMemo<string | null>(() => {
-    if (isPreloadingHistory) return null;
+    // Wait for the history query to settle — including the refetch fired when
+    // returning to a conversation — so we anchor `since` to the freshest event
+    // we have rather than a stale cached tail.
+    if (isFetchingHistory) return null;
     const events = preloadedHistory?.events ?? [];
     const latest = events[events.length - 1];
     if (!latest || !("timestamp" in latest) || !latest.timestamp) return null;
     return latest.timestamp;
-  }, [preloadedHistory, isPreloadingHistory]);
+  }, [preloadedHistory, isFetchingHistory]);
 
   // Build WebSocket URL from props.
   //
-  // We deliberately wait for the initial REST history fetch to settle before
-  // opening the socket so the WS subscription can use `resend_mode='since'`
-  // with a meaningful `after_timestamp`. Without this gate, the WS would open
-  // immediately and either replay the entire conversation (when falling back
-  // to `resend_mode='all'`) or miss events that arrived between REST and WS.
+  // We deliberately wait for the history fetch to settle before opening the
+  // socket so the WS subscription can use `resend_mode='since'` with a
+  // meaningful `after_timestamp`. This gate is on `isFetching`, not just the
+  // first-load `isPending`, so the refetch fired when returning to a
+  // conversation also completes first: the socket bakes `after_timestamp` into
+  // its URL at connect time and will NOT re-subscribe when the value changes
+  // later (see use-websocket — options live in a ref, reconnect keys on the URL
+  // only). Connecting mid-fetch would therefore pin `since` to the stale cached
+  // tail and replay the entire backlog over the socket. Without any gate the WS
+  // would instead fall back to `resend_mode='all'`. If the REST query errored we
+  // fall through and connect with `resend_mode='all'` so the user still sees
+  // live events.
   const wsUrl = useMemo(() => {
     if (!conversationId || !conversationUrl) {
       return null;
     }
-    // Don't connect while we're still fetching the initial history. If the
-    // REST query errored we fall through and connect with `resend_mode='all'`
-    // so the user still sees live events.
-    if (isPreloadingHistory && !isPreloadHistoryError) {
+    if (isFetchingHistory && !isPreloadHistoryError) {
       return null;
     }
     return buildWebSocketUrl(conversationId, conversationUrl);
   }, [
     conversationId,
     conversationUrl,
-    isPreloadingHistory,
+    isFetchingHistory,
     isPreloadHistoryError,
   ]);
 
@@ -548,6 +562,12 @@ export function ConversationWebSocketProvider({
             if (isStatsConversationStateUpdateEvent(event)) {
               updateMetricsFromStats(event);
             }
+            // Mirror goal status into the store. Intentionally duplicated across
+            // the main and planning WebSocket handlers (like the execution_status
+            // and stats branches above), not a merge artifact.
+            if (isGoalConversationStateUpdateEvent(event) && conversationId) {
+              useGoalStore.getState().setStatus(conversationId, event.value);
+            }
           }
 
           // Handle ExecuteBashAction events - add command as input to terminal
@@ -743,6 +763,12 @@ export function ConversationWebSocketProvider({
             }
             if (isStatsConversationStateUpdateEvent(event)) {
               updateMetricsFromStats(event);
+            }
+            // Mirror goal status into the store. Intentionally duplicated across
+            // the main and planning WebSocket handlers (like the execution_status
+            // and stats branches above), not a merge artifact.
+            if (isGoalConversationStateUpdateEvent(event) && conversationId) {
+              useGoalStore.getState().setStatus(conversationId, event.value);
             }
           }
 

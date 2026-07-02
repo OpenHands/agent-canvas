@@ -20,6 +20,7 @@ import {
   ConversationStateUpdateEventAgentStatus,
   ConversationStateUpdateEventFullState,
   ConversationStateUpdateEventStats,
+  ConversationStateUpdateEventGoal,
   ConversationErrorEvent,
   ServerErrorEvent,
 } from "./core/events/conversation-state-event";
@@ -210,6 +211,10 @@ export const isAgentStatusConversationStateUpdateEvent = (
 export const isStatsConversationStateUpdateEvent = (
   event: ConversationStateUpdateEvent,
 ): event is ConversationStateUpdateEventStats => event.key === "stats";
+
+export const isGoalConversationStateUpdateEvent = (
+  event: ConversationStateUpdateEvent,
+): event is ConversationStateUpdateEventGoal => event.key === "goal";
 
 /**
  * Type guard function to check if an event is a conversation error event
