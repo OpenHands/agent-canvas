@@ -82,6 +82,11 @@ export interface AppConversationStartRequest {
   agent_type?: "default" | "plan";
   sandbox_id?: string | null;
   plugins?: PluginSpec[] | null; // Plugins to load when starting the conversation
+  // One-off launch from a saved AgentProfile, resolved server-side (#3727).
+  // Accepted by the cloud app-server (OpenHands #15060) on
+  // POST /api/v1/app-conversations; the local path uses the encrypted
+  // agent_settings builder instead, which threads its own agentProfileId.
+  agent_profile_id?: string | null;
 }
 
 export type AppConversationStartTaskStatus =

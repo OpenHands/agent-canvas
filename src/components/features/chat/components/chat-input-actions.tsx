@@ -67,12 +67,12 @@ export function ChatInputActions({
   const { backend } = useActiveBackend();
   const isCloud = backend.kind === "cloud";
   const modelState = useChatInputModelState();
-  // The local home page defaults to the AgentProfile picker (#3727), but an
-  // agent-server without the /api/agent-profiles surface returns none — fall
-  // back to the LLM-profile picker so the composer still shows a model
-  // affordance instead of nothing (#1571). Only fetched for that case.
+  // The home page defaults to the AgentProfile picker (#3727) on both local and
+  // cloud (cloud gained the /api/agent-profiles surface in OpenHands #15060). A
+  // backend without that surface returns none — fall back so the composer still
+  // shows a model affordance instead of nothing (#1571). Only fetched on home.
   const homeAgentProfiles = useAgentProfiles({
-    enabled: !isCloud && !conversationId,
+    enabled: !conversationId,
   });
   const agentProfilesUnavailableOnHome =
     homeAgentProfiles.isFetched &&
@@ -251,12 +251,20 @@ export function ChatInputActions({
   //    running ACP model (set_session_model)
   //  - local in an OpenHands conversation: the LLM-profile picker, which
   //    live-switches the running conversation's LLM profile (/switch_profile)
-  const pickerKind: "model" | "agent-profile" | "llm-profile" = isCloud
-    ? "model"
-    : !conversationId
-      ? agentProfilesUnavailableOnHome
-        ? "llm-profile"
-        : "agent-profile"
+  const pickerKind: "model" | "agent-profile" | "llm-profile" = !conversationId
+    ? agentProfilesUnavailableOnHome
+      ? // No profiles to launch from: cloud has no home LLM-profile activate
+        // path, so fall back to its model picker; local falls back to the
+        // LLM-profile picker.
+        isCloud
+        ? "model"
+        : "llm-profile"
+      : "agent-profile"
+    : isCloud
+      ? // In-conversation on cloud keeps the model picker for now: OpenHands
+        // live LLM-profile switch has no cloud per-conversation endpoint yet
+        // (tracked for full parity); ACP uses the model picker regardless.
+        "model"
       : modelState.isAcpContext
         ? "model"
         : "llm-profile";

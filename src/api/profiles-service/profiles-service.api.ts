@@ -24,6 +24,8 @@ import type {
   ExposeSecretsMode,
 } from "@openhands/typescript-client";
 import { getAgentServerClientOptions } from "../agent-server-client-options";
+import { getActiveBackend } from "../backend-registry/active-store";
+import { listCloudLlmProfiles } from "../cloud/org-profiles-service.api";
 
 // Re-export SDK types for consumers
 export type {
@@ -38,6 +40,14 @@ export type {
 
 class ProfilesService {
   static async listProfiles(): Promise<ProfileListResponse> {
+    // Cloud serves org LLM profiles at `/api/organizations/{org_id}/profiles`
+    // (bearer + X-Org-Id) rather than the local agent-server's flat
+    // `/api/profiles`. Only listing is cloud-routed — it powers the
+    // Agent-profile editor's LLM-profile picker; the rest of the LLM-profile
+    // management UI stays local-only (route-gated).
+    if (getActiveBackend().backend.kind === "cloud") {
+      return listCloudLlmProfiles();
+    }
     return new ProfilesClient(getAgentServerClientOptions()).listProfiles();
   }
 

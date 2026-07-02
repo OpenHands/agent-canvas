@@ -5,9 +5,11 @@
  *
  * Backs the Settings → Agent profiles library + reused agent editor. The
  * `AgentProfilesClient` ships in ts-client (pinned 1.28.0 here); the
- * `/api/agent-profiles` server endpoints it targets shipped in agent-server
- * v1.29.0 and exist only on local backends (cloud has no such surface yet,
- * epic #3730).
+ * `/api/agent-profiles` endpoints it targets shipped in agent-server v1.29.0
+ * (local) and in the enterprise cloud app-server (OpenHands #15060, epic
+ * #3730). Cloud exposes the SAME contract but authenticates with a bearer
+ * token + `X-Org-Id`, so cloud calls route through `callCloudProxy` (see
+ * `cloud/agent-profiles-service.api.ts`) instead of the direct client.
  */
 import { AgentProfilesClient } from "@openhands/typescript-client/clients";
 import type {
@@ -20,6 +22,19 @@ import type {
   ActivateAgentProfileResponse,
 } from "@openhands/typescript-client";
 import { getAgentServerClientOptions } from "../agent-server-client-options";
+import { getActiveBackend } from "../backend-registry/active-store";
+import {
+  listCloudAgentProfiles,
+  getCloudAgentProfile,
+  saveCloudAgentProfile,
+  deleteCloudAgentProfile,
+  renameCloudAgentProfile,
+  activateCloudAgentProfile,
+} from "../cloud/agent-profiles-service.api";
+
+function isCloud(): boolean {
+  return getActiveBackend().backend.kind === "cloud";
+}
 
 // Re-export SDK types for consumers.
 export type {
@@ -34,12 +49,14 @@ export type {
 
 class AgentProfilesService {
   static async listProfiles(): Promise<AgentProfileListResponse> {
+    if (isCloud()) return listCloudAgentProfiles();
     return new AgentProfilesClient(
       getAgentServerClientOptions(),
     ).listAgentProfiles();
   }
 
   static async getProfile(name: string): Promise<AgentProfileDetailResponse> {
+    if (isCloud()) return getCloudAgentProfile(name);
     return new AgentProfilesClient(
       getAgentServerClientOptions(),
     ).getAgentProfile(name);
@@ -50,6 +67,7 @@ class AgentProfilesService {
     name: string,
     profile: AgentProfileSaveInput,
   ): Promise<AgentProfileMutationResponse> {
+    if (isCloud()) return saveCloudAgentProfile(name, profile);
     return new AgentProfilesClient(
       getAgentServerClientOptions(),
     ).saveAgentProfile(name, profile);
@@ -58,6 +76,7 @@ class AgentProfilesService {
   static async deleteProfile(
     name: string,
   ): Promise<AgentProfileMutationResponse> {
+    if (isCloud()) return deleteCloudAgentProfile(name);
     return new AgentProfilesClient(
       getAgentServerClientOptions(),
     ).deleteAgentProfile(name);
@@ -67,6 +86,7 @@ class AgentProfilesService {
     name: string,
     newName: string,
   ): Promise<AgentProfileMutationResponse> {
+    if (isCloud()) return renameCloudAgentProfile(name, newName);
     return new AgentProfilesClient(
       getAgentServerClientOptions(),
     ).renameAgentProfile(name, newName);
@@ -77,6 +97,7 @@ class AgentProfilesService {
   static async activateProfile(
     profileId: string,
   ): Promise<ActivateAgentProfileResponse> {
+    if (isCloud()) return activateCloudAgentProfile(profileId);
     return new AgentProfilesClient(
       getAgentServerClientOptions(),
     ).activateAgentProfile(profileId);

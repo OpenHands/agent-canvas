@@ -86,15 +86,15 @@ describe("useSettingsNavItems", () => {
 
     const { result } = renderHook(() => useSettingsNavItems());
 
-    // Agent profiles are local-only, so cloud drops that one entry.
+    // Agent profiles are available on cloud too (OpenHands #15060), so every
+    // OSS item is present; only the `/settings` LLM-Profiles rename stays
+    // local-only, so on cloud every item is passed through unchanged.
     expect(result.current).toEqual(
-      OSS_NAV_ITEMS.filter((item) => item.to !== "/settings/agents").map(
-        (item) => ({ type: "item", item }),
-      ),
+      OSS_NAV_ITEMS.map((item) => ({ type: "item", item })),
     );
   });
 
-  it("lists the Agent profiles item on local but hides it on cloud", () => {
+  it("lists the Agent profiles item on both local and cloud", () => {
     useConfigMock.mockReturnValue({ data: createConfig() });
 
     const localPaths = renderHook(() => useSettingsNavItems())
@@ -109,7 +109,7 @@ describe("useSettingsNavItems", () => {
     const cloudPaths = renderHook(() => useSettingsNavItems())
       .result.current.filter((item) => item.type === "item")
       .map((item) => (item.type === "item" ? item.item.to : null));
-    expect(cloudPaths).not.toContain("/settings/agents");
+    expect(cloudPaths).toContain("/settings/agents");
   });
 
   it("filters hidden routes from the OSS settings items", () => {

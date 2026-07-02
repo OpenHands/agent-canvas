@@ -370,10 +370,10 @@ class AgentServerConversationService {
     parentConversationId?: string,
     agentType?: "default" | "plan",
     sandboxId?: string,
-    // Local backend only: launch from a saved AgentProfile (resolved
-    // server-side) instead of the current encrypted agent_settings (#3727).
-    // The cloud app-server has no AgentProfile surface yet (#3730), so it's
-    // ignored on the cloud path.
+    // Launch from a saved AgentProfile (resolved server-side) instead of the
+    // current encrypted agent_settings (#3727). Supported on both local and the
+    // cloud app-server (OpenHands #15060): local threads it through the
+    // encrypted-settings builder; cloud sends it as a flat request field.
     agentProfileId?: string,
   ): Promise<AppConversationStartTask> {
     if (getActiveBackend().backend.kind === "cloud") {
@@ -382,6 +382,8 @@ class AgentServerConversationService {
       // (returns a WORKING task), and let the conversation route's
       // useTaskPolling drive it to READY. NO encrypted-settings
       // round-trip — the cloud backend holds secrets server-side.
+      // When launching from a profile, send `agent_profile_id`; the backend
+      // resolves it to agent_settings and stamps `launched_agent_profile`.
       const request: AppConversationStartRequest = {
         initial_message: initialUserMsg
           ? {
@@ -397,6 +399,7 @@ class AgentServerConversationService {
         parent_conversation_id: parentConversationId ?? null,
         agent_type: agentType,
         sandbox_id: sandboxId ?? null,
+        agent_profile_id: agentProfileId ?? null,
       };
       return createCloudAppConversation(request);
     }

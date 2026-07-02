@@ -56,15 +56,13 @@ export const useCreateConversation = () => {
   // Stamped onto the conversation at creation so the switcher can show the
   // exact profile even when several profiles share a model (#1082).
   const { data: llmProfiles } = useLlmProfiles();
-  // The active AgentProfile is the default launch profile for new local
-  // conversations (#3727). Gated to local backends — the cloud app-server has
-  // no /api/agent-profiles surface yet (#3730). Degrades safely: if the query
-  // is disabled or errors, this stays undefined and creation falls back to the
-  // encrypted agent_settings launch path.
+  // The active AgentProfile is the default launch profile for new conversations
+  // (#3727), on both local and cloud (cloud gained /api/agent-profiles in
+  // OpenHands #15060, #3730). Degrades safely: if the query is disabled or
+  // errors, this stays undefined and creation falls back to the encrypted
+  // agent_settings launch path.
   const { backend, orgId } = useActiveBackend();
-  const { data: agentProfiles } = useAgentProfiles({
-    enabled: backend.kind !== "cloud",
-  });
+  const { data: agentProfiles } = useAgentProfiles();
 
   return useMutation({
     mutationKey: ["create-conversation"],
