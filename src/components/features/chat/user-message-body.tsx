@@ -4,7 +4,8 @@ import { cn } from "#/utils/utils";
 import { I18nKey } from "#/i18n/declaration";
 import { MarkdownRenderer } from "../markdown/markdown-renderer";
 
-const USER_MESSAGE_MAX_LINES = 3;
+const USER_MESSAGE_MAX_LINES = 5;
+const USER_MESSAGE_LENGTH_THRESHOLD = 360;
 export const USER_MESSAGE_LINE_HEIGHT_PX = 24;
 
 export const chatBubbleMarkdownComponents = {
@@ -53,7 +54,7 @@ export function UserMessageBody({
       const truncatable =
         content.scrollHeight > maxHeight + 1 ||
         newlineCount >= USER_MESSAGE_MAX_LINES ||
-        message.trim().length > 220;
+        message.trim().length > USER_MESSAGE_LENGTH_THRESHOLD;
 
       setIsTruncatable(truncatable);
     };
@@ -74,7 +75,7 @@ export function UserMessageBody({
         ref={contentRef}
         className={cn(
           "text-sm leading-6 whitespace-normal [word-break:break-word]",
-          isCollapsed && "line-clamp-3",
+          isCollapsed && "line-clamp-5",
         )}
       >
         <MarkdownRenderer
