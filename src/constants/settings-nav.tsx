@@ -1,4 +1,4 @@
-import { AppWindow, Layers, Shield } from "lucide-react";
+import { AppWindow, Shield } from "lucide-react";
 import KeyIcon from "#/icons/key.svg?react";
 import MemoryIcon from "#/icons/memory_icon.svg?react";
 import CircuitIcon from "#/icons/u-circuit.svg?react";
@@ -21,15 +21,13 @@ export interface SettingsNavItem {
 
 export const OSS_NAV_ITEMS: SettingsNavItem[] = [
   {
+    // "Agent" is the Agent Profile library: it lists the user's agent profiles
+    // and its create/edit view is the reused Agent settings form plus a name.
+    // The active profile is the current agent (#1571). Replaces the old split
+    // of a global "Agent" form + a separate "Agent profiles" library.
     icon: <RobotIcon width={16} height={16} />,
-    to: "/settings/agent",
-    text: "SETTINGS$NAV_AGENT",
-    subtitle: "SETTINGS$PAGE_AGENT_SUBLINE",
-  },
-  {
-    icon: <Layers className="size-4" strokeWidth={2} aria-hidden />,
     to: "/settings/agents",
-    text: "SETTINGS$NAV_AGENT_PROFILES",
+    text: "SETTINGS$NAV_AGENT",
     subtitle: "SETTINGS$PAGE_AGENT_PROFILES_SUBLINE",
   },
   {

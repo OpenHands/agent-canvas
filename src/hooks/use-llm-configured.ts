@@ -3,6 +3,7 @@ import { useSettings } from "#/hooks/query/use-settings";
 import { useConfig } from "#/hooks/query/use-config";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import { useActiveAgentKind } from "#/hooks/use-active-agent-profile";
 import { isSettingsPageHidden } from "#/utils/settings-utils";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
 import {
@@ -54,7 +55,12 @@ export function useLlmConfigured(): LlmConfiguredResult {
   const { backend, orgId } = useActiveBackend();
   const isLocal = backend.kind === "local";
 
-  const isAcpAgent = settings?.agent_settings?.agent_kind === "acp";
+  // The active AgentProfile is the current agent — an ACP profile owns its LLM
+  // via the subprocess and never needs an API key. Fall back to the global
+  // agent settings only while the profile list loads.
+  const activeAgentKind = useActiveAgentKind();
+  const isAcpAgent =
+    (activeAgentKind ?? settings?.agent_settings?.agent_kind) === "acp";
   const hasApiKey = settings?.llm_api_key_set === true;
   const activeProfile = profilesData?.profiles.find(
     (profile) => profile.name === profilesData.active_profile,

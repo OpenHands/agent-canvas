@@ -12,6 +12,12 @@ const useActiveBackendMock = vi.fn<
   backend: { kind: "local" },
   orgId: null,
 }));
+// The active AgentProfile now drives the ACP-disable derivation; default to
+// "no active profile" so tests that set only `useSettings` exercise the
+// settings fallback path.
+const useActiveAgentProfileMock = vi.fn<
+  () => { activeProfile: { agent_kind: string; name: string } | null }
+>(() => ({ activeProfile: null }));
 
 vi.mock("#/hooks/query/use-config", () => ({
   useConfig: () => useConfigMock(),
@@ -23,6 +29,10 @@ vi.mock("#/hooks/query/use-settings", () => ({
 
 vi.mock("#/contexts/active-backend-context", () => ({
   useActiveBackend: () => useActiveBackendMock(),
+}));
+
+vi.mock("#/hooks/use-active-agent-profile", () => ({
+  useActiveAgentProfile: () => useActiveAgentProfileMock(),
 }));
 
 const createConfig = (
@@ -58,6 +68,7 @@ describe("useSettingsNavItems", () => {
       backend: { kind: "local" },
       orgId: null,
     });
+    useActiveAgentProfileMock.mockReturnValue({ activeProfile: null });
   });
 
   it("returns the LLM settings item unchanged on local backends", () => {
@@ -68,9 +79,7 @@ describe("useSettingsNavItems", () => {
       (item) => item.type === "item" && item.item.to === "/settings/llm",
     );
 
-    const baseLlm = OSS_NAV_ITEMS.find(
-      (item) => item.to === "/settings/llm",
-    )!;
+    const baseLlm = OSS_NAV_ITEMS.find((item) => item.to === "/settings/llm")!;
     expect(llmItem).toEqual({
       type: "item",
       item: baseLlm,
@@ -94,22 +103,44 @@ describe("useSettingsNavItems", () => {
     );
   });
 
-  it("lists the Agent profiles item on both local and cloud", () => {
+  it("shows a single Agent item (the profile library) on both local and cloud", () => {
     useConfigMock.mockReturnValue({ data: createConfig() });
 
-    const localPaths = renderHook(() => useSettingsNavItems())
-      .result.current.filter((item) => item.type === "item")
-      .map((item) => (item.type === "item" ? item.item.to : null));
-    expect(localPaths).toContain("/settings/agents");
+    for (const kind of ["local", "cloud"] as const) {
+      useActiveBackendMock.mockReturnValue({
+        backend: { kind },
+        orgId: kind === "cloud" ? "org-123" : null,
+      });
+      const paths = renderHook(() => useSettingsNavItems())
+        .result.current.filter((item) => item.type === "item")
+        .map((item) => (item.type === "item" ? item.item.to : null));
+      // "Agent" IS the profile library; the old standalone /settings/agent
+      // global-agent form + separate /settings/agents "Agent profiles" item
+      // were collapsed into one.
+      expect(paths).toContain("/settings/agents");
+      expect(paths).not.toContain("/settings/agent");
+      expect(paths.filter((p) => p === "/settings/agents")).toHaveLength(1);
+    }
+  });
 
-    useActiveBackendMock.mockReturnValue({
-      backend: { kind: "cloud" },
-      orgId: "org-123",
+  it("derives the ACP-disable from the active agent profile, not global settings", () => {
+    useConfigMock.mockReturnValue({ data: createConfig() });
+    // Global settings still say OpenHands, but the active profile is ACP —
+    // the active profile wins (activate is pointer-only, #1571).
+    useSettingsMock.mockReturnValue({ data: openHandsSettings });
+    useActiveAgentProfileMock.mockReturnValue({
+      activeProfile: { agent_kind: "acp", name: "MyClaude" },
     });
-    const cloudPaths = renderHook(() => useSettingsNavItems())
-      .result.current.filter((item) => item.type === "item")
-      .map((item) => (item.type === "item" ? item.item.to : null));
-    expect(cloudPaths).toContain("/settings/agents");
+
+    const { result } = renderHook(() => useSettingsNavItems());
+    const llm = result.current.find(
+      (r) => r.type === "item" && r.item.to === "/settings/llm",
+    );
+    expect(llm?.type).toBe("item");
+    if (llm?.type === "item") {
+      expect(llm.disabled).toBe(true);
+      expect(llm.disabledAgentName).toBe("MyClaude");
+    }
   });
 
   it("filters hidden routes from the OSS settings items", () => {
@@ -150,8 +181,7 @@ describe("useSettingsNavItems", () => {
       result.current
         .filter((item) => item.type === "item")
         .map(
-          (item) =>
-            [item.type === "item" ? item.item.to : "", item] as const,
+          (item) => [item.type === "item" ? item.item.to : "", item] as const,
         ),
     );
 

@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useSettings } from "#/hooks/query/use-settings";
+import { useActiveAgentKind } from "#/hooks/use-active-agent-profile";
 import { I18nKey } from "#/i18n/declaration";
 
 export interface AcpModelContext {
@@ -32,10 +33,15 @@ export function useAcpModelContext(): AcpModelContext {
   const { backend } = useActiveBackend();
   const { data: conversation } = useActiveConversation();
   const { data: settings } = useSettings();
+  const activeAgentKind = useActiveAgentKind();
 
   const isActiveAcpConversation = conversation?.agent_kind === "acp";
+  // On the home page the "current agent" is the active AgentProfile, not the
+  // global agent settings (activate never writes them). Fall back to settings
+  // only while the profile list is loading.
   const isHomeAcp =
-    !conversation && settings?.agent_settings?.agent_kind === "acp";
+    !conversation &&
+    (activeAgentKind ?? settings?.agent_settings?.agent_kind) === "acp";
   const isAcpContext = isActiveAcpConversation || isHomeAcp;
 
   const destinationPath = isAcpContext ? "/settings/agent" : "/settings";

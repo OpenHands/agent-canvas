@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Navigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { AxiosError } from "axios";
 import { useSettings } from "#/hooks/query/use-settings";
@@ -796,7 +797,10 @@ export function AgentSettingsScreen({
 }
 
 /**
- * Route entry for `/settings/agent` (global Agent settings).
+ * Legacy `/settings/agent` route. Settings → Agent is now the Agent Profile
+ * library (`/settings/agents`), whose editor reuses the named
+ * `AgentSettingsScreen` export below; this global-agent-form route is retired
+ * and redirects there so old links/bookmarks keep working.
  *
  * Note: This is a route file; only the router should import the default export.
  * React Router's Vite plugin wraps a route's default export with
@@ -806,5 +810,5 @@ export function AgentSettingsScreen({
  * `onSaveControlChange` never arrive. Mirrors `LlmSettingsRoute`.
  */
 export default function AgentSettingsRoute() {
-  return <AgentSettingsScreen />;
+  return <Navigate to="/settings/agents" replace />;
 }

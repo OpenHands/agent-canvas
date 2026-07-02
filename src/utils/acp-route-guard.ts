@@ -2,7 +2,11 @@ import { redirect } from "react-router";
 
 import { getActiveBackend } from "#/api/backend-registry/active-store";
 import { getSettingsQueryFn } from "#/hooks/query/use-settings";
-import { SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
+import {
+  SETTINGS_QUERY_KEYS,
+  AGENT_PROFILES_QUERY_KEYS,
+} from "#/hooks/query/query-keys";
+import AgentProfilesService from "#/api/agent-profiles-service/agent-profiles-service.api";
 import { queryClient } from "#/query-client-config";
 
 /**
@@ -34,17 +38,45 @@ import { queryClient } from "#/query-client-config";
 export async function redirectIfAcpActive() {
   try {
     const active = getActiveBackend();
-    const personalSettings = await queryClient.fetchQuery({
-      queryKey: [
-        ...SETTINGS_QUERY_KEYS.byScope("personal"),
-        active.backend.id,
-        active.orgId,
-      ],
-      queryFn: () => getSettingsQueryFn("personal"),
-      staleTime: 0,
-    });
-    if (personalSettings?.agent_settings?.agent_kind === "acp") {
-      return redirect("/settings/agent");
+    // The active AgentProfile is the current agent (activate is pointer-only
+    // and never writes agent_settings), so it's the authoritative ACP signal.
+    // Fall back to the global agent settings when the profile list is
+    // unavailable (older backend, fetch error) so behavior degrades gracefully.
+    let isAcp: boolean | undefined;
+    try {
+      const profiles = await queryClient.fetchQuery({
+        queryKey: [
+          ...AGENT_PROFILES_QUERY_KEYS.all,
+          active.backend.id,
+          active.orgId,
+        ],
+        queryFn: AgentProfilesService.listProfiles,
+        staleTime: 0,
+      });
+      const activeId = profiles?.active_agent_profile_id ?? null;
+      const activeProfile = profiles?.profiles.find(
+        (profile) => profile.id != null && profile.id === activeId,
+      );
+      if (activeProfile) isAcp = activeProfile.agent_kind === "acp";
+    } catch {
+      // Agent profiles unavailable — fall back to settings below.
+    }
+
+    if (isAcp === undefined) {
+      const personalSettings = await queryClient.fetchQuery({
+        queryKey: [
+          ...SETTINGS_QUERY_KEYS.byScope("personal"),
+          active.backend.id,
+          active.orgId,
+        ],
+        queryFn: () => getSettingsQueryFn("personal"),
+        staleTime: 0,
+      });
+      isAcp = personalSettings?.agent_settings?.agent_kind === "acp";
+    }
+
+    if (isAcp) {
+      return redirect("/settings/agents");
     }
   } catch {
     // Settings unfetchable — let the page render.
