@@ -91,6 +91,26 @@ describe("static-server.mjs", () => {
       const config = parseArgs(["--runtime-services-info", ""]);
       expect(config.runtimeServicesInfo).toBeNull();
     });
+
+    it("defaults frameAncestors to 'none' (strict default-deny)", () => {
+      const config = parseArgs([]);
+      expect(config.frameAncestors).toBe("'none'");
+    });
+
+    it("parses --frame-ancestors for hosted deployments", () => {
+      const config = parseArgs(["--frame-ancestors", "'self'"]);
+      expect(config.frameAncestors).toBe("'self'");
+
+      const portal = parseArgs([
+        "--frame-ancestors",
+        "https://portal.example.com",
+      ]);
+      expect(portal.frameAncestors).toBe("https://portal.example.com");
+    });
+
+    it("throws on --frame-ancestors without a value", () => {
+      expect(() => parseArgs(["--frame-ancestors"])).toThrow();
+    });
   });
 
   describe("runtime services info injection", () => {
@@ -418,4 +438,183 @@ describe("static-server.mjs", () => {
     expect(response.status).not.toBe(200);
     await expect(response.text()).resolves.not.toContain("secret");
   });
+
+  describe("security headers", () => {
+    it("emits a Content-Security-Policy header on HTML responses", async () => {
+      const dir = mkdtempSync(path.join(tmpdir(), "static-sec-"));
+      tempDirs.push(dir);
+      const buildDir = path.join(dir, "build");
+      mkdirSync(buildDir);
+      writeFileSync(path.join(buildDir, "index.html"), "<main>app</main>");
+
+      const origin = await startServerWithRoutes(buildDir, {
+        "/api": "http://127.0.0.1:18000",
+      });
+      const response = await fetch(`${origin}/index.html`);
+
+      expect(response.status).toBe(200);
+      const csp = response.headers.get("content-security-policy");
+      expect(csp).toBeTruthy();
+      expect(csp).toContain("default-src 'self'");
+      expect(csp).toContain("http://127.0.0.1:18000");
+      expect(csp).toContain("frame-ancestors 'none'");
+      expect(csp).toContain("object-src 'none'");
+      expect(csp).toContain("base-uri 'self'");
+    });
+
+    it("emits broad security headers on every response", async () => {
+      const dir = mkdtempSync(path.join(tmpdir(), "static-sec-"));
+      tempDirs.push(dir);
+      const buildDir = path.join(dir, "build");
+      mkdirSync(buildDir);
+      writeFileSync(path.join(buildDir, "index.html"), "<main>app</main>");
+      writeFileSync(path.join(buildDir, "app.js"), "console.log('x')");
+
+      const origin = await startServer(buildDir);
+      const html = await fetch(`${origin}/index.html`);
+      expect(html.headers.get("x-frame-options")).toBe("DENY");
+      expect(html.headers.get("x-content-type-options")).toBe("nosniff");
+      expect(html.headers.get("referrer-policy")).toBe(
+        "strict-origin-when-cross-origin",
+      );
+      expect(html.headers.get("strict-transport-security")).toContain(
+        "max-age=",
+      );
+      expect(html.headers.get("permissions-policy")).toContain("camera=()");
+
+      const js = await fetch(`${origin}/app.js`);
+      expect(js.status).toBe(200);
+      // CSP only goes on HTML; .js must not have it.
+      expect(js.headers.get("content-security-policy")).toBeNull();
+      // But the broad headers do.
+      expect(js.headers.get("x-frame-options")).toBe("DENY");
+      expect(js.headers.get("x-content-type-options")).toBe("nosniff");
+    });
+
+    it("includes every proxy target's origin in connect-src", async () => {
+      const dir = mkdtempSync(path.join(tmpdir(), "static-sec-"));
+      tempDirs.push(dir);
+      const buildDir = path.join(dir, "build");
+      mkdirSync(buildDir);
+      writeFileSync(path.join(buildDir, "index.html"), "<main>app</main>");
+
+      const origin = await startServerWithRoutes(buildDir, {
+        "/api": "http://localhost:18000",
+        "/api/automation": "http://localhost:18001",
+      });
+      const response = await fetch(`${origin}/index.html`);
+      const csp = response.headers.get("content-security-policy") ?? "";
+
+      expect(csp).toContain("http://localhost:18000");
+      expect(csp).toContain("http://localhost:18001");
+      expect(csp).toContain("https://us.i.posthog.com");
+      expect(csp).toContain("https://z.openhands.dev");
+      expect(csp).toContain("ws:");
+      expect(csp).toContain("wss:");
+    });
+
+    it("includes every proxy target's origin in form-action (hosted scenarios)", async () => {
+      const dir = mkdtempSync(path.join(tmpdir(), "static-sec-"));
+      tempDirs.push(dir);
+      const buildDir = path.join(dir, "build");
+      mkdirSync(buildDir);
+      writeFileSync(path.join(buildDir, "index.html"), "<main>app</main>");
+
+      const origin = await startServerWithRoutes(buildDir, {
+        "/api": "http://127.0.0.1:18000",
+      });
+      const csp =
+        (await fetch(`${origin}/index.html`)).headers.get(
+          "content-security-policy",
+        ) ?? "";
+
+      // The directive now covers the backend origin so cross-origin
+      // form posts (file uploads, OAuth-style returns) are not
+      // blocked on hosted deployments.
+      expect(csp).toMatch(/form-action[^;]*'self'[^;]*http:\/\/127\.0\.0\.1:18000/);
+    });
+
+    it("relaxes frame-ancestors / X-Frame-Options for hosted embedding", async () => {
+      const dir = mkdtempSync(path.join(tmpdir(), "static-sec-"));
+      tempDirs.push(dir);
+      const buildDir = path.join(dir, "build");
+      mkdirSync(buildDir);
+      writeFileSync(path.join(buildDir, "index.html"), "<main>app</main>");
+
+      // Use startStaticServer directly so we can pass frameAncestors.
+      const server = await startStaticServer({
+        port: 0,
+        host: "127.0.0.1",
+        dir: buildDir,
+        routes: {},
+        frameAncestors: "'self'",
+      });
+      servers.push(server);
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        throw new Error("Static server did not bind to a TCP port");
+      }
+      const origin = `http://127.0.0.1:${address.port}`;
+
+      const response = await fetch(`${origin}/index.html`);
+      const csp = response.headers.get("content-security-policy") ?? "";
+
+      expect(csp).toContain("frame-ancestors 'self'");
+      expect(csp).not.toContain("frame-ancestors 'none'");
+      expect(response.headers.get("x-frame-options")).toBe("SAMEORIGIN");
+    });
+
+    it("omits X-Frame-Options when frame-ancestors lists an arbitrary origin", async () => {
+      const dir = mkdtempSync(path.join(tmpdir(), "static-sec-"));
+      tempDirs.push(dir);
+      const buildDir = path.join(dir, "build");
+      mkdirSync(buildDir);
+      writeFileSync(path.join(buildDir, "index.html"), "<main>app</main>");
+
+      const server = await startStaticServer({
+        port: 0,
+        host: "127.0.0.1",
+        dir: buildDir,
+        routes: {},
+        frameAncestors: "https://portal.example.com",
+      });
+      servers.push(server);
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        throw new Error("Static server did not bind to a TCP port");
+      }
+      const origin = `http://127.0.0.1:${address.port}`;
+
+      const response = await fetch(`${origin}/index.html`);
+      const csp = response.headers.get("content-security-policy") ?? "";
+
+      expect(csp).toContain("frame-ancestors https://portal.example.com");
+      // No clean legacy header mapping when whitelisting a specific
+      // origin — better to omit the header than ship a stricter
+      // fallback that would undermine the CSP.
+      expect(response.headers.get("x-frame-options")).toBeNull();
+    });
+  });
+
+  // Helper that mirrors `startServer` but lets the test configure proxy
+  // routes. Co-located with the security-headers describe so it can share
+  // the `servers` / `tempDirs` cleanup closures.
+  async function startServerWithRoutes(
+    dir: string,
+    routes: Record<string, string>,
+  ) {
+    const server = await startStaticServer({
+      port: 0,
+      host: "127.0.0.1",
+      dir,
+      routes,
+    });
+    servers.push(server);
+
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Static server did not bind to a TCP port");
+    }
+    return `http://127.0.0.1:${address.port}`;
+  }
 });

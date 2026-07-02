@@ -72,6 +72,29 @@ export default defineConfig(({ mode }) => {
   const WS_URL = `${WS_PROTOCOL}://${VITE_BACKEND_HOST}/`;
   const FE_PORT = Number.parseInt(VITE_FRONTEND_PORT, 10);
 
+  // Backend origin used for Content-Security-Policy connect-src / frame-src.
+  // Computed from the same API_URL the Vite proxy targets so the policy
+  // matches what the browser actually fetches during development.
+  const backendOrigin = (() => {
+    try {
+      return new URL(API_URL).origin;
+    } catch {
+      return null;
+    }
+  })();
+
+  // Override for the CSP `frame-ancestors` directive and the matching
+  // X-Frame-Options header. Defaults to `'none'` (refuse all embedding).
+  // Hosted deployments that legitimately embed the dev server inside their
+  // own portal can set `VITE_FRAME_ANCESTORS="self"` or a specific origin.
+  const frameAncestors = process.env.VITE_FRAME_ANCESTORS?.trim() || "'none'";
+  const xFrameOptions =
+    frameAncestors === "'none'"
+      ? "DENY"
+      : frameAncestors === "'self'"
+        ? "SAMEORIGIN"
+        : null; // omitting the header is the most permissive option
+
   return {
     define: {
       // Empty string for library builds so consumers aren't bound to this
@@ -347,6 +370,51 @@ export default defineConfig(({ mode }) => {
       strictPort: true, // Fail if port is busy (dynamic allocation handles fallback)
       host: true,
       allowedHosts: true,
+      // Defense-in-depth security headers. The <meta httpEquiv> tag in
+      // src/root.tsx already sets Content-Security-Policy, but emitting
+      // the same policy as an HTTP header too means CSP is honored even
+      // when the meta tag is stripped (e.g. by a misbehaving proxy) and
+      // lets us add `frame-ancestors`, which is ignored in meta tags.
+      headers: {
+        // X-Frame-Options mirrors the CSP `frame-ancestors` value
+        // (see `frameAncestors` above). Default `DENY`; relax to
+        // `SAMEORIGIN` for hosted-in-iframe dev workflows.
+        ...(xFrameOptions ? { "X-Frame-Options": xFrameOptions } : {}),
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+        // Build the CSP once at config time. The `connect-src` /
+        // `frame-src` list reflects the proxy target so the browser
+        // can talk to the backend over WebSocket and load any
+        // agent-server-rendered iframes.
+        "Content-Security-Policy": [
+          "default-src 'self'",
+          // 'unsafe-inline' is required because Vite's HMR runtime
+          // injects inline <script> tags; a nonce-based policy would
+          // require coordinated changes across Vite + every
+          // node_modules tool that runs inside the page.
+          "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
+          "style-src 'self' 'unsafe-inline'",
+          "font-src 'self' data:",
+          "img-src 'self' data: blob: https:",
+          backendOrigin
+            ? `connect-src 'self' ${backendOrigin} ws: wss: http://localhost:* http://127.0.0.1:*`
+            : "connect-src 'self' ws: wss: http://localhost:* http://127.0.0.1:*",
+          backendOrigin
+            ? `frame-src 'self' ${backendOrigin}`
+            : "frame-src 'self'",
+          `frame-ancestors ${frameAncestors}`,
+          "base-uri 'self'",
+          // form-action covers backend origins so legitimate cross-origin
+          // form posts (file uploads, OAuth returns) succeed even when the
+          // dev server and the agent-server are on different origins.
+          backendOrigin
+            ? `form-action 'self' ${backendOrigin}`
+            : "form-action 'self'",
+          "object-src 'none'",
+          "upgrade-insecure-requests",
+        ].join("; "),
+      },
       proxy: {
         "/api": {
           target: API_URL,

@@ -96,3 +96,76 @@ describe("vite library build", () => {
     );
   });
 });
+
+describe("vite dev server security headers", () => {
+  it("emits a Content-Security-Policy on the dev server", async () => {
+    const config = await viteConfig({ mode: "development", command: "serve" });
+    const headers = (config.server ?? {}).headers ?? {};
+    const csp = headers["Content-Security-Policy"];
+
+    expect(typeof csp).toBe("string");
+    expect(csp).toContain("default-src 'self'");
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("object-src 'none'");
+    expect(csp).toContain("base-uri 'self'");
+    expect(csp).toContain("form-action 'self'");
+  });
+
+  it("emits the standard hardening headers alongside CSP", async () => {
+    const config = await viteConfig({ mode: "development", command: "serve" });
+    const headers = (config.server ?? {}).headers ?? {};
+
+    expect(headers["X-Frame-Options"]).toBe("DENY");
+    expect(headers["X-Content-Type-Options"]).toBe("nosniff");
+    expect(headers["Referrer-Policy"]).toBe("strict-origin-when-cross-origin");
+    expect(headers["Strict-Transport-Security"]).toContain("max-age=");
+  });
+
+  it("relaxes frame-ancestors / X-Frame-Options via VITE_FRAME_ANCESTORS", async () => {
+    process.env.VITE_FRAME_ANCESTORS = "'self'";
+    try {
+      const config = await viteConfig({
+        mode: "development",
+        command: "serve",
+      });
+      const headers = (config.server ?? {}).headers ?? {};
+      const csp = headers["Content-Security-Policy"] ?? "";
+
+      expect(csp).toContain("frame-ancestors 'self'");
+      expect(csp).not.toContain("frame-ancestors 'none'");
+      expect(headers["X-Frame-Options"]).toBe("SAMEORIGIN");
+    } finally {
+      delete process.env.VITE_FRAME_ANCESTORS;
+    }
+  });
+
+  it("omits X-Frame-Options when frame-ancestors whitelists an origin", async () => {
+    process.env.VITE_FRAME_ANCESTORS = "https://portal.example.com";
+    try {
+      const config = await viteConfig({
+        mode: "development",
+        command: "serve",
+      });
+      const headers = (config.server ?? {}).headers ?? {};
+      const csp = headers["Content-Security-Policy"] ?? "";
+
+      expect(csp).toContain("frame-ancestors https://portal.example.com");
+      expect(headers["X-Frame-Options"]).toBeUndefined();
+    } finally {
+      delete process.env.VITE_FRAME_ANCESTORS;
+    }
+  });
+
+  it("widens form-action to include the dev backend origin (hosted scenarios)", async () => {
+    const config = await viteConfig({ mode: "development", command: "serve" });
+    const headers = (config.server ?? {}).headers ?? {};
+    const csp = headers["Content-Security-Policy"] ?? "";
+
+    // form-action should include 'self' AND the dev backend origin so that
+    // legitimate cross-origin form submissions (file uploads, OAuth
+    // returns) succeed even when the canvas and the agent-server are on
+    // different origins.
+    expect(csp).toMatch(/form-action[^;]*'self'/);
+    expect(csp).toContain("http://127.0.0.1:8000");
+  });
+});

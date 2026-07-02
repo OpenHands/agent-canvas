@@ -39,6 +39,7 @@ import {
   createRouter,
   matchesPathPrefix,
 } from "./proxy-utils.mjs";
+import { buildSecurityHeaders } from "./security-headers.mjs";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SPA fallback helpers
@@ -86,6 +87,11 @@ export function parseArgs(argv = process.argv.slice(2)) {
     authRequired: false,
     runtimeServicesInfo: null,
     lockToCloud: null,
+    // Override for the CSP `frame-ancestors` directive (and the matching
+    // X-Frame-Options header). Defaults to `'none'` (refuse all embedding).
+    // Hosted deployments that legitimately embed the canvas inside their
+    // own portal can set this to `'self'` or a specific origin.
+    frameAncestors: "'none'",
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -127,13 +133,24 @@ export function parseArgs(argv = process.argv.slice(2)) {
       case "--lock-to-cloud":
         config.lockToCloud = argv[++i] || null;
         break;
+      case "--frame-ancestors": {
+        // CSP source-list value: `'none'` (default), `'self'`, or a
+        // specific origin like `https://portal.example.com`. Used to
+        // let hosted deployments embed the canvas inside their own UI.
+        const value = (argv[++i] ?? "").trim();
+        if (!value) {
+          throw new Error("--frame-ancestors requires a value");
+        }
+        config.frameAncestors = value;
+        break;
+      }
 
       case "--auth-required":
         config.authRequired = true;
         break;
       case "--reject-prefix": {
         const prefix = argv[++i];
-        if (!prefix || !prefix.startsWith("/")) {
+        if (!prefix?.startsWith("/")) {
           throw new Error(
             `--reject-prefix value must start with '/': ${prefix ?? "(empty)"}`,
           );
@@ -406,6 +423,56 @@ function setStaticHeaders(res, pathname) {
   res.setHeader("Cache-Control", "no-cache");
 }
 
+/**
+ * Apply baseline security headers to a static response.
+ *
+ * CSP / Permissions-Policy / X-Frame-Options are only meaningful for
+ * document responses (HTML) — adding them to every .js / .css / .svg
+ * response would burn bytes for no security benefit. The cheap,
+ * broadly-useful headers (X-Content-Type-Options, Referrer-Policy,
+ * Strict-Transport-Security) go on everything.
+ *
+ * `securityHeaders` is computed once at server-init from the proxy route
+ * table so the connect-src / frame-src list reflects the agent-server
+ * origins the browser will actually talk to.
+ *
+ * @param {import("node:http").ServerResponse} res
+ * @param {string} pathname
+ * @param {Record<string, string>} securityHeaders
+ */
+function applySecurityHeaders(res, pathname, securityHeaders) {
+  const extension = extname(pathname).toLowerCase();
+  const isHtml = extension === ".html" || extension === ".htm";
+
+  // Broadly-applied headers (cheap, useful on every response).
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader(
+    "Strict-Transport-Security",
+    "max-age=31536000; includeSubDomains",
+  );
+  // X-Frame-Options mirrors `frame-ancestors` from the CSP so the legacy
+  // header and the modern directive stay in sync. The set may contain
+  // `X-Frame-Options` (when the override resolves to DENY or SAMEORIGIN)
+  // or omit it entirely (when whitelisting a specific origin that has
+  // no clean legacy mapping). See `buildSecurityHeaders` in
+  // scripts/security-headers.mjs.
+  if (securityHeaders["X-Frame-Options"]) {
+    res.setHeader("X-Frame-Options", securityHeaders["X-Frame-Options"]);
+  }
+
+  // Document-only headers: CSP / Permissions-Policy only fire on HTML
+  // because they govern how the browser renders the document. Emitting
+  // them on a .js or .css response is harmless but wasteful.
+  if (isHtml || pathname === "/" || pathname === "/index.html") {
+    res.setHeader(
+      "Content-Security-Policy",
+      securityHeaders["Content-Security-Policy"],
+    );
+    res.setHeader("Permissions-Policy", securityHeaders["Permissions-Policy"]);
+  }
+}
+
 function createStaticMiddleware(dirAbs) {
   return sirv(dirAbs, {
     etag: true,
@@ -421,9 +488,15 @@ async function handleStatic(
   staticMiddleware,
   injectionOpts = {},
   rejectPrefixes = [],
+  securityHeaders = {},
 ) {
   const urlPath = parseUrlPath(req, res);
   if (urlPath === null) return;
+
+  // Apply baseline security headers up front so every code path (served
+  // asset, SPA fallback, 404) gets them. CSP only attaches to HTML — see
+  // applySecurityHeaders for the policy.
+  applySecurityHeaders(res, urlPath, securityHeaders);
 
   const injectRuntimeConfig = needsRuntimeInjection(injectionOpts);
   const indexPath = resolve(dirAbs, "index.html");
@@ -469,6 +542,15 @@ export function startStaticServer(config) {
   };
   const rejectPrefixes = config.rejectPrefixes ?? [];
   const staticMiddleware = createStaticMiddleware(dirAbs);
+  // Compute CSP / Permissions-Policy once at startup. connect-src and
+  // frame-src reflect every configured proxy target's origin so the
+  // browser can talk to each agent-server the launcher wired up. The
+  // `frameAncestors` override lets hosted deployments relax the strict
+  // default-deny stance when they need to embed the canvas inside their
+  // own portal.
+  const securityHeaders = buildSecurityHeaders(config.routes ?? [], {
+    frameAncestors: config.frameAncestors ?? "'none'",
+  });
 
   const uninstallDiagnostics = proxy.installDiagnostics();
 
@@ -485,6 +567,7 @@ export function startStaticServer(config) {
       staticMiddleware,
       injectionOpts,
       rejectPrefixes,
+      securityHeaders,
     ).catch((err) => {
       console.error(`Static handler error for ${req.url}:`, err);
       if (!res.headersSent) {

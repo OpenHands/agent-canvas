@@ -92,6 +92,17 @@ the agent (step 3) and access the UI through an SSH tunnel. If you also want
 to reach it from a browser without tunneling, you'll open ports 80 and 443
 in step 4.
 
+> [!NOTE]
+> For the full threat model — the three deployment modes (local,
+> private network, public URL), what the session API key can do in each,
+> where it lives in the browser, the Content-Security-Policy we ship,
+> the CSP overrides for hosted deployments that need to embed the
+> canvas, and a hardening checklist — see
+> [SECURITY.md](./SECURITY.md). The short version: agent-canvas trusts
+> your browser and your machine the same way the AWS CLI or kubectl
+> does. Treat the session key like `~/.aws/credentials`, and don't run
+> the server on a shared host without TLS termination in front of it.
+
 ## 3. Run Agent Canvas
 
 Install the prerequisites on the machine. On Ubuntu:

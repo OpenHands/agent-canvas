@@ -143,3 +143,27 @@ The Agent Server is often paired with an [Automation Server](https://github.com/
 - [Architecture overview](./docs/architecture.md)
 - [Development guide](./docs/DEVELOPMENT.md)
 - [Self-hosting guide](./docs/SELF_HOSTING.md)
+- [Security & threat model](./docs/SECURITY.md)
+
+## Security
+
+A full threat model — including the three deployment modes
+(local / private-network / public URL), the trust boundary for each,
+what we do about XSS, the shipped Content-Security-Policy, CSP overrides
+for self-hosters that embed the canvas in their own portal, and a
+hardening checklist — lives in **[docs/SECURITY.md](./docs/SECURITY.md)**.
+
+The short version: agent-canvas is **local-first** but supports
+self-hosting behind nginx on a public URL (`npx @openhands/agent-canvas
+--public`). The default mode puts the session API key in the JS heap and
+never persists it to disk; only `--public` and user-added custom
+backends persist keys to `localStorage`. The shipped CSP, HSTS,
+Referrer-Policy, and X-Content-Type-Options are designed so the canvas
+is safe to expose at a public URL out of the box, with explicit
+escape hatches documented in SECURITY.md for self-hosters that need to
+embed the canvas inside their own portal.
+
+If you find a vulnerability, please follow our
+[security policy][security-md] rather than filing a public issue.
+
+[security-md]: https://github.com/OpenHands/agent-canvas/blob/main/SECURITY.md

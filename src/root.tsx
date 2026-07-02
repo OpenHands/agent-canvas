@@ -43,6 +43,8 @@ import {
   applyColorTheme,
   readPersistedColorTheme,
 } from "#/themes/color-themes";
+import { readStoredBackends } from "#/api/backend-registry/storage";
+import { buildContentSecurityPolicy } from "#/utils/security-headers";
 
 /** Applies the persisted color-theme palette to document.body on mount. */
 function ColorThemeApplier() {
@@ -74,11 +76,27 @@ const OnboardingModal = React.lazy(() =>
 );
 
 export function Layout({ children }: { children: React.ReactNode }) {
+  // Read registered backends at render time so the CSP connect-src / frame-src
+  // allow every backend the user could switch to. readStoredBackends() is
+  // safe to call during render — it only touches localStorage and never
+  // subscribes to anything.
+  const csp = React.useMemo(() => {
+    const backends = readStoredBackends();
+    return buildContentSecurityPolicy({ backends, forMetaTag: true });
+  }, []);
+
   return (
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        {/* Content-Security-Policy: see src/utils/security-headers.ts for the
+            full rationale. The meta tag works in dev (Vite) and production
+            (static-server) without requiring server-side header injection.
+            `frame-ancestors` is intentionally omitted because the directive
+            is ignored inside <meta> tags. The static-server still emits it as
+            an HTTP header for true defense-in-depth. */}
+        <meta httpEquiv="Content-Security-Policy" content={csp} />
         <Meta />
         <Links />
       </head>
