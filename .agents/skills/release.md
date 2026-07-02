@@ -117,7 +117,31 @@ External install docs on docs.openhands.dev are maintained separately; update th
 
 ## Step 3: Push the Tag
 
-Confirm the branch is in the right state (CI green, QA done), then push the tag:
+> ⚠️ **Hard gate, no admin bypass.** The repo's `Release Tag` ruleset requires
+> the `test-and-build (ubuntu)` status check to be green on the exact commit
+> being tagged before the tag push will be accepted. `bypass_actors` is empty —
+> not even repo admins can override it. If you push the bump commit and the tag
+> back-to-back, the tag push will be rejected with a ruleset violation. Always
+> wait for CI on the bump commit to go green before tagging.
+
+After pushing the bump commit in Step 2:
+
+```bash
+# Wait for test-and-build (ubuntu) to pass on the bump commit.
+gh run watch $(gh run list --workflow=ci.yml --branch=rel-<X.Y.Z> --limit=1 --json databaseId --jq '.[0].databaseId') --exit-status
+```
+
+If `test-and-build (ubuntu)` fails on a clearly flaky run (e.g. an unhandled
+`ProgressEvent is not defined` rejection from MSW's XHR interceptor in
+`__tests__/components/features/home/task-suggestions.test.tsx`, or any other
+unhandled rejection where every individual test still passed), re-run the
+failed job and wait again:
+
+```bash
+gh run rerun <run-id> --failed
+```
+
+Once CI is green, push the tag:
 
 ```bash
 git checkout rel-<X.Y.Z>
