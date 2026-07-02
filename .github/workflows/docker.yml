@@ -441,6 +441,13 @@ jobs:
           }${MANIFEST_TAG_LIST}"
           fi
 
+          GHCR_PACKAGE_URL="$IMAGE"
+          if [[ "$IMAGE" =~ ^ghcr\.io/([^/]+)/([^/:]+)$ ]]; then
+            GHCR_OWNER="${BASH_REMATCH[1]}"
+            GHCR_PACKAGE="${BASH_REMATCH[2]}"
+            GHCR_PACKAGE_URL="https://github.com/${GHCR_OWNER}/${GHCR_PACKAGE}/pkgs/container/${GHCR_PACKAGE}"
+          fi
+
           BUILD_SUMMARY=$(jq -n \
             --arg image "$IMAGE" \
             --arg short_sha "$SHORT_SHA" \
@@ -450,7 +457,7 @@ jobs:
             --arg automation_version "$AUTOMATION_VERSION" \
             --arg git_sha "$GIT_SHA" \
             --arg git_ref "$GIT_REF" \
-            --arg ghcr_url "https://github.com/SpotwiseAI/agent-canvas/pkgs/container/agent-canvas" \
+            --arg ghcr_url "$GHCR_PACKAGE_URL" \
             '{image: $image, short_sha: $short_sha, all_tags: $all_tags, architectures: $archs, agent_server_image: $agent_server_image, automation_version: $automation_version, git_sha: $git_sha, git_ref: $git_ref, ghcr_package_url: $ghcr_url}')
 
           echo "Consolidated build summary:"
@@ -499,6 +506,7 @@ jobs:
           **🐳 Docker images for this PR**
 
           • **GHCR package:** ${GHCR_URL}
+          • **Verify deployed revision:** `EXPECTED_AGENT_CANVAS_REVISION=${GIT_SHA} ./scripts/azure/status-agent-host.sh` (remote-coding-agent repo)
 
           | Component | Value |
           |---|---|
