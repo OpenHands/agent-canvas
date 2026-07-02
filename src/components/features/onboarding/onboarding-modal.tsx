@@ -11,6 +11,8 @@ import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
+import { useSettings } from "#/hooks/query/use-settings";
+import { useTracking } from "#/hooks/use-tracking";
 import { OnboardingProgressBar } from "./onboarding-progress-bar";
 import {
   ChooseAgentStep,
@@ -44,6 +46,14 @@ const PHASE_ORDER_WITHOUT_BACKEND: readonly OnboardingPhase[] = [
   "setup",
   "hello",
 ];
+
+/**
+ * sessionStorage flag marking that the one-time "onboarding started" analytics
+ * event has already been captured for this browser session. It survives
+ * rerenders, remounts and the lazy/Suspense flip so the event fires at most
+ * once per onboarding session.
+ */
+const ONBOARDING_STARTED_TRACKED_KEY = "openhands-onboarding-started";
 
 interface SlideProps {
   /** Index of this slide in the step sequence. */
@@ -124,6 +134,14 @@ export function OnboardingModal({
   isPreview = false,
 }: OnboardingModalProps) {
   const { t } = useTranslation("openhands");
+  const { data: settings } = useSettings();
+  const analyticsEnabled = settings?.user_consents_to_analytics === true;
+  const {
+    trackOnboardingStarted,
+    trackOnboardingStepViewed,
+    trackOnboardingCompleted,
+    trackOnboardingSkipped,
+  } = useTracking();
   const { active } = useActiveBackendContext();
   const { backend } = active;
   const noBackendSelected = isNoBackend(backend);
@@ -173,6 +191,15 @@ export function OnboardingModal({
   const currentPhase = slideOrder.includes(phase) ? phase : slideOrder[0];
   const currentStep = slideOrder.indexOf(currentPhase);
 
+  // Backend connectivity is "settled" once we know whether the active backend
+  // is reachable (or no backend is selected). Until then `skipBackendStep` may
+  // still flip true and renumber the slides, briefly showing the backend slide
+  // for an already-healthy backend. Gate Step Viewed on this so we never emit a
+  // phantom "backend" view that immediately auto-skips to "agent".
+  const backendHealthSettled =
+    noBackendSelected ||
+    healthByBackendId[backend.id]?.isConnected !== undefined;
+
   const isOpenHands = selectedAgentId === "openhands";
   const hideSkip = currentStep === 0 && getLockedCloudHost() !== null;
   const goNext = React.useCallback(() => {
@@ -193,6 +220,72 @@ export function OnboardingModal({
       return order[Math.max(safeIdx - 1, 0)];
     });
   }, [slideOrder]);
+
+  // --- Onboarding analytics -------------------------------------------------
+  // Every event is routed through `useTracking`, which drops captures unless
+  // the user has consented; the design-preview harness (`isPreview`) emits
+  // nothing.
+
+  // Onboarding Started — fire at most once per browser session. The
+  // sessionStorage flag survives rerenders, remounts and the lazy/Suspense
+  // flip; the consent gate means we only arm the guard once a capture can
+  // actually happen, so a user who consents partway through onboarding still
+  // gets the event instead of having it latched away during the no-consent
+  // window.
+  const startedTrackedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (isPreview || !analyticsEnabled || startedTrackedRef.current) return;
+    if (window.sessionStorage.getItem(ONBOARDING_STARTED_TRACKED_KEY)) return;
+    startedTrackedRef.current = true;
+    window.sessionStorage.setItem(ONBOARDING_STARTED_TRACKED_KEY, "1");
+    trackOnboardingStarted();
+  }, [isPreview, analyticsEnabled]);
+
+  // Onboarding Step Viewed — fire once per phase entry. The phase string is the
+  // stable identity (slide indices renumber), so dedupe on it: this absorbs
+  // StrictMode's double-invoke and the index renumber, while re-entering a step
+  // via Back counts as a genuine new view.
+  const lastViewedPhaseRef = React.useRef<OnboardingPhase | null>(null);
+  React.useEffect(() => {
+    if (isPreview || !analyticsEnabled || !backendHealthSettled) return;
+    if (lastViewedPhaseRef.current === currentPhase) return;
+    lastViewedPhaseRef.current = currentPhase;
+    trackOnboardingStepViewed({
+      step: currentPhase,
+      stepIndex: currentStep,
+      totalSteps,
+      agent: selectedAgentId,
+    });
+  }, [
+    isPreview,
+    analyticsEnabled,
+    backendHealthSettled,
+    currentPhase,
+    currentStep,
+    totalSteps,
+    selectedAgentId,
+  ]);
+
+  // Onboarding Completed — `onLaunched` runs only after a conversation is
+  // successfully created (the hello message or a recommended automation), so
+  // wrapping it captures completion exactly once before the modal closes.
+  const handleCompleted = () => {
+    trackOnboardingCompleted({ agent: selectedAgentId });
+    onClose();
+  };
+
+  // Onboarding Skipped/Dismissed — the user exited before completing, via the
+  // skip button (non-final steps) or the final-step Close button. `currentPhase`
+  // records where they left, which also distinguishes the two affordances.
+  const handleSkipOrDismiss = () => {
+    trackOnboardingSkipped({
+      step: currentPhase,
+      stepIndex: currentStep,
+      totalSteps,
+      agent: selectedAgentId,
+    });
+    onClose();
+  };
 
   return (
     // No `onClose`: the flow must only be dismissed via explicit actions
@@ -267,8 +360,8 @@ export function OnboardingModal({
               >
                 <SayHelloStep
                   onBack={goBack}
-                  onClose={onClose}
-                  onLaunched={onClose}
+                  onClose={handleSkipOrDismiss}
+                  onLaunched={handleCompleted}
                 />
               </Slide>
             </div>
@@ -279,7 +372,7 @@ export function OnboardingModal({
           <button
             type="button"
             data-testid="onboarding-skip"
-            onClick={onClose}
+            onClick={handleSkipOrDismiss}
             className="rounded-md px-3 py-2 text-sm text-[var(--oh-muted)] transition-colors hover:bg-white/5 hover:text-white cursor-pointer"
           >
             {t(I18nKey.ONBOARDING$SKIP)}

@@ -20,6 +20,13 @@ import { DEFAULT_SETTINGS } from "#/services/settings";
 
 const llmSettingsScreenMock = vi.hoisted(() => vi.fn());
 const getServerInfoMock = vi.hoisted(() => vi.fn());
+const captureMock = vi.hoisted(() => vi.fn());
+
+// useTracking depends on PostHog's `usePostHog`. Mock that underlying service
+// (not useTracking itself) so the onboarding analytics events can be asserted.
+vi.mock("posthog-js/react", () => ({
+  usePostHog: () => ({ capture: captureMock }),
+}));
 
 // Both the backend status badge in the embedded edit form and the
 // step-1 health probe ride on `useBackendsHealth`, which resolves
@@ -194,6 +201,7 @@ function renderModal(onClose = vi.fn()) {
 
 beforeEach(() => {
   window.localStorage.clear();
+  window.sessionStorage.clear();
   vi.stubEnv("VITE_BACKEND_BASE_URL", "http://localhost:9000");
   vi.stubEnv("VITE_SESSION_API_KEY", "session-key");
   __resetActiveStoreForTests();
@@ -228,6 +236,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   window.localStorage.clear();
+  window.sessionStorage.clear();
   vi.unstubAllEnvs();
   __resetActiveStoreForTests();
 });
@@ -973,5 +982,152 @@ describe("OnboardingModal", () => {
       }),
     );
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  describe("analytics events", () => {
+    // Surface only the captures for a given event; a session emits several.
+    const eventCalls = (event: string) =>
+      captureMock.mock.calls.filter(([name]) => name === event);
+
+    beforeEach(() => {
+      // Grant analytics consent so events pass useTracking's consent gate;
+      // the outer beforeEach seeds settings with consent withheld.
+      vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
+        ...DEFAULT_SETTINGS,
+        agent_settings: { ...DEFAULT_SETTINGS.agent_settings, llm: {} },
+        user_consents_to_analytics: true,
+      });
+    });
+
+    it("captures onboarding_started once per session even across a remount", async () => {
+      // Arrange + act: open onboarding and let the first mount settle (a Step
+      // Viewed capture confirms consent resolved and backend health settled).
+      const firstMount = renderModal();
+      await waitFor(() =>
+        expect(
+          eventCalls("onboarding_step_viewed").length,
+        ).toBeGreaterThanOrEqual(1),
+      );
+
+      // Act: tear the modal down and mount it again in the same session. The
+      // remounted modal re-emits Step Viewed from a fresh ref, so waiting for
+      // the second one proves the Started effect had its chance to re-fire.
+      firstMount.unmount();
+      renderModal();
+      await waitFor(() =>
+        expect(
+          eventCalls("onboarding_step_viewed").length,
+        ).toBeGreaterThanOrEqual(2),
+      );
+
+      // Assert: the sessionStorage guard kept Started at a single capture.
+      expect(eventCalls("onboarding_started")).toHaveLength(1);
+    });
+
+    it("captures no onboarding events while analytics consent is not granted", async () => {
+      // Arrange: withhold consent.
+      vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
+        ...DEFAULT_SETTINGS,
+        agent_settings: { ...DEFAULT_SETTINGS.agent_settings, llm: {} },
+        user_consents_to_analytics: false,
+      });
+
+      // Act: open onboarding and let it settle on the first step.
+      renderModal();
+      await waitForConfiguredBackendToBeSkipped();
+
+      // Assert: nothing reached PostHog.
+      expect(captureMock).not.toHaveBeenCalled();
+    });
+
+    it("captures onboarding_step_viewed for each step as the user advances", async () => {
+      // Arrange: the healthy backend is skipped, so the user lands on the
+      // agent step (index 0 of the 3-step flow).
+      renderModal();
+      const user = userEvent.setup();
+      await waitForConfiguredBackendToBeSkipped();
+
+      // Assert: the entry step carries the full funnel identity.
+      await waitFor(() =>
+        expect(captureMock).toHaveBeenCalledWith(
+          "onboarding_step_viewed",
+          expect.objectContaining({
+            step: "agent",
+            step_index: 0,
+            total_steps: 3,
+            agent: "openhands",
+          }),
+        ),
+      );
+
+      // Act: advance to the next step.
+      await completeAgentStep(user);
+
+      // Assert: the new step is captured too — tracking follows transitions,
+      // not just the initial mount.
+      await waitFor(() =>
+        expect(captureMock).toHaveBeenCalledWith(
+          "onboarding_step_viewed",
+          expect.objectContaining({
+            step: "setup",
+            step_index: 1,
+            total_steps: 3,
+          }),
+        ),
+      );
+    });
+
+    it("captures onboarding_completed when a conversation is launched from the final step", async () => {
+      // Arrange: walk through to the final Say Hello step.
+      renderModal();
+      const user = userEvent.setup();
+      await waitForConfiguredBackendToBeSkipped();
+      await completeAgentStep(user);
+      await user.click(screen.getByTestId("onboarding-llm-next"));
+      await waitFor(() =>
+        expect(screen.getByTestId("onboarding-slide-2")).toHaveAttribute(
+          "data-active",
+          "true",
+        ),
+      );
+
+      // Act: launch from the final step. The stubbed recommended-automation
+      // launcher invokes the same onLaunched completion callback as Say Hello.
+      const recommendations = screen.getByTestId(
+        "onboarding-recommended-automations",
+      );
+      await user.click(
+        within(recommendations).getByRole("button", {
+          name: "launch recommended automation",
+        }),
+      );
+
+      // Assert.
+      expect(captureMock).toHaveBeenCalledWith(
+        "onboarding_completed",
+        expect.objectContaining({ agent: "openhands" }),
+      );
+    });
+
+    it("captures onboarding_skipped with the current step when the user skips", async () => {
+      // Arrange: healthy backend skipped → user is on the agent step (0 of 3).
+      renderModal();
+      const user = userEvent.setup();
+      await waitForConfiguredBackendToBeSkipped();
+
+      // Act: skip out of onboarding.
+      await user.click(screen.getByTestId("onboarding-skip"));
+
+      // Assert.
+      expect(captureMock).toHaveBeenCalledWith(
+        "onboarding_skipped",
+        expect.objectContaining({
+          step: "agent",
+          step_index: 0,
+          total_steps: 3,
+          agent: "openhands",
+        }),
+      );
+    });
   });
 });

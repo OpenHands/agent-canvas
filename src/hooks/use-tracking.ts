@@ -146,6 +146,52 @@ export const useTracking = () => {
     track("download_trajectory_button_clicked");
   };
 
+  const trackOnboardingStarted = () => {
+    track("onboarding_started");
+  };
+
+  const trackOnboardingStepViewed = ({
+    step,
+    stepIndex,
+    totalSteps,
+    agent,
+  }: {
+    step: string;
+    stepIndex: number;
+    totalSteps: number;
+    agent: string;
+  }) => {
+    track("onboarding_step_viewed", {
+      step,
+      step_index: stepIndex,
+      total_steps: totalSteps,
+      agent,
+    });
+  };
+
+  const trackOnboardingCompleted = ({ agent }: { agent: string }) => {
+    track("onboarding_completed", { agent });
+  };
+
+  const trackOnboardingSkipped = ({
+    step,
+    stepIndex,
+    totalSteps,
+    agent,
+  }: {
+    step: string;
+    stepIndex: number;
+    totalSteps: number;
+    agent: string;
+  }) => {
+    track("onboarding_skipped", {
+      step,
+      step_index: stepIndex,
+      total_steps: totalSteps,
+      agent,
+    });
+  };
+
   return {
     trackLoginButtonClick,
     trackConversationCreated,
@@ -160,5 +206,9 @@ export const useTracking = () => {
     trackSettingsSaved,
     trackMcpConfigUpdated,
     trackDownloadTrajectoryButtonClicked,
+    trackOnboardingStarted,
+    trackOnboardingStepViewed,
+    trackOnboardingCompleted,
+    trackOnboardingSkipped,
   };
 };
