@@ -176,7 +176,7 @@ export function ProfileActionsMenu({
       <MenuItem
         index={3}
         icon={<CheckCircleIcon width={16} height={16} />}
-        label={t(I18nKey.SETTINGS$PROFILE_SET_ACTIVE)}
+        label={t(I18nKey.SETTINGS$PROFILE_SET_DEFAULT)}
         onClick={() => handleAction(onSetActive)}
         onKeyDown={handleKeyDown}
         menuItemsRef={menuItemsRef}

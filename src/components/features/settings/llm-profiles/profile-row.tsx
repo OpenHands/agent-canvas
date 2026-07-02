@@ -61,7 +61,10 @@ export function ProfileRow({
             className="shrink-0 whitespace-nowrap px-2.5 py-1 text-xs"
             data-testid="profile-active-badge"
           >
-            {t(I18nKey.SETTINGS$PROFILE_ACTIVE)}
+            {/* "Default" (not "Active"): the active LLM profile no longer drives
+                conversations — the active AGENT profile does — it's just the
+                default `llm_profile_ref` seeded into new agent profiles. */}
+            {t(I18nKey.SETTINGS$PROFILE_DEFAULT)}
           </BrandBadge>
         )}
       </div>
