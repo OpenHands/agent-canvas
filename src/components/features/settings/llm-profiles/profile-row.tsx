@@ -14,6 +14,8 @@ import {
 interface ProfileRowProps {
   profile: ProfileInfo;
   isActive: boolean;
+  /** When false, the row is read-only and the actions menu is hidden. */
+  canManage: boolean;
   onActivate: (name: string) => void;
   onEdit: (profile: ProfileInfo) => void;
   onRename: (profile: ProfileInfo) => void;
@@ -25,6 +27,7 @@ interface ProfileRowProps {
 export function ProfileRow({
   profile,
   isActive,
+  canManage,
   onActivate,
   onEdit,
   onRename,
@@ -68,28 +71,30 @@ export function ProfileRow({
           </BrandBadge>
         )}
       </div>
-      <div className="relative shrink-0">
-        <EllipsisButton
-          ref={triggerRef}
-          onClick={() => setMenuOpen((open) => !open)}
-          ariaLabel={t(I18nKey.SETTINGS$PROFILE_MENU)}
-          testId="profile-menu-trigger"
-          className={settingsListIconActionButtonClassName}
-        />
-        {menuOpen && (
-          <ProfileActionsMenu
-            anchorRef={triggerRef}
-            onEdit={() => onEdit(profile)}
-            onRename={() => onRename(profile)}
-            onDuplicate={() => onDuplicate(profile)}
-            onSetActive={() => onActivate(profile.name)}
-            onDelete={() => onDelete(profile)}
-            isActive={isActive}
-            isActivating={isActivating}
-            onClose={() => setMenuOpen(false)}
+      {canManage && (
+        <div className="relative shrink-0">
+          <EllipsisButton
+            ref={triggerRef}
+            onClick={() => setMenuOpen((open) => !open)}
+            ariaLabel={t(I18nKey.SETTINGS$PROFILE_MENU)}
+            testId="profile-menu-trigger"
+            className={settingsListIconActionButtonClassName}
           />
-        )}
-      </div>
+          {menuOpen && (
+            <ProfileActionsMenu
+              anchorRef={triggerRef}
+              onEdit={() => onEdit(profile)}
+              onRename={() => onRename(profile)}
+              onDuplicate={() => onDuplicate(profile)}
+              onSetActive={() => onActivate(profile.name)}
+              onDelete={() => onDelete(profile)}
+              isActive={isActive}
+              isActivating={isActivating}
+              onClose={() => setMenuOpen(false)}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

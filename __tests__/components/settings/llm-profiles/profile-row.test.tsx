@@ -8,14 +8,12 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => {
       const translations: Record<string, string> = {
-        "SETTINGS$PROFILE_ACTIVE": "Active",
-        "SETTINGS$PROFILE_DEFAULT": "Default",
-        "SETTINGS$PROFILE_MENU": "Profile menu",
-        "SETTINGS$PROFILE_EDIT": "Edit",
-        "BUTTON$RENAME": "Rename",
-        "SETTINGS$PROFILE_SET_ACTIVE": "Set as active",
-        "SETTINGS$PROFILE_SET_DEFAULT": "Set as default",
-        "BUTTON$DELETE": "Delete",
+        SETTINGS$PROFILE_DEFAULT: "Default",
+        SETTINGS$PROFILE_MENU: "Profile menu",
+        SETTINGS$PROFILE_EDIT: "Edit",
+        BUTTON$RENAME: "Rename",
+        SETTINGS$PROFILE_SET_DEFAULT: "Set as default",
+        BUTTON$DELETE: "Delete",
       };
       return translations[key] || key;
     },
@@ -32,6 +30,7 @@ const mockProfile: ProfileInfo = {
 const defaultProps = {
   profile: mockProfile,
   isActive: false,
+  canManage: true,
   onActivate: vi.fn(),
   onEdit: vi.fn(),
   onRename: vi.fn(),
@@ -74,7 +73,19 @@ describe("ProfileRow", () => {
   it("does not show Active badge when isActive is false", () => {
     render(<ProfileRow {...defaultProps} isActive={false} />);
 
-    expect(screen.queryByTestId("profile-active-badge")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("profile-active-badge"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the actions menu when canManage is false (view-only members)", () => {
+    render(<ProfileRow {...defaultProps} canManage={false} />);
+
+    // The row still shows the profile, but offers no mutate actions.
+    expect(screen.getByText("gpt-4-profile")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("profile-menu-trigger"),
+    ).not.toBeInTheDocument();
   });
 
   it("opens menu when trigger button is clicked", async () => {
@@ -97,10 +108,10 @@ describe("ProfileRow", () => {
     render(<ProfileRow {...defaultProps} />);
 
     const menuTrigger = screen.getByTestId("profile-menu-trigger");
-    
+
     // Menu should be closed initially
     expect(screen.queryByText("Edit")).not.toBeInTheDocument();
-    
+
     // First click opens the menu
     await user.click(menuTrigger);
     expect(screen.getByText("Edit")).toBeInTheDocument();

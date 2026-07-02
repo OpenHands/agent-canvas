@@ -15,6 +15,8 @@ interface ProfilesBodyProps {
   loadError: Error | null;
   profiles: ProfileInfo[];
   active: string | null;
+  /** When false, rows render read-only (no actions menu) — cloud members. */
+  canManage: boolean;
   onActivate: (name: string) => void;
   onEdit: (profile: ProfileInfo) => void;
   onRename: (profile: ProfileInfo) => void;
@@ -28,6 +30,7 @@ export function ProfilesBody({
   loadError,
   profiles,
   active,
+  canManage,
   onActivate,
   onEdit,
   onRename,
@@ -83,6 +86,7 @@ export function ProfilesBody({
           key={profile.name}
           profile={profile}
           isActive={profile.name === active}
+          canManage={canManage}
           onActivate={onActivate}
           onEdit={onEdit}
           onRename={onRename}

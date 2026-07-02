@@ -850,7 +850,7 @@ describe("AgentServerConversationService", () => {
       expect(mockSwitchLLM).not.toHaveBeenCalled();
     });
 
-    it("rejects profile switching on cloud backends before any network call", async () => {
+    it("routes a cloud conversation switch through the app-server switch_profile endpoint", async () => {
       const cloudBackend: Backend = {
         id: "prod",
         name: "Production",
@@ -860,15 +860,20 @@ describe("AgentServerConversationService", () => {
       };
       setRegisteredBackends([cloudBackend]);
       setActiveSelection({ backendId: cloudBackend.id });
+      vi.mocked(axios.request).mockReset();
+      vi.mocked(axios.request).mockResolvedValue({ data: { success: true } });
 
-      await expect(
-        AgentServerConversationService.switchProfile("conv-1", "haiku"),
-      ).rejects.toThrow(
-        "LLM profile switching is only supported for local agent-server backends.",
-      );
-      expect(mockActivateProfile).not.toHaveBeenCalled();
+      await AgentServerConversationService.switchProfile("conv-1", "haiku");
+
+      const [cfg] = vi.mocked(axios.request).mock.calls[0]!;
+      expect(cfg).toMatchObject({
+        method: "POST",
+        url: "https://app.all-hands.dev/api/v1/app-conversations/conv-1/switch_profile",
+        data: { profile_name: "haiku" },
+      });
+      // Cloud resolves the swap server-side: no client-side encrypted profile
+      // fetch and no direct switch_llm call.
       expect(mockGetProfile).not.toHaveBeenCalled();
-      expect(mockSwitchProfile).not.toHaveBeenCalled();
       expect(mockSwitchLLM).not.toHaveBeenCalled();
     });
   });
