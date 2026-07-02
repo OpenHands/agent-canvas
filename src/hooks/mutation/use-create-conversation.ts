@@ -125,8 +125,9 @@ export const useCreateConversation = () => {
       // Only extend the call with the [sandboxId, agentProfileId] tail when
       // launching from a profile, so a plain create stays byte-identical to
       // the legacy agent_settings path (#3727). sandboxId is unused here.
-      // TODO: createConversation has grown to 10 positional params; refactor it
-      // to an options object so this position-skipping tail isn't needed.
+      // TODO(#1587): createConversation has grown to 10 positional params;
+      // refactor it to an options object so this position-skipping tail isn't
+      // needed.
       const profileArgs: [undefined, string] | [] = effectiveAgentProfileId
         ? [undefined, effectiveAgentProfileId]
         : [];

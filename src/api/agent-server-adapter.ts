@@ -931,6 +931,18 @@ export function buildStartConversationRequest(
   const payload: StartConversationPayload = {
     // ``agent_profile_id`` and ``agent_settings`` are mutually exclusive agent
     // sources; the profile path lets the server resolve the profile (#3727).
+    //
+    // Enrichment boundary: on the profile path the server rebuilds the agent
+    // purely from the stored profile fields, so the client-owned enrichments
+    // this adapter folds into ``agent_settings`` do NOT apply. The exec toolset
+    // (terminal/file_editor/task_tracker) and public-skill loading are the
+    // server/SDK's responsibility to restore on the profile path — tracked in
+    // software-agent-sdk#3967 (profile resolution must attach the default
+    // toolset + public skills, else a profile-launched OpenHands agent has only
+    // Finish/Think). The two genuinely canvas-only enrichments — the
+    // ``canvas_ui`` tool and the dev ``RUNTIME_SERVICES`` system-message-suffix
+    // (``buildAgentContext``) — have no server-side representation and are
+    // intentionally not carried on the profile path.
     ...(options.agentProfileId
       ? { agent_profile_id: options.agentProfileId }
       : { agent_settings: agentSettings }),
