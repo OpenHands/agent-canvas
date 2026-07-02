@@ -1,8 +1,10 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { I18nKey } from "#/i18n/declaration";
 import { CopyableContentWrapper } from "#/components/shared/buttons/copyable-content-wrapper";
 import { MAX_CONTENT_LENGTH } from "#/components/conversation-events/chat/event-content-helpers/shared";
+import { SyntaxHighlighter } from "../../../markdown/syntax-highlighter";
 
 interface OutputPaneProps {
   output: string;
@@ -35,9 +37,14 @@ export function OutputPane({ output, exitCode, copy = true }: OutputPaneProps) {
     : t(I18nKey.BUTTON$EXPAND);
 
   const pane = (
-    <pre className="overflow-auto whitespace-pre-wrap rounded border border-surface-raised bg-surface-raised p-2 text-xs text-foreground">
+    <SyntaxHighlighter
+      className="rounded-lg text-xs"
+      style={vscDarkPlus}
+      language="sh"
+      PreTag="div"
+    >
       {text || t(I18nKey.OBSERVATION$COMMAND_NO_OUTPUT)}
-    </pre>
+    </SyntaxHighlighter>
   );
 
   return (

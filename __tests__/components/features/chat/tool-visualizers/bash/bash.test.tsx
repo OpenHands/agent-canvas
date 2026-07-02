@@ -45,10 +45,10 @@ describe("bashVisualizer", () => {
   });
 
   it("shows a placeholder when there is no output", () => {
-    renderVisualizer(<Body observation={bashObservation("", 0)} />);
-    expect(
-      screen.getByText("OBSERVATION$COMMAND_NO_OUTPUT"),
-    ).toBeInTheDocument();
+    const { container } = renderVisualizer(
+      <Body observation={bashObservation("", 0)} />,
+    );
+    expect(container).toHaveTextContent("OBSERVATION$COMMAND_NO_OUTPUT");
   });
 
   it("exposes a copy button for the command and the output", () => {
