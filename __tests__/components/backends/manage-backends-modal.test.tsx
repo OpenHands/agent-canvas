@@ -62,6 +62,21 @@ vi.mock("#/api/device-flow-client", () => ({
   },
 }));
 
+// Mock the services useTracking depends on (PostHog client + settings) so the
+// consent gate is open and captured events are observable. useTracking itself
+// is never mocked.
+const captureMock = vi.hoisted(() => vi.fn());
+
+vi.mock("posthog-js/react", () => ({
+  usePostHog: () => ({ capture: captureMock }),
+}));
+
+vi.mock("#/hooks/query/use-settings", () => ({
+  useSettings: () => ({
+    data: { user_consents_to_analytics: true, email: "user@example.com" },
+  }),
+}));
+
 function renderWithProviders(ui: React.ReactElement) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -121,6 +136,7 @@ beforeEach(() => {
   });
   deviceFlowMocks.pollForToken.mockReset();
   deviceFlowMocks.pollForToken.mockImplementation(() => new Promise(() => {}));
+  captureMock.mockClear();
   __resetActiveStoreForTests();
   __resetHealthStoreForTests();
 });
@@ -482,6 +498,66 @@ describe("ManageBackendsModal", () => {
     expect(
       screen.queryByTestId("manage-backends-org-Acme Local"),
     ).not.toBeInTheDocument();
+  });
+
+  it("captures backend_added with source manage_backends_modal when adding from here", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ManageBackendsModal onClose={vi.fn()} />);
+
+    await user.click(await screen.findByTestId("manage-backends-add"));
+    await screen.findByTestId("add-backend-modal");
+
+    await user.type(screen.getByTestId("add-backend-name"), "Local Extra");
+    await user.type(
+      screen.getByTestId("add-backend-host"),
+      "http://localhost:8000",
+    );
+    await user.type(screen.getByTestId("add-backend-api-key"), "sk-local");
+    await user.click(screen.getByTestId("add-backend-submit"));
+
+    await waitFor(() =>
+      expect(captureMock).toHaveBeenCalledWith(
+        "backend_added",
+        expect.objectContaining({ source: "manage_backends_modal" }),
+      ),
+    );
+  });
+
+  it("does not capture backend_added when editing an existing backend", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          ctx.addBackend({
+            name: "Acme Local",
+            host: "http://localhost:9000",
+            apiKey: "old-key",
+            kind: "local",
+          });
+        }}
+      >
+        <ManageBackendsModal onClose={vi.fn()} />
+      </TestSeed>,
+    );
+
+    await user.click(
+      await screen.findByTestId("manage-backends-edit-Acme Local"),
+    );
+    await screen.findByTestId("edit-backend-modal");
+    const hostInput = screen.getByTestId("edit-backend-host");
+    await user.clear(hostInput);
+    await user.type(hostInput, "http://localhost:9999");
+    await user.click(screen.getByTestId("edit-backend-submit"));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("edit-backend-modal"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(captureMock).not.toHaveBeenCalledWith(
+      "backend_added",
+      expect.anything(),
+    );
   });
 });
 

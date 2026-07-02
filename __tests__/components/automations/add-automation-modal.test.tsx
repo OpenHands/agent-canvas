@@ -9,6 +9,14 @@ import {
 import { AddAutomationModal } from "#/components/features/automations/add-automation-modal";
 import { I18nKey } from "#/i18n/declaration";
 
+vi.mock("posthog-js/react", () => ({
+  usePostHog: () => undefined,
+}));
+
+vi.mock("#/hooks/query/use-settings", () => ({
+  useSettings: () => ({ data: { user_consents_to_analytics: true } }),
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => key,

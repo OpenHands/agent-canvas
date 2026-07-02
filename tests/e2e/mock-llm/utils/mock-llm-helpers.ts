@@ -625,8 +625,12 @@ export async function activateProfileViaUI(page: Page, profileName: string) {
         return (await target.getByTestId("profile-active-badge").count()) > 0;
       },
       {
+        // Each poll iteration reloads /settings/llm and re-fetches settings,
+        // so a slow backend (activation PATCH + settings propagation) needs
+        // headroom beyond a couple of reloads. 30s keeps this robust under
+        // added proxy latency without masking a genuine activation failure.
         message: `Profile "${profileName}" should have an "Active" badge`,
-        timeout: 15_000,
+        timeout: 30_000,
         intervals: [1_000, 2_000, 3_000],
       },
     )

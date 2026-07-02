@@ -61,6 +61,40 @@ export interface ConversationState {
   // Add other conversation state fields here as needed
 }
 
+/**
+ * The judge's verdict on whether a `/goal` objective is complete.
+ */
+export interface GoalVerdict {
+  /** Probability (0-1) that the full objective is provably done. */
+  score: number;
+  /** Whether the judge considers the objective complete. */
+  complete: boolean;
+  /** Concise description of what remains, or empty if complete. */
+  missing: string;
+}
+
+/**
+ * Live status of a `/goal` loop, streamed as the `value` of a
+ * ConversationStateUpdateEvent with `key: "goal"` at each lifecycle point
+ * (kickoff, each round, and the terminal/interrupted state).
+ */
+export interface GoalStatus {
+  /** Whether the goal loop is still running. */
+  active: boolean;
+  status: "running" | "complete" | "capped" | "interrupted";
+  /** Audit rounds completed so far (0 at kickoff). */
+  iteration: number;
+  /**
+   * Maximum audit rounds before the loop gives up. snake_case mirrors the
+   * agent-server `GoalStatus` payload (this event value is its `model_dump`);
+   * renaming it to camelCase would stop matching the streamed event JSON.
+   */
+  max_iterations: number;
+  objective: string;
+  /** Last judge verdict; null at kickoff and on an interrupted loop. */
+  verdict: GoalVerdict | null;
+}
+
 interface ConversationStateUpdateEventBase extends BaseEvent {
   /**
    * Discriminator field for type guards
@@ -76,12 +110,12 @@ interface ConversationStateUpdateEventBase extends BaseEvent {
    * Unique key for this state update event.
    * Can be "full_state" for full state snapshots or field names for partial updates.
    */
-  key: "full_state" | "execution_status" | "stats"; // Extend with other keys as needed
+  key: "full_state" | "execution_status" | "stats" | "goal"; // Extend with other keys as needed
 
   /**
    * Conversation state updates
    */
-  value: ConversationState | ExecutionStatus | ConversationStats;
+  value: ConversationState | ExecutionStatus | ConversationStats | GoalStatus;
 }
 
 // Narrowed interfaces for full state update event
@@ -102,11 +136,18 @@ export interface ConversationStateUpdateEventStats extends ConversationStateUpda
   value: ConversationStats;
 }
 
+// Narrowed interface for goal status update event
+export interface ConversationStateUpdateEventGoal extends ConversationStateUpdateEventBase {
+  key: "goal";
+  value: GoalStatus;
+}
+
 // Conversation state update event - contains conversation state updates
 export type ConversationStateUpdateEvent =
   | ConversationStateUpdateEventFullState
   | ConversationStateUpdateEventAgentStatus
-  | ConversationStateUpdateEventStats;
+  | ConversationStateUpdateEventStats
+  | ConversationStateUpdateEventGoal;
 
 // Conversation error event - contains error information
 export interface ConversationErrorEvent extends BaseEvent {
