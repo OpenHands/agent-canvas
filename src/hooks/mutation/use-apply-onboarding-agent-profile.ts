@@ -42,7 +42,6 @@ export function useApplyOnboardingAgentProfile() {
         const id = detail.profile.id;
         if (id) await activateProfile.mutateAsync(id);
       } catch (error) {
-        // eslint-disable-next-line no-console
         console.error("Failed to configure onboarding agent profile:", error);
       }
     },
