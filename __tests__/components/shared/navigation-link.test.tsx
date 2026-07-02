@@ -54,4 +54,82 @@ describe("NavigationLink", () => {
       replace: false,
     });
   });
+
+  it("uses href override for the anchor element when provided", () => {
+    const value: NavigationContextValue = {
+      currentPath: "/",
+      conversationId: null,
+      isNavigating: false,
+      navigate: vi.fn(),
+    };
+
+    render(
+      <NavigationProvider value={value}>
+        <NavigationLink
+          to="/conversations/c1"
+          href="/conversations/c1?bid=backend-1&oid=org-1"
+        >
+          Conv
+        </NavigationLink>
+      </NavigationProvider>,
+    );
+
+    const link = screen.getByRole("link", { name: "Conv" });
+    expect(link).toHaveAttribute(
+      "href",
+      "/conversations/c1?bid=backend-1&oid=org-1",
+    );
+  });
+
+  it("still uses to for navigate on normal click when href is provided", () => {
+    const navigate = vi.fn();
+    const value: NavigationContextValue = {
+      currentPath: "/",
+      conversationId: null,
+      isNavigating: false,
+      navigate,
+    };
+
+    render(
+      <NavigationProvider value={value}>
+        <NavigationLink
+          to="/conversations/c1"
+          href="/conversations/c1?bid=backend-1"
+        >
+          Conv
+        </NavigationLink>
+      </NavigationProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: "Conv" }));
+
+    expect(navigate).toHaveBeenCalledWith("/conversations/c1", {
+      replace: false,
+    });
+  });
+
+  it("computes active state from to, not href", () => {
+    const value: NavigationContextValue = {
+      currentPath: "/conversations/c1",
+      conversationId: "c1",
+      isNavigating: false,
+      navigate: vi.fn(),
+    };
+
+    render(
+      <NavigationProvider value={value}>
+        <NavigationLink
+          to="/conversations/c1"
+          href="/conversations/c1?bid=backend-1"
+        >
+          Conv
+        </NavigationLink>
+      </NavigationProvider>,
+    );
+
+    expect(screen.getByRole("link", { name: "Conv" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
 });

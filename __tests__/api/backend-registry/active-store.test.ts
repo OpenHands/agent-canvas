@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
+  consumeUrlBackendParams,
   getActiveBackend,
   getEffectiveLocalBackend,
   NO_BACKEND_ID,
@@ -115,5 +116,91 @@ describe("active-store", () => {
     listener.mockClear();
     setActiveSelection(null);
     expect(listener).not.toHaveBeenCalled();
+  });
+});
+
+describe("consumeUrlBackendParams", () => {
+  let replaceStateSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    replaceStateSpy = vi.spyOn(window.history, "replaceState");
+  });
+
+  afterEach(() => {
+    replaceStateSpy.mockRestore();
+    // Reset URL to bare pathname
+    window.history.replaceState(null, "", window.location.pathname);
+  });
+
+  it("sets the active backend when bid matches a registered backend", () => {
+    setRegisteredBackends([localBackend, cloudBackend]);
+    setActiveSelection({ backendId: localBackend.id });
+
+    window.history.replaceState(null, "", "/?bid=prod");
+    consumeUrlBackendParams();
+
+    expect(getActiveBackend().backend).toEqual(cloudBackend);
+  });
+
+  it("applies orgId from the oid param", () => {
+    setRegisteredBackends([cloudBackend]);
+
+    window.history.replaceState(null, "", "/?bid=prod&oid=org-7");
+    consumeUrlBackendParams();
+
+    expect(getActiveBackend().backend).toEqual(cloudBackend);
+    expect(getActiveBackend().orgId).toBe("org-7");
+  });
+
+  it("is a no-op when bid is absent", () => {
+    setRegisteredBackends([localBackend]);
+    setActiveSelection({ backendId: localBackend.id });
+
+    window.history.replaceState(null, "", "/conversations/abc");
+    consumeUrlBackendParams();
+
+    expect(getActiveBackend().backend).toEqual(localBackend);
+    expect(replaceStateSpy).toHaveBeenCalledTimes(1); // only the setup call
+  });
+
+  it("is a no-op when bid does not match any registered backend", () => {
+    setRegisteredBackends([localBackend]);
+    setActiveSelection({ backendId: localBackend.id });
+
+    window.history.replaceState(null, "", "/?bid=nonexistent");
+    consumeUrlBackendParams();
+
+    expect(getActiveBackend().backend).toEqual(localBackend);
+  });
+
+  it("strips bid and oid params from the URL", () => {
+    setRegisteredBackends([cloudBackend]);
+
+    window.history.replaceState(
+      null,
+      "",
+      "/conversations/c1?bid=prod&oid=org-1",
+    );
+    consumeUrlBackendParams();
+
+    expect(window.location.pathname).toBe("/conversations/c1");
+    expect(window.location.search).toBe("");
+  });
+
+  it("preserves other query params when stripping bid/oid", () => {
+    setRegisteredBackends([cloudBackend]);
+
+    window.history.replaceState(
+      null,
+      "",
+      "/conversations/c1?foo=bar&bid=prod&oid=org-1&baz=qux",
+    );
+    consumeUrlBackendParams();
+
+    expect(window.location.pathname).toBe("/conversations/c1");
+    expect(window.location.search).toContain("foo=bar");
+    expect(window.location.search).toContain("baz=qux");
+    expect(window.location.search).not.toContain("bid=");
+    expect(window.location.search).not.toContain("oid=");
   });
 });

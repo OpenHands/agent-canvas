@@ -9,6 +9,8 @@ import { cn } from "#/utils/utils";
 import { ConversationStatusDot } from "./conversation-status-dot";
 import { ConversationCardFooter } from "./conversation-card/conversation-card-footer";
 import { I18nKey } from "#/i18n/declaration";
+import { useActiveBackend } from "#/contexts/active-backend-context";
+import { buildConversationHref } from "#/utils/conversation-link";
 
 interface CompactConversationRowProps {
   conversationId: string;
@@ -51,6 +53,7 @@ export function CompactConversationRow({
   acpServer = null,
 }: CompactConversationRowProps) {
   const { t } = useTranslation("openhands");
+  const { backend: activeBackend, orgId: activeOrgId } = useActiveBackend();
   const disableAnimation = import.meta.env.MODE === "test";
 
   const preview = (
@@ -90,6 +93,11 @@ export function CompactConversationRow({
     >
       <NavigationLink
         to={`/conversations/${conversationId}`}
+        href={buildConversationHref(
+          conversationId,
+          activeBackend.id,
+          activeOrgId,
+        )}
         onClick={onClose}
         data-testid="compact-conversation-row"
         data-conversation-id={conversationId}

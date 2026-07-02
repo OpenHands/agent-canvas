@@ -42,6 +42,7 @@ import {
   type ConversationGroupLaunch,
 } from "./conversation-panel-list-helpers";
 import { usePinnedConversationsStore } from "#/stores/pinned-conversations-store";
+import { buildConversationHref } from "#/utils/conversation-link";
 
 interface ConversationPanelProps {
   onClose?: () => void;
@@ -87,7 +88,7 @@ export function ConversationPanel({
 }: ConversationPanelProps) {
   const { t } = useTranslation("openhands");
   const { conversationId: currentConversationId, navigate } = useNavigation();
-  const { backend: activeBackend } = useActiveBackend();
+  const { backend: activeBackend, orgId: activeOrgId } = useActiveBackend();
   // Click-outside is only relevant in the legacy drawer mode where an
   // onClose handler is provided. When the panel is rendered inline (e.g.
   // as the always-visible conversation list pane), clicking outside should
@@ -632,6 +633,11 @@ export function ConversationPanel({
         >
           <NavigationLink
             to={`/conversations/${conversation.id}`}
+            href={buildConversationHref(
+              conversation.id,
+              activeBackend.id,
+              activeOrgId,
+            )}
             onClick={onClose}
             className={cn(
               "block rounded-md transition-colors",
@@ -819,6 +825,11 @@ export function ConversationPanel({
             <NavigationLink
               key={task.id}
               to={`/conversations/task-${task.id}`}
+              href={buildConversationHref(
+                `task-${task.id}`,
+                activeBackend.id,
+                activeOrgId,
+              )}
               onClick={onClose}
               className="block"
             >

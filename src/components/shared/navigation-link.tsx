@@ -13,6 +13,9 @@ export interface NavigationLinkProps extends Omit<
   "className" | "href"
 > {
   to: string;
+  /** Separate href for the `<a>` tag, used when cmd/ctrl-click needs
+   * extra context (like backend identity) that `to` shouldn't carry. */
+  href?: string;
   replace?: boolean;
   end?: boolean;
   className?:
@@ -43,6 +46,7 @@ export const NavigationLink = React.forwardRef<
   (
     {
       to,
+      href: hrefOverride,
       replace = false,
       end = false,
       onClick,
@@ -80,7 +84,7 @@ export const NavigationLink = React.forwardRef<
       <a
         {...props}
         ref={ref}
-        href={to}
+        href={hrefOverride ?? to}
         target={target}
         rel={rel}
         onClick={handleClick}
