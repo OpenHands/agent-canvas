@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OSS_NAV_ITEMS } from "#/constants/settings-nav";
 import { useSettingsNavItems } from "#/hooks/use-settings-nav-items";
 import { WebClientConfig } from "#/api/option-service/option.types";
+import { I18nKey } from "#/i18n/declaration";
 
 const useConfigMock = vi.fn();
 const useSettingsMock = vi.fn();
@@ -60,7 +61,7 @@ describe("useSettingsNavItems", () => {
     });
   });
 
-  it("returns the LLM settings item unchanged on local backends", () => {
+  it("renames the LLM settings item to LLM Profiles on local backends", () => {
     useConfigMock.mockReturnValue({ data: createConfig() });
 
     const { result } = renderHook(() => useSettingsNavItems());
@@ -71,13 +72,19 @@ describe("useSettingsNavItems", () => {
     const baseLlm = OSS_NAV_ITEMS.find(
       (item) => item.to === "/settings/llm",
     )!;
+    // The previously-dead `/settings` vs `/settings/llm` compare is fixed, so
+    // local backends now surface the profile-management framing.
     expect(llmItem).toEqual({
       type: "item",
-      item: baseLlm,
+      item: {
+        ...baseLlm,
+        text: I18nKey.SETTINGS$LLM_PROFILES,
+        subtitle: I18nKey.SETTINGS$PAGE_LLM_PROFILES_SUBLINE,
+      },
     });
   });
 
-  it("keeps the generic LLM settings item on cloud backends", () => {
+  it("keeps the generic LLM settings item and hides the AgentProfile library on cloud backends", () => {
     useConfigMock.mockReturnValue({ data: createConfig() });
     useActiveBackendMock.mockReturnValue({
       backend: { kind: "cloud" },
@@ -86,8 +93,13 @@ describe("useSettingsNavItems", () => {
 
     const { result } = renderHook(() => useSettingsNavItems());
 
+    // The AgentProfile library is local-only (the cloud app-server has no
+    // /api/agent-profiles surface yet, #3730), so it is hidden on cloud; every
+    // other item renders with its canonical (non-"LLM Profiles") name.
     expect(result.current).toEqual(
-      OSS_NAV_ITEMS.map((item) => ({ type: "item", item })),
+      OSS_NAV_ITEMS.filter((item) => item.to !== "/settings/agents").map(
+        (item) => ({ type: "item", item }),
+      ),
     );
   });
 
@@ -120,58 +132,18 @@ describe("useSettingsNavItems", () => {
     expect(paths).not.toContain("/settings/mcp");
   });
 
-  it("disables LLM + Condenser when the active agent_kind is acp", () => {
+  it("does not disable any item when the active agent_kind is acp (lockout dissolved)", () => {
+    // The per-profile AgentProfile editor (#3726) removed the global ACP nav
+    // lockout — every Settings page is configurable regardless of agent kind.
     useConfigMock.mockReturnValue({ data: createConfig() });
     useSettingsMock.mockReturnValue({ data: acpClaudeCodeSettings });
 
     const { result } = renderHook(() => useSettingsNavItems());
-    const byPath = new Map(
-      result.current
-        .filter((item) => item.type === "item")
-        .map(
-          (item) =>
-            [item.type === "item" ? item.item.to : "", item] as const,
-        ),
-    );
-
-    const llm = byPath.get("/settings/llm");
-    expect(llm?.type).toBe("item");
-    if (llm?.type === "item") {
-      expect(llm.disabled).toBe(true);
-      expect(llm.disabledAgentName).toBe("Claude Code");
-    }
-
-    const condenser = byPath.get("/settings/condenser");
-    expect(condenser?.type).toBe("item");
-    if (condenser?.type === "item") {
-      expect(condenser.disabled).toBe(true);
-    }
-
-    // Items without `disabledByAcp` stay enabled.
-    const secrets = byPath.get("/settings/secrets");
-    if (secrets?.type === "item") {
-      expect(secrets.disabled).toBeUndefined();
-    }
-
-    // The agent-settings entry itself is not gated.
-    const agent = byPath.get("/settings/agent");
-    if (agent?.type === "item") {
-      expect(agent.disabled).toBeUndefined();
-    }
-  });
-
-  it("falls back to 'ACP Agent' when the saved acp_server is unknown", () => {
-    useConfigMock.mockReturnValue({ data: createConfig() });
-    useSettingsMock.mockReturnValue({
-      data: { agent_settings: { agent_kind: "acp", acp_server: "custom" } },
-    });
-
-    const { result } = renderHook(() => useSettingsNavItems());
-    const llm = result.current.find(
-      (r) => r.type === "item" && r.item.to === "/settings/llm",
-    );
-    if (llm?.type === "item") {
-      expect(llm.disabledAgentName).toBe("ACP Agent");
+    for (const rendered of result.current) {
+      if (rendered.type === "item") {
+        expect(rendered.disabled).toBeFalsy();
+        expect(rendered.disabledAgentName).toBeUndefined();
+      }
     }
   });
 

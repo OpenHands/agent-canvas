@@ -46,8 +46,10 @@ describe("buildStartConversationRequest", () => {
       secretsEncrypted: true,
     });
 
-    expect(payload.agent_settings.agent_kind).toBe("openhands");
-    expect(payload.agent_settings.mcp_config).toEqual(agentSettings.mcp_config);
+    expect(payload.agent_settings!.agent_kind).toBe("openhands");
+    expect(payload.agent_settings!.mcp_config).toEqual(
+      agentSettings.mcp_config,
+    );
     expect(payload.secrets_encrypted).toBe(true);
   });
 
@@ -78,8 +80,10 @@ describe("buildStartConversationRequest", () => {
       secretsEncrypted: true,
     });
 
-    expect(payload.agent_settings.agent_kind).toBe("acp");
-    expect(payload.agent_settings.mcp_config).toEqual(agentSettings.mcp_config);
+    expect(payload.agent_settings!.agent_kind).toBe("acp");
+    expect(payload.agent_settings!.mcp_config).toEqual(
+      agentSettings.mcp_config,
+    );
     expect(payload.secrets_encrypted).toBe(true);
   });
 
@@ -107,7 +111,79 @@ describe("buildStartConversationRequest", () => {
       secretsEncrypted: true,
     });
 
-    expect(payload.agent_settings.agent_kind).toBe("acp");
+    expect(payload.agent_settings!.agent_kind).toBe("acp");
+    expect(payload.secrets_encrypted).toBeUndefined();
+  });
+});
+
+describe("buildStartConversationRequest — agentProfileId path", () => {
+  it("sends agent_profile_id and omits agent_settings (mutually exclusive)", () => {
+    const settings = makeSettings({
+      agent_kind: "openhands",
+      llm: { model: "litellm_proxy/openai/gpt-5.5", api_key: "sk-test" },
+    });
+
+    const payload = buildStartConversationRequest({
+      settings,
+      agentProfileId: "profile-xyz",
+    });
+
+    expect(payload.agent_profile_id).toBe("profile-xyz");
+    expect(payload.agent_settings).toBeUndefined();
+  });
+
+  it("suppresses the ACP server tag when launching from a profile", () => {
+    const agentSettings = {
+      agent_kind: "acp",
+      acp_server: "codex",
+      acp_command: ["codex-acp"],
+      acp_model: "gpt-5.5/medium",
+    };
+
+    // Without a profile the ACP server tag is stamped from settings...
+    expect(
+      buildStartConversationRequest({ settings: makeSettings(agentSettings) })
+        .tags,
+    ).toBeDefined();
+
+    // ...but a profile launch resolves the server server-side, so the tag
+    // (which may not match the launched profile) is omitted.
+    const payload = buildStartConversationRequest({
+      settings: makeSettings(agentSettings),
+      agentProfileId: "profile-xyz",
+    });
+    expect(payload.tags).toBeUndefined();
+  });
+
+  it("suppresses secrets_encrypted when launching from a profile", () => {
+    const agentSettings = {
+      agent_kind: "openhands",
+      llm: {
+        model: "litellm_proxy/openai/gpt-5.5",
+        api_key: "gAAAAAencrypted-llm-api-key",
+      },
+      mcp_config: {
+        mcpServers: {
+          linear: {
+            url: "https://mcp.linear.app/mcp",
+            transport: "http",
+            headers: { Authorization: encryptedValue },
+          },
+        },
+      },
+    };
+    const settings = makeSettings(agentSettings);
+
+    // Same inputs without a profile would set secrets_encrypted (covered
+    // above); the profile path defers secret resolution to the server.
+    const payload = buildStartConversationRequest({
+      settings,
+      encryptedAgentSettings: agentSettings,
+      encryptedConversationSettings: settings.conversation_settings!,
+      secretsEncrypted: true,
+      agentProfileId: "profile-xyz",
+    });
+
     expect(payload.secrets_encrypted).toBeUndefined();
   });
 });

@@ -644,6 +644,8 @@ describe("ConversationCard", () => {
       );
 
       const chip = screen.getByTestId("conversation-card-agent-chip");
+      // A raw model string not in the registry passes through verbatim
+      // (label resolution for known IDs is covered by the next test).
       expect(chip).toHaveTextContent("raw-model-id");
       expect(chip).toHaveAttribute("title", "Claude Code · raw-model-id");
       expect(

@@ -1,9 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { BrandButton } from "#/components/features/settings/brand-button";
-import { AcpConflictWarnings } from "#/components/features/settings/acp-conflict-warnings";
-import { AcpAuthStatusBanner } from "#/components/features/settings/acp-auth-status-banner";
-import { AcpSecretField } from "#/components/features/settings/acp-secret-field";
+import { AcpCredentialsSection } from "#/components/features/settings/acp-credentials-section";
 import { I18nKey } from "#/i18n/declaration";
 import { useAcpAuthStatus } from "#/hooks/query/use-acp-auth-status";
 import { useAcpCredentialForm } from "#/hooks/use-acp-credential-form";
@@ -66,17 +64,8 @@ export function SetupAcpSecretsStep({
     { enabled: isActive },
   );
 
-  const {
-    fields,
-    values,
-    setValue,
-    secretExists,
-    hasValueFor,
-    conflicts,
-    consumesFileCredentials,
-    save,
-    isSaving,
-  } = useAcpCredentialForm(providerKey);
+  const form = useAcpCredentialForm(providerKey);
+  const { fields, hasValueFor, consumesFileCredentials, save, isSaving } = form;
 
   const providerName = getAcpProviderDisplayName(providerKey) ?? providerKey;
 
@@ -150,28 +139,14 @@ export function SetupAcpSecretsStep({
         )}
       </header>
 
-      <AcpAuthStatusBanner
-        status={authStatus}
-        isChecking={isCheckingAuth}
-        providerName={providerName}
-        testIdPrefix="onboarding-acp-auth"
+      <AcpCredentialsSection
+        form={form}
+        providerKey={providerKey}
+        hideHeading
+        testIdPrefix="onboarding-acp"
+        authStatus={authStatus}
+        isCheckingAuth={isCheckingAuth}
       />
-
-      <div className="flex flex-col gap-5">
-        {fields.map((field) => (
-          <AcpSecretField
-            key={field.name}
-            field={field}
-            value={values[field.name] ?? ""}
-            onChange={(value) => setValue(field.name, value)}
-            alreadySet={secretExists(field.name)}
-            testId={`onboarding-acp-secret-${field.name}`}
-            showOptionalTag
-          />
-        ))}
-      </div>
-
-      <AcpConflictWarnings conflicts={conflicts} />
 
       {blockNext ? (
         <p

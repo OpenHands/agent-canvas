@@ -1,28 +1,27 @@
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
+import type { AgentProfileSummary } from "#/api/agent-profiles-service/agent-profiles-service.api";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { ApiKeyModalBase } from "#/components/features/settings/api-key-modal-base";
-import { ProfileInfo } from "#/api/profiles-service/profiles-service.api";
-import { useDeleteLlmProfile } from "#/hooks/mutation/use-delete-llm-profile";
-import { isSdkHttpStatusError } from "#/api/agent-server-compatibility";
+import { useDeleteAgentProfile } from "#/hooks/mutation/use-delete-agent-profile";
 import {
   displayErrorToast,
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
 
-interface DeleteProfileModalProps {
-  profile: ProfileInfo | null;
+interface DeleteAgentProfileModalProps {
+  profile: AgentProfileSummary | null;
   onClose: () => void;
 }
 
-export function DeleteProfileModal({
+export function DeleteAgentProfileModal({
   profile,
   onClose,
-}: DeleteProfileModalProps) {
+}: DeleteAgentProfileModalProps) {
   const { t } = useTranslation("openhands");
-  const deleteProfile = useDeleteLlmProfile();
+  const deleteProfile = useDeleteAgentProfile();
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
 
   if (!profile) return null;
@@ -35,23 +34,14 @@ export function DeleteProfileModal({
       );
       onClose();
     } catch (error) {
-      // A referenced LLM profile is blocked by the agent-profile FK guard with
-      // a 409 (software-agent-sdk#3716); surface the localized reason.
       displayErrorToast(
-        isSdkHttpStatusError(error, 409)
-          ? t(I18nKey.SETTINGS$AGENT_PROFILE_LLM_REFERENCED)
-          : error instanceof Error
-            ? error.message
-            : t(I18nKey.ERROR$GENERIC),
+        error instanceof Error ? error.message : t(I18nKey.ERROR$GENERIC),
       );
     }
   };
 
-  // Handle close only if not pending to prevent inconsistent state
   const handleClose = () => {
-    if (!deleteProfile.isPending) {
-      onClose();
-    }
+    if (!deleteProfile.isPending) onClose();
   };
 
   const footer = (
@@ -66,7 +56,7 @@ export function DeleteProfileModal({
         {t(I18nKey.BUTTON$CANCEL)}
       </BrandButton>
       <BrandButton
-        testId="delete-profile-confirm"
+        testId="delete-agent-profile-confirm"
         type="button"
         variant="danger"
         onClick={handleDelete}

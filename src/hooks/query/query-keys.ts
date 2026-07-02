@@ -20,6 +20,13 @@ export const LLM_PROFILES_QUERY_KEYS = {
   all: ["llm-profiles"] as const,
 } as const;
 
+export const AGENT_PROFILES_QUERY_KEYS = {
+  all: ["agent-profiles"] as const,
+  /** Dry-run resolve ("materialize") of a single profile, keyed by name. */
+  materialize: (name: string) =>
+    ["agent-profiles", "materialize", name] as const,
+} as const;
+
 export const LLM_SUBSCRIPTION_QUERY_KEYS = {
   all: ["llm-subscription"] as const,
   openaiStatus: ["llm-subscription", "openai", "status"] as const,

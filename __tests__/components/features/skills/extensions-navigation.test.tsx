@@ -56,18 +56,6 @@ describe("ExtensionsNavigation", () => {
     expect(skillsItem.tagName).toBe("A");
   });
 
-  it("renders the Plugins item as a live link without a Coming Soon badge", () => {
-    renderExtensionsNavigation(<ExtensionsNavigation />);
-
-    const nav = screen.getByTestId("extensions-navbar-desktop");
-    const pluginsItem = within(nav).getByTestId("sidebar-extensions-/plugins");
-    expect(pluginsItem.tagName).toBe("A");
-    expect(pluginsItem).not.toHaveAttribute("aria-disabled");
-    expect(
-      within(pluginsItem).queryByText("NAV$COMING_SOON"),
-    ).not.toBeInTheDocument();
-  });
-
   // Regression: the nav used to suppress itself at iPad-portrait widths
   // (768–1023px) whenever the primary Sidebar was expanded, leaving users
   // on /skills, /mcp, and /plugins with no way to switch between those

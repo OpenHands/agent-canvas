@@ -4,48 +4,76 @@ import { AcpAuthStatusBanner } from "#/components/features/settings/acp-auth-sta
 import { AcpSecretField } from "#/components/features/settings/acp-secret-field";
 import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
-import { useAcpAuthStatus } from "#/hooks/query/use-acp-auth-status";
+import {
+  useAcpAuthStatus,
+  type AcpAuthStatus,
+} from "#/hooks/query/use-acp-auth-status";
 import { getAcpProviderDisplayName } from "#/constants/acp-providers";
 import type { AcpCredentialForm } from "#/hooks/use-acp-credential-form";
 
+interface AcpCredentialsSectionProps {
+  form: AcpCredentialForm;
+  providerKey: string;
+  /** Hide the section title/description when the host already has its own
+   * heading (the onboarding step). */
+  hideHeading?: boolean;
+  /** Prefix for the field + banner test ids. Defaults to the settings/editor
+   * usage; the onboarding step passes ``"onboarding-acp"``. */
+  testIdPrefix?: string;
+  /** Inject an already-running auth probe (the onboarding step gates its probe
+   * on slide visibility). When omitted the section runs its own probe, so the
+   * standalone settings / profile-editor usage stays zero-config. */
+  authStatus?: AcpAuthStatus;
+  isCheckingAuth?: boolean;
+}
+
 /**
- * Settings → Agent credentials section for a built-in ACP provider: renders the
- * same fields the onboarding step collects (and the same "already signed in"
- * auth banner), so credentials can be added or rotated after onboarding. The
- * form state and the save are owned by the parent (Settings → Agent) so the
- * page has a single Save button for both agent settings and credentials.
- * Renders nothing for providers without credential fields.
+ * Credentials section for a built-in ACP provider: the descriptor-driven secret
+ * fields plus the "already signed in" auth banner. Shared by the per-profile
+ * AgentProfile editor, the standalone Settings → Agent page, and the onboarding
+ * step (software-agent-sdk#3728) so there is a single credential UI. The form
+ * state + save are owned by the parent. Renders nothing for providers without
+ * credential fields.
  */
 export function AcpCredentialsSection({
   form,
   providerKey,
-}: {
-  form: AcpCredentialForm;
-  providerKey: string;
-}) {
+  hideHeading = false,
+  testIdPrefix = "settings-acp",
+  authStatus: authStatusProp,
+  isCheckingAuth: isCheckingAuthProp,
+}: AcpCredentialsSectionProps) {
   const { t } = useTranslation("openhands");
   const { fields, values, setValue, secretExists, conflicts } = form;
-  const { status: authStatus, isChecking } = useAcpAuthStatus(providerKey);
+  // Self-probe only when the caller didn't inject a status (gated so it never
+  // fires when the parent already provides one).
+  const selfProbe = useAcpAuthStatus(providerKey, {
+    enabled: authStatusProp === undefined,
+  });
+  const authStatus = authStatusProp ?? selfProbe.status;
+  const isChecking = isCheckingAuthProp ?? selfProbe.isChecking;
   const providerName = getAcpProviderDisplayName(providerKey) ?? providerKey;
 
   if (fields.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <Typography.Text className="text-sm font-medium text-white">
-          {t(I18nKey.SETTINGS$ACP_CREDENTIALS_TITLE)}
-        </Typography.Text>
-        <Typography.Text className="text-xs text-[#717888]">
-          {t(I18nKey.SETTINGS$ACP_CREDENTIALS_DESCRIPTION)}
-        </Typography.Text>
-      </div>
+      {!hideHeading && (
+        <div className="flex flex-col gap-1">
+          <Typography.Text className="text-sm font-medium text-white">
+            {t(I18nKey.SETTINGS$ACP_CREDENTIALS_TITLE)}
+          </Typography.Text>
+          <Typography.Text className="text-xs text-[#717888]">
+            {t(I18nKey.SETTINGS$ACP_CREDENTIALS_DESCRIPTION)}
+          </Typography.Text>
+        </div>
+      )}
 
       <AcpAuthStatusBanner
         status={authStatus}
         isChecking={isChecking}
         providerName={providerName}
-        testIdPrefix="settings-acp-auth"
+        testIdPrefix={`${testIdPrefix}-auth`}
       />
 
       <div className="flex flex-col gap-5">
@@ -56,7 +84,7 @@ export function AcpCredentialsSection({
             value={values[field.name] ?? ""}
             onChange={(value) => setValue(field.name, value)}
             alreadySet={secretExists(field.name)}
-            testId={`settings-acp-secret-${field.name}`}
+            testId={`${testIdPrefix}-secret-${field.name}`}
             showOptionalTag
           />
         ))}
