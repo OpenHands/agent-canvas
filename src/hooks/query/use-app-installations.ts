@@ -4,7 +4,7 @@ import GitService from "#/api/git-service/git-service.api";
 import { useUserProviders } from "../use-user-providers";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { Provider } from "#/types/settings";
-import { shouldUseInstallationRepos } from "#/utils/utils";
+import { shouldUseInstallationRepos } from "#/utils/git";
 
 /**
  * Get the first page of app installations for the provider given.

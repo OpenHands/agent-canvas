@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { shouldUseInstallationRepos } from "#/utils/utils";
+import { shouldUseInstallationRepos } from "#/utils/git";
 
 describe("shouldUseInstallationRepos", () => {
   it("returns false for null/undefined provider regardless of mode", () => {

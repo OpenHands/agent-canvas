@@ -2,7 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useTracking } from "#/hooks/use-tracking";
 import { useTranslation } from "react-i18next";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
-import { downloadBlob } from "#/utils/utils";
+import { downloadBlob } from "#/utils/dom";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { I18nKey } from "#/i18n/declaration";
 

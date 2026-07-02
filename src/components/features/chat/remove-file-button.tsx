@@ -1,5 +1,6 @@
 import CloseIcon from "#/icons/u-close.svg?react";
-import { cn, isMobileDevice } from "#/utils/utils";
+import { cn } from "#/utils/utils";
+import { isMobileDevice } from "#/utils/dom";
 
 interface RemoveFileButtonProps {
   onClick: () => void;

@@ -9,7 +9,7 @@ import {
   getGitPushPrompt,
   getCreatePRPrompt,
   getCreateNewBranchPrompt,
-} from "#/utils/utils";
+} from "#/utils/git";
 import { useConversationStore } from "#/stores/conversation-store";
 
 import ArrowUpIcon from "#/icons/u-arrow-up.svg?react";

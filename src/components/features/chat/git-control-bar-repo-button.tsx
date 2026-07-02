@@ -1,6 +1,7 @@
 import { FolderOpen } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { constructRepositoryUrl, cn } from "#/utils/utils";
+import { cn } from "#/utils/utils";
+import { constructRepositoryUrl } from "#/utils/git";
 import { Provider } from "#/types/settings";
 import { I18nKey } from "#/i18n/declaration";
 import { GitProviderIcon } from "#/components/shared/git-provider-icon";

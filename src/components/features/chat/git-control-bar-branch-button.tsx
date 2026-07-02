@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import BranchIcon from "#/icons/u-code-branch.svg?react";
-import { constructBranchUrl, cn } from "#/utils/utils";
+import { cn } from "#/utils/utils";
+import { constructBranchUrl } from "#/utils/git";
 import { Provider } from "#/types/settings";
 import { I18nKey } from "#/i18n/declaration";
 import { GitExternalLinkIcon } from "./git-external-link-icon";

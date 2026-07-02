@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getStatusText } from "#/utils/utils";
+import { getStatusText } from "#/utils/status";
 import { AgentState } from "#/types/agent-state";
 import { I18nKey } from "#/i18n/declaration";
 

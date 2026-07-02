@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import ArrowDownIcon from "#/icons/u-arrow-down.svg?react";
-import { cn, getGitPullPrompt } from "#/utils/utils";
+import { cn } from "#/utils/utils";
+import { getGitPullPrompt } from "#/utils/git";
 import {
   gitControlBarActionButtonClassName,
   gitControlBarActionIconColor,

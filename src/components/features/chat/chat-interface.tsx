@@ -44,7 +44,7 @@ import { useTaskPolling } from "#/hooks/query/use-task-polling";
 import { matchesPendingConversationId } from "#/utils/pending-task-message-link";
 import { useConversationWebSocket } from "#/contexts/conversation-websocket-context";
 import ChatStatusIndicator from "./chat-status-indicator";
-import { getStatusColor, getStatusText } from "#/utils/utils";
+import { getStatusColor, getStatusText } from "#/utils/status";
 import { useNewConversationCommand } from "#/hooks/mutation/use-new-conversation-command";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";

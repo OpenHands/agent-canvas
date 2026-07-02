@@ -4,7 +4,7 @@ import type {
   TouchEvent as ReactTouchEvent,
 } from "react";
 import { EPS } from "#/utils/constants";
-import { isMobileDevice } from "#/utils/utils";
+import { isMobileDevice } from "#/utils/dom";
 
 /** Movement required before a pointer gesture is treated as a resize drag. */
 const DRAG_COMMIT_PX = 2;

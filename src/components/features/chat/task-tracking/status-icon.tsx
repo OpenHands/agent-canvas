@@ -1,4 +1,4 @@
-import { getStatusIcon } from "#/utils/utils";
+import { getStatusIcon } from "#/utils/status";
 
 interface StatusIconProps {
   status: string;
