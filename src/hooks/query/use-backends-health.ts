@@ -115,6 +115,58 @@ async function probeBackend(backend: Backend): Promise<true> {
   return true;
 }
 
+/**
+ * How many extra times to re-run a failed probe before giving up, and how
+ * long to wait between attempts.
+ */
+const PROBE_RETRY_ATTEMPTS = 2;
+const PROBE_RETRY_DELAY_MS = 300;
+
+/**
+ * Probe a backend, retrying a couple of times on failure before giving up.
+ *
+ * The connectivity indicator (and the onboarding "backend connected" banner)
+ * only flips green once a probe succeeds. With `retry: false` at the query
+ * level and a REFRESH_INTERVAL_MS (10s) poll, a single transient first-probe
+ * miss — the agent-server still warming up right after navigation, a momentary
+ * proxy 5xx, a dropped connection — would otherwise leave the banner stuck for
+ * a full 10s until the next scheduled refetch. That is the root cause of the
+ * flaky onboarding e2e "backend health probe should report connected" timeout.
+ *
+ * Retrying here, inside the query function rather than via React Query's
+ * `retry`, is deliberate: the success/failure recording below runs once per
+ * settled query, so a single logical probe still records exactly one outcome.
+ * Retrying at the query level instead would call `recordBackendFailure` on
+ * every internal attempt and reach the disabled cap several times too fast.
+ *
+ * Definitive auth failures (logged out, invalid/missing key) are NOT retried:
+ * they are a decided server response, not a transient miss, so retrying only
+ * delays surfacing the correct "disconnected" state (and the recovery UI).
+ */
+function isRetryableProbeError(error: unknown): boolean {
+  if (!(error instanceof Error)) return true;
+  return (
+    error.message !== INVALID_BACKEND_API_KEY_ERROR &&
+    error.message !== MISSING_BACKEND_API_KEY_ERROR &&
+    error.message !== CLOUD_BACKEND_LOGGED_OUT_ERROR
+  );
+}
+
+async function probeBackendWithQuickRetry(backend: Backend): Promise<true> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await probeBackend(backend);
+    } catch (error) {
+      if (attempt >= PROBE_RETRY_ATTEMPTS || !isRetryableProbeError(error)) {
+        throw error;
+      }
+      await new Promise((resolve) => {
+        setTimeout(resolve, PROBE_RETRY_DELAY_MS);
+      });
+    }
+  }
+}
+
 export interface BackendHealth {
   /** `null` while the first probe is in flight; then `true` / `false`. */
   isConnected: boolean | null;
@@ -190,7 +242,7 @@ export function useBackendsHealth(
         ] as const,
         queryFn: async () => {
           try {
-            const result = await probeBackend(b);
+            const result = await probeBackendWithQuickRetry(b);
             recordBackendSuccess(b.id);
             return result;
           } catch (err) {
