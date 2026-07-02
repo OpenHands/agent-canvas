@@ -9,6 +9,9 @@ import {
 
 export const AUTOMATIONS_QUERY_KEY = ["automations"] as const;
 
+/** Keep the list aligned with server changes from other sessions or the API. */
+const AUTOMATIONS_LIST_REFETCH_INTERVAL_MS = 30_000;
+
 interface UseAutomationsOptions {
   limit?: number;
   offset?: number;
@@ -27,6 +30,7 @@ export function useAutomations(options: UseAutomationsOptions = {}) {
     ],
     queryFn: () => AutomationService.getAutomations(limit, offset),
     staleTime: 0,
+
     enabled,
   });
 }
