@@ -7,6 +7,7 @@ import type { SdkSectionSaveControl } from "#/components/features/settings/sdk-s
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
 import { useActivateLlmProfile } from "#/hooks/mutation/use-activate-llm-profile";
+import { useApplyOnboardingAgentProfile } from "#/hooks/mutation/use-apply-onboarding-agent-profile";
 import { deriveProfileNameFromModel } from "#/utils/derive-profile-name";
 
 interface SetupLlmStepProps {
@@ -46,6 +47,7 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
   const isLocalBackend = backend.kind === "local";
   const saveProfile = useSaveLlmProfile();
   const activateProfile = useActivateLlmProfile();
+  const applyAgentProfile = useApplyOnboardingAgentProfile();
   const [saveControl, setSaveControl] =
     React.useState<SdkSectionSaveControl | null>(null);
   const [isFinalizing, setIsFinalizing] = React.useState(false);
@@ -53,12 +55,17 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
   // On local backends the LLM profiles list is the user-facing source of
   // truth; without this step the form save only updates agent_settings and
   // the new config never shows up in the profiles list ("ghost profile").
-  const persistAsProfile = React.useCallback(async () => {
-    if (!isLocalBackend || !saveControl) return;
+  // Returns the saved LLM profile name so the caller can point the active
+  // AGENT profile at it (conversations launch from the agent profile, not the
+  // active LLM profile).
+  const persistAsProfile = React.useCallback(async (): Promise<
+    string | null
+  > => {
+    if (!isLocalBackend || !saveControl) return null;
     const values = saveControl.values;
     const model =
       typeof values["llm.model"] === "string" ? values["llm.model"] : "";
-    if (!model) return;
+    if (!model) return null;
     const apiKey =
       typeof values["llm.api_key"] === "string" ? values["llm.api_key"] : "";
     const baseUrl =
@@ -77,22 +84,34 @@ export function SetupLlmStep({ onBack, onNext }: SetupLlmStepProps) {
         request: { llm: llmConfig, include_secrets: true },
       });
       await activateProfile.mutateAsync(name);
+      return name;
     } catch (error) {
       // Best-effort: the agent_settings save already succeeded, so the
       // user is not blocked from completing onboarding.
       console.error("Failed to persist onboarding LLM as profile:", error);
+      return null;
     }
   }, [isLocalBackend, saveControl, saveProfile, activateProfile]);
 
   const handleSaveSuccess = React.useCallback(async () => {
     setIsFinalizing(true);
     try {
-      await persistAsProfile();
+      const llmProfileName = await persistAsProfile();
+      // Point the active AGENT profile at the LLM the user just configured so
+      // the next conversation actually uses it (and the "LLM not set up"
+      // banner clears). Without this the active agent profile keeps its
+      // seeded llm_profile_ref, which has no key.
+      if (llmProfileName) {
+        await applyAgentProfile({
+          agent_kind: "openhands",
+          llm_profile_ref: llmProfileName,
+        });
+      }
     } finally {
       setIsFinalizing(false);
       onNext();
     }
-  }, [persistAsProfile, onNext]);
+  }, [persistAsProfile, applyAgentProfile, onNext]);
 
   const handleNext = () => {
     if (saveControl?.isDirty) {
