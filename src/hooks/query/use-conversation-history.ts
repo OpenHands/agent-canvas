@@ -70,7 +70,22 @@ export const useConversationHistory = (conversationId?: string) => {
         nextPageId: page.next_page_id ?? null,
       };
     },
-    staleTime: Infinity,
-    gcTime: 30 * 60 * 1000, // 30 minutes — survive navigation away and back (AC5)
+    // Keep the cached page so returning to a conversation renders the
+    // last-known discussion instantly (no skeleton). But refetch the tail on
+    // mount so events produced while we were away — e.g. an active /goal loop
+    // that keeps emitting user + agent turns while we're on another
+    // conversation — arrive in one batched REST page instead of being
+    // back-filled one event at a time over the WebSocket `since` replay. The
+    // cached tail's newest timestamp never advances on its own, so without this
+    // refetch every return replays the entire post-first-load history over the
+    // socket (and it gets worse the longer the goal has been running).
+    //
+    // refetchOnWindowFocus is disabled because the WebSocket connection is
+    // gated on this query settling (see conversation-websocket-context.tsx); a
+    // focus-driven refetch would otherwise needlessly drop and reconnect it.
+    staleTime: 0,
+    gcTime: 30 * 60 * 1000, // 30 minutes — keep cached data to render instantly on return
+    refetchOnMount: "always",
+    refetchOnWindowFocus: false,
   });
 };
