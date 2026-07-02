@@ -527,45 +527,41 @@ export async function deleteProfileIfExists(page: Page, profileName: string) {
 /**
  * Activate a profile by name through the Settings UI.
  * Assumes the page is already on /settings/llm with profiles loaded.
- * Polls until the "Active" badge is visible on the target profile row.
+ * Retries the "Set active" gesture until the "Active" badge appears on the row.
  */
 export async function activateProfileViaUI(page: Page, profileName: string) {
-  const exactRow = (p: Page) =>
-    p
-      .getByTestId("profile-row")
-      .filter({ has: p.locator(`span[title="${profileName}"]`) })
-      .first();
+  const row = page
+    .getByTestId("profile-row")
+    .filter({ has: page.locator(`span[title="${profileName}"]`) })
+    .first();
 
-  const row = exactRow(page);
-  if ((await row.count()) > 0) {
+  // `createProfileViaUI` only waits for the editor to close, not for the new
+  // row to render in the list, so wait for the row explicitly before acting
+  // on it. Skipping this is what let the old poll dead-end: if the row was not
+  // yet in the DOM, the activation gesture below was never attempted.
+  await expect(row).toBeVisible({ timeout: 15_000 });
+
+  const activeBadge = row.getByTestId("profile-active-badge");
+
+  // Retry the open-menu → "Set active" gesture until the badge shows. The badge
+  // updates reactively — `useActivateLlmProfile` invalidates the profiles query
+  // on success, which refetches `active_profile` and re-renders the row — so no
+  // page reload is needed and a dropped click self-heals on the next attempt.
+  await expect(async () => {
+    if ((await activeBadge.count()) > 0) return; // already active
+
+    // The menu trigger toggles, so reset any menu left open by a prior attempt
+    // before re-opening — otherwise a retry would close the menu it just opened.
+    await page.keyboard.press("Escape");
     await row.getByTestId("profile-menu-trigger").click();
     await waitForTestId(page, "profile-actions-menu");
     const setActive = page.getByTestId("profile-set-active");
     if (await setActive.isEnabled()) {
       await setActive.click();
-    } else {
-      // Already active
-      await page.keyboard.press("Escape");
     }
-  }
 
-  // Poll until the active badge appears on our profile
-  await expect
-    .poll(
-      async () => {
-        await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
-        await waitForTestId(page, "add-llm-profile");
-        const target = exactRow(page);
-        if ((await target.count()) === 0) return false;
-        return (await target.getByTestId("profile-active-badge").count()) > 0;
-      },
-      {
-        message: `Profile "${profileName}" should have an "Active" badge`,
-        timeout: 15_000,
-        intervals: [1_000, 2_000, 3_000],
-      },
-    )
-    .toBe(true);
+    await expect(activeBadge).toBeVisible({ timeout: 5_000 });
+  }).toPass({ timeout: 30_000, intervals: [500, 1_000, 2_000] });
 }
 
 /**
