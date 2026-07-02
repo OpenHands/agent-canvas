@@ -83,6 +83,35 @@ describe("MCPPage", () => {
     );
   });
 
+  it("renders the Azure DevOps marketplace tile and opens its PAT install modal", async () => {
+    // Issue #929: Azure DevOps must surface in the MCP marketplace, and the
+    // install modal must offer the locally installable PAT stdio path.
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
+
+    renderPage();
+
+    await screen.findByTestId("mcp-marketplace-grid");
+    expect(
+      screen.getByTestId("mcp-marketplace-card-azure-devops"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("mcp-marketplace-card-azure-devops"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("mcp-install-modal")).toBeInTheDocument();
+    });
+    // The installable option is the local PAT stdio server.
+    expect(
+      screen.getByTestId("mcp-install-field-command-readonly"),
+    ).toHaveValue("npx -y @azure-devops/mcp --authentication pat");
+    expect(
+      screen.getByTestId("mcp-install-field-organization"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("mcp-install-field-PERSONAL_ACCESS_TOKEN"),
+    ).toBeInTheDocument();
+  });
+
   it("opens the install modal when clicking a marketplace tile", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
 

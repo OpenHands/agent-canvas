@@ -278,3 +278,99 @@ describe("GitHub hosted MCP entry", () => {
     expect(match?.id).toBe("github");
   });
 });
+
+describe("Azure DevOps MCP entry", () => {
+  // Issue #929: Azure DevOps must surface in the MCP marketplace via the
+  // official Microsoft Azure DevOps MCP Server, with a hosted remote (OAuth)
+  // connection and a local PAT-based stdio fallback.
+  const catalog = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
+  const azureDevOps = catalog.find((e) => e.id === "azure-devops");
+
+  it("appears in the MCP marketplace catalog", () => {
+    expect(azureDevOps).toBeDefined();
+    expect(azureDevOps!.logoUrl).toMatch(/^https:\/\//);
+    expect(azureDevOps!.iconBg).toBeTruthy();
+  });
+
+  it("exposes a hosted remote (OAuth) streamable HTTP option", () => {
+    const remote = azureDevOps!.connectionOptions.find(
+      (option) => option.id === "remote",
+    );
+    expect(remote).toBeDefined();
+    expect(remote!.provider).toBe("mcp");
+    expect(remote!.auth.strategy).toBe("oauth2");
+    expect(remote!.transport?.kind).toBe("shttp");
+    if (remote!.transport?.kind !== "shttp") {
+      throw new Error("expected shttp transport");
+    }
+    expect(remote!.transport.url).toBe(
+      "https://mcp.dev.azure.com/{organization}",
+    );
+    // The organization segment is account-specific, so the URL is editable.
+    expect(remote!.transport.urlEditable).toBe(true);
+  });
+
+  it("exposes a locally installable PAT stdio fallback", () => {
+    const installable = getInstallableMcpConnectionOption(azureDevOps!);
+    expect(installable?.id).toBe("pat");
+    expect(installable?.auth.strategy).toBe("api_key");
+    expect(installable?.transport.kind).toBe("stdio");
+    if (installable?.transport.kind !== "stdio") {
+      throw new Error("expected stdio transport");
+    }
+    expect(installable.transport.command).toBe("npx");
+    expect(installable.transport.args).toContain("@azure-devops/mcp");
+    expect(installable.transport.args).toContain("pat");
+    // The PAT is supplied via the documented PERSONAL_ACCESS_TOKEN env var.
+    const envFields = installable.transport.envFields ?? [];
+    expect(
+      envFields.some((field) => field.key === "PERSONAL_ACCESS_TOKEN"),
+    ).toBe(true);
+    // The organization name is passed as a CLI positional argument.
+    expect(
+      (installable.transport.argFields ?? []).some(
+        (field) => field.key === "organization",
+      ),
+    ).toBe(true);
+  });
+
+  it("matches installed local stdio servers by server name", () => {
+    const pat = azureDevOps!.connectionOptions.find(
+      (option) => option.id === "pat",
+    );
+    const transport = pat?.transport;
+    if (transport?.kind !== "stdio") {
+      throw new Error("expected stdio transport for the pat option");
+    }
+    const match = findInstalledMatch(transport, [
+      {
+        id: "stdio-0",
+        type: "stdio",
+        name: "azure-devops",
+        command: "npx",
+        args: ["-y", "@azure-devops/mcp", "contoso", "--authentication", "pat"],
+      },
+    ]);
+    expect(match).toEqual(expect.objectContaining({ id: "stdio-0" }));
+    expect(
+      findCatalogEntryForServer(
+        {
+          id: "stdio-0",
+          type: "stdio",
+          name: "azure-devops",
+          command: "npx",
+          args: [],
+        },
+        catalog,
+      )?.id,
+    ).toBe("azure-devops");
+  });
+
+  it("is searchable by name and keywords", () => {
+    expect(marketplaceEntryMatchesQuery(azureDevOps!, "azure devops")).toBe(
+      true,
+    );
+    expect(marketplaceEntryMatchesQuery(azureDevOps!, "ado")).toBe(true);
+    expect(marketplaceEntryMatchesQuery(azureDevOps!, "pipelines")).toBe(true);
+  });
+});
