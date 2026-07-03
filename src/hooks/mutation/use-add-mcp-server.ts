@@ -7,23 +7,9 @@ import {
   MCPSSEServer,
   MCPStdioServer,
 } from "#/types/settings";
+import type { MCPServerConfig } from "#/types/mcp-server";
 import { parseMcpConfig, toSdkMcpConfig } from "#/utils/mcp-config";
 import { SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
-
-type MCPServerType = "sse" | "stdio" | "shttp";
-
-interface MCPServerConfig {
-  type: MCPServerType;
-  name?: string;
-  url?: string;
-  api_key?: string;
-  headers?: Record<string, string>;
-  timeout?: number;
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
-  auth?: "oauth";
-}
 
 export function useAddMcpServer() {
   const queryClient = useQueryClient();
@@ -46,7 +32,11 @@ export function useAddMcpServer() {
           ...(server.name && { name: server.name }),
           url: server.url!,
           ...(server.api_key && { api_key: server.api_key }),
+          ...(server.headers && { headers: server.headers }),
           ...(server.auth && { auth: server.auth }),
+          ...(server.authentication && {
+            authentication: server.authentication,
+          }),
         };
         newConfig.sse_servers.push(sseServer);
       } else if (server.type === "stdio") {
@@ -62,8 +52,12 @@ export function useAddMcpServer() {
           ...(server.name && { name: server.name }),
           url: server.url!,
           ...(server.api_key && { api_key: server.api_key }),
+          ...(server.headers && { headers: server.headers }),
           ...(server.timeout !== undefined && { timeout: server.timeout }),
           ...(server.auth && { auth: server.auth }),
+          ...(server.authentication && {
+            authentication: server.authentication,
+          }),
         };
         newConfig.shttp_servers.push(shttpServer);
       }

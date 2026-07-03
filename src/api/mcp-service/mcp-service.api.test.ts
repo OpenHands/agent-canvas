@@ -82,4 +82,33 @@ describe("McpService.testServer", () => {
     expect(testServer.mock.calls[0][0].server).not.toHaveProperty("api_key");
     expect(close).toHaveBeenCalledTimes(1);
   });
+
+  it("forwards explicit OAuth authentication metadata to the MCP test endpoint", async () => {
+    await McpService.testServer({
+      id: "shttp-0",
+      type: "shttp",
+      name: "superhuman-mail",
+      url: "https://mcp.mail.superhuman.com/mcp",
+      auth: "oauth",
+      authentication: {
+        type: "oauth",
+        client_auth_method: "none",
+      },
+    });
+
+    expect(testServer).toHaveBeenCalledTimes(1);
+    expect(testServer.mock.calls[0][0]).toMatchObject({
+      name: "superhuman-mail",
+      server: {
+        type: "shttp",
+        url: "https://mcp.mail.superhuman.com/mcp",
+        auth: "oauth",
+        authentication: {
+          type: "oauth",
+          client_auth_method: "none",
+        },
+      },
+    });
+    expect(close).toHaveBeenCalledTimes(1);
+  });
 });

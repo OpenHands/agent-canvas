@@ -29,6 +29,7 @@ function toMcpServerSpec(server: MCPServerConfig): MCPServerSpec {
       Object.keys(server.headers).length > 0 && { headers: server.headers }),
     ...(server.api_key ? { api_key: server.api_key } : {}),
     ...(server.auth ? { auth: server.auth } : {}),
+    ...(server.authentication ? { authentication: server.authentication } : {}),
   } as MCPServerSpec;
 }
 

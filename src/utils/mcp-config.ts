@@ -5,6 +5,10 @@ import {
   MCPStdioServer,
   SettingsValue,
 } from "#/types/settings";
+import type {
+  MCPAuthenticationConfig,
+  MCPAuthenticationMetadataValue,
+} from "#/types/mcp-auth";
 
 const EMPTY_MCP_CONFIG: MCPConfig = {
   sse_servers: [],
@@ -33,7 +37,10 @@ function isDeprecatedLinearSse(
   return normalized === LINEAR_DEPRECATED_SSE_URL;
 }
 
-type SdkMcpServerConfig = Record<string, SettingsValue>;
+type SdkMcpServerConfig = Record<
+  string,
+  SettingsValue | MCPAuthenticationConfig | undefined
+>;
 type SdkMcpConfig = { mcpServers: Record<string, SdkMcpServerConfig> };
 
 /**
@@ -102,6 +109,59 @@ function getRemoteCredentialFields(entry: {
   return {};
 }
 
+function getAuthenticationConfig(
+  value: unknown,
+): MCPAuthenticationConfig | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const record = value as Record<string, unknown>;
+  if (record.type !== "oauth") return undefined;
+  const authentication: MCPAuthenticationConfig = { type: "oauth" };
+  if (
+    record.client_auth_method === "none" ||
+    record.client_auth_method === "client_secret_post" ||
+    record.client_auth_method === "client_secret_basic"
+  ) {
+    authentication.client_auth_method = record.client_auth_method;
+  }
+  if (typeof record.scopes === "string") {
+    authentication.scopes = record.scopes;
+  } else if (
+    Array.isArray(record.scopes) &&
+    record.scopes.every((scope) => typeof scope === "string")
+  ) {
+    authentication.scopes = record.scopes;
+  }
+  if (typeof record.client_name === "string") {
+    authentication.client_name = record.client_name;
+  }
+  if (typeof record.client_metadata_url === "string") {
+    authentication.client_metadata_url = record.client_metadata_url;
+  }
+  if (
+    record.additional_client_metadata &&
+    typeof record.additional_client_metadata === "object" &&
+    !Array.isArray(record.additional_client_metadata)
+  ) {
+    authentication.additional_client_metadata =
+      record.additional_client_metadata as Record<
+        string,
+        MCPAuthenticationMetadataValue
+      >;
+  }
+  return authentication;
+}
+
+function getRemoteAuthenticationFields(
+  serverConfig: Record<string, unknown>,
+): Pick<MCPSSEServer | MCPSHTTPServer, "auth" | "authentication"> {
+  const fields: Pick<MCPSSEServer | MCPSHTTPServer, "auth" | "authentication"> =
+    {};
+  if (serverConfig.auth === "oauth") fields.auth = "oauth";
+  const authentication = getAuthenticationConfig(serverConfig.authentication);
+  if (authentication) fields.authentication = authentication;
+  return fields;
+}
+
 /**
  * Parse an SDK mcp_config value ({ mcpServers: { ... } }) and convert it
  * to the frontend MCPConfig format used by UI components.
@@ -149,7 +209,7 @@ export function parseMcpConfig(value: unknown): MCPConfig {
         const server: MCPSSEServer = { url };
         if (name) server.name = name;
         if (apiKey) server.api_key = apiKey;
-        if (serverConfig.auth === "oauth") server.auth = "oauth";
+        Object.assign(server, getRemoteAuthenticationFields(serverConfig));
         sseServers.push(server);
       } else {
         const name = userGivenServerName(serverName, "shttp");
@@ -159,7 +219,7 @@ export function parseMcpConfig(value: unknown): MCPConfig {
         if (serverConfig.timeout != null) {
           server.timeout = serverConfig.timeout as number;
         }
-        if (serverConfig.auth === "oauth") server.auth = "oauth";
+        Object.assign(server, getRemoteAuthenticationFields(serverConfig));
         shttpServers.push(server);
       }
     } else {
@@ -225,6 +285,7 @@ export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
       server.url = entry.url;
       Object.assign(server, getRemoteCredentialFields(entry));
       if (entry.auth === "oauth") server.auth = "oauth";
+      if (entry.authentication) server.authentication = entry.authentication;
     }
     server.transport = "sse";
     mcpServers[reserve(name || "sse")] = server;
@@ -241,6 +302,7 @@ export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
       Object.assign(server, getRemoteCredentialFields(entry));
       if (entry.timeout != null) server.timeout = entry.timeout;
       if (entry.auth === "oauth") server.auth = "oauth";
+      if (entry.authentication) server.authentication = entry.authentication;
     }
     mcpServers[reserve(name || "shttp")] = server;
   }

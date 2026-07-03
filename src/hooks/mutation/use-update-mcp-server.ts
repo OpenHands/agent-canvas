@@ -43,6 +43,10 @@ export function useUpdateMcpServer() {
           url: serverToSave.url!,
           ...(serverToSave.api_key && { api_key: serverToSave.api_key }),
           ...(serverToSave.headers && { headers: serverToSave.headers }),
+          ...(serverToSave.auth && { auth: serverToSave.auth }),
+          ...(serverToSave.authentication && {
+            authentication: serverToSave.authentication,
+          }),
         };
         newConfig.sse_servers[index] = sseServer;
       } else if (serverType === "stdio") {
@@ -61,6 +65,10 @@ export function useUpdateMcpServer() {
           ...(serverToSave.headers && { headers: serverToSave.headers }),
           ...(serverToSave.timeout !== undefined && {
             timeout: serverToSave.timeout,
+          }),
+          ...(serverToSave.auth && { auth: serverToSave.auth }),
+          ...(serverToSave.authentication && {
+            authentication: serverToSave.authentication,
           }),
         };
         newConfig.shttp_servers[index] = shttpServer;

@@ -1,3 +1,5 @@
+import type { MCPAuthenticationConfig } from "./mcp-auth";
+
 export const ProviderOptions = {
   github: "github",
   gitlab: "gitlab",
@@ -21,6 +23,8 @@ export type MCPSSEServer = {
   headers?: Record<string, string>;
   /** Set to "oauth" for servers that handle OAuth themselves (fastmcp). */
   auth?: "oauth";
+  /** Explicit OAuth client metadata used with `auth: "oauth"`. */
+  authentication?: MCPAuthenticationConfig;
 };
 
 export type MCPStdioServer = {
@@ -38,6 +42,8 @@ export type MCPSHTTPServer = {
   timeout?: number;
   /** Set to "oauth" for servers that handle OAuth themselves (fastmcp). */
   auth?: "oauth";
+  /** Explicit OAuth client metadata used with `auth: "oauth"`. */
+  authentication?: MCPAuthenticationConfig;
 };
 
 export type MCPConfig = {

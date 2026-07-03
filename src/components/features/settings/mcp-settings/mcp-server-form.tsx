@@ -240,6 +240,10 @@ export function MCPServerForm({
         ...(name && { name }),
         url: url!,
         ...(apiKey && { api_key: apiKey }),
+        ...(server?.auth && { auth: server.auth }),
+        ...(server?.authentication && {
+          authentication: server.authentication,
+        }),
       };
 
       // Only add timeout for SHTTP servers

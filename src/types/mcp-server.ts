@@ -4,6 +4,7 @@
 // it here keeps the marketplace utilities, hooks, and form in sync.
 
 import type { MCPTestFailureKind } from "@openhands/typescript-client";
+import type { MCPAuthenticationConfig } from "./mcp-auth";
 
 export type MCPServerType = "sse" | "stdio" | "shttp";
 
@@ -20,6 +21,8 @@ export interface MCPServerConfig {
   env?: Record<string, string>;
   /** Set to "oauth" for MCP servers that handle OAuth themselves (fastmcp). */
   auth?: "oauth";
+  /** Explicit OAuth client metadata used with `auth: "oauth"`. */
+  authentication?: MCPAuthenticationConfig;
 }
 
 // Extensions of the published `@openhands/typescript-client` MCP test

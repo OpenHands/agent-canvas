@@ -18,6 +18,7 @@ import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
 import { useTestMcpServer } from "#/hooks/mutation/use-test-mcp-server";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
 import {
+  getMcpOAuthAuthenticationConfig,
   getInstallableMcpConnectionOption,
   type McpMarketplaceConnectionOption,
 } from "#/utils/mcp-marketplace-utils";
@@ -270,6 +271,9 @@ export function InstallServerModal({
       }));
       return;
     }
+    const oauthAuthentication = oauthMode
+      ? getMcpOAuthAuthenticationConfig(option)
+      : undefined;
     const payload: MCPServerConfig = {
       id: `${template.kind}-${uuidv4()}`,
       type: template.kind,
@@ -279,6 +283,7 @@ export function InstallServerModal({
       name: entry.id,
       url: template.url,
       ...(oauthMode && { auth: "oauth" }),
+      ...(oauthAuthentication && { authentication: oauthAuthentication }),
       ...(!oauthMode && needsCredential && apiKey && { api_key: apiKey }),
     };
     submitServer(payload);

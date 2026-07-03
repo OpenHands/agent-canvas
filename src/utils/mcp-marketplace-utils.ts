@@ -1,8 +1,13 @@
 import { MCPServerConfig } from "#/types/mcp-server";
 import type {
+  MCPAuthenticationConfig,
+  MCPOAuthClientAuthMethod,
+} from "#/types/mcp-auth";
+import type {
   IntegrationAuthConfig,
   IntegrationCatalogEntry as MarketplaceEntry,
   IntegrationConnectionOption,
+  IntegrationOAuthConfig,
   IntegrationTransport,
 } from "@openhands/extensions/integrations";
 
@@ -37,9 +42,7 @@ export function getDefaultMcpConnectionOption(
   return getMcpConnectionOptions(entry)[0];
 }
 
-function isLocallyInstallableMcpOption(
-  option: McpMarketplaceConnectionOption,
-): boolean {
+function isLocallyInstallableMcpOption(): boolean {
   // OAuth options are now locally installable: the agent server forwards
   // ``auth: "oauth"`` to fastmcp, which performs the OAuth flow with the
   // MCP server (RFC 9728 + PKCE). No client credentials are required.
@@ -56,6 +59,38 @@ export function getDefaultMcpTransport(
   entry: MarketplaceEntry,
 ): IntegrationTransport | undefined {
   return getDefaultMcpConnectionOption(entry)?.transport;
+}
+
+function toMcpOAuthClientAuthMethod(
+  value: IntegrationOAuthConfig["clientAuthentication"] | undefined,
+): MCPOAuthClientAuthMethod | undefined {
+  switch (value) {
+    case "none":
+      return "none";
+    case "body":
+      return "client_secret_post";
+    case "basic":
+      return "client_secret_basic";
+    default:
+      return undefined;
+  }
+}
+
+export function getMcpOAuthAuthenticationConfig(
+  option: McpMarketplaceConnectionOption,
+): MCPAuthenticationConfig | undefined {
+  if (option.auth.strategy !== "oauth2") return undefined;
+  const authentication: MCPAuthenticationConfig = { type: "oauth" };
+  const clientAuthMethod = toMcpOAuthClientAuthMethod(
+    option.auth.oauth?.clientAuthentication,
+  );
+  if (clientAuthMethod) {
+    authentication.client_auth_method = clientAuthMethod;
+  }
+  if (option.auth.oauth?.scopes?.length) {
+    authentication.scopes = option.auth.oauth.scopes;
+  }
+  return Object.keys(authentication).length > 1 ? authentication : undefined;
 }
 
 export function getMcpMarketplaceCatalog(
