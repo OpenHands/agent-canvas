@@ -26,20 +26,37 @@ vi.mock("#/hooks/query/use-llm-profiles", () => ({
   useLlmProfiles: () => useLlmProfilesMock(),
 }));
 
-// The hook defaults new local conversations to the active AgentProfile (#3727).
-// Default: no active profile, so a plain create stays on the legacy path.
-const { useAgentProfilesMock } = vi.hoisted(() => ({
-  useAgentProfilesMock: vi.fn(() => ({ data: undefined })),
-}));
+// The hook warms the agent-profiles cache; the launch path itself awaits the
+// list via ensureQueryData (so it can't race a cold cache). Mock the hook to a
+// no-op and drive launches through the service mock below.
 vi.mock("#/hooks/query/use-agent-profiles", () => ({
-  useAgentProfiles: () => useAgentProfilesMock(),
+  useAgentProfiles: () => ({ data: undefined }),
 }));
+
+// The launch path resolves the active AgentProfile by awaiting
+// `AgentProfilesService.listProfiles` through the query cache (#3727).
+// Default: no active profile, so a plain create stays on the legacy path.
+const { listAgentProfilesMock } = vi.hoisted(() => ({
+  listAgentProfilesMock: vi.fn(),
+}));
+vi.mock("#/api/agent-profiles-service/agent-profiles-service.api", () => ({
+  __esModule: true,
+  default: { listProfiles: listAgentProfilesMock },
+}));
+listAgentProfilesMock.mockResolvedValue({
+  profiles: [],
+  active_agent_profile_id: null,
+});
 
 describe("useCreateConversation", () => {
   afterEach(() => {
-    // Restore the default (no active AgentProfile) so the override below
-    // doesn't leak into the other create-call assertions.
-    useAgentProfilesMock.mockReturnValue({ data: undefined } as never);
+    // Restore the default (no active AgentProfile) so the overrides below
+    // don't leak into the other create-call assertions.
+    listAgentProfilesMock.mockReset();
+    listAgentProfilesMock.mockResolvedValue({
+      profiles: [],
+      active_agent_profile_id: null,
+    });
     removeStoredConversationMetadata("conv-with-plugins");
   });
 
@@ -120,9 +137,10 @@ describe("useCreateConversation", () => {
   });
 
   it("launches new local conversations from the active AgentProfile (#3727)", async () => {
-    useAgentProfilesMock.mockReturnValue({
-      data: { profiles: [], active_agent_profile_id: "profile-abc" },
-    } as never);
+    listAgentProfilesMock.mockResolvedValue({
+      profiles: [],
+      active_agent_profile_id: "profile-abc",
+    });
     const createConversationSpy = vi
       .spyOn(AgentServerConversationService, "createConversation")
       .mockResolvedValue({
@@ -147,6 +165,70 @@ describe("useCreateConversation", () => {
       expect(call?.[8]).toBeUndefined();
       expect(call?.[9]).toBe("profile-abc");
     });
+  });
+
+  it("awaits the profiles fetch so an early send still launches from the active profile", async () => {
+    // A send fired before the home profiles query resolves must block on the
+    // fetch, not fall through to the agent_settings path (#1571 review F2).
+    let resolveList: (value: unknown) => void = () => {};
+    listAgentProfilesMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveList = resolve;
+      }),
+    );
+    const createConversationSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue({
+        id: "task-id",
+        app_conversation_id: "conv-1",
+        agent_server_url: "http://agent-server.local",
+      } as never);
+    // Spies persist across tests in this file; drop earlier calls so the
+    // not-yet-called assertion below sees only this launch.
+    createConversationSpy.mockClear();
+
+    const { result } = renderHook(() => useCreateConversation(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={new QueryClient()}>
+          {children}
+        </QueryClientProvider>
+      ),
+    });
+
+    const pending = result.current.mutateAsync({ query: "hello" });
+    expect(createConversationSpy).not.toHaveBeenCalled();
+
+    resolveList({ profiles: [], active_agent_profile_id: "profile-late" });
+    await pending;
+
+    const call = createConversationSpy.mock.lastCall;
+    expect(call?.[9]).toBe("profile-late");
+  });
+
+  it("falls back to the agent_settings launch when the profiles fetch fails", async () => {
+    listAgentProfilesMock.mockRejectedValue(new Error("not supported"));
+    const createConversationSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue({
+        id: "task-id",
+        app_conversation_id: "conv-1",
+        agent_server_url: "http://agent-server.local",
+      } as never);
+
+    const { result } = renderHook(() => useCreateConversation(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={new QueryClient()}>
+          {children}
+        </QueryClientProvider>
+      ),
+    });
+
+    // Resolves without stalling: the launch-path fetch is retry: false.
+    await result.current.mutateAsync({ query: "hello" });
+
+    // No profile tail — the create stays on the legacy agent_settings path.
+    const call = createConversationSpy.mock.lastCall;
+    expect(call?.[9]).toBeUndefined();
   });
 
   it("invalidates the conversation list and start-tasks queries on success", async () => {

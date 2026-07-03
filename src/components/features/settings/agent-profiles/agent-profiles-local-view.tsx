@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AgentProfilesManager } from "./agent-profiles-manager";
+import { mergeAgentProfileSaveInput } from "./merge-agent-profile-save-input";
 import { ProfileNameInput } from "#/components/features/settings/llm-profiles/profile-name-input";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsDropdownInput } from "#/components/features/settings/settings-dropdown-input";
@@ -124,7 +125,14 @@ export function AgentProfilesLocalView() {
   const handleEditProfile = useCallback(
     async (summary: AgentProfileSummary) => {
       try {
-        const detail = await AgentProfilesService.getProfile(summary.name);
+        // Fetch with encrypted secret exposure so any `skills[].mcp_tools`
+        // values arrive as Fernet tokens rather than masks — the save below
+        // round-trips the stored profile, and posting back a mask would
+        // persist it literally (the local save only decrypts tokens).
+        const detail = await AgentProfilesService.getProfile(
+          summary.name,
+          "encrypted",
+        );
         const profile = detail.profile;
         setEditingProfile(profile);
         setOverride(toAgentSettingsOverride(profile));
@@ -197,7 +205,14 @@ export function AgentProfilesLocalView() {
         });
       }
 
-      await saveProfile.mutateAsync({ name: trimmedName, profile: input });
+      // Save is a whole-profile overwrite: spread the stored profile under
+      // the edited fields so the fields this editor doesn't model survive an
+      // edit (kind-aware — a kind switch stays a clean variant replacement).
+      const profile = mergeAgentProfileSaveInput(
+        viewMode === "edit" ? editingProfile : null,
+        input,
+      );
+      await saveProfile.mutateAsync({ name: trimmedName, profile });
 
       displaySuccessToast(
         viewMode === "create"

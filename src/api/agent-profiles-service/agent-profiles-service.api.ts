@@ -11,7 +11,10 @@
  * token + `X-Org-Id`, so cloud calls route through `callCloudProxy` (see
  * `cloud/agent-profiles-service.api.ts`) instead of the direct client.
  */
-import { AgentProfilesClient } from "@openhands/typescript-client/clients";
+import {
+  AgentProfilesClient,
+  type GetAgentProfileOptions,
+} from "@openhands/typescript-client/clients";
 import type {
   AgentProfile,
   AgentProfileSummary,
@@ -20,6 +23,7 @@ import type {
   AgentProfileDetailResponse,
   AgentProfileMutationResponse,
   ActivateAgentProfileResponse,
+  ExposeSecretsMode,
 } from "@openhands/typescript-client";
 import { getAgentServerClientOptions } from "../agent-server-client-options";
 import { getActiveBackend } from "../backend-registry/active-store";
@@ -55,11 +59,20 @@ class AgentProfilesService {
     ).listAgentProfiles();
   }
 
-  static async getProfile(name: string): Promise<AgentProfileDetailResponse> {
+  static async getProfile(
+    name: string,
+    exposeSecrets?: ExposeSecretsMode,
+  ): Promise<AgentProfileDetailResponse> {
+    // Cloud always masks `skills[].mcp_tools` secrets (its save restores them
+    // from the stored namesake), so `exposeSecrets` is local-only — mirrors
+    // ProfilesService.getProfile.
     if (isCloud()) return getCloudAgentProfile(name);
+    const options: GetAgentProfileOptions = exposeSecrets
+      ? { exposeSecrets }
+      : {};
     return new AgentProfilesClient(
       getAgentServerClientOptions(),
-    ).getAgentProfile(name);
+    ).getAgentProfile(name, options);
   }
 
   /** Create or overwrite a profile by name (upsert). */

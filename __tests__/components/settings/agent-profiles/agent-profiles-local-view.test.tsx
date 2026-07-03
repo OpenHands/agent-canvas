@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
 import type { AgentSettingsSaveControl } from "#/routes/agent-settings";
 import { AgentProfilesLocalView } from "#/components/features/settings/agent-profiles/agent-profiles-local-view";
+import AgentProfilesService from "#/api/agent-profiles-service/agent-profiles-service.api";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 
 // The embedded Agent settings form is stubbed to emit a caller-provided
@@ -35,13 +36,33 @@ vi.mock("#/routes/agent-settings", () => {
   };
 });
 
-vi.mock("#/components/features/settings/agent-profiles/agent-profiles-manager", () => ({
-  AgentProfilesManager: ({ onAddProfile }: { onAddProfile?: () => void }) => (
-    <button type="button" data-testid="add-agent-profile" onClick={onAddProfile}>
-      add
-    </button>
-  ),
-}));
+vi.mock(
+  "#/components/features/settings/agent-profiles/agent-profiles-manager",
+  () => ({
+    AgentProfilesManager: ({
+      onAddProfile,
+      onEditProfile,
+    }: {
+      onAddProfile?: () => void;
+      onEditProfile?: (profile: { name: string }) => void;
+    }) => (
+      <>
+        <button
+          type="button"
+          data-testid="add-agent-profile"
+          onClick={onAddProfile}
+          aria-label="add"
+        />
+        <button
+          type="button"
+          data-testid="edit-agent-profile"
+          onClick={() => onEditProfile?.({ name: "default" })}
+          aria-label="edit"
+        />
+      </>
+    ),
+  }),
+);
 
 const saveMutate = vi.fn().mockResolvedValue({ name: "x", message: "ok" });
 vi.mock("#/hooks/mutation/use-save-agent-profile", () => ({
@@ -144,6 +165,120 @@ describe("AgentProfilesLocalView save mapping", () => {
     await waitFor(() => expect(saveMutate).toHaveBeenCalledTimes(1));
     expect(saveMutate).toHaveBeenCalledWith({
       name: "my-claude",
+      profile: {
+        agent_kind: "acp",
+        acp_server: "claude-code",
+        acp_model: "claude-opus-4-8",
+        acp_command: null,
+        acp_args: null,
+      },
+    });
+  });
+
+  it("edit-save round-trips stored fields the editor doesn't model", async () => {
+    // The seeded `default` profile carries fields the minimal editor never
+    // shows; the save is a whole-profile overwrite, so they must ride the
+    // payload untouched (with server-managed identity stripped).
+    const storedProfile = {
+      schema_version: 1,
+      id: "p-1",
+      name: "default",
+      revision: 3,
+      agent_kind: "openhands",
+      llm_profile_ref: "default",
+      agent: "CodeActAgent",
+      skills: [],
+      system_message_suffix: "Be terse.",
+      condenser: { kind: "NoOpCondenserSettings" },
+      verification: { critic_enabled: true },
+      enable_sub_agents: false,
+      enable_switch_llm_tool: false,
+      tool_concurrency_limit: 4,
+      mcp_server_refs: ["github"],
+      skill_refs: ["deploy-checklist"],
+    };
+    vi.mocked(AgentProfilesService.getProfile).mockResolvedValue({
+      name: "default",
+      profile: storedProfile,
+    } as never);
+    emitControl = {
+      agentType: "openhands",
+      isValid: true,
+      buildAgentProfileFields: () => ({
+        agent_kind: "openhands",
+        enable_sub_agents: true,
+      }),
+      credentials: { isDirty: false, save: vi.fn(), reset: vi.fn() },
+    };
+
+    render(<AgentProfilesLocalView />);
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("edit-agent-profile"));
+    await screen.findByTestId("mock-agent-settings");
+    await user.click(screen.getByTestId("save-agent-profile-btn"));
+
+    await waitFor(() => expect(saveMutate).toHaveBeenCalledTimes(1));
+    // Encrypted exposure so skills[].mcp_tools round-trip as tokens, not masks.
+    expect(AgentProfilesService.getProfile).toHaveBeenCalledWith(
+      "default",
+      "encrypted",
+    );
+    const { profile } = saveMutate.mock.calls[0][0];
+    expect(profile).toMatchObject({
+      agent_kind: "openhands",
+      enable_sub_agents: true,
+      llm_profile_ref: "default",
+      system_message_suffix: "Be terse.",
+      condenser: { kind: "NoOpCondenserSettings" },
+      verification: { critic_enabled: true },
+      enable_switch_llm_tool: false,
+      tool_concurrency_limit: 4,
+      mcp_server_refs: ["github"],
+      skill_refs: ["deploy-checklist"],
+    });
+    expect(profile).not.toHaveProperty("id");
+    expect(profile).not.toHaveProperty("name");
+    expect(profile).not.toHaveProperty("revision");
+  });
+
+  it("kind-switch edit-save sends a clean variant payload", async () => {
+    vi.mocked(AgentProfilesService.getProfile).mockResolvedValue({
+      name: "default",
+      profile: {
+        schema_version: 1,
+        id: "p-1",
+        name: "default",
+        revision: 3,
+        agent_kind: "openhands",
+        llm_profile_ref: "default",
+        condenser: { kind: "NoOpCondenserSettings" },
+        mcp_server_refs: ["github"],
+      },
+    } as never);
+    emitControl = {
+      agentType: "acp",
+      isValid: true,
+      buildAgentProfileFields: () => ({
+        agent_kind: "acp",
+        acp_server: "claude-code",
+        acp_model: "claude-opus-4-8",
+        acp_command: null,
+        acp_args: null,
+      }),
+      credentials: { isDirty: false, save: vi.fn(), reset: vi.fn() },
+    };
+
+    render(<AgentProfilesLocalView />);
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("edit-agent-profile"));
+    await screen.findByTestId("mock-agent-settings");
+    await user.click(screen.getByTestId("save-agent-profile-btn"));
+
+    await waitFor(() => expect(saveMutate).toHaveBeenCalledTimes(1));
+    // No stored openhands fields may leak into the acp payload — the server's
+    // extra="forbid" union would 422 on a mongrel profile.
+    expect(saveMutate).toHaveBeenCalledWith({
+      name: "default",
       profile: {
         agent_kind: "acp",
         acp_server: "claude-code",

@@ -8,12 +8,16 @@ import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useAgentProfiles } from "#/hooks/query/use-agent-profiles";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
+import AgentProfilesService, {
+  type AgentProfileListResponse,
+} from "#/api/agent-profiles-service/agent-profiles-service.api";
 import PluginsManagementService, {
   type InstalledPluginInfo,
 } from "#/api/plugins-management-service";
 import {
   PLUGINS_QUERY_KEYS,
   LLM_PROFILES_QUERY_KEYS,
+  AGENT_PROFILES_QUERY_KEYS,
 } from "#/hooks/query/query-keys";
 import { pluginReferenceKey } from "#/utils/plugin-display";
 import {
@@ -56,13 +60,14 @@ export const useCreateConversation = () => {
   // Stamped onto the conversation at creation so the switcher can show the
   // exact profile even when several profiles share a model (#1082).
   const { data: llmProfiles } = useLlmProfiles();
-  // The active AgentProfile is the default launch profile for new conversations
-  // (#3727), on both local and cloud (cloud gained /api/agent-profiles in
-  // OpenHands #15060, #3730). Degrades safely: if the query is disabled or
-  // errors, this stays undefined and creation falls back to the encrypted
-  // agent_settings launch path.
+  // Warm the agent-profiles cache too — the launch path below awaits the same
+  // query via ensureQueryData, so a warm cache makes home-launch instant. The
+  // hook's maybe-unresolved data is deliberately NOT read at launch time:
+  // activation is pointer-only (it never writes agent_settings), so racing a
+  // cold cache into the agent_settings fallback would silently launch the
+  // wrong agent.
   const { backend, orgId } = useActiveBackend();
-  const { data: agentProfiles } = useAgentProfiles();
+  useAgentProfiles();
 
   return useMutation({
     mutationKey: ["create-conversation"],
@@ -80,6 +85,29 @@ export const useCreateConversation = () => {
         agentType,
         agentProfileId,
       } = variables;
+
+      // The active AgentProfile is the default launch profile for new
+      // conversations (#3727), on both local and cloud (cloud gained
+      // /api/agent-profiles in OpenHands #15060, #3730). Await the list from
+      // the shared query cache: a send fired before the home query resolves
+      // must still launch from the active profile, not fall through to the
+      // agent_settings path. Degrades safely: if the fetch errors (older
+      // backend without the surface), this stays undefined and creation falls
+      // back to the encrypted agent_settings launch path.
+      let agentProfiles: AgentProfileListResponse | undefined;
+      try {
+        agentProfiles = await queryClient.ensureQueryData({
+          queryKey: [...AGENT_PROFILES_QUERY_KEYS.all, backend.id, orgId],
+          queryFn: AgentProfilesService.listProfiles,
+          // A backend without the surface fails every launch — degrade to the
+          // fallback immediately rather than sitting through the default
+          // exponential-backoff retries on each send. (A cache warmed by
+          // useAgentProfiles above still retried at the hook's policy.)
+          retry: false,
+        });
+      } catch {
+        // Profiles unavailable → legacy agent_settings launch.
+      }
 
       const requestedAgentProfileId =
         agentProfileId ?? agentProfiles?.active_agent_profile_id ?? undefined;
@@ -118,6 +146,12 @@ export const useCreateConversation = () => {
           // List unavailable → can't validate → fall back to agent_settings.
         }
         if (!llmProfileExists) {
+          // Downgrade is silent in the UI; leave a diagnosable trace.
+          console.warn(
+            `Agent profile "${resolvedAgentProfile.name}" references missing ` +
+              `LLM profile "${resolvedAgentProfile.llm_profile_ref}"; ` +
+              "launching from agent_settings instead.",
+          );
           effectiveAgentProfileId = undefined;
         }
       }
