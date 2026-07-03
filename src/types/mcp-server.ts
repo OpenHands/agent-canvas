@@ -5,6 +5,7 @@
 
 import type { MCPTestFailureKind } from "@openhands/typescript-client";
 import type { MCPAuthenticationConfig } from "./mcp-auth";
+import type { SettingsValue } from "./settings";
 
 export type MCPServerType = "sse" | "stdio" | "shttp";
 
@@ -23,6 +24,8 @@ export interface MCPServerConfig {
   auth?: "oauth";
   /** Explicit OAuth client metadata used with `auth: "oauth"`. */
   authentication?: MCPAuthenticationConfig;
+  /** Opaque OAuth token/client-info subtree returned by the agent-server. */
+  oauth_credentials?: Record<string, SettingsValue>;
 }
 
 // Extensions of the published `@openhands/typescript-client` MCP test
@@ -48,6 +51,7 @@ export interface ExtendedMCPTestSuccess {
   ok: true;
   tools: string[];
   tool_result?: MCPTestToolResult | null;
+  server?: MCPServerConfig | null;
 }
 
 export interface ExtendedMCPTestFailure {

@@ -12,6 +12,16 @@ describe("mcp-config", () => {
             type: "oauth",
             client_auth_method: "none",
           },
+          oauth_credentials: {
+            "mcp-oauth-token": {
+              "https://mcp.mail.superhuman.com/mcp/tokens": {
+                value: {
+                  access_token: "gAAAAencrypted-access-token",
+                },
+                expires_at: 12345,
+              },
+            },
+          },
         },
       },
     };
@@ -26,6 +36,16 @@ describe("mcp-config", () => {
         authentication: {
           type: "oauth",
           client_auth_method: "none",
+        },
+        oauth_credentials: {
+          "mcp-oauth-token": {
+            "https://mcp.mail.superhuman.com/mcp/tokens": {
+              value: {
+                access_token: "gAAAAencrypted-access-token",
+              },
+              expires_at: 12345,
+            },
+          },
         },
       },
     ]);

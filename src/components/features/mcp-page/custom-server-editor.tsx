@@ -105,13 +105,17 @@ export function CustomServerEditor({
           // Test failed — modal stays open, error shown via testMessage.
           return;
         }
+        const serverToSave = result.server ?? payload;
         if (isEditing) {
           updateMcpServer(
-            { serverId: server.id, server: payload },
+            { serverId: server.id, server: serverToSave },
             { onSuccess: onClose, onError: handleError },
           );
         } else {
-          addMcpServer(payload, { onSuccess: onClose, onError: handleError });
+          addMcpServer(serverToSave, {
+            onSuccess: onClose,
+            onError: handleError,
+          });
         }
       },
       onError: handleError,

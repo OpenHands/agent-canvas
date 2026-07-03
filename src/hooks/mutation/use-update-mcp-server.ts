@@ -47,6 +47,9 @@ export function useUpdateMcpServer() {
           ...(serverToSave.authentication && {
             authentication: serverToSave.authentication,
           }),
+          ...(serverToSave.oauth_credentials && {
+            oauth_credentials: serverToSave.oauth_credentials,
+          }),
         };
         newConfig.sse_servers[index] = sseServer;
       } else if (serverType === "stdio") {
@@ -69,6 +72,9 @@ export function useUpdateMcpServer() {
           ...(serverToSave.auth && { auth: serverToSave.auth }),
           ...(serverToSave.authentication && {
             authentication: serverToSave.authentication,
+          }),
+          ...(serverToSave.oauth_credentials && {
+            oauth_credentials: serverToSave.oauth_credentials,
           }),
         };
         newConfig.shttp_servers[index] = shttpServer;

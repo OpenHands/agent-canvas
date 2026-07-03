@@ -151,6 +151,15 @@ function getAuthenticationConfig(
   return authentication;
 }
 
+function getOAuthCredentials(
+  value: unknown,
+): Record<string, SettingsValue> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+  return value as Record<string, SettingsValue>;
+}
+
 function getRemoteAuthenticationFields(
   serverConfig: Record<string, unknown>,
 ): Pick<MCPSSEServer | MCPSHTTPServer, "auth" | "authentication"> {
@@ -210,6 +219,10 @@ export function parseMcpConfig(value: unknown): MCPConfig {
         if (name) server.name = name;
         if (apiKey) server.api_key = apiKey;
         Object.assign(server, getRemoteAuthenticationFields(serverConfig));
+        const oauthCredentials = getOAuthCredentials(
+          serverConfig.oauth_credentials,
+        );
+        if (oauthCredentials) server.oauth_credentials = oauthCredentials;
         sseServers.push(server);
       } else {
         const name = userGivenServerName(serverName, "shttp");
@@ -220,6 +233,10 @@ export function parseMcpConfig(value: unknown): MCPConfig {
           server.timeout = serverConfig.timeout as number;
         }
         Object.assign(server, getRemoteAuthenticationFields(serverConfig));
+        const oauthCredentials = getOAuthCredentials(
+          serverConfig.oauth_credentials,
+        );
+        if (oauthCredentials) server.oauth_credentials = oauthCredentials;
         shttpServers.push(server);
       }
     } else {
@@ -286,6 +303,9 @@ export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
       Object.assign(server, getRemoteCredentialFields(entry));
       if (entry.auth === "oauth") server.auth = "oauth";
       if (entry.authentication) server.authentication = entry.authentication;
+      if (entry.oauth_credentials) {
+        server.oauth_credentials = entry.oauth_credentials;
+      }
     }
     server.transport = "sse";
     mcpServers[reserve(name || "sse")] = server;
@@ -303,6 +323,9 @@ export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
       if (entry.timeout != null) server.timeout = entry.timeout;
       if (entry.auth === "oauth") server.auth = "oauth";
       if (entry.authentication) server.authentication = entry.authentication;
+      if (entry.oauth_credentials) {
+        server.oauth_credentials = entry.oauth_credentials;
+      }
     }
     mcpServers[reserve(name || "shttp")] = server;
   }

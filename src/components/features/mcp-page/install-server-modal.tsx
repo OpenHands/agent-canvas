@@ -218,7 +218,7 @@ export function InstallServerModal({
           // Modal stays open — do NOT call onClose.
           return;
         }
-        addMcpServer(payload, {
+        addMcpServer(result.server ?? payload, {
           onSuccess: () => {
             displaySuccessToast(t(I18nKey.MCP$INSTALL_SUCCESS));
             setIsFinalizingInstall(true);

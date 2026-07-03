@@ -25,6 +25,8 @@ export type MCPSSEServer = {
   auth?: "oauth";
   /** Explicit OAuth client metadata used with `auth: "oauth"`. */
   authentication?: MCPAuthenticationConfig;
+  /** Opaque OAuth token/client-info subtree returned by the agent-server. */
+  oauth_credentials?: Record<string, SettingsValue>;
 };
 
 export type MCPStdioServer = {
@@ -44,6 +46,8 @@ export type MCPSHTTPServer = {
   auth?: "oauth";
   /** Explicit OAuth client metadata used with `auth: "oauth"`. */
   authentication?: MCPAuthenticationConfig;
+  /** Opaque OAuth token/client-info subtree returned by the agent-server. */
+  oauth_credentials?: Record<string, SettingsValue>;
 };
 
 export type MCPConfig = {

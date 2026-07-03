@@ -37,6 +37,9 @@ export function useAddMcpServer() {
           ...(server.authentication && {
             authentication: server.authentication,
           }),
+          ...(server.oauth_credentials && {
+            oauth_credentials: server.oauth_credentials,
+          }),
         };
         newConfig.sse_servers.push(sseServer);
       } else if (server.type === "stdio") {
@@ -57,6 +60,9 @@ export function useAddMcpServer() {
           ...(server.auth && { auth: server.auth }),
           ...(server.authentication && {
             authentication: server.authentication,
+          }),
+          ...(server.oauth_credentials && {
+            oauth_credentials: server.oauth_credentials,
           }),
         };
         newConfig.shttp_servers.push(shttpServer);

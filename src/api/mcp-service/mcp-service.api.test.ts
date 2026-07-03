@@ -94,6 +94,15 @@ describe("McpService.testServer", () => {
         type: "oauth",
         client_auth_method: "none",
       },
+      oauth_credentials: {
+        "mcp-oauth-token": {
+          "https://mcp.mail.superhuman.com/mcp/tokens": {
+            value: {
+              access_token: "gAAAAexisting-access-token",
+            },
+          },
+        },
+      },
     });
 
     expect(testServer).toHaveBeenCalledTimes(1);
@@ -107,9 +116,75 @@ describe("McpService.testServer", () => {
           type: "oauth",
           client_auth_method: "none",
         },
+        oauth_credentials: {
+          "mcp-oauth-token": {
+            "https://mcp.mail.superhuman.com/mcp/tokens": {
+              value: {
+                access_token: "gAAAAexisting-access-token",
+              },
+            },
+          },
+        },
       },
       timeout: 120,
     });
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns OAuth credentials captured by the MCP test endpoint", async () => {
+    testServer.mockResolvedValueOnce({
+      ok: true,
+      tools: ["search_mail"],
+      server: {
+        type: "shttp",
+        url: "https://mcp.mail.superhuman.com/mcp",
+        auth: "oauth",
+        authentication: {
+          type: "oauth",
+          client_auth_method: "none",
+        },
+        oauth_credentials: {
+          "mcp-oauth-token": {
+            "https://mcp.mail.superhuman.com/mcp/tokens": {
+              value: {
+                access_token: "gAAAAencrypted-access-token",
+              },
+              expires_at: 12345,
+            },
+          },
+        },
+      },
+    });
+
+    const result = await McpService.testServer({
+      id: "shttp-0",
+      type: "shttp",
+      name: "superhuman-mail",
+      url: "https://mcp.mail.superhuman.com/mcp",
+      auth: "oauth",
+      authentication: {
+        type: "oauth",
+        client_auth_method: "none",
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error("expected successful MCP test");
+    expect(result.server).toMatchObject({
+      id: "shttp-0",
+      type: "shttp",
+      name: "superhuman-mail",
+      url: "https://mcp.mail.superhuman.com/mcp",
+      auth: "oauth",
+      oauth_credentials: {
+        "mcp-oauth-token": {
+          "https://mcp.mail.superhuman.com/mcp/tokens": {
+            value: {
+              access_token: "gAAAAencrypted-access-token",
+            },
+          },
+        },
+      },
+    });
   });
 });

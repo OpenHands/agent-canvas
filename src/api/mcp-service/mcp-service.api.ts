@@ -11,6 +11,8 @@ import type {
   MCPServerConfig,
 } from "#/types/mcp-server";
 import { substituteRedactedMcpCredentials } from "./mcp-redacted-credentials";
+import type { MCPAuthenticationConfig } from "#/types/mcp-auth";
+import type { SettingsValue } from "#/types/settings";
 
 const OAUTH_MCP_TEST_TIMEOUT_SECONDS = 120;
 
@@ -32,7 +34,42 @@ function toMcpServerSpec(server: MCPServerConfig): MCPServerSpec {
     ...(server.api_key ? { api_key: server.api_key } : {}),
     ...(server.auth ? { auth: server.auth } : {}),
     ...(server.authentication ? { authentication: server.authentication } : {}),
+    ...(server.oauth_credentials
+      ? { oauth_credentials: server.oauth_credentials }
+      : {}),
   } as MCPServerSpec;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function isAuthenticationConfig(
+  value: unknown,
+): value is MCPAuthenticationConfig {
+  return isRecord(value) && value.type === "oauth";
+}
+
+function serverSpecToConfig(
+  original: MCPServerConfig,
+  spec: Record<string, unknown>,
+): MCPServerConfig {
+  return {
+    ...original,
+    ...(typeof spec.url === "string" ? { url: spec.url } : {}),
+    ...(spec.auth === "oauth" ? { auth: "oauth" as const } : {}),
+    ...(isAuthenticationConfig(spec.authentication)
+      ? { authentication: spec.authentication }
+      : {}),
+    ...(isRecord(spec.oauth_credentials)
+      ? {
+          oauth_credentials: spec.oauth_credentials as Record<
+            string,
+            SettingsValue
+          >,
+        }
+      : {}),
+  };
 }
 
 function getMcpTestTimeout(server: MCPServerConfig): number | undefined {
@@ -76,9 +113,15 @@ class McpService {
         ...(timeout !== undefined ? { timeout } : {}),
         ...(validation ? { tool_call: validation.toolCall } : {}),
       };
-      const result = (await client.testServer(
+      let result = (await client.testServer(
         request as MCPTestRequest,
-      )) as ExtendedMCPTestResponse;
+      )) as ExtendedMCPTestResponse & { server?: unknown };
+      if (result.ok && isRecord(result.server)) {
+        result = {
+          ...result,
+          server: serverSpecToConfig(server, result.server),
+        };
+      }
       if (result.ok && validation && result.tool_result) {
         const credentialError = validation.interpret(result.tool_result);
         if (credentialError) {
