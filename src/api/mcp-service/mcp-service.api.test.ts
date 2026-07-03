@@ -108,6 +108,7 @@ describe("McpService.testServer", () => {
           client_auth_method: "none",
         },
       },
+      timeout: 120,
     });
     expect(close).toHaveBeenCalledTimes(1);
   });

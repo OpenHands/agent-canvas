@@ -12,6 +12,8 @@ import type {
 } from "#/types/mcp-server";
 import { substituteRedactedMcpCredentials } from "./mcp-redacted-credentials";
 
+const OAUTH_MCP_TEST_TIMEOUT_SECONDS = 120;
+
 function toMcpServerSpec(server: MCPServerConfig): MCPServerSpec {
   if (server.type === "stdio") {
     return {
@@ -31,6 +33,11 @@ function toMcpServerSpec(server: MCPServerConfig): MCPServerSpec {
     ...(server.auth ? { auth: server.auth } : {}),
     ...(server.authentication ? { authentication: server.authentication } : {}),
   } as MCPServerSpec;
+}
+
+function getMcpTestTimeout(server: MCPServerConfig): number | undefined {
+  if (server.auth !== "oauth") return server.timeout;
+  return OAUTH_MCP_TEST_TIMEOUT_SECONDS;
 }
 
 class McpService {
@@ -62,10 +69,11 @@ class McpService {
       // body as-is, so the extra fields round-trip at runtime. Old agent
       // servers ignore `tool_call` and return no `tool_result`, in which
       // case the response passes through uninterpreted (legacy behavior).
+      const timeout = getMcpTestTimeout(server);
       const request = {
         server: serverSpec,
         ...(server.name ? { name: server.name } : {}),
-        ...(server.timeout ? { timeout: server.timeout } : {}),
+        ...(timeout !== undefined ? { timeout } : {}),
         ...(validation ? { tool_call: validation.toolCall } : {}),
       };
       const result = (await client.testServer(
