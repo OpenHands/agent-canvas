@@ -133,13 +133,15 @@ describe("substituteRedactedMcpCredentials", () => {
           mcpServers: {
             "superhuman-mail": {
               url: "https://mcp.mail.superhuman.com/mcp",
-              auth: "oauth",
-              oauth_credentials: {
-                "mcp-oauth-token": {
-                  "https://mcp.mail.superhuman.com/mcp/tokens": {
-                    value: {
-                      access_token: "gAAAAA-encrypted-access-token",
-                      token_type: "gAAAAA-encrypted-token-type",
+              auth: {
+                strategy: "oauth2",
+                credentials: {
+                  "mcp-oauth-token": {
+                    "https://mcp.mail.superhuman.com/mcp/tokens": {
+                      value: {
+                        access_token: "gAAAAA-encrypted-access-token",
+                        token_type: "gAAAAA-encrypted-token-type",
+                      },
                     },
                   },
                 },
@@ -155,25 +157,30 @@ describe("substituteRedactedMcpCredentials", () => {
       type: "shttp",
       name: "superhuman-mail",
       url: "https://mcp.mail.superhuman.com/mcp",
-      auth: "oauth",
-      oauth_credentials: {
-        "mcp-oauth-token": {
-          "https://mcp.mail.superhuman.com/mcp/tokens": {
-            value: {
-              access_token: REDACTED_MCP_SECRET_VALUE,
-              token_type: REDACTED_MCP_SECRET_VALUE,
+      auth: {
+        strategy: "oauth2",
+        credentials: {
+          "mcp-oauth-token": {
+            "https://mcp.mail.superhuman.com/mcp/tokens": {
+              value: {
+                access_token: REDACTED_MCP_SECRET_VALUE,
+                token_type: REDACTED_MCP_SECRET_VALUE,
+              },
             },
           },
         },
       },
     });
 
-    expect(result.oauth_credentials).toEqual({
-      "mcp-oauth-token": {
-        "https://mcp.mail.superhuman.com/mcp/tokens": {
-          value: {
-            access_token: "gAAAAA-encrypted-access-token",
-            token_type: "gAAAAA-encrypted-token-type",
+    expect(result.auth).toEqual({
+      strategy: "oauth2",
+      credentials: {
+        "mcp-oauth-token": {
+          "https://mcp.mail.superhuman.com/mcp/tokens": {
+            value: {
+              access_token: "gAAAAA-encrypted-access-token",
+              token_type: "gAAAAA-encrypted-token-type",
+            },
           },
         },
       },

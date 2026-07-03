@@ -4,8 +4,7 @@
 // it here keeps the marketplace utilities, hooks, and form in sync.
 
 import type { MCPTestFailureKind } from "@openhands/typescript-client";
-import type { MCPAuthenticationConfig } from "./mcp-auth";
-import type { SettingsValue } from "./settings";
+import type { MCPAuthCredential } from "./mcp-auth";
 
 export type MCPServerType = "sse" | "stdio" | "shttp";
 
@@ -19,12 +18,8 @@ export interface MCPServerConfig {
   command?: string;
   args?: string[];
   env?: Record<string, string>;
-  /** FastMCP auth: bearer token string, or "oauth" for MCP-server OAuth. */
-  auth?: string;
-  /** Explicit OAuth client metadata used with `auth: "oauth"`. */
-  authentication?: MCPAuthenticationConfig;
-  /** Opaque OAuth token/client-info subtree returned by the agent-server. */
-  oauth_credentials?: Record<string, SettingsValue>;
+  /** Tagged MCP auth credential persisted in SDK settings. */
+  auth?: MCPAuthCredential;
 }
 
 // Extensions of the published `@openhands/typescript-client` MCP test

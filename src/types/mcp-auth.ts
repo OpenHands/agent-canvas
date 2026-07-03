@@ -21,3 +21,24 @@ export interface MCPOAuthAuthenticationConfig {
 }
 
 export type MCPAuthenticationConfig = MCPOAuthAuthenticationConfig;
+
+export type MCPAuthValue =
+  | boolean
+  | number
+  | string
+  | null
+  | MCPAuthValue[]
+  | { [key: string]: MCPAuthValue };
+
+export type MCPAuthCredential =
+  | { strategy: "none" }
+  | { strategy: "api_key"; value: string; header_name?: string }
+  | { strategy: "bearer"; value: string }
+  | { strategy: "basic"; username: string; password: string }
+  | { strategy: "header"; headers: Record<string, string> }
+  | {
+      strategy: "oauth2";
+      authentication?: MCPAuthenticationConfig;
+      credentials?: Record<string, MCPAuthValue>;
+    }
+  | { strategy: "custom"; fastmcp: Record<string, MCPAuthValue> };

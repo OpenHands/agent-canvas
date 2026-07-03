@@ -1,4 +1,4 @@
-import type { MCPAuthenticationConfig } from "./mcp-auth";
+import type { MCPAuthCredential } from "./mcp-auth";
 
 export const ProviderOptions = {
   github: "github",
@@ -20,12 +20,8 @@ export type MCPSSEServer = {
   name?: string;
   url: string;
   headers?: Record<string, string>;
-  /** FastMCP auth: bearer token string, or "oauth" for MCP-server OAuth. */
-  auth?: string;
-  /** Explicit OAuth client metadata used with `auth: "oauth"`. */
-  authentication?: MCPAuthenticationConfig;
-  /** Opaque OAuth token/client-info subtree returned by the agent-server. */
-  oauth_credentials?: Record<string, SettingsValue>;
+  /** Tagged MCP auth credential persisted in SDK settings. */
+  auth?: MCPAuthCredential;
 };
 
 export type MCPStdioServer = {
@@ -40,12 +36,8 @@ export type MCPSHTTPServer = {
   url: string;
   headers?: Record<string, string>;
   timeout?: number;
-  /** FastMCP auth: bearer token string, or "oauth" for MCP-server OAuth. */
-  auth?: string;
-  /** Explicit OAuth client metadata used with `auth: "oauth"`. */
-  authentication?: MCPAuthenticationConfig;
-  /** Opaque OAuth token/client-info subtree returned by the agent-server. */
-  oauth_credentials?: Record<string, SettingsValue>;
+  /** Tagged MCP auth credential persisted in SDK settings. */
+  auth?: MCPAuthCredential;
 };
 
 export type MCPConfig = {

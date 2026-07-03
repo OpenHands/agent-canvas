@@ -201,8 +201,18 @@ describe("toSdkMcpConfig", () => {
 
   it("serializes remote API keys through the FastMCP auth field", () => {
     const config: MCPConfig = {
-      sse_servers: [{ url: "https://sse.example", auth: "sse-secret" }],
-      shttp_servers: [{ url: "https://shttp.example", auth: "shttp-secret" }],
+      sse_servers: [
+        {
+          url: "https://sse.example",
+          auth: { strategy: "bearer", value: "sse-secret" },
+        },
+      ],
+      shttp_servers: [
+        {
+          url: "https://shttp.example",
+          auth: { strategy: "bearer", value: "shttp-secret" },
+        },
+      ],
       stdio_servers: [],
     };
 
@@ -213,54 +223,11 @@ describe("toSdkMcpConfig", () => {
         sse: {
           url: "https://sse.example",
           transport: "sse",
-          auth: "sse-secret",
+          auth: { strategy: "bearer", value: "sse-secret" },
         },
         shttp: {
           url: "https://shttp.example",
-          auth: "shttp-secret",
-        },
-      },
-    });
-  });
-
-  it("migrates persisted authorization headers to frontend auth fields", () => {
-    const persisted = {
-      mcpServers: {
-        shttp: {
-          url: "https://shttp.example",
-          headers: { Authorization: "Bearer shttp-secret" },
-        },
-      },
-    };
-
-    const parsed = parseMcpConfig(persisted);
-
-    expect(parsed.shttp_servers).toEqual([
-      { url: "https://shttp.example", auth: "shttp-secret" },
-    ]);
-  });
-
-  it("migrates persisted api_key fields to frontend auth fields", () => {
-    const persisted = {
-      mcpServers: {
-        shttp: {
-          url: "https://shttp.example",
-          api_key: "shttp-secret",
-        },
-      },
-    };
-
-    const parsed = parseMcpConfig(persisted);
-    const written = toSdkMcpConfig(parsed);
-
-    expect(parsed.shttp_servers).toEqual([
-      { url: "https://shttp.example", auth: "shttp-secret" },
-    ]);
-    expect(written).toEqual({
-      mcpServers: {
-        shttp: {
-          url: "https://shttp.example",
-          auth: "shttp-secret",
+          auth: { strategy: "bearer", value: "shttp-secret" },
         },
       },
     });
@@ -341,7 +308,7 @@ describe("parseMcpConfig — deprecated Linear SSE migration", () => {
         sse: {
           url: "https://mcp.linear.app/sse/",
           transport: "sse",
-          auth: "lin_api_secret",
+          auth: { strategy: "bearer", value: "lin_api_secret" },
         },
       },
     };
@@ -351,7 +318,10 @@ describe("parseMcpConfig — deprecated Linear SSE migration", () => {
 
     // Assert
     expect(parsed.shttp_servers).toEqual([
-      { url: "https://mcp.linear.app/mcp", auth: "lin_api_secret" },
+      {
+        url: "https://mcp.linear.app/mcp",
+        auth: { strategy: "bearer", value: "lin_api_secret" },
+      },
     ]);
   });
 
@@ -377,7 +347,10 @@ describe("parseMcpConfig — deprecated Linear SSE migration", () => {
     const persisted = {
       mcpServers: {
         sse: { url: "https://mcp.linear.app/sse", transport: "sse" },
-        shttp: { url: "https://mcp.linear.app/mcp", auth: "manual_key" },
+        shttp: {
+          url: "https://mcp.linear.app/mcp",
+          auth: { strategy: "bearer", value: "manual_key" },
+        },
       },
     };
 
@@ -386,7 +359,10 @@ describe("parseMcpConfig — deprecated Linear SSE migration", () => {
 
     // Assert
     expect(parsed.shttp_servers).toEqual([
-      { url: "https://mcp.linear.app/mcp", auth: "manual_key" },
+      {
+        url: "https://mcp.linear.app/mcp",
+        auth: { strategy: "bearer", value: "manual_key" },
+      },
     ]);
   });
 
@@ -415,7 +391,7 @@ describe("parseMcpConfig — deprecated Linear SSE migration", () => {
         sse: {
           url: "https://mcp.linear.app/sse",
           transport: "sse",
-          auth: "lin_api_secret",
+          auth: { strategy: "bearer", value: "lin_api_secret" },
         },
       },
     };
@@ -426,7 +402,7 @@ describe("parseMcpConfig — deprecated Linear SSE migration", () => {
       mcpServers: {
         shttp: {
           url: "https://mcp.linear.app/mcp",
-          auth: "lin_api_secret",
+          auth: { strategy: "bearer", value: "lin_api_secret" },
         },
       },
     });
@@ -440,16 +416,18 @@ describe("parseMcpConfig / toSdkMcpConfig — auth: oauth round-trip", () => {
         "superhuman-mail": {
           url: "https://mcp.mail.superhuman.com/mcp",
           transport: "http",
-          auth: "oauth",
-          authentication: {
-            type: "oauth",
-            client_auth_method: "none",
-          },
-          oauth_credentials: {
-            "mcp-oauth-token": {
-              "https://mcp.mail.superhuman.com/mcp/tokens": {
-                value: { access_token: "gAAAAencrypted-access-token" },
-                expires_at: 12345,
+          auth: {
+            strategy: "oauth2",
+            authentication: {
+              type: "oauth",
+              client_auth_method: "none",
+            },
+            credentials: {
+              "mcp-oauth-token": {
+                "https://mcp.mail.superhuman.com/mcp/tokens": {
+                  value: { access_token: "gAAAAencrypted-access-token" },
+                  expires_at: 12345,
+                },
               },
             },
           },
@@ -463,16 +441,18 @@ describe("parseMcpConfig / toSdkMcpConfig — auth: oauth round-trip", () => {
       mcpServers: {
         "superhuman-mail": {
           url: "https://mcp.mail.superhuman.com/mcp",
-          auth: "oauth",
-          authentication: {
-            type: "oauth",
-            client_auth_method: "none",
-          },
-          oauth_credentials: {
-            "mcp-oauth-token": {
-              "https://mcp.mail.superhuman.com/mcp/tokens": {
-                value: { access_token: "gAAAAencrypted-access-token" },
-                expires_at: 12345,
+          auth: {
+            strategy: "oauth2",
+            authentication: {
+              type: "oauth",
+              client_auth_method: "none",
+            },
+            credentials: {
+              "mcp-oauth-token": {
+                "https://mcp.mail.superhuman.com/mcp/tokens": {
+                  value: { access_token: "gAAAAencrypted-access-token" },
+                  expires_at: 12345,
+                },
               },
             },
           },

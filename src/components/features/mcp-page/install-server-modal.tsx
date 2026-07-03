@@ -14,6 +14,7 @@ import type {
 } from "@openhands/extensions/integrations";
 import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
 import { ExtendedMCPTestFailure, MCPServerConfig } from "#/types/mcp-server";
+import type { MCPAuthCredential } from "#/types/mcp-auth";
 import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
 import { useTestMcpServer } from "#/hooks/mutation/use-test-mcp-server";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
@@ -77,7 +78,7 @@ function optionNeedsCredentialField(
   if (option?.transport.kind !== "shttp" && option?.transport.kind !== "sse") {
     return false;
   }
-  return ["api_key", "bearer", "basic"].includes(option.auth.strategy);
+  return ["api_key", "bearer"].includes(option.auth.strategy);
 }
 
 function isOAuthOption(
@@ -91,6 +92,15 @@ function isCredentialOptional(option: McpMarketplaceConnectionOption): boolean {
     return option.auth.apiKeyOptional ?? false;
   }
   return option.auth.apiKeyOptional ?? option.transport.apiKeyOptional ?? false;
+}
+
+function getRemoteHeaderFields(
+  option: McpMarketplaceConnectionOption | undefined,
+): MarketplaceField[] {
+  if (option?.transport.kind !== "shttp" && option?.transport.kind !== "sse") {
+    return [];
+  }
+  return option.transport.headerFields ?? [];
 }
 
 function makeInitialState(entry: MarketplaceEntry): FieldState {
@@ -107,11 +117,17 @@ function makeInitialState(entry: MarketplaceEntry): FieldState {
     for (const field of template.argFields ?? []) {
       values[field.key] = "";
     }
-  } else if (optionNeedsCredentialField(option)) {
-    values.api_key = "";
-    if (option?.auth.credentialSecretName) {
-      savedAsSecret.api_key =
-        option.auth.saveCredentialAsSecretByDefault ?? false;
+  } else if (template?.kind === "shttp" || template?.kind === "sse") {
+    for (const field of getRemoteHeaderFields(option)) {
+      values[field.key] = "";
+      savedAsSecret[field.key] = field.type === "password";
+    }
+    if (optionNeedsCredentialField(option)) {
+      values.api_key = "";
+      if (option?.auth.credentialSecretName) {
+        savedAsSecret.api_key =
+          option.auth.saveCredentialAsSecretByDefault ?? false;
+      }
     }
   }
   return { values, errors: {}, savedAsSecret };
@@ -192,7 +208,14 @@ export function InstallServerModal({
       );
     }
     if (template?.kind === "shttp" || template?.kind === "sse") {
-      return saveHostedCredentialAsSecret();
+      return Promise.all([
+        saveHostedCredentialAsSecret(),
+        saveFieldsAsSecrets(
+          getRemoteHeaderFields(option),
+          stateRef.current.values,
+          stateRef.current.savedAsSecret,
+        ),
+      ]).then(() => undefined);
     }
     return Promise.resolve();
   };
@@ -259,26 +282,54 @@ export function InstallServerModal({
     const apiKey = state.values.api_key?.trim() ?? "";
     const oauthMode = isOAuthOption(option);
     const needsCredential = optionNeedsCredentialField(option);
+    const headerFields = getRemoteHeaderFields(option);
+    const headerErrors: Record<string, string | null> = {};
+    for (const field of headerFields) {
+      if (field.required && !(state.values[field.key] ?? "").trim()) {
+        headerErrors[field.key] = t(I18nKey.MCP$ERROR_FIELD_REQUIRED);
+      }
+    }
     if (
       !oauthMode &&
       needsCredential &&
       !isCredentialOptional(option) &&
       !apiKey
     ) {
-      setState((prev) => ({
-        ...prev,
-        errors: { api_key: t(I18nKey.MCP$ERROR_FIELD_REQUIRED) },
-      }));
+      headerErrors.api_key = t(I18nKey.MCP$ERROR_FIELD_REQUIRED);
+    }
+    if (Object.values(headerErrors).some(Boolean)) {
+      setState((prev) => ({ ...prev, errors: headerErrors }));
       return;
     }
     const oauthAuthentication = oauthMode
       ? getMcpOAuthAuthenticationConfig(option)
       : undefined;
-    const auth = oauthMode
-      ? "oauth"
-      : needsCredential && apiKey
-        ? apiKey
-        : undefined;
+    const fieldHeaders = Object.fromEntries(
+      headerFields
+        .map((field) => [field.key, state.values[field.key]?.trim() ?? ""])
+        .filter(([, value]) => value),
+    );
+    const hasFieldHeaders = Object.keys(fieldHeaders).length > 0;
+    let auth: MCPAuthCredential | undefined;
+    if (oauthMode) {
+      auth = {
+        strategy: "oauth2",
+        ...(oauthAuthentication && { authentication: oauthAuthentication }),
+      };
+    } else if (needsCredential && apiKey) {
+      auth =
+        option.auth.strategy === "api_key"
+          ? {
+              strategy: "api_key",
+              value: apiKey,
+              ...(option.auth.apiKeyHeaderName && {
+                header_name: option.auth.apiKeyHeaderName,
+              }),
+            }
+          : { strategy: "bearer", value: apiKey };
+    } else if (hasFieldHeaders) {
+      auth = { strategy: "header", headers: fieldHeaders };
+    }
     const payload: MCPServerConfig = {
       id: `${template.kind}-${uuidv4()}`,
       type: template.kind,
@@ -288,7 +339,8 @@ export function InstallServerModal({
       name: entry.id,
       url: template.url,
       ...(auth && { auth }),
-      ...(oauthAuthentication && { authentication: oauthAuthentication }),
+      ...(hasFieldHeaders &&
+        auth?.strategy !== "header" && { headers: fieldHeaders }),
     };
     submitServer(payload);
   };
@@ -355,6 +407,7 @@ export function InstallServerModal({
       const shouldRenderCredential = optionNeedsCredentialField(option);
       const apiKeyOptional = option ? isCredentialOptional(option) : false;
       const credentialSecretName = option?.auth.credentialSecretName;
+      const headerFields = getRemoteHeaderFields(option);
       return (
         <>
           <SettingsInput
@@ -367,6 +420,39 @@ export function InstallServerModal({
             isDisabled
             className="w-full"
           />
+          {headerFields.map((field) => (
+            <div key={field.key} className="flex flex-col gap-1">
+              <SettingsInput
+                testId={`mcp-install-field-${field.key}`}
+                name={field.key}
+                type={field.type === "password" ? "password" : "text"}
+                label={field.label}
+                value={state.values[field.key] ?? ""}
+                onChange={(v) => setValue(field.key, v)}
+                placeholder={field.placeholder}
+                required={field.required}
+                showOptionalTag={!field.required}
+                className="w-full"
+              />
+              {field.helperText && (
+                <p className="text-xs text-tertiary-alt">
+                  {renderHelperText(field.helperText)}
+                </p>
+              )}
+              {state.errors[field.key] && (
+                <p className="text-xs text-red-500">
+                  {state.errors[field.key]}
+                </p>
+              )}
+              {field.key in state.savedAsSecret && (
+                <SaveAsSecretToggle
+                  fieldKey={field.key}
+                  checked={state.savedAsSecret[field.key] ?? false}
+                  onToggle={(v) => toggleSecret(field.key, v)}
+                />
+              )}
+            </div>
+          ))}
           {oauthMode ? (
             <div
               data-testid="mcp-install-oauth-info"

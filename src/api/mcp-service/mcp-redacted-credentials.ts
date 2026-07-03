@@ -1,6 +1,6 @@
 import SettingsService from "#/api/settings-service/settings-service.api";
+import type { MCPAuthCredential } from "#/types/mcp-auth";
 import type { MCPServerConfig } from "#/types/mcp-server";
-import type { SettingsValue } from "#/types/settings";
 import { REDACTED_MCP_SECRET_VALUE } from "#/utils/mcp-config";
 
 type StoredMcpServer = {
@@ -9,7 +9,6 @@ type StoredMcpServer = {
   env?: unknown;
   auth?: unknown;
   headers?: unknown;
-  oauth_credentials?: unknown;
 };
 
 type StoredMcpServers = Record<string, StoredMcpServer>;
@@ -35,6 +34,13 @@ const hasRedactedStringLeaf = (value: unknown): boolean => {
   if (isRecord(value)) return Object.values(value).some(hasRedactedStringLeaf);
   return false;
 };
+
+const isMcpAuthCredential = (value: unknown): value is MCPAuthCredential =>
+  isRecord(value) &&
+  typeof value.strategy === "string" &&
+  ["none", "api_key", "bearer", "basic", "header", "oauth2", "custom"].includes(
+    value.strategy,
+  );
 
 const remoteTransportMatches = (
   type: MCPServerConfig["type"],
@@ -127,12 +133,9 @@ export async function substituteRedactedMcpCredentials(
     server.type === "stdio" && hasRedactedValue(server.env);
   const redactedRemoteAuth =
     (server.type === "sse" || server.type === "shttp") &&
-    server.auth === REDACTED_MCP_SECRET_VALUE;
-  const redactedOAuthCredentials =
-    (server.type === "sse" || server.type === "shttp") &&
-    hasRedactedStringLeaf(server.oauth_credentials);
+    hasRedactedStringLeaf(server.auth);
 
-  if (!redactedStdioEnv && !redactedRemoteAuth && !redactedOAuthCredentials) {
+  if (!redactedStdioEnv && !redactedRemoteAuth) {
     return server;
   }
 
@@ -154,25 +157,11 @@ export async function substituteRedactedMcpCredentials(
       return { ...server, env };
     }
 
-    let nextServer = server;
-    if (redactedOAuthCredentials && isRecord(stored.oauth_credentials)) {
-      nextServer = {
-        ...nextServer,
-        oauth_credentials: stored.oauth_credentials as Record<
-          string,
-          SettingsValue
-        >,
-      };
+    if (!redactedRemoteAuth) return server;
+    if (isMcpAuthCredential(stored.auth)) {
+      return { ...server, auth: stored.auth };
     }
-
-    if (!redactedRemoteAuth) return nextServer;
-    if (typeof stored.auth === "string") {
-      return { ...nextServer, auth: stored.auth };
-    }
-    const headers = stringRecord(stored.headers);
-    const authorization = headers?.Authorization ?? headers?.authorization;
-    if (typeof authorization !== "string") return nextServer;
-    return { ...nextServer, auth: authorization.replace(/^Bearer\s+/i, "") };
+    return server;
   } catch {
     return server;
   }

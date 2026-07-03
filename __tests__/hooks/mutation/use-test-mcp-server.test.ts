@@ -14,7 +14,7 @@ const SHTTP_SERVER: MCPServerConfig = {
   id: "shttp-1",
   type: "shttp",
   url: "https://mcp.example.com/mcp",
-  auth: "secret-key",
+  auth: { strategy: "bearer", value: "secret-key" },
 };
 
 describe("useTestMcpServer", () => {

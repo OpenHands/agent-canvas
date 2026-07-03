@@ -12,15 +12,17 @@ describe("flattenMcpConfig", () => {
         {
           name: "superhuman-mail",
           url: "https://mcp.mail.superhuman.com/mcp",
-          auth: "oauth",
-          authentication: {
-            type: "oauth",
-            client_auth_method: "none",
-          },
-          oauth_credentials: {
-            "mcp-oauth-token": {
-              "https://mcp.mail.superhuman.com/mcp/tokens": {
-                value: { access_token: "gAAAAencrypted-access-token" },
+          auth: {
+            strategy: "oauth2",
+            authentication: {
+              type: "oauth",
+              client_auth_method: "none",
+            },
+            credentials: {
+              "mcp-oauth-token": {
+                "https://mcp.mail.superhuman.com/mcp/tokens": {
+                  value: { access_token: "gAAAAencrypted-access-token" },
+                },
               },
             },
           },
@@ -36,15 +38,17 @@ describe("flattenMcpConfig", () => {
         url: "https://mcp.mail.superhuman.com/mcp",
         headers: undefined,
         timeout: undefined,
-        auth: "oauth",
-        authentication: {
-          type: "oauth",
-          client_auth_method: "none",
-        },
-        oauth_credentials: {
-          "mcp-oauth-token": {
-            "https://mcp.mail.superhuman.com/mcp/tokens": {
-              value: { access_token: "gAAAAencrypted-access-token" },
+        auth: {
+          strategy: "oauth2",
+          authentication: {
+            type: "oauth",
+            client_auth_method: "none",
+          },
+          credentials: {
+            "mcp-oauth-token": {
+              "https://mcp.mail.superhuman.com/mcp/tokens": {
+                value: { access_token: "gAAAAencrypted-access-token" },
+              },
             },
           },
         },

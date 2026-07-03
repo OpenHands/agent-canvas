@@ -289,7 +289,7 @@ describe("MCPPage", () => {
             mcpServers: {
               github: {
                 url: "https://api.githubcopilot.com/mcp/",
-                auth: "github_pat_test",
+                auth: { strategy: "bearer", value: "github_pat_test" },
               },
             },
           },

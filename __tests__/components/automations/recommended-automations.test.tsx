@@ -106,7 +106,7 @@ function settingsWithGithubMcp() {
     mcpServers: {
       github: {
         url: GITHUB_HOSTED_MCP_URL,
-        auth: "github-token",
+        auth: { strategy: "bearer", value: "github-token" },
       },
     },
   });

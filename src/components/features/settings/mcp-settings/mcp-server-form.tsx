@@ -8,6 +8,7 @@ import { BrandButton } from "../brand-button";
 import { OptionalTag } from "../optional-tag";
 import { cn } from "#/utils/utils";
 import { formControlMultilineFieldClassName } from "#/utils/form-control-classes";
+import type { MCPAuthCredential } from "#/types/mcp-auth";
 import type { MCPServerConfig } from "#/types/mcp-server";
 
 type MCPServerType = "sse" | "stdio" | "shttp";
@@ -223,6 +224,35 @@ export function MCPServerForm({
       .join("\n");
   };
 
+  const editableAuthValue = (auth: MCPAuthCredential | undefined): string => {
+    if (auth?.strategy === "bearer" || auth?.strategy === "api_key") {
+      return auth.value;
+    }
+    return "";
+  };
+
+  const authFromFormValue = (
+    value: string | undefined,
+    existing: MCPAuthCredential | undefined,
+  ): MCPAuthCredential | undefined => {
+    if (value) {
+      if (existing?.strategy === "api_key") {
+        return { ...existing, value };
+      }
+      return { strategy: "bearer", value };
+    }
+    if (
+      existing?.strategy === "oauth2" ||
+      existing?.strategy === "header" ||
+      existing?.strategy === "custom" ||
+      existing?.strategy === "basic" ||
+      existing?.strategy === "none"
+    ) {
+      return existing;
+    }
+    return undefined;
+  };
+
   const buildConfig = (formData: FormData): MCPServerConfig => {
     const baseConfig = {
       id: server?.id || `${serverType}-${Date.now()}`,
@@ -234,19 +264,13 @@ export function MCPServerForm({
       const url = formData.get("url")?.toString().trim();
       const apiKey = formData.get("api_key")?.toString().trim();
       const timeoutStr = formData.get("timeout")?.toString().trim();
+      const auth = authFromFormValue(apiKey, server?.auth);
 
       const serverConfig: MCPServerConfig = {
         ...baseConfig,
         ...(name && { name }),
         url: url!,
-        ...(apiKey && { auth: apiKey }),
-        ...(server?.auth === "oauth" && { auth: server.auth }),
-        ...(server?.authentication && {
-          authentication: server.authentication,
-        }),
-        ...(server?.oauth_credentials && {
-          oauth_credentials: server.oauth_credentials,
-        }),
+        ...(auth && { auth }),
       };
 
       // Only add timeout for SHTTP servers
@@ -371,7 +395,7 @@ export function MCPServerForm({
             label={t(I18nKey.SETTINGS$MCP_API_KEY)}
             className="w-full min-w-0"
             showOptionalTag
-            defaultValue={server?.auth === "oauth" ? "" : server?.auth || ""}
+            defaultValue={editableAuthValue(server?.auth)}
             placeholder={t(I18nKey.SETTINGS$MCP_API_KEY_PLACEHOLDER)}
           />
 

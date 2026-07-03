@@ -160,9 +160,11 @@ describe("MCPServerForm validation", () => {
           type: "shttp",
           name: "superhuman-mail",
           url: "https://mcp.mail.superhuman.com/mcp",
-          auth: "oauth",
-          authentication: { type: "oauth", client_auth_method: "none" },
-          oauth_credentials: oauthCredentials,
+          auth: {
+            strategy: "oauth2",
+            authentication: { type: "oauth", client_auth_method: "none" },
+            credentials: oauthCredentials,
+          },
         }}
         existingServers={[]}
         onSubmit={onSubmit}
@@ -174,9 +176,11 @@ describe("MCPServerForm validation", () => {
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(onSubmit.mock.calls[0][0]).toMatchObject({
-      auth: "oauth",
-      authentication: { type: "oauth", client_auth_method: "none" },
-      oauth_credentials: oauthCredentials,
+      auth: {
+        strategy: "oauth2",
+        authentication: { type: "oauth", client_auth_method: "none" },
+        credentials: oauthCredentials,
+      },
     });
   });
 

@@ -48,7 +48,7 @@ describe("McpService.testServer", () => {
             linear: {
               url: "https://mcp.linear.app/mcp",
               transport: "http",
-              auth: encryptedAuth,
+              auth: { strategy: "bearer", value: encryptedAuth },
             },
           },
         },
@@ -60,7 +60,7 @@ describe("McpService.testServer", () => {
       type: "shttp",
       name: "linear",
       url: "https://mcp.linear.app/mcp",
-      auth: "<redacted>",
+      auth: { strategy: "bearer", value: "<redacted>" },
     });
 
     expect(SettingsService.fetchSettingsFromApi).toHaveBeenCalledWith(
@@ -72,7 +72,7 @@ describe("McpService.testServer", () => {
       server: {
         type: "shttp",
         url: "https://mcp.linear.app/mcp",
-        auth: encryptedAuth,
+        auth: { strategy: "bearer", value: encryptedAuth },
       },
     });
     expect(testServer.mock.calls[0][0].server).not.toHaveProperty("api_key");
@@ -86,16 +86,18 @@ describe("McpService.testServer", () => {
       type: "shttp",
       name: "superhuman-mail",
       url: "https://mcp.mail.superhuman.com/mcp",
-      auth: "oauth",
-      authentication: {
-        type: "oauth",
-        client_auth_method: "none",
-      },
-      oauth_credentials: {
-        "mcp-oauth-token": {
-          "https://mcp.mail.superhuman.com/mcp/tokens": {
-            value: {
-              access_token: "gAAAAexisting-access-token",
+      auth: {
+        strategy: "oauth2",
+        authentication: {
+          type: "oauth",
+          client_auth_method: "none",
+        },
+        credentials: {
+          "mcp-oauth-token": {
+            "https://mcp.mail.superhuman.com/mcp/tokens": {
+              value: {
+                access_token: "gAAAAexisting-access-token",
+              },
             },
           },
         },
@@ -108,16 +110,18 @@ describe("McpService.testServer", () => {
       server: {
         type: "shttp",
         url: "https://mcp.mail.superhuman.com/mcp",
-        auth: "oauth",
-        authentication: {
-          type: "oauth",
-          client_auth_method: "none",
-        },
-        oauth_credentials: {
-          "mcp-oauth-token": {
-            "https://mcp.mail.superhuman.com/mcp/tokens": {
-              value: {
-                access_token: "gAAAAexisting-access-token",
+        auth: {
+          strategy: "oauth2",
+          authentication: {
+            type: "oauth",
+            client_auth_method: "none",
+          },
+          credentials: {
+            "mcp-oauth-token": {
+              "https://mcp.mail.superhuman.com/mcp/tokens": {
+                value: {
+                  access_token: "gAAAAexisting-access-token",
+                },
               },
             },
           },
@@ -135,18 +139,20 @@ describe("McpService.testServer", () => {
       server: {
         type: "shttp",
         url: "https://mcp.mail.superhuman.com/mcp",
-        auth: "oauth",
-        authentication: {
-          type: "oauth",
-          client_auth_method: "none",
-        },
-        oauth_credentials: {
-          "mcp-oauth-token": {
-            "https://mcp.mail.superhuman.com/mcp/tokens": {
-              value: {
-                access_token: "gAAAAencrypted-access-token",
+        auth: {
+          strategy: "oauth2",
+          authentication: {
+            type: "oauth",
+            client_auth_method: "none",
+          },
+          credentials: {
+            "mcp-oauth-token": {
+              "https://mcp.mail.superhuman.com/mcp/tokens": {
+                value: {
+                  access_token: "gAAAAencrypted-access-token",
+                },
+                expires_at: 12345,
               },
-              expires_at: 12345,
             },
           },
         },
@@ -158,10 +164,12 @@ describe("McpService.testServer", () => {
       type: "shttp",
       name: "superhuman-mail",
       url: "https://mcp.mail.superhuman.com/mcp",
-      auth: "oauth",
-      authentication: {
-        type: "oauth",
-        client_auth_method: "none",
+      auth: {
+        strategy: "oauth2",
+        authentication: {
+          type: "oauth",
+          client_auth_method: "none",
+        },
       },
     });
 
@@ -172,12 +180,14 @@ describe("McpService.testServer", () => {
       type: "shttp",
       name: "superhuman-mail",
       url: "https://mcp.mail.superhuman.com/mcp",
-      auth: "oauth",
-      oauth_credentials: {
-        "mcp-oauth-token": {
-          "https://mcp.mail.superhuman.com/mcp/tokens": {
-            value: {
-              access_token: "gAAAAencrypted-access-token",
+      auth: {
+        strategy: "oauth2",
+        credentials: {
+          "mcp-oauth-token": {
+            "https://mcp.mail.superhuman.com/mcp/tokens": {
+              value: {
+                access_token: "gAAAAencrypted-access-token",
+              },
             },
           },
         },

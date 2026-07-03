@@ -11,8 +11,7 @@ import type {
   MCPServerConfig,
 } from "#/types/mcp-server";
 import { substituteRedactedMcpCredentials } from "./mcp-redacted-credentials";
-import type { MCPAuthenticationConfig } from "#/types/mcp-auth";
-import type { SettingsValue } from "#/types/settings";
+import type { MCPAuthCredential } from "#/types/mcp-auth";
 
 const OAUTH_MCP_TEST_TIMEOUT_SECONDS = 120;
 
@@ -32,10 +31,6 @@ function toMcpServerSpec(server: MCPServerConfig): MCPServerSpec {
     ...(server.headers &&
       Object.keys(server.headers).length > 0 && { headers: server.headers }),
     ...(server.auth ? { auth: server.auth } : {}),
-    ...(server.authentication ? { authentication: server.authentication } : {}),
-    ...(server.oauth_credentials
-      ? { oauth_credentials: server.oauth_credentials }
-      : {}),
   } as MCPServerSpec;
 }
 
@@ -43,10 +38,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-function isAuthenticationConfig(
-  value: unknown,
-): value is MCPAuthenticationConfig {
-  return isRecord(value) && value.type === "oauth";
+function isMcpAuthCredential(value: unknown): value is MCPAuthCredential {
+  return (
+    isRecord(value) &&
+    typeof value.strategy === "string" &&
+    [
+      "none",
+      "api_key",
+      "bearer",
+      "basic",
+      "header",
+      "oauth2",
+      "custom",
+    ].includes(value.strategy)
+  );
 }
 
 function serverSpecToConfig(
@@ -56,23 +61,12 @@ function serverSpecToConfig(
   return {
     ...original,
     ...(typeof spec.url === "string" ? { url: spec.url } : {}),
-    ...(typeof spec.auth === "string" ? { auth: spec.auth } : {}),
-    ...(isAuthenticationConfig(spec.authentication)
-      ? { authentication: spec.authentication }
-      : {}),
-    ...(isRecord(spec.oauth_credentials)
-      ? {
-          oauth_credentials: spec.oauth_credentials as Record<
-            string,
-            SettingsValue
-          >,
-        }
-      : {}),
+    ...(isMcpAuthCredential(spec.auth) ? { auth: spec.auth } : {}),
   };
 }
 
 function getMcpTestTimeout(server: MCPServerConfig): number | undefined {
-  if (server.auth !== "oauth") return server.timeout;
+  if (server.auth?.strategy !== "oauth2") return server.timeout;
   return OAUTH_MCP_TEST_TIMEOUT_SECONDS;
 }
 
