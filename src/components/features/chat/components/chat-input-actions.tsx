@@ -406,7 +406,7 @@ export function ChatInputActions({
             </div>
           )}
           <div ref={modelRef} className={cn(!showModelInline && "hidden")}>
-            {isCloud || modelState.isAcpContext ? (
+            {modelState.isAcpContext ? (
               <ChatInputModel />
             ) : (
               <SwitchProfileButton />

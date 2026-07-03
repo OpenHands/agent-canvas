@@ -13,6 +13,7 @@ import { BackendStatusDot } from "./backend-status-dot";
 import { BackendVersion } from "./backend-version";
 import { DeviceFlowAuth } from "./device-flow-auth";
 import { getBackendStatusLabel } from "./backend-status-label";
+import { getLockedCloudHost } from "#/api/agent-server-config";
 
 const ROW_ACTION_BUTTON_CLASS =
   "inline-flex cursor-pointer items-center justify-center rounded-md p-1 text-muted transition-colors hover:bg-interactive-hover hover:text-white";
@@ -59,6 +60,7 @@ export function BackendRow({
         : "text-[var(--oh-muted)]";
   const dotStatus = isInvalidApiKey ? false : (health?.isConnected ?? null);
   const canSelect = health?.isConnected === true && !isInvalidApiKey;
+  const lockedCloudHost = getLockedCloudHost();
 
   return (
     <li
@@ -131,24 +133,28 @@ export function BackendRow({
             statusDisplay="modal"
           />
         ) : null}
-        <button
-          type="button"
-          onClick={onEdit}
-          aria-label={t(I18nKey.BACKEND$EDIT)}
-          data-testid={`manage-backends-edit-${backend.name}`}
-          className={ROW_ACTION_BUTTON_CLASS}
-        >
-          <Pencil aria-hidden className="size-4" strokeWidth={2} />
-        </button>
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label={t(I18nKey.BACKEND$REMOVE)}
-          data-testid={`manage-backends-remove-${backend.name}`}
-          className={ROW_ACTION_BUTTON_CLASS}
-        >
-          <Trash2 aria-hidden className="size-4" strokeWidth={2} />
-        </button>
+        {!lockedCloudHost && (
+          <button
+            type="button"
+            onClick={onEdit}
+            aria-label={t(I18nKey.BACKEND$EDIT)}
+            data-testid={`manage-backends-edit-${backend.name}`}
+            className={ROW_ACTION_BUTTON_CLASS}
+          >
+            <Pencil aria-hidden className="size-4" strokeWidth={2} />
+          </button>
+        )}
+        {!lockedCloudHost && (
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label={t(I18nKey.BACKEND$REMOVE)}
+            data-testid={`manage-backends-remove-${backend.name}`}
+            className={ROW_ACTION_BUTTON_CLASS}
+          >
+            <Trash2 aria-hidden className="size-4" strokeWidth={2} />
+          </button>
+        )}
       </div>
     </li>
   );

@@ -10,6 +10,15 @@ import { CreateInstructions } from "#/components/features/automations/create-ins
 import { I18nKey } from "#/i18n/declaration";
 import { useConversationStore } from "#/stores/conversation-store";
 
+const captureMock = vi.fn();
+vi.mock("posthog-js/react", () => ({
+  usePostHog: () => ({ capture: captureMock }),
+}));
+
+vi.mock("#/hooks/query/use-settings", () => ({
+  useSettings: () => ({ data: { user_consents_to_analytics: true } }),
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => {
@@ -78,7 +87,20 @@ function renderCreateInstructions() {
 
 describe("CreateInstructions", () => {
   beforeEach(() => {
+    captureMock.mockClear();
     useConversationStore.setState({ messageToSend: null });
+  });
+
+  it("captures automation_created with the active backend kind when Create Automation is clicked", async () => {
+    const user = userEvent.setup();
+    renderCreateInstructions();
+
+    await user.click(screen.getByTestId("automations-create-automation"));
+
+    expect(captureMock).toHaveBeenCalledWith(
+      "automation_created",
+      expect.objectContaining({ backend_kind: "local" }),
+    );
   });
 
   it("navigates to conversations with a prefilled prompt when Create Automation is clicked", async () => {

@@ -1,4 +1,9 @@
-import { MessageEvent, OpenHandsEvent } from "#/types/agent-server/core";
+import {
+  ActionEvent,
+  ImageContent,
+  OpenHandsEvent,
+  TextContent,
+} from "#/types/agent-server/core";
 import {
   isACPToolCallEvent,
   isActionEvent,
@@ -7,6 +12,7 @@ import {
   isStreamingDeltaEvent,
 } from "#/types/agent-server/type-guards";
 import { StreamingDeltaEvent } from "#/types/agent-server/core/events/streaming-delta-event";
+import { getReasoningContent } from "#/components/conversation-events/chat/event-thought-helpers";
 
 export const mergeStreamingDeltaEvent = (
   incoming: StreamingDeltaEvent,
@@ -40,11 +46,11 @@ const findLastUserMessageIndex = (events: OpenHandsEvent[]): number => {
 // Join text blocks WITHOUT a separator: streaming deltas concatenate content
 // tokens directly with no separator between LLM content blocks, so using "\n"
 // here would cause startsWith/findTextSegmentsInOrder to miss when reconciling
-// a multi-block MessageEvent against the already-rendered streaming delta.
-const getAgentMessageText = (event: MessageEvent): string =>
-  event.llm_message.content
-    .filter((content) => content.type === "text")
-    .map((content) => content.text)
+// a multi-block message/thought against the already-rendered streaming delta.
+const joinTextBlocks = (blocks: (TextContent | ImageContent)[]): string =>
+  blocks
+    .filter((block) => block.type === "text")
+    .map((block) => block.text)
     .join("");
 
 const getFinalAgentText = (event: OpenHandsEvent): string | null => {
@@ -53,7 +59,7 @@ const getFinalAgentText = (event: OpenHandsEvent): string | null => {
   }
 
   if (isMessageEvent(event) && event.source === "agent") {
-    return getAgentMessageText(event);
+    return joinTextBlocks(event.llm_message.content);
   }
 
   return null;
@@ -78,58 +84,93 @@ const findTextSegmentsInOrder = (
   return { matched: true, lastMatchEnd };
 };
 
+// Content-bearing streaming deltas of the current turn (after the last user
+// message). Reasoning-only deltas are excluded: reasoning renders in its own
+// collapsed bubble and never overlaps the message text being reconciled.
+const getCurrentTurnContentDeltas = (
+  uiEvents: OpenHandsEvent[],
+): { event: StreamingDeltaEvent; index: number }[] => {
+  const lastUserMessageIndex = findLastUserMessageIndex(uiEvents);
+  return uiEvents
+    .map((event, index) => ({ event, index }))
+    .filter(
+      (item): item is { event: StreamingDeltaEvent; index: number } =>
+        item.index > lastUserMessageIndex &&
+        isStreamingDeltaEvent(item.event) &&
+        (item.event.content?.length ?? 0) > 0,
+    );
+};
+
+// The current step's streaming delta(s): the trailing run at the end of
+// `uiEvents`. Earlier steps' deltas are separated by their observations, so
+// this never folds an earlier step's delta into the current one.
+const getTrailingContentDeltas = (
+  uiEvents: OpenHandsEvent[],
+): { event: StreamingDeltaEvent; index: number }[] => {
+  const deltas: { event: StreamingDeltaEvent; index: number }[] = [];
+  for (let index = uiEvents.length - 1; index >= 0; index -= 1) {
+    const event = uiEvents[index];
+    if (!isStreamingDeltaEvent(event)) {
+      break;
+    }
+    if ((event.content?.length ?? 0) > 0) {
+      deltas.unshift({ event, index });
+    }
+  }
+  return deltas;
+};
+
+// Whether the streamed `segments` (in order) reconcile against `targetText`.
+// `lastMatchEnd` is the offset past the matched text, so callers can recover
+// any not-yet-streamed suffix. The SDK strips the finalized text, so it may
+// lack trailing whitespace the model streamed; the match tolerates that by
+// also trying the trailing-trimmed streamed text.
+const matchStreamedSegments = (
+  targetText: string,
+  segments: string[],
+): { matched: boolean; lastMatchEnd: number } => {
+  const streamedText = segments.join("");
+  for (const candidate of [streamedText, streamedText.trimEnd()]) {
+    if (candidate && targetText.startsWith(candidate)) {
+      return { matched: true, lastMatchEnd: candidate.length };
+    }
+  }
+  // Segments may be interleaved with not-yet-streamed text; locate them in
+  // order, trimming the last segment's trailing whitespace.
+  const lastIndex = segments.length - 1;
+  const searchSegments = segments.map((segment, index) =>
+    index === lastIndex ? segment.trimEnd() : segment,
+  );
+  return findTextSegmentsInOrder(targetText, searchSegments);
+};
+
 const finalizeStreamingDeltasInPlace = (
   finalEvent: OpenHandsEvent,
   uiEvents: OpenHandsEvent[],
 ): OpenHandsEvent[] | null => {
-  const lastUserMessageIndex = findLastUserMessageIndex(uiEvents);
-  const currentTurnStreamingDeltaIndexes = uiEvents
-    .map((uiEvent, index) => ({ uiEvent, index }))
-    .filter(
-      ({ uiEvent, index }) =>
-        index > lastUserMessageIndex && isStreamingDeltaEvent(uiEvent),
-    )
-    .map(({ index }) => index);
-
-  if (currentTurnStreamingDeltaIndexes.length === 0) {
+  const contentStreamingDeltas = getCurrentTurnContentDeltas(uiEvents);
+  if (contentStreamingDeltas.length === 0) {
     return null;
   }
 
   const finalText = getFinalAgentText(finalEvent);
-  // Only the regular `content` field participates in reconciliation.
-  // Reasoning-only deltas (those that carry only `reasoning_content`) produce
-  // an empty streamingSegments list, causing the function to return null so
-  // the finalEvent is appended normally.  This is intentional: reasoning
-  // content renders in its own collapsed bubble and never overlaps with the
-  // assistant's regular message text in `FinishAction.message`.
-  const contentStreamingDeltas = currentTurnStreamingDeltaIndexes
-    .map((index) => ({ event: uiEvents[index], index }))
-    .filter(
-      (item): item is { event: StreamingDeltaEvent; index: number } =>
-        isStreamingDeltaEvent(item.event) &&
-        (item.event.content?.length ?? 0) > 0,
-    );
+  if (!finalText) {
+    return null;
+  }
+
   const streamingSegments = contentStreamingDeltas.map(
     ({ event }) => event.content ?? "",
   );
-
-  if (!finalText || streamingSegments.length === 0) {
+  const { matched, lastMatchEnd } = matchStreamedSegments(
+    finalText,
+    streamingSegments,
+  );
+  if (!matched) {
     return null;
   }
 
   const nextUiEvents = [...uiEvents];
-  const streamedText = streamingSegments.join("");
-  let unstreamedSuffix = "";
-
-  if (finalText.startsWith(streamedText)) {
-    unstreamedSuffix = finalText.slice(streamedText.length);
-  } else {
-    const match = findTextSegmentsInOrder(finalText, streamingSegments);
-    if (!match.matched) {
-      return null;
-    }
-    unstreamedSuffix = finalText.slice(match.lastMatchEnd);
-  }
+  const unstreamedSuffix = finalText.slice(lastMatchEnd);
 
   const lastDeltaIndex = contentStreamingDeltas.at(-1)?.index;
   const lastDelta =
@@ -151,6 +192,63 @@ const finalizeStreamingDeltasInPlace = (
   // unstreamedSuffix above) becomes the canonical final rendered bubble for
   // this turn. Appending finalEvent here would display the assistant message
   // twice.
+  return nextUiEvents;
+};
+
+/**
+ * Reconcile the current turn's streaming delta when an intermediate
+ * (tool-calling) `ActionEvent` arrives. With `stream=true` the step's
+ * pre-tool-call text is streamed as delta `content`, then the action's
+ * `thought` repeats it and the chat hoists that into its own message (see
+ * `group-events.ts`), so the text would render twice (issue #1534).
+ *
+ * Unlike `finalizeStreamingDeltasInPlace` (which drops the final event and
+ * keeps the delta), the action must stay — it owns the tool call. So the
+ * streamed text is cleared from the delta instead, and the delta is kept only
+ * to carry reasoning the action itself lacks (for many models the delta is the
+ * sole reasoning carrier), otherwise dropped.
+ *
+ * Only the current step's trailing delta run is considered. Returns the updated
+ * array, or `null` when there is nothing to reconcile.
+ */
+const supersedeStreamedThoughtWithAction = (
+  action: ActionEvent,
+  uiEvents: OpenHandsEvent[],
+): OpenHandsEvent[] | null => {
+  const thoughtText = joinTextBlocks(action.thought);
+  if (!thoughtText) {
+    return null;
+  }
+
+  const contentDeltas = getTrailingContentDeltas(uiEvents);
+  if (contentDeltas.length === 0) {
+    return null;
+  }
+
+  const streamingSegments = contentDeltas.map(
+    ({ event }) => event.content ?? "",
+  );
+
+  // Only strip when the streamed text is the action's rendered thought.
+  if (!matchStreamedSegments(thoughtText, streamingSegments).matched) {
+    return null;
+  }
+
+  // Keeping the delta's reasoning would duplicate the action's own "Thinking".
+  const actionRendersReasoning = getReasoningContent(action).trim().length > 0;
+  const indexesToStrip = new Set(contentDeltas.map(({ index }) => index));
+  const nextUiEvents: OpenHandsEvent[] = [];
+  uiEvents.forEach((event, index) => {
+    if (!indexesToStrip.has(index) || !isStreamingDeltaEvent(event)) {
+      nextUiEvents.push(event);
+      return;
+    }
+    // Keep the delta only to render reasoning the action itself lacks.
+    if (!actionRendersReasoning && event.reasoning_content) {
+      nextUiEvents.push({ ...event, content: null });
+    }
+  });
+
   return nextUiEvents;
 };
 
@@ -203,6 +301,24 @@ export const handleEventForUI = (
       // microagents becomes meaningful for streamed responses, add a rendered
       // wrapper that carries both the stable delta identity and that metadata.
       return finalizedUiEvents;
+    }
+  }
+
+  // Intermediate tool-calling action whose thought was streamed: clear the
+  // duplicated text from the delta (issue #1534). ThinkAction is excluded — its
+  // thought renders through its own collapsible, not a hoisted thought.
+  if (
+    isActionEvent(event) &&
+    event.action.kind !== "FinishAction" &&
+    event.action.kind !== "ThinkAction"
+  ) {
+    const reconciledUiEvents = supersedeStreamedThoughtWithAction(
+      event,
+      newUiEvents,
+    );
+    if (reconciledUiEvents) {
+      reconciledUiEvents.push(event);
+      return reconciledUiEvents;
     }
   }
 

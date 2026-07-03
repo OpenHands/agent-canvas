@@ -1,5 +1,6 @@
 import { CustomChatInput } from "./custom-chat-input";
 import { useBtwInterceptor } from "#/hooks/chat/use-btw-interceptor";
+import { useGoalInterceptor } from "#/hooks/chat/use-goal-interceptor";
 import { useModelInterceptor } from "#/hooks/chat/use-model-interceptor";
 import { useChatAttachmentUpload } from "#/hooks/chat/use-chat-attachment-upload";
 import { AgentState } from "#/types/agent-state";
@@ -41,7 +42,7 @@ export function InteractiveChatBox({
 
   const { handleUpload } = useChatAttachmentUpload();
 
-  const handleAfterModel = useBtwInterceptor(conversationId, (message) => {
+  const handleAfterGoal = useBtwInterceptor(conversationId, (message) => {
     const { imagesToEmbed, imagesAsFiles } = partitionImagesForUpload(
       images,
       imagesMarkedUploadAsFile,
@@ -49,6 +50,7 @@ export function InteractiveChatBox({
     onSubmit(message, imagesToEmbed, [...files, ...imagesAsFiles]);
     clearAllFiles();
   });
+  const handleAfterModel = useGoalInterceptor(conversationId, handleAfterGoal);
   const handleSubmit = useModelInterceptor(conversationId, handleAfterModel);
 
   const handleSuggestionsClick = (suggestion: string) => {
