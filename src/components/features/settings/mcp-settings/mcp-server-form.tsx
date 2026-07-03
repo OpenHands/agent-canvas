@@ -239,8 +239,8 @@ export function MCPServerForm({
         ...baseConfig,
         ...(name && { name }),
         url: url!,
-        ...(apiKey && { api_key: apiKey }),
-        ...(server?.auth && { auth: server.auth }),
+        ...(apiKey && { auth: apiKey }),
+        ...(server?.auth === "oauth" && { auth: server.auth }),
         ...(server?.authentication && {
           authentication: server.authentication,
         }),
@@ -371,7 +371,7 @@ export function MCPServerForm({
             label={t(I18nKey.SETTINGS$MCP_API_KEY)}
             className="w-full min-w-0"
             showOptionalTag
-            defaultValue={server?.api_key || ""}
+            defaultValue={server?.auth === "oauth" ? "" : server?.auth || ""}
             placeholder={t(I18nKey.SETTINGS$MCP_API_KEY_PLACEHOLDER)}
           />
 

@@ -2,18 +2,7 @@ import { useTranslation } from "react-i18next";
 import { MCPServerListItem } from "./mcp-server-list-item";
 import { I18nKey } from "#/i18n/declaration";
 import { extensionModuleEmptyStateClassName } from "#/utils/extension-module-card-classes";
-
-interface MCPServerConfig {
-  id: string;
-  type: "sse" | "stdio" | "shttp";
-  name?: string;
-  url?: string;
-  api_key?: string;
-  timeout?: number;
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
-}
+import type { MCPServerConfig } from "#/types/mcp-server";
 
 interface MCPServerListProps {
   servers: MCPServerConfig[];

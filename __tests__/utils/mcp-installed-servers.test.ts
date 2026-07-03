@@ -34,7 +34,6 @@ describe("flattenMcpConfig", () => {
         type: "shttp",
         name: "superhuman-mail",
         url: "https://mcp.mail.superhuman.com/mcp",
-        api_key: undefined,
         headers: undefined,
         timeout: undefined,
         auth: "oauth",

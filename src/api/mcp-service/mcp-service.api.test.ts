@@ -14,7 +14,7 @@ vi.mock("@openhands/typescript-client/clients", () => ({
 const testServer = vi.fn();
 const close = vi.fn();
 
-const encryptedAuthorization = "gAAAAAencrypted-authorization-header";
+const encryptedAuth = "gAAAAAencrypted-auth";
 
 describe("McpService.testServer", () => {
   beforeEach(() => {
@@ -38,7 +38,7 @@ describe("McpService.testServer", () => {
     testServer.mockResolvedValue({ ok: true, tools: [] });
   });
 
-  it("tests stored remote MCP credentials as encrypted headers, not redacted api_key text", async () => {
+  it("tests stored remote MCP credentials as encrypted auth, not redacted text", async () => {
     vi.spyOn(SettingsService, "fetchSettingsFromApi").mockResolvedValue({
       llm_api_key_is_set: false,
       conversation_settings: {},
@@ -48,9 +48,7 @@ describe("McpService.testServer", () => {
             linear: {
               url: "https://mcp.linear.app/mcp",
               transport: "http",
-              headers: {
-                Authorization: encryptedAuthorization,
-              },
+              auth: encryptedAuth,
             },
           },
         },
@@ -62,7 +60,7 @@ describe("McpService.testServer", () => {
       type: "shttp",
       name: "linear",
       url: "https://mcp.linear.app/mcp",
-      api_key: "<redacted>",
+      auth: "<redacted>",
     });
 
     expect(SettingsService.fetchSettingsFromApi).toHaveBeenCalledWith(
@@ -74,12 +72,11 @@ describe("McpService.testServer", () => {
       server: {
         type: "shttp",
         url: "https://mcp.linear.app/mcp",
-        headers: {
-          Authorization: encryptedAuthorization,
-        },
+        auth: encryptedAuth,
       },
     });
     expect(testServer.mock.calls[0][0].server).not.toHaveProperty("api_key");
+    expect(testServer.mock.calls[0][0].server).not.toHaveProperty("headers");
     expect(close).toHaveBeenCalledTimes(1);
   });
 

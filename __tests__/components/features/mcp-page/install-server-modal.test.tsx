@@ -239,7 +239,7 @@ describe("InstallServerModal", () => {
       expect.objectContaining({
         type: "shttp",
         url: "https://mcp.linear.app/mcp",
-        api_key: "lin_api_secret",
+        auth: "lin_api_secret",
       }),
     );
     const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
@@ -252,7 +252,7 @@ describe("InstallServerModal", () => {
     expect(sent.mcp_config.mcpServers).toMatchObject({
       linear: {
         url: "https://mcp.linear.app/mcp",
-        headers: { Authorization: "Bearer lin_api_secret" },
+        auth: "lin_api_secret",
       },
     });
   });

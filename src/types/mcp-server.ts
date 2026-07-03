@@ -14,14 +14,13 @@ export interface MCPServerConfig {
   type: MCPServerType;
   name?: string;
   url?: string;
-  api_key?: string;
   headers?: Record<string, string>;
   timeout?: number;
   command?: string;
   args?: string[];
   env?: Record<string, string>;
-  /** Set to "oauth" for MCP servers that handle OAuth themselves (fastmcp). */
-  auth?: "oauth";
+  /** FastMCP auth: bearer token string, or "oauth" for MCP-server OAuth. */
+  auth?: string;
   /** Explicit OAuth client metadata used with `auth: "oauth"`. */
   authentication?: MCPAuthenticationConfig;
   /** Opaque OAuth token/client-info subtree returned by the agent-server. */

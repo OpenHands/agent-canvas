@@ -274,6 +274,11 @@ export function InstallServerModal({
     const oauthAuthentication = oauthMode
       ? getMcpOAuthAuthenticationConfig(option)
       : undefined;
+    const auth = oauthMode
+      ? "oauth"
+      : needsCredential && apiKey
+        ? apiKey
+        : undefined;
     const payload: MCPServerConfig = {
       id: `${template.kind}-${uuidv4()}`,
       type: template.kind,
@@ -282,9 +287,8 @@ export function InstallServerModal({
       // "sse"/"shttp" fallback. Stdio installs already carry serverName.
       name: entry.id,
       url: template.url,
-      ...(oauthMode && { auth: "oauth" }),
+      ...(auth && { auth }),
       ...(oauthAuthentication && { authentication: oauthAuthentication }),
-      ...(!oauthMode && needsCredential && apiKey && { api_key: apiKey }),
     };
     submitServer(payload);
   };

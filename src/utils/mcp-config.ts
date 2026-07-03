@@ -72,49 +72,42 @@ function apiKeyFromAuthorizationHeader(value: unknown): string | undefined {
   return bearer ? bearer[1] : value;
 }
 
-function apiKeyFromServerConfig(
+function authFromServerConfig(
   serverConfig: Record<string, unknown>,
 ): string | undefined {
+  const auth = serverConfig.auth;
+  if (typeof auth === "string") return auth;
+
+  const apiKey = serverConfig.api_key;
+  if (typeof apiKey === "string" && apiKey.length > 0) return apiKey;
+
   const headers = serverConfig.headers;
   const authorization =
     headers && typeof headers === "object"
       ? ((headers as Record<string, unknown>).Authorization ??
         (headers as Record<string, unknown>).authorization)
       : undefined;
-  const headerApiKey = apiKeyFromAuthorizationHeader(authorization);
-  if (headerApiKey) return headerApiKey;
-
-  const auth = serverConfig.auth;
-  return typeof auth === "string" && auth !== "oauth" ? auth : undefined;
+  return apiKeyFromAuthorizationHeader(authorization);
 }
 
-function getAuthorizationHeaders(apiKey: string | undefined) {
-  if (!apiKey) return {};
-  return {
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-    },
-  };
-}
-
-function getRemoteCredentialFields(entry: {
-  api_key?: string;
+function getRemoteSecretFields(entry: {
+  auth?: string;
   headers?: Record<string, string>;
 }): Partial<SdkMcpServerConfig> {
-  if (entry.api_key && entry.api_key !== REDACTED_MCP_SECRET_VALUE) {
-    return getAuthorizationHeaders(entry.api_key);
+  const fields: Partial<SdkMcpServerConfig> = {};
+  if (entry.auth && entry.auth !== REDACTED_MCP_SECRET_VALUE) {
+    fields.auth = entry.auth;
   }
   if (entry.headers && Object.keys(entry.headers).length > 0) {
-    return { headers: entry.headers };
+    fields.headers = entry.headers;
   }
-  return {};
+  return fields;
 }
 
 function getRemoteServerFields(server: MCPServerConfig) {
   return {
     ...(server.name && { name: server.name }),
     url: server.url!,
-    ...(server.api_key && { api_key: server.api_key }),
     ...(server.headers && { headers: server.headers }),
     ...(server.auth && { auth: server.auth }),
     ...(server.authentication && { authentication: server.authentication }),
@@ -195,12 +188,13 @@ function getOAuthCredentials(
   return value as Record<string, SettingsValue>;
 }
 
-function getRemoteAuthenticationFields(
+function getRemoteAuthFields(
   serverConfig: Record<string, unknown>,
 ): Pick<MCPSSEServer | MCPSHTTPServer, "auth" | "authentication"> {
   const fields: Pick<MCPSSEServer | MCPSHTTPServer, "auth" | "authentication"> =
     {};
-  if (serverConfig.auth === "oauth") fields.auth = "oauth";
+  const auth = authFromServerConfig(serverConfig);
+  if (auth) fields.auth = auth;
   const authentication = getAuthenticationConfig(serverConfig.authentication);
   if (authentication) fields.authentication = authentication;
   return fields;
@@ -230,7 +224,7 @@ export function parseMcpConfig(value: unknown): MCPConfig {
   const shttpServers: (string | MCPSHTTPServer)[] = [];
   // Legacy Linear SSE entries rewritten to the /mcp endpoint. Collected
   // separately and merged after the loop so an existing hand-added /mcp
-  // entry (with its own api_key/timeout) wins over the migrated one.
+  // entry (with its own auth/timeout) wins over the migrated one.
   const migratedShttpServers: MCPSHTTPServer[] = [];
 
   const mcpServers = obj.mcpServers as Record<string, Record<string, unknown>>;
@@ -242,18 +236,17 @@ export function parseMcpConfig(value: unknown): MCPConfig {
 
     if (url) {
       const transport = serverConfig.transport as string | undefined;
-      const apiKey = apiKeyFromServerConfig(serverConfig);
+      const auth = authFromServerConfig(serverConfig);
 
       if (isDeprecatedLinearSse(url, transport)) {
         const server: MCPSHTTPServer = { url: LINEAR_SHTTP_URL };
-        if (apiKey) server.api_key = apiKey;
+        if (auth) server.auth = auth;
         migratedShttpServers.push(server);
       } else if (transport === "sse") {
         const name = userGivenServerName(serverName, "sse");
         const server: MCPSSEServer = { url };
         if (name) server.name = name;
-        if (apiKey) server.api_key = apiKey;
-        Object.assign(server, getRemoteAuthenticationFields(serverConfig));
+        Object.assign(server, getRemoteAuthFields(serverConfig));
         const oauthCredentials = getOAuthCredentials(
           serverConfig.oauth_credentials,
         );
@@ -263,11 +256,10 @@ export function parseMcpConfig(value: unknown): MCPConfig {
         const name = userGivenServerName(serverName, "shttp");
         const server: MCPSHTTPServer = { url };
         if (name) server.name = name;
-        if (apiKey) server.api_key = apiKey;
         if (serverConfig.timeout != null) {
           server.timeout = serverConfig.timeout as number;
         }
-        Object.assign(server, getRemoteAuthenticationFields(serverConfig));
+        Object.assign(server, getRemoteAuthFields(serverConfig));
         const oauthCredentials = getOAuthCredentials(
           serverConfig.oauth_credentials,
         );
@@ -335,8 +327,7 @@ export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
     } else {
       name = entry.name;
       server.url = entry.url;
-      Object.assign(server, getRemoteCredentialFields(entry));
-      if (entry.auth === "oauth") server.auth = "oauth";
+      Object.assign(server, getRemoteSecretFields(entry));
       if (entry.authentication) server.authentication = entry.authentication;
       if (entry.oauth_credentials) {
         server.oauth_credentials = entry.oauth_credentials;
@@ -354,9 +345,8 @@ export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
     } else {
       name = entry.name;
       server.url = entry.url;
-      Object.assign(server, getRemoteCredentialFields(entry));
+      Object.assign(server, getRemoteSecretFields(entry));
       if (entry.timeout != null) server.timeout = entry.timeout;
-      if (entry.auth === "oauth") server.auth = "oauth";
       if (entry.authentication) server.authentication = entry.authentication;
       if (entry.oauth_credentials) {
         server.oauth_credentials = entry.oauth_credentials;

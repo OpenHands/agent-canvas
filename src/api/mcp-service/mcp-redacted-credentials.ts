@@ -7,6 +7,7 @@ type StoredMcpServer = {
   url?: unknown;
   transport?: unknown;
   env?: unknown;
+  auth?: unknown;
   headers?: unknown;
   oauth_credentials?: unknown;
 };
@@ -124,14 +125,14 @@ export async function substituteRedactedMcpCredentials(
 ): Promise<MCPServerConfig> {
   const redactedStdioEnv =
     server.type === "stdio" && hasRedactedValue(server.env);
-  const redactedRemoteApiKey =
+  const redactedRemoteAuth =
     (server.type === "sse" || server.type === "shttp") &&
-    server.api_key === REDACTED_MCP_SECRET_VALUE;
+    server.auth === REDACTED_MCP_SECRET_VALUE;
   const redactedOAuthCredentials =
     (server.type === "sse" || server.type === "shttp") &&
     hasRedactedStringLeaf(server.oauth_credentials);
 
-  if (!redactedStdioEnv && !redactedRemoteApiKey && !redactedOAuthCredentials) {
+  if (!redactedStdioEnv && !redactedRemoteAuth && !redactedOAuthCredentials) {
     return server;
   }
 
@@ -164,10 +165,14 @@ export async function substituteRedactedMcpCredentials(
       };
     }
 
-    if (!redactedRemoteApiKey) return nextServer;
+    if (!redactedRemoteAuth) return nextServer;
+    if (typeof stored.auth === "string") {
+      return { ...nextServer, auth: stored.auth };
+    }
     const headers = stringRecord(stored.headers);
-    if (!headers) return nextServer;
-    return { ...nextServer, api_key: undefined, headers };
+    const authorization = headers?.Authorization ?? headers?.authorization;
+    if (typeof authorization !== "string") return nextServer;
+    return { ...nextServer, auth: authorization.replace(/^Bearer\s+/i, "") };
   } catch {
     return server;
   }

@@ -199,12 +199,10 @@ describe("toSdkMcpConfig", () => {
     ).toBeNull();
   });
 
-  it("serializes remote API keys as authorization headers for SDK/ACP forwarding", () => {
+  it("serializes remote API keys through the FastMCP auth field", () => {
     const config: MCPConfig = {
-      sse_servers: [{ url: "https://sse.example", api_key: "sse-secret" }],
-      shttp_servers: [
-        { url: "https://shttp.example", api_key: "shttp-secret" },
-      ],
+      sse_servers: [{ url: "https://sse.example", auth: "sse-secret" }],
+      shttp_servers: [{ url: "https://shttp.example", auth: "shttp-secret" }],
       stdio_servers: [],
     };
 
@@ -215,17 +213,17 @@ describe("toSdkMcpConfig", () => {
         sse: {
           url: "https://sse.example",
           transport: "sse",
-          headers: { Authorization: "Bearer sse-secret" },
+          auth: "sse-secret",
         },
         shttp: {
           url: "https://shttp.example",
-          headers: { Authorization: "Bearer shttp-secret" },
+          auth: "shttp-secret",
         },
       },
     });
   });
 
-  it("round-trips persisted authorization headers back to frontend api_key fields", () => {
+  it("migrates persisted authorization headers to frontend auth fields", () => {
     const persisted = {
       mcpServers: {
         shttp: {
@@ -238,8 +236,34 @@ describe("toSdkMcpConfig", () => {
     const parsed = parseMcpConfig(persisted);
 
     expect(parsed.shttp_servers).toEqual([
-      { url: "https://shttp.example", api_key: "shttp-secret" },
+      { url: "https://shttp.example", auth: "shttp-secret" },
     ]);
+  });
+
+  it("migrates persisted api_key fields to frontend auth fields", () => {
+    const persisted = {
+      mcpServers: {
+        shttp: {
+          url: "https://shttp.example",
+          api_key: "shttp-secret",
+        },
+      },
+    };
+
+    const parsed = parseMcpConfig(persisted);
+    const written = toSdkMcpConfig(parsed);
+
+    expect(parsed.shttp_servers).toEqual([
+      { url: "https://shttp.example", auth: "shttp-secret" },
+    ]);
+    expect(written).toEqual({
+      mcpServers: {
+        shttp: {
+          url: "https://shttp.example",
+          auth: "shttp-secret",
+        },
+      },
+    });
   });
 
   it("keeps names stable across a parse → write round trip", () => {
@@ -310,7 +334,7 @@ describe("parseMcpConfig — deprecated Linear SSE migration", () => {
     ]);
   });
 
-  it("preserves the api key and tolerates a trailing slash when migrating", () => {
+  it("preserves auth and tolerates a trailing slash when migrating", () => {
     // Arrange
     const persisted = {
       mcpServers: {
@@ -327,7 +351,7 @@ describe("parseMcpConfig — deprecated Linear SSE migration", () => {
 
     // Assert
     expect(parsed.shttp_servers).toEqual([
-      { url: "https://mcp.linear.app/mcp", api_key: "lin_api_secret" },
+      { url: "https://mcp.linear.app/mcp", auth: "lin_api_secret" },
     ]);
   });
 
@@ -362,7 +386,7 @@ describe("parseMcpConfig — deprecated Linear SSE migration", () => {
 
     // Assert
     expect(parsed.shttp_servers).toEqual([
-      { url: "https://mcp.linear.app/mcp", api_key: "manual_key" },
+      { url: "https://mcp.linear.app/mcp", auth: "manual_key" },
     ]);
   });
 
@@ -385,7 +409,7 @@ describe("parseMcpConfig — deprecated Linear SSE migration", () => {
     });
   });
 
-  it("persists migrated legacy Linear credentials as authorization headers", () => {
+  it("persists migrated legacy Linear credentials as auth", () => {
     const persisted = {
       mcpServers: {
         sse: {
@@ -402,7 +426,7 @@ describe("parseMcpConfig — deprecated Linear SSE migration", () => {
       mcpServers: {
         shttp: {
           url: "https://mcp.linear.app/mcp",
-          headers: { Authorization: "Bearer lin_api_secret" },
+          auth: "lin_api_secret",
         },
       },
     });

@@ -19,10 +19,9 @@ export type ProviderToken = {
 export type MCPSSEServer = {
   name?: string;
   url: string;
-  api_key?: string;
   headers?: Record<string, string>;
-  /** Set to "oauth" for servers that handle OAuth themselves (fastmcp). */
-  auth?: "oauth";
+  /** FastMCP auth: bearer token string, or "oauth" for MCP-server OAuth. */
+  auth?: string;
   /** Explicit OAuth client metadata used with `auth: "oauth"`. */
   authentication?: MCPAuthenticationConfig;
   /** Opaque OAuth token/client-info subtree returned by the agent-server. */
@@ -39,11 +38,10 @@ export type MCPStdioServer = {
 export type MCPSHTTPServer = {
   name?: string;
   url: string;
-  api_key?: string;
   headers?: Record<string, string>;
   timeout?: number;
-  /** Set to "oauth" for servers that handle OAuth themselves (fastmcp). */
-  auth?: "oauth";
+  /** FastMCP auth: bearer token string, or "oauth" for MCP-server OAuth. */
+  auth?: string;
   /** Explicit OAuth client metadata used with `auth: "oauth"`. */
   authentication?: MCPAuthenticationConfig;
   /** Opaque OAuth token/client-info subtree returned by the agent-server. */

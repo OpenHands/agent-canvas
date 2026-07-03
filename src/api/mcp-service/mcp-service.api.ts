@@ -31,7 +31,6 @@ function toMcpServerSpec(server: MCPServerConfig): MCPServerSpec {
     url: server.url!,
     ...(server.headers &&
       Object.keys(server.headers).length > 0 && { headers: server.headers }),
-    ...(server.api_key ? { api_key: server.api_key } : {}),
     ...(server.auth ? { auth: server.auth } : {}),
     ...(server.authentication ? { authentication: server.authentication } : {}),
     ...(server.oauth_credentials
@@ -57,7 +56,7 @@ function serverSpecToConfig(
   return {
     ...original,
     ...(typeof spec.url === "string" ? { url: spec.url } : {}),
-    ...(spec.auth === "oauth" ? { auth: "oauth" as const } : {}),
+    ...(typeof spec.auth === "string" ? { auth: spec.auth } : {}),
     ...(isAuthenticationConfig(spec.authentication)
       ? { authentication: spec.authentication }
       : {}),
