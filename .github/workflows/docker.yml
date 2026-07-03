@@ -31,6 +31,7 @@ concurrency:
 permissions:
   contents: read
   packages: write
+  pull-requests: read
 
 env:
   IMAGE: ${{ inputs.image != '' && inputs.image || 'ghcr.io/openhands/agent-canvas' }}
@@ -96,10 +97,30 @@ jobs:
           echo "default_automation_version=$AUTOMATION_VERSION" >> "$GITHUB_OUTPUT"
           echo "agent_canvas_version=$AGENT_CANVAS_VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve linked SDK PR image
+        id: linked_sdk
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          BODY=$(gh api "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" --jq '.body // ""')
+          SDK_PR=$(printf '%s\n' "$BODY" | grep -Eo 'OpenHands/software-agent-sdk/pull/[0-9]+' | head -n1 | grep -Eo '[0-9]+$' || true)
+          if [ -z "$SDK_PR" ]; then
+            echo "No linked software-agent-sdk PR found in PR description."
+            exit 0
+          fi
+
+          SDK_REF=$(gh api "/repos/OpenHands/software-agent-sdk/pulls/${SDK_PR}" --jq '.head.ref')
+          IMAGE_REF=$(printf '%s' "$SDK_REF" | sed -E 's/[^A-Za-z0-9_.-]+/-/g')
+          AGENT_SERVER_IMAGE="ghcr.io/openhands/agent-server:${IMAGE_REF}-python"
+          echo "Using software-agent-sdk PR #${SDK_PR} image: ${AGENT_SERVER_IMAGE}"
+          echo "image=${AGENT_SERVER_IMAGE}" >> "$GITHUB_OUTPUT"
+
       - name: Compute metadata and tags
         id: prep
         env:
           AGENT_SERVER_IMAGE_INPUT: ${{ inputs.agent_server_image }}
+          LINKED_AGENT_SERVER_IMAGE: ${{ steps.linked_sdk.outputs.image }}
           DEFAULT_AGENT_SERVER_IMAGE: ${{ steps.config.outputs.default_agent_server_image }}
           AUTOMATION_VERSION_INPUT: ${{ inputs.automation_version }}
           DEFAULT_AUTOMATION_VERSION: ${{ steps.config.outputs.default_automation_version }}
@@ -112,6 +133,8 @@ jobs:
           # Resolve agent-server base image (input override > config/defaults.json)
           if [ -n "$AGENT_SERVER_IMAGE_INPUT" ]; then
             echo "agent_server_image=$AGENT_SERVER_IMAGE_INPUT" >> "$GITHUB_OUTPUT"
+          elif [ -n "$LINKED_AGENT_SERVER_IMAGE" ]; then
+            echo "agent_server_image=$LINKED_AGENT_SERVER_IMAGE" >> "$GITHUB_OUTPUT"
           else
             echo "agent_server_image=$DEFAULT_AGENT_SERVER_IMAGE" >> "$GITHUB_OUTPUT"
           fi

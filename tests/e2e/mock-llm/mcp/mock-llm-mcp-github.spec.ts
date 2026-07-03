@@ -161,9 +161,7 @@ test.describe("MCP GitHub server install flow", () => {
     expect(mcpServers).toBeTruthy();
     expect(mcpServers?.github).toMatchObject({
       url: GITHUB_HOSTED_MCP_URL,
-      headers: {
-        Authorization: "<redacted>",
-      },
+      auth: { strategy: "bearer", value: "<redacted>" },
     });
   });
 
@@ -182,9 +180,7 @@ test.describe("MCP GitHub server install flow", () => {
               mcpServers: {
                 github: {
                   url: GITHUB_HOSTED_MCP_URL,
-                  headers: {
-                    Authorization: `Bearer ${FAKE_PAT}`,
-                  },
+                  auth: { strategy: "bearer", value: FAKE_PAT },
                 },
               },
             },
