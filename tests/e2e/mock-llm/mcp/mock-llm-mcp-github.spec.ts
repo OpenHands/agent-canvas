@@ -9,13 +9,13 @@
  *
  * Verifies:
  *   1. The MCP page renders with the GitHub marketplace card visible
- *   2. Clicking the card opens the install modal with the hosted endpoint
+ *   2. Clicking the add control opens the install modal with the hosted endpoint
  *   3. Filling in the PAT and submitting succeeds (with mocked test endpoint)
  *   4. After install the GitHub server appears in the installed list
  *   5. The installed server can be deleted via the UI
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import {
   BACKEND_URL,
   SESSION_API_KEY,
@@ -30,6 +30,17 @@ const FAKE_PAT = "github_pat_test_1234567890abcdef";
 const GITHUB_HOSTED_MCP_URL = "https://api.githubcopilot.com/mcp/";
 
 test.describe.configure({ mode: "serial" });
+
+async function openGitHubInstallModal(page: Page) {
+  const modal = page.getByTestId("mcp-install-modal");
+
+  await expect(async () => {
+    await page.getByTestId("mcp-marketplace-toggle-github").click();
+    await expect(modal).toBeVisible({ timeout: 1_500 });
+  }).toPass({ timeout: 10_000 });
+
+  return modal;
+}
 
 test.describe("MCP GitHub server install flow", () => {
   test.beforeEach(async ({ page }) => {
@@ -69,7 +80,7 @@ test.describe("MCP GitHub server install flow", () => {
     await expect(githubCard).toContainText("GitHub");
   });
 
-  test("step 2: clicking GitHub card opens the install modal with correct fields", async ({
+  test("step 2: clicking GitHub add control opens the install modal with correct fields", async ({
     page,
   }) => {
     await routeSessionApiKey(page);
@@ -77,12 +88,7 @@ test.describe("MCP GitHub server install flow", () => {
     await dismissAnalyticsModal(page);
     await waitForTestId(page, "mcp-marketplace-grid");
 
-    // Click the GitHub marketplace card
-    await page.getByTestId("mcp-marketplace-card-github").click();
-
-    // The install modal should appear
-    const modal = page.getByTestId("mcp-install-modal");
-    await expect(modal).toBeVisible({ timeout: 5_000 });
+    const modal = await openGitHubInstallModal(page);
 
     // Verify the modal is for the GitHub entry
     await expect(modal).toHaveAttribute("data-marketplace-id", "github");
@@ -120,10 +126,7 @@ test.describe("MCP GitHub server install flow", () => {
     await dismissAnalyticsModal(page);
     await waitForTestId(page, "mcp-marketplace-grid");
 
-    // Click the GitHub card to open the install modal
-    await page.getByTestId("mcp-marketplace-card-github").click();
-    const modal = page.getByTestId("mcp-install-modal");
-    await expect(modal).toBeVisible({ timeout: 5_000 });
+    const modal = await openGitHubInstallModal(page);
 
     // Fill in the PAT — SettingsInput puts data-testid on the <input> directly
     const patInput = page.getByTestId("mcp-install-field-api_key");
@@ -161,7 +164,7 @@ test.describe("MCP GitHub server install flow", () => {
     expect(mcpServers).toBeTruthy();
     expect(mcpServers?.github).toMatchObject({
       url: GITHUB_HOSTED_MCP_URL,
-      auth: { strategy: "bearer", value: "<redacted>" },
+      auth: { strategy: "api_key", value: "<redacted>" },
     });
   });
 
@@ -180,7 +183,7 @@ test.describe("MCP GitHub server install flow", () => {
               mcpServers: {
                 github: {
                   url: GITHUB_HOSTED_MCP_URL,
-                  auth: { strategy: "bearer", value: FAKE_PAT },
+                  auth: { strategy: "api_key", value: FAKE_PAT },
                 },
               },
             },
@@ -201,13 +204,11 @@ test.describe("MCP GitHub server install flow", () => {
     const serverItem = installedList.getByTestId("mcp-server-item").first();
     await expect(serverItem).toBeVisible();
 
-    // The installed card has a CirclePlusCheckToggle — clicking it while
-    // isSelected=true triggers onDelete. Find and click the toggle button
-    // inside the server card (it shows a checkmark icon).
-    const toggleButton = serverItem.locator(
-      '[data-testid^="mcp-installed-toggle-"]',
-    );
-    await toggleButton.click();
+    await serverItem.click();
+    await expect(page.getByTestId("mcp-custom-editor")).toBeVisible({
+      timeout: 5_000,
+    });
+    await page.getByTestId("mcp-custom-editor-delete").click();
 
     // A confirmation modal should appear — click confirm
     const confirmButton = page.getByTestId("confirm-button");
