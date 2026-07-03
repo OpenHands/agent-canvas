@@ -14,6 +14,7 @@ import { SettingsInput } from "#/components/features/settings/settings-input";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useNavigation } from "#/context/navigation-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
+import { useTracking } from "#/hooks/use-tracking";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { getLockedCloudHost } from "#/api/agent-server-config";
 import {
@@ -40,6 +41,8 @@ interface BackendFormModalProps {
   /** Required when `mode === "edit"`. */
   backend?: Backend;
   onClose: () => void;
+  /** Analytics surface for the `backend_added` event (add mode only). */
+  source?: BackendAddedSource;
 }
 
 function inferKindFromHost(host: string): BackendKind {
@@ -124,6 +127,10 @@ function isValidHostUrl(host: string): boolean {
 }
 
 const DEFAULT_OPENHANDS_CLOUD_HOST = "https://app.all-hands.dev";
+
+export type BackendConnectionMethod = "manual" | "cloud_login";
+
+export type BackendAddedSource = "add_backend_modal" | "manage_backends_modal";
 
 function getConnectionTestFailedTitle(
   t: ReturnType<typeof useTranslation>["t"],
@@ -663,7 +670,10 @@ function useRedirectAfterAddBackend() {
 }
 
 interface BackendConnectionOptionsProps {
-  onConnected: (payload: BackendFormSubmitPayload) => void;
+  onConnected: (
+    payload: BackendFormSubmitPayload,
+    connectionMethod: BackendConnectionMethod,
+  ) => void;
   testIdRoot?: string;
   initialManualBackend?: Partial<
     Pick<BackendFormSubmitPayload, "name" | "host" | "apiKey">
@@ -736,7 +746,10 @@ export function BackendConnectionOptions({
 }
 
 interface ManualConnectionColumnProps {
-  onConnected: (payload: BackendFormSubmitPayload) => void;
+  onConnected: (
+    payload: BackendFormSubmitPayload,
+    connectionMethod: BackendConnectionMethod,
+  ) => void;
   testIdRoot: string;
   initialBackend?: Partial<
     Pick<BackendFormSubmitPayload, "name" | "host" | "apiKey">
@@ -781,12 +794,15 @@ function ManualConnectionColumn({
     initialApiKey: initialBackend?.apiKey ?? "",
     onTestConnection: testBackendConnection,
     onSuccess: () => {
-      onConnected({
-        name: name.trim(),
-        host: normalizeHost(host),
-        apiKey: apiKey.trim(),
-        kind,
-      });
+      onConnected(
+        {
+          name: name.trim(),
+          host: normalizeHost(host),
+          apiKey: apiKey.trim(),
+          kind,
+        },
+        "manual",
+      );
     },
     requireApiKey,
   });
@@ -879,7 +895,10 @@ function ManualConnectionColumn({
 }
 
 interface CloudLoginColumnProps {
-  onConnected: (payload: BackendFormSubmitPayload) => void;
+  onConnected: (
+    payload: BackendFormSubmitPayload,
+    connectionMethod: BackendConnectionMethod,
+  ) => void;
   testIdRoot: string;
   lockedHost?: string;
 }
@@ -903,12 +922,15 @@ function CloudLoginColumn({
     lockedHost ?? (customHost.trim() || DEFAULT_OPENHANDS_CLOUD_HOST);
 
   const handleLoginSuccess = (apiKey: string) => {
-    onConnected({
-      name: "OpenHands Cloud",
-      host: normalizeHost(effectiveHost),
-      apiKey,
-      kind: "cloud",
-    });
+    onConnected(
+      {
+        name: "OpenHands Cloud",
+        host: normalizeHost(effectiveHost),
+        apiKey,
+        kind: "cloud",
+      },
+      "cloud_login",
+    );
   };
 
   return (
@@ -979,17 +1001,37 @@ function CloudLoginColumn({
   );
 }
 
-function AddBackendConnectionOptions({ onClose }: { onClose: () => void }) {
+function AddBackendConnectionOptions({
+  onClose,
+  source,
+}: {
+  onClose: () => void;
+  source: BackendAddedSource;
+}) {
   const { addBackend } = useActiveBackendContext();
   const redirectAfterAdd = useRedirectAfterAddBackend();
+  const { trackBackendAdded } = useTracking();
 
   const handleConnected = React.useCallback(
-    (payload: BackendFormSubmitPayload) => {
+    (
+      payload: BackendFormSubmitPayload,
+      connectionMethod: BackendConnectionMethod,
+    ) => {
       addBackend(payload);
+      // Coarse, non-sensitive host classification — never emit the raw host.
+      const isOpenHandsCloud = payload.host === DEFAULT_OPENHANDS_CLOUD_HOST;
+      trackBackendAdded({
+        backendKind: payload.kind,
+        connectionMethod,
+        isOpenhandsCloud: isOpenHandsCloud,
+        isCustomHost: !isOpenHandsCloud,
+        hasApiKey: Boolean(payload.apiKey),
+        source,
+      });
       redirectAfterAdd();
       onClose();
     },
-    [addBackend, redirectAfterAdd, onClose],
+    [addBackend, redirectAfterAdd, onClose, trackBackendAdded, source],
   );
 
   return <BackendConnectionOptions onConnected={handleConnected} />;
@@ -1006,6 +1048,7 @@ export function BackendFormModal({
   mode,
   backend,
   onClose,
+  source = "add_backend_modal",
 }: BackendFormModalProps) {
   const { t } = useTranslation("openhands");
 
@@ -1033,7 +1076,7 @@ export function BackendFormModal({
           </div>
 
           <div className="px-6 pb-6 pt-2">
-            <AddBackendConnectionOptions onClose={onClose} />
+            <AddBackendConnectionOptions onClose={onClose} source={source} />
           </div>
         </div>
       </ModalBackdrop>

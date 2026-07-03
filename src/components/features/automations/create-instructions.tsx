@@ -6,6 +6,8 @@ import MessageSquareShareIcon from "#/icons/message-square-share.svg?react";
 import { cn } from "#/utils/utils";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { useLaunchSkillInChat } from "#/hooks/use-launch-skill-in-chat";
+import { useActiveBackend } from "#/contexts/active-backend-context";
+import { useTracking } from "#/hooks/use-tracking";
 
 const DOCS_URL =
   "https://docs.openhands.dev/openhands/usage/automations/overview";
@@ -52,8 +54,11 @@ export function CreateInstructionsContent({
 }: CreateInstructionsContentProps = {}) {
   const { t } = useTranslation("openhands");
   const launchInChat = useLaunchSkillInChat();
+  const active = useActiveBackend();
+  const { trackAutomationCreated } = useTracking();
 
   const handleCreateAutomation = () => {
+    trackAutomationCreated({ backendKind: active.backend.kind });
     launchInChat(t(I18nKey.AUTOMATIONS$CREATE_AUTOMATION_PROMPT), onLaunch);
   };
 
