@@ -244,6 +244,9 @@ export function MCPServerForm({
         ...(server?.authentication && {
           authentication: server.authentication,
         }),
+        ...(server?.oauth_credentials && {
+          oauth_credentials: server.oauth_credentials,
+        }),
       };
 
       // Only add timeout for SHTTP servers

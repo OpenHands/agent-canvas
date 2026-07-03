@@ -139,6 +139,47 @@ describe("MCPServerForm validation", () => {
     expect(onSubmit.mock.calls[0][0].name).toBeUndefined();
   });
 
+  it("preserves OAuth credentials when editing a remote OAuth server", () => {
+    const onSubmit = vi.fn();
+    const oauthCredentials = {
+      "mcp-oauth-token": {
+        "https://mcp.mail.superhuman.com/mcp/tokens": {
+          value: {
+            access_token: "<redacted>",
+            token_type: "<redacted>",
+          },
+        },
+      },
+    };
+
+    render(
+      <MCPServerForm
+        mode="edit"
+        server={{
+          id: "shttp-0",
+          type: "shttp",
+          name: "superhuman-mail",
+          url: "https://mcp.mail.superhuman.com/mcp",
+          auth: "oauth",
+          authentication: { type: "oauth", client_auth_method: "none" },
+          oauth_credentials: oauthCredentials,
+        }}
+        existingServers={[]}
+        onSubmit={onSubmit}
+        onCancel={noop}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("submit-button"));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      auth: "oauth",
+      authentication: { type: "oauth", client_auth_method: "none" },
+      oauth_credentials: oauthCredentials,
+    });
+  });
+
   it("rejects duplicate URLs across sse/shttp types", () => {
     const onSubmit = vi.fn();
 

@@ -1,5 +1,6 @@
 import SettingsService from "#/api/settings-service/settings-service.api";
 import type { MCPServerConfig } from "#/types/mcp-server";
+import type { SettingsValue } from "#/types/settings";
 import { REDACTED_MCP_SECRET_VALUE } from "#/utils/mcp-config";
 
 type StoredMcpServer = {
@@ -7,6 +8,7 @@ type StoredMcpServer = {
   transport?: unknown;
   env?: unknown;
   headers?: unknown;
+  oauth_credentials?: unknown;
 };
 
 type StoredMcpServers = Record<string, StoredMcpServer>;
@@ -25,6 +27,13 @@ const stringRecord = (value: unknown): Record<string, string> | undefined => {
 const hasRedactedValue = (values: Record<string, string> | undefined) =>
   !!values &&
   Object.values(values).some((value) => value === REDACTED_MCP_SECRET_VALUE);
+
+const hasRedactedStringLeaf = (value: unknown): boolean => {
+  if (value === REDACTED_MCP_SECRET_VALUE) return true;
+  if (Array.isArray(value)) return value.some(hasRedactedStringLeaf);
+  if (isRecord(value)) return Object.values(value).some(hasRedactedStringLeaf);
+  return false;
+};
 
 const remoteTransportMatches = (
   type: MCPServerConfig["type"],
@@ -107,8 +116,8 @@ async function fetchEncryptedStoredServer(
 /**
  * The MCP editor sees redacted settings (`<redacted>`). When the user leaves
  * a secret unchanged, replace that placeholder with the stored encrypted
- * env/header value so tests and saves round-trip the real credential without
- * exposing plaintext in the browser.
+ * env/header/OAuth credential value so tests and saves round-trip the real
+ * credential without exposing plaintext in the browser.
  */
 export async function substituteRedactedMcpCredentials(
   server: MCPServerConfig,
@@ -118,8 +127,13 @@ export async function substituteRedactedMcpCredentials(
   const redactedRemoteApiKey =
     (server.type === "sse" || server.type === "shttp") &&
     server.api_key === REDACTED_MCP_SECRET_VALUE;
+  const redactedOAuthCredentials =
+    (server.type === "sse" || server.type === "shttp") &&
+    hasRedactedStringLeaf(server.oauth_credentials);
 
-  if (!redactedStdioEnv && !redactedRemoteApiKey) return server;
+  if (!redactedStdioEnv && !redactedRemoteApiKey && !redactedOAuthCredentials) {
+    return server;
+  }
 
   try {
     const stored = await fetchEncryptedStoredServer(server);
@@ -139,9 +153,21 @@ export async function substituteRedactedMcpCredentials(
       return { ...server, env };
     }
 
+    let nextServer = server;
+    if (redactedOAuthCredentials && isRecord(stored.oauth_credentials)) {
+      nextServer = {
+        ...nextServer,
+        oauth_credentials: stored.oauth_credentials as Record<
+          string,
+          SettingsValue
+        >,
+      };
+    }
+
+    if (!redactedRemoteApiKey) return nextServer;
     const headers = stringRecord(stored.headers);
-    if (!headers) return server;
-    return { ...server, api_key: undefined, headers };
+    if (!headers) return nextServer;
+    return { ...nextServer, api_key: undefined, headers };
   } catch {
     return server;
   }

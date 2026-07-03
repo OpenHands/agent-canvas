@@ -125,4 +125,58 @@ describe("substituteRedactedMcpCredentials", () => {
 
     expect(result.env).toEqual({ API_KEY: REDACTED_MCP_SECRET_VALUE });
   });
+
+  it("replaces redacted OAuth credentials with the encrypted stored subtree", async () => {
+    vi.spyOn(SettingsService, "fetchSettingsFromApi").mockResolvedValue({
+      agent_settings: {
+        mcp_config: {
+          mcpServers: {
+            "superhuman-mail": {
+              url: "https://mcp.mail.superhuman.com/mcp",
+              auth: "oauth",
+              oauth_credentials: {
+                "mcp-oauth-token": {
+                  "https://mcp.mail.superhuman.com/mcp/tokens": {
+                    value: {
+                      access_token: "gAAAAA-encrypted-access-token",
+                      token_type: "gAAAAA-encrypted-token-type",
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    } as unknown as SettingsApiResponse);
+
+    const result = await substituteRedactedMcpCredentials({
+      id: "shttp-0",
+      type: "shttp",
+      name: "superhuman-mail",
+      url: "https://mcp.mail.superhuman.com/mcp",
+      auth: "oauth",
+      oauth_credentials: {
+        "mcp-oauth-token": {
+          "https://mcp.mail.superhuman.com/mcp/tokens": {
+            value: {
+              access_token: REDACTED_MCP_SECRET_VALUE,
+              token_type: REDACTED_MCP_SECRET_VALUE,
+            },
+          },
+        },
+      },
+    });
+
+    expect(result.oauth_credentials).toEqual({
+      "mcp-oauth-token": {
+        "https://mcp.mail.superhuman.com/mcp/tokens": {
+          value: {
+            access_token: "gAAAAA-encrypted-access-token",
+            token_type: "gAAAAA-encrypted-token-type",
+          },
+        },
+      },
+    });
+  });
 });

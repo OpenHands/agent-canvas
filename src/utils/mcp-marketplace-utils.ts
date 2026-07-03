@@ -42,11 +42,25 @@ export function getDefaultMcpConnectionOption(
   return getMcpConnectionOptions(entry)[0];
 }
 
-function isLocallyInstallableMcpOption(): boolean {
-  // OAuth options are now locally installable: the agent server forwards
-  // ``auth: "oauth"`` to fastmcp, which performs the OAuth flow with the
-  // MCP server (RFC 9728 + PKCE). No client credentials are required.
-  return true;
+function isLocallyInstallableMcpOption(
+  option: McpMarketplaceConnectionOption,
+): boolean {
+  if (option.auth.strategy !== "oauth2") return true;
+
+  const oauth = option.auth.oauth;
+  if (!oauth) return false;
+
+  // Local agent-server installs only support OAuth flows initiated by the MCP
+  // server itself through fastmcp. Catalog entries that specify provider OAuth
+  // endpoints still need the hosted integration-auth flow and should not be
+  // exposed as locally installable static MCP configs.
+  return (
+    !oauth.authorizationUrl &&
+    !oauth.tokenUrl &&
+    !oauth.registrationUrl &&
+    !oauth.additionalAuthorizationParams &&
+    !oauth.additionalTokenParams
+  );
 }
 
 export function getInstallableMcpConnectionOption(
