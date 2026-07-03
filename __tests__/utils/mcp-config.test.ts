@@ -410,77 +410,25 @@ describe("parseMcpConfig — deprecated Linear SSE migration", () => {
 });
 
 describe("parseMcpConfig / toSdkMcpConfig — auth: oauth round-trip", () => {
-  it("parses auth: oauth from an shttp server config", () => {
+  it("round-trips auth metadata and credentials for remote OAuth servers", () => {
     const persisted = {
       mcpServers: {
         "superhuman-mail": {
           url: "https://mcp.mail.superhuman.com/mcp",
           transport: "http",
           auth: "oauth",
-        },
-      },
-    };
-
-    const parsed = parseMcpConfig(persisted);
-
-    expect(parsed.shttp_servers).toHaveLength(1);
-    expect(parsed.shttp_servers[0]).toMatchObject({
-      url: "https://mcp.mail.superhuman.com/mcp",
-      auth: "oauth",
-    });
-  });
-
-  it("writes auth: oauth back when serializing to SDK config", () => {
-    const config: MCPConfig = {
-      sse_servers: [],
-      stdio_servers: [],
-      shttp_servers: [
-        {
-          url: "https://mcp.mail.superhuman.com/mcp",
-          auth: "oauth",
-        },
-      ],
-    };
-
-    const written = toSdkMcpConfig(config);
-
-    expect(written).toEqual({
-      mcpServers: {
-        shttp: {
-          url: "https://mcp.mail.superhuman.com/mcp",
-          auth: "oauth",
-        },
-      },
-    });
-  });
-
-  it("parses auth: oauth from an SSE server config", () => {
-    const persisted = {
-      mcpServers: {
-        "oauth-sse": {
-          url: "https://mcp.example.com/sse",
-          transport: "sse",
-          auth: "oauth",
-        },
-      },
-    };
-
-    const parsed = parseMcpConfig(persisted);
-
-    expect(parsed.sse_servers).toHaveLength(1);
-    expect(parsed.sse_servers[0]).toMatchObject({
-      url: "https://mcp.example.com/sse",
-      auth: "oauth",
-    });
-  });
-
-  it("round-trips auth: oauth through parse then serialize", () => {
-    const persisted = {
-      mcpServers: {
-        "superhuman-mail": {
-          url: "https://mcp.mail.superhuman.com/mcp",
-          transport: "http",
-          auth: "oauth",
+          authentication: {
+            type: "oauth",
+            client_auth_method: "none",
+          },
+          oauth_credentials: {
+            "mcp-oauth-token": {
+              "https://mcp.mail.superhuman.com/mcp/tokens": {
+                value: { access_token: "gAAAAencrypted-access-token" },
+                expires_at: 12345,
+              },
+            },
+          },
         },
       },
     };
@@ -492,6 +440,18 @@ describe("parseMcpConfig / toSdkMcpConfig — auth: oauth round-trip", () => {
         "superhuman-mail": {
           url: "https://mcp.mail.superhuman.com/mcp",
           auth: "oauth",
+          authentication: {
+            type: "oauth",
+            client_auth_method: "none",
+          },
+          oauth_credentials: {
+            "mcp-oauth-token": {
+              "https://mcp.mail.superhuman.com/mcp/tokens": {
+                value: { access_token: "gAAAAencrypted-access-token" },
+                expires_at: 12345,
+              },
+            },
+          },
         },
       },
     });

@@ -10,6 +10,11 @@ export function flattenMcpConfig(config: MCPConfig): MCPServerConfig[] {
       url: typeof server === "string" ? server : server.url,
       api_key: typeof server === "object" ? server.api_key : undefined,
       headers: typeof server === "object" ? server.headers : undefined,
+      auth: typeof server === "object" ? server.auth : undefined,
+      authentication:
+        typeof server === "object" ? server.authentication : undefined,
+      oauth_credentials:
+        typeof server === "object" ? server.oauth_credentials : undefined,
     })),
     ...config.stdio_servers.map((server, index) => ({
       id: `stdio-${index}`,
@@ -27,6 +32,11 @@ export function flattenMcpConfig(config: MCPConfig): MCPServerConfig[] {
       api_key: typeof server === "object" ? server.api_key : undefined,
       headers: typeof server === "object" ? server.headers : undefined,
       timeout: typeof server === "object" ? server.timeout : undefined,
+      auth: typeof server === "object" ? server.auth : undefined,
+      authentication:
+        typeof server === "object" ? server.authentication : undefined,
+      oauth_credentials:
+        typeof server === "object" ? server.oauth_credentials : undefined,
     })),
   ];
 }

@@ -101,11 +101,6 @@ class McpService {
     const { host, apiKey } = getAgentServerClientOptions();
     const client = new MCPClient({ host, ...(apiKey ? { apiKey } : {}) });
     try {
-      // `tool_call` / `tool_result` aren't in the published client types
-      // yet; the client POSTs the request object and returns the response
-      // body as-is, so the extra fields round-trip at runtime. Old agent
-      // servers ignore `tool_call` and return no `tool_result`, in which
-      // case the response passes through uninterpreted (legacy behavior).
       const timeout = getMcpTestTimeout(server);
       const request = {
         server: serverSpec,

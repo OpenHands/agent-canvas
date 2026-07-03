@@ -9,6 +9,7 @@ import type {
   MCPAuthenticationConfig,
   MCPAuthenticationMetadataValue,
 } from "#/types/mcp-auth";
+import type { MCPServerConfig } from "#/types/mcp-server";
 
 const EMPTY_MCP_CONFIG: MCPConfig = {
   sse_servers: [],
@@ -107,6 +108,40 @@ function getRemoteCredentialFields(entry: {
     return { headers: entry.headers };
   }
   return {};
+}
+
+function getRemoteServerFields(server: MCPServerConfig) {
+  return {
+    ...(server.name && { name: server.name }),
+    url: server.url!,
+    ...(server.api_key && { api_key: server.api_key }),
+    ...(server.headers && { headers: server.headers }),
+    ...(server.auth && { auth: server.auth }),
+    ...(server.authentication && { authentication: server.authentication }),
+    ...(server.oauth_credentials && {
+      oauth_credentials: server.oauth_credentials,
+    }),
+  };
+}
+
+export function toMcpSseServer(server: MCPServerConfig): MCPSSEServer {
+  return getRemoteServerFields(server);
+}
+
+export function toMcpShttpServer(server: MCPServerConfig): MCPSHTTPServer {
+  return {
+    ...getRemoteServerFields(server),
+    ...(server.timeout !== undefined && { timeout: server.timeout }),
+  };
+}
+
+export function toMcpStdioServer(server: MCPServerConfig): MCPStdioServer {
+  return {
+    name: server.name!,
+    command: server.command!,
+    ...(server.args && { args: server.args }),
+    ...(server.env && { env: server.env }),
+  };
 }
 
 function getAuthenticationConfig(
