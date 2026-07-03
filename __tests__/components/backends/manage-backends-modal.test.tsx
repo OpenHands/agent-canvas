@@ -20,6 +20,11 @@ import { BackendVersion } from "#/components/features/backends/backend-version";
 import { BackendRow } from "#/components/features/backends/backend-row";
 import { type Backend } from "#/api/backend-registry/types";
 import { CLOUD_BACKEND_LOGGED_OUT_ERROR } from "#/hooks/query/use-backends-health";
+import {
+  getCloudOrganizations,
+  getCloudOrganizationMe,
+  getCurrentCloudApiKey,
+} from "#/api/cloud/organization-service.api";
 
 const deviceFlowMocks = vi.hoisted(() => ({
   startDeviceFlow: vi.fn(),
@@ -39,10 +44,9 @@ vi.mock("@openhands/typescript-client/clients", () => ({
 }));
 
 vi.mock("#/api/cloud/organization-service.api", () => ({
-  getCurrentCloudApiKey: vi.fn().mockResolvedValue({
-    orgId: null,
-    isLegacyKey: true,
-  }),
+  getCloudOrganizations: vi.fn(),
+  getCloudOrganizationMe: vi.fn(),
+  getCurrentCloudApiKey: vi.fn(),
 }));
 
 vi.mock("#/api/device-flow-client", () => ({
@@ -56,6 +60,21 @@ vi.mock("#/api/device-flow-client", () => ({
       this.code = code;
     }
   },
+}));
+
+// Mock the services useTracking depends on (PostHog client + settings) so the
+// consent gate is open and captured events are observable. useTracking itself
+// is never mocked.
+const captureMock = vi.hoisted(() => vi.fn());
+
+vi.mock("posthog-js/react", () => ({
+  usePostHog: () => ({ capture: captureMock }),
+}));
+
+vi.mock("#/hooks/query/use-settings", () => ({
+  useSettings: () => ({
+    data: { user_consents_to_analytics: true, email: "user@example.com" },
+  }),
 }));
 
 function renderWithProviders(ui: React.ReactElement) {
@@ -79,7 +98,6 @@ function TestSeed({
   const ctx = useActiveBackendContext();
   React.useEffect(() => {
     onMount(ctx);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return children as React.ReactElement;
 }
@@ -90,6 +108,22 @@ beforeEach(() => {
   getServerInfoMock.mockResolvedValue({ version: "1.28.0" });
   getSettingsMock.mockReset();
   getSettingsMock.mockResolvedValue({});
+  vi.mocked(getCloudOrganizations).mockReset();
+  vi.mocked(getCloudOrganizations).mockResolvedValue({
+    items: [],
+    currentOrgId: null,
+  });
+  vi.mocked(getCloudOrganizationMe).mockReset();
+  vi.mocked(getCloudOrganizationMe).mockResolvedValue({
+    orgId: "",
+    userId: "",
+    role: null,
+  });
+  vi.mocked(getCurrentCloudApiKey).mockReset();
+  vi.mocked(getCurrentCloudApiKey).mockResolvedValue({
+    orgId: null,
+    isLegacyKey: true,
+  });
   deviceFlowMocks.startDeviceFlow.mockReset();
   deviceFlowMocks.startDeviceFlow.mockResolvedValue({
     device_code: "device-code",
@@ -102,6 +136,7 @@ beforeEach(() => {
   });
   deviceFlowMocks.pollForToken.mockReset();
   deviceFlowMocks.pollForToken.mockImplementation(() => new Promise(() => {}));
+  captureMock.mockClear();
   __resetActiveStoreForTests();
   __resetHealthStoreForTests();
 });
@@ -109,6 +144,9 @@ beforeEach(() => {
 afterEach(() => {
   window.localStorage.clear();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+  delete (window as unknown as Record<string, unknown>)
+    .__AGENT_CANVAS_LOCK_TO_CLOUD__;
   __resetActiveStoreForTests();
   __resetHealthStoreForTests();
 });
@@ -210,6 +248,13 @@ describe("ManageBackendsModal", () => {
   });
 
   it("opens an edit form pre-filled with the row's backend, and persists changes via updateBackend", async () => {
+    // These tests exercise edit-form behavior, not lock behavior; isolate
+    // them from a local .env that sets VITE_LOCK_TO_CLOUD and would hide the
+    // pencil button this test depends on.
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_LOCK_TO_CLOUD__;
+
     const user = userEvent.setup();
 
     let backendId = "";
@@ -260,6 +305,10 @@ describe("ManageBackendsModal", () => {
   });
 
   it("preserves kind:cloud when renaming a cloud backend on a custom domain", async () => {
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_LOCK_TO_CLOUD__;
+
     const user = userEvent.setup();
 
     let backendId = "";
@@ -309,6 +358,10 @@ describe("ManageBackendsModal", () => {
   });
 
   it("closes the edit form when the header close button is clicked", async () => {
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_LOCK_TO_CLOUD__;
+
     const user = userEvent.setup();
 
     renderWithProviders(
@@ -339,6 +392,172 @@ describe("ManageBackendsModal", () => {
       ).not.toBeInTheDocument();
     });
     expect(screen.getByTestId("manage-backends-modal")).toBeInTheDocument();
+  });
+
+  it("shows each cloud backend's connected organization so same-named backends are distinguishable", async () => {
+    // Two cloud backends share the same name and host; each API key is bound
+    // to a different org, which is the only thing that tells them apart.
+    vi.mocked(getCloudOrganizations).mockResolvedValue({
+      items: [
+        { id: "org-acme", name: "Acme Inc" },
+        { id: "org-beta", name: "Beta Co" },
+      ],
+      currentOrgId: "org-acme",
+    });
+    vi.mocked(getCurrentCloudApiKey).mockImplementation(async (backend) => ({
+      orgId: backend?.apiKey === "key-acme" ? "org-acme" : "org-beta",
+      isLegacyKey: false,
+    }));
+
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          ctx.addBackend({
+            name: "Production",
+            host: "https://app.all-hands.dev",
+            apiKey: "key-acme",
+            kind: "cloud",
+          });
+          ctx.addBackend({
+            name: "Production",
+            host: "https://app.all-hands.dev",
+            apiKey: "key-beta",
+            kind: "cloud",
+          });
+        }}
+      >
+        <ManageBackendsModal onClose={vi.fn()} />
+      </TestSeed>,
+    );
+
+    // Each otherwise-identical row now surfaces its own bound organization.
+    expect(await screen.findByText("Acme Inc")).toBeInTheDocument();
+    expect(screen.getByText("Beta Co")).toBeInTheDocument();
+  });
+
+  it("labels a cloud backend's personal workspace instead of showing its raw org name", async () => {
+    const personalOrgId = "0b93b5f2-5396-49f2-8d98-61f906184270";
+    vi.mocked(getCloudOrganizations).mockResolvedValue({
+      items: [{ id: personalOrgId, name: `user_${personalOrgId}_org` }],
+      currentOrgId: personalOrgId,
+    });
+    vi.mocked(getCurrentCloudApiKey).mockResolvedValue({
+      orgId: personalOrgId,
+      isLegacyKey: false,
+    });
+    // /me reports user_id === org_id, so the bound org is the user's personal
+    // workspace and must render the friendly label, not the backend-side name.
+    vi.mocked(getCloudOrganizationMe).mockResolvedValue({
+      orgId: personalOrgId,
+      userId: personalOrgId,
+      role: null,
+    });
+
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          ctx.addBackend({
+            name: "Production",
+            host: "https://app.all-hands.dev",
+            apiKey: "bearer-key",
+            kind: "cloud",
+          });
+        }}
+      >
+        <ManageBackendsModal onClose={vi.fn()} />
+      </TestSeed>,
+    );
+
+    expect(
+      await screen.findByText("BACKEND$PERSONAL_WORKSPACE"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(`user_${personalOrgId}_org`),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not render an organization line for a local backend", async () => {
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          ctx.addBackend({
+            name: "Acme Local",
+            host: "http://localhost:9000",
+            apiKey: "k",
+            kind: "local",
+          });
+        }}
+      >
+        <ManageBackendsModal onClose={vi.fn()} />
+      </TestSeed>,
+    );
+
+    expect(
+      await screen.findByTestId("manage-backends-row-Acme Local"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("manage-backends-org-Acme Local"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("captures backend_added with source manage_backends_modal when adding from here", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ManageBackendsModal onClose={vi.fn()} />);
+
+    await user.click(await screen.findByTestId("manage-backends-add"));
+    await screen.findByTestId("add-backend-modal");
+
+    await user.type(screen.getByTestId("add-backend-name"), "Local Extra");
+    await user.type(
+      screen.getByTestId("add-backend-host"),
+      "http://localhost:8000",
+    );
+    await user.type(screen.getByTestId("add-backend-api-key"), "sk-local");
+    await user.click(screen.getByTestId("add-backend-submit"));
+
+    await waitFor(() =>
+      expect(captureMock).toHaveBeenCalledWith(
+        "backend_added",
+        expect.objectContaining({ source: "manage_backends_modal" }),
+      ),
+    );
+  });
+
+  it("does not capture backend_added when editing an existing backend", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          ctx.addBackend({
+            name: "Acme Local",
+            host: "http://localhost:9000",
+            apiKey: "old-key",
+            kind: "local",
+          });
+        }}
+      >
+        <ManageBackendsModal onClose={vi.fn()} />
+      </TestSeed>,
+    );
+
+    await user.click(
+      await screen.findByTestId("manage-backends-edit-Acme Local"),
+    );
+    await screen.findByTestId("edit-backend-modal");
+    const hostInput = screen.getByTestId("edit-backend-host");
+    await user.clear(hostInput);
+    await user.type(hostInput, "http://localhost:9999");
+    await user.click(screen.getByTestId("edit-backend-submit"));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("edit-backend-modal"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(captureMock).not.toHaveBeenCalledWith(
+      "backend_added",
+      expect.anything(),
+    );
   });
 });
 
@@ -487,5 +706,116 @@ describe("BackendRow", () => {
     expect(deviceFlowMocks.startDeviceFlow).toHaveBeenCalledWith(
       cloudBackend.host,
     );
+  });
+
+  it("renders edit and remove buttons when the deployment is not locked to a cloud host", async () => {
+    // The repo's .env may set VITE_LOCK_TO_CLOUD; clear it explicitly so this
+    // test exercises the unlocked code path regardless of local env state.
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_LOCK_TO_CLOUD__;
+
+    const user = userEvent.setup();
+    const onEdit = vi.fn();
+    const onRemove = vi.fn();
+
+    renderInQueryClient(
+      <ul>
+        <BackendRow
+          backend={cloudBackend}
+          health={{
+            isConnected: true,
+            consecutiveFailures: 0,
+            lastError: null,
+            disabled: false,
+          }}
+          onSelect={vi.fn()}
+          onEdit={onEdit}
+          onRemove={onRemove}
+        />
+      </ul>,
+    );
+
+    const row = screen.getByTestId(`manage-backends-row-${cloudBackend.name}`);
+    const editButton = within(row).getByTestId(
+      `manage-backends-edit-${cloudBackend.name}`,
+    );
+    const removeButton = within(row).getByTestId(
+      `manage-backends-remove-${cloudBackend.name}`,
+    );
+
+    expect(editButton).toHaveAccessibleName("BACKEND$EDIT");
+    expect(removeButton).toHaveAccessibleName("BACKEND$REMOVE");
+
+    await user.click(editButton);
+    await user.click(removeButton);
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(onRemove).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides edit and remove buttons when locked to a cloud host via VITE_LOCK_TO_CLOUD", () => {
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://cloud.example.com");
+    const onEdit = vi.fn();
+    const onRemove = vi.fn();
+
+    renderInQueryClient(
+      <ul>
+        <BackendRow
+          backend={cloudBackend}
+          health={{
+            isConnected: true,
+            consecutiveFailures: 0,
+            lastError: null,
+            disabled: false,
+          }}
+          onSelect={vi.fn()}
+          onEdit={onEdit}
+          onRemove={onRemove}
+        />
+      </ul>,
+    );
+
+    const row = screen.getByTestId(`manage-backends-row-${cloudBackend.name}`);
+    expect(
+      within(row).queryByTestId(`manage-backends-edit-${cloudBackend.name}`),
+    ).not.toBeInTheDocument();
+    expect(
+      within(row).queryByTestId(`manage-backends-remove-${cloudBackend.name}`),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides edit and remove buttons when locked to a cloud host via window.__AGENT_CANVAS_LOCK_TO_CLOUD__", () => {
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_LOCK_TO_CLOUD__ = "https://cloud.example.com";
+
+    renderInQueryClient(
+      <ul>
+        <BackendRow
+          backend={cloudBackend}
+          health={{
+            isConnected: true,
+            consecutiveFailures: 0,
+            lastError: null,
+            disabled: false,
+          }}
+          onSelect={vi.fn()}
+          onEdit={vi.fn()}
+          onRemove={vi.fn()}
+        />
+      </ul>,
+    );
+
+    const row = screen.getByTestId(`manage-backends-row-${cloudBackend.name}`);
+    expect(
+      within(row).queryByTestId(`manage-backends-edit-${cloudBackend.name}`),
+    ).not.toBeInTheDocument();
+    expect(
+      within(row).queryByTestId(`manage-backends-remove-${cloudBackend.name}`),
+    ).not.toBeInTheDocument();
+    // Row identity (name + host) is still rendered so the user can see the
+    // locked backend is selected, just not mutate it.
+    expect(within(row).getByText(cloudBackend.name)).toBeInTheDocument();
+    expect(within(row).getByText(cloudBackend.host)).toBeInTheDocument();
   });
 });

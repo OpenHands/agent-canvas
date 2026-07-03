@@ -53,7 +53,6 @@ export const EXTENSIONS_NAV_ITEMS: ExtensionNavItem[] = [
       </svg>
     ),
     end: true,
-    comingSoon: true,
   },
 ];
 

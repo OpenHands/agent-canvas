@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { useUserConversation } from "./use-user-conversation";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
+import { isExecutionActive } from "#/utils/status";
 
 export const useActiveConversation = () => {
   // Optional: the chat input renders on the home page too (no conversation
@@ -15,15 +16,17 @@ export const useActiveConversation = () => {
 
   const userConversation = useUserConversation(
     actualConversationId,
-    // Poll at 3 s while the sandbox URL is absent OR while the sandbox is
-    // PAUSED. A paused sandbox still carries the old conversation_url (it isn't
-    // cleared), so checking only for a missing URL would leave us on the slow
-    // 30 s interval while the sandbox is waking up after a resume call.
+    // Fast-poll (3 s) while: the sandbox URL is absent; the sandbox is PAUSED
+    // (it keeps the stale conversation_url, so a missing-URL check alone misses
+    // the wake-up); or the agent is executing but has no title yet (the title
+    // lands asynchronously after conversation_url is already set).
     (query) => {
       const data = query.state.data;
       if (
         data &&
-        (!data.conversation_url || data.sandbox_status === "PAUSED")
+        (!data.conversation_url ||
+          data.sandbox_status === "PAUSED" ||
+          (!data.title && isExecutionActive(data.execution_status)))
       ) {
         return 3000;
       }

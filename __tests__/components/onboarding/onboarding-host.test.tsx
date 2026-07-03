@@ -1,6 +1,6 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -108,7 +108,7 @@ describe("OnboardingHost", () => {
     ).toBeInTheDocument();
   });
 
-  it("skips the modal and marks completion for a returning Cloud user with a configured LLM", async () => {
+  it("shows the modal for a fresh Cloud user even when the backend has a configured LLM", async () => {
     seedCloudBackend();
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
       ...DEFAULT_SETTINGS,
@@ -121,15 +121,15 @@ describe("OnboardingHost", () => {
 
     renderHost();
 
-    await waitFor(() => {
-      expect(
-        window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
-      ).not.toBeNull();
-    });
-    expect(screen.queryByTestId("onboarding-modal-stub")).toBeNull();
+    expect(
+      await screen.findByTestId("onboarding-modal-stub"),
+    ).toBeInTheDocument();
+    expect(
+      window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
+    ).toBeNull();
   });
 
-  it("skips the modal when the active Cloud LLM uses subscription auth (no API key)", async () => {
+  it("shows the modal for a fresh Cloud user even when the active LLM uses subscription auth", async () => {
     seedCloudBackend();
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
       ...DEFAULT_SETTINGS,
@@ -142,12 +142,12 @@ describe("OnboardingHost", () => {
 
     renderHost();
 
-    await waitFor(() => {
-      expect(
-        window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
-      ).not.toBeNull();
-    });
-    expect(screen.queryByTestId("onboarding-modal-stub")).toBeNull();
+    expect(
+      await screen.findByTestId("onboarding-modal-stub"),
+    ).toBeInTheDocument();
+    expect(
+      window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
+    ).toBeNull();
   });
 
   it("still shows the modal for a Cloud user when an API key is set but no model is configured", async () => {
@@ -171,13 +171,7 @@ describe("OnboardingHost", () => {
     ).toBeNull();
   });
 
-  it("skips the modal for a user-added Local backend that already has an LLM configured (llm_api_key_is_set)", async () => {
-    // When the user connects via Add Backend to an existing
-    // agent-server that already has an LLM saved, walking them
-    // through "Set up your LLM" would just overwrite the stored
-    // value with a copy. Skip and persist completion. This only
-    // applies to Local backends the user explicitly added (not the
-    // launcher-seeded default-local — see the next test).
+  it("shows the modal for a user-added Local backend that already has an LLM configured", async () => {
     seedUserAddedLocalBackend();
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
       ...DEFAULT_SETTINGS,
@@ -190,12 +184,12 @@ describe("OnboardingHost", () => {
 
     renderHost();
 
-    await waitFor(() => {
-      expect(
-        window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
-      ).not.toBeNull();
-    });
-    expect(screen.queryByTestId("onboarding-modal-stub")).toBeNull();
+    expect(
+      await screen.findByTestId("onboarding-modal-stub"),
+    ).toBeInTheDocument();
+    expect(
+      window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
+    ).toBeNull();
   });
 
   it("still shows the modal for a launcher-seeded default-local backend even when the agent-server reports a configured LLM", async () => {

@@ -6,6 +6,9 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLocation,
+  useNavigate,
+  useNavigation as useRouterNavigation,
 } from "react-router";
 import "./tailwind.css";
 import "./index.css";
@@ -32,11 +35,10 @@ import { TOAST_OPTIONS } from "#/utils/custom-toast-handlers";
 import { TelemetryConsentBanner } from "#/components/features/analytics/telemetry-consent-banner";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useConfig } from "#/hooks/query/use-config";
-import { useSettings } from "#/hooks/query/use-settings";
 import { QUERY_KEYS } from "#/hooks/query/query-keys";
 import { AgentServerUIRoot } from "#/components/providers";
 import { useOnboardingCompletion } from "#/components/features/onboarding/use-onboarding-completion";
-import { isBackendLlmReady } from "#/components/features/onboarding/is-backend-llm-ready";
+import { NavigationProvider } from "#/context/navigation-context";
 import {
   applyColorTheme,
   readPersistedColorTheme,
@@ -141,14 +143,32 @@ function MissingAgentServerScreen() {
   );
 }
 function FirstRunOnboardingScreen({ onClose }: { onClose: () => void }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const routerNavigation = useRouterNavigation();
+  const conversationId =
+    location.pathname.match(/^\/conversations\/([^/]+)/)?.[1] ?? null;
+  const navigationValue = React.useMemo(
+    () => ({
+      currentPath: location.pathname,
+      conversationId,
+      isNavigating: Boolean(routerNavigation.location),
+      navigate: (to: string, options?: { replace?: boolean }) =>
+        navigate(to, options),
+    }),
+    [conversationId, location.pathname, navigate, routerNavigation.location],
+  );
+
   return (
     <main
       data-testid="first-run-onboarding-screen"
       className="min-h-screen bg-base"
     >
-      <React.Suspense fallback={<AgentServerBootstrapLoading />}>
-        <OnboardingModal onClose={onClose} />
-      </React.Suspense>
+      <NavigationProvider value={navigationValue}>
+        <React.Suspense fallback={<AgentServerBootstrapLoading />}>
+          <OnboardingModal onClose={onClose} />
+        </React.Suspense>
+      </NavigationProvider>
     </main>
   );
 }
@@ -198,32 +218,6 @@ export default function App() {
   const { isCompleted: onboardingCompleted, markCompleted } =
     useOnboardingCompletion();
 
-  // Returning-user fast-path: when the active backend already reports a
-  // ready-to-use LLM (model + key, or subscription auth), skip first-run
-  // onboarding entirely. Covers two cases:
-  //   * Cloud (settings.llm_api_key_set) — same Cloud account on a new
-  //     origin/browser would otherwise re-trigger the modal because the
-  //     `openhands-onboarded` flag is origin-scoped and starts empty.
-  //   * Local (settings.llm_api_key_is_set) — when the user connects via
-  //     Add Backend to an existing agent-server that already has an LLM
-  //     configured, walking them through Set Up LLM is redundant.
-  // A truly fresh agent-server (no env-injected key, no saved settings)
-  // reports both flags as false and the modal still shows normally.
-  //
-  // The skip is intentionally suppressed for the launcher-seeded default
-  // Local backend (`SEEDED_DEFAULT_BACKEND_ID`): the agent-server can be
-  // started with an env-injected LLM key, and shared-server deployments
-  // (e.g. the mock-LLM E2E stack) retain configured LLMs across browser
-  // sessions, so keying first-run onboarding off the server's LLM state
-  // would suppress the modal (and persist `openhands-onboarded`) for a
-  // genuinely fresh browser install. The shared helper is the same one
-  // `OnboardingHost` uses, so the two gates stay in sync.
-  const { data: activeBackendSettings } = useSettings();
-  const backendLlmReady = isBackendLlmReady(
-    active.backend,
-    activeBackendSettings,
-  );
-
   // In locked-to-Cloud mode the `openhands-onboarded` localStorage flag is
   // not trustworthy: it may have been set during a previous non-locked
   // session on the same origin, and origin-scoped localStorage cannot tell
@@ -233,61 +227,16 @@ export default function App() {
   // the user on the Manage Backends recovery modal ("Add Backend") in locked
   // mode.
   //
-  // The ready-backend fast-path is additionally restricted in locked mode:
-  // it may only skip onboarding when the active backend IS the locked Cloud
-  // host. A reachable stale Local backend (or a Cloud backend on a different
-  // host) that happens to report a configured LLM must NOT bypass the Cloud
-  // login/replacement flow — otherwise the user continues as Local despite
-  // `VITE_LOCK_TO_CLOUD`.
-  //
   // Once the active backend IS the locked Cloud host, a Cloud login that
   // just succeeded (markCompleted fired via the onboarding modal's onClose)
-  // must hide first-run onboarding immediately — without waiting for the
-  // Cloud settings probe to confirm a configured LLM. Waiting caused the
-  // PR #1389 flicker: the modal advanced to Choose Agent, then the root
-  // gate tore it down, then OnboardingHost remounted it. Treating
+  // must hide first-run onboarding immediately. Treating
   // `onboardingCompleted` as authoritative once the locked Cloud backend is
-  // active suppresses the reopen. (The flag is only honored when the active
-  // backend really is the locked Cloud host, so the stale-flag bypass
+  // active suppresses reopen flicker. (The flag is only honored when the
+  // active backend really is the locked Cloud host, so the stale-flag bypass
   // concerns above don't apply here.)
-  const shouldShowFirstRunOnboarding = isLockedToCloud
-    ? !isActiveLockedCloudBackend || (!backendLlmReady && !onboardingCompleted)
-    : authMissing && !onboardingCompleted && !backendLlmReady;
-  const [showFirstRunOnboarding, setShowFirstRunOnboarding] = React.useState(
-    () => shouldShowFirstRunOnboarding,
-  );
-
-  React.useEffect(() => {
-    if (shouldShowFirstRunOnboarding) {
-      setShowFirstRunOnboarding(true);
-      return;
-    }
-
-    if (onboardingCompleted || backendLlmReady) {
-      setShowFirstRunOnboarding(false);
-    }
-  }, [onboardingCompleted, shouldShowFirstRunOnboarding, backendLlmReady]);
-
-  // Persist completion once we observe a returning user with a ready LLM,
-  // so future first renders short-circuit immediately (before settings
-  // load) and the modal never flashes on a reload.
-  //
-  // In locked-to-Cloud mode this must only fire for the legitimate locked
-  // Cloud host: a stale Local backend (or a Cloud backend on a different
-  // host) that happens to report a configured LLM must NOT be treated as
-  // "onboarding complete" — the user is being routed through the Cloud
-  // login/replacement flow, not skipped past it.
-  React.useEffect(() => {
-    if (!backendLlmReady || onboardingCompleted) return;
-    if (isLockedToCloud && !isActiveLockedCloudBackend) return;
-    markCompleted();
-  }, [
-    backendLlmReady,
-    onboardingCompleted,
-    markCompleted,
-    isLockedToCloud,
-    isActiveLockedCloudBackend,
-  ]);
+  const showFirstRunOnboarding = isLockedToCloud
+    ? !isActiveLockedCloudBackend || !onboardingCompleted
+    : !onboardingCompleted;
 
   // Skip the /server_info probe entirely when we already know auth is
   // required and missing — it would just 401 and waste time. Also keep the

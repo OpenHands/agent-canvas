@@ -1,6 +1,7 @@
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode, SVGProps } from "react";
 import { Bot } from "lucide-react";
 import type { IntegrationCatalogEntry } from "@openhands/extensions/integrations";
+import SlackIcon from "#/icons/slack.svg?react";
 import { cn } from "#/utils/utils";
 
 type McpLogoEntry = Pick<
@@ -24,6 +25,16 @@ const sizeClassNames = {
   md: "h-10 w-10 rounded-lg [&>svg]:h-5 [&>svg]:w-5",
 };
 
+// Catalog entries whose remote logoUrl is unreliable (e.g. Slack's was removed
+// from cdn.simpleicons.org and now 404s) render a bundled mark instead, keyed
+// by IntegrationCatalogEntry.id.
+const LOCAL_LOGO_ICONS: Record<
+  string,
+  ComponentType<SVGProps<SVGSVGElement>>
+> = {
+  slack: SlackIcon,
+};
+
 export function McpLogoBadge({
   entry,
   size = "md",
@@ -31,6 +42,7 @@ export function McpLogoBadge({
   fallback,
   testId,
 }: McpLogoBadgeProps) {
+  const LocalLogoIcon = entry ? LOCAL_LOGO_ICONS[entry.id] : undefined;
   return (
     <span
       aria-hidden="true"
@@ -47,7 +59,9 @@ export function McpLogoBadge({
         color: entry?.iconColor ?? "#FFFFFF",
       }}
     >
-      {entry?.logoUrl ? (
+      {LocalLogoIcon ? (
+        <LocalLogoIcon />
+      ) : entry?.logoUrl ? (
         <img
           src={entry.logoUrl}
           alt={`${entry.name} logo`}

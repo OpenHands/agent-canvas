@@ -20,6 +20,9 @@ export interface PluginSpec {
   ref?: string | null; // Optional branch, tag, or commit
   repo_path?: string | null; // Subdirectory path within the git repository
   parameters?: Record<string, unknown> | null; // User-provided configuration values
+  // Client-side display label (e.g. an installed plugin's `name`). Not a
+  // coordinate and not required by the agent-server; used only for rendering.
+  name?: string | null;
 }
 
 // V1 Metrics Types

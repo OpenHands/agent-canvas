@@ -23,20 +23,17 @@ import { ReactRouterNavigationProvider } from "./react-router-navigation-provide
 import { OnboardingHost } from "#/components/features/onboarding";
 import { isOnboardingPreviewActive } from "#/components/features/onboarding/onboarding-preview";
 
-// Lazy-load components that are only rendered conditionally — keeps them out
-// of the root layout's eager dev/prod graph (and out of every page's first
-// paint) until the relevant condition triggers.
 const EnvironmentSwitchOverlay = React.lazy(
   () => import("#/components/features/backends/environment-switch-overlay"),
-);
-const AnalyticsConsentFormModal = React.lazy(() =>
-  import("#/components/features/analytics/analytics-consent-form-modal").then(
-    (m) => ({ default: m.AnalyticsConsentFormModal }),
-  ),
 );
 const AlertBanner = React.lazy(() =>
   import("#/components/features/alerts/alert-banner").then((m) => ({
     default: m.AlertBanner,
+  })),
+);
+const CommandMenu = React.lazy(() =>
+  import("#/components/features/command-menu/command-menu").then((m) => ({
+    default: m.CommandMenu,
   })),
 );
 
@@ -80,8 +77,6 @@ export default function MainApp() {
   const { migrateUserConsent } = useMigrateUserConsent();
   const config = useConfig();
 
-  const [consentFormIsOpen, setConsentFormIsOpen] = React.useState(false);
-
   useSyncPostHogConsent();
   usePostHogIdentify();
   // Local-mode policy: keep a profile active so a usable LLM is always selected.
@@ -94,15 +89,7 @@ export default function MainApp() {
   }, [settings?.language]);
 
   React.useEffect(() => {
-    setConsentFormIsOpen(settings?.user_consents_to_analytics === null);
-  }, [settings?.user_consents_to_analytics]);
-
-  React.useEffect(() => {
-    migrateUserConsent({
-      handleAnalyticsWasPresentInLocalStorage: () => {
-        setConsentFormIsOpen(false);
-      },
-    });
+    migrateUserConsent();
   }, [migrateUserConsent]);
 
   if (config.isLoading) {
@@ -153,19 +140,10 @@ export default function MainApp() {
               <Outlet />
             </div>
           </div>
-
-          {consentFormIsOpen && (
-            <React.Suspense fallback={null}>
-              <AnalyticsConsentFormModal
-                onClose={() => {
-                  setConsentFormIsOpen(false);
-                }}
-              />
-            </React.Suspense>
-          )}
         </div>
         <React.Suspense fallback={null}>
           <EnvironmentSwitchOverlay />
+          <CommandMenu />
         </React.Suspense>
         {showOnboardingPreview ? <OnboardingHost /> : null}
       </SidebarMobileNavProvider>

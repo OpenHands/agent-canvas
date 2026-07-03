@@ -4,6 +4,7 @@ import { isAxiosError } from "axios";
 import { I18nKey } from "#/i18n/declaration";
 import type { Automation } from "#/types/automation";
 import { useUpdateAutomation } from "#/hooks/query/use-automations";
+import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { SettingsDropdownInput } from "#/components/features/settings/settings-dropdown-input";
 import { BrandButton } from "#/components/features/settings/brand-button";
@@ -48,6 +49,7 @@ const WEEKDAY_KEYS: I18nKey[] = [
 interface FormState {
   name: string;
   prompt: string;
+  model: string;
   frequency: FrequencyKey;
   weekday: number;
   timeOfDay: string;
@@ -60,6 +62,7 @@ function buildInitialState(automation: Automation): FormState {
     return {
       name: automation.name,
       prompt: automation.prompt ?? "",
+      model: automation.model ?? "",
       frequency: "custom",
       weekday: 1,
       timeOfDay: "",
@@ -72,6 +75,7 @@ function buildInitialState(automation: Automation): FormState {
     return {
       name: automation.name,
       prompt: automation.prompt ?? "",
+      model: automation.model ?? "",
       frequency: "custom",
       weekday: 1,
       timeOfDay:
@@ -85,6 +89,7 @@ function buildInitialState(automation: Automation): FormState {
   return {
     name: automation.name,
     prompt: automation.prompt ?? "",
+    model: automation.model ?? "",
     frequency: parsed.kind,
     weekday: parsed.kind === "weekly" ? (parsed.weekday ?? 1) : 1,
     timeOfDay: formatTimeOfDay(parsed.hour, parsed.minute),
@@ -100,6 +105,9 @@ export function EditAutomationModal({
 }: EditAutomationModalProps) {
   const { t } = useTranslation("openhands");
   const updateMutation = useUpdateAutomation();
+  const { data: profilesData, isLoading: isLoadingProfiles } = useLlmProfiles();
+  const profiles = profilesData?.profiles ?? [];
+  const modelItems = profiles.map((p) => ({ key: p.name, label: p.name }));
 
   const initial = useMemo(() => buildInitialState(automation), [automation]);
   const [form, setForm] = useState<FormState>(initial);
@@ -167,6 +175,11 @@ export function EditAutomationModal({
     const initialPrompt = automation.prompt ?? "";
     if (trimmedPrompt !== initialPrompt.trim()) {
       body.prompt = trimmedPrompt.length === 0 ? null : trimmedPrompt;
+    }
+
+    const selectedModel = form.model.trim();
+    if (selectedModel && selectedModel !== (automation.model ?? "")) {
+      body.model = selectedModel;
     }
 
     if (!form.isCustomSchedule && form.frequency !== "custom") {
@@ -271,6 +284,21 @@ export function EditAutomationModal({
               {t(I18nKey.AUTOMATIONS$EDIT_PROMPT_HINT)}
             </span>
           </label>
+
+          {(isLoadingProfiles || profiles.length > 0) && (
+            <SettingsDropdownInput
+              testId="edit-automation-model"
+              name="model"
+              label={t(I18nKey.AUTOMATIONS$DETAIL$MODEL)}
+              items={modelItems}
+              selectedKey={form.model || undefined}
+              isLoading={isLoadingProfiles}
+              placeholder={t(I18nKey.COMMON$ACTIVE_PROFILE)}
+              onSelectionChange={(key) =>
+                setForm((f) => ({ ...f, model: key ? String(key) : "" }))
+              }
+            />
+          )}
 
           {automation.trigger.type === "event" ? (
             <div className="flex flex-col gap-3 rounded-lg bg-[var(--oh-surface-raised)] p-3">

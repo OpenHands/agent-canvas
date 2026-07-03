@@ -50,7 +50,29 @@ describe("useSwitchLlmProfileAndLog", () => {
       git_provider: "github",
       selected_workspace: null,
       active_profile: "claude-sonnet-4.6",
+      plugins: null,
     });
+  });
+
+  it("preserves the conversation's attached plugins across a profile switch", () => {
+    switchMutateMock.mockImplementation((_vars, opts) => opts?.onSuccess?.());
+    // A plugin snapshot persisted at creation must survive the full-object
+    // metadata replace the switch performs.
+    setStoredConversationMetadata("conv-1", {
+      selected_repository: null,
+      selected_branch: null,
+      git_provider: null,
+      plugins: [
+        { source: "github:acme/city-weather", ref: null, repo_path: null },
+      ],
+    });
+
+    const { result } = renderHook(() => useSwitchLlmProfileAndLog());
+    result.current.switchAndLog("conv-1", "claude-sonnet-4.6");
+
+    expect(getStoredConversationMetadata("conv-1")?.plugins).toEqual([
+      { source: "github:acme/city-weather", ref: null, repo_path: null },
+    ]);
   });
 
   it("does not stamp metadata for the home-page activate path (conversationId === null)", () => {
