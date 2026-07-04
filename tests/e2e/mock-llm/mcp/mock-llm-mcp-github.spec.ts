@@ -55,7 +55,7 @@ test.describe("MCP GitHub server install flow", () => {
           "X-Session-API-Key": SESSION_API_KEY,
           "Content-Type": "application/json",
         },
-        data: { agent_settings_diff: { mcp_servers: null } },
+        data: { agent_settings_diff: { mcp_config: null } },
       })
       .catch(() => {});
   });
@@ -152,15 +152,15 @@ test.describe("MCP GitHub server install flow", () => {
     });
     expect(settingsResp.ok()).toBe(true);
     const settings = await settingsResp.json();
-    const mcpServers = settings?.agent_settings?.mcp_servers;
-    expect(mcpServers).toBeTruthy();
+    const mcpConfig = settings?.agent_settings?.mcp_config;
+    expect(mcpConfig).toBeTruthy();
 
     // The GitHub server should be stored as a hosted streamable HTTP server,
     // keyed by the catalog slug ("github") so it is referenceable by name in
     // mcp_server_refs — not the auto-generated "shttp" fallback. The settings
     // API redacts persisted secrets, so the raw PAT must not be readable after
     // installation.
-    expect(mcpServers?.github).toMatchObject({
+    expect(mcpConfig?.github).toMatchObject({
       url: GITHUB_HOSTED_MCP_URL,
       auth: { strategy: "api_key", value: "**********" },
     });
@@ -177,7 +177,7 @@ test.describe("MCP GitHub server install flow", () => {
         },
         data: {
           agent_settings_diff: {
-            mcp_servers: {
+            mcp_config: {
               github: {
                 url: GITHUB_HOSTED_MCP_URL,
                 auth: { strategy: "api_key", value: FAKE_PAT },
@@ -222,8 +222,8 @@ test.describe("MCP GitHub server install flow", () => {
     });
     expect(settingsResp.ok()).toBe(true);
     const settings = await settingsResp.json();
-    const mcpServers = settings?.agent_settings?.mcp_servers;
-    const githubStillPresent = mcpServers?.github != null;
+    const mcpConfig = settings?.agent_settings?.mcp_config;
+    const githubStillPresent = mcpConfig?.github != null;
     expect(githubStillPresent).toBe(false);
   });
 });

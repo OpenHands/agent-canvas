@@ -133,7 +133,7 @@ describe("MCPPage", () => {
       buildSettings({
         agent_settings: {
           ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
-          mcp_servers: {
+          mcp_config: {
             acme_internal: {
               command: "npx",
               args: ["-y", "@acme/internal-mcp-server"],
@@ -218,7 +218,7 @@ describe("MCPPage", () => {
       buildSettings({
         agent_settings: {
           ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
-          mcp_servers: {
+          mcp_config: {
             slack: {
               command: "npx",
               args: ["-y", "@zencoderai/slack-mcp-server"],
@@ -237,12 +237,12 @@ describe("MCPPage", () => {
   });
 
   it("deletes an installed stdio server through the confirmation modal", async () => {
-    // Pre-install a Slack stdio server via the SDK-shaped mcp_servers
-    // the route reads from agent_settings.mcp_servers.
+    // Pre-install a Slack stdio server via the SDK-shaped mcp_config
+    // the route reads from agent_settings.mcp_config.
     const settingsWithSlack = buildSettings({
       agent_settings: {
         ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
-        mcp_servers: {
+        mcp_config: {
           slack: {
             command: "npx",
             args: ["-y", "@zencoderai/slack-mcp-server"],
@@ -268,10 +268,10 @@ describe("MCPPage", () => {
 
     await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
     const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
-      .agent_settings_diff as { mcp_servers: unknown };
-    // Server gets pulled out of mcp_servers entirely (parseMcpConfig
+      .agent_settings_diff as { mcp_config: unknown };
+    // Server gets pulled out of mcp_config entirely (parseMcpConfig
     // emits `null` once the last entry is removed).
-    expect(sent.mcp_servers).toBeNull();
+    expect(sent.mcp_config).toBeNull();
   });
 
   it("shows the catalog description and URL on installed server cards", async () => {
@@ -279,7 +279,7 @@ describe("MCPPage", () => {
       buildSettings({
         agent_settings: {
           ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
-          mcp_servers: {
+          mcp_config: {
             github: {
               url: "https://api.githubcopilot.com/mcp/",
               auth: { strategy: "bearer", value: "github_pat_test" },
@@ -309,7 +309,7 @@ describe("MCPPage", () => {
       buildSettings({
         agent_settings: {
           ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
-          mcp_servers: {
+          mcp_config: {
             tavily: {
               command: "npx",
               args: ["-y", "tavily-mcp"],
@@ -341,7 +341,7 @@ describe("MCPPage", () => {
       buildSettings({
         agent_settings: {
           ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
-          mcp_servers: {
+          mcp_config: {
             slack: {
               command: "npx",
               args: ["-y", "@zencoderai/slack-mcp-server"],
@@ -381,15 +381,15 @@ describe("MCPPage", () => {
     await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
     const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
       .agent_settings_diff as {
-      mcp_servers: Record<string, unknown>;
+      mcp_config: Record<string, unknown>;
     };
     // The original Slack stdio entry is preserved and the new stdio
     // install is suffixed rather than overwriting it.
-    expect(Object.keys(sent.mcp_servers).sort()).toEqual([
+    expect(Object.keys(sent.mcp_config).sort()).toEqual([
       "slack",
       "slack_1",
     ]);
-    expect(sent.mcp_servers).toMatchObject({
+    expect(sent.mcp_config).toMatchObject({
       slack: { env: { SLACK_BOT_TOKEN: "xoxb-old" } },
       slack_1: { env: { SLACK_BOT_TOKEN: "xoxb-new", SLACK_TEAM_ID: "T02" } },
     });

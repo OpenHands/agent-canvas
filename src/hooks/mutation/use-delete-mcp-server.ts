@@ -3,7 +3,7 @@ import { useSettings } from "#/hooks/query/use-settings";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import { MCPConfig } from "#/types/settings";
 import { MCPServerConfig } from "#/types/mcp-server";
-import { parseMcpConfig, toSdkMcpServers } from "#/utils/mcp-config";
+import { parseMcpConfig, toSdkMcpConfig } from "#/utils/mcp-config";
 import { SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
 
 /**
@@ -13,7 +13,7 @@ import { SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
  * `stdio-2`) and re-resolve its position inside the freshly-read
  * settings at mutation time. This eliminates the race between the
  * user clicking "Delete" and confirming the dialog: if the underlying
- * `mcp_servers` changes (background refresh, multi-tab activity,
+ * `mcp_config` changes (background refresh, multi-tab activity,
  * another mutation) the index encoded in a synthetic id can drift,
  * and we would otherwise splice the wrong server.
  */
@@ -24,7 +24,7 @@ export function useDeleteMcpServer() {
   return useMutation({
     mutationFn: async (target: MCPServerConfig): Promise<void> => {
       const currentConfig = parseMcpConfig(
-        settings?.agent_settings?.mcp_servers,
+        settings?.agent_settings?.mcp_config,
       );
 
       const newConfig: MCPConfig = {
@@ -74,7 +74,7 @@ export function useDeleteMcpServer() {
       }
 
       await SettingsService.saveSettings({
-        agent_settings_diff: { mcp_servers: toSdkMcpServers(newConfig) },
+        agent_settings_diff: { mcp_config: toSdkMcpConfig(newConfig) },
       });
     },
     onSuccess: () => {

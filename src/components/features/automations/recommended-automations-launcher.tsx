@@ -73,10 +73,10 @@ export function RecommendedAutomationsLauncher({
   const completedInstallRef = useRef(false);
   const launchInFlightRef = useRef(false);
 
-  const installedMcpServers = useMemo(
+  const installedMcpConfig = useMemo(
     () =>
-      flattenMcpConfig(parseMcpConfig(settings?.agent_settings?.mcp_servers)),
-    [settings?.agent_settings?.mcp_servers],
+      flattenMcpConfig(parseMcpConfig(settings?.agent_settings?.mcp_config)),
+    [settings?.agent_settings?.mcp_config],
   );
 
   const launchAutomation = useCallback(
@@ -134,9 +134,9 @@ export function RecommendedAutomationsLauncher({
   const getMissingEntries = useCallback(
     (automation: RecommendedAutomation) =>
       getRequiredEntries(automation).filter(
-        (entry) => !findInstalledEntryMatch(entry, installedMcpServers),
+        (entry) => !findInstalledEntryMatch(entry, installedMcpConfig),
       ),
-    [installedMcpServers],
+    [installedMcpConfig],
   );
 
   const proceedWithLocalLaunch = (automation: RecommendedAutomation) => {
@@ -225,7 +225,7 @@ export function RecommendedAutomationsLauncher({
     <>
       <RecommendedAutomationsSection
         backendKind={activeBackend.backend.kind}
-        installedServers={installedMcpServers}
+        installedServers={installedMcpConfig}
         query={query}
         onSelect={handleSelectAutomation}
         scrollableGrid={scrollableGrid}

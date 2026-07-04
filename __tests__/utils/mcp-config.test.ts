@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { parseMcpConfig, toSdkMcpServers } from "#/utils/mcp-config";
+import { parseMcpConfig, toSdkMcpConfig } from "#/utils/mcp-config";
 import type { MCPConfig } from "#/types/settings";
 
-describe("toSdkMcpServers", () => {
+describe("toSdkMcpConfig", () => {
   it("uses bare base names when there are no collisions across server types", () => {
     // The bug we're guarding against: a shared monotonic counter would
     // emit "sse", "shttp_1", "myname_2" — bumping the stdio suffix every
@@ -15,7 +15,7 @@ describe("toSdkMcpServers", () => {
       stdio_servers: [{ name: "myname", command: "/bin/run" }],
     };
 
-    const out = toSdkMcpServers(config);
+    const out = toSdkMcpConfig(config);
 
     expect(out).not.toBeNull();
     expect(Object.keys(out!)).toEqual(["sse", "shttp", "myname"]);
@@ -35,7 +35,7 @@ describe("toSdkMcpServers", () => {
       stdio_servers: [],
     };
 
-    const out = toSdkMcpServers(config);
+    const out = toSdkMcpConfig(config);
 
     expect(Object.keys(out!)).toEqual([
       "sse",
@@ -59,7 +59,7 @@ describe("toSdkMcpServers", () => {
       ],
     };
 
-    const out = toSdkMcpServers(config);
+    const out = toSdkMcpConfig(config);
 
     expect(out!).toMatchObject({
       sse: { url: "https://x" },
@@ -81,7 +81,7 @@ describe("toSdkMcpServers", () => {
       ],
     };
 
-    const out = toSdkMcpServers(config);
+    const out = toSdkMcpConfig(config);
 
     expect(Object.keys(out!)).toEqual(["tool", "tool_1", "other"]);
   });
@@ -96,7 +96,7 @@ describe("toSdkMcpServers", () => {
       ],
     };
 
-    const out = toSdkMcpServers(config);
+    const out = toSdkMcpConfig(config);
 
     expect(Object.keys(out!)).toEqual(["stdio", "stdio_1"]);
   });
@@ -108,7 +108,7 @@ describe("toSdkMcpServers", () => {
       stdio_servers: [],
     };
 
-    const out = toSdkMcpServers(config);
+    const out = toSdkMcpConfig(config);
 
     expect(Object.keys(out!)).toEqual(["my-search", "my-docs"]);
     expect(out!["my-search"]).toMatchObject({
@@ -124,7 +124,7 @@ describe("toSdkMcpServers", () => {
       stdio_servers: [],
     };
 
-    const out = toSdkMcpServers(config);
+    const out = toSdkMcpConfig(config);
 
     expect(Object.keys(out!)).toEqual(["named", "sse", "shttp"]);
   });
@@ -139,7 +139,7 @@ describe("toSdkMcpServers", () => {
       stdio_servers: [],
     };
 
-    const out = toSdkMcpServers(config);
+    const out = toSdkMcpConfig(config);
 
     expect(Object.keys(out!)).toEqual(["search", "search_1"]);
   });
@@ -159,7 +159,7 @@ describe("toSdkMcpServers", () => {
       { name: "my-docs", url: "https://y" },
     ]);
 
-    const written = toSdkMcpServers(parsed);
+    const written = toSdkMcpConfig(parsed);
     expect(Object.keys(written!).sort()).toEqual([
       "my-docs",
       "my-search",
@@ -191,7 +191,7 @@ describe("toSdkMcpServers", () => {
 
   it("returns null when there are no servers", () => {
     expect(
-      toSdkMcpServers({ sse_servers: [], shttp_servers: [], stdio_servers: [] }),
+      toSdkMcpConfig({ sse_servers: [], shttp_servers: [], stdio_servers: [] }),
     ).toBeNull();
   });
 
@@ -212,7 +212,7 @@ describe("toSdkMcpServers", () => {
       stdio_servers: [],
     };
 
-    const out = toSdkMcpServers(config);
+    const out = toSdkMcpConfig(config);
 
     expect(out).toEqual({
       sse: {
@@ -239,7 +239,7 @@ describe("toSdkMcpServers", () => {
     };
 
     const parsed = parseMcpConfig(persisted);
-    const written = toSdkMcpServers(parsed);
+    const written = toSdkMcpConfig(parsed);
 
     expect(written).not.toBeNull();
     expect(Object.keys(written!).sort()).toEqual(
@@ -262,15 +262,15 @@ describe("toSdkMcpServers", () => {
       stdio_servers: [{ name: "myname", command: "/bin/run" }],
     };
 
-    const out1 = toSdkMcpServers(before)!;
-    const out2 = toSdkMcpServers(after)!;
+    const out1 = toSdkMcpConfig(before)!;
+    const out2 = toSdkMcpConfig(after)!;
 
     expect("myname" in out1).toBe(true);
     expect("myname" in out2).toBe(true);
   });
 });
 
-describe("parseMcpConfig / toSdkMcpServers — auth: oauth round-trip", () => {
+describe("parseMcpConfig / toSdkMcpConfig — auth: oauth round-trip", () => {
   it("round-trips auth metadata and state for remote OAuth servers", () => {
     const persisted = {
       "superhuman-mail": {
@@ -290,7 +290,7 @@ describe("parseMcpConfig / toSdkMcpServers — auth: oauth round-trip", () => {
       },
     };
 
-    const roundTripped = toSdkMcpServers(parseMcpConfig(persisted));
+    const roundTripped = toSdkMcpConfig(parseMcpConfig(persisted));
 
     expect(roundTripped).toEqual({
       "superhuman-mail": {
@@ -325,7 +325,7 @@ describe("parseMcpConfig / toSdkMcpServers — auth: oauth round-trip", () => {
       },
     };
 
-    expect(toSdkMcpServers(parseMcpConfig(persisted))).toEqual({
+    expect(toSdkMcpConfig(parseMcpConfig(persisted))).toEqual({
       oauth: {
         url: "https://mcp.example.com/mcp",
         auth: {

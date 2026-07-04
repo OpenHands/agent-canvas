@@ -41,7 +41,7 @@ describe("useUpdateMcpServer - stdio credential preservation", () => {
     useSettingsMock.mockReturnValue({
       data: {
         agent_settings: {
-          mcp_servers: {
+          mcp_config: {
             "old-name": {
               command: "npx",
               env: { API_KEY: REDACTED_MCP_SECRET_VALUE },
@@ -53,7 +53,7 @@ describe("useUpdateMcpServer - stdio credential preservation", () => {
 
     vi.spyOn(SettingsService, "fetchSettingsFromApi").mockResolvedValue({
       agent_settings: {
-        mcp_servers: {
+        mcp_config: {
           "old-name": {
             command: "npx",
             env: { API_KEY: "gAAAAA-encrypted-api-key" },
@@ -82,7 +82,7 @@ describe("useUpdateMcpServer - stdio credential preservation", () => {
     expect(SettingsService.saveSettings).toHaveBeenCalledTimes(1);
     const savedDiff = vi.mocked(SettingsService.saveSettings).mock.calls[0][0]
       .agent_settings_diff as Record<string, unknown> | undefined;
-    const savedSdkConfig = savedDiff?.mcp_servers;
+    const savedSdkConfig = savedDiff?.mcp_config;
     expect(savedSdkConfig).toMatchObject({
       "new-name": {
         command: "npx",

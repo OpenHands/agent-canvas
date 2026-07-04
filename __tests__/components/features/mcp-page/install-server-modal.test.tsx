@@ -69,9 +69,9 @@ describe("InstallServerModal", () => {
     const [payload] = saveSpy.mock.calls[0];
     const sentMcpConfig = (payload as Record<string, unknown>)
       .agent_settings_diff as {
-      mcp_servers: Record<string, unknown>;
+      mcp_config: Record<string, unknown>;
     };
-    expect(sentMcpConfig.mcp_servers).toMatchObject({
+    expect(sentMcpConfig.mcp_config).toMatchObject({
       slack: {
         command: "npx",
         args: ["-y", "@zencoderai/slack-mcp-server"],
@@ -87,7 +87,7 @@ describe("InstallServerModal", () => {
     // was dropped on the floor in both local and cloud save paths, so
     // installing Tavily silently did nothing. It's now a regular
     // stdio MCP entry (`npx -y tavily-mcp` + TAVILY_API_KEY) that
-    // goes through the same mcp_servers write as every other entry.
+    // goes through the same mcp_config write as every other entry.
     const tavily = MCP_MARKETPLACE.find((e) => e.id === "tavily")!;
     const saveSpy = vi
       .spyOn(SettingsService, "saveSettings")
@@ -110,9 +110,9 @@ describe("InstallServerModal", () => {
     await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
     const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
       .agent_settings_diff as {
-      mcp_servers: Record<string, unknown>;
+      mcp_config: Record<string, unknown>;
     };
-    expect(sent.mcp_servers).toMatchObject({
+    expect(sent.mcp_config).toMatchObject({
       tavily: {
         command: "npx",
         args: ["-y", "tavily-mcp"],
@@ -248,9 +248,9 @@ describe("InstallServerModal", () => {
     await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
     const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
       .agent_settings_diff as {
-      mcp_servers: Record<string, unknown>;
+      mcp_config: Record<string, unknown>;
     };
-    expect(sent.mcp_servers).toMatchObject({
+    expect(sent.mcp_config).toMatchObject({
       "synthetic-oauth": {
         url: "https://mcp.example.com/mcp",
         auth: {
@@ -304,12 +304,12 @@ describe("InstallServerModal", () => {
     );
     const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
       .agent_settings_diff as {
-      mcp_servers: Record<string, unknown>;
+      mcp_config: Record<string, unknown>;
     };
     // Remote installs are now keyed by the catalog slug ("linear") rather
     // than the auto-generated "shttp" fallback, so the server is
     // referenceable by name in mcp_server_refs.
-    expect(sent.mcp_servers).toMatchObject({
+    expect(sent.mcp_config).toMatchObject({
       linear: {
         url: "https://mcp.linear.app/mcp",
         auth: { strategy: "bearer", value: "lin_api_secret" },

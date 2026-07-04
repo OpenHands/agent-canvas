@@ -16,7 +16,7 @@ describe("substituteRedactedMcpCredentials", () => {
     // literal redaction placeholder overwrote the stored encrypted secret.
     vi.spyOn(SettingsService, "fetchSettingsFromApi").mockResolvedValue({
       agent_settings: {
-        mcp_servers: {
+        mcp_config: {
           "old-name": {
             command: "npx",
             env: { API_KEY: "gAAAAA-encrypted-api-key" },
@@ -42,7 +42,7 @@ describe("substituteRedactedMcpCredentials", () => {
     // entry by position, not beta's entry (which the name match would return).
     vi.spyOn(SettingsService, "fetchSettingsFromApi").mockResolvedValue({
       agent_settings: {
-        mcp_servers: {
+        mcp_config: {
           alpha: { command: "npx", env: { TOKEN: "gAAAAA-alpha-token" } },
           beta: { command: "npx", env: { TOKEN: "gAAAAA-beta-token" } },
         },
@@ -63,7 +63,7 @@ describe("substituteRedactedMcpCredentials", () => {
   it("leaves typed (non-redacted) env values untouched", async () => {
     vi.spyOn(SettingsService, "fetchSettingsFromApi").mockResolvedValue({
       agent_settings: {
-        mcp_servers: {
+        mcp_config: {
           "my-server": {
             command: "npx",
             env: { API_KEY: "gAAAAA-encrypted", REGION: "us-east-1" },
@@ -106,7 +106,7 @@ describe("substituteRedactedMcpCredentials", () => {
 
   it("keeps the placeholder when the stored stdio entry is missing", async () => {
     vi.spyOn(SettingsService, "fetchSettingsFromApi").mockResolvedValue({
-      agent_settings: { mcp_servers: {} },
+      agent_settings: { mcp_config: {} },
     } as unknown as SettingsApiResponse);
 
     const result = await substituteRedactedMcpCredentials({
@@ -123,7 +123,7 @@ describe("substituteRedactedMcpCredentials", () => {
   it("replaces redacted OAuth state with the encrypted stored subtree", async () => {
     vi.spyOn(SettingsService, "fetchSettingsFromApi").mockResolvedValue({
       agent_settings: {
-        mcp_servers: {
+        mcp_config: {
           "superhuman-mail": {
             url: "https://mcp.mail.superhuman.com/mcp",
             auth: {

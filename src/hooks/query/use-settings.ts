@@ -65,8 +65,8 @@ const normalizeSettingsResponse = (settings: Partial<Settings>): Settings => {
   };
 
   const mcpConfig =
-    agentSettings.mcp_servers !== undefined
-      ? parseMcpConfig(agentSettings.mcp_servers)
+    agentSettings.mcp_config !== undefined
+      ? parseMcpConfig(agentSettings.mcp_config)
       : (settings.mcp_config ?? DEFAULT_SETTINGS.mcp_config);
 
   return {

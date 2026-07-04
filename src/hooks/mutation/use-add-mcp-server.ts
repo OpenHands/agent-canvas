@@ -8,7 +8,7 @@ import {
   toMcpShttpServer,
   toMcpSseServer,
   toMcpStdioServer,
-  toSdkMcpServers,
+  toSdkMcpConfig,
 } from "#/utils/mcp-config";
 import { SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
 
@@ -20,9 +20,7 @@ export function useAddMcpServer() {
     mutationFn: async (server: MCPServerConfig): Promise<void> => {
       if (!settings) return;
 
-      const currentConfig = parseMcpConfig(
-        settings.agent_settings?.mcp_servers,
-      );
+      const currentConfig = parseMcpConfig(settings.agent_settings?.mcp_config);
 
       const newConfig: MCPConfig = {
         sse_servers: [...currentConfig.sse_servers],
@@ -39,7 +37,7 @@ export function useAddMcpServer() {
       }
 
       await SettingsService.saveSettings({
-        agent_settings_diff: { mcp_servers: toSdkMcpServers(newConfig) },
+        agent_settings_diff: { mcp_config: toSdkMcpConfig(newConfig) },
       });
     },
     onSuccess: () => {

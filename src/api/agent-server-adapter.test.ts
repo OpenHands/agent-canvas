@@ -25,7 +25,7 @@ describe("buildStartConversationRequest", () => {
         model: "litellm_proxy/openai/gpt-5.5",
         api_key: "gAAAAAencrypted-llm-api-key",
       },
-      mcp_servers: {
+      mcp_config: {
         linear: {
           url: "https://mcp.linear.app/mcp",
           transport: "http",
@@ -45,9 +45,7 @@ describe("buildStartConversationRequest", () => {
     });
 
     expect(payload.agent_settings.agent_kind).toBe("openhands");
-    expect(payload.agent_settings.mcp_servers).toEqual(
-      agentSettings.mcp_servers,
-    );
+    expect(payload.agent_settings.mcp_config).toEqual(agentSettings.mcp_config);
     expect(payload.secrets_encrypted).toBe(true);
   });
 
@@ -57,7 +55,7 @@ describe("buildStartConversationRequest", () => {
       acp_server: "codex",
       acp_command: ["codex-acp"],
       acp_model: "gpt-5.5/medium",
-      mcp_servers: {
+      mcp_config: {
         linear: {
           url: "https://mcp.linear.app/mcp",
           transport: "http",
@@ -77,9 +75,7 @@ describe("buildStartConversationRequest", () => {
     });
 
     expect(payload.agent_settings.agent_kind).toBe("acp");
-    expect(payload.agent_settings.mcp_servers).toEqual(
-      agentSettings.mcp_servers,
-    );
+    expect(payload.agent_settings.mcp_config).toEqual(agentSettings.mcp_config);
     expect(payload.secrets_encrypted).toBe(true);
   });
 
@@ -89,7 +85,7 @@ describe("buildStartConversationRequest", () => {
       acp_server: "codex",
       acp_command: ["codex-acp"],
       acp_model: "gpt-5.5/medium",
-      mcp_servers: {
+      mcp_config: {
         publicDocs: {
           url: "https://docs.example.com/mcp",
           transport: "http",

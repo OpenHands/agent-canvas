@@ -12,7 +12,7 @@ import { queryClient } from "#/query-client-config";
  * The ACP sub-agent owns its own LLM and condenser, so the canvas-side
  * surfaces that configure those concepts (``/settings``,
  * ``/settings/condenser``) have nothing useful to do while ACP is active.
- * (``/mcp`` is intentionally *not* guarded: ``mcp_servers`` is forwarded
+ * (``/mcp`` is intentionally *not* guarded: ``mcp_config`` is forwarded
  * to the ACP subprocess at session creation.) Doing the redirect in a
  * ``clientLoader`` (instead of a per-route ``useEffect``) prevents the
  * one-frame flash of the old content before the guard fires.

@@ -51,7 +51,7 @@ export const DEFAULT_SETTINGS: Settings = {
       enable_iterative_refinement: false,
     },
     enable_sub_agents: false,
-    mcp_servers: {},
+    mcp_config: {},
   },
   conversation_settings_schema: null,
   conversation_settings: {

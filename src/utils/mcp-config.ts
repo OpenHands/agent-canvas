@@ -22,12 +22,12 @@ const EMPTY_MCP_CONFIG: MCPConfig = {
 export const REDACTED_MCP_SECRET_VALUE = "**********";
 
 type SdkMcpServerConfig = Record<string, SettingsValue | MCPAuthCredential>;
-type SdkMcpServers = Record<string, SdkMcpServerConfig>;
+type SdkMcpConfig = Record<string, SdkMcpServerConfig>;
 
 /**
  * The dict key for an SSE/SHTTP server doubles as its display name once a
  * user provides one. Keys that match the auto-generated fallback pattern
- * (``sse``, ``shttp``, ``shttp_1``, …) emitted by {@link toSdkMcpServers}
+ * (``sse``, ``shttp``, ``shttp_1``, …) emitted by {@link toSdkMcpConfig}
  * carry no user intent, so we surface them as "no name" — re-serializing
  * regenerates the identical fallback key and existing configs are left
  * untouched.
@@ -219,7 +219,7 @@ function getAuthenticationConfig(
 }
 
 /**
- * Parse the SDK-native ``agent_settings.mcp_servers`` value and convert it
+ * Parse the SDK-native ``agent_settings.mcp_config`` value and convert it
  * to the frontend MCPConfig format used by UI components.
  */
 export function parseMcpConfig(value: unknown): MCPConfig {
@@ -230,9 +230,9 @@ export function parseMcpConfig(value: unknown): MCPConfig {
   const sseServers: (string | MCPSSEServer)[] = [];
   const stdioServers: MCPStdioServer[] = [];
   const shttpServers: (string | MCPSHTTPServer)[] = [];
-  const mcpServers = value as Record<string, Record<string, unknown>>;
+  const mcpConfig = value as Record<string, Record<string, unknown>>;
 
-  for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
+  for (const [serverName, serverConfig] of Object.entries(mcpConfig)) {
     if (!serverConfig || typeof serverConfig !== "object") continue;
 
     const url = serverConfig.url as string | undefined;
@@ -285,7 +285,7 @@ export function parseMcpConfig(value: unknown): MCPConfig {
 
 /**
  * Convert the frontend MCPConfig format back to the SDK-native server map
- * expected by agent_settings.mcp_servers on the backend.
+ * expected by agent_settings.mcp_config on the backend.
  *
  * Names are only suffixed (``_1``, ``_2``, …) when an earlier entry has
  * already claimed the bare base name. We intentionally do NOT use a single
@@ -295,13 +295,13 @@ export function parseMcpConfig(value: unknown): MCPConfig {
  * of other server types changes. With per-base collision suffixing,
  * unrelated entries keep their human-meaningful names stable across edits.
  */
-export function toSdkMcpServers(config: MCPConfig): SdkMcpServers | null {
-  const mcpServers: SdkMcpServers = {};
+export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
+  const mcpConfig: SdkMcpConfig = {};
 
   const reserve = (base: string): string => {
-    if (!(base in mcpServers)) return base;
+    if (!(base in mcpConfig)) return base;
     let i = 1;
-    while (`${base}_${i}` in mcpServers) i += 1;
+    while (`${base}_${i}` in mcpConfig) i += 1;
     return `${base}_${i}`;
   };
 
@@ -316,7 +316,7 @@ export function toSdkMcpServers(config: MCPConfig): SdkMcpServers | null {
       Object.assign(server, getRemoteSecretFields(entry));
     }
     server.transport = "sse";
-    mcpServers[reserve(name || "sse")] = server;
+    mcpConfig[reserve(name || "sse")] = server;
   }
 
   for (const entry of config.shttp_servers) {
@@ -330,7 +330,7 @@ export function toSdkMcpServers(config: MCPConfig): SdkMcpServers | null {
       Object.assign(server, getRemoteSecretFields(entry));
       if (entry.timeout != null) server.timeout = entry.timeout;
     }
-    mcpServers[reserve(name || "shttp")] = server;
+    mcpConfig[reserve(name || "shttp")] = server;
   }
 
   for (const entry of config.stdio_servers) {
@@ -339,8 +339,8 @@ export function toSdkMcpServers(config: MCPConfig): SdkMcpServers | null {
     };
     if (entry.args) server.args = entry.args;
     if (entry.env) server.env = entry.env;
-    mcpServers[reserve(entry.name || "stdio")] = server;
+    mcpConfig[reserve(entry.name || "stdio")] = server;
   }
 
-  return Object.keys(mcpServers).length > 0 ? mcpServers : null;
+  return Object.keys(mcpConfig).length > 0 ? mcpConfig : null;
 }

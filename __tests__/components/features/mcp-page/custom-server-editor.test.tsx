@@ -37,7 +37,7 @@ function buildSettingsWithMcp(overrides: Partial<Settings> = {}): Settings {
     ...MOCK_DEFAULT_USER_SETTINGS,
     agent_settings: {
       ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
-      mcp_servers: {
+      mcp_config: {
         github: {
           command: "docker",
           args: ["run", "-i", "--rm", "ghcr.io/github/github-mcp-server"],
@@ -240,7 +240,7 @@ describe("CustomServerEditor", () => {
       buildSettingsWithMcp({
         agent_settings: {
           ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
-          mcp_servers: {
+          mcp_config: {
             "superhuman-mail": {
               url: "https://mcp.mail.superhuman.com/mcp",
               transport: "http",
@@ -272,9 +272,9 @@ describe("CustomServerEditor", () => {
     await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
     const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
       .agent_settings_diff as {
-      mcp_servers: Record<string, unknown>;
+      mcp_config: Record<string, unknown>;
     };
-    expect(sent.mcp_servers).toMatchObject({
+    expect(sent.mcp_config).toMatchObject({
       "superhuman-mail": {
         auth: {
           strategy: "oauth2",

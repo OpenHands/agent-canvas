@@ -14,7 +14,7 @@ type StoredMcpServer = {
   headers?: unknown;
 };
 
-type StoredMcpServers = Record<string, StoredMcpServer>;
+type StoredMcpConfig = Record<string, StoredMcpServer>;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
@@ -62,7 +62,7 @@ const stdioIndexFromId = (id: string | undefined): number | undefined => {
 
 const findStoredStdioByIndex = (
   id: string | undefined,
-  storedServers: StoredMcpServers,
+  storedServers: StoredMcpConfig,
 ): StoredMcpServer | undefined => {
   const index = stdioIndexFromId(id);
   if (index === undefined) return undefined;
@@ -74,7 +74,7 @@ const findStoredStdioByIndex = (
 
 const findStoredServer = (
   server: MCPServerConfig,
-  storedServers: StoredMcpServers,
+  storedServers: StoredMcpConfig,
 ): StoredMcpServer | undefined => {
   if (server.type === "stdio") {
     // Prefer the positional id: a rename changes the display name (the stored
@@ -102,11 +102,11 @@ async function fetchEncryptedStoredServer(
   server: MCPServerConfig,
 ): Promise<StoredMcpServer | undefined> {
   const response = await SettingsService.fetchSettingsFromApi("encrypted");
-  const mcpServers = response.agent_settings?.mcp_servers;
-  if (!isRecord(mcpServers)) {
+  const mcpConfig = response.agent_settings?.mcp_config;
+  if (!isRecord(mcpConfig)) {
     return undefined;
   }
-  return findStoredServer(server, mcpServers as StoredMcpServers);
+  return findStoredServer(server, mcpConfig as StoredMcpConfig);
 }
 
 /**

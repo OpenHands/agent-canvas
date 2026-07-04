@@ -175,19 +175,19 @@ describe("saveCloudSettings drops agent_context: null (agent-canvas#981)", () =>
     });
   });
 
-  it("preserves a null mcp_servers so clearing MCP servers still round-trips", async () => {
-    // Arrange: mcp_servers: null is an intentional "clear" signal, not an error.
+  it("preserves a null mcp_config so clearing MCP servers still round-trips", async () => {
+    // Arrange: mcp_config: null is an intentional "clear" signal, not an error.
     vi.mocked(axios.request).mockResolvedValue({ data: {} });
 
     // Act
     await saveCloudSettings({
-      agent_settings_diff: { mcp_servers: null },
+      agent_settings_diff: { mcp_config: null },
     });
 
-    // Assert: the null mcp_servers must survive (don't over-strip nulls).
+    // Assert: the null mcp_config must survive (don't over-strip nulls).
     const [config] = vi.mocked(axios.request).mock.calls[0]!;
     const requestBody = (config as { data: Record<string, unknown> }).data;
-    expect(requestBody).toEqual({ agent_settings_diff: { mcp_servers: null } });
+    expect(requestBody).toEqual({ agent_settings_diff: { mcp_config: null } });
   });
 
   it("omits agent_settings_diff when agent_context: null is its only key", async () => {

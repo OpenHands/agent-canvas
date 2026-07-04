@@ -44,7 +44,7 @@ describe("McpService.testServer", () => {
       llm_api_key_is_set: false,
       conversation_settings: {},
       agent_settings: {
-        mcp_servers: {
+        mcp_config: {
           linear: {
             url: "https://mcp.linear.app/mcp",
             transport: "http",

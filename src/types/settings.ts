@@ -120,10 +120,10 @@ export type SettingsScope = "personal";
  *
  * - ``"openhands"`` (default): the conversation runs through OpenHands' built-in
  *   LLM-driven Agent. The other agent_settings fields (``llm``, ``condenser``,
- *   ``mcp_servers``, ``tools``) apply.
+ *   ``mcp_config``, ``tools``) apply.
  * - ``"acp"``: the conversation is driven by an external ACP subprocess
  *   (Claude Code / Codex / Gemini CLI / Custom). The LLM / condenser
- *   settings are inert; ``mcp_servers`` and ``acp_command`` / ``acp_args`` /
+ *   settings are inert; ``mcp_config`` and ``acp_command`` / ``acp_args`` /
  *   ``acp_model`` /
  *   ``acp_server`` apply instead. Provider credentials are supplied through the
  *   Secrets panel (``request.secrets``), never through a per-agent env channel.

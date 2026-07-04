@@ -62,7 +62,6 @@ class MockACPAgent(acp.Agent):
         self,
         cwd: str,
         additional_directories=None,
-        mcp_servers=None,
         **kwargs,
     ) -> acp.NewSessionResponse:
         print(f"[mock-acp] new_session cwd={cwd}", file=sys.stderr, flush=True)

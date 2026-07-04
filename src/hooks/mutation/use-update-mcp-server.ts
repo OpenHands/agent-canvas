@@ -8,7 +8,7 @@ import {
   toMcpShttpServer,
   toMcpSseServer,
   toMcpStdioServer,
-  toSdkMcpServers,
+  toSdkMcpConfig,
 } from "#/utils/mcp-config";
 import { SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
 import { substituteRedactedMcpCredentials } from "#/api/mcp-service/mcp-redacted-credentials";
@@ -26,7 +26,7 @@ export function useUpdateMcpServer() {
       server: MCPServerConfig;
     }): Promise<void> => {
       const currentConfig = parseMcpConfig(
-        settings?.agent_settings?.mcp_servers,
+        settings?.agent_settings?.mcp_config,
       );
 
       const newConfig: MCPConfig = {
@@ -47,7 +47,7 @@ export function useUpdateMcpServer() {
       }
 
       await SettingsService.saveSettings({
-        agent_settings_diff: { mcp_servers: toSdkMcpServers(newConfig) },
+        agent_settings_diff: { mcp_config: toSdkMcpConfig(newConfig) },
       });
     },
     onSuccess: () => {
