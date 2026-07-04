@@ -1,8 +1,5 @@
 import { MCPClient } from "@openhands/typescript-client/clients";
-import type {
-  MCPServerSpec,
-  MCPTestRequest,
-} from "@openhands/typescript-client";
+import type { MCPTestRequest } from "@openhands/typescript-client";
 import { getAgentServerClientOptions } from "../agent-server-client-options";
 import { getActiveBackend } from "../backend-registry/active-store";
 import { getCredentialValidationForServer } from "#/utils/mcp-credential-validation";
@@ -10,14 +7,25 @@ import type {
   ExtendedMCPTestResponse,
   MCPServerConfig,
 } from "#/types/mcp-server";
+import type { MCPAuthCredential } from "#/types/mcp-auth";
 import { substituteRedactedMcpCredentials } from "./mcp-redacted-credentials";
 
 const OAUTH_MCP_TEST_TIMEOUT_SECONDS = 120;
 
-function toMcpServerSpec(server: MCPServerConfig): MCPServerSpec {
+type MCPTestServer = {
+  transport?: "stdio" | "http" | "sse";
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  headers?: Record<string, string>;
+  auth?: MCPAuthCredential;
+};
+
+function toMcpServer(server: MCPServerConfig): MCPTestServer {
   if (server.type === "stdio") {
     return {
-      type: "stdio",
+      transport: "stdio",
       command: server.command!,
       ...(server.args?.length && { args: server.args }),
       ...(server.env &&
@@ -25,12 +33,12 @@ function toMcpServerSpec(server: MCPServerConfig): MCPServerSpec {
     };
   }
   return {
-    type: server.type,
+    transport: server.type === "sse" ? "sse" : "http",
     url: server.url!,
     ...(server.headers &&
       Object.keys(server.headers).length > 0 && { headers: server.headers }),
     ...(server.auth ? { auth: server.auth } : {}),
-  } as MCPServerSpec;
+  };
 }
 
 function getMcpTestTimeout(server: MCPServerConfig): number | undefined {
@@ -56,7 +64,7 @@ class McpService {
       return { ok: true, tools: [] };
     }
     const validation = getCredentialValidationForServer(server);
-    const serverSpec = toMcpServerSpec(
+    const serverSpec = toMcpServer(
       await substituteRedactedMcpCredentials(server),
     );
     const { host, apiKey } = getAgentServerClientOptions();

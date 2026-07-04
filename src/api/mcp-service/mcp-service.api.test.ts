@@ -69,7 +69,7 @@ describe("McpService.testServer", () => {
     expect(testServer.mock.calls[0][0]).toMatchObject({
       name: "linear",
       server: {
-        type: "shttp",
+        transport: "http",
         url: "https://mcp.linear.app/mcp",
         auth: { strategy: "bearer", value: encryptedAuth },
       },
@@ -103,7 +103,7 @@ describe("McpService.testServer", () => {
     expect(testServer.mock.calls[0][0]).toMatchObject({
       name: "superhuman-mail",
       server: {
-        type: "shttp",
+        transport: "http",
         url: "https://mcp.mail.superhuman.com/mcp",
         auth: {
           strategy: "oauth2",
