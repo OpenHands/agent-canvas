@@ -36,7 +36,7 @@ export const DEFAULT_SETTINGS: Settings = {
   git_user_email: "openhands@all-hands.dev",
   agent_settings_schema: null,
   agent_settings: {
-    schema_version: 1,
+    schema_version: 6,
     agent_kind: "openhands",
     agent: "CodeActAgent",
     llm: {
@@ -51,11 +51,7 @@ export const DEFAULT_SETTINGS: Settings = {
       enable_iterative_refinement: false,
     },
     enable_sub_agents: false,
-    mcp_config: {
-      sse_servers: [],
-      stdio_servers: [],
-      shttp_servers: [],
-    },
+    mcp_servers: {},
   },
   conversation_settings_schema: null,
   conversation_settings: {

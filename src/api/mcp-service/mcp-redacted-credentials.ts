@@ -102,11 +102,11 @@ async function fetchEncryptedStoredServer(
   server: MCPServerConfig,
 ): Promise<StoredMcpServer | undefined> {
   const response = await SettingsService.fetchSettingsFromApi("encrypted");
-  const mcpConfig = response.agent_settings?.mcp_config;
-  if (!isRecord(mcpConfig) || !isRecord(mcpConfig.mcpServers)) {
+  const mcpServers = response.agent_settings?.mcp_servers;
+  if (!isRecord(mcpServers)) {
     return undefined;
   }
-  return findStoredServer(server, mcpConfig.mcpServers as StoredMcpServers);
+  return findStoredServer(server, mcpServers as StoredMcpServers);
 }
 
 /**

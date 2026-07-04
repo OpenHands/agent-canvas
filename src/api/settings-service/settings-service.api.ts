@@ -256,10 +256,6 @@ const syncDerivedSettings = (settings: Partial<Settings>): Settings => {
   if (typeof condenser?.max_size === "number") {
     merged.condenser_max_size = condenser.max_size;
   }
-  if (agentSettings.mcp_config) {
-    merged.mcp_config = agentSettings.mcp_config as Settings["mcp_config"];
-  }
-
   if (typeof conversationSettings.confirmation_mode === "boolean") {
     merged.confirmation_mode = conversationSettings.confirmation_mode;
   }
@@ -439,53 +435,55 @@ class SettingsService {
     // The backend applies ``agent_settings_diff`` by deep-merging it into the
     // existing ``agent_settings`` dict (see SDK
     // ``openhands.agent_server.persistence.models._deep_merge``). That works
-    // for scalar fields but is wrong for ``mcp_config.mcpServers``, which is
+    // for scalar fields but is wrong for ``mcp_servers``, which is
     // a name-keyed map: a diff that omits a server cannot remove it (stale
     // key stays), and a diff whose key indices shift (e.g. after deleting
     // index 0, the second server is renumbered) leaves the original keys
     // behind as duplicates pointing to the wrong server config.
     //
-    // The only way to make ``mcp_config`` behave like a replace through this
+    // The only way to make ``mcp_servers`` behave like a replace through this
     // API is to first null it out — ``null`` is not a dict, so deep-merge
     // takes the else branch and sets the field to ``None`` outright — and
     // then send the new value in a follow-up call. We do this for every
-    // ``mcp_config`` write, including adds (the wasted round-trip is
+    // ``mcp_servers`` write, including adds (the wasted round-trip is
     // negligible for this user action and avoids divergent code paths).
     const agentDiff = payload.agent_settings_diff;
-    // Send a pre-clear PATCH when the diff sets ``mcp_config`` to a non-null
+    // Send a pre-clear PATCH when the diff sets ``mcp_servers`` to a non-null
     // value. A second PATCH below then writes the new value. Skipping the
-    // pre-clear when the caller is already clearing (``mcp_config: null``)
+    // pre-clear when the caller is already clearing (``mcp_servers: null``)
     // avoids a pointless duplicate request.
     const needsMcpPreClear =
-      !!agentDiff && "mcp_config" in agentDiff && agentDiff.mcp_config !== null;
+      !!agentDiff &&
+      "mcp_servers" in agentDiff &&
+      agentDiff.mcp_servers !== null;
 
     // The pre-clear is destructive: if the follow-up write fails after the
     // clear succeeds, the user's MCP config is left empty. Snapshot the
-    // previous value (in raw SDK shape, NOT the GUI's parsed MCPConfig)
+    // previous value (in raw SDK-native shape, NOT the GUI's parsed MCPConfig)
     // before pre-clearing so we can attempt a best-effort rollback. The
     // original write error is always re-thrown to the caller regardless
     // of rollback success — the GUI's react-query mutations surface that
     // as an error toast so the user knows to retry.
     //
-    // Snapshot must be the SDK shape (``{ mcpServers: { name: cfg }}``)
-    // because that is what the backend expects on the rollback PATCH.
+    // Snapshot must be the SDK-native server map because that is what the
+    // backend expects on the rollback PATCH.
     // ``SettingsService.getSettings`` returns a GUI Settings object whose
     // ``mcp_config`` is typed as the parsed frontend MCPConfig and
     // defaults to empty arrays when nothing is installed, so it is not
     // suitable for round-tripping back to the backend.
-    let mcpConfigSnapshot: unknown = undefined;
+    let mcpServersSnapshot: unknown = undefined;
     if (needsMcpPreClear) {
       try {
         if (isCloud) {
           const raw = (await fetchCloudSettings()) as {
-            agent_settings?: { mcp_config?: unknown };
+            agent_settings?: { mcp_servers?: unknown };
           };
-          mcpConfigSnapshot = raw?.agent_settings?.mcp_config;
+          mcpServersSnapshot = raw?.agent_settings?.mcp_servers;
         } else {
           const raw = (await SettingsService.fetchSettingsFromApi()) as {
-            agent_settings?: { mcp_config?: unknown };
+            agent_settings?: { mcp_servers?: unknown };
           };
-          mcpConfigSnapshot = raw?.agent_settings?.mcp_config;
+          mcpServersSnapshot = raw?.agent_settings?.mcp_servers;
         }
       } catch {
         // Snapshot failed (network blip, etc.). Continue without rollback
@@ -504,7 +502,7 @@ class SettingsService {
       if (needsMcpPreClear) {
         await withRetry(() =>
           saveCloudSettings({
-            agent_settings_diff: { mcp_config: null },
+            agent_settings_diff: { mcp_servers: null },
           }),
         );
       }
@@ -528,7 +526,7 @@ class SettingsService {
       try {
         await withRetry(() => saveCloudSettings(cloudPayload));
       } catch (err) {
-        if (needsMcpPreClear && mcpConfigSnapshot) {
+        if (needsMcpPreClear && mcpServersSnapshot) {
           // Best-effort rollback. We deliberately do not wrap in withRetry:
           // the user's session is already in a degraded state and we want
           // to surface the original error promptly. Swallowing the restore
@@ -536,7 +534,7 @@ class SettingsService {
           try {
             await saveCloudSettings({
               agent_settings_diff: {
-                mcp_config: mcpConfigSnapshot as SettingsValue,
+                mcp_servers: mcpServersSnapshot as SettingsValue,
               },
             });
           } catch {
@@ -558,7 +556,7 @@ class SettingsService {
       if (needsMcpPreClear) {
         await withRetry(() =>
           new SettingsClient(getAgentServerClientOptions()).updateSettings({
-            agent_settings_diff: { mcp_config: null },
+            agent_settings_diff: { mcp_servers: null },
           }),
         );
       }
@@ -569,14 +567,14 @@ class SettingsService {
           ),
         );
       } catch (err) {
-        if (needsMcpPreClear && mcpConfigSnapshot) {
+        if (needsMcpPreClear && mcpServersSnapshot) {
           // See cloud branch above for rationale.
           try {
             await new SettingsClient(
               getAgentServerClientOptions(),
             ).updateSettings({
               agent_settings_diff: {
-                mcp_config: mcpConfigSnapshot as SettingsValue,
+                mcp_servers: mcpServersSnapshot as SettingsValue,
               },
             });
           } catch {

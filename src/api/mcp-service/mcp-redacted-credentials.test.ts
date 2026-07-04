@@ -16,12 +16,10 @@ describe("substituteRedactedMcpCredentials", () => {
     // literal redaction placeholder overwrote the stored encrypted secret.
     vi.spyOn(SettingsService, "fetchSettingsFromApi").mockResolvedValue({
       agent_settings: {
-        mcp_config: {
-          mcpServers: {
-            "old-name": {
-              command: "npx",
-              env: { API_KEY: "gAAAAA-encrypted-api-key" },
-            },
+        mcp_servers: {
+          "old-name": {
+            command: "npx",
+            env: { API_KEY: "gAAAAA-encrypted-api-key" },
           },
         },
       },
@@ -44,11 +42,9 @@ describe("substituteRedactedMcpCredentials", () => {
     // entry by position, not beta's entry (which the name match would return).
     vi.spyOn(SettingsService, "fetchSettingsFromApi").mockResolvedValue({
       agent_settings: {
-        mcp_config: {
-          mcpServers: {
-            alpha: { command: "npx", env: { TOKEN: "gAAAAA-alpha-token" } },
-            beta: { command: "npx", env: { TOKEN: "gAAAAA-beta-token" } },
-          },
+        mcp_servers: {
+          alpha: { command: "npx", env: { TOKEN: "gAAAAA-alpha-token" } },
+          beta: { command: "npx", env: { TOKEN: "gAAAAA-beta-token" } },
         },
       },
     } as unknown as SettingsApiResponse);
@@ -67,12 +63,10 @@ describe("substituteRedactedMcpCredentials", () => {
   it("leaves typed (non-redacted) env values untouched", async () => {
     vi.spyOn(SettingsService, "fetchSettingsFromApi").mockResolvedValue({
       agent_settings: {
-        mcp_config: {
-          mcpServers: {
-            "my-server": {
-              command: "npx",
-              env: { API_KEY: "gAAAAA-encrypted", REGION: "us-east-1" },
-            },
+        mcp_servers: {
+          "my-server": {
+            command: "npx",
+            env: { API_KEY: "gAAAAA-encrypted", REGION: "us-east-1" },
           },
         },
       },
@@ -112,7 +106,7 @@ describe("substituteRedactedMcpCredentials", () => {
 
   it("keeps the placeholder when the stored stdio entry is missing", async () => {
     vi.spyOn(SettingsService, "fetchSettingsFromApi").mockResolvedValue({
-      agent_settings: { mcp_config: { mcpServers: {} } },
+      agent_settings: { mcp_servers: {} },
     } as unknown as SettingsApiResponse);
 
     const result = await substituteRedactedMcpCredentials({
@@ -129,21 +123,19 @@ describe("substituteRedactedMcpCredentials", () => {
   it("replaces redacted OAuth state with the encrypted stored subtree", async () => {
     vi.spyOn(SettingsService, "fetchSettingsFromApi").mockResolvedValue({
       agent_settings: {
-        mcp_config: {
-          mcpServers: {
-            "superhuman-mail": {
-              url: "https://mcp.mail.superhuman.com/mcp",
-              auth: {
-                strategy: "oauth2",
-                state: {
-                  tokens: {
-                    access_token: "gAAAAA-encrypted-access-token",
-                    refresh_token: "gAAAAA-encrypted-refresh-token",
-                  },
-                  client_info: {
-                    client_id: "superhuman-client",
-                    client_secret: "gAAAAA-encrypted-client-secret",
-                  },
+        mcp_servers: {
+          "superhuman-mail": {
+            url: "https://mcp.mail.superhuman.com/mcp",
+            auth: {
+              strategy: "oauth2",
+              state: {
+                tokens: {
+                  access_token: "gAAAAA-encrypted-access-token",
+                  refresh_token: "gAAAAA-encrypted-refresh-token",
+                },
+                client_info: {
+                  client_id: "superhuman-client",
+                  client_secret: "gAAAAA-encrypted-client-secret",
                 },
               },
             },

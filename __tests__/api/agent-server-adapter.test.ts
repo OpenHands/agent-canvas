@@ -1210,7 +1210,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
           acp_command: [],
           acp_model: "claude-opus-4-5",
           // These fields are LLM-only and must NOT leak into ACP settings.
-          // (mcp_config is handled separately — it IS forwarded for ACP; see
+          // (mcp_servers is handled separately — it IS forwarded for ACP; see
           // the dedicated tests below.)
           agent: "CodeActAgent",
           llm: { model: "gpt-4", api_key: "should-not-appear" },
@@ -1252,8 +1252,8 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     expect(payload.tags).toEqual({ [ACP_SERVER_TAG_KEY]: "claude-code" });
   });
 
-  it("forwards mcp_config to the ACP subprocess when servers are configured", () => {
-    // mcp_config is a shared field: the SDK's ACPAgent forwards these servers
+  it("forwards mcp_servers to the ACP subprocess when servers are configured", () => {
+    // mcp_servers is a shared field: the SDK's ACPAgent forwards these servers
     // to the ACP subprocess at session creation, so the start payload must
     // carry it (it is intentionally NOT one of the stripped ACP-only fields).
     const payload = buildStartConversationRequest({
@@ -1264,22 +1264,20 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
           agent_kind: "acp",
           acp_server: "claude-code",
           acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
-          mcp_config: {
-            mcpServers: {
-              fetch: { command: "uvx", args: ["mcp-server-fetch"] },
-            },
+          mcp_servers: {
+            fetch: { command: "uvx", args: ["mcp-server-fetch"] },
           },
         },
       },
-    }) as { agent_settings: { mcp_config?: unknown } };
+    }) as { agent_settings: { mcp_servers?: unknown } };
 
-    expect(payload.agent_settings.mcp_config).toEqual({
-      mcpServers: { fetch: { command: "uvx", args: ["mcp-server-fetch"] } },
+    expect(payload.agent_settings.mcp_servers).toEqual({
+      fetch: { command: "uvx", args: ["mcp-server-fetch"] },
     });
   });
 
-  it("omits mcp_config from the ACP payload when it carries no servers", () => {
-    // An empty / serverless mcp_config must not be sent as ``mcp_config: {}``.
+  it("omits mcp_servers from the ACP payload when it carries no servers", () => {
+    // An empty / serverless mcp_servers must not be sent as ``mcp_servers: {}``.
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
@@ -1288,12 +1286,12 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
           agent_kind: "acp",
           acp_server: "claude-code",
           acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
-          mcp_config: {},
+          mcp_servers: {},
         },
       },
-    }) as { agent_settings: { mcp_config?: unknown } };
+    }) as { agent_settings: { mcp_servers?: unknown } };
 
-    expect(payload.agent_settings.mcp_config).toBeUndefined();
+    expect(payload.agent_settings.mcp_servers).toBeUndefined();
   });
 
   it("does not include ACP-only fields in OpenHands agent settings", () => {

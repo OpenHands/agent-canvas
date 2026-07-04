@@ -22,12 +22,12 @@ const EMPTY_MCP_CONFIG: MCPConfig = {
 export const REDACTED_MCP_SECRET_VALUE = "**********";
 
 type SdkMcpServerConfig = Record<string, SettingsValue | MCPAuthCredential>;
-type SdkMcpConfig = { mcpServers: Record<string, SdkMcpServerConfig> };
+type SdkMcpServers = Record<string, SdkMcpServerConfig>;
 
 /**
  * The dict key for an SSE/SHTTP server doubles as its display name once a
  * user provides one. Keys that match the auto-generated fallback pattern
- * (``sse``, ``shttp``, ``shttp_1``, …) emitted by {@link toSdkMcpConfig}
+ * (``sse``, ``shttp``, ``shttp_1``, …) emitted by {@link toSdkMcpServers}
  * carry no user intent, so we surface them as "no name" — re-serializing
  * regenerates the identical fallback key and existing configs are left
  * untouched.
@@ -219,7 +219,7 @@ function getAuthenticationConfig(
 }
 
 /**
- * Parse an SDK mcp_config value ({ mcpServers: { ... } }) and convert it
+ * Parse the SDK-native ``agent_settings.mcp_servers`` value and convert it
  * to the frontend MCPConfig format used by UI components.
  */
 export function parseMcpConfig(value: unknown): MCPConfig {
@@ -227,20 +227,10 @@ export function parseMcpConfig(value: unknown): MCPConfig {
     return { ...EMPTY_MCP_CONFIG };
   }
 
-  const obj = value as Record<string, unknown>;
-
-  if (
-    !("mcpServers" in obj) ||
-    !obj.mcpServers ||
-    typeof obj.mcpServers !== "object"
-  ) {
-    return { ...EMPTY_MCP_CONFIG };
-  }
-
   const sseServers: (string | MCPSSEServer)[] = [];
   const stdioServers: MCPStdioServer[] = [];
   const shttpServers: (string | MCPSHTTPServer)[] = [];
-  const mcpServers = obj.mcpServers as Record<string, Record<string, unknown>>;
+  const mcpServers = value as Record<string, Record<string, unknown>>;
 
   for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
     if (!serverConfig || typeof serverConfig !== "object") continue;
@@ -271,9 +261,10 @@ export function parseMcpConfig(value: unknown): MCPConfig {
         shttpServers.push(server);
       }
     } else {
+      if (typeof serverConfig.command !== "string") continue;
       const stdioServer: MCPStdioServer = {
         name: serverName,
-        command: serverConfig.command as string,
+        command: serverConfig.command,
       };
       if (serverConfig.args) {
         stdioServer.args = serverConfig.args as string[];
@@ -293,8 +284,8 @@ export function parseMcpConfig(value: unknown): MCPConfig {
 }
 
 /**
- * Convert the frontend MCPConfig format back to the SDK { mcpServers: { ... } }
- * shape expected by agent_settings.mcp_config on the backend.
+ * Convert the frontend MCPConfig format back to the SDK-native server map
+ * expected by agent_settings.mcp_servers on the backend.
  *
  * Names are only suffixed (``_1``, ``_2``, …) when an earlier entry has
  * already claimed the bare base name. We intentionally do NOT use a single
@@ -304,8 +295,8 @@ export function parseMcpConfig(value: unknown): MCPConfig {
  * of other server types changes. With per-base collision suffixing,
  * unrelated entries keep their human-meaningful names stable across edits.
  */
-export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
-  const mcpServers: Record<string, SdkMcpServerConfig> = {};
+export function toSdkMcpServers(config: MCPConfig): SdkMcpServers | null {
+  const mcpServers: SdkMcpServers = {};
 
   const reserve = (base: string): string => {
     if (!(base in mcpServers)) return base;
@@ -351,5 +342,5 @@ export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
     mcpServers[reserve(entry.name || "stdio")] = server;
   }
 
-  return Object.keys(mcpServers).length > 0 ? { mcpServers } : null;
+  return Object.keys(mcpServers).length > 0 ? mcpServers : null;
 }

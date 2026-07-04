@@ -126,14 +126,14 @@ test.describe("preset automation → slash command conversation", () => {
       }
     }
     await resetMockLLM(request).catch(() => {});
-    // Clear any MCP config so subsequent tests start clean
+    // Clear any MCP servers so subsequent tests start clean
     await request
       .patch(`${BACKEND_URL}/api/settings`, {
         headers: {
           "X-Session-API-Key": SESSION_API_KEY,
           "Content-Type": "application/json",
         },
-        data: { agent_settings_diff: { mcp_config: null } },
+        data: { agent_settings_diff: { mcp_servers: null } },
       })
       .catch(() => {});
   });
@@ -163,15 +163,13 @@ test.describe("preset automation → slash command conversation", () => {
         },
         data: {
           agent_settings_diff: {
-            mcp_config: {
-              mcpServers: {
-                slack: {
-                  command: "echo",
-                  args: ["dummy-slack-mcp"],
-                  env: {
-                    SLACK_BOT_TOKEN: "xoxb-test-token",
-                    SLACK_TEAM_ID: "T0000000000",
-                  },
+            mcp_servers: {
+              slack: {
+                command: "echo",
+                args: ["dummy-slack-mcp"],
+                env: {
+                  SLACK_BOT_TOKEN: "xoxb-test-token",
+                  SLACK_TEAM_ID: "T0000000000",
                 },
               },
             },
@@ -251,16 +249,16 @@ test.describe("preset automation → slash command conversation", () => {
   }) => {
     await ensureMockLLMProfile(page);
 
-    // Explicitly clear the MCP config left by test 1.
-    // Setting mcp_config to null removes it entirely (an empty {} or
-    // { mcpServers: {} } is treated as a no-op partial merge).
+    // Explicitly clear the MCP servers left by test 1.
+    // Setting mcp_servers to null removes it entirely (an empty {} is treated
+    // as a no-op partial merge).
     const clearResp = await request.patch(`${BACKEND_URL}/api/settings`, {
       headers: {
         "X-Session-API-Key": SESSION_API_KEY,
         "Content-Type": "application/json",
       },
       data: {
-        agent_settings_diff: { mcp_config: null },
+        agent_settings_diff: { mcp_servers: null },
       },
     });
     expect(clearResp.ok(), `Clear MCP: ${clearResp.status()}`).toBe(true);
@@ -270,11 +268,10 @@ test.describe("preset automation → slash command conversation", () => {
       headers: { "X-Session-API-Key": SESSION_API_KEY },
     });
     const settings = await settingsResp.json();
-    const mcpConfig = settings?.agent_settings?.mcp_config;
-    const servers = mcpConfig?.mcpServers ?? {};
+    const servers = settings?.agent_settings?.mcp_servers ?? {};
     expect(
       Object.keys(servers).length,
-      `MCP servers should be empty, got: ${JSON.stringify(mcpConfig).slice(0, 200)}`,
+      `MCP servers should be empty, got: ${JSON.stringify(servers).slice(0, 200)}`,
     ).toBe(0);
 
     await setupTrajectory(request);

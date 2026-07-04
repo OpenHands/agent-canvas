@@ -174,7 +174,7 @@ export function MCPServerForm({
       const urlDupError = validateUrlUniqueness(url);
       if (urlDupError) return urlDupError;
 
-      // The name is optional, but when provided it becomes the mcp_config
+      // The name is optional, but when provided it becomes the mcp_servers
       // key (and the reference used in mcp_server_refs), so hold it to the
       // same safe-identifier rule as stdio names.
       const name = formData.get("name")?.toString().trim() || "";

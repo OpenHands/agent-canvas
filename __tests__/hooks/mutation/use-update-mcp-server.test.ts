@@ -41,12 +41,10 @@ describe("useUpdateMcpServer - stdio credential preservation", () => {
     useSettingsMock.mockReturnValue({
       data: {
         agent_settings: {
-          mcp_config: {
-            mcpServers: {
-              "old-name": {
-                command: "npx",
-                env: { API_KEY: REDACTED_MCP_SECRET_VALUE },
-              },
+          mcp_servers: {
+            "old-name": {
+              command: "npx",
+              env: { API_KEY: REDACTED_MCP_SECRET_VALUE },
             },
           },
         },
@@ -55,12 +53,10 @@ describe("useUpdateMcpServer - stdio credential preservation", () => {
 
     vi.spyOn(SettingsService, "fetchSettingsFromApi").mockResolvedValue({
       agent_settings: {
-        mcp_config: {
-          mcpServers: {
-            "old-name": {
-              command: "npx",
-              env: { API_KEY: "gAAAAA-encrypted-api-key" },
-            },
+        mcp_servers: {
+          "old-name": {
+            command: "npx",
+            env: { API_KEY: "gAAAAA-encrypted-api-key" },
           },
         },
       },
@@ -86,13 +82,11 @@ describe("useUpdateMcpServer - stdio credential preservation", () => {
     expect(SettingsService.saveSettings).toHaveBeenCalledTimes(1);
     const savedDiff = vi.mocked(SettingsService.saveSettings).mock.calls[0][0]
       .agent_settings_diff as Record<string, unknown> | undefined;
-    const savedSdkConfig = savedDiff?.mcp_config;
+    const savedSdkConfig = savedDiff?.mcp_servers;
     expect(savedSdkConfig).toMatchObject({
-      mcpServers: {
-        "new-name": {
-          command: "npx",
-          env: { API_KEY: "gAAAAA-encrypted-api-key" },
-        },
+      "new-name": {
+        command: "npx",
+        env: { API_KEY: "gAAAAA-encrypted-api-key" },
       },
     });
     // The literal placeholder must never round-trip into the saved config.

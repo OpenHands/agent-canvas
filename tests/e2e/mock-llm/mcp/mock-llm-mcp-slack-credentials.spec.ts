@@ -82,23 +82,23 @@ async function getSettings(request: APIRequestContext) {
   return resp.json();
 }
 
-/** Detect the Slack server in persisted settings regardless of config shape. */
+/** Detect the Slack server in persisted settings. */
 function hasSlackServer(settings: unknown): boolean {
-  const cfg = (settings as { agent_settings?: { mcp_config?: unknown } })
-    ?.agent_settings?.mcp_config;
-  if (!cfg) return false;
-  return JSON.stringify(cfg).includes("@zencoderai/slack-mcp-server");
+  const servers = (settings as { agent_settings?: { mcp_servers?: unknown } })
+    ?.agent_settings?.mcp_servers;
+  if (!servers) return false;
+  return JSON.stringify(servers).includes("@zencoderai/slack-mcp-server");
 }
 
-async function patchMcpConfig(request: APIRequestContext, mcpConfig: unknown) {
+async function patchMcpServers(request: APIRequestContext, mcpServers: unknown) {
   const resp = await request.patch(`${BACKEND_URL}/api/settings`, {
     headers: {
       "X-Session-API-Key": SESSION_API_KEY,
       "Content-Type": "application/json",
     },
-    data: { agent_settings_diff: { mcp_config: mcpConfig } },
+    data: { agent_settings_diff: { mcp_servers: mcpServers } },
   });
-  expect(resp.ok(), `seed mcp_config: ${resp.status()}`).toBe(true);
+  expect(resp.ok(), `seed mcp_servers: ${resp.status()}`).toBe(true);
 }
 
 /** Seed a Slack stdio server (matches the marketplace catalog entry). */
@@ -106,13 +106,11 @@ async function installSlackViaAPI(
   request: APIRequestContext,
   env: Record<string, string>,
 ) {
-  await patchMcpConfig(request, {
-    mcpServers: {
-      slack: {
-        command: "npx",
-        args: ["-y", "@zencoderai/slack-mcp-server"],
-        env,
-      },
+  await patchMcpServers(request, {
+    slack: {
+      command: "npx",
+      args: ["-y", "@zencoderai/slack-mcp-server"],
+      env,
     },
   });
 }
@@ -166,7 +164,7 @@ test.describe("MCP Test Connection credential verification (Slack)", () => {
 
   test.afterEach(async ({ request }) => {
     // Reset MCP config so each test starts from a clean installed list.
-    await patchMcpConfig(request, null).catch(() => {});
+    await patchMcpServers(request, null).catch(() => {});
   });
 
   test("install: invalid Slack credentials are blocked with a credential-check error", async ({
@@ -309,8 +307,8 @@ test.describe("MCP Test Connection credential verification (Slack)", () => {
     request,
   }) => {
     // A custom server is not in the marketplace catalog → no credential probe.
-    await patchMcpConfig(request, {
-      mcpServers: { "my-custom": { url: "https://custom.example.test/mcp" } },
+    await patchMcpServers(request, {
+      "my-custom": { url: "https://custom.example.test/mcp" },
     });
     await routeSessionApiKey(page);
 

@@ -441,22 +441,25 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-function hasEncryptedMcpSecrets(mcpConfig: unknown): boolean {
-  if (!isPlainRecord(mcpConfig) || !isPlainRecord(mcpConfig.mcpServers)) {
+function hasEncryptedString(value: unknown): boolean {
+  if (typeof value === "string") {
+    return value.startsWith(FERNET_TOKEN_PREFIX);
+  }
+  if (Array.isArray(value)) {
+    return value.some(hasEncryptedString);
+  }
+  if (isPlainRecord(value)) {
+    return Object.values(value).some(hasEncryptedString);
+  }
+  return false;
+}
+
+function hasEncryptedMcpSecrets(mcpServers: unknown): boolean {
+  if (!isPlainRecord(mcpServers)) {
     return false;
   }
 
-  return Object.values(mcpConfig.mcpServers).some((server) => {
-    if (!isPlainRecord(server)) return false;
-    return ["env", "headers"].some((key) => {
-      const values = server[key];
-      if (!isPlainRecord(values)) return false;
-      return Object.values(values).some(
-        (value) =>
-          typeof value === "string" && value.startsWith(FERNET_TOKEN_PREFIX),
-      );
-    });
-  });
+  return Object.values(mcpServers).some(hasEncryptedString);
 }
 
 function getConversationConfirmationPolicy(
@@ -709,13 +712,13 @@ function buildConfiguredAcpAgentSettings(
     }
   }
 
-  // ``mcp_config`` is a *shared* field (not in ACP_SETTINGS_KEYS): forward it
+  // ``mcp_servers`` is a shared field (not in ACP_SETTINGS_KEYS): forward it
   // so the ACP subprocess connects to the configured MCP servers at session
   // creation. Only include it when it actually carries servers — an empty or
-  // malformed value is dropped rather than sending ``mcp_config: {}``.
-  const mcpConfig = toRecord(agentSettings.mcp_config);
-  if (Object.keys(mcpConfig).length > 0 && "mcpServers" in mcpConfig) {
-    payload.mcp_config = mcpConfig;
+  // malformed value is dropped rather than sending ``mcp_servers: {}``.
+  const mcpServers = toRecord(agentSettings.mcp_servers);
+  if (Object.keys(mcpServers).length > 0) {
+    payload.mcp_servers = mcpServers;
   }
 
   // Saved settings may carry ``acp_model: null`` (existing users predating
@@ -778,9 +781,9 @@ function buildConfiguredOpenHandsAgentSettings(
     delete llm.subscription_vendor;
   }
 
-  const mcpConfig = toRecord(agentSettings.mcp_config);
-  if (Object.keys(mcpConfig).length === 0 || !("mcpServers" in mcpConfig)) {
-    delete agentSettings.mcp_config;
+  const mcpServers = toRecord(agentSettings.mcp_servers);
+  if (Object.keys(mcpServers).length === 0) {
+    delete agentSettings.mcp_servers;
   }
 
   delete agentSettings.acp_server;
@@ -932,11 +935,11 @@ export function buildStartConversationRequest(
   // conversation start. Non-ACP conversations need it for encrypted LLM keys.
   // ACP normally carries provider credentials as LookupSecrets, so avoid
   // forcing a cipher on fresh ACP-only backends. The exception is MCP:
-  // encrypted settings round-trip mcp_config.env/headers as Fernet tokens,
-  // and ACP forwards that mcp_config directly to the subprocess.
+  // encrypted settings round-trip mcp_servers secrets as Fernet tokens,
+  // and ACP forwards mcp_servers directly to the subprocess.
   if (
     options.secretsEncrypted &&
-    (!acpMode || hasEncryptedMcpSecrets(agentSettings.mcp_config))
+    (!acpMode || hasEncryptedMcpSecrets(agentSettings.mcp_servers))
   ) {
     payload.secrets_encrypted = true;
   }

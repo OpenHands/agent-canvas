@@ -1,5 +1,4 @@
 import {
-  type MCPConfig,
   type Provider,
   type Settings,
   type SettingsValue,
@@ -46,7 +45,7 @@ type CloudSettingsResponse = {
   remote_runtime_resource_factor?: number | null;
   max_budget_per_task?: number | null;
   provider_tokens_set?: Partial<Record<Provider, string | null>>;
-  mcp_config?: MCPConfig;
+  mcp_servers?: Record<string, SettingsValue>;
   disabled_skills?: string[];
   agent_settings?: Record<string, SettingsValue> | null;
   conversation_settings?: Record<string, SettingsValue> | null;
@@ -91,6 +90,9 @@ function deriveAgentSettings(
   if (Object.keys(condenser).length > 0) agent.condenser = condenser;
 
   if (typeof flat.agent === "string") agent.agent = flat.agent;
+  if (flat.mcp_servers && Object.keys(flat.mcp_servers).length > 0) {
+    agent.mcp_servers = flat.mcp_servers;
+  }
   return agent;
 }
 

@@ -341,7 +341,7 @@ export function InstallServerModal({
       id: `${template.kind}-${uuidv4()}`,
       type: template.kind,
       // Name remote servers after the catalog slug (e.g. "github") so they
-      // get a referenceable mcp_config key instead of the auto-generated
+      // get a referenceable mcp_servers key instead of the auto-generated
       // "sse"/"shttp" fallback. Stdio installs already carry serverName.
       name: entry.id,
       url: template.url,

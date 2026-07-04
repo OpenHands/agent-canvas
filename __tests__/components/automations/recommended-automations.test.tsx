@@ -93,21 +93,19 @@ function renderLauncher({ withBackendProvider = false } = {}) {
   );
 }
 
-function settingsWithMcpConfig(mcp_config: unknown) {
+function settingsWithMcpServers(mcp_servers: unknown) {
   return {
     agent_settings: {
-      mcp_config,
+      mcp_servers,
     },
   };
 }
 
 function settingsWithGithubMcp() {
-  return settingsWithMcpConfig({
-    mcpServers: {
-      github: {
-        url: GITHUB_HOSTED_MCP_URL,
-        auth: { strategy: "bearer", value: "github-token" },
-      },
+  return settingsWithMcpServers({
+    github: {
+      url: GITHUB_HOSTED_MCP_URL,
+      auth: { strategy: "bearer", value: "github-token" },
     },
   });
 }
@@ -120,7 +118,7 @@ describe("recommended automations", () => {
     setRegisteredBackends([localBackend]);
     setActiveSelection({ backendId: localBackend.id });
     mockUseSettings.mockReturnValue({
-      data: settingsWithMcpConfig({ mcpServers: {} }),
+      data: settingsWithMcpServers({}),
     });
     // Pre-flight connectivity test must pass so save mutations are reached.
     vi.spyOn(McpService, "testServer").mockResolvedValue({

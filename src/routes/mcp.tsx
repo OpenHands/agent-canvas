@@ -35,9 +35,9 @@ import {
 } from "#/components/features/mcp-page";
 
 // No ACP guard here (unlike `/settings` and `/settings/condenser`): MCP
-// servers configured via `agent_settings.mcp_config` are now forwarded to
+// servers configured via `agent_settings.mcp_servers` are now forwarded to
 // the ACP subprocess at session creation, so this page is meaningful for
-// both OpenHands and ACP agents. The same editor and `mcp_config` storage
+// both OpenHands and ACP agents. The same editor and MCP settings storage
 // drive both kinds.
 
 export default function MCPPage() {
@@ -56,7 +56,7 @@ export default function MCPPage() {
   const [sectionFilter, setSectionFilter] =
     React.useState<McpSectionFilter>("all");
 
-  const mcpConfig = parseMcpConfig(settings?.agent_settings?.mcp_config);
+  const mcpConfig = parseMcpConfig(settings?.agent_settings?.mcp_servers);
   const allServers = flattenMcpConfig(mcpConfig);
   const mcpMarketplace = getMcpMarketplaceCatalog(MCP_MARKETPLACE);
 

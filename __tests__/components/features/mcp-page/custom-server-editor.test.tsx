@@ -37,12 +37,10 @@ function buildSettingsWithMcp(overrides: Partial<Settings> = {}): Settings {
     ...MOCK_DEFAULT_USER_SETTINGS,
     agent_settings: {
       ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
-      mcp_config: {
-        mcpServers: {
-          github: {
-            command: "docker",
-            args: ["run", "-i", "--rm", "ghcr.io/github/github-mcp-server"],
-          },
+      mcp_servers: {
+        github: {
+          command: "docker",
+          args: ["run", "-i", "--rm", "ghcr.io/github/github-mcp-server"],
         },
       },
     },
@@ -242,15 +240,13 @@ describe("CustomServerEditor", () => {
       buildSettingsWithMcp({
         agent_settings: {
           ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
-          mcp_config: {
-            mcpServers: {
-              "superhuman-mail": {
-                url: "https://mcp.mail.superhuman.com/mcp",
-                transport: "http",
-                auth: {
-                  strategy: "oauth2",
-                  authentication: { type: "oauth", client_auth_method: "none" },
-                },
+          mcp_servers: {
+            "superhuman-mail": {
+              url: "https://mcp.mail.superhuman.com/mcp",
+              transport: "http",
+              auth: {
+                strategy: "oauth2",
+                authentication: { type: "oauth", client_auth_method: "none" },
               },
             },
           },
@@ -276,9 +272,9 @@ describe("CustomServerEditor", () => {
     await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
     const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
       .agent_settings_diff as {
-      mcp_config: { mcpServers: Record<string, unknown> };
+      mcp_servers: Record<string, unknown>;
     };
-    expect(sent.mcp_config.mcpServers).toMatchObject({
+    expect(sent.mcp_servers).toMatchObject({
       "superhuman-mail": {
         auth: {
           strategy: "oauth2",

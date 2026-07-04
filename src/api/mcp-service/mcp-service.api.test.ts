@@ -44,13 +44,11 @@ describe("McpService.testServer", () => {
       llm_api_key_is_set: false,
       conversation_settings: {},
       agent_settings: {
-        mcp_config: {
-          mcpServers: {
-            linear: {
-              url: "https://mcp.linear.app/mcp",
-              transport: "http",
-              auth: { strategy: "bearer", value: encryptedAuth },
-            },
+        mcp_servers: {
+          linear: {
+            url: "https://mcp.linear.app/mcp",
+            transport: "http",
+            auth: { strategy: "bearer", value: encryptedAuth },
           },
         },
       },

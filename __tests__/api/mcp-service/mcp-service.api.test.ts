@@ -236,10 +236,8 @@ describe("McpService.testServer", () => {
     mockTestServer.mockResolvedValue({ ok: true, tools: [] });
     vi.spyOn(SettingsService, "fetchSettingsFromApi").mockResolvedValue({
       agent_settings: {
-        mcp_config: {
-          mcpServers: {
-            slack: { env: { SLACK_BOT_TOKEN: "gAAAAA-encrypted-token" } },
-          },
+        mcp_servers: {
+          slack: { env: { SLACK_BOT_TOKEN: "gAAAAA-encrypted-token" } },
         },
       },
     } as unknown as SettingsApiResponse);

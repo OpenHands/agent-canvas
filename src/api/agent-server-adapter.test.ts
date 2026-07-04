@@ -25,14 +25,12 @@ describe("buildStartConversationRequest", () => {
         model: "litellm_proxy/openai/gpt-5.5",
         api_key: "gAAAAAencrypted-llm-api-key",
       },
-      mcp_config: {
-        mcpServers: {
-          linear: {
-            url: "https://mcp.linear.app/mcp",
-            transport: "http",
-            headers: {
-              Authorization: encryptedValue,
-            },
+      mcp_servers: {
+        linear: {
+          url: "https://mcp.linear.app/mcp",
+          transport: "http",
+          headers: {
+            Authorization: encryptedValue,
           },
         },
       },
@@ -47,7 +45,9 @@ describe("buildStartConversationRequest", () => {
     });
 
     expect(payload.agent_settings.agent_kind).toBe("openhands");
-    expect(payload.agent_settings.mcp_config).toEqual(agentSettings.mcp_config);
+    expect(payload.agent_settings.mcp_servers).toEqual(
+      agentSettings.mcp_servers,
+    );
     expect(payload.secrets_encrypted).toBe(true);
   });
 
@@ -57,14 +57,12 @@ describe("buildStartConversationRequest", () => {
       acp_server: "codex",
       acp_command: ["codex-acp"],
       acp_model: "gpt-5.5/medium",
-      mcp_config: {
-        mcpServers: {
-          linear: {
-            url: "https://mcp.linear.app/mcp",
-            transport: "http",
-            headers: {
-              Authorization: encryptedValue,
-            },
+      mcp_servers: {
+        linear: {
+          url: "https://mcp.linear.app/mcp",
+          transport: "http",
+          headers: {
+            Authorization: encryptedValue,
           },
         },
       },
@@ -79,7 +77,9 @@ describe("buildStartConversationRequest", () => {
     });
 
     expect(payload.agent_settings.agent_kind).toBe("acp");
-    expect(payload.agent_settings.mcp_config).toEqual(agentSettings.mcp_config);
+    expect(payload.agent_settings.mcp_servers).toEqual(
+      agentSettings.mcp_servers,
+    );
     expect(payload.secrets_encrypted).toBe(true);
   });
 
@@ -89,12 +89,10 @@ describe("buildStartConversationRequest", () => {
       acp_server: "codex",
       acp_command: ["codex-acp"],
       acp_model: "gpt-5.5/medium",
-      mcp_config: {
-        mcpServers: {
-          publicDocs: {
-            url: "https://docs.example.com/mcp",
-            transport: "http",
-          },
+      mcp_servers: {
+        publicDocs: {
+          url: "https://docs.example.com/mcp",
+          transport: "http",
         },
       },
     };

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { parseMcpConfig, toSdkMcpConfig } from "#/utils/mcp-config";
+import { parseMcpConfig, toSdkMcpServers } from "#/utils/mcp-config";
 import type { MCPConfig } from "#/types/settings";
 
-describe("toSdkMcpConfig", () => {
+describe("toSdkMcpServers", () => {
   it("uses bare base names when there are no collisions across server types", () => {
     // The bug we're guarding against: a shared monotonic counter would
     // emit "sse", "shttp_1", "myname_2" — bumping the stdio suffix every
@@ -15,10 +15,10 @@ describe("toSdkMcpConfig", () => {
       stdio_servers: [{ name: "myname", command: "/bin/run" }],
     };
 
-    const out = toSdkMcpConfig(config);
+    const out = toSdkMcpServers(config);
 
     expect(out).not.toBeNull();
-    expect(Object.keys(out!.mcpServers)).toEqual(["sse", "shttp", "myname"]);
+    expect(Object.keys(out!)).toEqual(["sse", "shttp", "myname"]);
   });
 
   it("only suffixes when the same base actually collides", () => {
@@ -35,9 +35,9 @@ describe("toSdkMcpConfig", () => {
       stdio_servers: [],
     };
 
-    const out = toSdkMcpConfig(config);
+    const out = toSdkMcpServers(config);
 
-    expect(Object.keys(out!.mcpServers)).toEqual([
+    expect(Object.keys(out!)).toEqual([
       "sse",
       "sse_1",
       "sse_2",
@@ -59,9 +59,9 @@ describe("toSdkMcpConfig", () => {
       ],
     };
 
-    const out = toSdkMcpConfig(config);
+    const out = toSdkMcpServers(config);
 
-    expect(out!.mcpServers).toMatchObject({
+    expect(out!).toMatchObject({
       sse: { url: "https://x" },
       sse_1: { url: "https://y" },
       shttp: { url: "https://z" },
@@ -81,9 +81,9 @@ describe("toSdkMcpConfig", () => {
       ],
     };
 
-    const out = toSdkMcpConfig(config);
+    const out = toSdkMcpServers(config);
 
-    expect(Object.keys(out!.mcpServers)).toEqual(["tool", "tool_1", "other"]);
+    expect(Object.keys(out!)).toEqual(["tool", "tool_1", "other"]);
   });
 
   it("falls back to a 'stdio' base when a stdio entry has no name", () => {
@@ -96,9 +96,9 @@ describe("toSdkMcpConfig", () => {
       ],
     };
 
-    const out = toSdkMcpConfig(config);
+    const out = toSdkMcpServers(config);
 
-    expect(Object.keys(out!.mcpServers)).toEqual(["stdio", "stdio_1"]);
+    expect(Object.keys(out!)).toEqual(["stdio", "stdio_1"]);
   });
 
   it("uses a user-given name as the sse/shttp dict key", () => {
@@ -108,10 +108,10 @@ describe("toSdkMcpConfig", () => {
       stdio_servers: [],
     };
 
-    const out = toSdkMcpConfig(config);
+    const out = toSdkMcpServers(config);
 
-    expect(Object.keys(out!.mcpServers)).toEqual(["my-search", "my-docs"]);
-    expect(out!.mcpServers["my-search"]).toMatchObject({
+    expect(Object.keys(out!)).toEqual(["my-search", "my-docs"]);
+    expect(out!["my-search"]).toMatchObject({
       url: "https://sse.example",
       transport: "sse",
     });
@@ -124,9 +124,9 @@ describe("toSdkMcpConfig", () => {
       stdio_servers: [],
     };
 
-    const out = toSdkMcpConfig(config);
+    const out = toSdkMcpServers(config);
 
-    expect(Object.keys(out!.mcpServers)).toEqual(["named", "sse", "shttp"]);
+    expect(Object.keys(out!)).toEqual(["named", "sse", "shttp"]);
   });
 
   it("de-dups colliding user-given sse/shttp names with a suffix", () => {
@@ -139,17 +139,15 @@ describe("toSdkMcpConfig", () => {
       stdio_servers: [],
     };
 
-    const out = toSdkMcpConfig(config);
+    const out = toSdkMcpServers(config);
 
-    expect(Object.keys(out!.mcpServers)).toEqual(["search", "search_1"]);
+    expect(Object.keys(out!)).toEqual(["search", "search_1"]);
   });
 
   it("round-trips a user-given sse/shttp name through parse → write", () => {
     const persisted = {
-      mcpServers: {
-        "my-search": { url: "https://x", transport: "sse" },
-        "my-docs": { url: "https://y" },
-      },
+      "my-search": { url: "https://x", transport: "sse" },
+      "my-docs": { url: "https://y" },
     };
 
     const parsed = parseMcpConfig(persisted);
@@ -161,8 +159,8 @@ describe("toSdkMcpConfig", () => {
       { name: "my-docs", url: "https://y" },
     ]);
 
-    const written = toSdkMcpConfig(parsed);
-    expect(Object.keys(written!.mcpServers).sort()).toEqual([
+    const written = toSdkMcpServers(parsed);
+    expect(Object.keys(written!).sort()).toEqual([
       "my-docs",
       "my-search",
     ]);
@@ -173,12 +171,10 @@ describe("toSdkMcpConfig", () => {
     // must leave `name` unset — otherwise the auto key would become a
     // sticky, user-facing name on the next edit.
     const persisted = {
-      mcpServers: {
-        sse: { url: "https://a", transport: "sse" },
-        sse_1: { url: "https://b", transport: "sse" },
-        shttp: { url: "https://c" },
-        shttp_2: { url: "https://d" },
-      },
+      sse: { url: "https://a", transport: "sse" },
+      sse_1: { url: "https://b", transport: "sse" },
+      shttp: { url: "https://c" },
+      shttp_2: { url: "https://d" },
     };
 
     const parsed = parseMcpConfig(persisted);
@@ -195,7 +191,7 @@ describe("toSdkMcpConfig", () => {
 
   it("returns null when there are no servers", () => {
     expect(
-      toSdkMcpConfig({ sse_servers: [], shttp_servers: [], stdio_servers: [] }),
+      toSdkMcpServers({ sse_servers: [], shttp_servers: [], stdio_servers: [] }),
     ).toBeNull();
   });
 
@@ -216,19 +212,17 @@ describe("toSdkMcpConfig", () => {
       stdio_servers: [],
     };
 
-    const out = toSdkMcpConfig(config);
+    const out = toSdkMcpServers(config);
 
     expect(out).toEqual({
-      mcpServers: {
-        sse: {
-          url: "https://sse.example",
-          transport: "sse",
-          auth: { strategy: "bearer", value: "sse-secret" },
-        },
-        shttp: {
-          url: "https://shttp.example",
-          auth: { strategy: "bearer", value: "shttp-secret" },
-        },
+      sse: {
+        url: "https://sse.example",
+        transport: "sse",
+        auth: { strategy: "bearer", value: "sse-secret" },
+      },
+      shttp: {
+        url: "https://shttp.example",
+        auth: { strategy: "bearer", value: "shttp-secret" },
       },
     });
   });
@@ -238,20 +232,18 @@ describe("toSdkMcpConfig", () => {
     // and re-serializing on save (which is what happens on every edit).
     // The keys must not drift between trips.
     const persisted = {
-      mcpServers: {
-        sse: { url: "https://x", transport: "sse" },
-        sse_1: { url: "https://y", transport: "sse" },
-        shttp: { url: "https://z" },
-        github: { command: "/bin/gh" },
-      },
+      sse: { url: "https://x", transport: "sse" },
+      sse_1: { url: "https://y", transport: "sse" },
+      shttp: { url: "https://z" },
+      github: { command: "/bin/gh" },
     };
 
     const parsed = parseMcpConfig(persisted);
-    const written = toSdkMcpConfig(parsed);
+    const written = toSdkMcpServers(parsed);
 
     expect(written).not.toBeNull();
-    expect(Object.keys(written!.mcpServers).sort()).toEqual(
-      Object.keys(persisted.mcpServers).sort(),
+    expect(Object.keys(written!).sort()).toEqual(
+      Object.keys(persisted).sort(),
     );
   });
 
@@ -270,52 +262,48 @@ describe("toSdkMcpConfig", () => {
       stdio_servers: [{ name: "myname", command: "/bin/run" }],
     };
 
-    const out1 = toSdkMcpConfig(before)!.mcpServers;
-    const out2 = toSdkMcpConfig(after)!.mcpServers;
+    const out1 = toSdkMcpServers(before)!;
+    const out2 = toSdkMcpServers(after)!;
 
     expect("myname" in out1).toBe(true);
     expect("myname" in out2).toBe(true);
   });
 });
 
-describe("parseMcpConfig / toSdkMcpConfig — auth: oauth round-trip", () => {
+describe("parseMcpConfig / toSdkMcpServers — auth: oauth round-trip", () => {
   it("round-trips auth metadata and state for remote OAuth servers", () => {
     const persisted = {
-      mcpServers: {
-        "superhuman-mail": {
-          url: "https://mcp.mail.superhuman.com/mcp",
-          transport: "http",
-          auth: {
-            strategy: "oauth2",
-            authentication: {
-              type: "oauth",
-              client_auth_method: "none",
-            },
-            state: {
-              tokens: { access_token: "gAAAAencrypted-access-token" },
-              token_expires_at: 12345,
-            },
+      "superhuman-mail": {
+        url: "https://mcp.mail.superhuman.com/mcp",
+        transport: "http",
+        auth: {
+          strategy: "oauth2",
+          authentication: {
+            type: "oauth",
+            client_auth_method: "none",
+          },
+          state: {
+            tokens: { access_token: "gAAAAencrypted-access-token" },
+            token_expires_at: 12345,
           },
         },
       },
     };
 
-    const roundTripped = toSdkMcpConfig(parseMcpConfig(persisted));
+    const roundTripped = toSdkMcpServers(parseMcpConfig(persisted));
 
     expect(roundTripped).toEqual({
-      mcpServers: {
-        "superhuman-mail": {
-          url: "https://mcp.mail.superhuman.com/mcp",
-          auth: {
-            strategy: "oauth2",
-            authentication: {
-              type: "oauth",
-              client_auth_method: "none",
-            },
-            state: {
-              tokens: { access_token: "gAAAAencrypted-access-token" },
-              token_expires_at: 12345,
-            },
+      "superhuman-mail": {
+        url: "https://mcp.mail.superhuman.com/mcp",
+        auth: {
+          strategy: "oauth2",
+          authentication: {
+            type: "oauth",
+            client_auth_method: "none",
+          },
+          state: {
+            tokens: { access_token: "gAAAAencrypted-access-token" },
+            token_expires_at: 12345,
           },
         },
       },
@@ -324,31 +312,27 @@ describe("parseMcpConfig / toSdkMcpConfig — auth: oauth round-trip", () => {
 
   it("keeps private_key_jwt OAuth client authentication metadata", () => {
     const persisted = {
-      mcpServers: {
-        oauth: {
-          url: "https://mcp.example.com/mcp",
-          transport: "http",
-          auth: {
-            strategy: "oauth2",
-            authentication: {
-              type: "oauth",
-              client_auth_method: "private_key_jwt",
-            },
+      oauth: {
+        url: "https://mcp.example.com/mcp",
+        transport: "http",
+        auth: {
+          strategy: "oauth2",
+          authentication: {
+            type: "oauth",
+            client_auth_method: "private_key_jwt",
           },
         },
       },
     };
 
-    expect(toSdkMcpConfig(parseMcpConfig(persisted))).toEqual({
-      mcpServers: {
-        oauth: {
-          url: "https://mcp.example.com/mcp",
-          auth: {
-            strategy: "oauth2",
-            authentication: {
-              type: "oauth",
-              client_auth_method: "private_key_jwt",
-            },
+    expect(toSdkMcpServers(parseMcpConfig(persisted))).toEqual({
+      oauth: {
+        url: "https://mcp.example.com/mcp",
+        auth: {
+          strategy: "oauth2",
+          authentication: {
+            type: "oauth",
+            client_auth_method: "private_key_jwt",
           },
         },
       },
