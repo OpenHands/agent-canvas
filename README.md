@@ -109,7 +109,7 @@ docker run -it --rm \
   -p 8000:8000 \
   -v "$HOME/.openhands:/home/openhands/.openhands" \
   -v "${PROJECTS_PATH}:/projects" \
-  ghcr.io/openhands/agent-canvas:1.0.0-rc.11
+  ghcr.io/openhands/agent-canvas:1.1.0
 ```
 
 For Docker Compose on rootful Linux, set `user` to your host UID/GID.
@@ -119,7 +119,7 @@ below:
 ```yaml
 services:
   openhands:
-    image: ghcr.io/openhands/agent-canvas:1.0.0-rc.11
+    image: ghcr.io/openhands/agent-canvas:1.1.0
     user: "1000:1000" # replace with id -u:id -g
     ports:
       - "8000:8000"
