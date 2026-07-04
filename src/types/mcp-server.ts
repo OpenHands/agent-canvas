@@ -4,7 +4,7 @@
 // it here keeps the marketplace utilities, hooks, and form in sync.
 
 import type { MCPTestFailureKind } from "@openhands/typescript-client";
-import type { MCPAuthCredential } from "./mcp-auth";
+import type { MCPAuthCredential, MCPOAuthState } from "./mcp-auth";
 
 export type MCPServerType = "sse" | "stdio" | "shttp";
 
@@ -44,7 +44,7 @@ export interface ExtendedMCPTestSuccess {
   ok: true;
   tools: string[];
   tool_result?: MCPTestToolResult | null;
-  server?: MCPServerConfig | null;
+  oauth_state?: MCPOAuthState | null;
 }
 
 export interface ExtendedMCPTestFailure {

@@ -204,6 +204,66 @@ describe("InstallServerModal", () => {
     await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
   });
 
+  it("persists OAuth state returned by the connection test when installing", async () => {
+    const entry: MarketplaceEntry = {
+      id: "synthetic-oauth",
+      name: "Synthetic OAuth",
+      description: "Synthetic OAuth entry.",
+      iconBg: "#000000",
+      connectionOptions: [
+        {
+          id: "oauth",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://mcp.example.com/mcp",
+          },
+          auth: {
+            strategy: "oauth2",
+            oauth: { clientAuthentication: "none" },
+          },
+        },
+      ],
+    };
+    vi.spyOn(McpService, "testServer").mockResolvedValue({
+      ok: true,
+      tools: [],
+      oauth_state: {
+        tokens: { access_token: "gAAAAencrypted-access-token" },
+        token_expires_at: 12345,
+      },
+    });
+    const getSpy = vi
+      .spyOn(SettingsService, "getSettings")
+      .mockResolvedValue(MOCK_DEFAULT_USER_SETTINGS);
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    renderWith(<InstallServerModal entry={entry} onClose={vi.fn()} />);
+    await screen.findByTestId("mcp-install-modal");
+    await waitFor(() => expect(getSpy).toHaveBeenCalled());
+    fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
+      .agent_settings_diff as {
+      mcp_config: { mcpServers: Record<string, unknown> };
+    };
+    expect(sent.mcp_config.mcpServers).toMatchObject({
+      "synthetic-oauth": {
+        url: "https://mcp.example.com/mcp",
+        auth: {
+          strategy: "oauth2",
+          state: {
+            tokens: { access_token: "gAAAAencrypted-access-token" },
+            token_expires_at: 12345,
+          },
+        },
+      },
+    });
+  });
+
   it("installs Linear over streamable HTTP with the api key as a bearer credential", async () => {
     // Arrange: the marketplace serves the patched Linear entry (shttp
     // /mcp endpoint, bearer auth) — the UI must never touch the removed
@@ -278,7 +338,6 @@ describe("InstallServerModal", () => {
     const submit = screen.getByTestId("mcp-install-submit");
 
     // Assert: Cancel precedes the dominant Install action in DOM order.
-    // eslint-disable-next-line no-bitwise
     expect(
       cancel.compareDocumentPosition(submit) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();

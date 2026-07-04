@@ -129,22 +129,11 @@ describe("McpService.testServer", () => {
     testServer.mockResolvedValueOnce({
       ok: true,
       tools: ["search_mail"],
-      server: {
-        type: "shttp",
-        url: "https://mcp.mail.superhuman.com/mcp",
-        auth: {
-          strategy: "oauth2",
-          authentication: {
-            type: "oauth",
-            client_auth_method: "none",
-          },
-          state: {
-            tokens: {
-              access_token: "gAAAAencrypted-access-token",
-            },
-            token_expires_at: 12345,
-          },
+      oauth_state: {
+        tokens: {
+          access_token: "gAAAAencrypted-access-token",
         },
+        token_expires_at: 12345,
       },
     });
 
@@ -164,20 +153,11 @@ describe("McpService.testServer", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error("expected successful MCP test");
-    expect(result.server).toMatchObject({
-      id: "shttp-0",
-      type: "shttp",
-      name: "superhuman-mail",
-      url: "https://mcp.mail.superhuman.com/mcp",
-      auth: {
-        strategy: "oauth2",
-        state: {
-          tokens: {
-            access_token: "gAAAAencrypted-access-token",
-          },
-          token_expires_at: 12345,
-        },
+    expect(result.oauth_state).toMatchObject({
+      tokens: {
+        access_token: "gAAAAencrypted-access-token",
       },
+      token_expires_at: 12345,
     });
   });
 });

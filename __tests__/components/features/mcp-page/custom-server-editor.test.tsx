@@ -21,6 +21,17 @@ const EDIT_STDIO_SERVER: MCPServerConfig = {
   args: ["run", "-i", "--rm", "ghcr.io/github/github-mcp-server"],
 };
 
+const EDIT_OAUTH_SERVER: MCPServerConfig = {
+  id: "shttp-0",
+  type: "shttp",
+  name: "superhuman-mail",
+  url: "https://mcp.mail.superhuman.com/mcp",
+  auth: {
+    strategy: "oauth2",
+    authentication: { type: "oauth", client_auth_method: "none" },
+  },
+};
+
 function buildSettingsWithMcp(overrides: Partial<Settings> = {}): Settings {
   return {
     ...MOCK_DEFAULT_USER_SETTINGS,
@@ -65,6 +76,22 @@ function EditEditorOnceSettingsLoaded({ onClose }: { onClose: () => void }) {
     <CustomServerEditor
       server={EDIT_STDIO_SERVER}
       existingServers={[EDIT_STDIO_SERVER]}
+      onClose={onClose}
+    />
+  );
+}
+
+function EditOAuthEditorOnceSettingsLoaded({
+  onClose,
+}: {
+  onClose: () => void;
+}) {
+  const { data } = useSettings();
+  if (!data) return null;
+  return (
+    <CustomServerEditor
+      server={EDIT_OAUTH_SERVER}
+      existingServers={[EDIT_OAUTH_SERVER]}
       onClose={onClose}
     />
   );
@@ -208,5 +235,59 @@ describe("CustomServerEditor", () => {
         "MCP$TEST_ERROR_CREDENTIALS",
       ),
     );
+  });
+
+  it("persists OAuth state returned by the connection test when editing", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettingsWithMcp({
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          mcp_config: {
+            mcpServers: {
+              "superhuman-mail": {
+                url: "https://mcp.mail.superhuman.com/mcp",
+                transport: "http",
+                auth: {
+                  strategy: "oauth2",
+                  authentication: { type: "oauth", client_auth_method: "none" },
+                },
+              },
+            },
+          },
+        },
+      }),
+    );
+    vi.spyOn(McpService, "testServer").mockResolvedValue({
+      ok: true,
+      tools: [],
+      oauth_state: {
+        tokens: { access_token: "gAAAAencrypted-access-token" },
+        token_expires_at: 12345,
+      },
+    });
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    renderWith(<EditOAuthEditorOnceSettingsLoaded onClose={vi.fn()} />);
+    await screen.findByTestId("mcp-custom-editor");
+    fireEvent.click(screen.getByTestId("submit-button"));
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
+      .agent_settings_diff as {
+      mcp_config: { mcpServers: Record<string, unknown> };
+    };
+    expect(sent.mcp_config.mcpServers).toMatchObject({
+      "superhuman-mail": {
+        auth: {
+          strategy: "oauth2",
+          state: {
+            tokens: { access_token: "gAAAAencrypted-access-token" },
+            token_expires_at: 12345,
+          },
+        },
+      },
+    });
   });
 });

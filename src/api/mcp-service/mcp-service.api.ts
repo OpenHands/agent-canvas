@@ -11,7 +11,6 @@ import type {
   MCPServerConfig,
 } from "#/types/mcp-server";
 import { substituteRedactedMcpCredentials } from "./mcp-redacted-credentials";
-import { isMcpAuthCredential } from "#/types/mcp-auth";
 
 const OAUTH_MCP_TEST_TIMEOUT_SECONDS = 120;
 
@@ -32,17 +31,6 @@ function toMcpServerSpec(server: MCPServerConfig): MCPServerSpec {
       Object.keys(server.headers).length > 0 && { headers: server.headers }),
     ...(server.auth ? { auth: server.auth } : {}),
   } as MCPServerSpec;
-}
-
-function serverSpecToConfig(
-  original: MCPServerConfig,
-  spec: Record<string, unknown>,
-): MCPServerConfig {
-  return {
-    ...original,
-    ...(typeof spec.url === "string" ? { url: spec.url } : {}),
-    ...(isMcpAuthCredential(spec.auth) ? { auth: spec.auth } : {}),
-  };
 }
 
 function getMcpTestTimeout(server: MCPServerConfig): number | undefined {
@@ -81,24 +69,9 @@ class McpService {
         ...(timeout !== undefined ? { timeout } : {}),
         ...(validation ? { tool_call: validation.toolCall } : {}),
       };
-      let result = (await client.testServer(
+      const result = (await client.testServer(
         request as MCPTestRequest,
-      )) as ExtendedMCPTestResponse & { server?: unknown };
-      const responseServer = result.server as unknown;
-      if (
-        result.ok &&
-        responseServer &&
-        typeof responseServer === "object" &&
-        !Array.isArray(responseServer)
-      ) {
-        result = {
-          ...result,
-          server: serverSpecToConfig(
-            server,
-            responseServer as Record<string, unknown>,
-          ),
-        };
-      }
+      )) as ExtendedMCPTestResponse;
       if (result.ok && validation && result.tool_result) {
         const credentialError = validation.interpret(result.tool_result);
         if (credentialError) {

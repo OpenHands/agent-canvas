@@ -241,7 +241,14 @@ export function InstallServerModal({
           // Modal stays open — do NOT call onClose.
           return;
         }
-        addMcpServer(result.server ?? payload, {
+        const serverToSave =
+          result.oauth_state && payload.auth?.strategy === "oauth2"
+            ? {
+                ...payload,
+                auth: { ...payload.auth, state: result.oauth_state },
+              }
+            : payload;
+        addMcpServer(serverToSave, {
           onSuccess: () => {
             displaySuccessToast(t(I18nKey.MCP$INSTALL_SUCCESS));
             setIsFinalizingInstall(true);

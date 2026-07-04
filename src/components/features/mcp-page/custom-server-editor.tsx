@@ -105,7 +105,13 @@ export function CustomServerEditor({
           // Test failed — modal stays open, error shown via testMessage.
           return;
         }
-        const serverToSave = result.server ?? payload;
+        const serverToSave =
+          result.oauth_state && payload.auth?.strategy === "oauth2"
+            ? {
+                ...payload,
+                auth: { ...payload.auth, state: result.oauth_state },
+              }
+            : payload;
         if (isEditing) {
           updateMcpServer(
             { serverId: server.id, server: serverToSave },
