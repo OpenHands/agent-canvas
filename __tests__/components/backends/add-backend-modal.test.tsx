@@ -21,6 +21,21 @@ vi.mock("@openhands/typescript-client/clients", () => ({
   }),
 }));
 
+// Mock the services useTracking depends on (PostHog client + settings) so the
+// consent gate is open and captured events are observable. useTracking itself
+// is never mocked.
+const captureMock = vi.hoisted(() => vi.fn());
+
+vi.mock("posthog-js/react", () => ({
+  usePostHog: () => ({ capture: captureMock }),
+}));
+
+vi.mock("#/hooks/query/use-settings", () => ({
+  useSettings: () => ({
+    data: { user_consents_to_analytics: true, email: "user@example.com" },
+  }),
+}));
+
 function renderWithProviders(
   ui: React.ReactElement,
   navigation?: NavigationContextValue,
@@ -45,6 +60,7 @@ beforeEach(() => {
   window.localStorage.clear();
   getServerInfoMock.mockReset();
   getServerInfoMock.mockResolvedValue({ version: "1.28.0" });
+  captureMock.mockClear();
   __resetActiveStoreForTests();
 });
 
@@ -313,5 +329,41 @@ describe("AddBackendModal – redirect after adding a backend", () => {
 
     // Assert
     expect(navigate).not.toHaveBeenCalled();
+  });
+});
+
+describe("AddBackendModal – analytics", () => {
+  it("captures backend_added once with manual connection metadata", async () => {
+    // Arrange
+    renderWithProviders(<AddBackendModal onClose={vi.fn()} />);
+    const user = userEvent.setup();
+
+    // Act — connect a local backend through the manual form
+    await user.type(screen.getByTestId("add-backend-name"), "Local Extra");
+    await user.type(
+      screen.getByTestId("add-backend-host"),
+      "http://localhost:8000",
+    );
+    await user.type(screen.getByTestId("add-backend-api-key"), "sk-local");
+    await user.click(screen.getByTestId("add-backend-submit"));
+
+    // Assert — emitted exactly once with coarse, non-sensitive properties
+    await waitFor(() =>
+      expect(captureMock).toHaveBeenCalledWith(
+        "backend_added",
+        expect.objectContaining({
+          backend_kind: "local",
+          connection_method: "manual",
+          is_openhands_cloud: false,
+          is_custom_host: true,
+          has_api_key: true,
+          source: "add_backend_modal",
+        }),
+      ),
+    );
+    const backendAddedCalls = captureMock.mock.calls.filter(
+      ([event]) => event === "backend_added",
+    );
+    expect(backendAddedCalls).toHaveLength(1);
   });
 });

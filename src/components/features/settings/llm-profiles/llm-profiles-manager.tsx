@@ -11,6 +11,7 @@ import ProfilesService, {
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useActivateLlmProfile } from "#/hooks/mutation/use-activate-llm-profile";
 import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
+import { useCanManageLlmProfiles } from "#/hooks/use-can-manage-llm-profiles";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -30,6 +31,9 @@ export function LlmProfilesManager({
   const { data, isLoading, error } = useLlmProfiles();
   const activateProfile = useActivateLlmProfile();
   const saveProfile = useSaveLlmProfile();
+  // Cloud members are view-only; only owners/admins (and all local users) may
+  // add, edit, rename, duplicate, delete, or activate profiles.
+  const canManage = useCanManageLlmProfiles();
   const [profileToRename, setProfileToRename] = useState<ProfileInfo | null>(
     null,
   );
@@ -96,7 +100,7 @@ export function LlmProfilesManager({
           <h2 className="text-base font-medium text-white">
             {t(I18nKey.SETTINGS$AVAILABLE_PROFILES)}
           </h2>
-          {onAddProfile ? (
+          {onAddProfile && canManage ? (
             <BrandButton
               testId="add-llm-profile"
               type="button"
@@ -114,6 +118,7 @@ export function LlmProfilesManager({
           loadError={error ?? null}
           profiles={profiles}
           active={active}
+          canManage={canManage}
           onActivate={handleActivate}
           onEdit={handleEdit}
           onRename={setProfileToRename}

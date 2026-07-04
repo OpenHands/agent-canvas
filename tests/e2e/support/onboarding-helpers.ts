@@ -134,6 +134,22 @@ export async function getOnboardingStepLayout(
   page: Page,
 ): Promise<OnboardingStepLayout> {
   await waitForOnboardingStep(page, ONBOARDING_BACKEND_STEP);
+
+  // Wait for the backend health probe to settle before sampling the layout.
+  // While the probe is in flight the backend slide shows a transient
+  // "checking" banner at step 0. A healthy configured backend then auto-skips
+  // the backend slide (starting the flow on agent selection), while an
+  // unhealthy/unconfigured one keeps it. Sampling during the "checking" window
+  // races that skip: we would wrongly report a backend step that immediately
+  // disappears and then wait forever for a "connected" banner that never
+  // renders. Waiting for "checking" to clear makes the verdict deterministic
+  // regardless of how long the probe takes (e.g. when a spec slows
+  // `/api/settings` via a `route.fetch()` intercept).
+  await expect(
+    page.getByTestId("onboarding-backend-checking"),
+    "onboarding backend health probe should settle before sampling the layout",
+  ).toHaveCount(0, { timeout: 15_000 });
+
   const hasBackendStep = await page
     .getByTestId("onboarding-step-check-backend")
     .isVisible()
