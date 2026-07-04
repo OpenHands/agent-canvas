@@ -38,7 +38,7 @@ const hasRedactedStringLeaf = (value: unknown): boolean => {
 const isMcpAuthCredential = (value: unknown): value is MCPAuthCredential =>
   isRecord(value) &&
   typeof value.strategy === "string" &&
-  ["none", "api_key", "bearer", "basic", "header", "oauth2", "custom"].includes(
+  ["none", "api_key", "bearer", "basic", "header", "oauth2"].includes(
     value.strategy,
   );
 
@@ -121,9 +121,9 @@ async function fetchEncryptedStoredServer(
 }
 
 /**
- * The MCP editor sees redacted settings (`<redacted>`). When the user leaves
+ * The MCP editor sees redacted settings (`**********`). When the user leaves
  * a secret unchanged, replace that placeholder with the stored encrypted
- * env/header/OAuth credential value so tests and saves round-trip the real
+ * env/header/OAuth state value so tests and saves round-trip the real
  * credential without exposing plaintext in the browser.
  */
 export async function substituteRedactedMcpCredentials(

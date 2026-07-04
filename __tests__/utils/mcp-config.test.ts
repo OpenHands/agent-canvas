@@ -410,7 +410,7 @@ describe("parseMcpConfig — deprecated Linear SSE migration", () => {
 });
 
 describe("parseMcpConfig / toSdkMcpConfig — auth: oauth round-trip", () => {
-  it("round-trips auth metadata and credentials for remote OAuth servers", () => {
+  it("round-trips auth metadata and state for remote OAuth servers", () => {
     const persisted = {
       mcpServers: {
         "superhuman-mail": {
@@ -422,13 +422,9 @@ describe("parseMcpConfig / toSdkMcpConfig — auth: oauth round-trip", () => {
               type: "oauth",
               client_auth_method: "none",
             },
-            credentials: {
-              "mcp-oauth-token": {
-                "https://mcp.mail.superhuman.com/mcp/tokens": {
-                  value: { access_token: "gAAAAencrypted-access-token" },
-                  expires_at: 12345,
-                },
-              },
+            state: {
+              tokens: { access_token: "gAAAAencrypted-access-token" },
+              token_expires_at: 12345,
             },
           },
         },
@@ -447,13 +443,42 @@ describe("parseMcpConfig / toSdkMcpConfig — auth: oauth round-trip", () => {
               type: "oauth",
               client_auth_method: "none",
             },
-            credentials: {
-              "mcp-oauth-token": {
-                "https://mcp.mail.superhuman.com/mcp/tokens": {
-                  value: { access_token: "gAAAAencrypted-access-token" },
-                  expires_at: 12345,
-                },
-              },
+            state: {
+              tokens: { access_token: "gAAAAencrypted-access-token" },
+              token_expires_at: 12345,
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it("keeps private_key_jwt OAuth client authentication metadata", () => {
+    const persisted = {
+      mcpServers: {
+        oauth: {
+          url: "https://mcp.example.com/mcp",
+          transport: "http",
+          auth: {
+            strategy: "oauth2",
+            authentication: {
+              type: "oauth",
+              client_auth_method: "private_key_jwt",
+            },
+          },
+        },
+      },
+    };
+
+    expect(toSdkMcpConfig(parseMcpConfig(persisted))).toEqual({
+      mcpServers: {
+        oauth: {
+          url: "https://mcp.example.com/mcp",
+          auth: {
+            strategy: "oauth2",
+            authentication: {
+              type: "oauth",
+              client_auth_method: "private_key_jwt",
             },
           },
         },

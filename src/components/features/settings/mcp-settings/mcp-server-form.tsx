@@ -244,7 +244,6 @@ export function MCPServerForm({
     if (
       existing?.strategy === "oauth2" ||
       existing?.strategy === "header" ||
-      existing?.strategy === "custom" ||
       existing?.strategy === "basic" ||
       existing?.strategy === "none"
     ) {

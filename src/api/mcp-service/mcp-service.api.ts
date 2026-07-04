@@ -42,15 +42,9 @@ function isMcpAuthCredential(value: unknown): value is MCPAuthCredential {
   return (
     isRecord(value) &&
     typeof value.strategy === "string" &&
-    [
-      "none",
-      "api_key",
-      "bearer",
-      "basic",
-      "header",
-      "oauth2",
-      "custom",
-    ].includes(value.strategy)
+    ["none", "api_key", "bearer", "basic", "header", "oauth2"].includes(
+      value.strategy,
+    )
   );
 }
 

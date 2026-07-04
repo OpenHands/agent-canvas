@@ -13,7 +13,7 @@ describe("substituteRedactedMcpCredentials", () => {
   it("preserves encrypted stdio env when the server is renamed", async () => {
     // Regression: renaming a stdio server left a redacted env value unchanged,
     // so the lookup by the new display name missed the stored entry and the
-    // literal "<redacted>" placeholder overwrote the stored encrypted secret.
+    // literal redaction placeholder overwrote the stored encrypted secret.
     vi.spyOn(SettingsService, "fetchSettingsFromApi").mockResolvedValue({
       agent_settings: {
         mcp_config: {
@@ -126,7 +126,7 @@ describe("substituteRedactedMcpCredentials", () => {
     expect(result.env).toEqual({ API_KEY: REDACTED_MCP_SECRET_VALUE });
   });
 
-  it("replaces redacted OAuth credentials with the encrypted stored subtree", async () => {
+  it("replaces redacted OAuth state with the encrypted stored subtree", async () => {
     vi.spyOn(SettingsService, "fetchSettingsFromApi").mockResolvedValue({
       agent_settings: {
         mcp_config: {
@@ -135,14 +135,14 @@ describe("substituteRedactedMcpCredentials", () => {
               url: "https://mcp.mail.superhuman.com/mcp",
               auth: {
                 strategy: "oauth2",
-                credentials: {
-                  "mcp-oauth-token": {
-                    "https://mcp.mail.superhuman.com/mcp/tokens": {
-                      value: {
-                        access_token: "gAAAAA-encrypted-access-token",
-                        token_type: "gAAAAA-encrypted-token-type",
-                      },
-                    },
+                state: {
+                  tokens: {
+                    access_token: "gAAAAA-encrypted-access-token",
+                    refresh_token: "gAAAAA-encrypted-refresh-token",
+                  },
+                  client_info: {
+                    client_id: "superhuman-client",
+                    client_secret: "gAAAAA-encrypted-client-secret",
                   },
                 },
               },
@@ -159,14 +159,14 @@ describe("substituteRedactedMcpCredentials", () => {
       url: "https://mcp.mail.superhuman.com/mcp",
       auth: {
         strategy: "oauth2",
-        credentials: {
-          "mcp-oauth-token": {
-            "https://mcp.mail.superhuman.com/mcp/tokens": {
-              value: {
-                access_token: REDACTED_MCP_SECRET_VALUE,
-                token_type: REDACTED_MCP_SECRET_VALUE,
-              },
-            },
+        state: {
+          tokens: {
+            access_token: REDACTED_MCP_SECRET_VALUE,
+            refresh_token: REDACTED_MCP_SECRET_VALUE,
+          },
+          client_info: {
+            client_id: "superhuman-client",
+            client_secret: REDACTED_MCP_SECRET_VALUE,
           },
         },
       },
@@ -174,14 +174,14 @@ describe("substituteRedactedMcpCredentials", () => {
 
     expect(result.auth).toEqual({
       strategy: "oauth2",
-      credentials: {
-        "mcp-oauth-token": {
-          "https://mcp.mail.superhuman.com/mcp/tokens": {
-            value: {
-              access_token: "gAAAAA-encrypted-access-token",
-              token_type: "gAAAAA-encrypted-token-type",
-            },
-          },
+      state: {
+        tokens: {
+          access_token: "gAAAAA-encrypted-access-token",
+          refresh_token: "gAAAAA-encrypted-refresh-token",
+        },
+        client_info: {
+          client_id: "superhuman-client",
+          client_secret: "gAAAAA-encrypted-client-secret",
         },
       },
     });

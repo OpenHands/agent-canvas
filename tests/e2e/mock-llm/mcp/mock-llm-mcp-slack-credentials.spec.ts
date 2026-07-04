@@ -20,7 +20,7 @@
  *   - Valid credentials connect successfully.
  *   - Older agent servers that omit `tool_result` behave exactly as before.
  *   - The Edit modal's "Test connection" verifies the *stored* credentials —
- *     it never tests the literal `<redacted>` placeholder the browser sees.
+ *     it never tests the literal redaction placeholder the browser sees.
  */
 
 import {
@@ -47,7 +47,7 @@ const SLACK_TOOL_CALL = {
 // Placeholder the settings API substitutes for secret env values when read
 // without X-Expose-Secrets (the MCP page's mode). The whole point of the fix
 // is that the test request must NOT carry this value.
-const REDACTED = "<redacted>";
+const REDACTED = "**********";
 
 /** The JSON body the GUI POSTs to `/api/mcp/test` (captured via interception). */
 interface McpTestRequestBody {

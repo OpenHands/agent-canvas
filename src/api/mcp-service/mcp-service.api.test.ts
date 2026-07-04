@@ -6,6 +6,7 @@ import {
 } from "../backend-registry/active-store";
 import SettingsService from "../settings-service/settings-service.api";
 import McpService from "./mcp-service.api";
+import { REDACTED_MCP_SECRET_VALUE } from "#/utils/mcp-config";
 
 vi.mock("@openhands/typescript-client/clients", () => ({
   MCPClient: vi.fn(),
@@ -60,7 +61,7 @@ describe("McpService.testServer", () => {
       type: "shttp",
       name: "linear",
       url: "https://mcp.linear.app/mcp",
-      auth: { strategy: "bearer", value: "<redacted>" },
+      auth: { strategy: "bearer", value: REDACTED_MCP_SECRET_VALUE },
     });
 
     expect(SettingsService.fetchSettingsFromApi).toHaveBeenCalledWith(
@@ -92,13 +93,9 @@ describe("McpService.testServer", () => {
           type: "oauth",
           client_auth_method: "none",
         },
-        credentials: {
-          "mcp-oauth-token": {
-            "https://mcp.mail.superhuman.com/mcp/tokens": {
-              value: {
-                access_token: "gAAAAexisting-access-token",
-              },
-            },
+        state: {
+          tokens: {
+            access_token: "gAAAAexisting-access-token",
           },
         },
       },
@@ -116,13 +113,9 @@ describe("McpService.testServer", () => {
             type: "oauth",
             client_auth_method: "none",
           },
-          credentials: {
-            "mcp-oauth-token": {
-              "https://mcp.mail.superhuman.com/mcp/tokens": {
-                value: {
-                  access_token: "gAAAAexisting-access-token",
-                },
-              },
+          state: {
+            tokens: {
+              access_token: "gAAAAexisting-access-token",
             },
           },
         },
@@ -132,7 +125,7 @@ describe("McpService.testServer", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
-  it("returns OAuth credentials captured by the MCP test endpoint", async () => {
+  it("returns OAuth state captured by the MCP test endpoint", async () => {
     testServer.mockResolvedValueOnce({
       ok: true,
       tools: ["search_mail"],
@@ -145,15 +138,11 @@ describe("McpService.testServer", () => {
             type: "oauth",
             client_auth_method: "none",
           },
-          credentials: {
-            "mcp-oauth-token": {
-              "https://mcp.mail.superhuman.com/mcp/tokens": {
-                value: {
-                  access_token: "gAAAAencrypted-access-token",
-                },
-                expires_at: 12345,
-              },
+          state: {
+            tokens: {
+              access_token: "gAAAAencrypted-access-token",
             },
+            token_expires_at: 12345,
           },
         },
       },
@@ -182,14 +171,11 @@ describe("McpService.testServer", () => {
       url: "https://mcp.mail.superhuman.com/mcp",
       auth: {
         strategy: "oauth2",
-        credentials: {
-          "mcp-oauth-token": {
-            "https://mcp.mail.superhuman.com/mcp/tokens": {
-              value: {
-                access_token: "gAAAAencrypted-access-token",
-              },
-            },
+        state: {
+          tokens: {
+            access_token: "gAAAAencrypted-access-token",
           },
+          token_expires_at: 12345,
         },
       },
     });

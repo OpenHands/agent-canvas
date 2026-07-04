@@ -7,9 +7,9 @@ import {
 } from "#/types/settings";
 import type {
   MCPAuthCredential,
-  MCPAuthValue,
   MCPAuthenticationConfig,
   MCPAuthenticationMetadataValue,
+  MCPOAuthState,
 } from "#/types/mcp-auth";
 import type { MCPServerConfig } from "#/types/mcp-server";
 
@@ -19,7 +19,7 @@ const EMPTY_MCP_CONFIG: MCPConfig = {
   shttp_servers: [],
 };
 
-export const REDACTED_MCP_SECRET_VALUE = "<redacted>";
+export const REDACTED_MCP_SECRET_VALUE = "**********";
 
 const LINEAR_DEPRECATED_SSE_URL = "https://mcp.linear.app/sse";
 const LINEAR_SHTTP_URL = "https://mcp.linear.app/mcp";
@@ -78,13 +78,24 @@ function hasRedactedStringLeaf(value: unknown): boolean {
   return false;
 }
 
-function getOAuthCredentials(
-  value: unknown,
-): Record<string, MCPAuthValue> | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return undefined;
+function getOAuthState(value: unknown): MCPOAuthState | undefined {
+  if (!isRecord(value)) return undefined;
+  const state: MCPOAuthState = {};
+  if (isRecord(value.tokens)) {
+    state.tokens = value.tokens as NonNullable<MCPOAuthState["tokens"]>;
   }
-  return value as Record<string, MCPAuthValue>;
+  if (isRecord(value.client_info)) {
+    state.client_info = value.client_info as NonNullable<
+      MCPOAuthState["client_info"]
+    >;
+  }
+  if (
+    typeof value.token_expires_at === "number" ||
+    value.token_expires_at === null
+  ) {
+    state.token_expires_at = value.token_expires_at;
+  }
+  return Object.keys(state).length > 0 ? state : undefined;
 }
 
 function normalizeTaggedAuthCredential(
@@ -124,20 +135,13 @@ function normalizeTaggedAuthCredential(
     }
     case "oauth2": {
       const authentication = getAuthenticationConfig(value.authentication);
-      const credentials = getOAuthCredentials(value.credentials);
+      const state = getOAuthState(value.state);
       return {
         strategy: "oauth2",
         ...(authentication && { authentication }),
-        ...(credentials && { credentials }),
+        ...(state && { state }),
       };
     }
-    case "custom":
-      return isRecord(value.fastmcp)
-        ? {
-            strategy: "custom",
-            fastmcp: value.fastmcp as Record<string, MCPAuthValue>,
-          }
-        : undefined;
     default:
       return undefined;
   }
@@ -202,7 +206,8 @@ function getAuthenticationConfig(
   if (
     record.client_auth_method === "none" ||
     record.client_auth_method === "client_secret_post" ||
-    record.client_auth_method === "client_secret_basic"
+    record.client_auth_method === "client_secret_basic" ||
+    record.client_auth_method === "private_key_jwt"
   ) {
     authentication.client_auth_method = record.client_auth_method;
   }

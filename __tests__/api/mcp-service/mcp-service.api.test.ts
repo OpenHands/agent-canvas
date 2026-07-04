@@ -5,6 +5,7 @@ import SettingsService, {
 } from "#/api/settings-service/settings-service.api";
 import * as activeStore from "#/api/backend-registry/active-store";
 import type { MCPServerConfig } from "#/types/mcp-server";
+import { REDACTED_MCP_SECRET_VALUE } from "#/utils/mcp-config";
 
 // vi.mock factories are hoisted before imports, so spy functions must be
 // created with vi.hoisted() to be in scope inside the factory.
@@ -221,14 +222,14 @@ describe("McpService.testServer", () => {
   // Redacted-secret round-trip for the edit flow
   //
   // The MCP page reads settings with redacted secrets, so unchanged env
-  // values arrive as the literal "<redacted>" placeholder. The service swaps
+  // values arrive as the literal redaction placeholder. The service swaps
   // them for the stored values in encrypted form (decrypted server-side) so
   // the test exercises the real credentials.
   // -------------------------------------------------------------------------
 
   const REDACTED_SLACK_SERVER: MCPServerConfig = {
     ...SLACK_SERVER,
-    env: { SLACK_TEAM_ID: "T01", SLACK_BOT_TOKEN: "<redacted>" },
+    env: { SLACK_TEAM_ID: "T01", SLACK_BOT_TOKEN: REDACTED_MCP_SECRET_VALUE },
   };
 
   it("substitutes redacted env values with encrypted stored values", async () => {
@@ -274,7 +275,10 @@ describe("McpService.testServer", () => {
     expect(mockTestServer).toHaveBeenCalledWith(
       expect.objectContaining({
         server: expect.objectContaining({
-          env: { SLACK_TEAM_ID: "T01", SLACK_BOT_TOKEN: "<redacted>" },
+          env: {
+            SLACK_TEAM_ID: "T01",
+            SLACK_BOT_TOKEN: REDACTED_MCP_SECRET_VALUE,
+          },
         }),
       }),
     );

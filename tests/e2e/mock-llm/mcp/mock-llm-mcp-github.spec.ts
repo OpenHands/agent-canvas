@@ -164,7 +164,7 @@ test.describe("MCP GitHub server install flow", () => {
     expect(mcpServers).toBeTruthy();
     expect(mcpServers?.github).toMatchObject({
       url: GITHUB_HOSTED_MCP_URL,
-      auth: { strategy: "api_key", value: "<redacted>" },
+      auth: { strategy: "api_key", value: "**********" },
     });
   });
 

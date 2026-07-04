@@ -139,16 +139,12 @@ describe("MCPServerForm validation", () => {
     expect(onSubmit.mock.calls[0][0].name).toBeUndefined();
   });
 
-  it("preserves OAuth credentials when editing a remote OAuth server", () => {
+  it("preserves OAuth state when editing a remote OAuth server", () => {
     const onSubmit = vi.fn();
-    const oauthCredentials = {
-      "mcp-oauth-token": {
-        "https://mcp.mail.superhuman.com/mcp/tokens": {
-          value: {
-            access_token: "<redacted>",
-            token_type: "<redacted>",
-          },
-        },
+    const oauthState = {
+      tokens: {
+        access_token: "**********",
+        refresh_token: "**********",
       },
     };
 
@@ -163,7 +159,7 @@ describe("MCPServerForm validation", () => {
           auth: {
             strategy: "oauth2",
             authentication: { type: "oauth", client_auth_method: "none" },
-            credentials: oauthCredentials,
+            state: oauthState,
           },
         }}
         existingServers={[]}
@@ -179,7 +175,7 @@ describe("MCPServerForm validation", () => {
       auth: {
         strategy: "oauth2",
         authentication: { type: "oauth", client_auth_method: "none" },
-        credentials: oauthCredentials,
+        state: oauthState,
       },
     });
   });

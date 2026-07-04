@@ -37,7 +37,7 @@ describe("useUpdateMcpServer - stdio credential preservation", () => {
   it("saves the encrypted stdio env, not the redacted placeholder, when a stdio server is renamed", async () => {
     // The redacted settings the editor reads from still carry the original name
     // ("old-name") and redacted env. The user renames to "new-name" and leaves
-    // the secret env value as "<redacted>".
+    // the secret env value as the redaction placeholder.
     useSettingsMock.mockReturnValue({
       data: {
         agent_settings: {
