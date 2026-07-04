@@ -547,17 +547,23 @@ export async function activateProfileViaUI(page: Page, profileName: string) {
   // updates reactively — `useActivateLlmProfile` invalidates the profiles query
   // on success, which refetches `active_profile` and re-renders the row — so no
   // page reload is needed and a dropped click self-heals on the next attempt.
+  //
+  // Every wait inside the block is capped well below the `.toPass` budget: the
+  // failure this heals is a menu that didn't open (dropped click / not-yet-
+  // loaded menu), and `waitForTestId`'s 30s default — plus `click`'s unbounded
+  // `actionTimeout` — would otherwise swallow the whole 30s window in a single
+  // tick, leaving no room to retry the very gesture that flaked.
   await expect(async () => {
-    if ((await activeBadge.count()) > 0) return; // already active
+    if (await activeBadge.isVisible()) return; // already active
 
     // The menu trigger toggles, so reset any menu left open by a prior attempt
     // before re-opening — otherwise a retry would close the menu it just opened.
     await page.keyboard.press("Escape");
-    await row.getByTestId("profile-menu-trigger").click();
-    await waitForTestId(page, "profile-actions-menu");
+    await row.getByTestId("profile-menu-trigger").click({ timeout: 5_000 });
+    await waitForTestId(page, "profile-actions-menu", 5_000);
     const setActive = page.getByTestId("profile-set-active");
     if (await setActive.isEnabled()) {
-      await setActive.click();
+      await setActive.click({ timeout: 5_000 });
     }
 
     await expect(activeBadge).toBeVisible({ timeout: 5_000 });
