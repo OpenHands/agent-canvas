@@ -18,7 +18,6 @@ export interface MCPServerConfig {
   command?: string;
   args?: string[];
   env?: Record<string, string>;
-  /** Tagged MCP auth credential persisted in SDK settings. */
   auth?: MCPAuthCredential;
 }
 

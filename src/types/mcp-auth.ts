@@ -4,13 +4,13 @@ export type MCPOAuthClientAuthMethod =
   | "client_secret_basic"
   | "private_key_jwt";
 
-export type MCPAuthenticationMetadataValue =
+export type MCPJsonValue =
   | boolean
   | number
   | string
   | null
-  | MCPAuthenticationMetadataValue[]
-  | { [key: string]: MCPAuthenticationMetadataValue };
+  | MCPJsonValue[]
+  | { [key: string]: MCPJsonValue };
 
 export interface MCPOAuthAuthenticationConfig {
   type: "oauth";
@@ -18,52 +18,14 @@ export interface MCPOAuthAuthenticationConfig {
   scopes?: string | string[];
   client_name?: string;
   client_metadata_url?: string;
-  additional_client_metadata?: Record<string, MCPAuthenticationMetadataValue>;
+  additional_client_metadata?: Record<string, MCPJsonValue>;
 }
 
 export type MCPAuthenticationConfig = MCPOAuthAuthenticationConfig;
 
-export type MCPAuthValue =
-  | boolean
-  | number
-  | string
-  | null
-  | MCPAuthValue[]
-  | { [key: string]: MCPAuthValue };
-
-export interface MCPOAuthTokenState {
-  access_token?: string;
-  token_type?: "Bearer";
-  expires_in?: number | null;
-  scope?: string | null;
-  refresh_token?: string | null;
-}
-
-export interface MCPOAuthClientInfoState {
-  redirect_uris?: string[] | null;
-  token_endpoint_auth_method?: MCPOAuthClientAuthMethod | null;
-  grant_types?: string[];
-  response_types?: string[];
-  scope?: string | null;
-  client_name?: string | null;
-  client_uri?: string | null;
-  logo_uri?: string | null;
-  contacts?: string[] | null;
-  tos_uri?: string | null;
-  policy_uri?: string | null;
-  jwks_uri?: string | null;
-  jwks?: MCPAuthValue;
-  software_id?: string | null;
-  software_version?: string | null;
-  client_id?: string | null;
-  client_secret?: string | null;
-  client_id_issued_at?: number | null;
-  client_secret_expires_at?: number | null;
-}
-
 export interface MCPOAuthState {
-  tokens?: MCPOAuthTokenState | null;
-  client_info?: MCPOAuthClientInfoState | null;
+  tokens?: Record<string, MCPJsonValue> | null;
+  client_info?: Record<string, MCPJsonValue> | null;
   token_expires_at?: number | null;
 }
 
@@ -78,3 +40,22 @@ export type MCPAuthCredential =
       authentication?: MCPAuthenticationConfig;
       state?: MCPOAuthState;
     };
+
+export const MCP_AUTH_STRATEGIES = [
+  "none",
+  "api_key",
+  "bearer",
+  "basic",
+  "header",
+  "oauth2",
+] as const;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === "object" && !Array.isArray(value);
+
+export const isMcpAuthCredential = (
+  value: unknown,
+): value is MCPAuthCredential =>
+  isRecord(value) &&
+  typeof value.strategy === "string" &&
+  (MCP_AUTH_STRATEGIES as readonly string[]).includes(value.strategy);

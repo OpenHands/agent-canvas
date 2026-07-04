@@ -8,7 +8,7 @@ import {
 import type {
   MCPAuthCredential,
   MCPAuthenticationConfig,
-  MCPAuthenticationMetadataValue,
+  MCPJsonValue,
   MCPOAuthState,
 } from "#/types/mcp-auth";
 import type { MCPServerConfig } from "#/types/mcp-server";
@@ -20,25 +20,6 @@ const EMPTY_MCP_CONFIG: MCPConfig = {
 };
 
 export const REDACTED_MCP_SECRET_VALUE = "**********";
-
-const LINEAR_DEPRECATED_SSE_URL = "https://mcp.linear.app/sse";
-const LINEAR_SHTTP_URL = "https://mcp.linear.app/mcp";
-
-/**
- * Linear removed its MCP SSE transport (the /sse endpoint rejects every
- * call since 2026-04-08). Detect persisted configs that still point at
- * the dead endpoint so they can be migrated to streamable HTTP at the
- * /mcp replacement. Matches only the exact deprecated URL (tolerating a
- * trailing slash or query string) — nothing else is rewritten.
- */
-function isDeprecatedLinearSse(
-  url: string,
-  transport: string | undefined,
-): boolean {
-  if (transport !== "sse") return false;
-  const normalized = url.split("?")[0].replace(/\/+$/, "");
-  return normalized === LINEAR_DEPRECATED_SSE_URL;
-}
 
 type SdkMcpServerConfig = Record<string, SettingsValue | MCPAuthCredential>;
 type SdkMcpConfig = { mcpServers: Record<string, SdkMcpServerConfig> };
@@ -71,10 +52,11 @@ function stringRecord(value: unknown): Record<string, string> | undefined {
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 }
 
-function hasRedactedStringLeaf(value: unknown): boolean {
+export function hasRedactedMcpSecretLeaf(value: unknown): boolean {
   if (value === REDACTED_MCP_SECRET_VALUE) return true;
-  if (Array.isArray(value)) return value.some(hasRedactedStringLeaf);
-  if (isRecord(value)) return Object.values(value).some(hasRedactedStringLeaf);
+  if (Array.isArray(value)) return value.some(hasRedactedMcpSecretLeaf);
+  if (isRecord(value))
+    return Object.values(value).some(hasRedactedMcpSecretLeaf);
   return false;
 }
 
@@ -158,7 +140,7 @@ function getRemoteSecretFields(entry: {
   headers?: Record<string, string>;
 }): Partial<SdkMcpServerConfig> {
   const fields: Partial<SdkMcpServerConfig> = {};
-  if (entry.auth && !hasRedactedStringLeaf(entry.auth)) {
+  if (entry.auth && !hasRedactedMcpSecretLeaf(entry.auth)) {
     fields.auth = entry.auth;
   }
   if (entry.headers && Object.keys(entry.headers).length > 0) {
@@ -231,10 +213,7 @@ function getAuthenticationConfig(
     !Array.isArray(record.additional_client_metadata)
   ) {
     authentication.additional_client_metadata =
-      record.additional_client_metadata as Record<
-        string,
-        MCPAuthenticationMetadataValue
-      >;
+      record.additional_client_metadata as Record<string, MCPJsonValue>;
   }
   return authentication;
 }
@@ -261,11 +240,6 @@ export function parseMcpConfig(value: unknown): MCPConfig {
   const sseServers: (string | MCPSSEServer)[] = [];
   const stdioServers: MCPStdioServer[] = [];
   const shttpServers: (string | MCPSHTTPServer)[] = [];
-  // Legacy Linear SSE entries rewritten to the /mcp endpoint. Collected
-  // separately and merged after the loop so an existing hand-added /mcp
-  // entry (with its own auth/timeout) wins over the migrated one.
-  const migratedShttpServers: MCPSHTTPServer[] = [];
-
   const mcpServers = obj.mcpServers as Record<string, Record<string, unknown>>;
 
   for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
@@ -278,12 +252,7 @@ export function parseMcpConfig(value: unknown): MCPConfig {
       const auth = authCredentialFromServerConfig(serverConfig);
       const headers = stringRecord(serverConfig.headers);
 
-      if (isDeprecatedLinearSse(url, transport)) {
-        const server: MCPSHTTPServer = { url: LINEAR_SHTTP_URL };
-        if (auth) server.auth = auth;
-        if (headers) server.headers = headers;
-        migratedShttpServers.push(server);
-      } else if (transport === "sse") {
+      if (transport === "sse") {
         const name = userGivenServerName(serverName, "sse");
         const server: MCPSSEServer = { url };
         if (name) server.name = name;
@@ -314,15 +283,6 @@ export function parseMcpConfig(value: unknown): MCPConfig {
       }
       stdioServers.push(stdioServer);
     }
-  }
-
-  const normalizeUrl = (u: string) => u.replace(/\/+$/, "");
-  for (const migrated of migratedShttpServers) {
-    const alreadyPresent = shttpServers.some((entry) => {
-      const entryUrl = typeof entry === "string" ? entry : entry.url;
-      return normalizeUrl(entryUrl) === normalizeUrl(migrated.url);
-    });
-    if (!alreadyPresent) shttpServers.push(migrated);
   }
 
   return {

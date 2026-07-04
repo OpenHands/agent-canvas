@@ -1,7 +1,10 @@
 import SettingsService from "#/api/settings-service/settings-service.api";
-import type { MCPAuthCredential } from "#/types/mcp-auth";
+import { isMcpAuthCredential } from "#/types/mcp-auth";
 import type { MCPServerConfig } from "#/types/mcp-server";
-import { REDACTED_MCP_SECRET_VALUE } from "#/utils/mcp-config";
+import {
+  hasRedactedMcpSecretLeaf,
+  REDACTED_MCP_SECRET_VALUE,
+} from "#/utils/mcp-config";
 
 type StoredMcpServer = {
   url?: unknown;
@@ -27,20 +30,6 @@ const stringRecord = (value: unknown): Record<string, string> | undefined => {
 const hasRedactedValue = (values: Record<string, string> | undefined) =>
   !!values &&
   Object.values(values).some((value) => value === REDACTED_MCP_SECRET_VALUE);
-
-const hasRedactedStringLeaf = (value: unknown): boolean => {
-  if (value === REDACTED_MCP_SECRET_VALUE) return true;
-  if (Array.isArray(value)) return value.some(hasRedactedStringLeaf);
-  if (isRecord(value)) return Object.values(value).some(hasRedactedStringLeaf);
-  return false;
-};
-
-const isMcpAuthCredential = (value: unknown): value is MCPAuthCredential =>
-  isRecord(value) &&
-  typeof value.strategy === "string" &&
-  ["none", "api_key", "bearer", "basic", "header", "oauth2"].includes(
-    value.strategy,
-  );
 
 const remoteTransportMatches = (
   type: MCPServerConfig["type"],
@@ -133,7 +122,7 @@ export async function substituteRedactedMcpCredentials(
     server.type === "stdio" && hasRedactedValue(server.env);
   const redactedRemoteAuth =
     (server.type === "sse" || server.type === "shttp") &&
-    hasRedactedStringLeaf(server.auth);
+    hasRedactedMcpSecretLeaf(server.auth);
 
   if (!redactedStdioEnv && !redactedRemoteAuth) {
     return server;

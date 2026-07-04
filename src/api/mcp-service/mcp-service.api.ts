@@ -11,7 +11,7 @@ import type {
   MCPServerConfig,
 } from "#/types/mcp-server";
 import { substituteRedactedMcpCredentials } from "./mcp-redacted-credentials";
-import type { MCPAuthCredential } from "#/types/mcp-auth";
+import { isMcpAuthCredential } from "#/types/mcp-auth";
 
 const OAUTH_MCP_TEST_TIMEOUT_SECONDS = 120;
 
@@ -32,20 +32,6 @@ function toMcpServerSpec(server: MCPServerConfig): MCPServerSpec {
       Object.keys(server.headers).length > 0 && { headers: server.headers }),
     ...(server.auth ? { auth: server.auth } : {}),
   } as MCPServerSpec;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
-
-function isMcpAuthCredential(value: unknown): value is MCPAuthCredential {
-  return (
-    isRecord(value) &&
-    typeof value.strategy === "string" &&
-    ["none", "api_key", "bearer", "basic", "header", "oauth2"].includes(
-      value.strategy,
-    )
-  );
 }
 
 function serverSpecToConfig(
@@ -98,10 +84,19 @@ class McpService {
       let result = (await client.testServer(
         request as MCPTestRequest,
       )) as ExtendedMCPTestResponse & { server?: unknown };
-      if (result.ok && isRecord(result.server)) {
+      const responseServer = result.server as unknown;
+      if (
+        result.ok &&
+        responseServer &&
+        typeof responseServer === "object" &&
+        !Array.isArray(responseServer)
+      ) {
         result = {
           ...result,
-          server: serverSpecToConfig(server, result.server),
+          server: serverSpecToConfig(
+            server,
+            responseServer as Record<string, unknown>,
+          ),
         };
       }
       if (result.ok && validation && result.tool_result) {

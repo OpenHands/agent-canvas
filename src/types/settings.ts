@@ -20,7 +20,6 @@ export type MCPSSEServer = {
   name?: string;
   url: string;
   headers?: Record<string, string>;
-  /** Tagged MCP auth credential persisted in SDK settings. */
   auth?: MCPAuthCredential;
 };
 
@@ -36,7 +35,6 @@ export type MCPSHTTPServer = {
   url: string;
   headers?: Record<string, string>;
   timeout?: number;
-  /** Tagged MCP auth credential persisted in SDK settings. */
   auth?: MCPAuthCredential;
 };
 
