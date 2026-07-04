@@ -239,6 +239,29 @@ describe("useTracking", () => {
     });
   });
 
+  describe("trackBackendAdded", () => {
+    it("captures backend_added with coarse, non-sensitive backend metadata", () => {
+      getTracking().trackBackendAdded({
+        backendKind: "cloud",
+        connectionMethod: "cloud_login",
+        isOpenhandsCloud: true,
+        isCustomHost: false,
+        hasApiKey: true,
+        source: "add_backend_modal",
+      });
+
+      expect(captureMock).toHaveBeenCalledWith("backend_added", {
+        backend_kind: "cloud",
+        connection_method: "cloud_login",
+        is_openhands_cloud: true,
+        is_custom_host: false,
+        has_api_key: true,
+        source: "add_backend_modal",
+        ...COMMON,
+      });
+    });
+  });
+
   describe("consent gate", () => {
     it("does not capture when posthog is not initialized", () => {
       posthogMock = undefined;

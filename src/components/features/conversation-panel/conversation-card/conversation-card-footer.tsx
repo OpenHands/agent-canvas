@@ -29,7 +29,7 @@ interface ConversationCardFooterProps {
   llmModel?: string | null;
   /**
    * Whether to render the agent/model chip. Wired to the conversation
-   * panel's "LLM model" toggle (off by default); gates the chip uniformly
+   * panel's "LLM model" toggle; gates the chip uniformly
    * for both ACP and OpenHands cards.
    */
   showAgentChip?: boolean;
@@ -68,7 +68,7 @@ export function ConversationCardFooter({
   const isPaused = isExecutionPaused(executionStatus);
 
   // Single inline chip per conversation: [brand mark] {model text}. Gated by
-  // the conversation panel's "LLM model" toggle (off by default) and applied
+  // the conversation panel's "LLM model" toggle and applied
   // uniformly to both kinds — OpenHands shows the logo + ``agent.llm.model``;
   // ACP shows the provider brand mark + model resolved through PR 730's
   // adapter chain, falling back to the provider display name when no model is

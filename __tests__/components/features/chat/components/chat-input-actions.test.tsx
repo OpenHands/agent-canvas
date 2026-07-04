@@ -100,7 +100,7 @@ describe("ChatInputActions", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders the active conversation model on a cloud backend", () => {
+  it("renders the SwitchProfileButton on a cloud backend", () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
     useActiveConversationMock.mockReturnValue({
@@ -113,15 +113,17 @@ describe("ChatInputActions", () => {
       </ActiveBackendProvider>,
     );
 
-    expect(screen.getByTestId("chat-input-llm-model")).toHaveTextContent(
-      "gpt-4o",
-    );
+    // Cloud now manages the LLM through profiles, so the composer shows the
+    // profile switcher (same as local), not the static cloud model label.
     expect(
-      screen.queryByTestId("switch-profile-button-stub"),
+      screen.getByTestId("switch-profile-button-stub"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("chat-input-llm-model"),
     ).not.toBeInTheDocument();
   });
 
-  it("omits the model label on cloud when the active conversation has no llm_model", () => {
+  it("renders the SwitchProfileButton on cloud even when the conversation has no llm_model", () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
     useActiveConversationMock.mockReturnValue({
@@ -135,7 +137,38 @@ describe("ChatInputActions", () => {
     );
 
     expect(
+      screen.getByTestId("switch-profile-button-stub"),
+    ).toBeInTheDocument();
+    expect(
       screen.queryByTestId("chat-input-llm-model"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the static model label for cloud ACP conversations", () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+    useActiveConversationMock.mockReturnValue({
+      data: {
+        conversation_id: "test-conversation-id",
+        agent_kind: "acp",
+        llm_model: "claude-sonnet-4-6",
+      },
+    });
+
+    renderWithProviders(
+      <ActiveBackendProvider>
+        <ChatInputActions disabled={false} />
+      </ActiveBackendProvider>,
+    );
+
+    // ACP conversations keep the static model label on cloud too — the switch
+    // gate is now driven solely by isAcpContext, not the backend kind.
+    expect(screen.getByTestId("chat-input-llm-model")).toHaveAttribute(
+      "title",
+      "claude-sonnet-4-6",
+    );
+    expect(
+      screen.queryByTestId("switch-profile-button-stub"),
     ).not.toBeInTheDocument();
   });
 
@@ -171,8 +204,6 @@ describe("ChatInputActions", () => {
       { navigation: { conversationId: null } },
     );
 
-    expect(
-      screen.getByTestId("change-agent-button-stub"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("change-agent-button-stub")).toBeInTheDocument();
   });
 });
