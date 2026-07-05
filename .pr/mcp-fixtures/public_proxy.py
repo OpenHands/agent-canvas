@@ -14,9 +14,10 @@ One ngrok tunnel points at this proxy. Paths are routed by prefix:
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qs, urlsplit, urlunsplit
 
 import requests
 
@@ -79,12 +80,38 @@ class ProxyHandler(BaseHTTPRequestHandler):
 
         prefix = parts[0]
         targets = _target_map()
+        if (
+            len(parts) >= 4
+            and prefix == ".well-known"
+            and parts[1] == "oauth-protected-resource"
+            and parts[2] in targets
+        ):
+            self._send_oauth_resource_metadata(parts[2])
+            return
+
+        upstream_path: str | None = None
+        if (
+            len(parts) >= 3
+            and prefix == ".well-known"
+            and parts[1] in {"oauth-authorization-server", "openid-configuration"}
+            and parts[2] in targets
+        ):
+            prefix = parts[2]
+            upstream_path = "/" + "/".join(parts[:2])
+
+        if prefix in {"authorize", "token", "register"}:
+            oauth_prefix = self._oauth_prefix_from_resource(split.query)
+            if oauth_prefix in targets:
+                prefix = oauth_prefix
+                upstream_path = split.path
+
         target_base = targets.get(prefix)
         if not target_base:
             self._send_text(404, f"unknown fixture prefix: {prefix}\n")
             return
 
-        upstream_path = "/" + "/".join(parts[1:])
+        if upstream_path is None:
+            upstream_path = "/" + "/".join(parts[1:])
         if upstream_path == "/":
             upstream_path = "/"
         target = urlunsplit(
@@ -137,6 +164,40 @@ class ProxyHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _public_origin(self) -> str:
+        host = self.headers.get("X-Forwarded-Host") or self.headers.get("Host")
+        proto = self.headers.get("X-Forwarded-Proto")
+        if not proto:
+            proto = "https" if host and "ngrok-free.app" in host else "http"
+        return f"{proto}://{host}"
+
+    def _send_json(self, status: int, value: object) -> None:
+        data = json.dumps(value).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _send_oauth_resource_metadata(self, kind: str) -> None:
+        origin = self._public_origin()
+        self._send_json(
+            200,
+            {
+                "resource": f"{origin}/{kind}/mcp",
+                "authorization_servers": [f"{origin}/{kind}"],
+            },
+        )
+
+    @staticmethod
+    def _oauth_prefix_from_resource(query: str) -> str | None:
+        resources = parse_qs(query).get("resource", [])
+        for resource in resources:
+            parts = [part for part in urlsplit(resource).path.split("/") if part]
+            if len(parts) >= 2 and parts[-1] == "mcp":
+                return parts[-2]
+        return None
 
 
 def main() -> None:

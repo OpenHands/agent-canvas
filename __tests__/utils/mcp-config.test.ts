@@ -259,6 +259,7 @@ describe("toSdkMcpConfig", () => {
       },
       shttp: {
         url: "https://shttp.example",
+        transport: "http",
         auth: { strategy: "bearer", value: "shttp-secret" },
       },
     });
@@ -330,6 +331,7 @@ describe("parseMcpConfig / toSdkMcpConfig — auth: oauth round-trip", () => {
     expect(roundTripped).toEqual({
       "superhuman-mail": {
         url: "https://mcp.mail.superhuman.com/mcp",
+        transport: "http",
         auth: {
           strategy: "oauth2",
           authentication: {
@@ -363,6 +365,7 @@ describe("parseMcpConfig / toSdkMcpConfig — auth: oauth round-trip", () => {
     expect(toSdkMcpConfig(parseMcpConfig(persisted))).toEqual({
       oauth: {
         url: "https://mcp.example.com/mcp",
+        transport: "http",
         auth: {
           strategy: "oauth2",
           authentication: {

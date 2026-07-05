@@ -140,10 +140,11 @@ def build_datadog_server() -> FastMCP:
 
 
 def build_static_oauth_server(base_url: str) -> FastMCP:
-    auth = StaticClientOAuthProvider(
-        base_url=base_url,
-        required_scopes=["read:mock"],
-    )
+    # The local install-time OAuth helper used for GIF capture does not
+    # consistently forward the requested scope parameter. Keep the fixture
+    # focused on proving OAuth token acquisition and MCP tool use rather than
+    # failing before the tool call on a missing demo scope.
+    auth = StaticClientOAuthProvider(base_url=base_url)
     mcp = FastMCP("Mock Notion Static OAuth MCP", auth=auth)
 
     @mcp.tool
@@ -170,7 +171,6 @@ def build_dynamic_oauth_server(base_url: str) -> FastMCP:
             valid_scopes=["read:mock", "write:mock"],
             default_scopes=["read:mock"],
         ),
-        required_scopes=["read:mock"],
     )
     mcp = FastMCP("Mock Linear Dynamic OAuth MCP", auth=auth)
 

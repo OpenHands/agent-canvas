@@ -27,6 +27,53 @@ const RUN_TAG =
     .slice(0, 14);
 const PR_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(PR_DIR, "..");
+const LLM_ENV_FILE =
+  process.env.LLM_ENV_FILE ??
+  (process.env.HOME ? path.join(process.env.HOME, ".env") : "");
+
+function readDotEnv(file) {
+  if (!file || !fs.existsSync(file)) return {};
+  return Object.fromEntries(
+    fs
+      .readFileSync(file, "utf8")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith("#"))
+      .map((line) => line.replace(/^export\s+/, ""))
+      .map((line) => {
+        const eq = line.indexOf("=");
+        if (eq === -1) return null;
+        const key = line.slice(0, eq).trim();
+        let value = line.slice(eq + 1).trim();
+        if (
+          (value.startsWith('"') && value.endsWith('"')) ||
+          (value.startsWith("'") && value.endsWith("'"))
+        ) {
+          value = value.slice(1, -1);
+        }
+        return [key, value];
+      })
+      .filter(Boolean),
+  );
+}
+
+const envFileValues = readDotEnv(LLM_ENV_FILE);
+function configuredEnv(name) {
+  return process.env[name] ?? envFileValues[name];
+}
+
+const CONFIGURED_LLM_MODEL = configuredEnv("LLM_MODEL");
+const CONFIGURED_LLM_API_KEY = configuredEnv("LLM_API_KEY");
+const CONFIGURED_LLM_BASE_URL = configuredEnv("LLM_BASE_URL");
+const USE_CONFIGURED_LLM = Boolean(
+  CONFIGURED_LLM_MODEL || CONFIGURED_LLM_API_KEY || CONFIGURED_LLM_BASE_URL,
+);
+if (USE_CONFIGURED_LLM && (!CONFIGURED_LLM_MODEL || !CONFIGURED_LLM_API_KEY)) {
+  throw new Error("Configured LLM requires LLM_MODEL and LLM_API_KEY.");
+}
+const CAPTURE_LLM_MODEL = CONFIGURED_LLM_MODEL ?? MOCK_MODEL;
+const CAPTURE_LLM_API_KEY = CONFIGURED_LLM_API_KEY ?? MOCK_LLM_API_KEY;
+const CAPTURE_LLM_BASE_URL = CONFIGURED_LLM_BASE_URL ?? MOCK_LLM_BASE_URL;
 
 const flows = [
   {
@@ -116,6 +163,23 @@ function readCloudApiKey() {
 
 const CLOUD_API_KEY = readCloudApiKey();
 
+function serverNameForFlow(flow) {
+  return `${flow.serverName}_${RUN_TAG}`;
+}
+
+function modelToolNameForFlow(flow) {
+  return `${serverNameForFlow(flow)}_${flow.toolName}`;
+}
+
+function conversationPrompt(flow) {
+  if (!USE_CONFIGURED_LLM) return flow.prompt;
+  return [
+    `Call the MCP tool named ${modelToolNameForFlow(flow)} with these JSON arguments: ${JSON.stringify(flow.toolArgs)}.`,
+    "Do not answer from memory. Wait for the MCP tool observation.",
+    `After the tool observation, reply with exactly this full line: ${flow.finalText} The MCP observation contains ${flow.successToken}.`,
+  ].join(" ");
+}
+
 async function adminPost(pathname, body = undefined) {
   const response = await fetch(`${MOCK_LLM_ADMIN_URL}${pathname}`, {
     method: "POST",
@@ -131,11 +195,18 @@ async function adminPost(pathname, body = undefined) {
 }
 
 async function registerTrajectory(flow) {
+  if (USE_CONFIGURED_LLM) return;
   await adminPost("/admin/reset");
   await adminPost("/admin/trajectory/register", {
     name: flow.id,
     turns: [
-      { tool_call: { name: flow.toolName, arguments: flow.toolArgs } },
+      { text: flow.title },
+      {
+        tool_call: {
+          name: modelToolNameForFlow(flow),
+          arguments: flow.toolArgs,
+        },
+      },
       {
         text: `${flow.finalText} The MCP observation contains ${flow.successToken}.`,
       },
@@ -187,9 +258,9 @@ async function ensureCloudSettings() {
         agent_kind: "openhands",
         agent: "CodeActAgent",
         llm: {
-          model: MOCK_MODEL,
-          api_key: MOCK_LLM_API_KEY,
-          base_url: MOCK_LLM_BASE_URL,
+          model: CAPTURE_LLM_MODEL,
+          api_key: CAPTURE_LLM_API_KEY,
+          base_url: CAPTURE_LLM_BASE_URL,
         },
       },
       conversation_settings_diff: {
@@ -204,18 +275,29 @@ async function cleanupCloudMcpServers() {
   const currentConfig =
     settings.agent_settings?.mcp_config ?? settings.mcp_config ?? {};
   if (!currentConfig || typeof currentConfig !== "object") return;
+  const hasMcpServersWrapper =
+    currentConfig.mcpServers &&
+    typeof currentConfig.mcpServers === "object" &&
+    !Array.isArray(currentConfig.mcpServers);
+  const currentServers = hasMcpServersWrapper
+    ? currentConfig.mcpServers
+    : currentConfig;
+  const flowPrefixes = flows.map((flow) => `${flow.serverName}_`);
   const filtered = Object.fromEntries(
-    Object.entries(currentConfig).filter(
-      ([name]) => !name.endsWith(`_${RUN_TAG}`),
+    Object.entries(currentServers).filter(
+      ([name]) =>
+        !name.endsWith(`_${RUN_TAG}`) &&
+        !flowPrefixes.some((prefix) => name.startsWith(prefix)),
     ),
   );
-  if (Object.keys(filtered).length === Object.keys(currentConfig).length)
+  if (Object.keys(filtered).length === Object.keys(currentServers).length)
     return;
+  const nextConfig = hasMcpServersWrapper ? { mcpServers: filtered } : filtered;
   await cloudApi("/api/v1/settings", {
     method: "POST",
     body: JSON.stringify({
       agent_settings_diff: {
-        mcp_config: Object.keys(filtered).length > 0 ? filtered : null,
+        mcp_config: Object.keys(filtered).length > 0 ? nextConfig : null,
       },
     }),
   });
@@ -421,24 +503,61 @@ async function setChatInput(page, text) {
   }, text);
 }
 
+function currentConversationId(page) {
+  try {
+    const pathname = new URL(page.url()).pathname;
+    const match = pathname.match(/^\/conversations\/([^/]+)/);
+    if (!match || match[1].startsWith("task-")) return null;
+    return match[1];
+  } catch {
+    return null;
+  }
+}
+
+async function cloudEventHistoryContains(conversationId, text) {
+  if (!conversationId) return false;
+  const params = new URLSearchParams({
+    limit: "100",
+    sort_order: "TIMESTAMP",
+  });
+  const page = await cloudApi(
+    `/api/v1/conversation/${conversationId}/events/search?${params.toString()}`,
+    { method: "GET" },
+  );
+  return JSON.stringify(page?.items ?? []).includes(text);
+}
+
 async function waitForOutputText(page, text, timeout = 180_000) {
   const started = Date.now();
+  let lastCloudCheck = 0;
   while (Date.now() - started < timeout) {
-    const found = await page.evaluate((needle) => {
-      const selectors = [
-        '[data-testid="agent-message"]',
-        '[data-testid="environment-message"]',
-        '[data-testid="model-messages"]',
-        '[data-testid="event-group"]',
-        '[data-testid="error-message-banner"]',
-      ];
-      return selectors.some((selector) =>
-        Array.from(document.querySelectorAll(selector)).some((node) =>
-          node.textContent?.includes(needle),
-        ),
-      );
-    }, text);
-    if (found) return;
+    try {
+      const found = await page.evaluate((needle) => {
+        const selectors = [
+          '[data-testid="agent-message"]',
+          '[data-testid="environment-message"]',
+          '[data-testid="model-messages"]',
+          '[data-testid="event-group"]',
+          '[data-testid="error-message-banner"]',
+        ];
+        return selectors.some((selector) =>
+          Array.from(document.querySelectorAll(selector)).some((node) =>
+            node.textContent?.includes(needle),
+          ),
+        );
+      }, text);
+      if (found) return;
+    } catch {}
+    if (Date.now() - lastCloudCheck > 2_000) {
+      lastCloudCheck = Date.now();
+      try {
+        if (
+          await cloudEventHistoryContains(currentConversationId(page), text)
+        ) {
+          return;
+        }
+      } catch {}
+    }
     await page.waitForTimeout(1_000);
   }
   throw new Error(`Timed out waiting for output text: ${text}`);
@@ -502,7 +621,7 @@ async function installMcpServer(page, flow) {
     flow.auth.mode === "OAuth"
       ? flow.url
       : `${flow.url}?run=${RUN_TAG}-${flow.id}`;
-  const flowName = `${flow.serverName}_${RUN_TAG}`;
+  const flowName = serverNameForFlow(flow);
 
   await gotoPage(page, "/mcp");
   await dismissBlockingModals(page);
@@ -581,7 +700,7 @@ async function runConversation(page, flow) {
   await dismissBlockingModals(page);
   await waitForTestId(page, "home-chat-launcher", 60_000);
   await capture(page, flow.id, "home");
-  await setChatInput(page, flow.prompt);
+  await setChatInput(page, conversationPrompt(flow));
   await capture(page, flow.id, "prompt");
   await page.getByTestId("submit-button").click();
   await page.waitForURL(/\/conversations\/.+/, { timeout: 45_000 });

@@ -173,6 +173,95 @@ const clearCache = () => {
   settingsCache = { redacted: null, encrypted: null, timestamp: 0 };
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === "object" && !Array.isArray(value);
+
+const stringEntries = (value: unknown): Record<string, string> => {
+  if (!isRecord(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    ),
+  );
+};
+
+const basicAuthHeader = (username: string, password: string): string => {
+  const token = btoa(`${username}:${password}`);
+  return `Basic ${token}`;
+};
+
+const headersFromMcpAuth = (
+  auth: Record<string, unknown>,
+): Record<string, string> | null => {
+  switch (auth.strategy) {
+    case "none":
+      return {};
+    case "api_key": {
+      if (typeof auth.value !== "string" || !auth.value) return null;
+      const header =
+        typeof auth.header_name === "string" && auth.header_name
+          ? auth.header_name
+          : "Authorization";
+      const value =
+        header === "Authorization" ? `Bearer ${auth.value}` : auth.value;
+      return { [header]: value };
+    }
+    case "bearer":
+      if (typeof auth.value !== "string" || !auth.value) return null;
+      return { Authorization: `Bearer ${auth.value}` };
+    case "basic":
+      if (
+        typeof auth.username !== "string" ||
+        typeof auth.password !== "string"
+      ) {
+        return null;
+      }
+      return { Authorization: basicAuthHeader(auth.username, auth.password) };
+    case "header":
+      return stringEntries(auth.headers);
+    case "oauth2": {
+      const tokens = isRecord(auth.state) ? auth.state.tokens : undefined;
+      if (!isRecord(tokens) || typeof tokens.access_token !== "string") {
+        return null;
+      }
+      return { Authorization: `Bearer ${tokens.access_token}` };
+    }
+    default:
+      return null;
+  }
+};
+
+const cloudCompatibleMcpConfig = (value: unknown): unknown => {
+  if (!isRecord(value)) return value;
+
+  const hasWrapper = isRecord(value.mcpServers);
+  const serverMap: Record<string, unknown> = hasWrapper
+    ? (value.mcpServers as Record<string, unknown>)
+    : value;
+
+  const converted = Object.fromEntries(
+    Object.entries(serverMap).map(([name, server]) => {
+      if (!isRecord(server) || !isRecord(server.auth)) return [name, server];
+
+      const authHeaders = headersFromMcpAuth(server.auth);
+      if (authHeaders === null) return [name, server];
+
+      const nextServer = { ...server };
+      const existingHeaders = stringEntries(server.headers);
+      const mergedHeaders = { ...existingHeaders, ...authHeaders };
+      delete nextServer.auth;
+      if (Object.keys(mergedHeaders).length > 0) {
+        nextServer.headers = mergedHeaders;
+      } else {
+        delete nextServer.headers;
+      }
+      return [name, nextServer];
+    }),
+  );
+
+  return hasWrapper ? { ...value, mcpServers: converted } : converted;
+};
+
 /**
  * Transform API response into Settings object with derived fields.
  */
@@ -509,7 +598,13 @@ class SettingsService {
       // is called from tests with an exact-shape assertion).
       const cloudPayload: Parameters<typeof saveCloudSettings>[0] = {};
       if (payload.agent_settings_diff) {
-        cloudPayload.agent_settings_diff = payload.agent_settings_diff;
+        cloudPayload.agent_settings_diff = { ...payload.agent_settings_diff };
+        if ("mcp_config" in cloudPayload.agent_settings_diff) {
+          cloudPayload.agent_settings_diff.mcp_config =
+            cloudCompatibleMcpConfig(
+              cloudPayload.agent_settings_diff.mcp_config,
+            ) as SettingsValue;
+        }
       }
       if (payload.conversation_settings_diff) {
         cloudPayload.conversation_settings_diff =

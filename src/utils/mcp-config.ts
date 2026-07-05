@@ -341,7 +341,7 @@ export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
   }
 
   for (const entry of config.shttp_servers) {
-    const server: SdkMcpServerConfig = {};
+    const server: SdkMcpServerConfig = { transport: "http" };
     let name: string | undefined;
     if (typeof entry === "string") {
       server.url = entry;

@@ -373,6 +373,81 @@ describe("SettingsService", () => {
     });
   });
 
+  it("converts bearer MCP auth to headers when saving mcp_config to cloud", async () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+
+    await SettingsService.saveSettings({
+      agent_settings_diff: {
+        mcp_config: {
+          elevenlabs: {
+            transport: "http",
+            url: "https://mcp.example.com/mcp",
+            auth: { strategy: "bearer", value: "elevenlabs-test-token" },
+          },
+        },
+      },
+    });
+
+    expect(mockSaveCloudSettings).toHaveBeenCalledTimes(2);
+    expect(mockSaveCloudSettings).toHaveBeenNthCalledWith(2, {
+      agent_settings_diff: {
+        mcp_config: {
+          elevenlabs: {
+            transport: "http",
+            url: "https://mcp.example.com/mcp",
+            headers: {
+              Authorization: "Bearer elevenlabs-test-token",
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it("converts OAuth token state to headers when saving mcp_config to cloud", async () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+
+    await SettingsService.saveSettings({
+      agent_settings_diff: {
+        mcp_config: {
+          notion: {
+            transport: "http",
+            url: "https://mcp.example.com/mcp",
+            auth: {
+              strategy: "oauth2",
+              authentication: {
+                type: "oauth",
+                client_auth_method: "client_secret_post",
+              },
+              state: {
+                tokens: {
+                  access_token: "oauth-access-token",
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    expect(mockSaveCloudSettings).toHaveBeenCalledTimes(2);
+    expect(mockSaveCloudSettings).toHaveBeenNthCalledWith(2, {
+      agent_settings_diff: {
+        mcp_config: {
+          notion: {
+            transport: "http",
+            url: "https://mcp.example.com/mcp",
+            headers: {
+              Authorization: "Bearer oauth-access-token",
+            },
+          },
+        },
+      },
+    });
+  });
+
   it("rolls back to the previous mcp_config when the second cloud PATCH fails", async () => {
     // Reviewer-flagged data-loss scenario: the pre-clear succeeds, then
     // the write fails (validation error, transient outage, etc.). The
