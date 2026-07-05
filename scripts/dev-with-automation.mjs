@@ -677,7 +677,7 @@ function buildRouteArgs(routes) {
 
 /**
  * Build --reject-prefix args for the static server.
- * In frontend-only mode, API paths that have no backend should return 503
+ * In frontend-only mode, API paths that have no backend should return 404
  * instead of being SPA-fallbacked to index.html.
  */
 function getRejectPrefixes(config) {

@@ -194,7 +194,7 @@ OPTIONS:
   --lock-to-cloud <cloud-url>  Lock backend setup to a single OpenHands Cloud
                                URL. Hides manual/local backend setup and the
                                custom Cloud URL field in the pre-built frontend.
-  --reject-prefix <prefix>     Return 503 for requests matching <prefix>
+  --reject-prefix <prefix>     Return 404 for requests matching <prefix>
                                instead of SPA-fallbacking to index.html;
                                may be repeated. Useful in --frontend-only
                                mode to cleanly reject API paths.
@@ -384,8 +384,8 @@ function matchesAnyPrefix(urlPath, prefixes) {
 }
 
 function rejectUnavailable(res) {
-  res.writeHead(503, { "Content-Type": "text/plain; charset=utf-8" });
-  res.end("Service Unavailable (no backend configured for this route)");
+  res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+  res.end("Not Found");
 }
 
 function notFound(res) {
@@ -519,7 +519,7 @@ export function startStaticServer(config) {
       }
       if (rejectPrefixes.length > 0) {
         for (const prefix of rejectPrefixes) {
-          console.log(`  ${prefix} -> 503 (rejected)`);
+          console.log(`  ${prefix} -> 404 (rejected)`);
         }
       }
       if (config.lockToCloud) {

@@ -3,7 +3,7 @@
  * and port conflict handling.
  *
  * These tests spawn `bin/agent-canvas.mjs` with partial-stack flags and verify:
- *   1. --frontend-only: static frontend is served, backend APIs return 503
+ *   1. --frontend-only: static frontend is served, backend APIs return 404
  *   2. --backend-only: backend APIs work, frontend root returns 503
  *   3. Port conflict: binary fails with a clear error when the port is busy,
  *      then succeeds when a free port is used
@@ -180,7 +180,7 @@ test.describe("partial stack: --frontend-only", () => {
     if (stateDir) rmSync(stateDir, { recursive: true, force: true });
   });
 
-  test("serves the frontend but returns 503 for backend routes", async ({
+  test("serves the frontend but returns 404 for backend routes", async ({
     page,
     request,
   }) => {
@@ -212,29 +212,29 @@ test.describe("partial stack: --frontend-only", () => {
     const html = await rootResp.text();
     expect(html).toContain("<!DOCTYPE html");
 
-    // Verify: backend API routes return 503 because the static server
+    // Verify: backend API routes return 404 because the static server
     // rejects known API prefixes via --reject-prefix when no backend
     // is configured (frontend-only mode).
     const serverInfoResp = await request.get(
       `${FRONTEND_ONLY_URL}/server_info`,
       { failOnStatusCode: false },
     );
-    expect(serverInfoResp.status()).toBe(503);
+    expect(serverInfoResp.status()).toBe(404);
 
     const settingsResp = await request.get(
       `${FRONTEND_ONLY_URL}/api/settings`,
       { failOnStatusCode: false },
     );
-    expect(settingsResp.status()).toBe(503);
+    expect(settingsResp.status()).toBe(404);
 
     const automationResp = await request.get(
       `${FRONTEND_ONLY_URL}/api/automation/v1`,
       { failOnStatusCode: false },
     );
-    expect(automationResp.status()).toBe(503);
+    expect(automationResp.status()).toBe(404);
 
     // Verify: browser loads the app and shows "agent server unavailable"
-    // because the /server_info probe fails with 503.
+    // because the /server_info probe fails with 404.
     await seedLocalStorage(page);
     await page.goto(FRONTEND_ONLY_URL, { waitUntil: "domcontentloaded" });
 
