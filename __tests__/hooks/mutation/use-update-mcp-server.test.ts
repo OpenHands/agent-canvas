@@ -36,13 +36,13 @@ describe("useUpdateMcpServer - stdio credential preservation", () => {
 
   it("saves the encrypted stdio env, not the redacted placeholder, when a stdio server is renamed", async () => {
     // The redacted settings the editor reads from still carry the original name
-    // ("old-name") and redacted env. The user renames to "new-name" and leaves
+    // ("old_name") and redacted env. The user renames to "new_name" and leaves
     // the secret env value as the redaction placeholder.
     useSettingsMock.mockReturnValue({
       data: {
         agent_settings: {
           mcp_config: {
-            "old-name": {
+            old_name: {
               command: "npx",
               env: { API_KEY: REDACTED_MCP_SECRET_VALUE },
             },
@@ -54,7 +54,7 @@ describe("useUpdateMcpServer - stdio credential preservation", () => {
     vi.spyOn(SettingsService, "fetchSettingsFromApi").mockResolvedValue({
       agent_settings: {
         mcp_config: {
-          "old-name": {
+          old_name: {
             command: "npx",
             env: { API_KEY: "gAAAAA-encrypted-api-key" },
           },
@@ -71,7 +71,7 @@ describe("useUpdateMcpServer - stdio credential preservation", () => {
       server: {
         id: "stdio-0",
         type: "stdio",
-        name: "new-name",
+        name: "new_name",
         command: "npx",
         env: { API_KEY: REDACTED_MCP_SECRET_VALUE },
       },
@@ -84,7 +84,7 @@ describe("useUpdateMcpServer - stdio credential preservation", () => {
       .agent_settings_diff as Record<string, unknown> | undefined;
     const savedSdkConfig = savedDiff?.mcp_config;
     expect(savedSdkConfig).toMatchObject({
-      "new-name": {
+      new_name: {
         command: "npx",
         env: { API_KEY: "gAAAAA-encrypted-api-key" },
       },

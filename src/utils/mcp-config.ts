@@ -12,6 +12,7 @@ import type {
   MCPOAuthState,
 } from "#/types/mcp-auth";
 import type { MCPServerConfig } from "#/types/mcp-server";
+import { toMcpServerName } from "#/utils/mcp-server-name";
 
 const EMPTY_MCP_CONFIG: MCPConfig = {
   sse_servers: [],
@@ -320,10 +321,11 @@ export function toSdkMcpConfig(config: MCPConfig): SdkMcpConfig | null {
   const mcpConfig: SdkMcpConfig = {};
 
   const reserve = (base: string): string => {
-    if (!(base in mcpConfig)) return base;
+    const safeBase = toMcpServerName(base);
+    if (!(safeBase in mcpConfig)) return safeBase;
     let i = 1;
-    while (`${base}_${i}` in mcpConfig) i += 1;
-    return `${base}_${i}`;
+    while (`${safeBase}_${i}` in mcpConfig) i += 1;
+    return `${safeBase}_${i}`;
   };
 
   for (const entry of config.sse_servers) {

@@ -373,6 +373,45 @@ describe("SettingsService", () => {
     });
   });
 
+  it("does not pre-clear cloud mcp_config when rotating a redacted MCP key", async () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+
+    mockFetchCloudSettings.mockResolvedValue({
+      agent_settings: {
+        mcp_config: {
+          integrations_hub: {
+            url: "https://integrations.staging.all-hands.dev/api/mcp",
+            headers: { Authorization: "**********" },
+          },
+        },
+      },
+    });
+
+    await SettingsService.saveSettings({
+      agent_settings_diff: {
+        mcp_config: {
+          integrations_hub: {
+            url: "https://integrations.staging.all-hands.dev/api/mcp",
+            auth: { strategy: "bearer", value: "new-key" },
+          },
+        },
+      },
+    });
+
+    expect(mockSaveCloudSettings).toHaveBeenCalledTimes(1);
+    expect(mockSaveCloudSettings).toHaveBeenCalledWith({
+      agent_settings_diff: {
+        mcp_config: {
+          integrations_hub: {
+            url: "https://integrations.staging.all-hands.dev/api/mcp",
+            headers: { Authorization: "Bearer new-key" },
+          },
+        },
+      },
+    });
+  });
+
   it("converts bearer MCP auth to headers when saving mcp_config to cloud", async () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });

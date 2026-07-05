@@ -27,7 +27,7 @@ describe("MCPServerForm validation", () => {
 
     // Fill required fields
     fireEvent.change(screen.getByTestId("name-input"), {
-      target: { value: "my-server" },
+      target: { value: "my_server" },
     });
     fireEvent.change(screen.getByTestId("command-input"), {
       target: { value: "npx" },
@@ -70,7 +70,7 @@ describe("MCPServerForm validation", () => {
     );
 
     fireEvent.change(screen.getByTestId("server-name-input"), {
-      target: { value: "my-search" },
+      target: { value: "my_search" },
     });
     fireEvent.change(screen.getByTestId("url-input"), {
       target: { value: "https://api.example.com" },
@@ -81,8 +81,84 @@ describe("MCPServerForm validation", () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(onSubmit.mock.calls[0][0]).toMatchObject({
       type: "sse",
-      name: "my-search",
+      name: "my_search",
       url: "https://api.example.com",
+    });
+  });
+
+  it("rejects hyphenated server names because they become tool prefixes", () => {
+    const onSubmit = vi.fn();
+
+    render(
+      <MCPServerForm
+        mode="add"
+        server={{ id: "tmp", type: "shttp" }}
+        existingServers={[]}
+        onSubmit={onSubmit}
+        onCancel={noop}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId("server-name-input"), {
+      target: { value: "integrations-hub" },
+    });
+    fireEvent.change(screen.getByTestId("url-input"), {
+      target: { value: "https://api.example.com/mcp" },
+    });
+
+    fireEvent.click(screen.getByTestId("submit-button"));
+
+    expect(
+      screen.getByText("SETTINGS$MCP_ERROR_NAME_INVALID"),
+    ).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("submits header authentication as a tagged auth credential", () => {
+    const onSubmit = vi.fn();
+
+    render(
+      <MCPServerForm
+        mode="edit"
+        server={{
+          id: "shttp-0",
+          type: "shttp",
+          name: "datadog",
+          url: "https://api.example.com/mcp",
+          auth: {
+            strategy: "header",
+            headers: {
+              "DD-API-KEY": "",
+              "DD-APPLICATION-KEY": "",
+            },
+          },
+        }}
+        existingServers={[]}
+        onSubmit={onSubmit}
+        onCancel={noop}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId("headers-input"), {
+      target: {
+        value: "DD-API-KEY=dd-api\nDD-APPLICATION-KEY=dd-app",
+      },
+    });
+
+    fireEvent.click(screen.getByTestId("submit-button"));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      type: "shttp",
+      name: "datadog",
+      url: "https://api.example.com/mcp",
+      auth: {
+        strategy: "header",
+        headers: {
+          "DD-API-KEY": "dd-api",
+          "DD-APPLICATION-KEY": "dd-app",
+        },
+      },
     });
   });
 
@@ -154,7 +230,7 @@ describe("MCPServerForm validation", () => {
         server={{
           id: "shttp-0",
           type: "shttp",
-          name: "superhuman-mail",
+          name: "superhuman_mail",
           url: "https://mcp.mail.superhuman.com/mcp",
           auth: {
             strategy: "oauth2",

@@ -27,6 +27,7 @@ import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message"
 import { useSaveFieldsAsSecrets } from "#/hooks/mutation/use-save-fields-as-secrets";
 import { modalTitleLgClassName } from "#/utils/modal-classes";
 import McpService from "#/api/mcp-service/mcp-service.api";
+import { toMcpServerName } from "#/utils/mcp-server-name";
 
 /**
  * Renders a helperText string as React nodes, converting any `[text](url)`
@@ -119,6 +120,7 @@ function makeInitialState(entry: MarketplaceEntry): FieldState {
       values[field.key] = "";
     }
   } else if (template?.kind === "shttp" || template?.kind === "sse") {
+    values.url = template.url;
     for (const field of getRemoteHeaderFields(option)) {
       values[field.key] = "";
       savedAsSecret[field.key] = field.type === "password";
@@ -330,10 +332,25 @@ export function InstallServerModal({
     }
     if (!option) return;
     const apiKey = state.values.api_key?.trim() ?? "";
+    const url = template.urlEditable
+      ? (state.values.url?.trim() ?? "")
+      : template.url;
     const oauthMode = isOAuthOption(option);
     const needsCredential = optionNeedsCredentialField(option);
     const headerFields = getRemoteHeaderFields(option);
     const headerErrors: Record<string, string | null> = {};
+    if (!url) {
+      headerErrors.url = t(I18nKey.SETTINGS$MCP_ERROR_URL_REQUIRED);
+    } else {
+      try {
+        const parsedUrl = new URL(url);
+        if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+          headerErrors.url = t(I18nKey.SETTINGS$MCP_ERROR_URL_INVALID_PROTOCOL);
+        }
+      } catch {
+        headerErrors.url = t(I18nKey.SETTINGS$MCP_ERROR_URL_INVALID);
+      }
+    }
     for (const field of headerFields) {
       if (field.required && !(state.values[field.key] ?? "").trim()) {
         headerErrors[field.key] = t(I18nKey.MCP$ERROR_FIELD_REQUIRED);
@@ -384,10 +401,11 @@ export function InstallServerModal({
       id: `${template.kind}-${uuidv4()}`,
       type: template.kind,
       // Name remote servers after the catalog slug (e.g. "github") so they
-      // get a referenceable mcp_config key instead of the auto-generated
-      // "sse"/"shttp" fallback. Stdio installs already carry serverName.
-      name: entry.id,
-      url: template.url,
+      // get a referenceable, LLM-tool-safe mcp_config key instead of the
+      // auto-generated "sse"/"shttp" fallback. Stdio installs already carry
+      // serverName from the catalog.
+      name: toMcpServerName(entry.id),
+      url,
       ...(auth && { auth }),
       ...(hasFieldHeaders &&
         auth?.strategy !== "header" && { headers: fieldHeaders }),
@@ -465,11 +483,14 @@ export function InstallServerModal({
             name="url"
             type="url"
             label={t(I18nKey.SETTINGS$MCP_URL)}
-            value={template.url}
-            onChange={() => {}}
-            isDisabled
+            value={state.values.url ?? template.url}
+            onChange={(value) => setValue("url", value)}
+            isDisabled={!template.urlEditable}
             className="w-full"
           />
+          {state.errors.url && (
+            <p className="text-xs text-red-500">{state.errors.url}</p>
+          )}
           {headerFields.map((field) => (
             <div key={field.key} className="flex flex-col gap-1">
               <SettingsInput

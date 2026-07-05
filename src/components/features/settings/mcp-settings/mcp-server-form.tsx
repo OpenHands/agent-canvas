@@ -8,6 +8,7 @@ import { BrandButton } from "../brand-button";
 import { OptionalTag } from "../optional-tag";
 import { cn } from "#/utils/utils";
 import { formControlMultilineFieldClassName } from "#/utils/form-control-classes";
+import { isValidMcpServerName } from "#/utils/mcp-server-name";
 import type {
   MCPAuthCredential,
   MCPAuthenticationConfig,
@@ -118,7 +119,7 @@ export function MCPServerForm({
 
   const validateName = (name: string): string | null => {
     if (!name) return t(I18nKey.SETTINGS$MCP_ERROR_NAME_REQUIRED);
-    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+    if (!isValidMcpServerName(name)) {
       return t(I18nKey.SETTINGS$MCP_ERROR_NAME_INVALID);
     }
     return null;
@@ -245,7 +246,7 @@ export function MCPServerForm({
       // key (and the reference used in mcp_server_refs), so hold it to the
       // same safe-identifier rule as stdio names.
       const name = formData.get("name")?.toString().trim() || "";
-      if (name && !/^[a-zA-Z0-9_-]+$/.test(name)) {
+      if (name && !isValidMcpServerName(name)) {
         return t(I18nKey.SETTINGS$MCP_ERROR_NAME_INVALID);
       }
 
@@ -437,6 +438,7 @@ export function MCPServerForm({
       data-testid={formTestId}
       onSubmit={handleSubmit}
       className="flex flex-col items-start gap-6"
+      noValidate
     >
       {mode === "add" && (
         <SettingsDropdownInput
@@ -467,7 +469,8 @@ export function MCPServerForm({
             showOptionalTag
             defaultValue={server?.name || ""}
             // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
-            placeholder="my-search-server"
+            placeholder="my_search_server"
+            pattern="^[a-zA-Z0-9_]+$"
           />
 
           <SettingsInput
@@ -607,8 +610,8 @@ export function MCPServerForm({
             required
             defaultValue={server?.name || ""}
             // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
-            placeholder="my-mcp-server"
-            pattern="^[a-zA-Z0-9_-]+$"
+            placeholder="my_mcp_server"
+            pattern="^[a-zA-Z0-9_]+$"
           />
 
           <SettingsInput

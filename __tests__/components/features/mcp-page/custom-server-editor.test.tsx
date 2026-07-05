@@ -24,7 +24,7 @@ const EDIT_STDIO_SERVER: MCPServerConfig = {
 const EDIT_OAUTH_SERVER: MCPServerConfig = {
   id: "shttp-0",
   type: "shttp",
-  name: "superhuman-mail",
+  name: "superhuman_mail",
   url: "https://mcp.mail.superhuman.com/mcp",
   auth: {
     strategy: "oauth2",
@@ -241,7 +241,7 @@ describe("CustomServerEditor", () => {
         agent_settings: {
           ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
           mcp_config: {
-            "superhuman-mail": {
+            superhuman_mail: {
               url: "https://mcp.mail.superhuman.com/mcp",
               transport: "http",
               auth: {
@@ -275,7 +275,7 @@ describe("CustomServerEditor", () => {
       mcp_config: Record<string, unknown>;
     };
     expect(sent.mcp_config).toMatchObject({
-      "superhuman-mail": {
+      superhuman_mail: {
         auth: {
           strategy: "oauth2",
           state: {

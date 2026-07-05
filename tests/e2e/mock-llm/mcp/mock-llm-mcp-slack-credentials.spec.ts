@@ -308,7 +308,7 @@ test.describe("MCP Test Connection credential verification (Slack)", () => {
   }) => {
     // A custom server is not in the marketplace catalog → no credential probe.
     await patchMcpConfig(request, {
-      "my-custom": { url: "https://custom.example.test/mcp" },
+      my_custom: { url: "https://custom.example.test/mcp" },
     });
     await routeSessionApiKey(page);
 

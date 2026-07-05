@@ -251,7 +251,7 @@ describe("InstallServerModal", () => {
       mcp_config: Record<string, unknown>;
     };
     expect(sent.mcp_config).toMatchObject({
-      "synthetic-oauth": {
+      synthetic_oauth: {
         url: "https://mcp.example.com/mcp",
         auth: {
           strategy: "oauth2",
@@ -259,6 +259,156 @@ describe("InstallServerModal", () => {
             tokens: { access_token: "gAAAAencrypted-access-token" },
             token_expires_at: 12345,
           },
+        },
+      },
+    });
+  });
+
+  it("installs header-field remote servers with tagged header auth", async () => {
+    const entry = {
+      id: "datadog-style",
+      name: "Datadog-style Server",
+      description: "Remote MCP server that authenticates via two headers.",
+      iconBg: "#632CA6",
+      connectionOptions: [
+        {
+          id: "api",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://mcp.example.com/mcp",
+            headerFields: [
+              {
+                key: "DD-API-KEY",
+                label: "Datadog API key",
+                type: "password",
+                required: true,
+              },
+              {
+                key: "DD-APPLICATION-KEY",
+                label: "Datadog Application key",
+                type: "password",
+                required: true,
+              },
+            ],
+          },
+          auth: { strategy: "none" },
+        },
+      ],
+    } as unknown as MarketplaceEntry;
+    const testSpy = vi
+      .spyOn(McpService, "testServer")
+      .mockResolvedValue({ ok: true, tools: [] });
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    renderWith(<InstallServerModal entry={entry} onClose={vi.fn()} />);
+    await screen.findByTestId("mcp-install-modal");
+    await waitFor(() => expect(SettingsService.getSettings).toHaveBeenCalled());
+
+    expect(
+      screen.queryByTestId("mcp-install-field-api_key"),
+    ).not.toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("mcp-install-field-DD-API-KEY"), {
+      target: { value: "dd-api-secret" },
+    });
+    fireEvent.change(
+      screen.getByTestId("mcp-install-field-DD-APPLICATION-KEY"),
+      { target: { value: "dd-app-secret" } },
+    );
+    fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    expect(testSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "shttp",
+        url: "https://mcp.example.com/mcp",
+        auth: {
+          strategy: "header",
+          headers: {
+            "DD-API-KEY": "dd-api-secret",
+            "DD-APPLICATION-KEY": "dd-app-secret",
+          },
+        },
+      }),
+    );
+    const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
+      .agent_settings_diff as {
+      mcp_config: Record<string, unknown>;
+    };
+    expect(sent.mcp_config).toMatchObject({
+      datadog_style: {
+        url: "https://mcp.example.com/mcp",
+        auth: {
+          strategy: "header",
+          headers: {
+            "DD-API-KEY": "dd-api-secret",
+            "DD-APPLICATION-KEY": "dd-app-secret",
+          },
+        },
+      },
+    });
+  });
+
+  it("uses the user-edited URL when the transport opts into urlEditable", async () => {
+    const entry = {
+      id: "datadog-style",
+      name: "Datadog-style Server",
+      description: "Remote MCP server with a site-specific URL.",
+      iconBg: "#632CA6",
+      connectionOptions: [
+        {
+          id: "api",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://mcp.example.com/mcp",
+            urlEditable: true,
+            headerFields: [
+              {
+                key: "DD-API-KEY",
+                label: "Datadog API key",
+                type: "password",
+                required: true,
+              },
+            ],
+          },
+          auth: { strategy: "none" },
+        },
+      ],
+    } as unknown as MarketplaceEntry;
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    renderWith(<InstallServerModal entry={entry} onClose={vi.fn()} />);
+    await screen.findByTestId("mcp-install-modal");
+    await waitFor(() => expect(SettingsService.getSettings).toHaveBeenCalled());
+
+    const urlInput = screen.getByTestId(
+      "mcp-install-field-url",
+    ) as HTMLInputElement;
+    expect(urlInput).not.toBeDisabled();
+    fireEvent.change(urlInput, {
+      target: { value: "https://mcp.us5.example.com/v1/mcp" },
+    });
+    fireEvent.change(screen.getByTestId("mcp-install-field-DD-API-KEY"), {
+      target: { value: "dd-api-secret" },
+    });
+    fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
+      .agent_settings_diff as {
+      mcp_config: Record<string, unknown>;
+    };
+    expect(sent.mcp_config).toMatchObject({
+      datadog_style: {
+        url: "https://mcp.us5.example.com/v1/mcp",
+        auth: {
+          strategy: "header",
+          headers: { "DD-API-KEY": "dd-api-secret" },
         },
       },
     });
