@@ -207,6 +207,12 @@ function getAuthenticationConfig(
   if (typeof record.client_metadata_url === "string") {
     authentication.client_metadata_url = record.client_metadata_url;
   }
+  if (typeof record.client_id === "string") {
+    authentication.client_id = record.client_id;
+  }
+  if (typeof record.client_secret === "string") {
+    authentication.client_secret = record.client_secret;
+  }
   if (
     record.additional_client_metadata &&
     typeof record.additional_client_metadata === "object" &&

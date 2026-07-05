@@ -8,10 +8,27 @@ import { BrandButton } from "../brand-button";
 import { OptionalTag } from "../optional-tag";
 import { cn } from "#/utils/utils";
 import { formControlMultilineFieldClassName } from "#/utils/form-control-classes";
-import type { MCPAuthCredential } from "#/types/mcp-auth";
+import type {
+  MCPAuthCredential,
+  MCPAuthenticationConfig,
+  MCPOAuthClientAuthMethod,
+} from "#/types/mcp-auth";
 import type { MCPServerConfig } from "#/types/mcp-server";
 
 type MCPServerType = "sse" | "stdio" | "shttp";
+type RemoteAuthMode = "none" | "bearer" | "header" | "oauth2";
+type OAuthClientAuthMethodOption = "auto" | MCPOAuthClientAuthMethod;
+
+const AUTHENTICATION_LABEL = "Authentication";
+const HEADERS_LABEL = "Headers";
+const HEADERS_PLACEHOLDER = "X-API-Key=value\nX-Application-Key=value";
+const OAUTH_CLIENT_AUTH_LABEL = "OAuth client auth";
+const OAUTH_CLIENT_ID_LABEL = "OAuth client ID";
+const OAUTH_CLIENT_ID_PLACEHOLDER = "client-id";
+const OAUTH_CLIENT_SECRET_LABEL = "OAuth client secret";
+const OAUTH_CLIENT_SECRET_PLACEHOLDER = "client-secret";
+const OAUTH_SCOPES_LABEL = "OAuth scopes";
+const OAUTH_SCOPES_PLACEHOLDER = "read write";
 
 export interface TestMessage {
   ok: boolean;
@@ -47,6 +64,23 @@ export function MCPServerForm({
   const [serverType, setServerType] = React.useState<MCPServerType>(
     server?.type || "sse",
   );
+  const [authMode, setAuthMode] = React.useState<RemoteAuthMode>(() => {
+    if (server?.auth?.strategy === "oauth2") return "oauth2";
+    if (server?.auth?.strategy === "header") return "header";
+    if (
+      server?.auth?.strategy === "bearer" ||
+      server?.auth?.strategy === "api_key"
+    ) {
+      return "bearer";
+    }
+    return "none";
+  });
+  const [oauthClientAuthMethod, setOAuthClientAuthMethod] =
+    React.useState<OAuthClientAuthMethodOption>(() =>
+      server?.auth?.strategy === "oauth2"
+        ? (server.auth.authentication?.client_auth_method ?? "auto")
+        : "auto",
+    );
   const [error, setError] = React.useState<string | null>(null);
   const formRef = React.useRef<HTMLFormElement>(null);
 
@@ -54,6 +88,19 @@ export function MCPServerForm({
     { key: "sse", label: t(I18nKey.SETTINGS$MCP_SERVER_TYPE_SSE) },
     { key: "stdio", label: t(I18nKey.SETTINGS$MCP_SERVER_TYPE_STDIO) },
     { key: "shttp", label: t(I18nKey.SETTINGS$MCP_SERVER_TYPE_SHTTP) },
+  ];
+  const authModeOptions = [
+    { key: "none", label: "None" },
+    { key: "bearer", label: "Bearer token" },
+    { key: "header", label: "Header" },
+    { key: "oauth2", label: "OAuth" },
+  ];
+  const oauthClientAuthMethodOptions = [
+    { key: "auto", label: "Auto" },
+    { key: "none", label: "None" },
+    { key: "client_secret_post", label: "Client secret POST" },
+    { key: "client_secret_basic", label: "Client secret basic" },
+    { key: "private_key_jwt", label: "Private key JWT" },
   ];
 
   const validateUrl = (url: string): string | null => {
@@ -129,6 +176,26 @@ export function MCPServerForm({
     return null;
   };
 
+  const validateRemoteAuth = (formData: FormData): string | null => {
+    if (authMode === "header") {
+      const headerString = formData.get("headers")?.toString() || "";
+      if (!headerString.trim())
+        return "Header authentication requires a header";
+      return validateEnvFormat(headerString);
+    }
+    if (authMode === "oauth2") {
+      const clientId = formData.get("oauth_client_id")?.toString().trim();
+      const clientSecret = formData
+        .get("oauth_client_secret")
+        ?.toString()
+        .trim();
+      if (clientSecret && !clientId) {
+        return "OAuth client secret requires a client ID";
+      }
+    }
+    return null;
+  };
+
   const validateTimeout = (timeoutStr: string): string | null => {
     if (!timeoutStr.trim()) return null; // Optional field
 
@@ -189,7 +256,7 @@ export function MCPServerForm({
         if (timeoutError) return timeoutError;
       }
 
-      return null;
+      return validateRemoteAuth(formData);
     }
 
     if (serverType === "stdio") {
@@ -231,25 +298,48 @@ export function MCPServerForm({
     return "";
   };
 
-  const authFromFormValue = (
-    value: string | undefined,
-    existing: MCPAuthCredential | undefined,
+  const editableHeaderValue = (auth: MCPAuthCredential | undefined): string => {
+    if (auth?.strategy !== "header") return "";
+    return formatEnvironmentVariables(auth.headers);
+  };
+
+  const oauthAuthentication =
+    server?.auth?.strategy === "oauth2"
+      ? server.auth.authentication
+      : undefined;
+
+  const authFromFormData = (
+    formData: FormData,
   ): MCPAuthCredential | undefined => {
-    if (value) {
-      if (existing?.strategy === "api_key") {
-        return { ...existing, value };
+    if (authMode === "none") return undefined;
+    if (authMode === "bearer") {
+      const value = formData.get("api_key")?.toString().trim();
+      if (!value) return undefined;
+      if (server?.auth?.strategy === "api_key") {
+        return { ...server.auth, value };
       }
       return { strategy: "bearer", value };
     }
-    if (
-      existing?.strategy === "oauth2" ||
-      existing?.strategy === "header" ||
-      existing?.strategy === "basic" ||
-      existing?.strategy === "none"
-    ) {
-      return existing;
+    if (authMode === "header") {
+      const headers = parseEnvironmentVariables(
+        formData.get("headers")?.toString() || "",
+      );
+      return { strategy: "header", headers };
     }
-    return undefined;
+
+    const scopes = formData.get("oauth_scopes")?.toString().trim();
+    const clientId = formData.get("oauth_client_id")?.toString().trim();
+    const clientSecret = formData.get("oauth_client_secret")?.toString().trim();
+    const authentication: MCPAuthenticationConfig = {
+      type: "oauth",
+      ...(oauthClientAuthMethod !== "auto" && {
+        client_auth_method: oauthClientAuthMethod,
+      }),
+      ...(scopes && { scopes }),
+      ...(clientId && { client_id: clientId }),
+      ...(clientSecret && { client_secret: clientSecret }),
+    };
+    return { strategy: "oauth2", authentication };
   };
 
   const buildConfig = (formData: FormData): MCPServerConfig => {
@@ -261,9 +351,8 @@ export function MCPServerForm({
     if (serverType === "sse" || serverType === "shttp") {
       const name = formData.get("name")?.toString().trim();
       const url = formData.get("url")?.toString().trim();
-      const apiKey = formData.get("api_key")?.toString().trim();
       const timeoutStr = formData.get("timeout")?.toString().trim();
-      const auth = authFromFormValue(apiKey, server?.auth);
+      const auth = authFromFormData(formData);
 
       const serverConfig: MCPServerConfig = {
         ...baseConfig,
@@ -387,16 +476,102 @@ export function MCPServerForm({
             placeholder="https://api.example.com"
           />
 
-          <SettingsInput
-            testId="api-key-input"
-            name="api_key"
-            type="password"
-            label={t(I18nKey.SETTINGS$MCP_API_KEY)}
-            className="w-full min-w-0"
-            showOptionalTag
-            defaultValue={editableAuthValue(server?.auth)}
-            placeholder={t(I18nKey.SETTINGS$MCP_API_KEY_PLACEHOLDER)}
+          <SettingsDropdownInput
+            testId="auth-mode-dropdown"
+            name="auth-mode"
+            label={AUTHENTICATION_LABEL}
+            items={authModeOptions}
+            selectedKey={authMode}
+            onSelectionChange={(key) => setAuthMode(key as RemoteAuthMode)}
+            onInputChange={() => {}}
+            isClearable={false}
+            allowsCustomValue={false}
+            wrapperClassName="w-full min-w-0"
           />
+
+          {authMode === "bearer" && (
+            <SettingsInput
+              testId="api-key-input"
+              name="api_key"
+              type="password"
+              label={t(I18nKey.SETTINGS$MCP_API_KEY)}
+              className="w-full min-w-0"
+              required
+              defaultValue={editableAuthValue(server?.auth)}
+              placeholder={t(I18nKey.SETTINGS$MCP_API_KEY_PLACEHOLDER)}
+            />
+          )}
+
+          {authMode === "header" && (
+            <label className="flex flex-col gap-2.5 w-full min-w-0">
+              <span className="text-sm">{HEADERS_LABEL}</span>
+              <textarea
+                data-testid="headers-input"
+                name="headers"
+                rows={4}
+                defaultValue={editableHeaderValue(server?.auth)}
+                placeholder={HEADERS_PLACEHOLDER}
+                className={cn(
+                  formControlMultilineFieldClassName,
+                  "resize-none placeholder:italic",
+                  "disabled:bg-[var(--oh-surface-raised)] disabled:border-[var(--oh-border-subtle)]",
+                )}
+              />
+            </label>
+          )}
+
+          {authMode === "oauth2" && (
+            <>
+              <SettingsDropdownInput
+                testId="oauth-client-auth-method-dropdown"
+                name="oauth_client_auth_method"
+                label={OAUTH_CLIENT_AUTH_LABEL}
+                items={oauthClientAuthMethodOptions}
+                selectedKey={oauthClientAuthMethod}
+                onSelectionChange={(key) =>
+                  setOAuthClientAuthMethod(key as OAuthClientAuthMethodOption)
+                }
+                onInputChange={() => {}}
+                isClearable={false}
+                allowsCustomValue={false}
+                wrapperClassName="w-full min-w-0"
+              />
+              <SettingsInput
+                testId="oauth-client-id-input"
+                name="oauth_client_id"
+                type="text"
+                label={OAUTH_CLIENT_ID_LABEL}
+                className="w-full min-w-0"
+                showOptionalTag
+                defaultValue={oauthAuthentication?.client_id || ""}
+                placeholder={OAUTH_CLIENT_ID_PLACEHOLDER}
+              />
+              <SettingsInput
+                testId="oauth-client-secret-input"
+                name="oauth_client_secret"
+                type="password"
+                label={OAUTH_CLIENT_SECRET_LABEL}
+                className="w-full min-w-0"
+                showOptionalTag
+                defaultValue={oauthAuthentication?.client_secret || ""}
+                placeholder={OAUTH_CLIENT_SECRET_PLACEHOLDER}
+              />
+              <SettingsInput
+                testId="oauth-scopes-input"
+                name="oauth_scopes"
+                type="text"
+                label={OAUTH_SCOPES_LABEL}
+                className="w-full min-w-0"
+                showOptionalTag
+                defaultValue={
+                  Array.isArray(oauthAuthentication?.scopes)
+                    ? oauthAuthentication.scopes.join(" ")
+                    : oauthAuthentication?.scopes || ""
+                }
+                placeholder={OAUTH_SCOPES_PLACEHOLDER}
+              />
+            </>
+          )}
 
           {serverType === "shttp" && (
             <SettingsInput

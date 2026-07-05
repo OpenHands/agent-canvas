@@ -18,6 +18,8 @@ export interface MCPOAuthAuthenticationConfig {
   scopes?: string | string[];
   client_name?: string;
   client_metadata_url?: string;
+  client_id?: string;
+  client_secret?: string;
   additional_client_metadata?: Record<string, MCPJsonValue>;
 }
 

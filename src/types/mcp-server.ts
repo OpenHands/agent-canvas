@@ -56,3 +56,24 @@ export interface ExtendedMCPTestFailure {
 export type ExtendedMCPTestResponse =
   | ExtendedMCPTestSuccess
   | ExtendedMCPTestFailure;
+
+export interface MCPOAuthStartResponse {
+  ok: boolean;
+  job_id?: string | null;
+  authorization_url?: string | null;
+  error?: string | null;
+  error_kind?: ExtendedMCPTestFailureKind | null;
+}
+
+export interface MCPOAuthStatusResponse {
+  ok: boolean;
+  status: "pending" | "authorizing" | "succeeded" | "failed";
+  job_id: string;
+  authorization_url?: string | null;
+  callback_ready?: boolean;
+  tools?: string[] | null;
+  tool_result?: MCPTestToolResult | null;
+  oauth_state?: MCPOAuthState | null;
+  error?: string | null;
+  error_kind?: ExtendedMCPTestFailureKind | null;
+}

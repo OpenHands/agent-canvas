@@ -26,6 +26,7 @@ import {
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import { useSaveFieldsAsSecrets } from "#/hooks/mutation/use-save-fields-as-secrets";
 import { modalTitleLgClassName } from "#/utils/modal-classes";
+import McpService from "#/api/mcp-service/mcp-service.api";
 
 /**
  * Renders a helperText string as React nodes, converting any `[text](url)`
@@ -159,10 +160,12 @@ export function InstallServerModal({
 
   const [globalError, setGlobalError] = React.useState<string | null>(null);
   const [isFinalizingInstall, setIsFinalizingInstall] = React.useState(false);
+  const [isAuthorizingOAuth, setIsAuthorizingOAuth] = React.useState(false);
   const option = getInstallableMcpConnectionOption(entry);
   const template = option?.transport;
 
-  const isPending = isTesting || isAdding || isFinalizingInstall;
+  const isPending =
+    isTesting || isAuthorizingOAuth || isAdding || isFinalizingInstall;
 
   const setValue = (key: string, value: string) => {
     setState((prev) => ({
@@ -234,6 +237,46 @@ export function InstallServerModal({
   };
 
   const submitServer = (payload: MCPServerConfig) => {
+    if (payload.auth?.strategy === "oauth2") {
+      setIsAuthorizingOAuth(true);
+      void McpService.authorizeOAuth(payload)
+        .then((result) => {
+          if (!result.ok) {
+            setGlobalError(makeTestErrorMessage(result));
+            return;
+          }
+          const serverToSave = result.oauth_state
+            ? {
+                ...payload,
+                auth: { ...payload.auth!, state: result.oauth_state },
+              }
+            : payload;
+          addMcpServer(serverToSave, {
+            onSuccess: () => {
+              displaySuccessToast(t(I18nKey.MCP$INSTALL_SUCCESS));
+              setIsFinalizingInstall(true);
+              void (async () => {
+                try {
+                  await saveSelectedSecrets();
+                } finally {
+                  onSuccess?.(entry);
+                  onClose();
+                }
+              })();
+            },
+            onError: (err: unknown) => {
+              const message = retrieveAxiosErrorMessage(err as AxiosError);
+              setGlobalError(message || t(I18nKey.ERROR$GENERIC));
+            },
+          });
+        })
+        .catch((err: unknown) => {
+          const message = retrieveAxiosErrorMessage(err as AxiosError);
+          setGlobalError(message || t(I18nKey.ERROR$GENERIC));
+        })
+        .finally(() => setIsAuthorizingOAuth(false));
+      return;
+    }
     testMcpServer(payload, {
       onSuccess: (result) => {
         if (!result.ok) {
@@ -651,7 +694,7 @@ export function InstallServerModal({
             isDisabled={isPending}
             testId="mcp-install-submit"
           >
-            {isTesting
+            {isTesting || isAuthorizingOAuth
               ? t(I18nKey.MCP$VERIFYING)
               : isAdding || isFinalizingInstall
                 ? t(I18nKey.SETTINGS$SAVING)
