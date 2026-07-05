@@ -118,7 +118,7 @@ describe("McpService.testServer", () => {
     // Exact match also guards that non-catalog servers get no `tool_call`.
     expect(mockTestServer).toHaveBeenCalledWith({
       server: {
-        type: "stdio",
+        transport: "stdio",
         command: "npx",
         args: ["-y", "@my/mcp-server"],
         env: { API_KEY: "secret" },
@@ -295,5 +295,4 @@ describe("McpService.testServer", () => {
     expect(result).toEqual({ ok: true, tools: [] });
     expect(mockTestServer).not.toHaveBeenCalled();
   });
-
 });

@@ -253,7 +253,7 @@ describe("CustomServerEditor", () => {
         },
       }),
     );
-    vi.spyOn(McpService, "testServer").mockResolvedValue({
+    vi.spyOn(McpService, "authorizeOAuth").mockResolvedValue({
       ok: true,
       tools: [],
       oauth_state: {

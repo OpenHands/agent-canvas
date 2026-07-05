@@ -307,6 +307,8 @@ export function MCPServerForm({
     server?.auth?.strategy === "oauth2"
       ? server.auth.authentication
       : undefined;
+  const oauthState =
+    server?.auth?.strategy === "oauth2" ? server.auth.state : undefined;
 
   const authFromFormData = (
     formData: FormData,
@@ -339,7 +341,11 @@ export function MCPServerForm({
       ...(clientId && { client_id: clientId }),
       ...(clientSecret && { client_secret: clientSecret }),
     };
-    return { strategy: "oauth2", authentication };
+    return {
+      strategy: "oauth2",
+      authentication,
+      ...(oauthState && { state: oauthState }),
+    };
   };
 
   const buildConfig = (formData: FormData): MCPServerConfig => {
