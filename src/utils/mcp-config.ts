@@ -44,6 +44,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
+function getSdkMcpServerMap(value: unknown): Record<string, unknown> | null {
+  if (!isRecord(value)) return null;
+
+  const mcpServers = value.mcpServers;
+  if (
+    isRecord(mcpServers) &&
+    !("url" in mcpServers) &&
+    !("command" in mcpServers)
+  ) {
+    return mcpServers;
+  }
+
+  return value;
+}
+
 function stringRecord(value: unknown): Record<string, string> | undefined {
   if (!isRecord(value)) return undefined;
   const entries = Object.entries(value).filter(
@@ -229,17 +244,17 @@ function getAuthenticationConfig(
  * to the frontend MCPConfig format used by UI components.
  */
 export function parseMcpConfig(value: unknown): MCPConfig {
-  if (!value || typeof value !== "object") {
+  const mcpConfig = getSdkMcpServerMap(value);
+  if (!mcpConfig) {
     return { ...EMPTY_MCP_CONFIG };
   }
 
   const sseServers: (string | MCPSSEServer)[] = [];
   const stdioServers: MCPStdioServer[] = [];
   const shttpServers: (string | MCPSHTTPServer)[] = [];
-  const mcpConfig = value as Record<string, Record<string, unknown>>;
 
   for (const [serverName, serverConfig] of Object.entries(mcpConfig)) {
-    if (!serverConfig || typeof serverConfig !== "object") continue;
+    if (!isRecord(serverConfig)) continue;
 
     const url = serverConfig.url as string | undefined;
 

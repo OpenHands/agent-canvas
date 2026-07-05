@@ -160,9 +160,46 @@ describe("toSdkMcpConfig", () => {
     ]);
 
     const written = toSdkMcpConfig(parsed);
-    expect(Object.keys(written!).sort()).toEqual([
-      "my-docs",
-      "my-search",
+    expect(Object.keys(written!).sort()).toEqual(["my-docs", "my-search"]);
+  });
+
+  it("parses cloud SDK MCPConfig wrapper shape", () => {
+    const persisted = {
+      mcpServers: {
+        "cloud-weather": {
+          url: "https://weather.example/mcp",
+          transport: "http",
+        },
+        "cloud-files": {
+          command: "uvx",
+          args: ["mcp-server-files"],
+        },
+      },
+    };
+
+    const parsed = parseMcpConfig(persisted);
+
+    expect(parsed.shttp_servers).toEqual([
+      { name: "cloud-weather", url: "https://weather.example/mcp" },
+    ]);
+    expect(parsed.stdio_servers).toEqual([
+      {
+        name: "cloud-files",
+        command: "uvx",
+        args: ["mcp-server-files"],
+      },
+    ]);
+  });
+
+  it("does not unwrap a valid server named mcpServers", () => {
+    const parsed = parseMcpConfig({
+      mcpServers: {
+        url: "https://meta.example/mcp",
+      },
+    });
+
+    expect(parsed.shttp_servers).toEqual([
+      { name: "mcpServers", url: "https://meta.example/mcp" },
     ]);
   });
 
@@ -242,9 +279,7 @@ describe("toSdkMcpConfig", () => {
     const written = toSdkMcpConfig(parsed);
 
     expect(written).not.toBeNull();
-    expect(Object.keys(written!).sort()).toEqual(
-      Object.keys(persisted).sort(),
-    );
+    expect(Object.keys(written!).sort()).toEqual(Object.keys(persisted).sort());
   });
 
   it("does not bump the suffix on a stdio name when an sse server is added", () => {
