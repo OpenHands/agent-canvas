@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { WorkspaceDropdown } from "../../../../src/components/features/home/workspace-dropdown/workspace-dropdown";
-import { LocalWorkspace, LocalWorkspaceParent } from "#/types/workspace";
+import type { LocalWorkspace, LocalWorkspaceParent } from "#/types/workspace";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),

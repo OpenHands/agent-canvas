@@ -8,7 +8,7 @@ import {
   dropdownMenuListClassName,
 } from "#/utils/dropdown-classes";
 import { formControlFieldClassName } from "#/utils/form-control-classes";
-import { LocalWorkspace, LocalWorkspaceParent } from "#/types/workspace";
+import type { LocalWorkspace, LocalWorkspaceParent } from "#/types/workspace";
 import { I18nKey } from "#/i18n/declaration";
 import RepoIcon from "#/icons/repo.svg?react";
 import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
