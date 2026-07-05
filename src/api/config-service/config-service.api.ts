@@ -161,13 +161,23 @@ class ConfigService {
       verifiedByProvider !== undefined
         ? Promise.resolve(verifiedByProvider)
         : llmClient.getVerifiedModels();
-    const [providers, verifiedMap] = await Promise.all([
+    const [providers, verifiedMap, models] = await Promise.all([
       llmClient.getProviders(),
       verifiedFetch,
+      llmClient.getModels(),
     ]);
 
     const verifiedProviders = new Set(Object.keys(verifiedMap ?? {}));
-    const names = new Set<string>([...verifiedProviders, ...(providers ?? [])]);
+    const providerFromModels = new Set(
+      (models ?? [])
+        .map((model) => model.split("/", 1)[0])
+        .filter((provider): provider is string => provider.length > 0),
+    );
+    const names = new Set<string>([
+      ...verifiedProviders,
+      ...(providers ?? []),
+      ...providerFromModels,
+    ]);
     const providerItems: LLMProvider[] = [...names].map((name) => ({
       name,
       verified: verifiedProviders.has(name),

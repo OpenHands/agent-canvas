@@ -58,4 +58,29 @@ describe("ConfigService", () => {
     const openhands = page.items.find((p) => p.name === "openhands");
     expect(openhands).toEqual({ name: "openhands", verified: true });
   });
+
+  it("adds providers that only appear in model IDs when /api/llm/providers is incomplete", async () => {
+    server.use(
+      http.get("/api/llm/models", () =>
+        HttpResponse.json({
+          models: [
+            "openrouter/deep-research-v1",
+            "openrouter/web-browsing-1",
+            "anthropic/claude-opus-4-5-20251101",
+          ],
+        }),
+      ),
+      http.get("/api/llm/models/verified", () =>
+        HttpResponse.json({ models: { anthropic: ["claude-opus-4-5-20251101"] } }),
+      ),
+      http.get("/api/llm/providers", () =>
+        HttpResponse.json({ providers: ["anthropic"] }),
+      ),
+    );
+
+    const page = await ConfigService.searchProviders({ limit: 10 });
+    const openrouter = page.items.find((provider) => provider.name === "openrouter");
+
+    expect(openrouter).toEqual({ name: "openrouter", verified: false });
+  });
 });
