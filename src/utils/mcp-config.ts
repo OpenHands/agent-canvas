@@ -45,7 +45,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-function getSdkMcpServerMap(value: unknown): Record<string, unknown> | null {
+export function getSdkMcpServerMap(
+  value: unknown,
+): Record<string, unknown> | null {
   if (!isRecord(value)) return null;
 
   const mcpServers = value.mcpServers;
@@ -60,7 +62,9 @@ function getSdkMcpServerMap(value: unknown): Record<string, unknown> | null {
   return value;
 }
 
-function stringRecord(value: unknown): Record<string, string> | undefined {
+export function stringRecord(
+  value: unknown,
+): Record<string, string> | undefined {
   if (!isRecord(value)) return undefined;
   const entries = Object.entries(value).filter(
     (entry): entry is [string, string] => typeof entry[1] === "string",

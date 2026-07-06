@@ -8,7 +8,10 @@ import { BrandButton } from "../brand-button";
 import { OptionalTag } from "../optional-tag";
 import { cn } from "#/utils/utils";
 import { formControlMultilineFieldClassName } from "#/utils/form-control-classes";
-import { isValidMcpServerName } from "#/utils/mcp-server-name";
+import {
+  isValidMcpServerName,
+  MCP_SERVER_NAME_PATTERN,
+} from "#/utils/mcp-server-name";
 import type {
   MCPAuthCredential,
   MCPAuthenticationConfig,
@@ -19,17 +22,6 @@ import type { MCPServerConfig } from "#/types/mcp-server";
 type MCPServerType = "sse" | "stdio" | "shttp";
 type RemoteAuthMode = "none" | "bearer" | "header" | "oauth2";
 type OAuthClientAuthMethodOption = "auto" | MCPOAuthClientAuthMethod;
-
-const AUTHENTICATION_LABEL = "Authentication";
-const HEADERS_LABEL = "Headers";
-const HEADERS_PLACEHOLDER = "X-API-Key=value\nX-Application-Key=value";
-const OAUTH_CLIENT_AUTH_LABEL = "OAuth client auth";
-const OAUTH_CLIENT_ID_LABEL = "OAuth client ID";
-const OAUTH_CLIENT_ID_PLACEHOLDER = "client-id";
-const OAUTH_CLIENT_SECRET_LABEL = "OAuth client secret";
-const OAUTH_CLIENT_SECRET_PLACEHOLDER = "client-secret";
-const OAUTH_SCOPES_LABEL = "OAuth scopes";
-const OAUTH_SCOPES_PLACEHOLDER = "read write";
 
 export interface TestMessage {
   ok: boolean;
@@ -91,17 +83,26 @@ export function MCPServerForm({
     { key: "shttp", label: t(I18nKey.SETTINGS$MCP_SERVER_TYPE_SHTTP) },
   ];
   const authModeOptions = [
-    { key: "none", label: "None" },
-    { key: "bearer", label: "Bearer token" },
-    { key: "header", label: "Header" },
-    { key: "oauth2", label: "OAuth" },
+    { key: "none", label: t(I18nKey.SETTINGS$MCP_AUTH_MODE_NONE) },
+    { key: "bearer", label: t(I18nKey.SETTINGS$MCP_AUTH_MODE_BEARER) },
+    { key: "header", label: t(I18nKey.SETTINGS$MCP_AUTH_MODE_HEADER) },
+    { key: "oauth2", label: t(I18nKey.SETTINGS$MCP_AUTH_MODE_OAUTH) },
   ];
   const oauthClientAuthMethodOptions = [
-    { key: "auto", label: "Auto" },
-    { key: "none", label: "None" },
-    { key: "client_secret_post", label: "Client secret POST" },
-    { key: "client_secret_basic", label: "Client secret basic" },
-    { key: "private_key_jwt", label: "Private key JWT" },
+    { key: "auto", label: t(I18nKey.SETTINGS$MCP_OAUTH_CLIENT_AUTH_AUTO) },
+    { key: "none", label: t(I18nKey.SETTINGS$MCP_OAUTH_CLIENT_AUTH_NONE) },
+    {
+      key: "client_secret_post",
+      label: t(I18nKey.SETTINGS$MCP_OAUTH_CLIENT_AUTH_SECRET_POST),
+    },
+    {
+      key: "client_secret_basic",
+      label: t(I18nKey.SETTINGS$MCP_OAUTH_CLIENT_AUTH_SECRET_BASIC),
+    },
+    {
+      key: "private_key_jwt",
+      label: t(I18nKey.SETTINGS$MCP_OAUTH_CLIENT_AUTH_PRIVATE_KEY_JWT),
+    },
   ];
 
   const validateUrl = (url: string): string | null => {
@@ -181,7 +182,7 @@ export function MCPServerForm({
     if (authMode === "header") {
       const headerString = formData.get("headers")?.toString() || "";
       if (!headerString.trim())
-        return "Header authentication requires a header";
+        return t(I18nKey.SETTINGS$MCP_ERROR_HEADER_REQUIRED);
       return validateEnvFormat(headerString);
     }
     if (authMode === "oauth2") {
@@ -191,7 +192,7 @@ export function MCPServerForm({
         ?.toString()
         .trim();
       if (clientSecret && !clientId) {
-        return "OAuth client secret requires a client ID";
+        return t(I18nKey.SETTINGS$MCP_ERROR_OAUTH_SECRET_REQUIRES_ID);
       }
     }
     return null;
@@ -470,7 +471,7 @@ export function MCPServerForm({
             defaultValue={server?.name || ""}
             // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
             placeholder="my_search_server"
-            pattern="^[a-zA-Z0-9_]+$"
+            pattern={MCP_SERVER_NAME_PATTERN.source}
           />
 
           <SettingsInput
@@ -488,7 +489,7 @@ export function MCPServerForm({
           <SettingsDropdownInput
             testId="auth-mode-dropdown"
             name="auth-mode"
-            label={AUTHENTICATION_LABEL}
+            label={t(I18nKey.SETTINGS$MCP_AUTHENTICATION)}
             items={authModeOptions}
             selectedKey={authMode}
             onSelectionChange={(key) => setAuthMode(key as RemoteAuthMode)}
@@ -513,13 +514,13 @@ export function MCPServerForm({
 
           {authMode === "header" && (
             <label className="flex flex-col gap-2.5 w-full min-w-0">
-              <span className="text-sm">{HEADERS_LABEL}</span>
+              <span className="text-sm">{t(I18nKey.SETTINGS$MCP_HEADERS)}</span>
               <textarea
                 data-testid="headers-input"
                 name="headers"
                 rows={4}
                 defaultValue={editableHeaderValue(server?.auth)}
-                placeholder={HEADERS_PLACEHOLDER}
+                placeholder={t(I18nKey.SETTINGS$MCP_HEADERS_PLACEHOLDER)}
                 className={cn(
                   formControlMultilineFieldClassName,
                   "resize-none placeholder:italic",
@@ -534,7 +535,7 @@ export function MCPServerForm({
               <SettingsDropdownInput
                 testId="oauth-client-auth-method-dropdown"
                 name="oauth_client_auth_method"
-                label={OAUTH_CLIENT_AUTH_LABEL}
+                label={t(I18nKey.SETTINGS$MCP_OAUTH_CLIENT_AUTH)}
                 items={oauthClientAuthMethodOptions}
                 selectedKey={oauthClientAuthMethod}
                 onSelectionChange={(key) =>
@@ -549,27 +550,31 @@ export function MCPServerForm({
                 testId="oauth-client-id-input"
                 name="oauth_client_id"
                 type="text"
-                label={OAUTH_CLIENT_ID_LABEL}
+                label={t(I18nKey.SETTINGS$MCP_OAUTH_CLIENT_ID)}
                 className="w-full min-w-0"
                 showOptionalTag
                 defaultValue={oauthAuthentication?.client_id || ""}
-                placeholder={OAUTH_CLIENT_ID_PLACEHOLDER}
+                placeholder={t(
+                  I18nKey.SETTINGS$MCP_OAUTH_CLIENT_ID_PLACEHOLDER,
+                )}
               />
               <SettingsInput
                 testId="oauth-client-secret-input"
                 name="oauth_client_secret"
                 type="password"
-                label={OAUTH_CLIENT_SECRET_LABEL}
+                label={t(I18nKey.SETTINGS$MCP_OAUTH_CLIENT_SECRET)}
                 className="w-full min-w-0"
                 showOptionalTag
                 defaultValue={oauthAuthentication?.client_secret || ""}
-                placeholder={OAUTH_CLIENT_SECRET_PLACEHOLDER}
+                placeholder={t(
+                  I18nKey.SETTINGS$MCP_OAUTH_CLIENT_SECRET_PLACEHOLDER,
+                )}
               />
               <SettingsInput
                 testId="oauth-scopes-input"
                 name="oauth_scopes"
                 type="text"
-                label={OAUTH_SCOPES_LABEL}
+                label={t(I18nKey.SETTINGS$MCP_OAUTH_SCOPES)}
                 className="w-full min-w-0"
                 showOptionalTag
                 defaultValue={
@@ -577,7 +582,7 @@ export function MCPServerForm({
                     ? oauthAuthentication.scopes.join(" ")
                     : oauthAuthentication?.scopes || ""
                 }
-                placeholder={OAUTH_SCOPES_PLACEHOLDER}
+                placeholder={t(I18nKey.SETTINGS$MCP_OAUTH_SCOPES_PLACEHOLDER)}
               />
             </>
           )}
@@ -611,7 +616,7 @@ export function MCPServerForm({
             defaultValue={server?.name || ""}
             // eslint-disable-next-line i18next/no-literal-string -- example value, not translatable
             placeholder="my_mcp_server"
-            pattern="^[a-zA-Z0-9_]+$"
+            pattern={MCP_SERVER_NAME_PATTERN.source}
           />
 
           <SettingsInput

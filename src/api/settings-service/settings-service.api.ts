@@ -1,7 +1,11 @@
 import { SettingsClient } from "@openhands/typescript-client/clients";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { Settings, SettingsSchema, SettingsValue } from "#/types/settings";
-import { hasRedactedMcpSecretLeaf } from "#/utils/mcp-config";
+import {
+  getSdkMcpServerMap,
+  hasRedactedMcpSecretLeaf,
+  stringRecord,
+} from "#/utils/mcp-config";
 import { getActiveBackend } from "../backend-registry/active-store";
 import {
   fetchCloudConversationSettingsSchema,
@@ -177,15 +181,6 @@ const clearCache = () => {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
 
-const stringEntries = (value: unknown): Record<string, string> => {
-  if (!isRecord(value)) return {};
-  return Object.fromEntries(
-    Object.entries(value).filter(
-      (entry): entry is [string, string] => typeof entry[1] === "string",
-    ),
-  );
-};
-
 const basicAuthHeader = (username: string, password: string): string => {
   const token = btoa(`${username}:${password}`);
   return `Basic ${token}`;
@@ -219,7 +214,7 @@ const headersFromMcpAuth = (
       }
       return { Authorization: basicAuthHeader(auth.username, auth.password) };
     case "header":
-      return stringEntries(auth.headers);
+      return stringRecord(auth.headers) ?? {};
     case "oauth2": {
       const tokens = isRecord(auth.state) ? auth.state.tokens : undefined;
       if (!isRecord(tokens) || typeof tokens.access_token !== "string") {
@@ -248,7 +243,7 @@ const cloudCompatibleMcpConfig = (value: unknown): unknown => {
       if (authHeaders === null) return [name, server];
 
       const nextServer = { ...server };
-      const existingHeaders = stringEntries(server.headers);
+      const existingHeaders = stringRecord(server.headers) ?? {};
       const mergedHeaders = { ...existingHeaders, ...authHeaders };
       delete nextServer.auth;
       if (Object.keys(mergedHeaders).length > 0) {
@@ -263,33 +258,20 @@ const cloudCompatibleMcpConfig = (value: unknown): unknown => {
   return hasWrapper ? { ...value, mcpServers: converted } : converted;
 };
 
-const mcpServersRecord = (
-  mcpConfig: unknown,
-): Record<string, Record<string, unknown>> | null => {
-  if (!isRecord(mcpConfig)) return null;
-  const rawServers = isRecord(mcpConfig.mcpServers)
-    ? mcpConfig.mcpServers
-    : mcpConfig;
-  const entries = Object.entries(rawServers).filter(
-    (entry): entry is [string, Record<string, unknown>] => isRecord(entry[1]),
-  );
-  return Object.fromEntries(entries);
-};
-
 const hasRedactedMcpSecrets = (mcpConfig: unknown): boolean => {
-  const servers = mcpServersRecord(mcpConfig);
+  const servers = getSdkMcpServerMap(mcpConfig);
   if (!servers) return false;
   return Object.values(servers).some(
     (server) =>
-      hasRedactedMcpSecretLeaf(server.auth) ||
-      hasRedactedMcpSecretLeaf(server.headers) ||
-      hasRedactedMcpSecretLeaf(server.env),
+      hasRedactedMcpSecretLeaf(isRecord(server) ? server.auth : undefined) ||
+      hasRedactedMcpSecretLeaf(isRecord(server) ? server.headers : undefined) ||
+      hasRedactedMcpSecretLeaf(isRecord(server) ? server.env : undefined),
   );
 };
 
 const removesMcpServer = (previous: unknown, next: unknown): boolean => {
-  const previousServers = mcpServersRecord(previous);
-  const nextServers = mcpServersRecord(next);
+  const previousServers = getSdkMcpServerMap(previous);
+  const nextServers = getSdkMcpServerMap(next);
   if (!previousServers || !nextServers) return false;
   return Object.keys(previousServers).some((name) => !(name in nextServers));
 };
