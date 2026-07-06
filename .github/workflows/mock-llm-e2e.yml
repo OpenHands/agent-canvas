@@ -120,12 +120,23 @@ jobs:
       - name: Pre-warm automation backend (uvx cache)
         env:
           AUTOMATION_VERSION: ${{ steps.defaults.outputs.automation_version }}
+          SDK_GIT_REF: ${{ steps.linked_sdk.outputs.git_ref }}
         run: |
           # Pre-install openhands-automation into the uvx cache so the
           # agent-canvas binary doesn't need to download it at startup.
           # Without this, the 180s Playwright webServer timeout expires
           # before the automation backend finishes installing (~60-90s).
-          uvx --from "openhands-automation==$AUTOMATION_VERSION" python -c "from openhands.automation.app import app; print('automation package cached')"
+          if [ -n "$SDK_GIT_REF" ]; then
+            BASE_GIT_URL="git+https://github.com/OpenHands/software-agent-sdk@${SDK_GIT_REF}"
+            uvx \
+              --from "openhands-automation==$AUTOMATION_VERSION" \
+              --with "${BASE_GIT_URL}#subdirectory=openhands-sdk" \
+              --with "${BASE_GIT_URL}#subdirectory=openhands-tools" \
+              --with "${BASE_GIT_URL}#subdirectory=openhands-workspace" \
+              python -c "from openhands.automation.app import app; print('automation package cached with linked SDK')"
+          else
+            uvx --from "openhands-automation==$AUTOMATION_VERSION" python -c "from openhands.automation.app import app; print('automation package cached')"
+          fi
 
       - name: Verify mock LLM server starts
         run: |

@@ -283,9 +283,22 @@ function buildAutomationCommand(env = process.env) {
   const gitRef = env.OH_AUTOMATION_GIT_REF;
   const version = env.OH_AUTOMATION_VERSION;
   const repoUrl = env.OH_AUTOMATION_REPO || DEFAULT_AUTOMATION_REPO;
+  const sdkGitRef = env.OH_AGENT_SERVER_GIT_REF;
 
   const uvxArgs = [];
   let source = "";
+  const sdkArgs = [];
+  if (sdkGitRef) {
+    const baseGitUrl = `git+https://github.com/OpenHands/software-agent-sdk@${sdkGitRef}`;
+    sdkArgs.push(
+      "--with",
+      `${baseGitUrl}#subdirectory=openhands-sdk`,
+      "--with",
+      `${baseGitUrl}#subdirectory=openhands-tools`,
+      "--with",
+      `${baseGitUrl}#subdirectory=openhands-workspace`,
+    );
+  }
 
   if (gitRef) {
     // Use git ref - refresh to ensure latest commit is fetched
@@ -294,28 +307,31 @@ function buildAutomationCommand(env = process.env) {
       "--refresh",
       "--from",
       gitUrl,
+      ...sdkArgs,
       "uvicorn",
       "openhands.automation.app:app",
     );
-    source = `git (${gitRef})`;
+    source = `git (${gitRef}${sdkGitRef ? `, SDK ${sdkGitRef}` : ""})`;
   } else if (version) {
     // Use specific PyPI version
     uvxArgs.push(
       "--from",
       `${DEFAULT_AUTOMATION_PACKAGE}==${version}`,
+      ...sdkArgs,
       "uvicorn",
       "openhands.automation.app:app",
     );
-    source = `PyPI (${version})`;
+    source = `PyPI (${version}${sdkGitRef ? `, SDK ${sdkGitRef}` : ""})`;
   } else {
     // Default to released PyPI version
     uvxArgs.push(
       "--from",
       `${DEFAULT_AUTOMATION_PACKAGE}==${DEFAULT_AUTOMATION_VERSION}`,
+      ...sdkArgs,
       "uvicorn",
       "openhands.automation.app:app",
     );
-    source = `PyPI (${DEFAULT_AUTOMATION_VERSION}, default)`;
+    source = `PyPI (${DEFAULT_AUTOMATION_VERSION}, default${sdkGitRef ? `, SDK ${sdkGitRef}` : ""})`;
   }
 
   return {
@@ -748,6 +764,8 @@ function startAgentServer(config) {
   const agentServerEnv = {
     ...buildAgentServerEnv(safeConfig),
     ...buildAgentServerAutomationEnv(config),
+    OPENHANDS_REMOTE_WS_READY_REQUIRED:
+      process.env.OPENHANDS_REMOTE_WS_READY_REQUIRED || "false",
     // Ensure the agent-server uses the resolved key from config. This is
     // LOCAL_BACKEND_API_KEY when set, or the auto-generated persisted key.
     OH_SESSION_API_KEYS_0: config.sessionApiKey,
@@ -803,6 +821,8 @@ function startAutomationBackend(config) {
         // Force UTF-8 for all Python file I/O (same reason as agent-server;
         // see buildAgentServerEnv in dev-safe.mjs).
         PYTHONUTF8: "1",
+        OPENHANDS_REMOTE_WS_READY_REQUIRED:
+          process.env.OPENHANDS_REMOTE_WS_READY_REQUIRED || "false",
         // The URL the automation backend itself uses to call the
         // agent-server's REST API (tarball upload + bash dispatch).
         //

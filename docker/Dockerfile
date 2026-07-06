@@ -70,6 +70,7 @@ RUN node -e " \
 FROM ${AGENT_SERVER_IMAGE} AS final
 
 ARG AUTOMATION_VERSION
+ARG AGENT_SERVER_SDK_GIT_REF=""
 ARG OPENHANDS_BUILD_GIT_SHA=unknown
 ARG OPENHANDS_BUILD_GIT_REF=unknown
 
@@ -99,6 +100,14 @@ RUN if command -v apt-get >/dev/null 2>&1; then \
 # specific packages (asyncpg, sqlalchemy, boto3, gcloud, …) are added.
 RUN uv pip install --system "openhands-automation==${AUTOMATION_VERSION}" 2>/dev/null \
     || pip install --no-cache-dir "openhands-automation==${AUTOMATION_VERSION}"
+
+RUN if [ -n "${AGENT_SERVER_SDK_GIT_REF}" ]; then \
+      BASE_GIT_URL="git+https://github.com/OpenHands/software-agent-sdk@${AGENT_SERVER_SDK_GIT_REF}" && \
+      uv pip install --system --force-reinstall \
+        "${BASE_GIT_URL}#subdirectory=openhands-sdk" \
+        "${BASE_GIT_URL}#subdirectory=openhands-tools" \
+        "${BASE_GIT_URL}#subdirectory=openhands-workspace"; \
+    fi
 
 # Copy the frontend build output.
 # react-router.config.ts unpacks build/client/ into build/ for non-Vercel builds.

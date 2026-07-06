@@ -123,12 +123,14 @@ jobs:
           echo "Using software-agent-sdk PR #${SDK_PR} branch: ${SDK_REF} (${SDK_SHA})"
           echo "Using software-agent-sdk PR #${SDK_PR} image: ${AGENT_SERVER_IMAGE}"
           echo "image=${AGENT_SERVER_IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "git_ref=${SDK_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Compute metadata and tags
         id: prep
         env:
           AGENT_SERVER_IMAGE_INPUT: ${{ inputs.agent_server_image }}
           LINKED_AGENT_SERVER_IMAGE: ${{ steps.linked_sdk.outputs.image }}
+          LINKED_AGENT_SERVER_GIT_REF: ${{ steps.linked_sdk.outputs.git_ref }}
           DEFAULT_AGENT_SERVER_IMAGE: ${{ steps.config.outputs.default_agent_server_image }}
           AUTOMATION_VERSION_INPUT: ${{ inputs.automation_version }}
           DEFAULT_AUTOMATION_VERSION: ${{ steps.config.outputs.default_automation_version }}
@@ -141,10 +143,13 @@ jobs:
           # Resolve agent-server base image (input override > config/defaults.json)
           if [ -n "$AGENT_SERVER_IMAGE_INPUT" ]; then
             echo "agent_server_image=$AGENT_SERVER_IMAGE_INPUT" >> "$GITHUB_OUTPUT"
+            echo "agent_server_sdk_git_ref=" >> "$GITHUB_OUTPUT"
           elif [ -n "$LINKED_AGENT_SERVER_IMAGE" ]; then
             echo "agent_server_image=$LINKED_AGENT_SERVER_IMAGE" >> "$GITHUB_OUTPUT"
+            echo "agent_server_sdk_git_ref=$LINKED_AGENT_SERVER_GIT_REF" >> "$GITHUB_OUTPUT"
           else
             echo "agent_server_image=$DEFAULT_AGENT_SERVER_IMAGE" >> "$GITHUB_OUTPUT"
+            echo "agent_server_sdk_git_ref=" >> "$GITHUB_OUTPUT"
           fi
 
           # Resolve automation version (input override > config/defaults.json)
@@ -227,6 +232,7 @@ jobs:
           tags: ${{ steps.prep.outputs.tags }}
           build-args: |
             AGENT_SERVER_IMAGE=${{ steps.prep.outputs.agent_server_image }}
+            AGENT_SERVER_SDK_GIT_REF=${{ steps.prep.outputs.agent_server_sdk_git_ref }}
             AUTOMATION_VERSION=${{ steps.prep.outputs.automation_version }}
             AGENT_CANVAS_VERSION=${{ steps.config.outputs.agent_canvas_version }}
             OPENHANDS_BUILD_GIT_SHA=${{ env.RELEVANT_SHA }}
@@ -289,7 +295,6 @@ jobs:
       (github.event_name == 'pull_request' &&
        !github.event.pull_request.head.repo.fork)
     runs-on: ubuntu-24.04
-
     steps:
       - name: Download build info artifacts
         uses: actions/download-artifact@v8
