@@ -146,7 +146,13 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           BODY=$(gh api "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" --jq '.body // ""')
-          SDK_PR=$(printf '%s\n' "$BODY" | grep -Eo 'OpenHands/software-agent-sdk/pull/[0-9]+' | head -n1 | grep -Eo '[0-9]+$' || true)
+          SDK_PR=$(
+            printf '%s\n' "$BODY" \
+              | grep -Eo 'OpenHands/software-agent-sdk(/pull/|#)[0-9]+' \
+              | head -n1 \
+              | grep -Eo '[0-9]+$' \
+              || true
+          )
           if [ -z "$SDK_PR" ]; then
             echo "No linked software-agent-sdk PR found in PR description."
             exit 0
