@@ -283,22 +283,9 @@ function buildAutomationCommand(env = process.env) {
   const gitRef = env.OH_AUTOMATION_GIT_REF;
   const version = env.OH_AUTOMATION_VERSION;
   const repoUrl = env.OH_AUTOMATION_REPO || DEFAULT_AUTOMATION_REPO;
-  const sdkGitRef = env.OH_AGENT_SERVER_GIT_REF;
 
   const uvxArgs = [];
   let source = "";
-  const sdkArgs = [];
-  if (sdkGitRef) {
-    const baseGitUrl = `git+https://github.com/OpenHands/software-agent-sdk@${sdkGitRef}`;
-    sdkArgs.push(
-      "--with",
-      `${baseGitUrl}#subdirectory=openhands-sdk`,
-      "--with",
-      `${baseGitUrl}#subdirectory=openhands-tools`,
-      "--with",
-      `${baseGitUrl}#subdirectory=openhands-workspace`,
-    );
-  }
 
   if (gitRef) {
     // Use git ref - refresh to ensure latest commit is fetched
@@ -307,31 +294,28 @@ function buildAutomationCommand(env = process.env) {
       "--refresh",
       "--from",
       gitUrl,
-      ...sdkArgs,
       "uvicorn",
       "openhands.automation.app:app",
     );
-    source = `git (${gitRef}${sdkGitRef ? `, SDK ${sdkGitRef}` : ""})`;
+    source = `git (${gitRef})`;
   } else if (version) {
     // Use specific PyPI version
     uvxArgs.push(
       "--from",
       `${DEFAULT_AUTOMATION_PACKAGE}==${version}`,
-      ...sdkArgs,
       "uvicorn",
       "openhands.automation.app:app",
     );
-    source = `PyPI (${version}${sdkGitRef ? `, SDK ${sdkGitRef}` : ""})`;
+    source = `PyPI (${version})`;
   } else {
     // Default to released PyPI version
     uvxArgs.push(
       "--from",
       `${DEFAULT_AUTOMATION_PACKAGE}==${DEFAULT_AUTOMATION_VERSION}`,
-      ...sdkArgs,
       "uvicorn",
       "openhands.automation.app:app",
     );
-    source = `PyPI (${DEFAULT_AUTOMATION_VERSION}, default${sdkGitRef ? `, SDK ${sdkGitRef}` : ""})`;
+    source = `PyPI (${DEFAULT_AUTOMATION_VERSION}, default)`;
   }
 
   return {
