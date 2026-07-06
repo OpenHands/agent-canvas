@@ -221,6 +221,22 @@ jobs:
           echo "Tags: $TAGS"
           echo "===================="
 
+      - name: Wait for linked SDK image
+        if: steps.prep.outputs.agent_server_sdk_git_ref != ''
+        env:
+          AGENT_SERVER_IMAGE: ${{ steps.prep.outputs.agent_server_image }}
+        run: |
+          for i in {1..60}; do
+            if docker buildx imagetools inspect "$AGENT_SERVER_IMAGE" >/dev/null 2>&1; then
+              echo "Linked SDK image is available: $AGENT_SERVER_IMAGE"
+              exit 0
+            fi
+            echo "Attempt $i: waiting for linked SDK image $AGENT_SERVER_IMAGE..."
+            sleep 30
+          done
+          echo "::error::Linked SDK image was not available after 30 minutes: $AGENT_SERVER_IMAGE"
+          exit 1
+
       - name: Build & Push (${{ matrix.arch }})
         id: build
         uses: docker/build-push-action@v6
