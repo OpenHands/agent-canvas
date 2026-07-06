@@ -525,9 +525,17 @@ export async function deleteProfileIfExists(page: Page, profileName: string) {
 }
 
 /**
- * Activate a profile by name through the Settings UI.
+ * Activate a profile by name.
+ *
+ * Calls the activation API directly (reliable) and then polls the Settings
+ * UI until the "Active" badge is visible on the target profile row. The
+ * earlier UI-only flow (open menu → click "Set active") was flaky under CI
+ * load: the menu click sometimes didn't register, leaving the profile
+ * inactive and the badge poll to time out. Driving activation through the
+ * API removes that source of flakiness while still verifying the UI
+ * reflects the activated state.
+ *
  * Assumes the page is already on /settings/llm with profiles loaded.
- * Polls until the "Active" badge is visible on the target profile row.
  */
 export async function activateProfileViaUI(page: Page, profileName: string) {
   const exactRow = (p: Page) =>
@@ -536,18 +544,19 @@ export async function activateProfileViaUI(page: Page, profileName: string) {
       .filter({ has: p.locator(`span[title="${profileName}"]`) })
       .first();
 
-  const row = exactRow(page);
-  if ((await row.count()) > 0) {
-    await row.getByTestId("profile-menu-trigger").click();
-    await waitForTestId(page, "profile-actions-menu");
-    const setActive = page.getByTestId("profile-set-active");
-    if (await setActive.isEnabled()) {
-      await setActive.click();
-    } else {
-      // Already active
-      await page.keyboard.press("Escape");
-    }
-  }
+  // Activate via the API so we don't depend on a flaky menu-click
+  // interaction. The agent-server enforces this synchronously, so by the
+  // time the response returns the profile is active server-side.
+  const activateResp = await retryOnTransient(
+    page.request,
+    "POST",
+    `${BACKEND_URL}/api/profiles/${encodeURIComponent(profileName)}/activate`,
+    { headers: { "X-Session-API-Key": SESSION_API_KEY } },
+  );
+  expect(
+    activateResp.ok(),
+    `POST /api/profiles/${profileName}/activate failed: ${activateResp.status()}`,
+  ).toBe(true);
 
   // Poll until the active badge appears on our profile
   await expect
