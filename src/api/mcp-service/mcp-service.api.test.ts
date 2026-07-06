@@ -228,4 +228,11 @@ describe("McpService.testServer", () => {
     });
     expect(close).toHaveBeenCalledTimes(1);
   });
+
+  it("gets OAuth status through the TypeScript MCP client", async () => {
+    await McpService.getOAuthStatus("job/1");
+
+    expect(getOAuthStatus).toHaveBeenCalledWith("job/1");
+    expect(close).toHaveBeenCalledTimes(1);
+  });
 });

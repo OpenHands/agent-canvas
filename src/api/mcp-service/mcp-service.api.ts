@@ -1,11 +1,12 @@
 import { MCPClient } from "@openhands/typescript-client/clients";
-import type { MCPServer, MCPTestRequest } from "@openhands/typescript-client";
+import type { MCPTestRequest } from "@openhands/typescript-client";
 import { getAgentServerClientOptions } from "../agent-server-client-options";
 import {
   getActiveBackend,
   getRegisteredBackends,
 } from "../backend-registry/active-store";
 import { getCredentialValidationForServer } from "#/utils/mcp-credential-validation";
+import type { MCPAuthCredential } from "#/types/mcp-auth";
 import type {
   ExtendedMCPTestResponse,
   MCPOAuthStartResponse,
@@ -16,7 +17,27 @@ import { substituteRedactedMcpCredentials } from "./mcp-redacted-credentials";
 
 const OAUTH_MCP_TEST_TIMEOUT_SECONDS = 120;
 
-function toMcpServer(server: MCPServerConfig): MCPServer {
+type MCPTestServer = {
+  transport?: "stdio" | "http" | "sse";
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  url?: string;
+  headers?: Record<string, string>;
+  auth?: MCPAuthCredential;
+};
+
+interface ExtendedMCPTestRequest {
+  server: MCPTestServer;
+  name?: string;
+  timeout?: number;
+  tool_call?: {
+    name: string;
+    arguments: Record<string, unknown>;
+  };
+}
+
+function toMcpServer(server: MCPServerConfig): MCPTestServer {
   if (server.type === "stdio") {
     return {
       transport: "stdio",
@@ -42,7 +63,7 @@ function getMcpTestTimeout(server: MCPServerConfig): number | undefined {
 
 async function buildMcpTestRequest(
   server: MCPServerConfig,
-): Promise<MCPTestRequest> {
+): Promise<ExtendedMCPTestRequest> {
   const validation = getCredentialValidationForServer(server);
   const serverSpec = toMcpServer(
     await substituteRedactedMcpCredentials(server),
@@ -76,7 +97,12 @@ function getMcpProbeOptions(): { host: string; apiKey?: string } {
 }
 
 function createMcpProbeClient(): MCPClient {
-  return new MCPClient(getMcpProbeOptions());
+  const { host, apiKey } = getMcpProbeOptions();
+  return new MCPClient({
+    host,
+    ...(apiKey ? { apiKey } : {}),
+    timeout: OAUTH_MCP_TEST_TIMEOUT_SECONDS * 1000 + 5000,
+  });
 }
 
 function oauthStatusToTestResponse(
@@ -129,7 +155,7 @@ class McpService {
     try {
       const request = await buildMcpTestRequest(server);
       const result = (await client.testServer(
-        request,
+        request as MCPTestRequest,
       )) as ExtendedMCPTestResponse;
       if (result.ok && validation && result.tool_result) {
         const credentialError = validation.interpret(result.tool_result);
@@ -250,7 +276,8 @@ class McpService {
     client: MCPClient,
     server: MCPServerConfig,
   ): Promise<MCPOAuthStartResponse> {
-    return client.startOAuth(await buildMcpTestRequest(server));
+    const request = await buildMcpTestRequest(server);
+    return client.startOAuth(request as MCPTestRequest);
   }
 
   private static async getOAuthStatusWithClient(
