@@ -51,4 +51,26 @@ describe("getInstalledServerTitle", () => {
 
     expect(getInstalledServerTitle(server)).toBe("npx");
   });
+
+  it("trims surrounding whitespace so a stored name equal to the catalog slug falls back to the catalog title", () => {
+    const server: MCPServerConfig = {
+      id: "shttp-0",
+      type: "shttp",
+      name: "  github  ",
+      url: "https://api.githubcopilot.com/mcp/",
+    };
+
+    expect(getInstalledServerTitle(server, githubCatalog)).toBe("GitHub");
+  });
+
+  it("treats a whitespace-only name as no name and falls back to the URL", () => {
+    const server: MCPServerConfig = {
+      id: "shttp-0",
+      type: "shttp",
+      name: "   ",
+      url: "https://example.com/mcp",
+    };
+
+    expect(getInstalledServerTitle(server)).toBe("https://example.com/mcp");
+  });
 });
