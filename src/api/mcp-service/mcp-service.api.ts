@@ -1,14 +1,10 @@
 import { MCPClient } from "@openhands/typescript-client/clients";
-import type { MCPTestRequest } from "@openhands/typescript-client";
+import type { MCPServer, MCPTestRequest } from "@openhands/typescript-client";
 import { getAgentServerClientOptions } from "../agent-server-client-options";
 import {
   getActiveBackend,
   getRegisteredBackends,
 } from "../backend-registry/active-store";
-import {
-  getAgentServerBaseUrl,
-  getAgentServerSessionApiKey,
-} from "../agent-server-config";
 import { getCredentialValidationForServer } from "#/utils/mcp-credential-validation";
 import type {
   ExtendedMCPTestResponse,
@@ -16,22 +12,11 @@ import type {
   MCPOAuthStatusResponse,
   MCPServerConfig,
 } from "#/types/mcp-server";
-import type { MCPAuthCredential } from "#/types/mcp-auth";
 import { substituteRedactedMcpCredentials } from "./mcp-redacted-credentials";
 
 const OAUTH_MCP_TEST_TIMEOUT_SECONDS = 120;
 
-type MCPTestServer = {
-  transport?: "stdio" | "http" | "sse";
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
-  url?: string;
-  headers?: Record<string, string>;
-  auth?: MCPAuthCredential;
-};
-
-function toMcpServer(server: MCPServerConfig): MCPTestServer {
+function toMcpServer(server: MCPServerConfig): MCPServer {
   if (server.type === "stdio") {
     return {
       transport: "stdio",
@@ -55,7 +40,9 @@ function getMcpTestTimeout(server: MCPServerConfig): number | undefined {
   return OAUTH_MCP_TEST_TIMEOUT_SECONDS;
 }
 
-async function buildMcpTestRequest(server: MCPServerConfig): Promise<unknown> {
+async function buildMcpTestRequest(
+  server: MCPServerConfig,
+): Promise<MCPTestRequest> {
   const validation = getCredentialValidationForServer(server);
   const serverSpec = toMcpServer(
     await substituteRedactedMcpCredentials(server),
@@ -85,33 +72,11 @@ function getMcpProbeOptions(): { host: string; apiKey?: string } {
       ...(localBackend.apiKey ? { apiKey: localBackend.apiKey } : {}),
     };
   }
-
-  const host = getAgentServerBaseUrl();
-  if (!host) {
-    throw new Error("OAuth authorization requires a reachable local backend.");
-  }
-  const apiKey = getAgentServerSessionApiKey();
-  return { host, ...(apiKey ? { apiKey } : {}) };
+  throw new Error("OAuth authorization requires a reachable local backend.");
 }
 
-async function fetchLocalMcpEndpoint<T>(
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
-  const { host, apiKey } = getMcpProbeOptions();
-  const headers = new Headers(init.headers);
-  headers.set("Content-Type", "application/json");
-  if (apiKey) {
-    headers.set("X-Session-API-Key", apiKey);
-  }
-  const response = await fetch(`${host}/api/mcp${path}`, {
-    ...init,
-    headers,
-  });
-  if (!response.ok) {
-    throw new Error((await response.text()) || response.statusText);
-  }
-  return (await response.json()) as T;
+function createMcpProbeClient(): MCPClient {
+  return new MCPClient(getMcpProbeOptions());
 }
 
 function oauthStatusToTestResponse(
@@ -164,7 +129,7 @@ class McpService {
     try {
       const request = await buildMcpTestRequest(server);
       const result = (await client.testServer(
-        request as MCPTestRequest,
+        request,
       )) as ExtendedMCPTestResponse;
       if (result.ok && validation && result.tool_result) {
         const credentialError = validation.interpret(result.tool_result);
@@ -185,79 +150,122 @@ class McpService {
   static async startOAuth(
     server: MCPServerConfig,
   ): Promise<MCPOAuthStartResponse> {
-    const request = await buildMcpTestRequest(server);
-    return fetchLocalMcpEndpoint<MCPOAuthStartResponse>("/oauth/start", {
-      method: "POST",
-      body: JSON.stringify(request),
-    });
+    const client = createMcpProbeClient();
+    try {
+      return await McpService.startOAuthWithClient(client, server);
+    } finally {
+      client.close();
+    }
   }
 
   static async getOAuthStatus(jobId: string): Promise<MCPOAuthStatusResponse> {
-    return fetchLocalMcpEndpoint<MCPOAuthStatusResponse>(
-      `/oauth/status/${encodeURIComponent(jobId)}`,
-    );
+    const client = createMcpProbeClient();
+    try {
+      return await McpService.getOAuthStatusWithClient(client, jobId);
+    } finally {
+      client.close();
+    }
   }
 
   static async submitOAuthCallback(
     jobId: string,
     callbackUrl: string,
   ): Promise<MCPOAuthStatusResponse> {
-    return fetchLocalMcpEndpoint<MCPOAuthStatusResponse>(
-      `/oauth/callback/${encodeURIComponent(jobId)}`,
-      {
-        method: "POST",
-        body: JSON.stringify({ callback_url: callbackUrl }),
-      },
-    );
+    const client = createMcpProbeClient();
+    try {
+      return await McpService.submitOAuthCallbackWithClient(
+        client,
+        jobId,
+        callbackUrl,
+      );
+    } finally {
+      client.close();
+    }
   }
 
   static async authorizeOAuth(
     server: MCPServerConfig,
   ): Promise<ExtendedMCPTestResponse> {
     const popup = window.open("about:blank", "_blank");
-    const start = await McpService.startOAuth(server);
-    if (!start.ok || !start.job_id || !start.authorization_url) {
-      popup?.close();
+    const client = createMcpProbeClient();
+    try {
+      const start = await McpService.startOAuthWithClient(client, server);
+      if (!start.ok || !start.job_id || !start.authorization_url) {
+        popup?.close();
+        return {
+          ok: false,
+          error: start.error || "Could not start OAuth authorization",
+          error_kind: start.error_kind || "unknown",
+        };
+      }
+
+      let status = await McpService.getOAuthStatusWithClient(
+        client,
+        start.job_id,
+      );
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        if (status.status === "succeeded" || status.status === "failed") {
+          popup?.close();
+          return oauthStatusToTestResponse(status);
+        }
+        if (status.callback_ready) break;
+        await sleep(250);
+        status = await McpService.getOAuthStatusWithClient(
+          client,
+          start.job_id,
+        );
+      }
+
+      if (popup) {
+        popup.location.href = start.authorization_url;
+      }
+
+      for (
+        let attempt = 0;
+        attempt < OAUTH_MCP_TEST_TIMEOUT_SECONDS;
+        attempt += 1
+      ) {
+        await sleep(1000);
+        status = await McpService.getOAuthStatusWithClient(
+          client,
+          start.job_id,
+        );
+        if (status.status === "succeeded" || status.status === "failed") {
+          popup?.close();
+          return oauthStatusToTestResponse(status);
+        }
+      }
+
       return {
         ok: false,
-        error: start.error || "Could not start OAuth authorization",
-        error_kind: start.error_kind || "unknown",
+        error: "OAuth authorization timed out",
+        error_kind: "timeout",
       };
+    } finally {
+      client.close();
     }
+  }
 
-    let status = await McpService.getOAuthStatus(start.job_id);
-    for (let attempt = 0; attempt < 20; attempt += 1) {
-      if (status.status === "succeeded" || status.status === "failed") {
-        popup?.close();
-        return oauthStatusToTestResponse(status);
-      }
-      if (status.callback_ready) break;
-      await sleep(250);
-      status = await McpService.getOAuthStatus(start.job_id);
-    }
+  private static async startOAuthWithClient(
+    client: MCPClient,
+    server: MCPServerConfig,
+  ): Promise<MCPOAuthStartResponse> {
+    return client.startOAuth(await buildMcpTestRequest(server));
+  }
 
-    if (popup) {
-      popup.location.href = start.authorization_url;
-    }
+  private static async getOAuthStatusWithClient(
+    client: MCPClient,
+    jobId: string,
+  ): Promise<MCPOAuthStatusResponse> {
+    return client.getOAuthStatus(jobId);
+  }
 
-    for (
-      let attempt = 0;
-      attempt < OAUTH_MCP_TEST_TIMEOUT_SECONDS;
-      attempt += 1
-    ) {
-      await sleep(1000);
-      status = await McpService.getOAuthStatus(start.job_id);
-      if (status.status === "succeeded" || status.status === "failed") {
-        popup?.close();
-        return oauthStatusToTestResponse(status);
-      }
-    }
-
-    return {
-      ok: false,
-      error: "OAuth authorization timed out",
-      error_kind: "timeout",
-    };
+  private static async submitOAuthCallbackWithClient(
+    client: MCPClient,
+    jobId: string,
+    callbackUrl: string,
+  ): Promise<MCPOAuthStatusResponse> {
+    return client.submitOAuthCallback(jobId, { callback_url: callbackUrl });
   }
 }
 

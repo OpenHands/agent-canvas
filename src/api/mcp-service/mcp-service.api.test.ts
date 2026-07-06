@@ -13,6 +13,9 @@ vi.mock("@openhands/typescript-client/clients", () => ({
 }));
 
 const testServer = vi.fn();
+const startOAuth = vi.fn();
+const getOAuthStatus = vi.fn();
+const submitOAuthCallback = vi.fn();
 const close = vi.fn();
 
 const encryptedAuth = "gAAAAAencrypted-auth";
@@ -33,10 +36,30 @@ describe("McpService.testServer", () => {
     vi.mocked(MCPClient).mockImplementation(function MockMCPClient() {
       return {
         testServer,
+        startOAuth,
+        getOAuthStatus,
+        submitOAuthCallback,
         close,
       } as unknown as MCPClient;
     } as unknown as typeof MCPClient);
     testServer.mockResolvedValue({ ok: true, tools: [] });
+    startOAuth.mockResolvedValue({
+      ok: true,
+      job_id: "job-1",
+      authorization_url: "https://auth.example/authorize",
+    });
+    getOAuthStatus.mockResolvedValue({
+      ok: true,
+      status: "succeeded",
+      job_id: "job-1",
+      tools: ["search_mail"],
+    });
+    submitOAuthCallback.mockResolvedValue({
+      ok: true,
+      status: "succeeded",
+      job_id: "job-1",
+      tools: ["search_mail"],
+    });
   });
 
   it("tests stored remote MCP credentials as encrypted auth, not redacted text", async () => {
@@ -157,5 +180,52 @@ describe("McpService.testServer", () => {
       },
       token_expires_at: 12345,
     });
+  });
+
+  it("starts OAuth through the TypeScript MCP client", async () => {
+    const result = await McpService.startOAuth({
+      id: "shttp-0",
+      type: "shttp",
+      name: "superhuman-mail",
+      url: "https://mcp.mail.superhuman.com/mcp",
+      auth: {
+        strategy: "oauth2",
+        authentication: {
+          type: "oauth",
+          client_auth_method: "none",
+        },
+      },
+    });
+
+    expect(result.job_id).toBe("job-1");
+    expect(startOAuth).toHaveBeenCalledTimes(1);
+    expect(startOAuth.mock.calls[0][0]).toMatchObject({
+      name: "superhuman-mail",
+      server: {
+        transport: "http",
+        url: "https://mcp.mail.superhuman.com/mcp",
+        auth: {
+          strategy: "oauth2",
+          authentication: {
+            type: "oauth",
+            client_auth_method: "none",
+          },
+        },
+      },
+      timeout: 120,
+    });
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("submits OAuth callback through the TypeScript MCP client", async () => {
+    await McpService.submitOAuthCallback(
+      "job/1",
+      "http://localhost:1234/callback?code=abc",
+    );
+
+    expect(submitOAuthCallback).toHaveBeenCalledWith("job/1", {
+      callback_url: "http://localhost:1234/callback?code=abc",
+    });
+    expect(close).toHaveBeenCalledTimes(1);
   });
 });

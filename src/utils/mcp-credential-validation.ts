@@ -3,11 +3,8 @@ import {
   findCatalogEntryForServer,
   getMcpMarketplaceCatalog,
 } from "#/utils/mcp-marketplace-utils";
-import type {
-  MCPServerConfig,
-  MCPTestToolCall,
-  MCPTestToolResult,
-} from "#/types/mcp-server";
+import type { MCPToolCallSpec } from "@openhands/typescript-client";
+import type { MCPServerConfig, MCPTestToolResult } from "#/types/mcp-server";
 
 /**
  * Credential validation specs for marketplace MCP servers whose credentials
@@ -20,7 +17,7 @@ import type {
  * pre-save validation.
  */
 export interface CredentialValidation {
-  toolCall: MCPTestToolCall;
+  toolCall: MCPToolCallSpec;
   /** Returns the provider's error code/message, or null when creds pass. */
   interpret: (toolResult: MCPTestToolResult) => string | null;
 }
