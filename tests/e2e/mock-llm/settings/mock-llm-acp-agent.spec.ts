@@ -32,6 +32,7 @@ import {
   resetToOpenHandsAgentViaUI,
   resetMockLLM,
   ensureMockLLMProfile,
+  openAgentProfileEditor,
   selectDropdownOption,
   setChatInput,
   BACKEND_URL,
@@ -99,12 +100,9 @@ test.describe("mock-LLM ACP agent conversation", () => {
     // don't fail. This UI flow is not what we're testing — the ACP UI is.
     await ensureMockLLMProfile(page);
 
-    await routeSessionApiKey(page);
-    await page.goto("/settings/agent", { waitUntil: "domcontentloaded" });
-    await dismissAnalyticsModal(page);
-
-    // Wait for the agent settings form to load
-    await waitForTestId(page, "agent-settings-screen");
+    // Settings → Agent is the Agent Profile library (#1571); edit the
+    // seeded "default" profile through it rather than a standalone form.
+    await openAgentProfileEditor(page, "default");
 
     // ── Switch agent type from OpenHands → ACP ──
 
@@ -139,41 +137,37 @@ test.describe("mock-LLM ACP agent conversation", () => {
     // ── Save the configuration ──
 
     await test.step("save agent settings", async () => {
-      const saveBtn = page.getByTestId("agent-save-button");
+      const saveBtn = page.getByTestId("save-agent-profile-btn");
       await expect(saveBtn).toBeEnabled({ timeout: 5_000 });
       await saveBtn.click();
 
-      // Wait for the save to complete — the button text changes briefly
-      // to "Saving..." and then back to "Save Changes", and becomes
-      // disabled again (isDirty flips to false).
-      await expect(saveBtn).toBeDisabled({ timeout: 10_000 });
+      // A successful save returns the editor to the profile list.
+      await waitForTestId(page, "add-agent-profile", 10_000);
     });
 
-    // ── Verify: settings API reflects the ACP configuration ──
+    // ── Verify: agent-profiles API reflects the ACP configuration ──
 
-    await test.step("verify settings API reflects ACP config", async () => {
-      const resp = await request.get(`${BACKEND_URL}/api/settings`, {
-        headers: {
-          "X-Session-API-Key": SESSION_API_KEY,
-          "X-Expose-Secrets": "encrypted",
+    await test.step("verify agent-profiles API reflects ACP config", async () => {
+      const resp = await request.get(
+        `${BACKEND_URL}/api/agent-profiles/default`,
+        {
+          headers: { "X-Session-API-Key": SESSION_API_KEY },
         },
-      });
-      expect(resp.ok(), `GET /api/settings returned ${resp.status()}`).toBe(
-        true,
       );
-      const settings = await resp.json();
-      const agentSettings = settings?.agent_settings as Record<string, unknown>;
-      expect(agentSettings?.agent_kind).toBe("acp");
-
-      const command = agentSettings?.acp_command;
       expect(
-        Array.isArray(command),
-        `acp_command should be an array, got: ${JSON.stringify(command)}`,
+        resp.ok(),
+        `GET /api/agent-profiles/default returned ${resp.status()}`,
       ).toBe(true);
+      const detail = await resp.json();
+      const profile = detail?.profile as Record<string, unknown>;
+      expect(profile?.agent_kind).toBe("acp");
+
+      // The agent-profiles API stores acp_command as a shell string
+      // (ts-client `AgentProfile.acp_command: string | null`), unlike the
+      // legacy `/api/settings` which exposed a token array.
+      const command = profile?.acp_command;
       expect(
-        (command as string[]).some((tok: string) =>
-          tok.includes("mock-acp-server.py"),
-        ),
+        typeof command === "string" && command.includes("mock-acp-server.py"),
         `acp_command should reference mock-acp-server.py, got: ${JSON.stringify(command)}`,
       ).toBe(true);
     });
@@ -184,10 +178,9 @@ test.describe("mock-LLM ACP agent conversation", () => {
   test("step 2: reload and verify ACP settings are persisted in UI", async ({
     page,
   }) => {
-    await routeSessionApiKey(page);
-    await page.goto("/settings/agent", { waitUntil: "domcontentloaded" });
-    await dismissAnalyticsModal(page);
-    await waitForTestId(page, "agent-settings-screen");
+    // Settings → Agent is the Agent Profile library (#1571); re-open the
+    // "default" profile's editor rather than a standalone form.
+    await openAgentProfileEditor(page, "default");
 
     // The command textarea should show the mock server command
     const commandInput = page.getByTestId("agent-command-input");

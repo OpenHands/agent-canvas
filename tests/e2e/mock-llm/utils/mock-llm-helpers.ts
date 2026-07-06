@@ -660,21 +660,57 @@ export async function selectDropdownOption(
 }
 
 /**
- * Reset agent type back to OpenHands through the Settings → Agent UI.
+ * Open the Settings → Agent profiles editor for a named profile.
+ * Assumes the page can navigate freely (not already mid-flow elsewhere).
+ *
+ * Settings → Agent is now the Agent Profile library (#1571): the standalone
+ * `/settings/agent` form was retired in favor of `/settings/agents`, whose
+ * editor reuses the same embedded `agent-settings-screen` form. Locates the
+ * row by the profile-name span's `title` attribute (mirrors `exactRow` in
+ * `activateProfileViaUI` below) to avoid substring collisions between
+ * profile names.
+ */
+export async function openAgentProfileEditor(page: Page, profileName: string) {
+  await routeSessionApiKey(page);
+  await page.goto("/settings/agents", { waitUntil: "domcontentloaded" });
+  await dismissAnalyticsModal(page);
+
+  const row = page
+    .getByTestId("agent-profile-row")
+    .filter({ has: page.locator(`span[title="${profileName}"]`) })
+    .first();
+  await expect(row).toBeVisible({ timeout: 10_000 });
+  await row.getByTestId("agent-profile-menu-trigger").click();
+  await waitForTestId(page, "agent-profile-actions-menu");
+  await page.getByTestId("agent-profile-edit").click();
+  await waitForTestId(page, "agent-settings-screen");
+}
+
+/**
+ * Reset agent type back to OpenHands through the Settings → Agent profiles UI.
  * Used in afterAll cleanup to restore the default agent for subsequent tests.
  */
 export async function resetToOpenHandsAgentViaUI(page: Page) {
-  await routeSessionApiKey(page);
-  await page.goto("/settings/agent", { waitUntil: "domcontentloaded" });
-  await dismissAnalyticsModal(page);
-  await waitForTestId(page, "agent-settings-screen");
+  await openAgentProfileEditor(page, "default");
 
   await selectDropdownOption(page, /Agent/, /OpenHands/);
 
-  const saveBtn = page.getByTestId("agent-save-button");
+  // The LLM-profile selector only appears for openhands-kind profiles, and
+  // is required to save — pick one if the switch left it unset.
+  const llmSelector = page.getByRole("combobox", { name: /LLM/ });
+  if (await llmSelector.isVisible().catch(() => false)) {
+    const value = await llmSelector.inputValue().catch(() => "");
+    if (!value) {
+      await llmSelector.click();
+      await page.getByRole("option").first().click();
+    }
+  }
+
+  const saveBtn = page.getByTestId("save-agent-profile-btn");
   await expect(saveBtn).toBeEnabled({ timeout: 5_000 });
   await saveBtn.click();
-  await expect(saveBtn).toBeDisabled({ timeout: 10_000 });
+  // A successful save returns the editor to the profile list.
+  await waitForTestId(page, "add-agent-profile", 10_000);
 }
 
 /**
