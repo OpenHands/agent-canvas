@@ -238,25 +238,27 @@ test.describe("mock-LLM ACP agent conversation", () => {
     page.off("request", capturePayload);
     conversationId = getConversationIdFromURL(page);
 
-    // ── Verify: POST /api/conversations payload has ACP agent settings ──
+    // ── Verify: the conversation launched from the active (ACP) profile ──
+    // Conversations now launch from the active AgentProfile (#1571): the
+    // payload carries `agent_profile_id` and omits `agent_settings` (the two
+    // are mutually exclusive). Step 1 switched the active "default" profile to
+    // ACP, so this launch uses it — the ACP reply token below confirms the ACP
+    // agent actually ran.
 
-    await test.step("verify conversation payload contains ACP settings", async () => {
+    await test.step("verify conversation launched from the active agent profile", async () => {
       expect(
         capturedPayload,
         "POST /api/conversations payload was not captured",
       ).not.toBeNull();
 
-      const agentSettings = capturedPayload!.agent_settings as
-        | Record<string, unknown>
-        | undefined;
       expect(
-        agentSettings,
-        "payload should contain agent_settings",
+        capturedPayload!.agent_profile_id,
+        `Expected agent_profile_id in payload, got: ${JSON.stringify(capturedPayload)}`,
       ).toBeTruthy();
       expect(
-        agentSettings!.agent_kind,
-        `Expected agent_kind="acp" in payload, got: ${agentSettings!.agent_kind}`,
-      ).toBe("acp");
+        capturedPayload!.agent_settings,
+        "agent_settings must be omitted when launching from a profile",
+      ).toBeUndefined();
     });
 
     // ── Verify: agent reply contains the ACP reply token ──

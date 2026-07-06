@@ -437,12 +437,21 @@ export async function ensureMockLLMProfile(
   await dismissAnalyticsModal(page);
   await waitForTestId(page, "add-llm-profile");
 
-  // If a profile with this name already exists, delete it first so we
-  // always start clean (other tests may have left stale config).
-  await deleteProfileIfExists(page, profileName);
-
-  // ── Create the profile ──────────────────────────────────────────────
-  await createProfileViaUI(page, { profileName, model, apiKey, baseUrl });
+  // ── Create the profile if absent, else reuse it ─────────────────────
+  // Reuse rather than delete-and-recreate: once the active agent profile
+  // references this LLM profile (wired below via ensureMockLLMAgentProfile,
+  // #1571), the LLMProfile FK guard rejects deletion and the delete-confirm
+  // modal silently stays open, its backdrop blocking every later click. The
+  // mock config is deterministic, so an existing same-named profile is already
+  // correct — only create when it doesn't exist yet.
+  const exists =
+    (await page
+      .getByTestId("profile-row")
+      .filter({ has: page.locator(`span[title="${profileName}"]`) })
+      .count()) > 0;
+  if (!exists) {
+    await createProfileViaUI(page, { profileName, model, apiKey, baseUrl });
+  }
 
   // ── Activate the profile ────────────────────────────────────────────
   await activateProfileViaUI(page, profileName);
