@@ -159,8 +159,9 @@ jobs:
           fi
 
           SDK_REF=$(gh api "/repos/OpenHands/software-agent-sdk/pulls/${SDK_PR}" --jq '.head.ref')
-          echo "Using software-agent-sdk PR #${SDK_PR} branch: ${SDK_REF}"
-          echo "git_ref=${SDK_REF}" >> "$GITHUB_OUTPUT"
+          SDK_SHA=$(gh api "/repos/OpenHands/software-agent-sdk/pulls/${SDK_PR}" --jq '.head.sha')
+          echo "Using software-agent-sdk PR #${SDK_PR} branch: ${SDK_REF} (${SDK_SHA})"
+          echo "git_ref=${SDK_SHA}" >> "$GITHUB_OUTPUT"
 
       # ── Wait for Docker workflow (pull_request trigger only) ────────────
       # When triggered by pull_request, the Docker image may still be
