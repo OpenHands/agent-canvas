@@ -56,9 +56,11 @@ describe("ChatMessage", () => {
     globalThis.ResizeObserver =
       FiringResizeObserver as unknown as typeof ResizeObserver;
 
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    // No newlines and <= 220 chars, so truncation depends only on the measured
-    // (mocked) height rather than the message length / newline heuristics.
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    // No newlines and below the length threshold, so truncation depends only
+    // on the measured height rather than length / newline heuristics.
     const message = "word ".repeat(20).trim();
 
     try {
@@ -158,19 +160,32 @@ describe("ChatMessage", () => {
     expect(codeElement.closest("article")).not.toBeNull();
   });
 
-  it("truncates long sent user messages to three lines with view more on hover", async () => {
+  it("truncates long sent user messages to five lines with view more on hover", async () => {
     const longMessage = `${"Here's a long message. ".repeat(40)}`.trim();
     render(<ChatMessage type="user" message={longMessage} />);
 
-    expect(screen.getByTestId("chat-message-truncation-gradient")).toBeInTheDocument();
-    expect(screen.getByTestId("chat-message-view-more")).toHaveClass("opacity-0");
+    expect(
+      screen.getByText(longMessage).closest(".line-clamp-5"),
+    ).not.toBeNull();
+    expect(
+      screen.getByTestId("chat-message-truncation-gradient"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("chat-message-view-more")).toHaveClass(
+      "opacity-0",
+    );
 
     fireEvent.mouseEnter(screen.getByTestId("user-message"));
-    expect(screen.getByTestId("chat-message-view-more")).toHaveClass("opacity-100");
+    expect(screen.getByTestId("chat-message-view-more")).toHaveClass(
+      "opacity-100",
+    );
 
     fireEvent.click(screen.getByTestId("chat-message-expand"));
-    expect(screen.queryByTestId("chat-message-truncation-gradient")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("chat-message-view-more")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("chat-message-truncation-gradient"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("chat-message-view-more"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a stop control for a sending user message and calls onStop when clicked", () => {
