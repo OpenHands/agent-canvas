@@ -110,6 +110,15 @@ jobs:
         run: |
           uv venv .mock-llm-venv
           uv pip install -p .mock-llm-venv "openhands-sdk==$AGENT_SERVER_VERSION"
+          # Pin agent-client-protocol<0.11: acp 0.11.0 swapped the positional
+          # args of conn.prompt() from (prompt, session_id) to (session_id,
+          # prompt). openhands-sdk 1.29.x calls conn.prompt(prompt, session_id)
+          # positionally, so acp>=0.11 causes "2 validation errors for
+          # PromptRequest" (session_id gets the prompt list, prompt gets the
+          # session_id string). Remove this pin once the SDK ships a version
+          # that passes session_id as a keyword argument or otherwise adapts
+          # to the acp 0.11 signature.
+          uv pip install -p .mock-llm-venv "agent-client-protocol>=0.10.1,<0.11"
 
       - name: Pre-warm automation backend (uvx cache)
         env:
@@ -206,13 +215,13 @@ jobs:
           $PW_CMD &
           PW_PID=$!
 
-          # Wait for tests to complete. Playwright's globalTimeout is 720s
-          # (12 min) in CI; we add 60s buffer for webServer startup/teardown.
+          # Wait for tests to complete. Playwright's globalTimeout is 600s
+          # (10 min) in CI; we add 60s buffer for webServer startup/teardown.
           # The custom DoneMarkerReporter writes .tests-done only after ALL
           # tests finish (pass or fail), before webServer teardown begins.
           # .results.json is flushed after every single test, so even if we
           # hit the deadline mid-suite the report script still has data.
-          deadline=$((SECONDS + 780))
+          deadline=$((SECONDS + 660))
           while [ "$SECONDS" -lt "$deadline" ]; do
             if ! kill -0 "$PW_PID" 2>/dev/null; then
               break

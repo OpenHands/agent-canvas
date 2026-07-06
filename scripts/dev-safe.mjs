@@ -50,6 +50,17 @@ const LOCAL_AGENT_SERVER_SUBDIRS = [
 const DEFAULT_AGENT_SERVER_VERSION = SHARED_DEFAULTS.versions.agentServer;
 const FRONTEND_REQUIRED_BINS = ["cross-env", "react-router"];
 
+// agent-client-protocol 0.11.0 swapped the positional args of
+// ClientSideConnection.prompt() from (prompt, session_id) to
+// (session_id, prompt). openhands-sdk through at least 1.29.x calls
+// conn.prompt(prompt_blocks, session_id) positionally, so acp>=0.11
+// causes "2 validation errors for PromptRequest" — session_id receives
+// the prompt list and prompt receives the session_id string. Pin acp
+// to <0.11 for all PyPI-based agent-server invocations until the SDK
+// ships a version that adapts to the new signature. Local-path and
+// git-ref builds install their own acp version and are exempt.
+const AGENT_SERVER_EXTRA_WITH = ["--with", "agent-client-protocol>=0.10.1,<0.11"];
+
 /**
  * Generate a cryptographically secure random API key.
  * Returns a 64-character hex string (256-bit).
@@ -467,6 +478,7 @@ export function buildAgentServerCommand(env = process.env) {
       `openhands-tools==${version}`,
       "--with",
       `openhands-workspace==${version}`,
+      ...AGENT_SERVER_EXTRA_WITH,
       "agent-server",
     );
     source = `PyPI (${version})`;
@@ -482,6 +494,7 @@ export function buildAgentServerCommand(env = process.env) {
       `openhands-tools==${DEFAULT_AGENT_SERVER_VERSION}`,
       "--with",
       `openhands-workspace==${DEFAULT_AGENT_SERVER_VERSION}`,
+      ...AGENT_SERVER_EXTRA_WITH,
       "agent-server",
     );
     source = `PyPI (${DEFAULT_AGENT_SERVER_VERSION}, default)`;

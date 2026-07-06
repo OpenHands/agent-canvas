@@ -259,6 +259,12 @@ jobs:
         run: |
           uv venv .mock-llm-venv
           uv pip install -p .mock-llm-venv "openhands-sdk==$AGENT_SERVER_VERSION"
+          # Pin agent-client-protocol<0.11: acp 0.11.0 swapped the positional
+          # args of conn.prompt() from (prompt, session_id) to (session_id,
+          # prompt). openhands-sdk 1.29.x calls conn.prompt(prompt, session_id)
+          # positionally, so acp>=0.11 causes "2 validation errors for
+          # PromptRequest". Remove this pin once the SDK adapts to acp 0.11.
+          uv pip install -p .mock-llm-venv "agent-client-protocol>=0.10.1,<0.11"
 
       - name: Verify mock LLM server starts
         run: |

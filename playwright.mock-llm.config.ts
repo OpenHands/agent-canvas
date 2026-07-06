@@ -83,7 +83,7 @@ export default defineConfig({
   retries: 0,
   workers: 1,
   timeout: 60_000,
-  globalTimeout: process.env.CI ? 720_000 : 0, // 12 min hard cap in CI
+  globalTimeout: process.env.CI ? 600_000 : 0, // 10 min hard cap in CI
   reporter: [
     ["line"],
     ["json", { outputFile: "test-results-mock-llm/results.json" }],

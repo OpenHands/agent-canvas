@@ -211,8 +211,7 @@ test.describe("mock-LLM ACP agent conversation", () => {
     page,
     request,
   }) => {
-    // Up to 3 attempts × (45s reply wait + navigation/typing) + verifications
-    test.setTimeout(180_000);
+    test.setTimeout(120_000);
 
     // Passively capture POST /api/conversations payload to verify ACP tags
     let capturedPayload: Record<string, unknown> | null = null;
@@ -237,47 +236,13 @@ test.describe("mock-LLM ACP agent conversation", () => {
     // Wait for the home page chat launcher
     await waitForTestId(page, "home-chat-launcher");
 
-    // The openhands-sdk's ACP agent has an intermittent race where the first
-    // prompt is sent before the session is fully established, producing
-    // "validation errors for PromptRequest session_id". The Docker E2E path
-    // doesn't hit this (cleaner process environment); the npm/uvx path does,
-    // but only sometimes. Retry the conversation creation a couple of times
-    // so a transient ACP startup race doesn't flake the whole suite.
-    const MAX_ATTEMPTS = 3;
-    let lastErr: unknown;
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
-      if (attempt > 1) {
-        // Clean up the failed conversation before retrying
-        if (conversationId) {
-          await deleteConversation(request, conversationId).catch(() => {});
-          conversationId = null;
-        }
-        // Reset to a fresh home page so the chat launcher is ready again
-        await page.goto("/", { waitUntil: "domcontentloaded" });
-        await dismissAnalyticsModal(page);
-        await waitForTestId(page, "home-chat-launcher");
-      }
+    // Send a message to start the conversation
+    await setChatInput(page, USER_MESSAGE);
+    await page.getByTestId("submit-button").click();
 
-      // Send a message to start the conversation
-      await setChatInput(page, USER_MESSAGE);
-      await page.getByTestId("submit-button").click();
-
-      // Wait for navigation to the new conversation page
-      await waitForPath(page, /\/conversations\/.+/, 30_000);
-      conversationId = getConversationIdFromURL(page);
-
-      try {
-        await waitForNonUserMessageText(page, ACP_REPLY_TOKEN, 45_000);
-        lastErr = null;
-        break; // success
-      } catch (err) {
-        lastErr = err;
-        if (attempt < MAX_ATTEMPTS) {
-          // Retry — likely an ACP session_id race
-          continue;
-        }
-      }
-    }
+    // Wait for navigation to the new conversation page
+    await waitForPath(page, /\/conversations\/.+/, 30_000);
+    conversationId = getConversationIdFromURL(page);
     page.off("request", capturePayload);
 
     // ── Verify: POST /api/conversations payload has ACP agent settings ──
@@ -304,8 +269,10 @@ test.describe("mock-LLM ACP agent conversation", () => {
     // ── Verify: agent reply contains the ACP reply token ──
 
     await test.step("verify ACP agent reply appears in chat UI", async () => {
-      if (lastErr) {
-        // All retries failed — query the events API for diagnostic context
+      try {
+        await waitForNonUserMessageText(page, ACP_REPLY_TOKEN, 60_000);
+      } catch (err) {
+        // On failure, query the events API for diagnostic context
         let diag = "";
         try {
           const eventsResp = await request.get(
@@ -325,7 +292,7 @@ test.describe("mock-LLM ACP agent conversation", () => {
                   (e: any) =>
                     `  [${e.kind ?? "?"}] source=${e.source ?? "?"} ${JSON.stringify(
                       e.llm_message?.content ?? e.content ?? e.message ?? "",
-                    ).slice(0, 120)}`,
+                    ).slice(0, 200)}`,
                 )
                 .join("\n");
           } else {
@@ -336,11 +303,11 @@ test.describe("mock-LLM ACP agent conversation", () => {
         }
 
         throw new Error(
-          `ACP reply token "${ACP_REPLY_TOKEN}" not found in chat UI after ${MAX_ATTEMPTS} attempts.\n` +
+          `ACP reply token "${ACP_REPLY_TOKEN}" not found in chat UI after 60s.\n` +
             `Conversation: ${conversationId}\n` +
             `ACP command: ${ACP_COMMAND_TEXT}\n` +
             `${diag}`,
-          { cause: lastErr },
+          { cause: err },
         );
       }
     });
