@@ -1064,7 +1064,9 @@ export function BackendFormModal({
         aria-label={t(I18nKey.BACKEND$ADD_TITLE)}
       >
         <div
-          data-testid={hideCloseButton ? "onboarding-modal" : "add-backend-modal"}
+          data-testid={
+            hideCloseButton ? "onboarding-modal" : "add-backend-modal"
+          }
           className={cn(
             "relative rounded-xl border border-[var(--oh-border)] bg-base-secondary",
             modalWidthClassName("xl"),
