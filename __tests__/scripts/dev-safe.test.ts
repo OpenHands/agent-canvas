@@ -396,6 +396,8 @@ describe("buildAgentServerCommand", () => {
       "openhands-tools==1.29.3",
       "--with",
       "openhands-workspace==1.29.3",
+      "--with",
+      "agent-client-protocol>=0.10.1,<0.11",
       "agent-server",
     ]);
     expect(cmd.source).toBe("PyPI (1.29.3, default)");
@@ -416,6 +418,8 @@ describe("buildAgentServerCommand", () => {
       "openhands-tools==1.18.0",
       "--with",
       "openhands-workspace==1.18.0",
+      "--with",
+      "agent-client-protocol>=0.10.1,<0.11",
       "agent-server",
     ]);
     expect(cmd.source).toBe("PyPI (1.18.0)");

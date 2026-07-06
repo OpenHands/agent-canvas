@@ -59,7 +59,10 @@ const FRONTEND_REQUIRED_BINS = ["cross-env", "react-router"];
 // to <0.11 for all PyPI-based agent-server invocations until the SDK
 // ships a version that adapts to the new signature. Local-path and
 // git-ref builds install their own acp version and are exempt.
-const AGENT_SERVER_EXTRA_WITH = ["--with", "agent-client-protocol>=0.10.1,<0.11"];
+const AGENT_SERVER_EXTRA_WITH = [
+  "--with",
+  "agent-client-protocol>=0.10.1,<0.11",
+];
 
 /**
  * Generate a cryptographically secure random API key.
