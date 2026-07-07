@@ -1,4 +1,4 @@
-export const MCP_SERVER_NAME_PATTERN = /^[a-zA-Z0-9_]+$/;
+export const MCP_SERVER_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 export function isValidMcpServerName(name: string): boolean {
   return MCP_SERVER_NAME_PATTERN.test(name);
