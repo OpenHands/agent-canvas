@@ -542,7 +542,23 @@ export async function activateProfileViaUI(page: Page, profileName: string) {
     await waitForTestId(page, "profile-actions-menu");
     const setActive = page.getByTestId("profile-set-active");
     if (await setActive.isEnabled()) {
+      const activationResponse = page.waitForResponse(
+        (response) => {
+          const request = response.request();
+          if (request.method() !== "POST") return false;
+          const pathname = new URL(response.url()).pathname;
+          return (
+            decodeURIComponent(pathname) ===
+            `/api/profiles/${profileName}/activate`
+          );
+        },
+        { timeout: 10_000 },
+      );
       await setActive.click();
+      expect(
+        (await activationResponse).ok(),
+        `Activating profile "${profileName}" should return 2xx`,
+      ).toBe(true);
     } else {
       // Already active
       await page.keyboard.press("Escape");

@@ -268,10 +268,10 @@ describe("SettingsService", () => {
 
   it("pre-clears mcp_config before writing the new value on the local backend", async () => {
     // The agent-server PATCH applies agent_settings_diff via deep-merge,
-    // which cannot remove name-keyed entries from mcp_config.mcpServers.
+    // which cannot remove name-keyed entries from mcp_config.
     // saveSettings must compensate by sending a {mcp_config: null} PATCH
     // first so the follow-up PATCH effectively replaces the field. Without
-    // this, deleting a server leaves stale mcpServers keys behind and
+    // this, deleting a server leaves stale MCP server keys behind and
     // shifted indices produce duplicate entries.
     const patchBodies: Array<Record<string, unknown>> = [];
     server.use(
@@ -287,7 +287,7 @@ describe("SettingsService", () => {
 
     await SettingsService.saveSettings({
       agent_settings_diff: {
-        mcp_config: { mcpServers: { only: { url: "https://x.example" } } },
+        mcp_config: { only: { url: "https://x.example" } },
       },
     });
 
@@ -295,7 +295,7 @@ describe("SettingsService", () => {
       { agent_settings_diff: { mcp_config: null } },
       {
         agent_settings_diff: {
-          mcp_config: { mcpServers: { only: { url: "https://x.example" } } },
+          mcp_config: { only: { url: "https://x.example" } },
         },
       },
     ]);
@@ -358,7 +358,7 @@ describe("SettingsService", () => {
 
     await SettingsService.saveSettings({
       agent_settings_diff: {
-        mcp_config: { mcpServers: { only: { url: "https://x.example" } } },
+        mcp_config: { only: { url: "https://x.example" } },
       },
     });
 
@@ -368,7 +368,121 @@ describe("SettingsService", () => {
     });
     expect(mockSaveCloudSettings).toHaveBeenNthCalledWith(2, {
       agent_settings_diff: {
-        mcp_config: { mcpServers: { only: { url: "https://x.example" } } },
+        mcp_config: { only: { url: "https://x.example" } },
+      },
+    });
+  });
+
+  it("does not pre-clear cloud mcp_config when rotating a redacted MCP key", async () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+
+    mockFetchCloudSettings.mockResolvedValue({
+      agent_settings: {
+        mcp_config: {
+          integrations_hub: {
+            url: "https://integrations.staging.all-hands.dev/api/mcp",
+            headers: { Authorization: "**********" },
+          },
+        },
+      },
+    });
+
+    await SettingsService.saveSettings({
+      agent_settings_diff: {
+        mcp_config: {
+          integrations_hub: {
+            url: "https://integrations.staging.all-hands.dev/api/mcp",
+            auth: { strategy: "bearer", value: "new-key" },
+          },
+        },
+      },
+    });
+
+    expect(mockSaveCloudSettings).toHaveBeenCalledTimes(1);
+    expect(mockSaveCloudSettings).toHaveBeenCalledWith({
+      agent_settings_diff: {
+        mcp_config: {
+          integrations_hub: {
+            url: "https://integrations.staging.all-hands.dev/api/mcp",
+            headers: { Authorization: "Bearer new-key" },
+          },
+        },
+      },
+    });
+  });
+
+  it("converts bearer MCP auth to headers when saving mcp_config to cloud", async () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+
+    await SettingsService.saveSettings({
+      agent_settings_diff: {
+        mcp_config: {
+          elevenlabs: {
+            transport: "http",
+            url: "https://mcp.example.com/mcp",
+            auth: { strategy: "bearer", value: "elevenlabs-test-token" },
+          },
+        },
+      },
+    });
+
+    expect(mockSaveCloudSettings).toHaveBeenCalledTimes(2);
+    expect(mockSaveCloudSettings).toHaveBeenNthCalledWith(2, {
+      agent_settings_diff: {
+        mcp_config: {
+          elevenlabs: {
+            transport: "http",
+            url: "https://mcp.example.com/mcp",
+            headers: {
+              Authorization: "Bearer elevenlabs-test-token",
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it("converts OAuth token state to headers when saving mcp_config to cloud", async () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+
+    await SettingsService.saveSettings({
+      agent_settings_diff: {
+        mcp_config: {
+          notion: {
+            transport: "http",
+            url: "https://mcp.example.com/mcp",
+            auth: {
+              strategy: "oauth2",
+              authentication: {
+                type: "oauth",
+                client_auth_method: "client_secret_post",
+              },
+              state: {
+                tokens: {
+                  access_token: "oauth-access-token",
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    expect(mockSaveCloudSettings).toHaveBeenCalledTimes(2);
+    expect(mockSaveCloudSettings).toHaveBeenNthCalledWith(2, {
+      agent_settings_diff: {
+        mcp_config: {
+          notion: {
+            transport: "http",
+            url: "https://mcp.example.com/mcp",
+            headers: {
+              Authorization: "Bearer oauth-access-token",
+            },
+          },
+        },
       },
     });
   });
@@ -381,9 +495,7 @@ describe("SettingsService", () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
 
-    const previousMcpConfig = {
-      mcpServers: { existing: { url: "https://old.example" } },
-    };
+    const previousMcpConfig = { existing: { url: "https://old.example" } };
     mockFetchCloudSettings.mockResolvedValue({
       agent_settings: { mcp_config: previousMcpConfig },
     });
@@ -397,12 +509,11 @@ describe("SettingsService", () => {
         if (mcp === null) return Promise.resolve(undefined); // pre-clear
         // The full payload from the user contains the *new* mcp_config.
         // Distinguish it from the rollback (which writes the previous
-        // value) by object identity on mcpServers.
+        // value) by object identity on the server map.
         if (
           mcp &&
           typeof mcp === "object" &&
-          "mcpServers" in (mcp as Record<string, unknown>) &&
-          (mcp as { mcpServers: Record<string, unknown> }).mcpServers.new
+          (mcp as Record<string, unknown>).new
         ) {
           return Promise.reject(new Error("validation failed"));
         }
@@ -413,7 +524,7 @@ describe("SettingsService", () => {
     await expect(
       SettingsService.saveSettings({
         agent_settings_diff: {
-          mcp_config: { mcpServers: { new: { url: "https://new.example" } } },
+          mcp_config: { new: { url: "https://new.example" } },
         },
       }),
     ).rejects.toThrow("validation failed");
@@ -434,7 +545,7 @@ describe("SettingsService", () => {
     // Same scenario as the cloud test but for the local agent-server
     // path. We assert the rollback PATCH is the final request observed.
     const patchBodies: Array<Record<string, unknown>> = [];
-    const previousMcpServers = {
+    const previousMcpConfig = {
       existing: { url: "https://old.example" },
     };
     let getCount = 0;
@@ -442,7 +553,7 @@ describe("SettingsService", () => {
       http.get("*/api/settings", () => {
         getCount += 1;
         return HttpResponse.json({
-          agent_settings: { mcp_config: { mcpServers: previousMcpServers } },
+          agent_settings: { mcp_config: previousMcpConfig },
           conversation_settings: {},
           llm_api_key_is_set: false,
         });
@@ -459,8 +570,7 @@ describe("SettingsService", () => {
         if (
           mcp &&
           typeof mcp === "object" &&
-          "mcpServers" in (mcp as Record<string, unknown>) &&
-          (mcp as { mcpServers: Record<string, unknown> }).mcpServers.new
+          (mcp as Record<string, unknown>).new
         ) {
           return HttpResponse.json(
             { error: "validation failed" },
@@ -478,7 +588,7 @@ describe("SettingsService", () => {
     await expect(
       SettingsService.saveSettings({
         agent_settings_diff: {
-          mcp_config: { mcpServers: { new: { url: "https://new.example" } } },
+          mcp_config: { new: { url: "https://new.example" } },
         },
       }),
     ).rejects.toBeDefined();
@@ -489,7 +599,7 @@ describe("SettingsService", () => {
     // Final PATCH is the rollback, restoring the previous mcp_config.
     const last = patchBodies[patchBodies.length - 1];
     expect(last).toEqual({
-      agent_settings_diff: { mcp_config: { mcpServers: previousMcpServers } },
+      agent_settings_diff: { mcp_config: previousMcpConfig },
     });
     // And we must have done the pre-clear too.
     expect(patchBodies[0]).toEqual({
@@ -517,7 +627,7 @@ describe("SettingsService", () => {
     await expect(
       SettingsService.saveSettings({
         agent_settings_diff: {
-          mcp_config: { mcpServers: { new: { url: "https://new.example" } } },
+          mcp_config: { new: { url: "https://new.example" } },
         },
       }),
     ).rejects.toThrow("validation failed");
@@ -540,8 +650,7 @@ describe("SettingsService", () => {
       const isNewWrite =
         !!mcp &&
         typeof mcp === "object" &&
-        "mcpServers" in (mcp as Record<string, unknown>) &&
-        !!(mcp as { mcpServers: Record<string, unknown> }).mcpServers.new;
+        !!(mcp as Record<string, unknown>).new;
       expect(isPreClear || isNewWrite).toBe(true);
     }
   });

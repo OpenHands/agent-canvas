@@ -748,6 +748,8 @@ function startAgentServer(config) {
   const agentServerEnv = {
     ...buildAgentServerEnv(safeConfig),
     ...buildAgentServerAutomationEnv(config),
+    OPENHANDS_REMOTE_WS_READY_REQUIRED:
+      process.env.OPENHANDS_REMOTE_WS_READY_REQUIRED || "false",
     // Ensure the agent-server uses the resolved key from config. This is
     // LOCAL_BACKEND_API_KEY when set, or the auto-generated persisted key.
     OH_SESSION_API_KEYS_0: config.sessionApiKey,
@@ -803,6 +805,8 @@ function startAutomationBackend(config) {
         // Force UTF-8 for all Python file I/O (same reason as agent-server;
         // see buildAgentServerEnv in dev-safe.mjs).
         PYTHONUTF8: "1",
+        OPENHANDS_REMOTE_WS_READY_REQUIRED:
+          process.env.OPENHANDS_REMOTE_WS_READY_REQUIRED || "false",
         // The URL the automation backend itself uses to call the
         // agent-server's REST API (tarball upload + bash dispatch).
         //

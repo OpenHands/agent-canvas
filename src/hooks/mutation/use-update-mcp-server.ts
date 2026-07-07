@@ -1,14 +1,15 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "#/hooks/query/use-settings";
 import SettingsService from "#/api/settings-service/settings-service.api";
-import {
-  MCPSHTTPServer,
-  MCPConfig,
-  MCPSSEServer,
-  MCPStdioServer,
-} from "#/types/settings";
+import { MCPConfig } from "#/types/settings";
 import { MCPServerConfig } from "#/types/mcp-server";
-import { parseMcpConfig, toSdkMcpConfig } from "#/utils/mcp-config";
+import {
+  parseMcpConfig,
+  toMcpShttpServer,
+  toMcpSseServer,
+  toMcpStdioServer,
+  toSdkMcpConfig,
+} from "#/utils/mcp-config";
 import { SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
 import { substituteRedactedMcpCredentials } from "#/api/mcp-service/mcp-redacted-credentials";
 
@@ -38,32 +39,11 @@ export function useUpdateMcpServer() {
       const index = parseInt(indexStr, 10);
 
       if (serverType === "sse") {
-        const sseServer: MCPSSEServer = {
-          ...(serverToSave.name && { name: serverToSave.name }),
-          url: serverToSave.url!,
-          ...(serverToSave.api_key && { api_key: serverToSave.api_key }),
-          ...(serverToSave.headers && { headers: serverToSave.headers }),
-        };
-        newConfig.sse_servers[index] = sseServer;
+        newConfig.sse_servers[index] = toMcpSseServer(serverToSave);
       } else if (serverType === "stdio") {
-        const stdioServer: MCPStdioServer = {
-          name: serverToSave.name!,
-          command: serverToSave.command!,
-          ...(serverToSave.args && { args: serverToSave.args }),
-          ...(serverToSave.env && { env: serverToSave.env }),
-        };
-        newConfig.stdio_servers[index] = stdioServer;
+        newConfig.stdio_servers[index] = toMcpStdioServer(serverToSave);
       } else if (serverType === "shttp") {
-        const shttpServer: MCPSHTTPServer = {
-          ...(serverToSave.name && { name: serverToSave.name }),
-          url: serverToSave.url!,
-          ...(serverToSave.api_key && { api_key: serverToSave.api_key }),
-          ...(serverToSave.headers && { headers: serverToSave.headers }),
-          ...(serverToSave.timeout !== undefined && {
-            timeout: serverToSave.timeout,
-          }),
-        };
-        newConfig.shttp_servers[index] = shttpServer;
+        newConfig.shttp_servers[index] = toMcpShttpServer(serverToSave);
       }
 
       await SettingsService.saveSettings({

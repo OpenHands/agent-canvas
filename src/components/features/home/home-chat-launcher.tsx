@@ -52,7 +52,8 @@ export function HomeChatLauncher() {
   const [selectedPlugins, setSelectedPlugins] = useState<PluginSpec[]>([]);
   const [isPluginPickerOpen, setIsPluginPickerOpen] = useState(false);
 
-  const { mutate: createConversation, isPending } = useCreateConversation();
+  const { mutateAsync: createConversation, isPending } =
+    useCreateConversation();
   const isCreatingElsewhere = useIsCreatingConversation();
   const isCreating = isPending || isCreatingElsewhere;
   const { isConfigured: isLlmConfigured, isLoading: isLlmConfigLoading } =
@@ -127,8 +128,9 @@ export function HomeChatLauncher() {
       TOAST_OPTIONS,
     );
 
-    createConversation(variables, {
-      onSuccess: async (data) => {
+    void (async () => {
+      try {
+        const data = await createConversation(variables);
         toast.dismiss(toastId);
         try {
           sessionStorage.removeItem(HOME_PROMPT_DRAFT_KEY);
@@ -198,12 +200,11 @@ export function HomeChatLauncher() {
         }
 
         navigate(`/conversations/${targetConversationId}`);
-      },
-      onError: (error) => {
+      } catch (error) {
         toast.dismiss(toastId);
         displayErrorToast(error instanceof Error ? error.message : null);
-      },
-    });
+      }
+    })();
   };
 
   // Without this wrapper a `/model NAME` typed here would become the first

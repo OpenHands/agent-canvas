@@ -20,7 +20,7 @@
  *   - Valid credentials connect successfully.
  *   - Older agent servers that omit `tool_result` behave exactly as before.
  *   - The Edit modal's "Test connection" verifies the *stored* credentials —
- *     it never tests the literal `<redacted>` placeholder the browser sees.
+ *     it never tests the literal redaction placeholder the browser sees.
  */
 
 import {
@@ -47,7 +47,7 @@ const SLACK_TOOL_CALL = {
 // Placeholder the settings API substitutes for secret env values when read
 // without X-Expose-Secrets (the MCP page's mode). The whole point of the fix
 // is that the test request must NOT carry this value.
-const REDACTED = "<redacted>";
+const REDACTED = "**********";
 
 /** The JSON body the GUI POSTs to `/api/mcp/test` (captured via interception). */
 interface McpTestRequestBody {
@@ -82,12 +82,12 @@ async function getSettings(request: APIRequestContext) {
   return resp.json();
 }
 
-/** Detect the Slack server in persisted settings regardless of config shape. */
+/** Detect the Slack server in persisted settings. */
 function hasSlackServer(settings: unknown): boolean {
-  const cfg = (settings as { agent_settings?: { mcp_config?: unknown } })
+  const servers = (settings as { agent_settings?: { mcp_config?: unknown } })
     ?.agent_settings?.mcp_config;
-  if (!cfg) return false;
-  return JSON.stringify(cfg).includes("@zencoderai/slack-mcp-server");
+  if (!servers) return false;
+  return JSON.stringify(servers).includes("@zencoderai/slack-mcp-server");
 }
 
 async function patchMcpConfig(request: APIRequestContext, mcpConfig: unknown) {
@@ -107,12 +107,10 @@ async function installSlackViaAPI(
   env: Record<string, string>,
 ) {
   await patchMcpConfig(request, {
-    mcpServers: {
-      slack: {
-        command: "npx",
-        args: ["-y", "@zencoderai/slack-mcp-server"],
-        env,
-      },
+    slack: {
+      command: "npx",
+      args: ["-y", "@zencoderai/slack-mcp-server"],
+      env,
     },
   });
 }
@@ -310,7 +308,7 @@ test.describe("MCP Test Connection credential verification (Slack)", () => {
   }) => {
     // A custom server is not in the marketplace catalog → no credential probe.
     await patchMcpConfig(request, {
-      mcpServers: { "my-custom": { url: "https://custom.example.test/mcp" } },
+      my_custom: { url: "https://custom.example.test/mcp" },
     });
     await routeSessionApiKey(page);
 
