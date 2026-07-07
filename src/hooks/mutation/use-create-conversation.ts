@@ -89,9 +89,9 @@ const streamConfirmedLlmProfiles = new Set<string>();
  * Safe to delete once either: (a) essentially every user's LLM profiles have
  * been touched by this at least once (self-limiting — becomes a no-op read
  * per profile once migrated), or (b) resolve_agent_profile/the profile model
- * itself forces stream=true for OpenHands profiles upstream (same category
- * of fix as the skill_refs default — likely the same #3967 umbrella), at
- * which point this is redundant regardless of migration state.
+ * itself forces stream=true for OpenHands profiles upstream, at which point
+ * this is redundant regardless of migration state. Tracked in
+ * OpenHands/agent-canvas#1619 (+ upstream OpenHands/software-agent-sdk#4014).
  */
 async function ensureLlmProfileStreams(llmProfileName: string): Promise<void> {
   if (streamConfirmedLlmProfiles.has(llmProfileName)) return;

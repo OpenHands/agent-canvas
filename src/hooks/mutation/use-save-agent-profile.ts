@@ -21,6 +21,10 @@ import { AGENT_PROFILES_QUERY_KEYS } from "#/hooks/query/query-keys";
  * exists server-side), so this reaches it via an untyped merge; `in` checks
  * the runtime object, since an edit's `stored` spread (mergeAgentProfileSaveInput)
  * can carry it at runtime despite the missing type.
+ *
+ * MIGRATION SHIM — remove once the SDK ships a root fix; tracked in
+ * OpenHands/agent-canvas#1619 (+ upstream OpenHands/software-agent-sdk#3979,
+ * #3959).
  */
 function withDefaultSkillRefs(
   profile: AgentProfileSaveInput,
