@@ -1,9 +1,5 @@
-// Shared MCPServerConfig shape used by the MCP page UI components.
-//
-// Historically each component duplicated this interface. Centralizing
-// it here keeps the marketplace utilities, hooks, and form in sync.
-
 import type { MCPTestFailureKind } from "@openhands/typescript-client";
+import type { MCPAuthCredential, MCPOAuthState } from "./mcp-auth";
 
 export type MCPServerType = "sse" | "stdio" | "shttp";
 
@@ -12,20 +8,13 @@ export interface MCPServerConfig {
   type: MCPServerType;
   name?: string;
   url?: string;
-  api_key?: string;
   headers?: Record<string, string>;
   timeout?: number;
   command?: string;
   args?: string[];
   env?: Record<string, string>;
+  auth?: MCPAuthCredential;
 }
-
-// Extensions of the published `@openhands/typescript-client` MCP test
-// types (frozen at the released version). The agent server's
-// /api/mcp/test additionally accepts a `tool_call` (a read-only tool to
-// invoke so credentials get exercised) and reports its outcome in
-// `tool_result`; the service layer maps an interpreted credential
-// failure to the GUI-local `"credentials"` error kind.
 
 export interface MCPTestToolCall {
   name: string;
@@ -43,6 +32,7 @@ export interface ExtendedMCPTestSuccess {
   ok: true;
   tools: string[];
   tool_result?: MCPTestToolResult | null;
+  oauth_state?: MCPOAuthState | null;
 }
 
 export interface ExtendedMCPTestFailure {
@@ -54,3 +44,24 @@ export interface ExtendedMCPTestFailure {
 export type ExtendedMCPTestResponse =
   | ExtendedMCPTestSuccess
   | ExtendedMCPTestFailure;
+
+export interface MCPOAuthStartResponse {
+  ok: boolean;
+  job_id?: string | null;
+  authorization_url?: string | null;
+  error?: string | null;
+  error_kind?: MCPTestFailureKind | null;
+}
+
+export interface MCPOAuthStatusResponse {
+  ok: boolean;
+  status: "pending" | "authorizing" | "succeeded" | "failed";
+  job_id: string;
+  authorization_url?: string | null;
+  callback_ready?: boolean;
+  tools?: string[] | null;
+  tool_result?: MCPTestToolResult | null;
+  oauth_state?: MCPOAuthState | null;
+  error?: string | null;
+  error_kind?: MCPTestFailureKind | null;
+}

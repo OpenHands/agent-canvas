@@ -103,11 +103,9 @@ function settingsWithMcpConfig(mcp_config: unknown) {
 
 function settingsWithGithubMcp() {
   return settingsWithMcpConfig({
-    mcpServers: {
-      github: {
-        url: GITHUB_HOSTED_MCP_URL,
-        auth: "github-token",
-      },
+    github: {
+      url: GITHUB_HOSTED_MCP_URL,
+      auth: { strategy: "bearer", value: "github-token" },
     },
   });
 }
@@ -120,7 +118,7 @@ describe("recommended automations", () => {
     setRegisteredBackends([localBackend]);
     setActiveSelection({ backendId: localBackend.id });
     mockUseSettings.mockReturnValue({
-      data: settingsWithMcpConfig({ mcpServers: {} }),
+      data: settingsWithMcpConfig({}),
     });
     // Pre-flight connectivity test must pass so save mutations are reached.
     vi.spyOn(McpService, "testServer").mockResolvedValue({

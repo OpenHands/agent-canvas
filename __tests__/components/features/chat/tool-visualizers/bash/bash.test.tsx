@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { SecurityRisk } from "#/types/agent-server/core";
 import { bashVisualizer } from "#/components/features/chat/tool-visualizers/bash/bash";
+import { MAX_CONTENT_LENGTH } from "#/components/conversation-events/chat/event-content-helpers/shared";
 import {
   renderVisualizer,
   bashAction,
@@ -43,10 +45,10 @@ describe("bashVisualizer", () => {
   });
 
   it("shows a placeholder when there is no output", () => {
-    renderVisualizer(<Body observation={bashObservation("", 0)} />);
-    expect(
-      screen.getByText("OBSERVATION$COMMAND_NO_OUTPUT"),
-    ).toBeInTheDocument();
+    const { container } = renderVisualizer(
+      <Body observation={bashObservation("", 0)} />,
+    );
+    expect(container).toHaveTextContent("OBSERVATION$COMMAND_NO_OUTPUT");
   });
 
   it("exposes a copy button for the command and the output", () => {
@@ -63,6 +65,27 @@ describe("bashVisualizer", () => {
     renderVisualizer(<Body observation={bashObservation("", 0, "true")} />);
     // Only the command's copy button remains.
     expect(screen.getAllByTestId("copy-to-clipboard")).toHaveLength(1);
+  });
+
+  it("expands long command output inline", async () => {
+    const user = userEvent.setup();
+    const longOutput = `${"a".repeat(MAX_CONTENT_LENGTH)}tail-marker`;
+    const { container } = renderVisualizer(
+      <Body observation={bashObservation(longOutput, 0)} />,
+    );
+
+    expect(container).not.toHaveTextContent("tail-marker");
+
+    await user.click(screen.getByRole("button", { name: "BUTTON$EXPAND" }));
+
+    expect(container).toHaveTextContent("tail-marker");
+    expect(
+      screen.getByRole("button", { name: "BUTTON$COLLAPSE" }),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "BUTTON$COLLAPSE" }));
+
+    expect(container).not.toHaveTextContent("tail-marker");
   });
 
   it("renders command and output for the terminal tool", () => {

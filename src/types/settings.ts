@@ -1,3 +1,5 @@
+import type { MCPAuthCredential } from "./mcp-auth";
+
 export const ProviderOptions = {
   github: "github",
   gitlab: "gitlab",
@@ -17,8 +19,8 @@ export type ProviderToken = {
 export type MCPSSEServer = {
   name?: string;
   url: string;
-  api_key?: string;
   headers?: Record<string, string>;
+  auth?: MCPAuthCredential;
 };
 
 export type MCPStdioServer = {
@@ -31,9 +33,9 @@ export type MCPStdioServer = {
 export type MCPSHTTPServer = {
   name?: string;
   url: string;
-  api_key?: string;
   headers?: Record<string, string>;
   timeout?: number;
+  auth?: MCPAuthCredential;
 };
 
 export type MCPConfig = {
@@ -120,8 +122,9 @@ export type SettingsScope = "personal";
  *   LLM-driven Agent. The other agent_settings fields (``llm``, ``condenser``,
  *   ``mcp_config``, ``tools``) apply.
  * - ``"acp"``: the conversation is driven by an external ACP subprocess
- *   (Claude Code / Codex / Gemini CLI / Custom). The LLM / condenser / MCP
- *   settings are inert; ``acp_command`` / ``acp_args`` / ``acp_model`` /
+ *   (Claude Code / Codex / Gemini CLI / Custom). The LLM / condenser
+ *   settings are inert; ``mcp_config`` and ``acp_command`` / ``acp_args`` /
+ *   ``acp_model`` /
  *   ``acp_server`` apply instead. Provider credentials are supplied through the
  *   Secrets panel (``request.secrets``), never through a per-agent env channel.
  */

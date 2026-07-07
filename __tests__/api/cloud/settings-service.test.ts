@@ -175,7 +175,7 @@ describe("saveCloudSettings drops agent_context: null (agent-canvas#981)", () =>
     });
   });
 
-  it("preserves a null mcp_config so clearing MCP config still round-trips", async () => {
+  it("preserves a null mcp_config so clearing MCP servers still round-trips", async () => {
     // Arrange: mcp_config: null is an intentional "clear" signal, not an error.
     vi.mocked(axios.request).mockResolvedValue({ data: {} });
 
