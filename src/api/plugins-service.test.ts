@@ -11,6 +11,7 @@ vi.mock("@openhands/typescript-client/clients", () => ({
 }));
 
 const getPluginsMarketplace = vi.fn();
+const getPlugins = vi.fn();
 const close = vi.fn();
 
 function useBackend(kind: "local" | "cloud"): void {
@@ -68,5 +69,41 @@ describe("PluginsService.getPluginsMarketplace", () => {
     const result = await PluginsService.getPluginsMarketplace();
 
     expect(result).toEqual([]);
+  });
+});
+
+describe("PluginsService.getLocalPlugins", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(PluginsClient).mockImplementation(function MockPluginsClient() {
+      return { getPlugins, close } as unknown as PluginsClient;
+    } as unknown as typeof PluginsClient);
+  });
+
+  it("requests user-level local plugins from the local agent-server", async () => {
+    useBackend("local");
+    const plugin = {
+      name: "hello-local",
+      version: "1.0.0",
+      description: "A local plugin",
+    };
+    getPlugins.mockResolvedValue({ plugins: [plugin] });
+
+    const result = await PluginsService.getLocalPlugins();
+
+    expect(result).toEqual([plugin]);
+    expect(getPlugins).toHaveBeenCalledWith({
+      load_user: true,
+      load_project: false,
+    });
+  });
+
+  it("returns an empty list on a cloud backend without calling the client", async () => {
+    useBackend("cloud");
+
+    const result = await PluginsService.getLocalPlugins();
+
+    expect(result).toEqual([]);
+    expect(PluginsClient).not.toHaveBeenCalled();
   });
 });

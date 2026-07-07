@@ -26,13 +26,11 @@ describe("buildStartConversationRequest", () => {
         api_key: "gAAAAAencrypted-llm-api-key",
       },
       mcp_config: {
-        mcpServers: {
-          linear: {
-            url: "https://mcp.linear.app/mcp",
-            transport: "http",
-            headers: {
-              Authorization: encryptedValue,
-            },
+        linear: {
+          url: "https://mcp.linear.app/mcp",
+          transport: "http",
+          headers: {
+            Authorization: encryptedValue,
           },
         },
       },
@@ -58,13 +56,11 @@ describe("buildStartConversationRequest", () => {
       acp_command: ["codex-acp"],
       acp_model: "gpt-5.5/medium",
       mcp_config: {
-        mcpServers: {
-          linear: {
-            url: "https://mcp.linear.app/mcp",
-            transport: "http",
-            headers: {
-              Authorization: encryptedValue,
-            },
+        linear: {
+          url: "https://mcp.linear.app/mcp",
+          transport: "http",
+          headers: {
+            Authorization: encryptedValue,
           },
         },
       },
@@ -90,11 +86,9 @@ describe("buildStartConversationRequest", () => {
       acp_command: ["codex-acp"],
       acp_model: "gpt-5.5/medium",
       mcp_config: {
-        mcpServers: {
-          publicDocs: {
-            url: "https://docs.example.com/mcp",
-            transport: "http",
-          },
+        publicDocs: {
+          url: "https://docs.example.com/mcp",
+          transport: "http",
         },
       },
     };

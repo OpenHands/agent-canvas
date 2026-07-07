@@ -476,6 +476,7 @@ export function ConversationPanel({
         {
           workingDir: launch.workingDir,
           repository: launch.repository,
+          entryPoint: "sidebar_relaunch_project",
         },
         {
           onSuccess: (data) => {

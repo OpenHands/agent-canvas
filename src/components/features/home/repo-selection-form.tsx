@@ -232,6 +232,7 @@ export function RepositorySelectionForm({
                 gitProvider: selectedRepository.git_provider || "github",
                 branch: selectedBranch.name || "main",
               },
+              entryPoint: "home_repo_form",
             },
             {
               onSuccess: (data) =>

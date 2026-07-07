@@ -1,8 +1,13 @@
 import { MCPServerConfig } from "#/types/mcp-server";
 import type {
+  MCPAuthenticationConfig,
+  MCPOAuthClientAuthMethod,
+} from "#/types/mcp-auth";
+import type {
   IntegrationAuthConfig,
   IntegrationCatalogEntry as MarketplaceEntry,
   IntegrationConnectionOption,
+  IntegrationOAuthConfig,
   IntegrationTransport,
 } from "@openhands/extensions/integrations";
 
@@ -40,10 +45,22 @@ export function getDefaultMcpConnectionOption(
 function isLocallyInstallableMcpOption(
   option: McpMarketplaceConnectionOption,
 ): boolean {
-  // The local install modal writes static MCP server config. OAuth options
-  // describe hosted redirect flows, so prefer an API/stdio fallback when one
-  // exists and leave OAuth as the default connection for hosted integrations.
-  return option.auth.strategy !== "oauth2";
+  if (option.auth.strategy !== "oauth2") return true;
+
+  const oauth = option.auth.oauth;
+  if (!oauth) return false;
+
+  // Local agent-server installs only support OAuth flows initiated by the MCP
+  // server itself through fastmcp. Catalog entries that specify provider OAuth
+  // endpoints still need the hosted integration-auth flow and should not be
+  // exposed as locally installable static MCP configs.
+  return (
+    !oauth.authorizationUrl &&
+    !oauth.tokenUrl &&
+    !oauth.registrationUrl &&
+    !oauth.additionalAuthorizationParams &&
+    !oauth.additionalTokenParams
+  );
 }
 
 export function getInstallableMcpConnectionOption(
@@ -56,6 +73,38 @@ export function getDefaultMcpTransport(
   entry: MarketplaceEntry,
 ): IntegrationTransport | undefined {
   return getDefaultMcpConnectionOption(entry)?.transport;
+}
+
+function toMcpOAuthClientAuthMethod(
+  value: IntegrationOAuthConfig["clientAuthentication"] | undefined,
+): MCPOAuthClientAuthMethod | undefined {
+  switch (value) {
+    case "none":
+      return "none";
+    case "body":
+      return "client_secret_post";
+    case "basic":
+      return "client_secret_basic";
+    default:
+      return undefined;
+  }
+}
+
+export function getMcpOAuthAuthenticationConfig(
+  option: McpMarketplaceConnectionOption,
+): MCPAuthenticationConfig | undefined {
+  if (option.auth.strategy !== "oauth2") return undefined;
+  const authentication: MCPAuthenticationConfig = { type: "oauth" };
+  const clientAuthMethod = toMcpOAuthClientAuthMethod(
+    option.auth.oauth?.clientAuthentication,
+  );
+  if (clientAuthMethod) {
+    authentication.client_auth_method = clientAuthMethod;
+  }
+  if (option.auth.oauth?.scopes?.length) {
+    authentication.scopes = option.auth.oauth.scopes;
+  }
+  return Object.keys(authentication).length > 1 ? authentication : undefined;
 }
 
 export function getMcpMarketplaceCatalog(

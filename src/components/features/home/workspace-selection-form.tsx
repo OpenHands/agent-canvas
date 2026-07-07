@@ -160,7 +160,7 @@ export function WorkspaceSelectionForm({
       return;
     }
     createConversation(
-      { workingDir: selectedWorkspace.path },
+      { workingDir: selectedWorkspace.path, entryPoint: "home_workspace_form" },
       {
         onSuccess: (data) => navigate(`/conversations/${data.conversation_id}`),
       },

@@ -542,7 +542,23 @@ export async function activateProfileViaUI(page: Page, profileName: string) {
     await waitForTestId(page, "profile-actions-menu");
     const setActive = page.getByTestId("profile-set-active");
     if (await setActive.isEnabled()) {
+      const activationResponse = page.waitForResponse(
+        (response) => {
+          const request = response.request();
+          if (request.method() !== "POST") return false;
+          const pathname = new URL(response.url()).pathname;
+          return (
+            decodeURIComponent(pathname) ===
+            `/api/profiles/${profileName}/activate`
+          );
+        },
+        { timeout: 10_000 },
+      );
       await setActive.click();
+      expect(
+        (await activationResponse).ok(),
+        `Activating profile "${profileName}" should return 2xx`,
+      ).toBe(true);
     } else {
       // Already active
       await page.keyboard.press("Escape");
@@ -560,8 +576,12 @@ export async function activateProfileViaUI(page: Page, profileName: string) {
         return (await target.getByTestId("profile-active-badge").count()) > 0;
       },
       {
+        // Each poll iteration reloads /settings/llm and re-fetches settings,
+        // so a slow backend (activation PATCH + settings propagation) needs
+        // headroom beyond a couple of reloads. 30s keeps this robust under
+        // added proxy latency without masking a genuine activation failure.
         message: `Profile "${profileName}" should have an "Active" badge`,
-        timeout: 15_000,
+        timeout: 30_000,
         intervals: [1_000, 2_000, 3_000],
       },
     )

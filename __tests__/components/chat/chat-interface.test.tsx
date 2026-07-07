@@ -34,6 +34,7 @@ import { useLoadOlderEvents } from "#/hooks/use-load-older-events";
 import { useTaskPolling } from "#/hooks/query/use-task-polling";
 import { AgentState } from "#/types/agent-state";
 import { useConversationStore } from "#/stores/conversation-store";
+import { useGoalStore } from "#/stores/goal-store";
 import { act } from "@testing-library/react";
 
 const mockSend = vi.fn();
@@ -808,6 +809,74 @@ describe("ChatInterface - Auto-scroll on submit (issue #817)", () => {
     // Assert: scrollDomToBottom landed scrollHeight onto scrollTop even
     // though autoScroll was off. Without the fix the auto-scroll effect
     // would skip the call and `scrollWrites` would stay empty.
+    await waitFor(() => {
+      expect(scrollWrites).toContain(10000);
+    });
+  });
+
+  it("follows the live goal banner into view when an active goal advances", async () => {
+    vi.mocked(useOptionalConversationId).mockReturnValue({
+      conversationId: "test-conversation-id",
+    });
+    useGoalStore.setState({ statusByConversation: {} });
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/test-conversation-id"]}>
+          <Routes>
+            <Route path=":conversationId" element={<ChatInterface />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    const scrollContainer = document.querySelector(
+      "[data-testid='chat-scroll-container']",
+    ) as HTMLElement | null;
+    expect(scrollContainer).not.toBeNull();
+
+    // Let the mount-time auto-scroll settle; the user stays pinned to the
+    // bottom (autoScroll=true) since we never simulate a scroll-up.
+    await new Promise((r) => {
+      setTimeout(r, 0);
+    });
+
+    const scrollWrites: number[] = [];
+    Object.defineProperty(scrollContainer!, "scrollTop", {
+      configurable: true,
+      get: () => 9200,
+      set: (value: number) => {
+        scrollWrites.push(value);
+      },
+    });
+    Object.defineProperty(scrollContainer!, "scrollHeight", {
+      configurable: true,
+      writable: true,
+      value: 10000,
+    });
+    Object.defineProperty(scrollContainer!, "clientHeight", {
+      configurable: true,
+      writable: true,
+      value: 800,
+    });
+    scrollWrites.length = 0;
+
+    // Act: an in-progress goal advances — a store update only, with no change
+    // to `renderableEvents` (in-progress goal events are filtered out).
+    act(() => {
+      useGoalStore.getState().setStatus("test-conversation-id", {
+        active: true,
+        status: "running",
+        iteration: 1,
+        max_iterations: 10,
+        objective: "make pytest pass",
+        verdict: { score: 0.5, complete: false, missing: "needs tests" },
+      });
+    });
+
+    // Assert: the bottom-following effect scrolled the banner into view.
+    // Without wiring the active goal status into that effect, scrollWrites
+    // would stay empty.
     await waitFor(() => {
       expect(scrollWrites).toContain(10000);
     });

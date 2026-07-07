@@ -49,13 +49,83 @@ describe("useTracking", () => {
   });
 
   describe("trackConversationCreated", () => {
-    it("captures conversation_created with has_repository flag", () => {
-      getTracking().trackConversationCreated({ hasRepository: true });
+    it("captures conversation_created with full metadata for a repository, task-start conversation", () => {
+      getTracking().trackConversationCreated({
+        conversationId: "task-abc123",
+        taskId: "abc123",
+        hasRepository: true,
+        gitProvider: "github",
+        hasWorkspace: false,
+        hasInitialQuery: true,
+        hasParentConversation: false,
+        entryPoint: "sidebar_cloud_menu",
+      });
 
       expect(captureMock).toHaveBeenCalledWith("conversation_created", {
+        conversation_id: "task-abc123",
+        task_id: "abc123",
+        // task-prefixed conversation_id => cloud sandbox still provisioning
+        is_start_task: true,
         has_repository: true,
+        git_provider: "github",
+        has_workspace: false,
+        workspace_mode: undefined,
+        has_initial_query: true,
+        agent_type: undefined,
+        has_parent_conversation: false,
+        entry_point: "sidebar_cloud_menu",
         ...COMMON,
       });
+    });
+
+    it("captures conversation_created for a local workspace start with no repository", () => {
+      getTracking().trackConversationCreated({
+        conversationId: "conv-1",
+        taskId: "conv-1",
+        hasRepository: false,
+        hasWorkspace: true,
+        workspaceMode: "local_repo",
+        hasInitialQuery: false,
+        hasParentConversation: false,
+        entryPoint: "sidebar_local_menu",
+      });
+
+      expect(captureMock).toHaveBeenCalledWith("conversation_created", {
+        conversation_id: "conv-1",
+        task_id: "conv-1",
+        // real conversation_id => ready immediately (local)
+        is_start_task: false,
+        has_repository: false,
+        git_provider: undefined,
+        has_workspace: true,
+        workspace_mode: "local_repo",
+        has_initial_query: false,
+        agent_type: undefined,
+        has_parent_conversation: false,
+        entry_point: "sidebar_local_menu",
+        ...COMMON,
+      });
+    });
+
+    it("captures agent_type and has_parent_conversation for a plan sub-conversation", () => {
+      getTracking().trackConversationCreated({
+        conversationId: "task-plan-1",
+        taskId: "plan-1",
+        hasRepository: false,
+        hasWorkspace: false,
+        hasInitialQuery: false,
+        agentType: "plan",
+        hasParentConversation: true,
+        entryPoint: "plan_sub_conversation",
+      });
+
+      expect(captureMock).toHaveBeenCalledWith(
+        "conversation_created",
+        expect.objectContaining({
+          agent_type: "plan",
+          has_parent_conversation: true,
+        }),
+      );
     });
   });
 
@@ -236,6 +306,29 @@ describe("useTracking", () => {
         "download_trajectory_button_clicked",
         expect.objectContaining(COMMON),
       );
+    });
+  });
+
+  describe("trackBackendAdded", () => {
+    it("captures backend_added with coarse, non-sensitive backend metadata", () => {
+      getTracking().trackBackendAdded({
+        backendKind: "cloud",
+        connectionMethod: "cloud_login",
+        isOpenhandsCloud: true,
+        isCustomHost: false,
+        hasApiKey: true,
+        source: "add_backend_modal",
+      });
+
+      expect(captureMock).toHaveBeenCalledWith("backend_added", {
+        backend_kind: "cloud",
+        connection_method: "cloud_login",
+        is_openhands_cloud: true,
+        is_custom_host: false,
+        has_api_key: true,
+        source: "add_backend_modal",
+        ...COMMON,
+      });
     });
   });
 

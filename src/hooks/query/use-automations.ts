@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AutomationService from "#/api/automation-service/automation-service.api";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import { useTracking } from "#/hooks/use-tracking";
 import type { Automation } from "#/types/automation";
 import {
   AUTOMATION_DETAIL_QUERY_KEY,
@@ -33,40 +34,53 @@ export function useAutomations(options: UseAutomationsOptions = {}) {
 
 export function useToggleAutomation() {
   const queryClient = useQueryClient();
+  const active = useActiveBackend();
+  const { trackAutomationDeactivated } = useTracking();
   return useMutation({
     mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
       AutomationService.toggleAutomation(id, enabled),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: AUTOMATIONS_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: AUTOMATION_DETAIL_QUERY_KEY });
+      if (!variables.enabled) {
+        trackAutomationDeactivated({ backendKind: active.backend.kind });
+      }
     },
   });
 }
 
 export function useUpdateAutomation() {
   const queryClient = useQueryClient();
+  const active = useActiveBackend();
+  const { trackAutomationEdited } = useTracking();
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: Partial<Automation> }) =>
       AutomationService.updateAutomation(id, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: AUTOMATIONS_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: AUTOMATION_DETAIL_QUERY_KEY });
+      trackAutomationEdited({ backendKind: active.backend.kind });
     },
   });
 }
 
 export function useDeleteAutomation() {
   const queryClient = useQueryClient();
+  const active = useActiveBackend();
+  const { trackAutomationDeleted } = useTracking();
   return useMutation({
     mutationFn: (id: string) => AutomationService.deleteAutomation(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: AUTOMATIONS_QUERY_KEY });
+      trackAutomationDeleted({ backendKind: active.backend.kind });
     },
   });
 }
 
 export function useDispatchAutomation() {
   const queryClient = useQueryClient();
+  const active = useActiveBackend();
+  const { trackAutomationExecuted } = useTracking();
   return useMutation({
     mutationFn: (id: string) => AutomationService.dispatchAutomation(id),
     onSuccess: (_run, id) => {
@@ -75,6 +89,7 @@ export function useDispatchAutomation() {
       queryClient.invalidateQueries({
         queryKey: [...AUTOMATION_RUNS_QUERY_KEY, id],
       });
+      trackAutomationExecuted({ backendKind: active.backend.kind });
     },
   });
 }

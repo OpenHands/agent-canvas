@@ -23,7 +23,7 @@ export function CreateConversationButton() {
 
   const handleCreateConversation = () => {
     createConversation(
-      {},
+      { entryPoint: "home_new_conversation_button" },
       {
         onSuccess: (data) => navigate(`/conversations/${data.conversation_id}`),
       },

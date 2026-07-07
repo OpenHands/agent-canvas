@@ -121,7 +121,7 @@ export function LocalNewConversationMenu({
   const launch = (workingDir?: string) => {
     if (isCreating) return;
     createConversation(
-      { workingDir },
+      { workingDir, entryPoint: "sidebar_local_menu" },
       {
         onSuccess: (data) => {
           setOpen(false);
