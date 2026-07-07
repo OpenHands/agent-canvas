@@ -1,4 +1,3 @@
-import axios from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -11,8 +10,11 @@ import {
   saveCloudSettings,
 } from "#/api/cloud/settings-service.api";
 import SettingsService from "#/api/settings-service/settings-service.api";
-
-vi.mock("axios");
+import {
+  getFetchCall,
+  getJsonBody,
+  mockJsonResponse,
+} from "./fetch-test-utils";
 
 const cloudBackend: Backend = {
   id: "prod",
@@ -22,23 +24,30 @@ const cloudBackend: Backend = {
   kind: "cloud",
 };
 
+const originalFetch = global.fetch;
+const fetchMock = vi.fn();
+
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.request).mockReset();
+  fetchMock.mockReset();
+  fetchMock.mockResolvedValue(mockJsonResponse({}));
+  global.fetch = fetchMock as typeof fetch;
 });
 
 afterEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
+  fetchMock.mockReset();
+  global.fetch = originalFetch;
 });
 
 describe("cloud settings", () => {
   it("fetchCloudSettings preserves provider_tokens_set so the repo chain can fire", async () => {
-    vi.mocked(axios.request).mockResolvedValue({
-      data: {
+    fetchMock.mockResolvedValueOnce(
+      mockJsonResponse({
         llm_model: "anthropic/claude-3-5-sonnet",
         llm_base_url: "https://api.anthropic.com",
         llm_api_key_set: true,
@@ -47,14 +56,14 @@ describe("cloud settings", () => {
         security_analyzer: "llm",
         max_iterations: 30,
         provider_tokens_set: { github: "***" },
-      },
-    });
+      }),
+    );
 
     const result = await fetchCloudSettings();
 
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
-    expect(config).toMatchObject({
-      url: `${cloudBackend.host}/api/v1/settings`,
+    const [url, init] = getFetchCall(fetchMock);
+    expect(url).toBe(`${cloudBackend.host}/api/v1/settings`);
+    expect(init).toMatchObject({
       method: "GET",
       headers: { Authorization: "Bearer bearer-token" },
     });
@@ -80,8 +89,6 @@ describe("cloud settings", () => {
   });
 
   it("saveCloudSettings forwards diffs verbatim and omits the legacy keys the cloud rejects", async () => {
-    vi.mocked(axios.request).mockResolvedValue({ data: {} });
-
     const agentDiff = {
       llm: { model: "openai/gpt-4o", base_url: "https://api.openai.com" },
       agent: "CodeActAgent",
@@ -93,13 +100,13 @@ describe("cloud settings", () => {
       conversation_settings_diff: conversationDiff,
     });
 
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
-    expect(config).toMatchObject({
-      url: `${cloudBackend.host}/api/v1/settings`,
+    const [url, init] = getFetchCall(fetchMock);
+    expect(url).toBe(`${cloudBackend.host}/api/v1/settings`);
+    expect(init).toMatchObject({
       method: "POST",
       headers: { Authorization: "Bearer bearer-token" },
     });
-    const requestBody = (config as { data: Record<string, unknown> }).data;
+    const requestBody = getJsonBody(init);
     expect(requestBody).toEqual({
       agent_settings_diff: agentDiff,
       conversation_settings_diff: conversationDiff,
@@ -109,9 +116,6 @@ describe("cloud settings", () => {
   });
 
   it("SettingsService.saveSettings forwards disabled_skills to cloud when active backend is cloud", async () => {
-    // Arrange: cloud backend already active via beforeEach; mock cloud response.
-    vi.mocked(axios.request).mockResolvedValue({ data: {} });
-
     // Act: save a skills-only update — previously this short-circuited and
     // sent nothing at all, leaving the toggle un-persisted.
     await SettingsService.saveSettings({
@@ -120,21 +124,19 @@ describe("cloud settings", () => {
 
     // Assert: a single POST /api/v1/settings reached the wire with
     // disabled_skills as a top-level field.
-    expect(vi.mocked(axios.request)).toHaveBeenCalledTimes(1);
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
-    expect(config).toMatchObject({
-      url: `${cloudBackend.host}/api/v1/settings`,
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = getFetchCall(fetchMock);
+    expect(url).toBe(`${cloudBackend.host}/api/v1/settings`);
+    expect(init).toMatchObject({
       method: "POST",
       headers: { Authorization: "Bearer bearer-token" },
     });
-    expect((config as { data: Record<string, unknown> }).data).toEqual({
+    expect(getJsonBody(init)).toEqual({
       disabled_skills: ["SSH Microagent"],
     });
   });
 
   it("saveCloudSettings omits an empty conversation_settings_diff (LLM-only save)", async () => {
-    vi.mocked(axios.request).mockResolvedValue({ data: {} });
-
     await saveCloudSettings({
       agent_settings_diff: {
         llm: { model: "anthropic/claude-sonnet-4-20250514" },
@@ -142,8 +144,8 @@ describe("cloud settings", () => {
       conversation_settings_diff: {},
     });
 
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
-    const requestBody = (config as { data: Record<string, unknown> }).data;
+    const [, init] = getFetchCall(fetchMock);
+    const requestBody = getJsonBody(init);
     expect(requestBody).toEqual({
       agent_settings_diff: {
         llm: { model: "anthropic/claude-sonnet-4-20250514" },
@@ -154,9 +156,6 @@ describe("cloud settings", () => {
 
 describe("saveCloudSettings drops agent_context: null (agent-canvas#981)", () => {
   it("strips a null agent_context while preserving sibling agent settings", async () => {
-    // Arrange: the cloud rejects agent_context: null against OpenHandsAgentSettings.
-    vi.mocked(axios.request).mockResolvedValue({ data: {} });
-
     // Act
     await saveCloudSettings({
       agent_settings_diff: {
@@ -166,8 +165,8 @@ describe("saveCloudSettings drops agent_context: null (agent-canvas#981)", () =>
     });
 
     // Assert: agent_context never reaches the wire, but the real llm change does.
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
-    const requestBody = (config as { data: Record<string, unknown> }).data;
+    const [, init] = getFetchCall(fetchMock);
+    const requestBody = getJsonBody(init);
     expect(requestBody).toEqual({
       agent_settings_diff: {
         llm: { model: "anthropic/claude-sonnet-4-20250514" },
@@ -176,32 +175,26 @@ describe("saveCloudSettings drops agent_context: null (agent-canvas#981)", () =>
   });
 
   it("preserves a null mcp_config so clearing MCP servers still round-trips", async () => {
-    // Arrange: mcp_config: null is an intentional "clear" signal, not an error.
-    vi.mocked(axios.request).mockResolvedValue({ data: {} });
-
     // Act
     await saveCloudSettings({
       agent_settings_diff: { mcp_config: null },
     });
 
     // Assert: the null mcp_config must survive (don't over-strip nulls).
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
-    const requestBody = (config as { data: Record<string, unknown> }).data;
+    const [, init] = getFetchCall(fetchMock);
+    const requestBody = getJsonBody(init);
     expect(requestBody).toEqual({ agent_settings_diff: { mcp_config: null } });
   });
 
   it("omits agent_settings_diff when agent_context: null is its only key", async () => {
-    // Arrange
-    vi.mocked(axios.request).mockResolvedValue({ data: {} });
-
     // Act
     await saveCloudSettings({
       agent_settings_diff: { agent_context: null },
     });
 
     // Assert: nothing is left to send, so no agent_settings_diff goes on the wire.
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
-    const requestBody = (config as { data: Record<string, unknown> }).data;
+    const [, init] = getFetchCall(fetchMock);
+    const requestBody = getJsonBody(init);
     expect(requestBody).toEqual({});
   });
 });

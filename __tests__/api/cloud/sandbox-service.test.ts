@@ -1,4 +1,3 @@
-import axios from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -7,8 +6,7 @@ import {
 } from "#/api/backend-registry/active-store";
 import { batchGetCloudSandboxes } from "#/api/cloud/sandbox-service.api";
 import type { Backend } from "#/api/backend-registry/types";
-
-vi.mock("axios");
+import { getFetchCall, mockJsonResponse } from "./fetch-test-utils";
 
 const cloudBackend: Backend = {
   id: "cloud-prod",
@@ -18,19 +16,24 @@ const cloudBackend: Backend = {
   kind: "cloud",
 };
 
+const originalFetch = global.fetch;
+const fetchMock = vi.fn();
+
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.request).mockReset();
-  vi.mocked(axios.request).mockResolvedValue({ data: [] });
+  fetchMock.mockReset();
+  fetchMock.mockResolvedValue(mockJsonResponse([]));
+  global.fetch = fetchMock as typeof fetch;
 });
 
 afterEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
-  vi.mocked(axios.request).mockReset();
+  fetchMock.mockReset();
+  global.fetch = originalFetch;
 });
 
 describe("batchGetCloudSandboxes", () => {
@@ -44,12 +47,12 @@ describe("batchGetCloudSandboxes", () => {
     // Act
     await batchGetCloudSandboxes(ids);
 
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
-    expect(config).toMatchObject({
+    const [url, init] = getFetchCall(fetchMock);
+    expect(init).toMatchObject({
       method: "GET",
       headers: { Authorization: "Bearer bearer-token" },
     });
-    expect((config as { url: string }).url).toBe(
+    expect(url).toBe(
       `${cloudBackend.host}/api/v1/sandboxes?id=sandbox-a&id=sandbox-b`,
     );
   });

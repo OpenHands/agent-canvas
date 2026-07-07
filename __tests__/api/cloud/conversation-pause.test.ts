@@ -1,4 +1,3 @@
-import axios from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -10,8 +9,7 @@ import AgentServerConversationService from "#/api/conversation-service/agent-ser
 import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { pauseConversation } from "#/hooks/mutation/conversation-mutation-utils";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
-
-vi.mock("axios");
+import { getFetchCall, mockJsonResponse } from "./fetch-test-utils";
 
 const cloudBackend: Backend = {
   id: "prod",
@@ -44,17 +42,24 @@ const buildConversation = (
   ...overrides,
 });
 
+const originalFetch = global.fetch;
+const fetchMock = vi.fn();
+
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.request).mockReset();
+  fetchMock.mockReset();
+  fetchMock.mockResolvedValue(mockJsonResponse({ success: true }));
+  global.fetch = fetchMock as typeof fetch;
 });
 
 afterEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
+  fetchMock.mockReset();
+  global.fetch = originalFetch;
   vi.restoreAllMocks();
 });
 
@@ -64,14 +69,13 @@ describe("pauseConversation cloud branch", () => {
       AgentServerConversationService,
       "batchGetAppConversations",
     ).mockResolvedValue([buildConversation({ sandbox_id: "sandbox-xyz" })]);
-    vi.mocked(axios.request).mockResolvedValue({ data: { success: true } });
 
     await pauseConversation("conv-abc");
 
-    expect(axios.request).toHaveBeenCalledOnce();
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
-    expect(config).toMatchObject({
-      url: `${cloudBackend.host}/api/v1/sandboxes/sandbox-xyz/pause`,
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, init] = getFetchCall(fetchMock);
+    expect(url).toBe(`${cloudBackend.host}/api/v1/sandboxes/sandbox-xyz/pause`);
+    expect(init).toMatchObject({
       method: "POST",
       headers: { Authorization: "Bearer bearer-token" },
     });
@@ -84,6 +88,6 @@ describe("pauseConversation cloud branch", () => {
     ).mockResolvedValue([buildConversation({ sandbox_id: null })]);
 
     await expect(pauseConversation("conv-abc")).rejects.toThrow(/sandbox_id/);
-    expect(axios.request).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

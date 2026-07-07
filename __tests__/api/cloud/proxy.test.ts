@@ -1,4 +1,3 @@
-import axios from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -7,8 +6,6 @@ import {
 } from "#/api/backend-registry/active-store";
 import { callCloudProxy } from "#/api/cloud/proxy";
 import type { Backend } from "#/api/backend-registry/types";
-
-vi.mock("axios");
 
 const cloudPersonal: Backend = {
   id: "cloud-personal",
@@ -26,20 +23,29 @@ const cloudAcme: Backend = {
   kind: "cloud",
 };
 
+const originalFetch = global.fetch;
+const fetchMock = vi.fn();
+
+function mockJsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
-  vi.mocked(axios.request).mockReset();
-  vi.mocked(axios.request).mockResolvedValue({ data: {} });
-  vi.mocked(axios.post).mockReset();
-  vi.mocked(axios.post).mockResolvedValue({ data: {} });
+  fetchMock.mockReset();
+  fetchMock.mockResolvedValue(mockJsonResponse({}));
+  global.fetch = fetchMock as typeof fetch;
 });
 
 afterEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
-  vi.mocked(axios.request).mockReset();
-  vi.mocked(axios.post).mockReset();
+  fetchMock.mockReset();
+  global.fetch = originalFetch;
 });
 
 describe("callCloudProxy X-Org-Id injection", () => {
@@ -63,13 +69,13 @@ describe("callCloudProxy X-Org-Id injection", () => {
     // Assert — the request carries the X-Org-Id of the active selection so the
     // cloud backend can scope this request to the user's locally-chosen org
     // without depending on user.current_org_id.
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
-    expect(config).toMatchObject({
-      url: `${cloudPersonal.host}/api/v1/app-conversations/search`,
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe(`${cloudPersonal.host}/api/v1/app-conversations/search`);
+    expect(init).toMatchObject({
       method: "GET",
     });
     expect(
-      (config as { headers: Record<string, string> }).headers["X-Org-Id"],
+      (init as { headers: Record<string, string> }).headers["X-Org-Id"],
     ).toBe("org-personal-uuid");
   });
 
@@ -92,9 +98,9 @@ describe("callCloudProxy X-Org-Id injection", () => {
     });
 
     // Assert
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    const [, init] = fetchMock.mock.calls[0]!;
     expect(
-      (config as { headers: Record<string, string> }).headers,
+      (init as { headers: Record<string, string> }).headers,
     ).not.toHaveProperty("X-Org-Id");
   });
 });
@@ -107,7 +113,7 @@ describe("callCloudProxy automation direct routing", () => {
     setRegisteredBackends([cloudPersonal]);
     setActiveSelection({ backendId: cloudPersonal.id, orgId: null });
     const page = { automations: [], total: 0 };
-    vi.mocked(axios.request).mockResolvedValue({ data: page });
+    fetchMock.mockResolvedValueOnce(mockJsonResponse(page));
 
     // Act
     const result = await callCloudProxy({
@@ -119,14 +125,15 @@ describe("callCloudProxy automation direct routing", () => {
     // Assert — the browser calls the automation API on the cloud host
     // directly, authenticated by the backend's API key, and no envelope
     // POST reaches /api/cloud-proxy.
-    expect(axios.post).not.toHaveBeenCalled();
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
-    expect(config).toMatchObject({
-      url: `${cloudPersonal.host}/api/automation/v1?limit=50&offset=0`,
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe(
+      `${cloudPersonal.host}/api/automation/v1?limit=50&offset=0`,
+    );
+    expect(init).toMatchObject({
       method: "GET",
     });
     expect(
-      (config as { headers: Record<string, string> }).headers.Authorization,
+      (init as { headers: Record<string, string> }).headers.Authorization,
     ).toBe(`Bearer ${cloudPersonal.apiKey}`);
     expect(result).toEqual(page);
   });
@@ -148,11 +155,9 @@ describe("callCloudProxy automation direct routing", () => {
     });
 
     // Assert
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
-    expect(config).toMatchObject({
-      responseType: "blob",
-      timeout: 5000,
-    });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe(`${cloudPersonal.host}/api/automation/v1/auto-1/tarball`);
+    expect(init).toMatchObject({ method: "GET" });
   });
 });
 
@@ -165,7 +170,7 @@ describe("callCloudProxy hostOverride routing", () => {
     // local GUI origin.
     setRegisteredBackends([cloudPersonal]);
     setActiveSelection({ backendId: cloudPersonal.id, orgId: null });
-    vi.mocked(axios.post).mockResolvedValue({ data: { items: [] } });
+    fetchMock.mockResolvedValueOnce(mockJsonResponse({ items: [] }));
 
     // Act
     const result = await callCloudProxy({
@@ -178,9 +183,9 @@ describe("callCloudProxy hostOverride routing", () => {
     // Assert — the browser only makes a same-origin POST to the bundled
     // agent-server's proxy endpoint carrying the upstream call as an
     // envelope, and the upstream payload is unwrapped for the caller.
-    expect(axios.request).not.toHaveBeenCalled();
-    const [url, envelope] = vi.mocked(axios.post).mock.calls[0]!;
+    const [url, init] = fetchMock.mock.calls[0]!;
     expect(url).toMatch(/\/api\/cloud-proxy$/);
+    const envelope = JSON.parse((init as { body: string }).body);
     expect(envelope).toMatchObject({
       host: runtimeHost,
       method: "GET",
@@ -208,7 +213,8 @@ describe("callCloudProxy hostOverride routing", () => {
     });
 
     // Assert
-    const [, envelope] = vi.mocked(axios.post).mock.calls[0]!;
+    const [, init] = fetchMock.mock.calls[0]!;
+    const envelope = JSON.parse((init as { body: string }).body);
     expect(
       (envelope as { headers: Record<string, string> }).headers,
     ).toMatchObject({
