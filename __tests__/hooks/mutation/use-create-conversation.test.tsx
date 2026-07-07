@@ -48,22 +48,16 @@ listAgentProfilesMock.mockResolvedValue({
   active_agent_profile_id: null,
 });
 
-// LLM-profile service: real listProfiles/getProfile/saveProfile calls (the
-// llmProfileExists validation, and ensureLlmProfileStreams' self-heal —
-// see use-create-conversation.ts) so both can be asserted per-test.
+// LLM-profile service: real listProfiles calls (the llmProfileExists
+// validation — see use-create-conversation.ts) so it can be asserted per-test.
 const listLlmProfilesMock = vi.fn();
-const getLlmProfileMock = vi.fn();
-const saveLlmProfileMock = vi.fn();
 vi.mock("#/api/profiles-service/profiles-service.api", () => ({
   __esModule: true,
   default: {
     listProfiles: (...args: unknown[]) => listLlmProfilesMock(...args),
-    getProfile: (...args: unknown[]) => getLlmProfileMock(...args),
-    saveProfile: (...args: unknown[]) => saveLlmProfileMock(...args),
   },
 }));
 listLlmProfilesMock.mockResolvedValue({ profiles: [], active_profile: null });
-saveLlmProfileMock.mockResolvedValue({ name: "x", message: "ok" });
 
 describe("useCreateConversation", () => {
   afterEach(() => {
@@ -79,9 +73,6 @@ describe("useCreateConversation", () => {
       profiles: [],
       active_profile: null,
     });
-    getLlmProfileMock.mockReset();
-    saveLlmProfileMock.mockReset();
-    saveLlmProfileMock.mockResolvedValue({ name: "x", message: "ok" });
     removeStoredConversationMetadata("conv-with-plugins");
   });
 
@@ -190,123 +181,6 @@ describe("useCreateConversation", () => {
       expect(call?.[8]).toBeUndefined();
       expect(call?.[9]).toBe("profile-abc");
     });
-  });
-
-  it("self-heals a profile-launched conversation's LLM to stream=true when it isn't already (on_token migration shim)", async () => {
-    listAgentProfilesMock.mockResolvedValue({
-      profiles: [
-        {
-          id: "profile-abc",
-          name: "default",
-          revision: 1,
-          agent_kind: "openhands",
-          llm_profile_ref: "llm-needs-heal",
-          mcp_server_refs: null,
-        },
-      ],
-      active_agent_profile_id: "profile-abc",
-    });
-    listLlmProfilesMock.mockResolvedValue({
-      profiles: [{ name: "llm-needs-heal", model: "gpt-4", api_key_set: true }],
-      active_profile: null,
-    });
-    getLlmProfileMock.mockResolvedValue({
-      name: "llm-needs-heal",
-      config: {
-        model: "gpt-4",
-        api_key: "fernet:encrypted-token",
-        stream: false,
-      },
-      api_key_set: true,
-    });
-    const createConversationSpy = vi
-      .spyOn(AgentServerConversationService, "createConversation")
-      .mockResolvedValue({
-        id: "task-id",
-        app_conversation_id: "conv-1",
-        agent_server_url: "http://agent-server.local",
-      } as never);
-
-    const { result } = renderHook(() => useCreateConversation(), {
-      wrapper: ({ children }) => (
-        <QueryClientProvider client={new QueryClient()}>
-          {children}
-        </QueryClientProvider>
-      ),
-    });
-
-    await result.current.mutateAsync({ query: "hello" });
-
-    await waitFor(() => {
-      expect(getLlmProfileMock).toHaveBeenCalledWith(
-        "llm-needs-heal",
-        "encrypted",
-      );
-      // The encrypted secret must round-trip untouched, and the save must
-      // opt in to persisting it (mirrors the profile-duplicate flow).
-      expect(saveLlmProfileMock).toHaveBeenCalledWith("llm-needs-heal", {
-        llm: {
-          model: "gpt-4",
-          api_key: "fernet:encrypted-token",
-          stream: true,
-        },
-        include_secrets: true,
-      });
-      expect(createConversationSpy).toHaveBeenCalled();
-    });
-  });
-
-  it("does not re-save an LLM profile that already streams", async () => {
-    listAgentProfilesMock.mockResolvedValue({
-      profiles: [
-        {
-          id: "profile-abc",
-          name: "default",
-          revision: 1,
-          agent_kind: "openhands",
-          llm_profile_ref: "llm-already-streams",
-          mcp_server_refs: null,
-        },
-      ],
-      active_agent_profile_id: "profile-abc",
-    });
-    listLlmProfilesMock.mockResolvedValue({
-      profiles: [
-        { name: "llm-already-streams", model: "gpt-4", api_key_set: true },
-      ],
-      active_profile: null,
-    });
-    getLlmProfileMock.mockResolvedValue({
-      name: "llm-already-streams",
-      config: { model: "gpt-4", stream: true },
-      api_key_set: false,
-    });
-    vi.spyOn(
-      AgentServerConversationService,
-      "createConversation",
-    ).mockResolvedValue({
-      id: "task-id",
-      app_conversation_id: "conv-1",
-      agent_server_url: "http://agent-server.local",
-    } as never);
-
-    const { result } = renderHook(() => useCreateConversation(), {
-      wrapper: ({ children }) => (
-        <QueryClientProvider client={new QueryClient()}>
-          {children}
-        </QueryClientProvider>
-      ),
-    });
-
-    await result.current.mutateAsync({ query: "hello" });
-
-    await waitFor(() => {
-      expect(getLlmProfileMock).toHaveBeenCalledWith(
-        "llm-already-streams",
-        "encrypted",
-      );
-    });
-    expect(saveLlmProfileMock).not.toHaveBeenCalled();
   });
 
   it("awaits the profiles fetch so an early send still launches from the active profile", async () => {
