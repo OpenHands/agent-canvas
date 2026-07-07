@@ -64,6 +64,11 @@ const normalizeSettingsResponse = (settings: Partial<Settings>): Settings => {
     >),
   };
 
+  const mcpConfig =
+    agentSettings.mcp_config !== undefined
+      ? parseMcpConfig(agentSettings.mcp_config)
+      : (settings.mcp_config ?? DEFAULT_SETTINGS.mcp_config);
+
   return {
     ...DEFAULT_SETTINGS,
     ...settings,
@@ -96,10 +101,7 @@ const normalizeSettingsResponse = (settings: Partial<Settings>): Settings => {
     condenser_max_size:
       pickFirstNumber(lookupNested(agentSettings, "condenser.max_size")) ??
       DEFAULT_SETTINGS.condenser_max_size,
-    mcp_config: parseMcpConfig(
-      settings.mcp_config ??
-        (agentSettings.mcp_config as typeof settings.mcp_config),
-    ),
+    mcp_config: mcpConfig,
     search_api_key: settings.search_api_key || "",
     email: settings.email || "",
     git_user_name: settings.git_user_name || DEFAULT_SETTINGS.git_user_name,

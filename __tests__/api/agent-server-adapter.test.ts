@@ -1265,16 +1265,14 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
           acp_server: "claude-code",
           acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
           mcp_config: {
-            mcpServers: {
-              fetch: { command: "uvx", args: ["mcp-server-fetch"] },
-            },
+            fetch: { command: "uvx", args: ["mcp-server-fetch"] },
           },
         },
       },
     }) as { agent_settings: { mcp_config?: unknown } };
 
     expect(payload.agent_settings.mcp_config).toEqual({
-      mcpServers: { fetch: { command: "uvx", args: ["mcp-server-fetch"] } },
+      fetch: { command: "uvx", args: ["mcp-server-fetch"] },
     });
   });
 
