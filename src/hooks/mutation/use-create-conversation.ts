@@ -7,7 +7,9 @@ import { useTracking } from "#/hooks/use-tracking";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useAgentProfiles } from "#/hooks/query/use-agent-profiles";
 import { useActiveBackend } from "#/contexts/active-backend-context";
-import ProfilesService from "#/api/profiles-service/profiles-service.api";
+import ProfilesService, {
+  type SaveProfileRequest,
+} from "#/api/profiles-service/profiles-service.api";
 import AgentProfilesService, {
   type AgentProfileListResponse,
 } from "#/api/agent-profiles-service/agent-profiles-service.api";
@@ -51,6 +53,73 @@ interface CreateConversationResponse {
   session_api_key: string | null;
   url: string | null;
   task_id?: string;
+}
+
+// One-time-per-session memo so ensureLlmProfileStreams only does real work
+// (a fetch, and — pre-migration — a save) once per LLM profile name; every
+// later profile-launched conversation in this session skips it entirely.
+const streamConfirmedLlmProfiles = new Set<string>();
+
+/**
+ * MIGRATION SHIM — self-heals an LLM profile's `stream` field to `true` the
+ * first time it's used to launch a conversation via an agent profile.
+ *
+ * Conversations launched via `agentProfileId` never send `agent_settings`
+ * (mutually exclusive with the profile path — see buildStartConversationRequest
+ * in agent-server-adapter.ts), so `buildConfiguredOpenHandsAgentSettings`'s
+ * `llm.stream = true` (PR #1474, "stream OpenHands agent responses") never
+ * reaches them. The agent-server decides once, at conversation construction,
+ * whether to wire the `on_token` streaming callback — based on whether any of
+ * the agent's LLMs has `stream=True` at that moment — and never re-evaluates
+ * it afterward. openhands-sdk's `resolve_agent_profile` uses the referenced
+ * LLM profile's stored `stream` value as-is (no forced override, unlike the
+ * agent_settings path), so a profile-launched conversation whose LLM profile
+ * was never explicitly saved with `stream: true` gets `on_token=None` for its
+ * entire lifetime. `switchProfile`'s `switch_llm` call (unconditionally
+ * setting `stream: true`, unchanged by this fix — see its own comment) then
+ * crashes the next completion with "Streaming requires an on_token callback",
+ * since on_token can never be (re-)wired post-construction.
+ *
+ * This does NOT touch the legacy agent_settings path or switch_llm — both
+ * keep working exactly as before. It only ensures the ONE thing profile
+ * launches are missing: the underlying LLM profile has `stream: true`
+ * persisted, so resolve_agent_profile picks it up correctly, matching what
+ * agent_settings-launched conversations already guarantee.
+ *
+ * Safe to delete once either: (a) essentially every user's LLM profiles have
+ * been touched by this at least once (self-limiting — becomes a no-op read
+ * per profile once migrated), or (b) resolve_agent_profile/the profile model
+ * itself forces stream=true for OpenHands profiles upstream (same category
+ * of fix as the skill_refs default — likely the same #3967 umbrella), at
+ * which point this is redundant regardless of migration state.
+ */
+async function ensureLlmProfileStreams(llmProfileName: string): Promise<void> {
+  if (streamConfirmedLlmProfiles.has(llmProfileName)) return;
+  try {
+    const detail = await ProfilesService.getProfile(
+      llmProfileName,
+      "encrypted",
+    );
+    const config = detail.config as Record<string, unknown>;
+    if (config.stream !== true) {
+      await ProfilesService.saveProfile(llmProfileName, {
+        llm: {
+          ...config,
+          stream: true,
+        } as unknown as SaveProfileRequest["llm"],
+        include_secrets: true,
+      });
+    }
+    streamConfirmedLlmProfiles.add(llmProfileName);
+  } catch (error) {
+    // Best-effort: never let this block conversation creation. A failed
+    // self-heal just means the on_token crash risk (mid-conversation model
+    // switch) remains for this profile until a later attempt succeeds.
+    console.warn(
+      `Failed to confirm streaming is enabled for LLM profile "${llmProfileName}":`,
+      error,
+    );
+  }
 }
 
 export const useCreateConversation = () => {
@@ -153,6 +222,8 @@ export const useCreateConversation = () => {
               "launching from agent_settings instead.",
           );
           effectiveAgentProfileId = undefined;
+        } else {
+          await ensureLlmProfileStreams(resolvedAgentProfile.llm_profile_ref);
         }
       }
 
