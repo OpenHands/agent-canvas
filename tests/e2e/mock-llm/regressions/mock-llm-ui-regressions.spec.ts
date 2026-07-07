@@ -370,12 +370,14 @@ test.describe("UI regressions", () => {
     await routeSessionApiKey(page);
     await page.goto("/", { waitUntil: "domcontentloaded" });
 
-    const shell = page.locator("[data-agent-server-ui]").first();
-    await expect(shell).toBeVisible({ timeout: 15_000 });
     const layout = page.getByTestId("root-layout");
-    await expect(layout).toBeVisible();
+    await expect(layout).toBeVisible({ timeout: 15_000 });
 
-    const insideBackground = await shell.evaluate(
+    await expect
+      .poll(() => layout.evaluate((el) => getComputedStyle(el).backgroundColor))
+      .not.toBe("rgba(0, 0, 0, 0)");
+
+    const insideBackground = await layout.evaluate(
       (el) => getComputedStyle(el).backgroundColor,
     );
 
@@ -391,7 +393,6 @@ test.describe("UI regressions", () => {
       };
     });
 
-    expect(insideBackground).not.toBe("rgba(0, 0, 0, 0)");
     expect(outsideStyles.backgroundColor).not.toBe(insideBackground);
   });
 
