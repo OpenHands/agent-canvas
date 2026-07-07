@@ -13667,6 +13667,23 @@
     "uk": "Переглянути журнали",
     "ca": "Mostra els registres"
   },
+  "AUTOMATIONS$DETAIL$DEBUG_WITH_OPENHANDS": {
+    "en": "Debug with OpenHands",
+    "ja": "OpenHandsでデバッグ",
+    "zh-CN": "使用 OpenHands 调试",
+    "zh-TW": "使用 OpenHands 偵錯",
+    "ko-KR": "OpenHands로 디버그",
+    "no": "Feilsøk med OpenHands",
+    "it": "Esegui il debug con OpenHands",
+    "pt": "Depurar com OpenHands",
+    "es": "Depurar con OpenHands",
+    "ar": "التصحيح باستخدام OpenHands",
+    "fr": "Déboguer avec OpenHands",
+    "tr": "OpenHands ile hata ayıkla",
+    "de": "Mit OpenHands debuggen",
+    "uk": "Налагодити за допомогою OpenHands",
+    "ca": "Depura amb OpenHands"
+  },
   "AUTOMATIONS$DETAIL$LOGS_TITLE": {
     "en": "Logs",
     "ja": "ログ",

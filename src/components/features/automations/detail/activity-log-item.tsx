@@ -2,12 +2,17 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import TerminalIcon from "#/icons/terminal.svg?react";
-import { AutomationRunStatus, type AutomationRun } from "#/types/automation";
+import {
+  AutomationRunStatus,
+  type Automation,
+  type AutomationRun,
+} from "#/types/automation";
 import { RunStatusBadge } from "./run-status-badge";
 import { RunLogsModal } from "./run-logs-modal";
 
 interface ActivityLogItemProps {
   run: AutomationRun;
+  automation?: Automation;
 }
 
 function formatRunTimestamp(dateStr: string, locale: string): string {
@@ -33,7 +38,7 @@ function getConversationUrl(conversationId: string): string {
   return `/conversations/${conversationId}`;
 }
 
-export function ActivityLogItem({ run }: ActivityLogItemProps) {
+export function ActivityLogItem({ run, automation }: ActivityLogItemProps) {
   const { t, i18n } = useTranslation("openhands");
   const hasConversation = !!run.conversation_id;
   const hasBashCommand = !!run.bash_command_id;
@@ -126,6 +131,8 @@ export function ActivityLogItem({ run }: ActivityLogItemProps) {
           bashCommandId={run.bash_command_id}
           isOpen={logsOpen}
           onClose={() => setLogsOpen(false)}
+          run={run}
+          automation={automation}
         />
       )}
     </>

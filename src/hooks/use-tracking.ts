@@ -2,6 +2,7 @@ import { usePostHog } from "posthog-js/react";
 import { useSettings } from "./query/use-settings";
 import { Provider } from "#/types/settings";
 import type { BackendKind } from "#/api/backend-registry/types";
+import type { WorkspaceMode } from "#/api/conversation-metadata-store";
 
 /**
  * Hook that provides tracking functions with automatic data collection
@@ -36,11 +37,41 @@ export const useTracking = () => {
   };
 
   const trackConversationCreated = ({
+    conversationId,
+    taskId,
     hasRepository,
+    gitProvider,
+    hasWorkspace,
+    workspaceMode,
+    hasInitialQuery,
+    agentType,
+    hasParentConversation,
+    entryPoint,
   }: {
+    conversationId: string;
+    taskId?: string;
     hasRepository: boolean;
+    gitProvider?: Provider;
+    hasWorkspace: boolean;
+    workspaceMode?: WorkspaceMode;
+    hasInitialQuery: boolean;
+    agentType?: "default" | "plan";
+    hasParentConversation: boolean;
+    entryPoint?: string;
   }) => {
-    track("conversation_created", { has_repository: hasRepository });
+    track("conversation_created", {
+      conversation_id: conversationId,
+      task_id: taskId,
+      is_start_task: conversationId.startsWith("task-"),
+      has_repository: hasRepository,
+      git_provider: gitProvider,
+      has_workspace: hasWorkspace,
+      workspace_mode: workspaceMode,
+      has_initial_query: hasInitialQuery,
+      agent_type: agentType,
+      has_parent_conversation: hasParentConversation,
+      entry_point: entryPoint,
+    });
   };
 
   const trackPushButtonClick = () => {
