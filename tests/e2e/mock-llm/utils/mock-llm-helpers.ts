@@ -494,17 +494,7 @@ export async function ensureMockLLMAgentProfile(
     `${BACKEND_URL}/api/agent-profiles/${encodeURIComponent(name)}`,
     {
       headers,
-      data: {
-        agent_kind: "openhands",
-        llm_profile_ref: llmProfileRef,
-        // OpenHandsAgentProfile.skill_refs defaults to `[]` (none discovered)
-        // when omitted — only workspace-scoped project skills are exercised
-        // without it; public/preset skills (e.g. an installed automation's
-        // bundled skill) never reach a profile-launched conversation's agent
-        // unless explicitly requested. `null` = all server-discovered skills,
-        // matching a real onboarding-seeded profile's effective behavior.
-        skill_refs: null,
-      },
+      data: { agent_kind: "openhands", llm_profile_ref: llmProfileRef },
     },
   );
   expect(
