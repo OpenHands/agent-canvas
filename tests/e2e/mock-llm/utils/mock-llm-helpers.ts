@@ -494,7 +494,15 @@ export async function ensureMockLLMAgentProfile(
     `${BACKEND_URL}/api/agent-profiles/${encodeURIComponent(name)}`,
     {
       headers,
-      data: { agent_kind: "openhands", llm_profile_ref: llmProfileRef },
+      // skill_refs: null mirrors useSaveAgentProfile's withDefaultSkillRefs
+      // (src/hooks/mutation/use-save-agent-profile.ts) — every real profile
+      // save now defaults to "all discovered skills" when unset, since the
+      // server otherwise defaults an omitted skill_refs to `[]` (none).
+      data: {
+        agent_kind: "openhands",
+        llm_profile_ref: llmProfileRef,
+        skill_refs: null,
+      },
     },
   );
   expect(
