@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildPluginsViewModel } from "#/components/features/plugins/build-plugins-view-model";
-import type { MarketplacePlugin } from "#/api/plugins-service";
+import {
+  buildPluginsViewModel,
+  matchesPluginStatus,
+} from "#/components/features/plugins/build-plugins-view-model";
+import type { MarketplacePlugin, LocalPlugin } from "#/api/plugins-service";
 import type { InstalledPluginInfo } from "#/api/plugins-management-service";
 
 const catalogPlugin: MarketplacePlugin = {
@@ -22,6 +25,12 @@ const installedPlugin: InstalledPluginInfo = {
   repo_path: "plugins/demo-plugin",
   installed_at: "2026-06-01T00:00:00Z",
   install_path: "/home/.openhands/plugins/installed/demo-plugin",
+};
+
+const localPlugin: LocalPlugin = {
+  name: "ambient-plugin",
+  version: "1.0.0",
+  description: "Ambient description",
 };
 
 describe("buildPluginsViewModel", () => {
@@ -59,5 +68,40 @@ describe("buildPluginsViewModel", () => {
       inCatalog: false,
       enabled: false,
     });
+  });
+
+  it("adds a locally-discovered plugin as a read-only local entry", () => {
+    const result = buildPluginsViewModel([], [], [localPlugin]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      name: "ambient-plugin",
+      isLocal: true,
+      installed: false,
+      inCatalog: false,
+      version: "1.0.0",
+    });
+  });
+
+  it("does not add a separate local entry when the plugin is already installed", () => {
+    const result = buildPluginsViewModel(
+      [],
+      [installedPlugin],
+      [{ ...localPlugin, name: installedPlugin.name }],
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      name: "demo-plugin",
+      installed: true,
+      isLocal: false,
+    });
+  });
+
+  it("classifies a local plugin under the local filter and not the available filter", () => {
+    const [local] = buildPluginsViewModel([], [], [localPlugin]);
+
+    expect(matchesPluginStatus(local, "local")).toBe(true);
+    expect(matchesPluginStatus(local, "available")).toBe(false);
   });
 });

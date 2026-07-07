@@ -30956,6 +30956,23 @@
     "tr": "Mevcut",
     "uk": "Доступні"
   },
+  "SETTINGS$PLUGINS_FILTER_LOCAL": {
+    "en": "Local",
+    "ja": "ローカル",
+    "zh-CN": "本地",
+    "zh-TW": "本機",
+    "ko-KR": "로컬",
+    "no": "Lokal",
+    "ar": "محلي",
+    "de": "Lokal",
+    "fr": "Local",
+    "it": "Locale",
+    "pt": "Local",
+    "es": "Local",
+    "ca": "Local",
+    "tr": "Yerel",
+    "uk": "Локальний"
+  },
   "SETTINGS$PLUGINS_REF_LABEL": {
     "en": "Ref",
     "ja": "リファレンス",

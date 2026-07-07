@@ -16,6 +16,19 @@ export interface MarketplacePlugin {
   installed: boolean;
 }
 
+/**
+ * A locally-discovered ("ambient") plugin reported by the agent-server — one
+ * found in the user's local plugin directories (e.g. `~/.agents/plugins`).
+ * These auto-load into conversations and are not managed via install/uninstall,
+ * so the Plugins page renders them as a read-only "Local" group. Matches the
+ * typescript-client `PluginInfo`.
+ */
+export interface LocalPlugin {
+  name: string;
+  version: string;
+  description: string;
+}
+
 class PluginsService {
   /**
    * Fetch the dynamic plugins marketplace catalog.
@@ -38,6 +51,32 @@ class PluginsService {
     } catch {
       // Agent-server may not support the plugins endpoint or be unreachable;
       // surface an empty catalog rather than throwing.
+      return [];
+    }
+  }
+
+  /**
+   * Fetch the locally-discovered ("ambient") plugins from the agent-server.
+   *
+   * Only user-level plugins are requested (`~/.agents/plugins`,
+   * `~/.openhands/plugins`, plus enabled installed plugins): the Plugins page is
+   * global, so there is no project workspace to scope project plugins to.
+   *
+   * Local backend only — a cloud backend has no local plugin directories, so an
+   * empty list is returned. Errors surface as an empty list (mirrors the
+   * catalog) rather than throwing.
+   */
+  static async getLocalPlugins(): Promise<LocalPlugin[]> {
+    if (getActiveBackend().backend.kind === "cloud") {
+      return [];
+    }
+
+    try {
+      const response = await new PluginsClient(
+        getAgentServerClientOptions(),
+      ).getPlugins({ load_user: true, load_project: false });
+      return (response.plugins ?? []) as LocalPlugin[];
+    } catch {
       return [];
     }
   }
