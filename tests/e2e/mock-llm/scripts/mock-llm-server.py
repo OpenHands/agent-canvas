@@ -184,13 +184,17 @@ class MockLLMHandler(BaseHTTPRequestHandler):
         raw = response.raw_response.model_dump()
 
         if body.get("stream"):
-            self._send_streaming(raw)
+            stream_options = body.get("stream_options") or {}
+            self._send_streaming(
+                raw, include_usage=bool(stream_options.get("include_usage"))
+            )
         else:
             self._send_json(200, raw)
 
-    def _send_streaming(self, raw: dict):
+    def _send_streaming(self, raw: dict, include_usage: bool = False):
         """SSE streaming: emit content chunk + finish chunk + [DONE]."""
         choice = raw["choices"][0]
+        message = choice["message"]
         base = {
             "id": raw["id"],
             "object": "chat.completion.chunk",
@@ -198,28 +202,110 @@ class MockLLMHandler(BaseHTTPRequestHandler):
             "model": raw["model"],
         }
 
-        content_chunk = {
-            **base,
-            "choices": [
-                {"index": 0, "delta": choice["message"], "finish_reason": None}
-            ],
-        }
+        finish_reason = "stop"
+        tool_calls = message.get("tool_calls") or []
+        chunks = []
+        if tool_calls:
+            finish_reason = "tool_calls"
+            chunks.append(
+                {
+                    **base,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {"role": message.get("role", "assistant")},
+                            "finish_reason": None,
+                        }
+                    ],
+                }
+            )
+            for i, tool_call in enumerate(tool_calls):
+                function = tool_call.get("function", {})
+                chunks.append(
+                    {
+                        **base,
+                        "choices": [
+                            {
+                                "index": 0,
+                                "delta": {
+                                    "tool_calls": [
+                                        {
+                                            "index": i,
+                                            "id": tool_call.get("id"),
+                                            "type": tool_call.get("type", "function"),
+                                            "function": {
+                                                "name": function.get("name"),
+                                                "arguments": "",
+                                            },
+                                        }
+                                    ]
+                                },
+                                "finish_reason": None,
+                            }
+                        ],
+                    }
+                )
+                if function.get("arguments"):
+                    chunks.append(
+                        {
+                            **base,
+                            "choices": [
+                                {
+                                    "index": 0,
+                                    "delta": {
+                                        "tool_calls": [
+                                            {
+                                                "index": i,
+                                                "function": {
+                                                    "arguments": function["arguments"]
+                                                },
+                                            }
+                                        ]
+                                    },
+                                    "finish_reason": None,
+                                }
+                            ],
+                        }
+                    )
+        else:
+            chunks.append(
+                {
+                    **base,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "delta": {
+                                "role": message.get("role", "assistant"),
+                                "content": message.get("content") or "",
+                            },
+                            "finish_reason": None,
+                        }
+                    ],
+                }
+            )
+
         finish_chunk = {
             **base,
-            "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
-            "usage": {
-                "prompt_tokens": 10,
-                "completion_tokens": 5,
-                "total_tokens": 15,
-            },
+            "choices": [{"index": 0, "delta": {}, "finish_reason": finish_reason}],
         }
 
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
-        for chunk in [content_chunk, finish_chunk]:
+        for chunk in [*chunks, finish_chunk]:
             self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+        if include_usage:
+            usage_chunk = {
+                **base,
+                "choices": [],
+                "usage": {
+                    "prompt_tokens": 10,
+                    "completion_tokens": 5,
+                    "total_tokens": 15,
+                },
+            }
+            self.wfile.write(f"data: {json.dumps(usage_chunk)}\n\n".encode())
         self.wfile.write(b"data: [DONE]\n\n")
         self.wfile.flush()
 

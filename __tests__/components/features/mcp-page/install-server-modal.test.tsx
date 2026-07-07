@@ -69,9 +69,9 @@ describe("InstallServerModal", () => {
     const [payload] = saveSpy.mock.calls[0];
     const sentMcpConfig = (payload as Record<string, unknown>)
       .agent_settings_diff as {
-      mcp_config: { mcpServers: Record<string, unknown> };
+      mcp_config: Record<string, unknown>;
     };
-    expect(sentMcpConfig.mcp_config.mcpServers).toMatchObject({
+    expect(sentMcpConfig.mcp_config).toMatchObject({
       slack: {
         command: "npx",
         args: ["-y", "@zencoderai/slack-mcp-server"],
@@ -110,9 +110,9 @@ describe("InstallServerModal", () => {
     await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
     const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
       .agent_settings_diff as {
-      mcp_config: { mcpServers: Record<string, unknown> };
+      mcp_config: Record<string, unknown>;
     };
-    expect(sent.mcp_config.mcpServers).toMatchObject({
+    expect(sent.mcp_config).toMatchObject({
       tavily: {
         command: "npx",
         args: ["-y", "tavily-mcp"],
@@ -204,6 +204,216 @@ describe("InstallServerModal", () => {
     await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
   });
 
+  it("persists OAuth state returned by the connection test when installing", async () => {
+    const entry: MarketplaceEntry = {
+      id: "synthetic-oauth",
+      name: "Synthetic OAuth",
+      description: "Synthetic OAuth entry.",
+      iconBg: "#000000",
+      connectionOptions: [
+        {
+          id: "oauth",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://mcp.example.com/mcp",
+          },
+          auth: {
+            strategy: "oauth2",
+            oauth: { clientAuthentication: "none" },
+          },
+        },
+      ],
+    };
+    vi.spyOn(McpService, "authorizeOAuth").mockResolvedValue({
+      ok: true,
+      tools: [],
+      oauth_state: {
+        tokens: { access_token: "gAAAAencrypted-access-token" },
+        token_expires_at: 12345,
+      },
+    });
+    const getSpy = vi
+      .spyOn(SettingsService, "getSettings")
+      .mockResolvedValue(MOCK_DEFAULT_USER_SETTINGS);
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    renderWith(<InstallServerModal entry={entry} onClose={vi.fn()} />);
+    await screen.findByTestId("mcp-install-modal");
+    await waitFor(() => expect(getSpy).toHaveBeenCalled());
+    fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
+      .agent_settings_diff as {
+      mcp_config: Record<string, unknown>;
+    };
+    expect(sent.mcp_config).toMatchObject({
+      synthetic_oauth: {
+        url: "https://mcp.example.com/mcp",
+        auth: {
+          strategy: "oauth2",
+          state: {
+            tokens: { access_token: "gAAAAencrypted-access-token" },
+            token_expires_at: 12345,
+          },
+        },
+      },
+    });
+  });
+
+  it("installs header-field remote servers with tagged header auth", async () => {
+    const entry = {
+      id: "datadog-style",
+      name: "Datadog-style Server",
+      description: "Remote MCP server that authenticates via two headers.",
+      iconBg: "#632CA6",
+      connectionOptions: [
+        {
+          id: "api",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://mcp.example.com/mcp",
+            headerFields: [
+              {
+                key: "DD-API-KEY",
+                label: "Datadog API key",
+                type: "password",
+                required: true,
+              },
+              {
+                key: "DD-APPLICATION-KEY",
+                label: "Datadog Application key",
+                type: "password",
+                required: true,
+              },
+            ],
+          },
+          auth: { strategy: "none" },
+        },
+      ],
+    } as unknown as MarketplaceEntry;
+    const testSpy = vi
+      .spyOn(McpService, "testServer")
+      .mockResolvedValue({ ok: true, tools: [] });
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    renderWith(<InstallServerModal entry={entry} onClose={vi.fn()} />);
+    await screen.findByTestId("mcp-install-modal");
+    await waitFor(() => expect(SettingsService.getSettings).toHaveBeenCalled());
+
+    expect(
+      screen.queryByTestId("mcp-install-field-api_key"),
+    ).not.toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("mcp-install-field-DD-API-KEY"), {
+      target: { value: "dd-api-secret" },
+    });
+    fireEvent.change(
+      screen.getByTestId("mcp-install-field-DD-APPLICATION-KEY"),
+      { target: { value: "dd-app-secret" } },
+    );
+    fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    expect(testSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "shttp",
+        url: "https://mcp.example.com/mcp",
+        auth: {
+          strategy: "header",
+          headers: {
+            "DD-API-KEY": "dd-api-secret",
+            "DD-APPLICATION-KEY": "dd-app-secret",
+          },
+        },
+      }),
+    );
+    const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
+      .agent_settings_diff as {
+      mcp_config: Record<string, unknown>;
+    };
+    expect(sent.mcp_config).toMatchObject({
+      datadog_style: {
+        url: "https://mcp.example.com/mcp",
+        auth: {
+          strategy: "header",
+          headers: {
+            "DD-API-KEY": "dd-api-secret",
+            "DD-APPLICATION-KEY": "dd-app-secret",
+          },
+        },
+      },
+    });
+  });
+
+  it("uses the user-edited URL when the transport opts into urlEditable", async () => {
+    const entry = {
+      id: "datadog-style",
+      name: "Datadog-style Server",
+      description: "Remote MCP server with a site-specific URL.",
+      iconBg: "#632CA6",
+      connectionOptions: [
+        {
+          id: "api",
+          provider: "mcp",
+          transport: {
+            kind: "shttp",
+            url: "https://mcp.example.com/mcp",
+            urlEditable: true,
+            headerFields: [
+              {
+                key: "DD-API-KEY",
+                label: "Datadog API key",
+                type: "password",
+                required: true,
+              },
+            ],
+          },
+          auth: { strategy: "none" },
+        },
+      ],
+    } as unknown as MarketplaceEntry;
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    renderWith(<InstallServerModal entry={entry} onClose={vi.fn()} />);
+    await screen.findByTestId("mcp-install-modal");
+    await waitFor(() => expect(SettingsService.getSettings).toHaveBeenCalled());
+
+    const urlInput = screen.getByTestId(
+      "mcp-install-field-url",
+    ) as HTMLInputElement;
+    expect(urlInput).not.toBeDisabled();
+    fireEvent.change(urlInput, {
+      target: { value: "https://mcp.us5.example.com/v1/mcp" },
+    });
+    fireEvent.change(screen.getByTestId("mcp-install-field-DD-API-KEY"), {
+      target: { value: "dd-api-secret" },
+    });
+    fireEvent.click(screen.getByTestId("mcp-install-submit"));
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
+      .agent_settings_diff as {
+      mcp_config: Record<string, unknown>;
+    };
+    expect(sent.mcp_config).toMatchObject({
+      datadog_style: {
+        url: "https://mcp.us5.example.com/v1/mcp",
+        auth: {
+          strategy: "header",
+          headers: { "DD-API-KEY": "dd-api-secret" },
+        },
+      },
+    });
+  });
+
   it("installs Linear over streamable HTTP with the api key as a bearer credential", async () => {
     // Arrange: the marketplace serves the patched Linear entry (shttp
     // /mcp endpoint, bearer auth) — the UI must never touch the removed
@@ -239,20 +449,20 @@ describe("InstallServerModal", () => {
       expect.objectContaining({
         type: "shttp",
         url: "https://mcp.linear.app/mcp",
-        api_key: "lin_api_secret",
+        auth: { strategy: "bearer", value: "lin_api_secret" },
       }),
     );
     const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
       .agent_settings_diff as {
-      mcp_config: { mcpServers: Record<string, unknown> };
+      mcp_config: Record<string, unknown>;
     };
     // Remote installs are now keyed by the catalog slug ("linear") rather
     // than the auto-generated "shttp" fallback, so the server is
     // referenceable by name in mcp_server_refs.
-    expect(sent.mcp_config.mcpServers).toMatchObject({
+    expect(sent.mcp_config).toMatchObject({
       linear: {
         url: "https://mcp.linear.app/mcp",
-        headers: { Authorization: "Bearer lin_api_secret" },
+        auth: { strategy: "bearer", value: "lin_api_secret" },
       },
     });
   });
@@ -278,7 +488,6 @@ describe("InstallServerModal", () => {
     const submit = screen.getByTestId("mcp-install-submit");
 
     // Assert: Cancel precedes the dominant Install action in DOM order.
-    // eslint-disable-next-line no-bitwise
     expect(
       cancel.compareDocumentPosition(submit) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
