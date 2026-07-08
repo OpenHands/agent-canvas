@@ -404,6 +404,46 @@ describe("useCreateConversation", () => {
     expect(call?.[9]).toBeUndefined();
   });
 
+  it("keeps the profile path for an ACP `default` profile (agent_settings can't carry ACP config)", async () => {
+    // The default→agent_settings shortcut is OpenHands-only: activation is
+    // pointer-only, so global agent_settings is stale (still OpenHands) for an
+    // active ACP profile — routing it via agent_settings would launch the wrong
+    // agent. An ACP `default` must resolve server-side via agent_profile_id.
+    listAgentProfilesMock.mockResolvedValue({
+      profiles: [
+        {
+          id: "profile-acp-default",
+          name: "default",
+          agent_kind: "acp",
+          revision: 1,
+          llm_profile_ref: null,
+          mcp_server_refs: null,
+        },
+      ],
+      active_agent_profile_id: "profile-acp-default",
+    });
+    const createConversationSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue({
+        id: "task-id",
+        app_conversation_id: "conv-1",
+        agent_server_url: "http://agent-server.local",
+      } as never);
+
+    const { result } = renderHook(() => useCreateConversation(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={new QueryClient()}>
+          {children}
+        </QueryClientProvider>
+      ),
+    });
+
+    await result.current.mutateAsync({ query: "hello" });
+
+    const call = createConversationSpy.mock.lastCall;
+    expect(call?.[9]).toBe("profile-acp-default");
+  });
+
   it("stamps the launched openhands profile's llm_profile_ref into conversation metadata (#1082)", async () => {
     // A named (non-default) profile launches via the profile path and runs its
     // own llm_profile_ref — which differs from the standalone active LLM
