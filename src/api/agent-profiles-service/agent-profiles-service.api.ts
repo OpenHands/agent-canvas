@@ -63,9 +63,10 @@ class AgentProfilesService {
     name: string,
     exposeSecrets?: ExposeSecretsMode,
   ): Promise<AgentProfileDetailResponse> {
-    // Cloud always masks `skills[].mcp_tools` secrets (its save restores them
-    // from the stored namesake), so `exposeSecrets` is local-only — mirrors
-    // ProfilesService.getProfile.
+    // Agent profiles are secret-free at rest now (embedded skills and their
+    // `mcp_tools` were removed in #4017 — a profile carries only refs + the
+    // `disabled_skills` deny-list of names), so `exposeSecrets` is vestigial and
+    // cloud ignores it; kept for local signature parity with ProfilesService.
     if (isCloud()) return getCloudAgentProfile(name);
     const options: GetAgentProfileOptions = exposeSecrets
       ? { exposeSecrets }
