@@ -53,9 +53,14 @@ describe("resolvePickerKind", () => {
   });
 
   describe("inside a conversation", () => {
-    it("shows the model picker on cloud regardless of ACP", () => {
+    it("shows the model picker for an ACP conversation regardless of backend", () => {
       expect(
-        resolvePickerKind({ ...base, hasConversation: true, isCloud: true }),
+        resolvePickerKind({
+          ...base,
+          hasConversation: true,
+          isCloud: false,
+          isAcp: true,
+        }),
       ).toBe("model");
       expect(
         resolvePickerKind({
@@ -67,23 +72,23 @@ describe("resolvePickerKind", () => {
       ).toBe("model");
     });
 
-    it("shows the model picker for a local ACP conversation", () => {
+    it("shows the LLM-profile picker for an OpenHands conversation regardless of backend", () => {
+      // /switch_profile is a real endpoint on both backends (cloud proxies
+      // POST /api/v1/app-conversations/{id}/switch_profile) — no cloud
+      // restriction here.
       expect(
         resolvePickerKind({
           ...base,
           hasConversation: true,
           isCloud: false,
-          isAcp: true,
+          isAcp: false,
         }),
-      ).toBe("model");
-    });
-
-    it("shows the LLM-profile picker for a local OpenHands conversation", () => {
+      ).toBe("llm-profile");
       expect(
         resolvePickerKind({
           ...base,
           hasConversation: true,
-          isCloud: false,
+          isCloud: true,
           isAcp: false,
         }),
       ).toBe("llm-profile");

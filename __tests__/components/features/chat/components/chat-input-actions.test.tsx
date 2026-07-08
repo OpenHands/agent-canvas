@@ -144,11 +144,15 @@ describe("ChatInputActions", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders the active conversation model on a cloud backend", () => {
+  it("renders the active conversation model in a cloud ACP conversation", () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
     useActiveConversationMock.mockReturnValue({
-      data: { conversation_id: "test-conversation-id", llm_model: "gpt-4o" },
+      data: {
+        conversation_id: "test-conversation-id",
+        agent_kind: "acp",
+        llm_model: "gpt-4o",
+      },
     });
 
     renderWithProviders(
@@ -165,11 +169,15 @@ describe("ChatInputActions", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("omits the model label on cloud when the active conversation has no llm_model", () => {
+  it("omits the model label on cloud when the active ACP conversation has no llm_model", () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id });
     useActiveConversationMock.mockReturnValue({
-      data: { conversation_id: "test-conversation-id", llm_model: null },
+      data: {
+        conversation_id: "test-conversation-id",
+        agent_kind: "acp",
+        llm_model: null,
+      },
     });
 
     renderWithProviders(
@@ -178,6 +186,31 @@ describe("ChatInputActions", () => {
       </ActiveBackendProvider>,
     );
 
+    expect(
+      screen.queryByTestId("chat-input-llm-model"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the LLM-profile switcher inside a cloud OpenHands conversation", () => {
+    // /switch_profile is a real endpoint on both backends (cloud proxies
+    // POST /api/v1/app-conversations/{id}/switch_profile) — cloud OpenHands
+    // conversations get the same live-switch picker as local (#1571 review).
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+    useActiveConversationMock.mockReturnValue({
+      data: { conversation_id: "test-conversation-id", llm_model: "gpt-4o" },
+    });
+
+    renderWithProviders(
+      <ActiveBackendProvider>
+        <ChatInputActions disabled={false} />
+      </ActiveBackendProvider>,
+    );
+
+    expect(screen.getByTestId("llm-profile-picker-stub")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("agent-profile-picker-stub"),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByTestId("chat-input-llm-model"),
     ).not.toBeInTheDocument();

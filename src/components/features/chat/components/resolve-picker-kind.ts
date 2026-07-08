@@ -19,12 +19,14 @@ export interface ResolvePickerKindInput {
  *    conversation / activates the default (#3727, cloud via #15060). When no
  *    profiles exist yet, fall back — cloud → model, local → LLM-profile (cloud
  *    has no home LLM-profile activate path).
- *  - In a cloud conversation, or a local ACP conversation: the model picker.
- *    In-conversation LLM-profile switching is a local-OpenHands-only capability
- *    by design — cloud has no per-conversation switch endpoint and masks profile
- *    secrets; ACP uses the model picker regardless.
- *  - In a local OpenHands conversation: the LLM-profile picker, which
- *    live-switches the running conversation's LLM profile (/switch_profile).
+ *  - In an ACP conversation (local or cloud): the model picker — ACP owns its
+ *    LLM via the subprocess/session, so the picker just live-switches the
+ *    session model (set_session_model / cloud's switch_acp_model proxy).
+ *  - In an OpenHands conversation (local or cloud): the LLM-profile picker,
+ *    which live-switches the running conversation's LLM profile via
+ *    /switch_profile — a real endpoint on both backends (cloud proxies
+ *    POST /api/v1/app-conversations/{id}/switch_profile, unchanged since
+ *    OpenHands#14288). There is no cloud-specific restriction here.
  */
 export function resolvePickerKind({
   hasConversation,
@@ -36,6 +38,5 @@ export function resolvePickerKind({
     if (profilesAvailable) return "agent-profile";
     return isCloud ? "model" : "llm-profile";
   }
-  if (isCloud) return "model";
   return isAcp ? "model" : "llm-profile";
 }
