@@ -96,7 +96,7 @@ export function AgentProfilesLocalView() {
     llmProfilesData?.active_profile ?? llmProfiles[0]?.name ?? "";
 
   const existingNames = useMemo(
-    () => new Set(profilesData?.profiles.map((p) => p.name) ?? []),
+    () => new Set(profilesData?.profiles?.map((p) => p.name) ?? []),
     [profilesData],
   );
 

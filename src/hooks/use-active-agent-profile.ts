@@ -16,7 +16,7 @@ export function useActiveAgentProfile(): {
   const { data, isLoading } = useAgentProfiles();
   const activeId = data?.active_agent_profile_id ?? null;
   const activeProfile =
-    data?.profiles.find((p) => p.id != null && p.id === activeId) ?? null;
+    data?.profiles?.find((p) => p.id != null && p.id === activeId) ?? null;
   return { activeProfile, isLoading };
 }
 
