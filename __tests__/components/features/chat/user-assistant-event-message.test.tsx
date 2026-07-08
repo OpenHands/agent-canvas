@@ -96,7 +96,14 @@ describe("UserAssistantEventMessage — branch action", () => {
 
     forkSpy = vi
       .spyOn(AgentServerConversationService, "forkConversation")
-      .mockResolvedValue(forkResult);
+      // Modern backend (>= 1.31.0): the fork's HEAD (leaf_event_id) is exactly
+      // the requested branch point, confirming the message was excluded.
+      .mockImplementation((_source, fromEventId) =>
+        Promise.resolve({
+          ...forkResult,
+          leaf_event_id: fromEventId,
+        } as unknown as DirectConversationInfo),
+      );
     // Default: the message has a parent (the common case), so edit-mode
     // branches before it.
     parentSpy = vi
@@ -171,6 +178,28 @@ describe("UserAssistantEventMessage — branch action", () => {
         "Trip planning (branch)",
       ),
     );
+  });
+
+  it("does not prefill when the backend ignored from_event_id (older agent-server)", async () => {
+    // leaf_event_id != requested branch point => the message was NOT excluded
+    // (the fork copied the whole conversation), so prefilling would duplicate.
+    forkSpy.mockImplementation(() =>
+      Promise.resolve({
+        ...forkResult,
+        leaf_event_id: "some-other-leaf",
+      } as unknown as DirectConversationInfo),
+    );
+    renderMessage(makeEvent("user", "evt-user"));
+
+    fireEvent.mouseEnter(screen.getByTestId("user-message"));
+    fireEvent.click(screen.getByRole("button", { name: BRANCH_LABEL }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/conversations/fork-123",
+      ),
+    );
+    expect(setMessageToSendMock).not.toHaveBeenCalled();
   });
 
   it("branches an image-only user message inclusively (keeps the image, no prefill)", async () => {

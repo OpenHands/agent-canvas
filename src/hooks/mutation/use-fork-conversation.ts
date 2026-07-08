@@ -67,6 +67,21 @@ export const useForkConversation = () => {
         fromEventId,
         title,
       );
+
+      // Confirm the backend actually branched at `fromEventId` before trusting
+      // `excluded`. `from_event_id` needs agent-server >= 1.31.0; older backends
+      // ignore it and copy the whole conversation, leaving the message in the
+      // branch. When honored, the fork's HEAD (`leaf_event_id`) is exactly
+      // `fromEventId`; if it isn't, treat the message as NOT excluded so we
+      // don't prefill and risk a duplicate on send.
+      if (excluded) {
+        const leafEventId = (info as { leaf_event_id?: string | null })
+          .leaf_event_id;
+        if (leafEventId !== fromEventId) {
+          excluded = false;
+        }
+      }
+
       return { info, excluded };
     },
     onSuccess: () => {

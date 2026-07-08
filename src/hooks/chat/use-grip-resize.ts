@@ -17,7 +17,8 @@ export const useGripResize = (
   const [isGripVisible, setIsGripVisible] = useState(false);
   const [isGripDragging, setIsGripDragging] = useState(false);
 
-  const { setShouldHideSuggestions } = useConversationStore();
+  const { setShouldHideSuggestions, clearMessageToSend } =
+    useConversationStore();
 
   const gripRef = useRef<HTMLDivElement | null>(null);
   /** After a real resize drag, swallow the synthetic click so it doesn't toggle `isGripVisible`. */
@@ -68,6 +69,9 @@ export const useGripResize = (
     onGripDragStart: handleGripDragStart,
     onGripDragEnd: handleGripDragEnd,
     value: messageToSend ?? undefined,
+    // Consume the value once applied so a never-sent prefill (e.g. from
+    // "Branch from here") can't replay into another conversation's composer.
+    onValueApplied: clearMessageToSend,
     enableManualResize: true,
   });
 
