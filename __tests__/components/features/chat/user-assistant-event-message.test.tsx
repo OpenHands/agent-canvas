@@ -1,0 +1,187 @@
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { MemoryRouter, useLocation } from "react-router";
+import { renderWithProviders } from "test-utils";
+import type { MessageEvent } from "#/types/agent-server/core";
+import { I18nKey } from "#/i18n/declaration";
+import { UserAssistantEventMessage } from "#/components/conversation-events/chat/event-message-components/user-assistant-event-message";
+import { useConversationStore } from "#/stores/conversation-store";
+import ConversationService from "#/api/conversation-service/conversation-service.api";
+import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
+import type { DirectConversationInfo } from "#/api/agent-server-adapter";
+
+const { useActiveBackendMock, useOptionalConversationIdMock, setMessageToSendMock } =
+  vi.hoisted(() => ({
+    useActiveBackendMock: vi.fn(),
+    useOptionalConversationIdMock: vi.fn(),
+    setMessageToSendMock: vi.fn(),
+  }));
+
+// These provide test context (backend kind, current conversation id); the
+// fork behaviour itself is exercised through the real hook against a mocked
+// service (per the repo convention: mock the service, not the hook).
+vi.mock("#/hooks/use-conversation-id", () => ({
+  useOptionalConversationId: () => useOptionalConversationIdMock(),
+}));
+
+vi.mock("#/contexts/active-backend-context", () => ({
+  useActiveBackend: () => useActiveBackendMock(),
+}));
+
+// test-utils re-inits i18n with empty resources, so `t()` returns the key —
+// which becomes the button's accessible name (aria-label).
+const BRANCH_LABEL = I18nKey.CHAT_INTERFACE$BRANCH_FROM_HERE;
+const forkResult = { id: "fork-123" } as DirectConversationInfo;
+
+let forkSpy: ReturnType<typeof vi.spyOn>;
+let parentSpy: ReturnType<typeof vi.spyOn>;
+
+const makeEvent = (source: "user" | "agent", id: string): MessageEvent =>
+  ({
+    id,
+    source,
+    timestamp: "2024-01-01T00:00:00.000Z",
+    llm_message: {
+      role: source === "user" ? "user" : "assistant",
+      content: [{ type: "text", text: "Hello world" }],
+    },
+    critic_result: null,
+  }) as unknown as MessageEvent;
+
+function LocationProbe() {
+  return <div data-testid="location">{useLocation().pathname}</div>;
+}
+
+const renderMessage = (event: MessageEvent) =>
+  renderWithProviders(
+    <MemoryRouter initialEntries={["/conversations/conv-1"]}>
+      <UserAssistantEventMessage
+        event={event}
+        isLastMessage={false}
+        isFromPlanningAgent={false}
+      />
+      <LocationProbe />
+    </MemoryRouter>,
+  );
+
+describe("UserAssistantEventMessage — branch action", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    useActiveBackendMock.mockReset();
+    useOptionalConversationIdMock.mockReset();
+    setMessageToSendMock.mockReset();
+
+    useActiveBackendMock.mockReturnValue({
+      backend: { kind: "local" },
+      orgId: null,
+    });
+    useOptionalConversationIdMock.mockReturnValue({ conversationId: "conv-1" });
+
+    useConversationStore.setState({ setMessageToSend: setMessageToSendMock });
+    ConversationService.setCurrentConversation(null);
+
+    forkSpy = vi
+      .spyOn(AgentServerConversationService, "forkConversation")
+      .mockResolvedValue(forkResult);
+    // Default: the message has a parent (the common case), so edit-mode
+    // branches before it.
+    parentSpy = vi
+      .spyOn(AgentServerConversationService, "getEventParentId")
+      .mockResolvedValue("evt-parent");
+  });
+
+  it("branches an assistant message inclusively, without a parent lookup or prefill", async () => {
+    renderMessage(makeEvent("agent", "evt-agent"));
+
+    // Actions only appear on hover.
+    fireEvent.mouseEnter(screen.getByTestId("agent-message"));
+    fireEvent.click(screen.getByRole("button", { name: BRANCH_LABEL }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/conversations/fork-123",
+      ),
+    );
+    expect(parentSpy).not.toHaveBeenCalled();
+    expect(forkSpy).toHaveBeenCalledWith("conv-1", "evt-agent", undefined);
+    expect(setMessageToSendMock).not.toHaveBeenCalled();
+  });
+
+  it("edits a user message: branches at its parent and loads its text into the composer", async () => {
+    renderMessage(makeEvent("user", "evt-user"));
+
+    fireEvent.mouseEnter(screen.getByTestId("user-message"));
+    fireEvent.click(screen.getByRole("button", { name: BRANCH_LABEL }));
+
+    await waitFor(() =>
+      expect(forkSpy).toHaveBeenCalledWith("conv-1", "evt-parent", undefined),
+    );
+    expect(parentSpy).toHaveBeenCalledWith("conv-1", "evt-user");
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/conversations/fork-123",
+    );
+    await waitFor(() =>
+      expect(setMessageToSendMock).toHaveBeenCalledWith(
+        expect.stringContaining("Hello world"),
+      ),
+    );
+  });
+
+  it("does not prefill the composer when the message has no parent (inclusive fallback)", async () => {
+    parentSpy.mockResolvedValue(undefined);
+    renderMessage(makeEvent("user", "evt-user"));
+
+    fireEvent.mouseEnter(screen.getByTestId("user-message"));
+    fireEvent.click(screen.getByRole("button", { name: BRANCH_LABEL }));
+
+    await waitFor(() =>
+      expect(forkSpy).toHaveBeenCalledWith("conv-1", "evt-user", undefined),
+    );
+    expect(setMessageToSendMock).not.toHaveBeenCalled();
+  });
+
+  it("titles the fork distinctly from its source conversation", async () => {
+    ConversationService.setCurrentConversation({
+      id: "conv-1",
+      title: "Trip planning",
+    } as AppConversation);
+    renderMessage(makeEvent("user", "evt-user"));
+
+    fireEvent.mouseEnter(screen.getByTestId("user-message"));
+    fireEvent.click(screen.getByRole("button", { name: BRANCH_LABEL }));
+
+    await waitFor(() =>
+      expect(forkSpy).toHaveBeenCalledWith(
+        "conv-1",
+        "evt-parent",
+        "Trip planning (branch)",
+      ),
+    );
+  });
+
+  it("hides the branch action on the cloud backend", () => {
+    useActiveBackendMock.mockReturnValue({
+      backend: { kind: "cloud" },
+      orgId: null,
+    });
+
+    renderMessage(makeEvent("user", "evt-user"));
+
+    fireEvent.mouseEnter(screen.getByTestId("user-message"));
+    expect(
+      screen.queryByRole("button", { name: BRANCH_LABEL }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the branch action outside of a conversation", () => {
+    useOptionalConversationIdMock.mockReturnValue({ conversationId: undefined });
+
+    renderMessage(makeEvent("agent", "evt-agent"));
+
+    fireEvent.mouseEnter(screen.getByTestId("agent-message"));
+    expect(
+      screen.queryByRole("button", { name: BRANCH_LABEL }),
+    ).not.toBeInTheDocument();
+  });
+});

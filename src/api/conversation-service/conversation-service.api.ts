@@ -22,6 +22,10 @@ class ConversationService {
     this.currentConversation = currentConversation;
   }
 
+  static getCurrentConversation(): AppConversation | null {
+    return this.currentConversation;
+  }
+
   private static getClientOverrides() {
     return {
       sessionApiKey: this.currentConversation?.session_api_key,
