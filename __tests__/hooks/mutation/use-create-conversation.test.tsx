@@ -20,7 +20,9 @@ vi.mock("#/hooks/use-tracking", () => ({
 // query the global MSW layer would answer non-deterministically under test
 // timing.
 const { useLlmProfilesMock } = vi.hoisted(() => ({
-  useLlmProfilesMock: vi.fn(() => ({ data: { active_profile: null } })),
+  useLlmProfilesMock: vi.fn(() => ({
+    data: { active_profile: null as string | null },
+  })),
 }));
 vi.mock("#/hooks/query/use-llm-profiles", () => ({
   useLlmProfiles: () => useLlmProfilesMock(),
@@ -42,6 +44,7 @@ const { listAgentProfilesMock } = vi.hoisted(() => ({
 vi.mock("#/api/agent-profiles-service/agent-profiles-service.api", () => ({
   __esModule: true,
   default: { listProfiles: listAgentProfilesMock },
+  WELL_KNOWN_DEFAULT_AGENT_PROFILE_NAME: "default",
 }));
 listAgentProfilesMock.mockResolvedValue({
   profiles: [],
@@ -73,7 +76,9 @@ describe("useCreateConversation", () => {
       profiles: [],
       active_profile: null,
     });
+    useLlmProfilesMock.mockReturnValue({ data: { active_profile: null } });
     removeStoredConversationMetadata("conv-with-plugins");
+    removeStoredConversationMetadata("conv-ref-stamp");
   });
 
   it("passes suggested tasks to the V1 create conversation API", async () => {
@@ -351,6 +356,102 @@ describe("useCreateConversation", () => {
       expect(
         getStoredConversationMetadata("conv-with-plugins")?.plugins,
       ).toEqual([{ source: "github:o/a", ref: null, repo_path: "plugins/a" }]),
+    );
+  });
+
+  it("launches the seeded `default` profile via agent_settings so canvas enrichments survive", async () => {
+    // The active profile IS the well-known default → it's the enriched baseline
+    // (mirrors agent_settings), not a deliberate profile pick, so the launch
+    // stays on the agent_settings path (no profile tail) even though its
+    // llm_profile_ref resolves. Keeps <RUNTIME_SERVICES>/canvas_ui/project
+    // skills, which the profile-resolution path drops.
+    listAgentProfilesMock.mockResolvedValue({
+      profiles: [
+        {
+          id: "profile-default",
+          name: "default",
+          agent_kind: "openhands",
+          revision: 1,
+          llm_profile_ref: "gpt",
+          mcp_server_refs: null,
+        },
+      ],
+      active_agent_profile_id: "profile-default",
+    });
+    listLlmProfilesMock.mockResolvedValue({
+      profiles: [{ name: "gpt" }],
+      active_profile: "gpt",
+    });
+    const createConversationSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue({
+        id: "task-id",
+        app_conversation_id: "conv-1",
+        agent_server_url: "http://agent-server.local",
+      } as never);
+
+    const { result } = renderHook(() => useCreateConversation(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={new QueryClient()}>
+          {children}
+        </QueryClientProvider>
+      ),
+    });
+
+    await result.current.mutateAsync({ query: "hello" });
+
+    const call = createConversationSpy.mock.lastCall;
+    expect(call?.[9]).toBeUndefined();
+  });
+
+  it("stamps the launched openhands profile's llm_profile_ref into conversation metadata (#1082)", async () => {
+    // A named (non-default) profile launches via the profile path and runs its
+    // own llm_profile_ref — which differs from the standalone active LLM
+    // profile — so the switcher pill must name the ref, not the active profile.
+    useLlmProfilesMock.mockReturnValue({
+      data: { active_profile: "standalone-active" },
+    });
+    listAgentProfilesMock.mockResolvedValue({
+      profiles: [
+        {
+          id: "profile-custom",
+          name: "My Profile",
+          agent_kind: "openhands",
+          revision: 2,
+          llm_profile_ref: "claude",
+          mcp_server_refs: null,
+        },
+      ],
+      active_agent_profile_id: "profile-custom",
+    });
+    listLlmProfilesMock.mockResolvedValue({
+      profiles: [{ name: "claude" }],
+      active_profile: "standalone-active",
+    });
+    const createConversationSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue({
+        id: "task-id",
+        app_conversation_id: "conv-ref-stamp",
+        agent_server_url: "http://agent-server.local",
+      } as never);
+
+    const { result } = renderHook(() => useCreateConversation(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={new QueryClient()}>
+          {children}
+        </QueryClientProvider>
+      ),
+    });
+
+    await result.current.mutateAsync({ query: "hello" });
+
+    const call = createConversationSpy.mock.lastCall;
+    expect(call?.[9]).toBe("profile-custom");
+    await waitFor(() =>
+      expect(
+        getStoredConversationMetadata("conv-ref-stamp")?.active_profile,
+      ).toBe("claude"),
     );
   });
 });

@@ -9,6 +9,7 @@ import { useAgentProfiles } from "#/hooks/query/use-agent-profiles";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
 import AgentProfilesService, {
+  WELL_KNOWN_DEFAULT_AGENT_PROFILE_NAME,
   type AgentProfileListResponse,
 } from "#/api/agent-profiles-service/agent-profiles-service.api";
 import PluginsManagementService, {
@@ -128,6 +129,19 @@ export const useCreateConversation = () => {
         : undefined;
       let effectiveAgentProfileId = requestedAgentProfileId;
       if (
+        resolvedAgentProfile?.name === WELL_KNOWN_DEFAULT_AGENT_PROFILE_NAME
+      ) {
+        // The seeded `default` profile is the enriched baseline, not a deliberate
+        // profile pick — it mirrors global agent_settings. Launch it via
+        // agent_settings so the canvas-only enrichments the profile-resolution
+        // path drops survive for the common home-launch: the <RUNTIME_SERVICES>
+        // system-message suffix, the canvas_ui tool, and project-skill loading
+        // (buildAgentContext). Named profiles are deliberate custom configs and
+        // still use the profile path (accepting that enrichment boundary).
+        // Trade-off: per-profile fields set on `default` itself don't apply on
+        // home-launch — custom per-profile config belongs in a named profile.
+        effectiveAgentProfileId = undefined;
+      } else if (
         resolvedAgentProfile?.agent_kind === "openhands" &&
         resolvedAgentProfile.llm_profile_ref
       ) {
@@ -139,6 +153,10 @@ export const useCreateConversation = () => {
           const llm = await queryClient.ensureQueryData({
             queryKey: [...LLM_PROFILES_QUERY_KEYS.all, backend.id, orgId],
             queryFn: ProfilesService.listProfiles,
+            // Match the agent-profiles fetch above: on a backend where this
+            // errors, fall back to agent_settings immediately rather than
+            // stalling the send through the default exponential backoff.
+            retry: false,
           });
           llmProfileExists = llm.profiles.some(
             (profile) => profile.name === resolvedAgentProfile.llm_profile_ref,
@@ -231,7 +249,19 @@ export const useCreateConversation = () => {
           .filter((plugin) => !seen.has(pluginReferenceKey(plugin)));
         attachedPlugins = [...explicitPlugins, ...enabledInstalled];
       }
-      const activeProfile = llmProfiles?.active_profile ?? null;
+      // A launch from a named OpenHands profile runs that profile's
+      // `llm_profile_ref`, which can differ from the standalone active LLM
+      // profile — stamp the ref so the switcher pill names the exact profile
+      // the conversation runs (#1082). The agent_settings path (the `default`
+      // baseline or a dangling ref, where effectiveAgentProfileId is cleared)
+      // runs the active LLM, so it keeps `active_profile`. ACP profiles carry
+      // no LLM profile, so they fall through to the active-profile stamp
+      // (unused by the ACP model chip).
+      const activeProfile =
+        effectiveAgentProfileId &&
+        resolvedAgentProfile?.agent_kind === "openhands"
+          ? resolvedAgentProfile.llm_profile_ref
+          : (llmProfiles?.active_profile ?? null);
       if (localConversationId && (activeProfile || attachedPlugins.length)) {
         const prev = getStoredConversationMetadata(localConversationId);
         setStoredConversationMetadata(localConversationId, {
