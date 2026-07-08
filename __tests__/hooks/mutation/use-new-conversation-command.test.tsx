@@ -39,6 +39,21 @@ vi.mock("#/utils/custom-toast-handlers", () => ({
   TOAST_OPTIONS: { position: "top-right" },
 }));
 
+// /new fires conversation_created through the real useTracking hook. Mock the
+// lower-level deps (posthog + settings) rather than useTracking itself so the
+// emitted payload can be asserted.
+const { captureMock } = vi.hoisted(() => ({ captureMock: vi.fn() }));
+
+vi.mock("posthog-js/react", () => ({
+  usePostHog: () => ({ capture: captureMock }),
+}));
+
+vi.mock("#/hooks/query/use-settings", () => ({
+  useSettings: () => ({
+    data: { email: "user@example.com", user_consents_to_analytics: true },
+  }),
+}));
+
 const mockConversation = {
   id: "conv-123",
   title: "Test Conversation",
@@ -231,6 +246,36 @@ describe("useNewConversationCommand", () => {
         expect.objectContaining({ id: "clear-conversation" }),
       );
       expect(mockToast.dismiss).toHaveBeenCalledWith("clear-conversation");
+    });
+  });
+
+  it("emits conversation_created on success with the /new no-context payload", async () => {
+    const readyTask = makeStartTask();
+    vi.spyOn(
+      AgentServerConversationService,
+      "createConversation",
+    ).mockResolvedValue(readyTask as never);
+
+    const { result } = renderHook(() => useNewConversationCommand(), {
+      wrapper,
+    });
+
+    await result.current.mutateAsync();
+
+    await waitFor(() => {
+      expect(captureMock).toHaveBeenCalledWith(
+        "conversation_created",
+        expect.objectContaining({
+          conversation_id: "new-conv-999",
+          task_id: "task-789",
+          is_start_task: false,
+          has_repository: false,
+          has_workspace: false,
+          has_initial_query: false,
+          has_parent_conversation: false,
+          entry_point: "new_command",
+        }),
+      );
     });
   });
 });

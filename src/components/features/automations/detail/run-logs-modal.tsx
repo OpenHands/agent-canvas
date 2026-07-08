@@ -9,6 +9,12 @@ import {
 import type { BashOutput } from "@openhands/typescript-client";
 import { cn } from "#/utils/utils";
 import { modalTitleLgMediumClassName } from "#/utils/modal-classes";
+import {
+  AutomationRunStatus,
+  type Automation,
+  type AutomationRun,
+} from "#/types/automation";
+import { DebugAutomationButton } from "./debug-automation-button";
 
 /**
  * Localized empty-state message key for each `SandboxIssue` reason.
@@ -31,6 +37,10 @@ interface RunLogsModalProps {
   bashCommandId: string | null;
   isOpen: boolean;
   onClose: () => void;
+  /** The run these logs belong to; enables the debug action for failed runs. */
+  run?: AutomationRun;
+  /** The parent automation, used to add context to the debug prompt. */
+  automation?: Automation;
 }
 
 function concatStream(outputs: BashOutput[], key: "stdout" | "stderr"): string {
@@ -52,6 +62,8 @@ export function RunLogsModal({
   bashCommandId,
   isOpen,
   onClose,
+  run,
+  automation,
 }: RunLogsModalProps) {
   const { t } = useTranslation("openhands");
   const [activeTab, setActiveTab] = useState<LogTab>("stdout");
@@ -231,6 +243,16 @@ export function RunLogsModal({
             </pre>
           )}
         </div>
+
+        {run?.status === AutomationRunStatus.FAILED && (
+          <div className="mt-4 flex justify-end">
+            <DebugAutomationButton
+              run={run}
+              automation={automation}
+              stderr={stderr}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

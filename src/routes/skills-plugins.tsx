@@ -15,6 +15,7 @@ import {
 } from "#/components/features/plugins/build-plugins-view-model";
 import { usePluginsMarketplace } from "#/hooks/query/use-plugins-marketplace";
 import { usePlugins } from "#/hooks/query/use-plugins";
+import { useLocalPlugins } from "#/hooks/query/use-local-plugins";
 import { useInstallPlugin } from "#/hooks/mutation/use-install-plugin";
 import { useSetPluginEnabled } from "#/hooks/mutation/use-set-plugin-enabled";
 import { useUninstallPlugin } from "#/hooks/mutation/use-uninstall-plugin";
@@ -37,6 +38,7 @@ export default function SkillsPluginsScreen() {
   const { data: marketplace, isLoading: marketplaceLoading } =
     usePluginsMarketplace();
   const { data: installed, isLoading: installedLoading } = usePlugins();
+  const { data: local, isLoading: localLoading } = useLocalPlugins();
 
   const installPlugin = useInstallPlugin();
   const setPluginEnabled = useSetPluginEnabled();
@@ -50,8 +52,8 @@ export default function SkillsPluginsScreen() {
   const [showAddModal, setShowAddModal] = React.useState(false);
 
   const plugins = React.useMemo(
-    () => buildPluginsViewModel(marketplace, installed),
-    [marketplace, installed],
+    () => buildPluginsViewModel(marketplace, installed, local),
+    [marketplace, installed, local],
   );
 
   const filteredPlugins = React.useMemo(
@@ -68,7 +70,7 @@ export default function SkillsPluginsScreen() {
     ? (plugins.find((plugin) => plugin.name === selectedName) ?? null)
     : null;
 
-  const isLoading = marketplaceLoading || installedLoading;
+  const isLoading = marketplaceLoading || installedLoading || localLoading;
 
   const pendingName =
     (setPluginEnabled.isPending

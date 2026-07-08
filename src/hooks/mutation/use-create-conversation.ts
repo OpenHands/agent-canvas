@@ -44,6 +44,7 @@ interface CreateConversationVariables {
   // active AgentProfile (if any) is used so home-composed conversations
   // launch from the user's selected profile (#3727).
   agentProfileId?: string;
+  entryPoint?: string; // analytics only; not forwarded to the service
 }
 
 interface CreateConversationResponse {
@@ -262,9 +263,18 @@ export const useCreateConversation = () => {
         task_id: conversation.id,
       };
     },
-    onSuccess: async (_, { repository }) => {
+    onSuccess: async (data, variables) => {
       trackConversationCreated({
-        hasRepository: !!repository,
+        conversationId: data.conversation_id,
+        taskId: data.task_id,
+        hasRepository: !!variables.repository,
+        gitProvider: variables.repository?.gitProvider,
+        hasWorkspace: !!variables.workingDir,
+        workspaceMode: variables.workspaceMode,
+        hasInitialQuery: !!variables.query,
+        agentType: variables.agentType,
+        hasParentConversation: !!variables.parentConversationId,
+        entryPoint: variables.entryPoint,
       });
 
       // Invalidate (rather than remove) so the existing paginated list stays

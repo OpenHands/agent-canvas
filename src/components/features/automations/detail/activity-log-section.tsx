@@ -4,18 +4,19 @@ import { I18nKey } from "#/i18n/declaration";
 import { useAutomationRuns } from "#/hooks/query/use-automation-detail";
 import ActivityIcon from "#/icons/activity.svg?react";
 import { ActivityLogItem } from "./activity-log-item";
+import type { Automation } from "#/types/automation";
 
 interface ActivityLogSectionProps {
-  automationId: string;
+  automation: Automation;
 }
 
 const PAGE_SIZE = 20;
 
-export function ActivityLogSection({ automationId }: ActivityLogSectionProps) {
+export function ActivityLogSection({ automation }: ActivityLogSectionProps) {
   const { t } = useTranslation("openhands");
   const [limit, setLimit] = useState(PAGE_SIZE);
   const { data, isLoading } = useAutomationRuns({
-    id: automationId,
+    id: automation.id,
     limit,
     offset: 0,
   });
@@ -60,7 +61,7 @@ export function ActivityLogSection({ automationId }: ActivityLogSectionProps) {
               key={run.id}
               className={index > 0 ? "border-t border-[var(--oh-border)]" : ""}
             >
-              <ActivityLogItem run={run} />
+              <ActivityLogItem run={run} automation={automation} />
             </div>
           ))}
 

@@ -18,6 +18,7 @@ const STATUS_FILTERS: ReadonlyArray<{
   { value: "all", labelKey: I18nKey.SETTINGS$PLUGINS_FILTER_ALL },
   { value: "installed", labelKey: I18nKey.SETTINGS$PLUGINS_FILTER_INSTALLED },
   { value: "available", labelKey: I18nKey.SETTINGS$PLUGINS_FILTER_AVAILABLE },
+  { value: "local", labelKey: I18nKey.SETTINGS$PLUGINS_FILTER_LOCAL },
 ];
 
 export function PluginsToolbar({

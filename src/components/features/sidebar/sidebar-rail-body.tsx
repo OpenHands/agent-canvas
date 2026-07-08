@@ -39,7 +39,6 @@ export interface SidebarRailBodyProps {
   showCollapseToggle: boolean;
   showMobileCloseButton?: boolean;
   onCloseMobile?: () => void;
-  linkDisabled: boolean;
   collapseToggleLabel: string;
   onCollapse: () => void;
   onExpand: () => void;
@@ -62,7 +61,6 @@ export function SidebarRailBody({
   showCollapseToggle,
   showMobileCloseButton = false,
   onCloseMobile,
-  linkDisabled,
   collapseToggleLabel,
   onCollapse,
   onExpand,
@@ -163,7 +161,6 @@ export function SidebarRailBody({
           end
           label={t(I18nKey.SIDEBAR$NEW_CHAT)}
           testId="sidebar-conversations-link"
-          disabled={linkDisabled}
           collapsed={collapsed}
           icon={<Plus width={ICON_SIZE} height={ICON_SIZE} />}
         />
@@ -171,7 +168,6 @@ export function SidebarRailBody({
           to="/customize"
           label={t(I18nKey.NAV$CUSTOMIZE)}
           testId="sidebar-skills-link"
-          disabled={linkDisabled}
           collapsed={collapsed}
           forceActive={isExtensionsActive}
           icon={
@@ -206,7 +202,6 @@ export function SidebarRailBody({
           to="/automations"
           label={t(I18nKey.SIDEBAR$AUTOMATIONS)}
           testId="sidebar-automations-link"
-          disabled={linkDisabled}
           collapsed={collapsed}
           icon={<AutomationsIcon width={ICON_SIZE} height={ICON_SIZE} />}
         />
