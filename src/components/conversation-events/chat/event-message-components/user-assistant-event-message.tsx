@@ -1,6 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router";
+import { useNavigation } from "#/context/navigation-context";
 import { MessageEvent } from "#/types/agent-server/core";
 import { ChatMessage } from "../../../features/chat/chat-message";
 import { ImageCarousel } from "../../../features/images/image-carousel";
@@ -30,7 +30,7 @@ export function UserAssistantEventMessage({
   isFromPlanningAgent,
 }: UserAssistantEventMessageProps) {
   const { t } = useTranslation("openhands");
-  const navigate = useNavigate();
+  const { navigate } = useNavigation();
   const { conversationId } = useOptionalConversationId();
   const isCloud = useActiveBackend().backend.kind === "cloud";
   const { mutate: forkConversation, isPending: isForking } =

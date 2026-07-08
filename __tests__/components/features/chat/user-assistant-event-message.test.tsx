@@ -1,6 +1,5 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { MemoryRouter, useLocation } from "react-router";
 import { renderWithProviders } from "test-utils";
 import type { MessageEvent } from "#/types/agent-server/core";
 import { I18nKey } from "#/i18n/declaration";
@@ -11,22 +10,32 @@ import AgentServerConversationService from "#/api/conversation-service/agent-ser
 import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 import type { DirectConversationInfo } from "#/api/agent-server-adapter";
 
-const { useActiveBackendMock, useOptionalConversationIdMock, setMessageToSendMock } =
-  vi.hoisted(() => ({
-    useActiveBackendMock: vi.fn(),
-    useOptionalConversationIdMock: vi.fn(),
-    setMessageToSendMock: vi.fn(),
-  }));
+const {
+  useActiveBackendMock,
+  useOptionalConversationIdMock,
+  setMessageToSendMock,
+  navigateMock,
+} = vi.hoisted(() => ({
+  useActiveBackendMock: vi.fn(),
+  useOptionalConversationIdMock: vi.fn(),
+  setMessageToSendMock: vi.fn(),
+  navigateMock: vi.fn(),
+}));
 
-// These provide test context (backend kind, current conversation id); the
-// fork behaviour itself is exercised through the real hook against a mocked
-// service (per the repo convention: mock the service, not the hook).
+// These provide test context (backend kind, conversation id, navigation); the
+// fork behaviour is exercised through the real hook against a mocked service
+// (per the repo convention: mock the service, not the hook).
 vi.mock("#/hooks/use-conversation-id", () => ({
   useOptionalConversationId: () => useOptionalConversationIdMock(),
 }));
 
 vi.mock("#/contexts/active-backend-context", () => ({
   useActiveBackend: () => useActiveBackendMock(),
+}));
+
+vi.mock("#/context/navigation-context", async (importActual) => ({
+  ...(await importActual<object>()),
+  useNavigation: () => ({ navigate: navigateMock }),
 }));
 
 // test-utils re-inits i18n with empty resources, so `t()` returns the key —
@@ -62,20 +71,13 @@ const makeImageOnlyEvent = (id: string): MessageEvent =>
     critic_result: null,
   }) as unknown as MessageEvent;
 
-function LocationProbe() {
-  return <div data-testid="location">{useLocation().pathname}</div>;
-}
-
 const renderMessage = (event: MessageEvent) =>
   renderWithProviders(
-    <MemoryRouter initialEntries={["/conversations/conv-1"]}>
-      <UserAssistantEventMessage
-        event={event}
-        isLastMessage={false}
-        isFromPlanningAgent={false}
-      />
-      <LocationProbe />
-    </MemoryRouter>,
+    <UserAssistantEventMessage
+      event={event}
+      isLastMessage={false}
+      isFromPlanningAgent={false}
+    />,
   );
 
 describe("UserAssistantEventMessage — branch action", () => {
@@ -84,6 +86,7 @@ describe("UserAssistantEventMessage — branch action", () => {
     useActiveBackendMock.mockReset();
     useOptionalConversationIdMock.mockReset();
     setMessageToSendMock.mockReset();
+    navigateMock.mockReset();
 
     useActiveBackendMock.mockReturnValue({
       backend: { kind: "local" },
@@ -119,9 +122,7 @@ describe("UserAssistantEventMessage — branch action", () => {
     fireEvent.click(screen.getByRole("button", { name: BRANCH_LABEL }));
 
     await waitFor(() =>
-      expect(screen.getByTestId("location")).toHaveTextContent(
-        "/conversations/fork-123",
-      ),
+      expect(navigateMock).toHaveBeenCalledWith("/conversations/fork-123"),
     );
     expect(parentSpy).not.toHaveBeenCalled();
     expect(forkSpy).toHaveBeenCalledWith("conv-1", "evt-agent", undefined);
@@ -138,9 +139,7 @@ describe("UserAssistantEventMessage — branch action", () => {
       expect(forkSpy).toHaveBeenCalledWith("conv-1", "evt-parent", undefined),
     );
     expect(parentSpy).toHaveBeenCalledWith("conv-1", "evt-user");
-    expect(screen.getByTestId("location")).toHaveTextContent(
-      "/conversations/fork-123",
-    );
+    expect(navigateMock).toHaveBeenCalledWith("/conversations/fork-123");
     await waitFor(() =>
       expect(setMessageToSendMock).toHaveBeenCalledWith(
         expect.stringContaining("Hello world"),
@@ -195,9 +194,7 @@ describe("UserAssistantEventMessage — branch action", () => {
     fireEvent.click(screen.getByRole("button", { name: BRANCH_LABEL }));
 
     await waitFor(() =>
-      expect(screen.getByTestId("location")).toHaveTextContent(
-        "/conversations/fork-123",
-      ),
+      expect(navigateMock).toHaveBeenCalledWith("/conversations/fork-123"),
     );
     expect(setMessageToSendMock).not.toHaveBeenCalled();
   });
