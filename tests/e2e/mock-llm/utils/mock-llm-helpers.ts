@@ -494,8 +494,8 @@ export async function ensureMockLLMAgentProfile(
     `${BACKEND_URL}/api/agent-profiles/${encodeURIComponent(name)}`,
     {
       headers,
-      // skill_refs omitted: the server now defaults an unset OpenHands
-      // profile's skill_refs to null (all discovered skills) — software-agent-sdk#4017.
+      // disabled_skills omitted: an OpenHands profile launches with all
+      // discovered skills by default (an empty deny-list) — software-agent-sdk#4017.
       data: {
         agent_kind: "openhands",
         llm_profile_ref: llmProfileRef,

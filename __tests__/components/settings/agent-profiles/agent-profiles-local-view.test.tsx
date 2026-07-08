@@ -180,14 +180,13 @@ describe("AgentProfilesLocalView save mapping", () => {
     // shows; the save is a whole-profile overwrite, so they must ride the
     // payload untouched (with server-managed identity stripped).
     const storedProfile = {
-      schema_version: 1,
+      schema_version: 3,
       id: "p-1",
       name: "default",
       revision: 3,
       agent_kind: "openhands",
       llm_profile_ref: "default",
       agent: "CodeActAgent",
-      skills: [],
       system_message_suffix: "Be terse.",
       condenser: { kind: "NoOpCondenserSettings" },
       verification: { critic_enabled: true },
@@ -195,7 +194,7 @@ describe("AgentProfilesLocalView save mapping", () => {
       enable_switch_llm_tool: false,
       tool_concurrency_limit: 4,
       mcp_server_refs: ["github"],
-      skill_refs: ["deploy-checklist"],
+      disabled_skills: ["deploy-checklist"],
     };
     vi.mocked(AgentProfilesService.getProfile).mockResolvedValue({
       name: "default",
@@ -218,7 +217,8 @@ describe("AgentProfilesLocalView save mapping", () => {
     await user.click(screen.getByTestId("save-agent-profile-btn"));
 
     await waitFor(() => expect(saveMutate).toHaveBeenCalledTimes(1));
-    // Encrypted exposure so skills[].mcp_tools round-trip as tokens, not masks.
+    // Profiles are secret-free now (no embedded skills), so exposeSecrets is a
+    // server-side no-op; canvas still passes "encrypted" for signature parity.
     expect(AgentProfilesService.getProfile).toHaveBeenCalledWith(
       "default",
       "encrypted",
@@ -234,7 +234,7 @@ describe("AgentProfilesLocalView save mapping", () => {
       enable_switch_llm_tool: false,
       tool_concurrency_limit: 4,
       mcp_server_refs: ["github"],
-      skill_refs: ["deploy-checklist"],
+      disabled_skills: ["deploy-checklist"],
     });
     expect(profile).not.toHaveProperty("id");
     expect(profile).not.toHaveProperty("name");

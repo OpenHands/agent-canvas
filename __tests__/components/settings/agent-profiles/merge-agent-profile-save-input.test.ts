@@ -6,19 +6,18 @@ import type {
 import { mergeAgentProfileSaveInput } from "#/components/features/settings/agent-profiles/merge-agent-profile-save-input";
 
 // Mirrors the seeded `default` profile: fields the minimal editor does NOT
-// model (condenser, verification, suffix, refs, embedded skills) carry
-// non-default values so a wipe-to-defaults would be visible. `skill_refs`
-// rides untyped (the pinned ts-client predates it) — the merge must still
-// round-trip it, so the fixture includes it via the cast.
+// model (condenser, verification, suffix, mcp_server_refs, the disabled_skills
+// deny-list) carry non-default values so a wipe-to-defaults would be visible.
+// `disabled_skills` rides untyped (the pinned ts-client predates it) — the
+// merge must still round-trip it, so the fixture includes it via the cast.
 const storedOpenHands = {
-  schema_version: 1,
+  schema_version: 3,
   id: "11111111-1111-1111-1111-111111111111",
   name: "default",
   revision: 3,
   agent_kind: "openhands",
   llm_profile_ref: "old-llm",
   agent: "CodeActAgent",
-  skills: [{ name: "embedded-skill", content: "..." }],
   system_message_suffix: "Be terse.",
   condenser: { kind: "NoOpCondenserSettings" },
   verification: {
@@ -34,7 +33,7 @@ const storedOpenHands = {
   enable_switch_llm_tool: false,
   tool_concurrency_limit: 4,
   mcp_server_refs: ["github"],
-  skill_refs: ["deploy-checklist"],
+  disabled_skills: ["deploy-checklist"],
 } as unknown as AgentProfile;
 
 const storedAcp = {
@@ -50,7 +49,6 @@ const storedAcp = {
   acp_command: null,
   acp_args: null,
   mcp_server_refs: ["linear"],
-  skill_refs: null,
 } as unknown as AgentProfile;
 
 describe("mergeAgentProfileSaveInput", () => {
@@ -74,9 +72,8 @@ describe("mergeAgentProfileSaveInput", () => {
       condenser: { kind: "NoOpCondenserSettings" },
       verification: { critic_enabled: true, critic_threshold: 0.8 },
       system_message_suffix: "Be terse.",
-      skills: [{ name: "embedded-skill", content: "..." }],
       mcp_server_refs: ["github"],
-      skill_refs: ["deploy-checklist"],
+      disabled_skills: ["deploy-checklist"],
       enable_switch_llm_tool: false,
       tool_concurrency_limit: 4,
     });
@@ -99,7 +96,6 @@ describe("mergeAgentProfileSaveInput", () => {
       acp_session_mode: "bypassPermissions",
       acp_prompt_timeout: 900,
       mcp_server_refs: ["linear"],
-      skill_refs: null,
     });
   });
 
