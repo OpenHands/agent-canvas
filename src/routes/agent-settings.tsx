@@ -131,7 +131,15 @@ export interface AgentProfileFieldsInput {
  * command (``acp_command: null`` — the profile resolver falls back to the
  * provider default); a customized or ``custom`` command is stored verbatim as a
  * shell string. OpenHands: reuses the schema-driven ``tool_concurrency_limit``
- * coercion, which **throws** on invalid input (callers catch at save time).
+ * coercion, which **throws** on invalid input (callers catch at save time). A
+ * blank concurrency field always emits an explicit value (the schema default
+ * when the coercion is empty) rather than omitting the key — the profile
+ * editor's save is a whole-profile overwrite (``mergeAgentProfileSaveInput``
+ * spreads the stored profile under these fields), so omitting the key would
+ * let a stale stored value silently survive an edit meant to clear it back to
+ * the default (#1571 review). The backend field itself is a non-nullable
+ * ``int`` with ``ge=1``, so the default — not ``null`` — is the value that
+ * actually clears.
  */
 export function buildAgentProfileFields(
   input: AgentProfileFieldsInput,
@@ -167,9 +175,16 @@ export function buildAgentProfileFields(
   if (toolConcurrencyField) {
     // Reuse the schema-driven coercion/validation; throws on bad input.
     const coerced = coerceFieldValue(toolConcurrencyField, toolConcurrency);
-    if (coerced != null) {
-      fields.tool_concurrency_limit = Number(coerced);
-    }
+    // A blank field coerces to `null`. Always emit an explicit value — never
+    // omit the key — so a deliberate clear on an edit-save actually resets the
+    // stored profile to the schema default, instead of the whole-profile merge
+    // silently carrying the old value forward.
+    const fallback =
+      typeof toolConcurrencyField.default === "number"
+        ? toolConcurrencyField.default
+        : 1;
+    fields.tool_concurrency_limit =
+      coerced != null ? Number(coerced) : fallback;
   }
   return fields;
 }

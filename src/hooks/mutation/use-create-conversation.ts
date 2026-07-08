@@ -19,6 +19,7 @@ import {
   PLUGINS_QUERY_KEYS,
   LLM_PROFILES_QUERY_KEYS,
   AGENT_PROFILES_QUERY_KEYS,
+  AGENT_PROFILES_RETRY_OPTIONS,
 } from "#/hooks/query/query-keys";
 import { pluginReferenceKey } from "#/utils/plugin-display";
 import {
@@ -101,11 +102,12 @@ export const useCreateConversation = () => {
         agentProfiles = await queryClient.ensureQueryData({
           queryKey: [...AGENT_PROFILES_QUERY_KEYS.all, backend.id, orgId],
           queryFn: AgentProfilesService.listProfiles,
-          // A backend without the surface fails every launch — degrade to the
-          // fallback immediately rather than sitting through the default
-          // exponential-backoff retries on each send. (A cache warmed by
-          // useAgentProfiles above still retried at the hook's policy.)
-          retry: false,
+          // Shared with useAgentProfiles and redirectIfAcpActive so the retry
+          // policy for this surface can't drift between call sites (#1571
+          // review): a backend without it fails every one of these on every
+          // call, so degrade to the fallback immediately rather than sitting
+          // through the default exponential-backoff retries each time.
+          ...AGENT_PROFILES_RETRY_OPTIONS,
         });
       } catch {
         // Profiles unavailable → legacy agent_settings launch.
@@ -127,8 +129,16 @@ export const useCreateConversation = () => {
             (profile) => profile.id === requestedAgentProfileId,
           )
         : undefined;
+      // Cloud has no `agent_settings` payload to fall back to — the downgrade
+      // below only makes sense on local, where it exists and carries the
+      // canvas-only enrichments. Gating it here keeps cloud always launching
+      // from the resolved profile id, so the conversation gets
+      // `launched_agent_profile` stamped and the profile's config applied
+      // (#1571 review).
+      const isCloud = backend.kind === "cloud";
       let effectiveAgentProfileId = requestedAgentProfileId;
       if (
+        !isCloud &&
         resolvedAgentProfile?.name === WELL_KNOWN_DEFAULT_AGENT_PROFILE_NAME &&
         resolvedAgentProfile?.agent_kind === "openhands"
       ) {
@@ -147,6 +157,9 @@ export const useCreateConversation = () => {
         // still OpenHands) when an ACP profile is active — launching it via
         // agent_settings would start the wrong agent. ACP also carries no
         // <RUNTIME_SERVICES>/canvas_ui enrichment, so there's nothing to preserve.
+        //
+        // Scoped to local: cloud never writes agent_settings, so it always
+        // resolves `default` server-side via agent_profile_id (validated below).
         effectiveAgentProfileId = undefined;
       } else if (
         resolvedAgentProfile?.agent_kind === "openhands" &&

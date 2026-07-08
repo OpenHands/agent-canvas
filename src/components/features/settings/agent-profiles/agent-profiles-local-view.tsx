@@ -69,7 +69,8 @@ export function AgentProfilesLocalView() {
   const saveProfile = useSaveAgentProfile();
   const renameProfile = useRenameAgentProfile();
   const { data: profilesData } = useAgentProfiles();
-  const { data: llmProfilesData } = useLlmProfiles();
+  const { data: llmProfilesData, isLoading: isLlmProfilesLoading } =
+    useLlmProfiles();
 
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [profileName, setProfileName] = useState("");
@@ -136,9 +137,23 @@ export function AgentProfilesLocalView() {
         const profile = detail.profile;
         setEditingProfile(profile);
         setOverride(toAgentSettingsOverride(profile));
-        setLlmProfileRef(
-          profile.agent_kind === "openhands" ? profile.llm_profile_ref : "",
-        );
+        if (profile.agent_kind === "openhands") {
+          // A profile can reference an LLM profile that's since been deleted
+          // (or renamed): the dropdown would render nothing selected while
+          // `llmProfileRef` still holds the stale name and saves it straight
+          // back. Validate against the live list and fall back to the default
+          // so a dangling ref self-heals on load (#1571 review). Skip the
+          // check while the list is still loading rather than treating an
+          // unloaded cache as "not found".
+          const refIsLive =
+            isLlmProfilesLoading ||
+            llmProfiles.some((p) => p.name === profile.llm_profile_ref);
+          setLlmProfileRef(
+            refIsLive ? profile.llm_profile_ref : defaultLlmProfileRef,
+          );
+        } else {
+          setLlmProfileRef("");
+        }
         setProfileName(profile.name);
         setSaveControl(null);
         setViewMode("edit");
@@ -147,7 +162,7 @@ export function AgentProfilesLocalView() {
         displayErrorToast(t(I18nKey.ERROR$GENERIC));
       }
     },
-    [t],
+    [t, llmProfiles, isLlmProfilesLoading, defaultLlmProfileRef],
   );
 
   const handleBackToList = useCallback(() => {

@@ -15,6 +15,21 @@ vi.mock("#/hooks/use-tracking", () => ({
   }),
 }));
 
+// The default→agent_settings downgrade is local-only (#1571 review); default
+// to local so the existing (pre-review) assertions below are unaffected, and
+// override per-test to exercise the cloud path.
+interface MockActiveBackend {
+  backend: { id: string; kind: "local" | "cloud" };
+  orgId: string | null;
+}
+const mockUseActiveBackend = vi.fn<() => MockActiveBackend>(() => ({
+  backend: { id: "local-1", kind: "local" },
+  orgId: null,
+}));
+vi.mock("#/contexts/active-backend-context", () => ({
+  useActiveBackend: () => mockUseActiveBackend(),
+}));
+
 // The hook stamps the active LLM profile onto the conversation (#1082).
 // Mock it so the captured value is deterministic — the real hook fires a
 // query the global MSW layer would answer non-deterministically under test
@@ -66,6 +81,10 @@ describe("useCreateConversation", () => {
   afterEach(() => {
     // Restore the default (no active AgentProfile) so the overrides below
     // don't leak into the other create-call assertions.
+    mockUseActiveBackend.mockReturnValue({
+      backend: { id: "local-1", kind: "local" as const },
+      orgId: null,
+    });
     listAgentProfilesMock.mockReset();
     listAgentProfilesMock.mockResolvedValue({
       profiles: [],
@@ -442,6 +461,55 @@ describe("useCreateConversation", () => {
 
     const call = createConversationSpy.mock.lastCall;
     expect(call?.[9]).toBe("profile-acp-default");
+  });
+
+  it("launches the seeded `default` profile from its resolved id on cloud (no agent_settings fallback exists there) (#1571)", async () => {
+    // The local-only downgrade exists to preserve canvas-only enrichments that
+    // only ride the agent_settings path; cloud has no such payload, so the
+    // seeded `default` must always launch via agent_profile_id there — a
+    // downgrade there would send agent_profile_id: null and the conversation
+    // would never get `launched_agent_profile` stamped.
+    mockUseActiveBackend.mockReturnValue({
+      backend: { id: "cloud-1", kind: "cloud" },
+      orgId: null,
+    });
+    listAgentProfilesMock.mockResolvedValue({
+      profiles: [
+        {
+          id: "profile-default",
+          name: "default",
+          agent_kind: "openhands",
+          revision: 1,
+          llm_profile_ref: "gpt",
+          mcp_server_refs: null,
+        },
+      ],
+      active_agent_profile_id: "profile-default",
+    });
+    listLlmProfilesMock.mockResolvedValue({
+      profiles: [{ name: "gpt" }],
+      active_profile: "gpt",
+    });
+    const createConversationSpy = vi
+      .spyOn(AgentServerConversationService, "createConversation")
+      .mockResolvedValue({
+        id: "task-id",
+        app_conversation_id: "conv-1",
+        agent_server_url: "http://agent-server.local",
+      } as never);
+
+    const { result } = renderHook(() => useCreateConversation(), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={new QueryClient()}>
+          {children}
+        </QueryClientProvider>
+      ),
+    });
+
+    await result.current.mutateAsync({ query: "hello" });
+
+    const call = createConversationSpy.mock.lastCall;
+    expect(call?.[9]).toBe("profile-default");
   });
 
   it("stamps the launched openhands profile's llm_profile_ref into conversation metadata (#1082)", async () => {

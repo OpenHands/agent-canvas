@@ -40,8 +40,9 @@ export function useChatInputLlmProfileState(): ChatInputLlmProfileState {
   // per-observer `isPending` would never light up on the button (#1571).
   const isSwitching =
     useIsMutating({ mutationKey: SWITCH_LLM_PROFILE_MUTATION_KEY }) > 0;
-  // Written by switchAndLog -> recordSwitch on a successful switch, so the
-  // label/check update before the conversation refetch lands the new llm_model.
+  // Written by useSwitchLlmProfile's onSuccess -> recordModelSwitchMessage ->
+  // recordSwitch on a successful switch, so the label/check update before the
+  // conversation refetch lands the new llm_model.
   const optimisticActiveProfile = useModelStore((s) =>
     conversationId ? s.activeProfileByConversation[conversationId] : undefined,
   );

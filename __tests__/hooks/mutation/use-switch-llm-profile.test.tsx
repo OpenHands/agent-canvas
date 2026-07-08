@@ -1,5 +1,6 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AxiosError, AxiosHeaders } from "axios";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { useSwitchLlmProfile } from "#/hooks/mutation/use-switch-llm-profile";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
@@ -13,6 +14,9 @@ import {
   getStoredConversationMetadata,
   setStoredConversationMetadata,
 } from "#/api/conversation-metadata-store";
+import { displayErrorToast } from "#/utils/custom-toast-handlers";
+
+vi.mock("#/utils/custom-toast-handlers");
 
 vi.mock(
   "#/api/conversation-service/agent-server-conversation-service.api",
@@ -133,6 +137,51 @@ describe("useSwitchLlmProfile", () => {
     expect(invalidateCacheSpy).not.toHaveBeenCalled();
 
     invalidateCacheSpy.mockRestore();
+  });
+
+  // Errors surface via a tailored onError (not the global mutation toast) so a
+  // failed switch keeps the specific "Switched to {name} failed" message
+  // (#1571 review).
+  it("shows the tailored switch-failed message when the error carries no server detail", async () => {
+    // An empty-message Error extracts to "" (see retrieveAxiosErrorMessage),
+    // so the tailored fallback is what actually renders.
+    vi.mocked(AgentServerConversationService.switchProfile).mockRejectedValue(
+      new Error(),
+    );
+
+    const { result } = renderSwitchHook();
+    result.current.mutate({ conversationId: null, profileName: "Smart" });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    // The global i18n mock returns the raw key (see vitest.setup.ts).
+    expect(displayErrorToast).toHaveBeenCalledWith("MODEL$SWITCH_FAILED");
+  });
+
+  it("prefers the server-provided error detail over the tailored fallback", async () => {
+    const axiosError = new AxiosError(
+      "Request failed",
+      "500",
+      undefined,
+      undefined,
+      {
+        status: 404,
+        statusText: "Not Found",
+        headers: new AxiosHeaders(),
+        config: { headers: new AxiosHeaders() },
+        data: { message: "LLM profile 'gpt-5' not found" },
+      },
+    );
+    vi.mocked(AgentServerConversationService.switchProfile).mockRejectedValue(
+      axiosError,
+    );
+
+    const { result } = renderSwitchHook();
+    result.current.mutate({ conversationId: null, profileName: "Smart" });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(displayErrorToast).toHaveBeenCalledWith(
+      "LLM profile 'gpt-5' not found",
+    );
   });
 
   // The following behaviors run in the mutation-level onSuccess (not

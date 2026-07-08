@@ -1,7 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import AgentProfilesService from "#/api/agent-profiles-service/agent-profiles-service.api";
 import { useActiveBackend } from "#/contexts/active-backend-context";
-import { CONFIG_CACHE_OPTIONS, AGENT_PROFILES_QUERY_KEYS } from "./query-keys";
+import {
+  CONFIG_CACHE_OPTIONS,
+  AGENT_PROFILES_QUERY_KEYS,
+  AGENT_PROFILES_RETRY_OPTIONS,
+} from "./query-keys";
 
 export { AGENT_PROFILES_QUERY_KEYS };
 
@@ -24,6 +28,7 @@ export function useAgentProfiles(options: UseAgentProfilesOptions = {}) {
     queryKey: [...AGENT_PROFILES_QUERY_KEYS.all, backend.id, orgId],
     queryFn: AgentProfilesService.listProfiles,
     ...CONFIG_CACHE_OPTIONS,
+    ...AGENT_PROFILES_RETRY_OPTIONS,
     enabled: options.enabled ?? true,
     meta: { disableToast: true },
   });

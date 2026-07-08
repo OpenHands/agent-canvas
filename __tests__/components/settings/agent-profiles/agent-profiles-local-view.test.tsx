@@ -289,6 +289,77 @@ describe("AgentProfilesLocalView save mapping", () => {
     });
   });
 
+  it("falls back to the default LLM profile when the stored llm_profile_ref is dangling (#1571 review)", async () => {
+    // The stored profile references an LLM profile that's since been deleted;
+    // the editor must validate against the live list and self-heal to the
+    // active default rather than saving the stale ref straight back.
+    vi.mocked(AgentProfilesService.getProfile).mockResolvedValue({
+      name: "default",
+      profile: {
+        schema_version: 1,
+        id: "p-1",
+        name: "default",
+        revision: 3,
+        agent_kind: "openhands",
+        llm_profile_ref: "deleted-profile",
+        enable_sub_agents: false,
+      },
+    } as never);
+    emitControl = {
+      agentType: "openhands",
+      isValid: true,
+      buildAgentProfileFields: () => ({
+        agent_kind: "openhands",
+        enable_sub_agents: false,
+      }),
+      credentials: { isDirty: false, save: vi.fn(), reset: vi.fn() },
+    };
+
+    render(<AgentProfilesLocalView />);
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("edit-agent-profile"));
+    await screen.findByTestId("mock-agent-settings");
+    await user.click(screen.getByTestId("save-agent-profile-btn"));
+
+    await waitFor(() => expect(saveMutate).toHaveBeenCalledTimes(1));
+    const { profile } = saveMutate.mock.calls[0][0];
+    expect(profile.llm_profile_ref).toBe("default");
+  });
+
+  it("keeps a live llm_profile_ref untouched on load", async () => {
+    vi.mocked(AgentProfilesService.getProfile).mockResolvedValue({
+      name: "custom",
+      profile: {
+        schema_version: 1,
+        id: "p-2",
+        name: "custom",
+        revision: 1,
+        agent_kind: "openhands",
+        llm_profile_ref: "default",
+        enable_sub_agents: false,
+      },
+    } as never);
+    emitControl = {
+      agentType: "openhands",
+      isValid: true,
+      buildAgentProfileFields: () => ({
+        agent_kind: "openhands",
+        enable_sub_agents: false,
+      }),
+      credentials: { isDirty: false, save: vi.fn(), reset: vi.fn() },
+    };
+
+    render(<AgentProfilesLocalView />);
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("edit-agent-profile"));
+    await screen.findByTestId("mock-agent-settings");
+    await user.click(screen.getByTestId("save-agent-profile-btn"));
+
+    await waitFor(() => expect(saveMutate).toHaveBeenCalledTimes(1));
+    const { profile } = saveMutate.mock.calls[0][0];
+    expect(profile.llm_profile_ref).toBe("default");
+  });
+
   it("blocks an OpenHands save when no LLM profile is available", async () => {
     llmProfilesData = { profiles: [], active_profile: null };
     emitControl = {

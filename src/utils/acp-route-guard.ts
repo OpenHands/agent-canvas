@@ -5,6 +5,7 @@ import { getSettingsQueryFn } from "#/hooks/query/use-settings";
 import {
   SETTINGS_QUERY_KEYS,
   AGENT_PROFILES_QUERY_KEYS,
+  AGENT_PROFILES_RETRY_OPTIONS,
 } from "#/hooks/query/query-keys";
 import AgentProfilesService from "#/api/agent-profiles-service/agent-profiles-service.api";
 import { queryClient } from "#/query-client-config";
@@ -52,6 +53,10 @@ export async function redirectIfAcpActive() {
         ],
         queryFn: AgentProfilesService.listProfiles,
         staleTime: 0,
+        // A backend without the surface fails this on every settings
+        // navigation — degrade to the agent_settings fallback below
+        // immediately rather than sitting through the default backoff.
+        ...AGENT_PROFILES_RETRY_OPTIONS,
       });
       const activeId = profiles?.active_agent_profile_id ?? null;
       const activeProfile = profiles?.profiles.find(

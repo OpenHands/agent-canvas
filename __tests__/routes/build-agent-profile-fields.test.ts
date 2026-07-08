@@ -104,13 +104,30 @@ describe("buildAgentProfileFields — OpenHands", () => {
     }
   });
 
-  it("omits tool_concurrency_limit when the input is empty (coerces to null)", () => {
+  it("falls back to the schema default (1) when the input is empty, so a clear actually clears (#1571 review)", () => {
+    // A blank field coerces to `null`; the field itself is a non-nullable
+    // backend int, so an explicit default — not an omitted key — is what
+    // actually resets a stored value on an edit-save (the whole-profile merge
+    // would otherwise silently keep the old value for an omitted key).
     const fields = buildAgentProfileFields({
       ...baseOh,
       toolConcurrencyField: concurrencyField,
       toolConcurrency: "",
     });
-    expect(fields).not.toHaveProperty("tool_concurrency_limit");
+    if (fields.agent_kind === "openhands") {
+      expect(fields.tool_concurrency_limit).toBe(1);
+    }
+  });
+
+  it("falls back to the schema's own default value when the field declares one", () => {
+    const fields = buildAgentProfileFields({
+      ...baseOh,
+      toolConcurrencyField: { ...concurrencyField, default: 2 },
+      toolConcurrency: "",
+    });
+    if (fields.agent_kind === "openhands") {
+      expect(fields.tool_concurrency_limit).toBe(2);
+    }
   });
 
   it("throws on a non-numeric concurrency value (schema-driven validation)", () => {
