@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { readCloudConversationFile } from "#/api/cloud/conversation-service.api";
 import { getActiveBackend } from "#/api/backend-registry/active-store";
-import AgentServerRuntimeService from "#/api/runtime-service/agent-server-runtime-service";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 import {
@@ -175,41 +175,48 @@ export function useWorkspaceFileContent(relativePath: string | null) {
       const mimeType = guessMimeType(relativePath);
 
       if (isCloud) {
-        // Cloud: no static fileserver cookie path is reachable from the
-        // browser. Fetch bytes server-side through callCloudProxy and
-        // hand the consumer a self-contained `data:` URI for iframe /
-        // <img> rendering.
-        const buffer = await AgentServerRuntimeService.downloadFile(
-          conversationUrl,
-          sessionApiKey,
+        // Cloud: fetch through the cloud API's first-class runtime proxy
+        // (GET /api/v1/app-conversations/{id}/file), which avoids the
+        // removed /api/cloud-proxy hop. The endpoint returns file content as
+        // a string; binary files are detected via NUL-byte sniff on the
+        // decoded result and served as base64 data URIs.
+        const content = await readCloudConversationFile(
+          conversationId!,
           relativePath,
         );
+
         if (kind === "text") {
-          if (isLikelyBinary(buffer)) {
+          // NUL-byte sniff on the decoded text to catch binary files that
+          // the cloud endpoint decoded as UTF-8 (fallible but sufficient).
+          const buf = new TextEncoder().encode(content);
+          if (isLikelyBinary(buf.buffer)) {
             return {
               path: relativePath,
               kind: "binary",
               text: null,
-              staticUrl: `data:application/octet-stream;base64,${arrayBufferToBase64(buffer)}`,
+              staticUrl: `data:application/octet-stream;base64,${arrayBufferToBase64(buf.buffer)}`,
               mimeType: "application/octet-stream",
             };
           }
-          const text = new TextDecoder("utf-8", { fatal: false }).decode(
-            buffer,
-          );
           return {
             path: relativePath,
             kind: "text",
-            text,
-            staticUrl: `data:${mimeType};charset=utf-8;base64,${arrayBufferToBase64(buffer)}`,
+            text: content,
+            staticUrl: `data:${mimeType};charset=utf-8;base64,${arrayBufferToBase64(buf.buffer)}`,
             mimeType,
           };
         }
+        // Image / PDF via cloud API: the endpoint returns text, so binary
+        // bytes are decoded as UTF-8 server-side and can't round-trip
+        // faithfully. Best-effort base64 of the returned string — a proper
+        // binary path needs a cloud download endpoint (the old byte-accurate
+        // downloadFile route went through the removed /api/cloud-proxy).
+        const buf = new TextEncoder().encode(content);
         return {
           path: relativePath,
           kind,
           text: null,
-          staticUrl: `data:${mimeType};base64,${arrayBufferToBase64(buffer)}`,
+          staticUrl: `data:${mimeType};base64,${arrayBufferToBase64(buf.buffer)}`,
           mimeType,
         };
       }
