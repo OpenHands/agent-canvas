@@ -38,6 +38,9 @@ export function UserAssistantEventMessage({
   const setMessageToSend = useConversationStore(
     (state) => state.setMessageToSend,
   );
+  // Guards a rapid double-click from firing two forks before `isForking`
+  // (async React state) has flipped.
+  const forkInFlightRef = React.useRef(false);
 
   const parsed = parseMessageFromEvent(event);
   // Route an inline <think> block (e.g. from a streamed reply) to the thinking
@@ -65,20 +68,29 @@ export function UserAssistantEventMessage({
   // inside a conversation.
   const canBranch = !isCloud && !!conversationId;
   const handleBranch = () => {
-    if (!conversationId || isForking) return;
+    if (!conversationId || isForking || forkInFlightRef.current) return;
+    forkInFlightRef.current = true;
 
     // Give the fork a distinct title so it doesn't read identically to its
-    // source in the sidebar (a fork copies the source's history).
-    const sourceTitle = ConversationService.getCurrentConversation()?.title;
+    // source in the sidebar (a fork copies the source's history). Match the id:
+    // `getCurrentConversation()` is a shared singleton that can transiently
+    // hold the previously-viewed conversation right after navigation.
+    const source = ConversationService.getCurrentConversation();
+    const sourceTitle =
+      source?.id === conversationId ? source.title : undefined;
     const branchTitle = sourceTitle ? `${sourceTitle} (branch)` : undefined;
+
+    // Edit-message mode: a user message with text to edit. An image-only
+    // message parses to "" — branch inclusively instead, so its image isn't
+    // dropped (excluding it would leave an empty composer with nothing to
+    // restore).
+    const isEdit = event.source === "user" && message.length > 0;
 
     forkConversation(
       {
         sourceConversationId: conversationId,
         eventId: event.id,
-        // Edit-message mode for user messages: exclude the message and restore
-        // its text into the composer.
-        ...(event.source === "user" ? { editText: message } : {}),
+        ...(isEdit ? { editText: message } : {}),
         ...(branchTitle ? { title: branchTitle } : {}),
       },
       {
@@ -94,6 +106,9 @@ export function UserAssistantEventMessage({
         },
         onError: (error) =>
           displayErrorToast(error instanceof Error ? error.message : null),
+        onSettled: () => {
+          forkInFlightRef.current = false;
+        },
       },
     );
   };

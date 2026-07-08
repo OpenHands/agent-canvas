@@ -49,6 +49,19 @@ const makeEvent = (source: "user" | "agent", id: string): MessageEvent =>
     critic_result: null,
   }) as unknown as MessageEvent;
 
+// A user message with only an image (no text) — parses to an empty string.
+const makeImageOnlyEvent = (id: string): MessageEvent =>
+  ({
+    id,
+    source: "user",
+    timestamp: "2024-01-01T00:00:00.000Z",
+    llm_message: {
+      role: "user",
+      content: [{ type: "image", image_urls: ["data:image/png;base64,AAAA"] }],
+    },
+    critic_result: null,
+  }) as unknown as MessageEvent;
+
 function LocationProbe() {
   return <div data-testid="location">{useLocation().pathname}</div>;
 }
@@ -158,6 +171,49 @@ describe("UserAssistantEventMessage — branch action", () => {
         "Trip planning (branch)",
       ),
     );
+  });
+
+  it("branches an image-only user message inclusively (keeps the image, no prefill)", async () => {
+    renderMessage(makeImageOnlyEvent("evt-img"));
+
+    fireEvent.mouseEnter(screen.getByTestId("user-message"));
+    fireEvent.click(screen.getByRole("button", { name: BRANCH_LABEL }));
+
+    // No text to edit → branch at the message (inclusive), no parent lookup,
+    // no prefill, so the image is not dropped.
+    await waitFor(() =>
+      expect(forkSpy).toHaveBeenCalledWith("conv-1", "evt-img", undefined),
+    );
+    expect(parentSpy).not.toHaveBeenCalled();
+    expect(setMessageToSendMock).not.toHaveBeenCalled();
+  });
+
+  it("omits the fork title when the tracked conversation is a different one", async () => {
+    // Stale/other conversation in the shared singleton — must not be used.
+    ConversationService.setCurrentConversation({
+      id: "other-conv",
+      title: "Stale title",
+    } as AppConversation);
+    renderMessage(makeEvent("user", "evt-user"));
+
+    fireEvent.mouseEnter(screen.getByTestId("user-message"));
+    fireEvent.click(screen.getByRole("button", { name: BRANCH_LABEL }));
+
+    await waitFor(() =>
+      expect(forkSpy).toHaveBeenCalledWith("conv-1", "evt-parent", undefined),
+    );
+  });
+
+  it("ignores a second click while a fork is already in flight", async () => {
+    renderMessage(makeEvent("user", "evt-user"));
+
+    fireEvent.mouseEnter(screen.getByTestId("user-message"));
+    const button = screen.getByRole("button", { name: BRANCH_LABEL });
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    await waitFor(() => expect(forkSpy).toHaveBeenCalled());
+    expect(forkSpy).toHaveBeenCalledTimes(1);
   });
 
   it("hides the branch action on the cloud backend", () => {
