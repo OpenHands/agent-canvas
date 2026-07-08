@@ -108,7 +108,7 @@ jobs:
       - name: Install openhands-sdk (for mock LLM server)
         env:
           AGENT_SERVER_VERSION: ${{ steps.defaults.outputs.agent_server_version }}
-          # Pin agent-client-protocol to the range openhands-sdk 1.32.0 is
+          # Pin agent-client-protocol to the range openhands-sdk 1.33.0 is
           # compatible with. acp 0.11.0 reordered the ACP prompt() args and
           # breaks the SDK's ACP client; the mock ACP server runs from this
           # venv, so keep it on the same acp version as the agent-server.
