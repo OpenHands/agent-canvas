@@ -38,8 +38,7 @@ export function UserAssistantEventMessage({
   const setMessageToSend = useConversationStore(
     (state) => state.setMessageToSend,
   );
-  // Guards a rapid double-click from firing two forks before `isForking`
-  // (async React state) has flipped.
+  // Blocks a same-tick double-click, before `isForking` flips.
   const forkInFlightRef = React.useRef(false);
 
   const parsed = parseMessageFromEvent(event);
@@ -59,31 +58,24 @@ export function UserAssistantEventMessage({
     });
   }
 
-  // "Branch from here": fork the conversation into a new one. For a user
-  // message this is "edit message" — the fork excludes the message (see
-  // useForkConversation, which resolves its parent as the branch point) and
-  // its text goes into the composer so the edited version replaces it. For an
-  // assistant message it's a plain branch (history up to and including it,
-  // empty composer). Local agent-server only, and only meaningful once we're
-  // inside a conversation.
+  // "Branch from here": a user message is "edit message" (excludes the message,
+  // restores its text to the composer); an assistant message branches
+  // inclusively. Local agent-server only, inside a conversation.
   const canBranch = !isCloud && !!conversationId;
   const handleBranch = () => {
     if (!conversationId || isForking || forkInFlightRef.current) return;
     forkInFlightRef.current = true;
 
-    // Give the fork a distinct title so it doesn't read identically to its
-    // source in the sidebar (a fork copies the source's history). Match the id:
-    // `getCurrentConversation()` is a shared singleton that can transiently
-    // hold the previously-viewed conversation right after navigation.
+    // Distinct title so the fork doesn't read identically to its source.
+    // getCurrentConversation() is a shared singleton — match the id in case it
+    // still holds the previously-viewed conversation.
     const source = ConversationService.getCurrentConversation();
     const sourceTitle =
       source?.id === conversationId ? source.title : undefined;
     const branchTitle = sourceTitle ? `${sourceTitle} (branch)` : undefined;
 
-    // Edit-message mode: a user message with text to edit. An image-only
-    // message parses to "" — branch inclusively instead, so its image isn't
-    // dropped (excluding it would leave an empty composer with nothing to
-    // restore).
+    // Only edit when there's text: an image-only message parses to "", so
+    // branch it inclusively rather than dropping the image.
     const isEdit = event.source === "user" && message.length > 0;
 
     forkConversation(
@@ -96,10 +88,8 @@ export function UserAssistantEventMessage({
       {
         onSuccess: ({ info, excluded }) => {
           navigate(`/conversations/${info.id}`);
-          // Prefill only when the message was actually excluded, else a send
-          // would duplicate a message that is still in the branch. Deferred so
-          // the new conversation's composer receives it (mirrors
-          // useLaunchSkillInChat).
+          // Prefill only when excluded (else the send duplicates it). Deferred
+          // so the new conversation's composer receives it (as useLaunchSkillInChat).
           if (excluded) {
             window.setTimeout(() => setMessageToSend(message), 0);
           }

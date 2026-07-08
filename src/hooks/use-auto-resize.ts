@@ -347,9 +347,7 @@ export const useAutoResize = (
       element.textContent = value.text;
       smartResize();
       focusContentEditableAtEnd(element);
-      // Signal one-shot consumption so the store value can be cleared and not
-      // replay into another conversation's composer on a later remount.
-      onValueApplied?.();
+      onValueApplied?.(); // one-shot: let the caller clear the value
       return true;
     };
 

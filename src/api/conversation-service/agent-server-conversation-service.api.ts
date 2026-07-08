@@ -677,14 +677,9 @@ class AgentServerConversationService {
   }
 
   /**
-   * Forks a conversation into a brand-new one, deep-copying its event history
-   * up to and including `fromEventId` (the "branch from this message" action).
-   * The fork starts idle with a fresh event loop, so the next message the user
-   * sends continues from that branch point.
-   *
-   * Local agent-server only — the cloud app-server has no fork endpoint wired
-   * yet. Requires agent-server >= 1.31.0 (the release that added
-   * `from_event_id`); older backends copy the whole conversation instead.
+   * Forks a conversation, copying event history up to and including
+   * `fromEventId`. Local agent-server only; needs agent-server >= 1.31.0 for
+   * `from_event_id` (older backends copy the whole conversation).
    */
   static async forkConversation(
     sourceConversationId: string,
@@ -697,21 +692,14 @@ class AgentServerConversationService {
       );
     }
 
-    // `from_event_id` (fork-from-event) exists on the agent-server `/fork`
-    // endpoint but is still absent from `ForkConversationRequest` in every
-    // published @openhands/typescript-client (checked through 1.32.0) — the
-    // client instead typed event-branching on the separate `/navigate`
-    // (re-root) endpoint. `forkConversation` forwards the POST body verbatim,
-    // so the cast is what actually carries the field to the server; keep it
-    // until the client adds `from_event_id` to the fork request type.
+    // `from_event_id` is accepted by `/fork` but not yet typed in
+    // ForkConversationRequest (through client 1.32.0); the client forwards the
+    // body verbatim, so cast to carry it. A title also suppresses the backend
+    // auto-title, so the "(branch)" marker sticks.
     const data = await new ConversationClient(
       getAgentServerClientOptions(),
     ).forkConversation<DirectConversationInfo>(sourceConversationId, {
       from_event_id: fromEventId,
-      // A caller-supplied title makes the fork visually distinct from its
-      // source in the sidebar. Setting it also suppresses the backend's
-      // auto-title (which only runs when title is unset), so the marker
-      // sticks.
       ...(title ? { title } : {}),
     } as ForkConversationRequest & { from_event_id: string });
 
@@ -726,12 +714,9 @@ class AgentServerConversationService {
   }
 
   /**
-   * Returns the `parent_id` of an event — the event it descends from, i.e. the
-   * fork point for branching *before* it ("edit message"). Fetched from the
-   * single-event endpoint on purpose: the events *search* API omits
-   * `parent_id`, and the client-side event store holds un-persisted streaming
-   * events whose ids the `/fork` endpoint rejects as "Unknown from_event_id".
-   * Returns `undefined` when the event has no parent (it is the root).
+   * Returns an event's `parent_id` (the fork point for branching *before* it),
+   * or undefined at the root. Uses the single-event endpoint because the events
+   * *search* API omits `parent_id`.
    */
   static async getEventParentId(
     conversationId: string,

@@ -7,12 +7,7 @@ interface ForkConversationVariables {
   sourceConversationId: string;
   /** The message the action was invoked on. */
   eventId: string;
-  /**
-   * When set, this is an "edit message" branch: history is copied up to the
-   * event *before* `eventId` (so the message is excluded), and this text is
-   * the caller's to restore into the composer. When omitted, history is copied
-   * up to and including `eventId`.
-   */
+  /** Set for an "edit message" branch: exclude the message and restore this text. */
   editText?: string | null;
   /** Optional title for the fork, so it reads distinctly from its source. */
   title?: string;
@@ -20,22 +15,15 @@ interface ForkConversationVariables {
 
 interface ForkConversationResult {
   info: DirectConversationInfo;
-  /**
-   * Whether `eventId` was excluded from the fork (edit mode with a resolvable
-   * parent). The caller only prefills the composer when this is true, so a send
-   * can never duplicate a still-present message.
-   */
+  /** Whether the message was excluded; the caller only prefills when true. */
   excluded: boolean;
 }
 
 /**
- * Branches a conversation from a message. For an "edit message" branch
- * (`editText` set) it resolves the message's parent — the events search API
- * omits `parent_id` and the client event store holds un-persisted streaming
- * events, so we ask the single-event endpoint — and branches there, excluding
- * the message. Otherwise it branches at the message (inclusive). The caller
- * navigates to the returned conversation on success. Local agent-server only
- * (see AgentServerConversationService.forkConversation).
+ * Branches a conversation from a message. Edit-mode (`editText` set) resolves
+ * the message's parent (via getEventParentId) and branches there, excluding
+ * the message; otherwise it branches at the message (inclusive). Local
+ * agent-server only.
  */
 export const useForkConversation = () => {
   const queryClient = useQueryClient();
@@ -68,12 +56,9 @@ export const useForkConversation = () => {
         title,
       );
 
-      // Confirm the backend actually branched at `fromEventId` before trusting
-      // `excluded`. `from_event_id` needs agent-server >= 1.31.0; older backends
-      // ignore it and copy the whole conversation, leaving the message in the
-      // branch. When honored, the fork's HEAD (`leaf_event_id`) is exactly
-      // `fromEventId`; if it isn't, treat the message as NOT excluded so we
-      // don't prefill and risk a duplicate on send.
+      // Older agent-servers (< 1.31.0) ignore `from_event_id` and copy the
+      // whole conversation. When honored, the fork's HEAD is `fromEventId`; if
+      // not, the message wasn't excluded — don't prefill (would duplicate).
       if (excluded) {
         const leafEventId = (info as { leaf_event_id?: string | null })
           .leaf_event_id;

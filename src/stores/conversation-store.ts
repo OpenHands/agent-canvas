@@ -294,9 +294,8 @@ export const useConversationStore = create<ConversationStore>()(
           "setMessageToSend",
         ),
 
-      // One-shot consume: once the composer has applied `messageToSend`, clear
-      // it so a value that was never sent can't replay into a different
-      // conversation's composer on remount and clobber its draft.
+      // One-shot consume: clear after the composer applies it, so a never-sent
+      // value can't replay into another conversation's composer on remount.
       clearMessageToSend: () =>
         set({ messageToSend: null }, false, "clearMessageToSend"),
 

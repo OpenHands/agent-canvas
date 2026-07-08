@@ -69,9 +69,7 @@ export const useGripResize = (
     onGripDragStart: handleGripDragStart,
     onGripDragEnd: handleGripDragEnd,
     value: messageToSend ?? undefined,
-    // Consume the value once applied so a never-sent prefill (e.g. from
-    // "Branch from here") can't replay into another conversation's composer.
-    onValueApplied: clearMessageToSend,
+    onValueApplied: clearMessageToSend, // one-shot consume (see store action)
     enableManualResize: true,
   });
 
