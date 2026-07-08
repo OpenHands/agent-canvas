@@ -69,15 +69,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || '' }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@v4.1.0
 
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@v4.2.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -187,7 +187,7 @@ jobs:
 
       - name: Build & Push (${{ matrix.arch }})
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/Dockerfile
@@ -275,10 +275,10 @@ jobs:
           echo "Using SHORT_SHA: $SHORT_SHA"
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@v4.1.0
 
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@v4.2.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -541,7 +541,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Update PR description with docker image details
-        uses: nefrob/pr-description@v1.2.0
+        uses: nefrob/pr-description@v1.3.0
         with:
           content: ${{ steps.generate_description.outputs.pr_content }}
           regex: "<!-- AGENT_CANVAS_DOCKER_START -->.*?<!-- AGENT_CANVAS_DOCKER_END -->"

@@ -34,7 +34,7 @@ jobs:
           echo "📦 Version: $VERSION"
 
       - name: Checkout tag
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Verify documented Docker install version matches release
         id: docker_docs
