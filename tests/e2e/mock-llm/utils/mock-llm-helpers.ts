@@ -527,65 +527,47 @@ export async function deleteProfileIfExists(page: Page, profileName: string) {
 /**
  * Activate a profile by name through the Settings UI.
  * Assumes the page is already on /settings/llm with profiles loaded.
- * Polls until the "Active" badge is visible on the target profile row.
+ * Retries the "Set active" gesture until the "Active" badge appears on the row.
  */
 export async function activateProfileViaUI(page: Page, profileName: string) {
-  const exactRow = (p: Page) =>
-    p
-      .getByTestId("profile-row")
-      .filter({ has: p.locator(`span[title="${profileName}"]`) })
-      .first();
+  const row = page
+    .getByTestId("profile-row")
+    .filter({ has: page.locator(`span[title="${profileName}"]`) })
+    .first();
 
-  const row = exactRow(page);
-  if ((await row.count()) > 0) {
-    await row.getByTestId("profile-menu-trigger").click();
-    await waitForTestId(page, "profile-actions-menu");
+  // `createProfileViaUI` only waits for the editor to close, not for the new
+  // row to render in the list, so wait for the row explicitly before acting
+  // on it. Skipping this is what let the old poll dead-end: if the row was not
+  // yet in the DOM, the activation gesture below was never attempted.
+  await expect(row).toBeVisible({ timeout: 15_000 });
+
+  const activeBadge = row.getByTestId("profile-active-badge");
+
+  // Retry the open-menu → "Set active" gesture until the badge shows. The badge
+  // updates reactively — `useActivateLlmProfile` invalidates the profiles query
+  // on success, which refetches `active_profile` and re-renders the row — so no
+  // page reload is needed and a dropped click self-heals on the next attempt.
+  //
+  // Every wait inside the block is capped well below the `.toPass` budget: the
+  // failure this heals is a menu that didn't open (dropped click / not-yet-
+  // loaded menu), and `waitForTestId`'s 30s default — plus `click`'s unbounded
+  // `actionTimeout` — would otherwise swallow the whole 30s window in a single
+  // tick, leaving no room to retry the very gesture that flaked.
+  await expect(async () => {
+    if (await activeBadge.isVisible()) return; // already active
+
+    // The menu trigger toggles, so reset any menu left open by a prior attempt
+    // before re-opening — otherwise a retry would close the menu it just opened.
+    await page.keyboard.press("Escape");
+    await row.getByTestId("profile-menu-trigger").click({ timeout: 5_000 });
+    await waitForTestId(page, "profile-actions-menu", 5_000);
     const setActive = page.getByTestId("profile-set-active");
     if (await setActive.isEnabled()) {
-      const activationResponse = page.waitForResponse(
-        (response) => {
-          const request = response.request();
-          if (request.method() !== "POST") return false;
-          const pathname = new URL(response.url()).pathname;
-          return (
-            decodeURIComponent(pathname) ===
-            `/api/profiles/${profileName}/activate`
-          );
-        },
-        { timeout: 10_000 },
-      );
-      await setActive.click();
-      expect(
-        (await activationResponse).ok(),
-        `Activating profile "${profileName}" should return 2xx`,
-      ).toBe(true);
-    } else {
-      // Already active
-      await page.keyboard.press("Escape");
+      await setActive.click({ timeout: 5_000 });
     }
-  }
 
-  // Poll until the active badge appears on our profile
-  await expect
-    .poll(
-      async () => {
-        await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
-        await waitForTestId(page, "add-llm-profile");
-        const target = exactRow(page);
-        if ((await target.count()) === 0) return false;
-        return (await target.getByTestId("profile-active-badge").count()) > 0;
-      },
-      {
-        // Each poll iteration reloads /settings/llm and re-fetches settings,
-        // so a slow backend (activation PATCH + settings propagation) needs
-        // headroom beyond a couple of reloads. 30s keeps this robust under
-        // added proxy latency without masking a genuine activation failure.
-        message: `Profile "${profileName}" should have an "Active" badge`,
-        timeout: 30_000,
-        intervals: [1_000, 2_000, 3_000],
-      },
-    )
-    .toBe(true);
+    await expect(activeBadge).toBeVisible({ timeout: 5_000 });
+  }).toPass({ timeout: 30_000, intervals: [500, 1_000, 2_000] });
 }
 
 /**
