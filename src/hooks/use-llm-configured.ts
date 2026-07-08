@@ -58,7 +58,10 @@ export function useLlmConfigured(): LlmConfiguredResult {
   // The active AgentProfile is the current agent — an ACP profile owns its LLM
   // via the subprocess and never needs an API key. Fall back to the global
   // agent settings only while the profile list loads.
-  const { activeProfile: activeAgentProfile } = useActiveAgentProfile();
+  const {
+    activeProfile: activeAgentProfile,
+    isLoading: activeAgentProfileLoading,
+  } = useActiveAgentProfile();
   const activeAgentKind = activeAgentProfile?.agent_kind;
   const isAcpAgent =
     (activeAgentKind ?? settings?.agent_settings?.agent_kind) === "acp";
@@ -138,6 +141,11 @@ export function useLlmConfigured(): LlmConfiguredResult {
   // state the banner exists to catch — so we keep deciding from that data.
   const settingsIndeterminate = settingsLoading || (settingsError && !settings);
   const configIndeterminate = configLoading || (configError && !config);
+  // The active agent profile decides `isAcpAgent` and which LLM profile the
+  // next conversation runs; on a cold cache it's still loading, so decide
+  // nothing yet — otherwise an ACP agent (which needs no key) briefly reads as
+  // an unconfigured OpenHands agent and flashes the "LLM not set up" banner.
+  const agentProfileIndeterminate = activeAgentProfileLoading;
   const profilesIndeterminate =
     profilesLoading || (profilesError && !profilesData);
   const activeProfileDetailIndeterminate =
@@ -151,6 +159,7 @@ export function useLlmConfigured(): LlmConfiguredResult {
       settingsIndeterminate ||
       configIndeterminate ||
       profilesIndeterminate ||
+      agentProfileIndeterminate ||
       activeProfileDetailIndeterminate,
   };
 }
