@@ -180,7 +180,7 @@ describe("AgentProfilesLocalView save mapping", () => {
     // shows; the save is a whole-profile overwrite, so they must ride the
     // payload untouched (with server-managed identity stripped).
     const storedProfile = {
-      schema_version: 3,
+      schema_version: 1,
       id: "p-1",
       name: "default",
       revision: 3,

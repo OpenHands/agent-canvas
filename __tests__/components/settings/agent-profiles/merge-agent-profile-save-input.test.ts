@@ -11,7 +11,7 @@ import { mergeAgentProfileSaveInput } from "#/components/features/settings/agent
 // `disabled_skills` rides untyped (the pinned ts-client predates it) — the
 // merge must still round-trip it, so the fixture includes it via the cast.
 const storedOpenHands = {
-  schema_version: 3,
+  schema_version: 1,
   id: "11111111-1111-1111-1111-111111111111",
   name: "default",
   revision: 3,
