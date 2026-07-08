@@ -301,10 +301,11 @@ describe("useWorkspaceFileContent", () => {
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
       // Cloud uses the first-class cloud API endpoint, never the removed
-      // cloud-proxy / downloadFile path.
+      // cloud-proxy / downloadFile path, and passes an ABSOLUTE path (the
+      // runtime's /api/file/download rejects relative paths).
       expect(readCloudConversationFileMock).toHaveBeenCalledWith(
         "conv-1",
-        "docs/readme.md",
+        "/workspace/project/docs/readme.md",
       );
       expect(downloadFileMock).not.toHaveBeenCalled();
       expect(fetchMock).not.toHaveBeenCalled();
@@ -315,6 +316,31 @@ describe("useWorkspaceFileContent", () => {
         staticUrl: `data:text/markdown;charset=utf-8;base64,${btoa("# Hello")}`,
         mimeType: "text/markdown",
       });
+    });
+
+    it("anchors the file path to the conversation's working dir", async () => {
+      useActiveConversationMock.mockReturnValue({
+        data: {
+          id: "conv-1",
+          conversation_url:
+            "https://agent.example.com/api/conversations/conv-1",
+          session_api_key: "session-key",
+          workspace: { working_dir: "/workspace/project/my-repo" },
+        },
+      });
+      readCloudConversationFileMock.mockResolvedValue("hi");
+
+      const { result } = renderHook(
+        () => useWorkspaceFileContent("src/index.ts"),
+        { wrapper: makeWrapper() },
+      );
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(readCloudConversationFileMock).toHaveBeenCalledWith(
+        "conv-1",
+        "/workspace/project/my-repo/src/index.ts",
+      );
     });
 
     it("renders images via base64 data URI from the cloud file endpoint", async () => {

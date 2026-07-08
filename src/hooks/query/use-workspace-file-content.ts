@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { readCloudConversationFile } from "#/api/cloud/conversation-service.api";
 import { getActiveBackend } from "#/api/backend-registry/active-store";
+import { getGitPath } from "#/utils/get-git-path";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
 import {
@@ -155,8 +156,21 @@ export function useWorkspaceFileContent(relativePath: string | null) {
   const conversationId = conversation?.id;
   const conversationUrl = conversation?.conversation_url;
   const sessionApiKey = conversation?.session_api_key;
+  const selectedRepository = conversation?.selected_repository;
+  const workingDir = conversation?.workspace?.working_dir?.trim();
   const baseUrl = workspaceSession?.baseUrl;
   const isCloud = getActiveBackend().backend.kind === "cloud";
+
+  // The cloud `/file` endpoint downloads via the runtime's
+  // `/api/file/download`, which rejects relative paths (400 → the cloud API
+  // swallows it and returns ""). Anchor the file against the working dir the
+  // same way the diff view builds its git-diff path (see use-unified-git-diff),
+  // then force a leading slash since `getGitPath`'s default is relative.
+  const gitPath = getGitPath(selectedRepository, workingDir);
+  const workspaceRoot = gitPath.startsWith("/") ? gitPath : `/${gitPath}`;
+  const absoluteFilePath = relativePath
+    ? `${workspaceRoot}/${relativePath}`
+    : null;
 
   return useQuery<WorkspaceFileContent>({
     queryKey: [
@@ -166,6 +180,7 @@ export function useWorkspaceFileContent(relativePath: string | null) {
       sessionApiKey,
       isCloud ? "cloud" : baseUrl,
       relativePath,
+      absoluteFilePath,
       workspaceMutationCount,
     ],
     queryFn: async () => {
@@ -182,7 +197,7 @@ export function useWorkspaceFileContent(relativePath: string | null) {
         // decoded result and served as base64 data URIs.
         const content = await readCloudConversationFile(
           conversationId!,
-          relativePath,
+          absoluteFilePath!,
         );
 
         if (kind === "text") {
