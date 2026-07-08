@@ -35,6 +35,8 @@ export const PLUGINS_QUERY_KEYS = {
   marketplace: ["plugins-marketplace"] as const,
   /** Installed plugins from the local agent-server. */
   installed: ["plugins-installed"] as const,
+  /** Locally-discovered ambient plugins (used by `use-local-plugins`). */
+  local: ["plugins-local"] as const,
 } as const;
 
 /** Cache configuration shared across all config-related queries */

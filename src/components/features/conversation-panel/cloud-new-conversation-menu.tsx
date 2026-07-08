@@ -171,6 +171,7 @@ export function CloudNewConversationMenu({
           gitProvider: repo.git_provider,
           branch: repo.main_branch ?? "main",
         },
+        entryPoint: "sidebar_cloud_menu",
       },
       {
         onSuccess: (data) => {

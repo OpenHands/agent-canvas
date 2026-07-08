@@ -54,7 +54,7 @@ export function SayHelloStep({
     // Explicitly omit `repository` and `workingDir` so the
     // conversation starts with no workspace, per the spec.
     createConversation(
-      { query: message.trim() },
+      { query: message.trim(), entryPoint: "onboarding_say_hello" },
       {
         onSuccess: (data) => {
           navigate(`/conversations/${data.conversation_id}`);

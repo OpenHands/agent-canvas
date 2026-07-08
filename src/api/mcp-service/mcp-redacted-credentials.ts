@@ -1,15 +1,20 @@
 import SettingsService from "#/api/settings-service/settings-service.api";
+import { isMcpAuthCredential } from "#/types/mcp-auth";
 import type { MCPServerConfig } from "#/types/mcp-server";
-import { REDACTED_MCP_SECRET_VALUE } from "#/utils/mcp-config";
+import {
+  hasRedactedMcpSecretLeaf,
+  REDACTED_MCP_SECRET_VALUE,
+} from "#/utils/mcp-config";
 
 type StoredMcpServer = {
   url?: unknown;
   transport?: unknown;
   env?: unknown;
+  auth?: unknown;
   headers?: unknown;
 };
 
-type StoredMcpServers = Record<string, StoredMcpServer>;
+type StoredMcpConfig = Record<string, StoredMcpServer>;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
@@ -57,7 +62,7 @@ const stdioIndexFromId = (id: string | undefined): number | undefined => {
 
 const findStoredStdioByIndex = (
   id: string | undefined,
-  storedServers: StoredMcpServers,
+  storedServers: StoredMcpConfig,
 ): StoredMcpServer | undefined => {
   const index = stdioIndexFromId(id);
   if (index === undefined) return undefined;
@@ -69,7 +74,7 @@ const findStoredStdioByIndex = (
 
 const findStoredServer = (
   server: MCPServerConfig,
-  storedServers: StoredMcpServers,
+  storedServers: StoredMcpConfig,
 ): StoredMcpServer | undefined => {
   if (server.type === "stdio") {
     // Prefer the positional id: a rename changes the display name (the stored
@@ -98,28 +103,30 @@ async function fetchEncryptedStoredServer(
 ): Promise<StoredMcpServer | undefined> {
   const response = await SettingsService.fetchSettingsFromApi("encrypted");
   const mcpConfig = response.agent_settings?.mcp_config;
-  if (!isRecord(mcpConfig) || !isRecord(mcpConfig.mcpServers)) {
+  if (!isRecord(mcpConfig)) {
     return undefined;
   }
-  return findStoredServer(server, mcpConfig.mcpServers as StoredMcpServers);
+  return findStoredServer(server, mcpConfig as StoredMcpConfig);
 }
 
 /**
- * The MCP editor sees redacted settings (`<redacted>`). When the user leaves
+ * The MCP editor sees redacted settings (`**********`). When the user leaves
  * a secret unchanged, replace that placeholder with the stored encrypted
- * env/header value so tests and saves round-trip the real credential without
- * exposing plaintext in the browser.
+ * env/header/OAuth state value so tests and saves round-trip the real
+ * credential without exposing plaintext in the browser.
  */
 export async function substituteRedactedMcpCredentials(
   server: MCPServerConfig,
 ): Promise<MCPServerConfig> {
   const redactedStdioEnv =
     server.type === "stdio" && hasRedactedValue(server.env);
-  const redactedRemoteApiKey =
+  const redactedRemoteAuth =
     (server.type === "sse" || server.type === "shttp") &&
-    server.api_key === REDACTED_MCP_SECRET_VALUE;
+    hasRedactedMcpSecretLeaf(server.auth);
 
-  if (!redactedStdioEnv && !redactedRemoteApiKey) return server;
+  if (!redactedStdioEnv && !redactedRemoteAuth) {
+    return server;
+  }
 
   try {
     const stored = await fetchEncryptedStoredServer(server);
@@ -139,9 +146,11 @@ export async function substituteRedactedMcpCredentials(
       return { ...server, env };
     }
 
-    const headers = stringRecord(stored.headers);
-    if (!headers) return server;
-    return { ...server, api_key: undefined, headers };
+    if (!redactedRemoteAuth) return server;
+    if (isMcpAuthCredential(stored.auth)) {
+      return { ...server, auth: stored.auth };
+    }
+    return server;
   } catch {
     return server;
   }

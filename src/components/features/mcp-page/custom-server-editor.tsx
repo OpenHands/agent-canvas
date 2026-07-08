@@ -14,7 +14,11 @@ import { useUpdateMcpServer } from "#/hooks/mutation/use-update-mcp-server";
 import { useDeleteMcpServer } from "#/hooks/mutation/use-delete-mcp-server";
 import { useTestMcpServer } from "#/hooks/mutation/use-test-mcp-server";
 import { useActiveBackend } from "#/contexts/active-backend-context";
-import { ExtendedMCPTestFailure, MCPServerConfig } from "#/types/mcp-server";
+import {
+  ExtendedMCPTestFailure,
+  ExtendedMCPTestResponse,
+  MCPServerConfig,
+} from "#/types/mcp-server";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -22,6 +26,7 @@ import {
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import { cn } from "#/utils/utils";
 import { modalTitleLgClassName } from "#/utils/modal-classes";
+import McpService from "#/api/mcp-service/mcp-service.api";
 
 interface CustomServerEditorProps {
   server: MCPServerConfig;
@@ -52,6 +57,9 @@ export function CustomServerEditor({
     reset: resetTest,
   } = useTestMcpServer();
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+  const [oauthTestResult, setOauthTestResult] =
+    React.useState<ExtendedMCPTestResponse | null>(null);
+  const [isOauthTesting, setIsOauthTesting] = React.useState(false);
 
   // The MCP connectivity-test endpoint only exists on the local agent-server.
   // For cloud backends `McpService.testServer` short-circuits with a synthetic
@@ -62,7 +70,8 @@ export function CustomServerEditor({
 
   const isEditing = !!server.id;
   const isPending = isAdding || isUpdating || isDeleting;
-  const isDismissBlocked = isPending || isTesting || showDeleteConfirm;
+  const isDismissBlocked =
+    isPending || isTesting || isOauthTesting || showDeleteConfirm;
 
   const makeTestErrorMessage = (failure: ExtendedMCPTestFailure): string => {
     switch (failure.error_kind) {
@@ -78,15 +87,16 @@ export function CustomServerEditor({
   };
 
   const testMessage: TestMessage | null = React.useMemo(() => {
-    if (!testResult) return null;
-    if (testResult.ok) {
+    const result = oauthTestResult ?? testResult;
+    if (!result) return null;
+    if (result.ok) {
       return {
         ok: true,
-        text: t(I18nKey.MCP$TEST_SUCCESS, { count: testResult.tools.length }),
+        text: t(I18nKey.MCP$TEST_SUCCESS, { count: result.tools.length }),
       };
     }
-    return { ok: false, text: makeTestErrorMessage(testResult) };
-  }, [testResult, t]);
+    return { ok: false, text: makeTestErrorMessage(result) };
+  }, [oauthTestResult, testResult, t]);
 
   // Shared error handler so both add and update surface backend errors
   // as a toast instead of failing silently — previously these calls
@@ -99,19 +109,58 @@ export function CustomServerEditor({
 
   const handleSubmit = (payload: MCPServerConfig) => {
     resetTest();
+    setOauthTestResult(null);
+    if (payload.auth?.strategy === "oauth2") {
+      setIsOauthTesting(true);
+      void McpService.authorizeOAuth(payload)
+        .then((result) => {
+          setOauthTestResult(result);
+          if (!result.ok) return;
+          const serverToSave = result.oauth_state
+            ? {
+                ...payload,
+                auth: { ...payload.auth!, state: result.oauth_state },
+              }
+            : payload;
+          if (isEditing) {
+            updateMcpServer(
+              { serverId: server.id, server: serverToSave },
+              { onSuccess: onClose, onError: handleError },
+            );
+          } else {
+            addMcpServer(serverToSave, {
+              onSuccess: onClose,
+              onError: handleError,
+            });
+          }
+        })
+        .catch(handleError)
+        .finally(() => setIsOauthTesting(false));
+      return;
+    }
     testServer(payload, {
       onSuccess: (result) => {
         if (!result.ok) {
           // Test failed — modal stays open, error shown via testMessage.
           return;
         }
+        const serverToSave =
+          result.oauth_state && payload.auth?.strategy === "oauth2"
+            ? {
+                ...payload,
+                auth: { ...payload.auth, state: result.oauth_state },
+              }
+            : payload;
         if (isEditing) {
           updateMcpServer(
-            { serverId: server.id, server: payload },
+            { serverId: server.id, server: serverToSave },
             { onSuccess: onClose, onError: handleError },
           );
         } else {
-          addMcpServer(payload, { onSuccess: onClose, onError: handleError });
+          addMcpServer(serverToSave, {
+            onSuccess: onClose,
+            onError: handleError,
+          });
         }
       },
       onError: handleError,
@@ -119,6 +168,15 @@ export function CustomServerEditor({
   };
 
   const handleTestClick = (payload: MCPServerConfig) => {
+    setOauthTestResult(null);
+    if (payload.auth?.strategy === "oauth2" && !isCloudBackend) {
+      setIsOauthTesting(true);
+      void McpService.authorizeOAuth(payload)
+        .then(setOauthTestResult)
+        .catch(handleError)
+        .finally(() => setIsOauthTesting(false));
+      return;
+    }
     testServer(payload);
   };
 
@@ -173,7 +231,7 @@ export function CustomServerEditor({
             onDelete={isEditing ? () => setShowDeleteConfirm(true) : undefined}
             isActionDisabled={isPending}
             onTest={isCloudBackend ? undefined : handleTestClick}
-            isTestPending={isTesting}
+            isTestPending={isTesting || isOauthTesting}
             testMessage={isCloudBackend ? null : testMessage}
           />
         </div>
