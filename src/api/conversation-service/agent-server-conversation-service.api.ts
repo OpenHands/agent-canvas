@@ -1,5 +1,6 @@
 import {
   ConversationSortOrder,
+  type ForkConversationRequest,
   type LLMConfig,
 } from "@openhands/typescript-client";
 import {
@@ -686,6 +687,58 @@ class AgentServerConversationService {
       conversationId,
     ]);
     return requireAppConversation(conversation, conversationId);
+  }
+
+  /**
+   * Forks a conversation, copying event history up to and including
+   * `fromEventId`. Local agent-server only; needs agent-server >= 1.31.0 for
+   * `from_event_id` (older backends copy the whole conversation).
+   */
+  static async forkConversation(
+    sourceConversationId: string,
+    fromEventId: string,
+    title?: string,
+  ): Promise<DirectConversationInfo> {
+    if (getActiveBackend().backend.kind === "cloud") {
+      throw new Error(
+        "Branching a conversation isn't supported on the cloud backend yet.",
+      );
+    }
+
+    // `from_event_id` is accepted by `/fork` but not yet typed in
+    // ForkConversationRequest (through client 1.32.0); the client forwards the
+    // body verbatim, so cast to carry it. A title also suppresses the backend
+    // auto-title, so the "(branch)" marker sticks.
+    const data = await new ConversationClient(
+      getAgentServerClientOptions(),
+    ).forkConversation<DirectConversationInfo>(sourceConversationId, {
+      from_event_id: fromEventId,
+      ...(title ? { title } : {}),
+    } as ForkConversationRequest & { from_event_id: string });
+
+    // Carry over the source's client-side metadata (repo/branch/workspace/
+    // profile/plugins) so the fork hydrates its chat-page badges the same way.
+    const sourceMetadata = getStoredConversationMetadata(sourceConversationId);
+    if (sourceMetadata) {
+      setStoredConversationMetadata(data.id, sourceMetadata);
+    }
+
+    return data;
+  }
+
+  /**
+   * Returns an event's `parent_id` (the fork point for branching *before* it),
+   * or undefined at the root. Uses the single-event endpoint because the events
+   * *search* API omits `parent_id`.
+   */
+  static async getEventParentId(
+    conversationId: string,
+    eventId: string,
+  ): Promise<string | undefined> {
+    const event = (await new ConversationClient(
+      getAgentServerClientOptions(),
+    ).getEvent(conversationId, eventId)) as { parent_id?: string | null };
+    return event.parent_id ?? undefined;
   }
 
   /**

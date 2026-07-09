@@ -9604,6 +9604,23 @@
     "uk": "Не вдалося надіслати",
     "ca": "Error en enviar"
   },
+  "CHAT_INTERFACE$BRANCH_FROM_HERE": {
+    "en": "Branch from here",
+    "ja": "ここから分岐",
+    "zh-CN": "从此处分支",
+    "zh-TW": "從此處分支",
+    "ko-KR": "여기서 분기",
+    "no": "Forgren herfra",
+    "it": "Dirama da qui",
+    "pt": "Ramificar a partir daqui",
+    "es": "Ramificar desde aquí",
+    "ar": "تفريع من هنا",
+    "fr": "Créer une branche ici",
+    "tr": "Buradan dallandır",
+    "de": "Ab hier verzweigen",
+    "uk": "Відгалузити звідси",
+    "ca": "Ramifica des d'aquí"
+  },
   "CHAT_INTERFACE$MESSAGE_RETRY": {
     "en": "Retry",
     "ja": "再試行",

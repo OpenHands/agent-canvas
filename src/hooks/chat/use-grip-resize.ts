@@ -17,7 +17,8 @@ export const useGripResize = (
   const [isGripVisible, setIsGripVisible] = useState(false);
   const [isGripDragging, setIsGripDragging] = useState(false);
 
-  const { setShouldHideSuggestions } = useConversationStore();
+  const { setShouldHideSuggestions, clearMessageToSend } =
+    useConversationStore();
 
   const gripRef = useRef<HTMLDivElement | null>(null);
   /** After a real resize drag, swallow the synthetic click so it doesn't toggle `isGripVisible`. */
@@ -68,6 +69,7 @@ export const useGripResize = (
     onGripDragStart: handleGripDragStart,
     onGripDragEnd: handleGripDragEnd,
     value: messageToSend ?? undefined,
+    onValueApplied: clearMessageToSend, // one-shot consume (see store action)
     enableManualResize: true,
   });
 
