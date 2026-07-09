@@ -16,7 +16,7 @@ helm install agent-canvas ./helm/agent-canvas
 | Resource                            | Purpose                                                                            |
 | ----------------------------------- | ---------------------------------------------------------------------------------- |
 | `StatefulSet`                       | Single-replica pod running the all-in-one image (frontend + agent-server + automation). |
-| `PersistentVolumeClaim` (per pod)   | Backs `$HOME/.openhands` — settings, encrypted secrets, conversation history, automation SQLite DB, workspaces, generated keys. |
+| `PersistentVolumeClaim` (per pod)   | Backs the openhands user's `$HOME` — settings, encrypted secrets, conversation history, automation SQLite DB, cloned repos under `~/workspace`, generated keys, dotfiles. |
 | `Service` (`ClusterIP` by default)  | Cluster-internal endpoint on port 8000.                                            |
 | `Service` (headless)                | Required by the `StatefulSet` for stable pod DNS.                                  |
 | `ServiceAccount`                    | Stable identity the pod runs under. Bindings depend on `rbac.*`.                   |
@@ -26,16 +26,26 @@ helm install agent-canvas ./helm/agent-canvas
 
 ## Persistence
 
-`persistence.mountPath` defaults to `/home/openhands/.openhands`, which is
-where the entrypoint's `OPENHANDS_DIR="${HOME}/.openhands"` resolves inside
-the upstream image (runs as UID 1000, `HOME=/home/openhands`). All
-durable state lives under that directory:
+`persistence.mountPath` defaults to `/home/openhands` — the running
+user's HOME inside the upstream image (UID 1000, `HOME=/home/openhands`).
+Mounting the whole HOME (rather than just `~/.openhands`) means every
+piece of durable state the container writes survives pod restarts,
+rescheduling, and image upgrades:
 
-- agent-server settings and encrypted secrets
-- conversation history, event stores, generated bash history
-- automation SQLite database (unless `config.automationDbUrl` is set)
-- user workspaces (repos, worktrees, generated files)
-- auto-generated `OH_SECRET_KEY` and session API key on first boot
+- `~/.openhands` — agent-server settings, encrypted secrets,
+  conversation history and event stores, automation SQLite database
+  (unless `config.automationDbUrl` is set), auto-generated
+  `OH_SECRET_KEY`, session API key
+- `~/workspace` — the agent's default working directory: cloned repos,
+  worktrees, anything the agent writes when it treats `~` as the
+  workspace
+- any other dotfiles the running user creates (`~/.gitconfig`,
+  `~/.cache`, `~/.local`, etc.)
+
+The upstream image doesn't ship any dotfiles or venvs under
+`/home/openhands` (Python packages are `--system`-installed under
+`/opt/agent-canvas`), so mounting an empty PVC over HOME on first boot
+is safe — the entrypoint re-creates the `.openhands` subtree it needs.
 
 Point at an existing PVC with `persistence.existingClaim=<name>` if you
 manage the volume out of band; otherwise the chart uses the

@@ -88,23 +88,29 @@ ingress:
   #    secretName: agent-canvas-tls
 
 # ── Persistence ──────────────────────────────────────────────────────────────
-# The all-in-one image writes ALL durable state under $HOME/.openhands
-# inside the container. That includes:
-#   * agent-server settings and encrypted secrets
-#   * conversation history and event stores
-#   * automation SQLite database (unless AUTOMATION_DB_URL is overridden)
-#   * user workspaces (repos, worktrees, generated files)
-#   * session API key and OH_SECRET_KEY (auto-generated on first boot)
+# The chart mounts the PVC at the openhands user's HOME. That captures:
+#   * $HOME/.openhands — agent-server settings, encrypted secrets,
+#     conversation history, event stores, automation SQLite DB (unless
+#     AUTOMATION_DB_URL is overridden), session API key, OH_SECRET_KEY
+#   * $HOME/workspace  — the agent's default working directory: cloned
+#     repos, worktrees, generated files, anything the agent writes when
+#     it uses ~ as a workspace.
+#   * any other dotfiles the running user creates (~/.gitconfig,
+#     ~/.cache, ~/.local, ~/.ssh if the user provisions one, etc.)
 #
-# Backing this with a PVC via `volumeClaimTemplates` on the StatefulSet
-# means all of that survives pod restarts and image upgrades.
+# Mounting the whole HOME (rather than just ~/.openhands) means all of
+# that survives pod restarts, rescheduling, and image upgrades. The
+# upstream image doesn't ship any dotfiles under /home/openhands, so
+# mounting an empty PVC over it on first boot is safe — the entrypoint
+# recreates the .openhands subtree it needs.
 persistence:
   enabled: true
-  # Mount point inside the container. Should match the running user's
-  # HOME so the entrypoint's OPENHANDS_DIR="${HOME}/.openhands" resolves
-  # onto the PVC. The upstream agent-server image runs as UID 1000
-  # (`openhands`) with HOME=/home/openhands.
-  mountPath: /home/openhands/.openhands
+  # Mount point inside the container. Should be the running user's HOME
+  # so the entrypoint's OPENHANDS_DIR="${HOME}/.openhands" and any
+  # agent-side ~/workspace both resolve onto the PVC. The upstream
+  # agent-server image runs as UID 1000 (`openhands`) with
+  # HOME=/home/openhands.
+  mountPath: /home/openhands
   size: 20Gi
   # storageClassName: ""    # empty → cluster default
   accessModes:
