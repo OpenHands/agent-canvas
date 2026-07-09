@@ -118,8 +118,13 @@ spec:
           {{- end }}
           {{- if .Values.persistence.enabled }}
           volumeMounts:
-            - name: {{ include "agent-canvas.pvcClaimName" . }}
-              mountPath: {{ .Values.persistence.mountPath }}
+            {{- range .Values.persistence.mounts }}
+            - name: {{ include "agent-canvas.pvcClaimName" $ }}
+              mountPath: {{ .mountPath }}
+              {{- if .subPath }}
+              subPath: {{ .subPath }}
+              {{- end }}
+            {{- end }}
           {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:

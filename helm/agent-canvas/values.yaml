@@ -88,29 +88,35 @@ ingress:
   #    secretName: agent-canvas-tls
 
 # ── Persistence ──────────────────────────────────────────────────────────────
-# The chart mounts the PVC at the openhands user's HOME. That captures:
+# The chart provisions ONE PVC and mounts it in the pod at multiple
+# well-known subdirectories of $HOME so those trees survive pod
+# restarts, rescheduling, and image upgrades — while leaving the rest
+# of $HOME untouched (the base image ships dotfiles like ~/.bashrc and
+# ~/.profile there that must not be shadowed).
+#
+# Defaults cover the two paths users care about:
 #   * $HOME/.openhands — agent-server settings, encrypted secrets,
 #     conversation history, event stores, automation SQLite DB (unless
 #     AUTOMATION_DB_URL is overridden), session API key, OH_SECRET_KEY
 #   * $HOME/workspace  — the agent's default working directory: cloned
 #     repos, worktrees, generated files, anything the agent writes when
-#     it uses ~ as a workspace.
-#   * any other dotfiles the running user creates (~/.gitconfig,
-#     ~/.cache, ~/.local, ~/.ssh if the user provisions one, etc.)
+#     it treats ~ as the workspace root
 #
-# Mounting the whole HOME (rather than just ~/.openhands) means all of
-# that survives pod restarts, rescheduling, and image upgrades. The
-# upstream image doesn't ship any dotfiles under /home/openhands, so
-# mounting an empty PVC over it on first boot is safe — the entrypoint
-# recreates the .openhands subtree it needs.
+# The upstream agent-server image runs as `openhands` (UID 10001) with
+# HOME=/home/openhands. Add more entries to `mounts` if you want other
+# subtrees persisted (e.g. ~/.cache, ~/.config).
 persistence:
   enabled: true
-  # Mount point inside the container. Should be the running user's HOME
-  # so the entrypoint's OPENHANDS_DIR="${HOME}/.openhands" and any
-  # agent-side ~/workspace both resolve onto the PVC. The upstream
-  # agent-server image runs as UID 1000 (`openhands`) with
-  # HOME=/home/openhands.
-  mountPath: /home/openhands
+  # List of paths inside $HOME to persist. Each entry becomes a
+  # volumeMount on the container backed by the same PVC via `subPath`,
+  # so multiple paths share the same disk. `mountPath` is the absolute
+  # path inside the container; `subPath` is a directory name inside
+  # the PVC (must be unique across entries and safe on ext4).
+  mounts:
+    - mountPath: /home/openhands/.openhands
+      subPath: openhands
+    - mountPath: /home/openhands/workspace
+      subPath: workspace
   size: 20Gi
   # storageClassName: ""    # empty → cluster default
   accessModes:
@@ -161,10 +167,15 @@ podAnnotations: {}
 podLabels: {}
 
 podSecurityContext:
-  fsGroup: 1000
+  # The upstream agent-server image runs as `openhands` (UID 10001).
+  # fsGroup 10001 makes the kubelet chown the PVC to that gid on mount
+  # so the process can write to it. runAsUser/runAsGroup are pinned to
+  # the same values as a belt-and-suspenders check against future image
+  # rebuilds — if the image's USER changes, override these to match.
+  fsGroup: 10001
   runAsNonRoot: true
-  runAsUser: 1000
-  runAsGroup: 1000
+  runAsUser: 10001
+  runAsGroup: 10001
 
 securityContext: {}
   # capabilities:
