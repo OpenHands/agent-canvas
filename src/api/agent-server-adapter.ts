@@ -57,6 +57,13 @@ export interface DirectConversationInfo {
      */
     kind?: string | null;
     acp_model?: string | null;
+    /**
+     * ACP CLI identity (``claude-code`` / ``codex`` / ``gemini-cli``) from the
+     * SDK's ``ACPAgent.acp_server`` (#3692). Preferred fallback when the
+     * ``acpserver`` tag is absent — e.g. a profile launch doesn't stamp the tag
+     * client-side and the server may not repopulate it. Read by {@link toAppConversation}.
+     */
+    acp_server?: string | null;
     llm?: {
       model?: string | null;
     } | null;
@@ -300,8 +307,13 @@ export function toAppConversation(
   // Only surface ``acp_server`` for ACP conversations even if the wire
   // payload accidentally carries an ``acpserver`` tag on an OpenHands
   // conversation — the chip is identity info for the ACP CLI subprocess,
-  // and showing it on a non-ACP conversation would be a lie.
-  const acpServer = isAcp ? (info.tags?.[ACP_SERVER_TAG_KEY] ?? null) : null;
+  // and showing it on a non-ACP conversation would be a lie. Fall back to the
+  // agent's own ``acp_server`` (#3692) when the tag is missing — a profile
+  // launch doesn't stamp the tag, so tag-only reads would drop the ACP model
+  // picker and degrade the chip to a generic "ACP" (#1571).
+  const acpServer = isAcp
+    ? (info.tags?.[ACP_SERVER_TAG_KEY] ?? info.agent?.acp_server ?? null)
+    : null;
   return {
     id: info.id,
     created_by_user_id: null,
@@ -441,22 +453,25 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
+function hasEncryptedString(value: unknown): boolean {
+  if (typeof value === "string") {
+    return value.startsWith(FERNET_TOKEN_PREFIX);
+  }
+  if (Array.isArray(value)) {
+    return value.some(hasEncryptedString);
+  }
+  if (isPlainRecord(value)) {
+    return Object.values(value).some(hasEncryptedString);
+  }
+  return false;
+}
+
 function hasEncryptedMcpSecrets(mcpConfig: unknown): boolean {
-  if (!isPlainRecord(mcpConfig) || !isPlainRecord(mcpConfig.mcpServers)) {
+  if (!isPlainRecord(mcpConfig)) {
     return false;
   }
 
-  return Object.values(mcpConfig.mcpServers).some((server) => {
-    if (!isPlainRecord(server)) return false;
-    return ["env", "headers"].some((key) => {
-      const values = server[key];
-      if (!isPlainRecord(values)) return false;
-      return Object.values(values).some(
-        (value) =>
-          typeof value === "string" && value.startsWith(FERNET_TOKEN_PREFIX),
-      );
-    });
-  });
+  return Object.values(mcpConfig).some(hasEncryptedString);
 }
 
 function getConversationConfirmationPolicy(
@@ -709,12 +724,12 @@ function buildConfiguredAcpAgentSettings(
     }
   }
 
-  // ``mcp_config`` is a *shared* field (not in ACP_SETTINGS_KEYS): forward it
+  // ``mcp_config`` is a shared field (not in ACP_SETTINGS_KEYS): forward it
   // so the ACP subprocess connects to the configured MCP servers at session
   // creation. Only include it when it actually carries servers — an empty or
   // malformed value is dropped rather than sending ``mcp_config: {}``.
   const mcpConfig = toRecord(agentSettings.mcp_config);
-  if (Object.keys(mcpConfig).length > 0 && "mcpServers" in mcpConfig) {
+  if (Object.keys(mcpConfig).length > 0) {
     payload.mcp_config = mcpConfig;
   }
 
@@ -779,7 +794,7 @@ function buildConfiguredOpenHandsAgentSettings(
   }
 
   const mcpConfig = toRecord(agentSettings.mcp_config);
-  if (Object.keys(mcpConfig).length === 0 || !("mcpServers" in mcpConfig)) {
+  if (Object.keys(mcpConfig).length === 0) {
     delete agentSettings.mcp_config;
   }
 
@@ -853,7 +868,10 @@ interface LookupSecret {
 }
 
 type StartConversationPayload = Record<string, unknown> & {
-  agent_settings: AgentSettingsPayload;
+  // Omitted when launching via ``agent_profile_id`` — the two are mutually
+  // exclusive agent sources; the server resolves the profile server-side.
+  agent_settings?: AgentSettingsPayload;
+  agent_profile_id?: string;
   workspace: LocalWorkspacePayload;
   confirmation_policy: SettingsRecord;
   security_analyzer?: SettingsRecord;
@@ -881,6 +899,9 @@ export interface StartConversationOptions {
   encryptedConversationSettings?: Record<string, SettingsValue>;
   secretsEncrypted?: boolean;
   customSecrets?: Array<{ name: string; description?: string }>;
+  // When set, the conversation launches from this AgentProfile (resolved
+  // server-side) instead of an inline ``agent_settings`` dump (#3727).
+  agentProfileId?: string;
 }
 
 export function buildStartConversationRequest(
@@ -911,7 +932,23 @@ export function buildStartConversationRequest(
   );
 
   const payload: StartConversationPayload = {
-    agent_settings: agentSettings,
+    // ``agent_profile_id`` and ``agent_settings`` are mutually exclusive agent
+    // sources; the profile path lets the server resolve the profile (#3727).
+    //
+    // Enrichment boundary: on the profile path the server rebuilds the agent
+    // purely from the stored profile fields, so the client-owned enrichments
+    // this adapter folds into ``agent_settings`` do NOT apply. The exec toolset
+    // (terminal/file_editor/task_tracker) and public-skill loading are the
+    // server/SDK's responsibility to restore on the profile path — tracked in
+    // software-agent-sdk#3967 (profile resolution must attach the default
+    // toolset + public skills, else a profile-launched OpenHands agent has only
+    // Finish/Think). The two genuinely canvas-only enrichments — the
+    // ``canvas_ui`` tool and the dev ``RUNTIME_SERVICES`` system-message-suffix
+    // (``buildAgentContext``) — have no server-side representation and are
+    // intentionally not carried on the profile path.
+    ...(options.agentProfileId
+      ? { agent_profile_id: options.agentProfileId }
+      : { agent_settings: agentSettings }),
     workspace: conversationSettings.workspace,
     confirmation_policy:
       getConversationConfirmationPolicy(conversationSettings),
@@ -924,7 +961,9 @@ export function buildStartConversationRequest(
     worktree: options.worktree ?? true,
   };
 
-  if (acpServerTag) {
+  // A profile launch resolves the ACP server server-side, so don't stamp the
+  // tag from current settings (it may not match the launched profile).
+  if (!options.agentProfileId && acpServerTag) {
     payload.tags = { [ACP_SERVER_TAG_KEY]: acpServerTag };
   }
 
@@ -932,9 +971,10 @@ export function buildStartConversationRequest(
   // conversation start. Non-ACP conversations need it for encrypted LLM keys.
   // ACP normally carries provider credentials as LookupSecrets, so avoid
   // forcing a cipher on fresh ACP-only backends. The exception is MCP:
-  // encrypted settings round-trip mcp_config.env/headers as Fernet tokens,
-  // and ACP forwards that mcp_config directly to the subprocess.
+  // encrypted settings round-trip mcp_config secrets as Fernet tokens,
+  // and ACP forwards mcp_config directly to the subprocess.
   if (
+    !options.agentProfileId &&
     options.secretsEncrypted &&
     (!acpMode || hasEncryptedMcpSecrets(agentSettings.mcp_config))
   ) {
@@ -1044,6 +1084,7 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   conversationId?: string;
   workingDir?: string;
   worktree?: boolean;
+  agentProfileId?: string;
 }): Promise<Record<string, unknown>> {
   const { SecretsService } = await import("./secrets-service");
 
@@ -1055,7 +1096,11 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   const { agentSettings, conversationSettings, secretsEncrypted } =
     settingsResult;
 
-  await assertSubscriptionAuthReady(agentSettings);
+  // A profile launch resolves the LLM server-side, so the current-settings
+  // subscription check doesn't apply (and can't see the profile's LLM).
+  if (!options.agentProfileId) {
+    await assertSubscriptionAuthReady(agentSettings);
+  }
 
   return buildStartConversationRequest({
     ...options,

@@ -76,7 +76,7 @@ export function TelemetryConsentBanner({
   }
 
   return (
-    <ModalBackdrop aria-label={t(I18nKey.TELEMETRY$CONSENT_TITLE)}>
+    <ModalBackdrop elevated aria-label={t(I18nKey.TELEMETRY$CONSENT_TITLE)}>
       <form
         data-testid="telemetry-consent-form"
         onSubmit={handleSubmit}

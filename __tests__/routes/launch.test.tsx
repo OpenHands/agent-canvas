@@ -452,6 +452,7 @@ describe("LaunchRoute", () => {
             },
           ],
           query: undefined,
+          entryPoint: "launch_deeplink",
         });
       });
     });
@@ -479,6 +480,7 @@ describe("LaunchRoute", () => {
             },
           ],
           query: "/city-weather:now Tokyo",
+          entryPoint: "launch_deeplink",
         });
       });
     });

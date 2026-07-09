@@ -141,9 +141,11 @@ describe("OptionService", () => {
     });
 
     it("returns null when VITE_POSTHOG_CLIENT_KEY is not set", async () => {
-      // No stub — env var is absent in the test environment by default,
-      // so import.meta.env.VITE_POSTHOG_CLIENT_KEY is undefined,
-      // and the ?? null fallback applies.
+      // Force the env var absent so the ?? null fallback applies. A developer's
+      // local .env may define VITE_POSTHOG_CLIENT_KEY, which vitest loads and
+      // would otherwise leak into this test; stubbing to undefined deletes it.
+      vi.stubEnv("VITE_POSTHOG_CLIENT_KEY", undefined);
+
       const config = await OptionService.getConfig();
 
       expect(config.posthog_client_key).toBeNull();

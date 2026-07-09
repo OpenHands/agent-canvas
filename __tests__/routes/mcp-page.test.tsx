@@ -134,11 +134,9 @@ describe("MCPPage", () => {
         agent_settings: {
           ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
           mcp_config: {
-            mcpServers: {
-              acme_internal: {
-                command: "npx",
-                args: ["-y", "@acme/internal-mcp-server"],
-              },
+            acme_internal: {
+              command: "npx",
+              args: ["-y", "@acme/internal-mcp-server"],
             },
           },
         },
@@ -221,12 +219,10 @@ describe("MCPPage", () => {
         agent_settings: {
           ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
           mcp_config: {
-            mcpServers: {
-              slack: {
-                command: "npx",
-                args: ["-y", "@zencoderai/slack-mcp-server"],
-                env: { SLACK_BOT_TOKEN: "xoxb-abc", SLACK_TEAM_ID: "T01" },
-              },
+            slack: {
+              command: "npx",
+              args: ["-y", "@zencoderai/slack-mcp-server"],
+              env: { SLACK_BOT_TOKEN: "xoxb-abc", SLACK_TEAM_ID: "T01" },
             },
           },
         },
@@ -247,12 +243,10 @@ describe("MCPPage", () => {
       agent_settings: {
         ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
         mcp_config: {
-          mcpServers: {
-            slack: {
-              command: "npx",
-              args: ["-y", "@zencoderai/slack-mcp-server"],
-              env: { SLACK_BOT_TOKEN: "xoxb-abc", SLACK_TEAM_ID: "T01" },
-            },
+          slack: {
+            command: "npx",
+            args: ["-y", "@zencoderai/slack-mcp-server"],
+            env: { SLACK_BOT_TOKEN: "xoxb-abc", SLACK_TEAM_ID: "T01" },
           },
         },
       },
@@ -286,11 +280,9 @@ describe("MCPPage", () => {
         agent_settings: {
           ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
           mcp_config: {
-            mcpServers: {
-              github: {
-                url: "https://api.githubcopilot.com/mcp/",
-                auth: "github_pat_test",
-              },
+            github: {
+              url: "https://api.githubcopilot.com/mcp/",
+              auth: { strategy: "bearer", value: "github_pat_test" },
             },
           },
         },
@@ -318,12 +310,10 @@ describe("MCPPage", () => {
         agent_settings: {
           ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
           mcp_config: {
-            mcpServers: {
-              tavily: {
-                command: "npx",
-                args: ["-y", "tavily-mcp"],
-                env: { TAVILY_API_KEY: "tvly-secret" },
-              },
+            tavily: {
+              command: "npx",
+              args: ["-y", "tavily-mcp"],
+              env: { TAVILY_API_KEY: "tvly-secret" },
             },
           },
         },
@@ -352,12 +342,10 @@ describe("MCPPage", () => {
         agent_settings: {
           ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
           mcp_config: {
-            mcpServers: {
-              slack: {
-                command: "npx",
-                args: ["-y", "@zencoderai/slack-mcp-server"],
-                env: { SLACK_BOT_TOKEN: "xoxb-old", SLACK_TEAM_ID: "T01" },
-              },
+            slack: {
+              command: "npx",
+              args: ["-y", "@zencoderai/slack-mcp-server"],
+              env: { SLACK_BOT_TOKEN: "xoxb-old", SLACK_TEAM_ID: "T01" },
             },
           },
         },
@@ -393,15 +381,15 @@ describe("MCPPage", () => {
     await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
     const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
       .agent_settings_diff as {
-      mcp_config: { mcpServers: Record<string, unknown> };
+      mcp_config: Record<string, unknown>;
     };
     // The original Slack stdio entry is preserved and the new stdio
     // install is suffixed rather than overwriting it.
-    expect(Object.keys(sent.mcp_config.mcpServers).sort()).toEqual([
+    expect(Object.keys(sent.mcp_config).sort()).toEqual([
       "slack",
       "slack_1",
     ]);
-    expect(sent.mcp_config.mcpServers).toMatchObject({
+    expect(sent.mcp_config).toMatchObject({
       slack: { env: { SLACK_BOT_TOKEN: "xoxb-old" } },
       slack_1: { env: { SLACK_BOT_TOKEN: "xoxb-new", SLACK_TEAM_ID: "T02" } },
     });

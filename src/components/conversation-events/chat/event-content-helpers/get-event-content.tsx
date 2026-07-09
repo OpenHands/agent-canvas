@@ -74,11 +74,79 @@ const getSummaryTitleForActionEvent = (
   return summary;
 };
 
+const getNonEmptyString = (
+  value: unknown,
+  maxLength?: number,
+): string | null => {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return maxLength ? trimText(trimmed, maxLength) : trimmed;
+};
+
+const getVisionInspectActionTitle = (
+  event: ActionEvent,
+): React.ReactNode | null => {
+  if (event.tool_name !== "inspect_image_with_vision") {
+    return null;
+  }
+
+  const action = event.action as unknown as Record<string, unknown>;
+  const profileName = getNonEmptyString(action.profile_name);
+
+  return profileName
+    ? `Describing image with ${profileName}`
+    : "Describing image with auxiliary vision LLM";
+};
+
+const getVisionInspectObservationTitle = (
+  event: ObservationEvent,
+  correspondingAction?: ActionEvent,
+): React.ReactNode | null => {
+  const actionToolName = correspondingAction?.tool_name;
+  const observation = event.observation as unknown as Record<string, unknown>;
+  const observationToolName = getNonEmptyString(observation.tool_name);
+
+  if (
+    actionToolName !== "inspect_image_with_vision" &&
+    observationToolName !== "inspect_image_with_vision" &&
+    String(event.observation.kind) !== "VisionInspectObservation"
+  ) {
+    return null;
+  }
+
+  const action = (correspondingAction?.action ?? {}) as unknown as Record<
+    string,
+    unknown
+  >;
+  const label =
+    getNonEmptyString(action.profile_name) ??
+    getNonEmptyString(observation.profile_name) ??
+    getNonEmptyString(observation.base_url, 80) ??
+    getNonEmptyString(observation.endpoint, 80) ??
+    getNonEmptyString(observation.model, 80);
+
+  return label
+    ? `Describing image with ${label}`
+    : "Describing image with auxiliary vision LLM";
+};
+
 // Action Event Processing
 const getActionEventTitle = (event: OpenHandsEvent): React.ReactNode => {
   // Early return if not an action event
   if (!isActionEvent(event)) {
     return "";
+  }
+
+  const visionInspectTitle = getVisionInspectActionTitle(event);
+  if (visionInspectTitle) {
+    return visionInspectTitle;
   }
 
   const summaryTitle = getSummaryTitleForActionEvent(event);
@@ -190,7 +258,20 @@ const getObservationEventTitle = (
     return "";
   }
 
+  const visionInspectObservationTitle = getVisionInspectObservationTitle(
+    event,
+    correspondingAction,
+  );
+  if (visionInspectObservationTitle) {
+    return visionInspectObservationTitle;
+  }
+
   if (correspondingAction) {
+    const visionInspectTitle = getVisionInspectActionTitle(correspondingAction);
+    if (visionInspectTitle) {
+      return visionInspectTitle;
+    }
+
     const summaryTitle = getSummaryTitleForActionEvent(correspondingAction);
     if (summaryTitle) {
       return summaryTitle;

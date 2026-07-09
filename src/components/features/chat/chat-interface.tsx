@@ -573,7 +573,7 @@ export function ChatInterface() {
               }
               onReauth={
                 isAcpAuthErrorCode(errorCode)
-                  ? () => navigate("/settings/agent")
+                  ? () => navigate("/settings/agents")
                   : undefined
               }
             />

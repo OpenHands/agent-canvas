@@ -8,11 +8,11 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => {
       const translations: Record<string, string> = {
-        SETTINGS$PROFILE_ACTIVE: "Active",
+        SETTINGS$PROFILE_DEFAULT: "Default",
         SETTINGS$PROFILE_MENU: "Profile menu",
         SETTINGS$PROFILE_EDIT: "Edit",
         BUTTON$RENAME: "Rename",
-        SETTINGS$PROFILE_SET_ACTIVE: "Set as active",
+        SETTINGS$PROFILE_SET_DEFAULT: "Set as default",
         BUTTON$DELETE: "Delete",
       };
       return translations[key] || key;
@@ -67,7 +67,7 @@ describe("ProfileRow", () => {
     render(<ProfileRow {...defaultProps} isActive />);
 
     expect(screen.getByTestId("profile-active-badge")).toBeInTheDocument();
-    expect(screen.getByText("Active")).toBeInTheDocument();
+    expect(screen.getByText("Default")).toBeInTheDocument();
   });
 
   it("does not show Active badge when isActive is false", () => {
@@ -98,7 +98,7 @@ describe("ProfileRow", () => {
 
     expect(screen.getByText("Edit")).toBeInTheDocument();
     expect(screen.getByText("Rename")).toBeInTheDocument();
-    expect(screen.getByText("Set as active")).toBeInTheDocument();
+    expect(screen.getByText("Set as default")).toBeInTheDocument();
     expect(screen.getByText("Delete")).toBeInTheDocument();
   });
 
@@ -148,7 +148,7 @@ describe("ProfileRow", () => {
     render(<ProfileRow {...defaultProps} onActivate={handleActivate} />);
 
     await user.click(screen.getByTestId("profile-menu-trigger"));
-    await user.click(screen.getByText("Set as active"));
+    await user.click(screen.getByText("Set as default"));
 
     expect(handleActivate).toHaveBeenCalledWith(mockProfile.name);
   });

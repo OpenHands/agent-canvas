@@ -8,6 +8,10 @@ interface ModalBackdropProps {
   closeOnEscape?: boolean;
   /** When false, clicking the backdrop does not close the modal. Defaults to true. */
   closeOnBackdropClick?: boolean;
+  /** When true, renders above the default modal layer so it stacks over other
+   *  modals (used by the telemetry consent banner over the onboarding modal).
+   *  Defaults to false. */
+  elevated?: boolean;
   "aria-label"?: string;
 }
 
@@ -16,6 +20,7 @@ export function ModalBackdrop({
   onClose,
   closeOnEscape = true,
   closeOnBackdropClick = true,
+  elevated = false,
   "aria-label": ariaLabel,
 }: ModalBackdropProps) {
   React.useEffect(() => {
@@ -45,7 +50,9 @@ export function ModalBackdrop({
       role="dialog"
       aria-modal="true"
       aria-label={ariaLabel}
-      className="fixed inset-0 flex items-center justify-center z-60"
+      className={`fixed inset-0 flex items-center justify-center ${
+        elevated ? "z-[70]" : "z-60"
+      }`}
     >
       <div
         onClick={handleClick}

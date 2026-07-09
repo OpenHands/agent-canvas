@@ -100,7 +100,10 @@ describe("ChatInputModel", () => {
     // list chip), resolved from ``acp_server`` + the raw ``acp_model`` id.
     expect(model).toHaveAttribute("title", "Claude Sonnet 4.6");
     fireEvent.click(model);
-    expect(screen.getByRole("link")).toHaveAttribute("href", "/settings/agent");
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      "/settings/agents",
+    );
   });
 
   it("does not fall back to the OpenHands settings model for active ACP conversations", () => {
@@ -157,7 +160,10 @@ describe("ChatInputModel", () => {
     const model = screen.getByTestId("chat-input-llm-model");
     expect(model).toHaveAttribute("title", "gemini-2.5-pro");
     fireEvent.click(model);
-    expect(screen.getByRole("link")).toHaveAttribute("href", "/settings/agent");
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      "/settings/agents",
+    );
   });
 
   it("renders nothing when neither the conversation nor settings provide an llm_model", () => {
@@ -221,7 +227,10 @@ describe("ChatInputModel", () => {
     // acp-providers.ts.
     expect(model).toHaveAttribute("title", "Claude Opus 4.8 (1M)");
     fireEvent.click(model);
-    expect(screen.getByRole("link")).toHaveAttribute("href", "/settings/agent");
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      "/settings/agents",
+    );
   });
 
   it("renders the provider's available models as selectable rows for an ACP conversation", () => {
@@ -326,6 +335,9 @@ describe("ChatInputModel", () => {
     ).toBeInTheDocument();
     const popover = screen.getByTestId("chat-input-llm-model-popover");
     expect(popover).toHaveTextContent("Claude Sonnet 4.6");
-    expect(screen.getByRole("link")).toHaveAttribute("href", "/settings/agent");
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      "/settings/agents",
+    );
   });
 });

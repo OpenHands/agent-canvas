@@ -38,6 +38,7 @@ export function TaskCard({ task }: TaskCardProps) {
           gitProvider: task.git_provider,
         },
         suggestedTask: task,
+        entryPoint: "home_task_card",
       },
       {
         onSuccess: (data) => {

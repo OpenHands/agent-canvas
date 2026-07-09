@@ -93,6 +93,7 @@ describe("SkillsPluginsScreen", () => {
       MOCK_DEFAULT_USER_SETTINGS,
     );
     vi.spyOn(PluginsService, "getPluginsMarketplace").mockResolvedValue([]);
+    vi.spyOn(PluginsService, "getLocalPlugins").mockResolvedValue([]);
     vi.spyOn(
       PluginsManagementService,
       "listInstalledPlugins",
@@ -206,6 +207,24 @@ describe("SkillsPluginsScreen", () => {
     renderPluginsScreen();
 
     expect(await screen.findByTestId("plugins-empty")).toBeInTheDocument();
+  });
+
+  it("renders a local plugin as a read-only card without install or toggle controls", async () => {
+    vi.spyOn(PluginsService, "getLocalPlugins").mockResolvedValue([
+      { name: "ambient-plugin", version: "1.0.0", description: "Ambient" },
+    ]);
+
+    renderPluginsScreen();
+
+    expect(
+      await screen.findByTestId("plugin-local-badge-ambient-plugin"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("plugin-install-ambient-plugin"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("plugin-toggle-ambient-plugin"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the no-match state when the search excludes everything", async () => {

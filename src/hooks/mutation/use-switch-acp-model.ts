@@ -59,9 +59,9 @@ export const useSwitchAcpModel = () => {
         });
       }
     },
-    // No meta.disableToast: unlike useSwitchLlmProfile (wrapped by
-    // useSwitchLlmProfileAndLog, which re-surfaces errors), this hook is called
-    // directly, so we let the global mutation error toast report a failed
-    // switch / settings write rather than swallowing it.
+    // No meta.disableToast: unlike useSwitchLlmProfile (which tailors a
+    // "Switched to {name} failed" message via its own onError), there's no
+    // per-action message worth tailoring here, so the global mutation error
+    // toast reports a failed switch / settings write rather than swallowing it.
   });
 };

@@ -12,6 +12,12 @@ const useActiveBackendMock = vi.fn<
   backend: { kind: "local" },
   orgId: null,
 }));
+// The active AgentProfile now drives the ACP-disable derivation; default to
+// "no active profile" so tests that set only `useSettings` exercise the
+// settings fallback path.
+const useActiveAgentProfileMock = vi.fn<
+  () => { activeProfile: { agent_kind: string; name: string } | null }
+>(() => ({ activeProfile: null }));
 
 vi.mock("#/hooks/query/use-config", () => ({
   useConfig: () => useConfigMock(),
@@ -23,6 +29,10 @@ vi.mock("#/hooks/query/use-settings", () => ({
 
 vi.mock("#/contexts/active-backend-context", () => ({
   useActiveBackend: () => useActiveBackendMock(),
+}));
+
+vi.mock("#/hooks/use-active-agent-profile", () => ({
+  useActiveAgentProfile: () => useActiveAgentProfileMock(),
 }));
 
 const createConfig = (
@@ -58,6 +68,7 @@ describe("useSettingsNavItems", () => {
       backend: { kind: "local" },
       orgId: null,
     });
+    useActiveAgentProfileMock.mockReturnValue({ activeProfile: null });
   });
 
   it("returns the LLM settings item unchanged on local backends", () => {
@@ -68,9 +79,7 @@ describe("useSettingsNavItems", () => {
       (item) => item.type === "item" && item.item.to === "/settings/llm",
     );
 
-    const baseLlm = OSS_NAV_ITEMS.find(
-      (item) => item.to === "/settings/llm",
-    )!;
+    const baseLlm = OSS_NAV_ITEMS.find((item) => item.to === "/settings/llm")!;
     expect(llmItem).toEqual({
       type: "item",
       item: baseLlm,
@@ -86,9 +95,52 @@ describe("useSettingsNavItems", () => {
 
     const { result } = renderHook(() => useSettingsNavItems());
 
+    // Agent profiles are available on cloud too (OpenHands #15060), so every
+    // OSS item is present; only the `/settings` LLM-Profiles rename stays
+    // local-only, so on cloud every item is passed through unchanged.
     expect(result.current).toEqual(
       OSS_NAV_ITEMS.map((item) => ({ type: "item", item })),
     );
+  });
+
+  it("shows a single Agent item (the profile library) on both local and cloud", () => {
+    useConfigMock.mockReturnValue({ data: createConfig() });
+
+    for (const kind of ["local", "cloud"] as const) {
+      useActiveBackendMock.mockReturnValue({
+        backend: { kind },
+        orgId: kind === "cloud" ? "org-123" : null,
+      });
+      const paths = renderHook(() => useSettingsNavItems())
+        .result.current.filter((item) => item.type === "item")
+        .map((item) => (item.type === "item" ? item.item.to : null));
+      // "Agent" IS the profile library; the old standalone /settings/agent
+      // global-agent form + separate /settings/agents "Agent profiles" item
+      // were collapsed into one.
+      expect(paths).toContain("/settings/agents");
+      expect(paths).not.toContain("/settings/agent");
+      expect(paths.filter((p) => p === "/settings/agents")).toHaveLength(1);
+    }
+  });
+
+  it("derives the ACP-disable from the active agent profile, not global settings", () => {
+    useConfigMock.mockReturnValue({ data: createConfig() });
+    // Global settings still say OpenHands, but the active profile is ACP —
+    // the active profile wins (activate is pointer-only, #1571).
+    useSettingsMock.mockReturnValue({ data: openHandsSettings });
+    useActiveAgentProfileMock.mockReturnValue({
+      activeProfile: { agent_kind: "acp", name: "MyClaude" },
+    });
+
+    const { result } = renderHook(() => useSettingsNavItems());
+    const llm = result.current.find(
+      (r) => r.type === "item" && r.item.to === "/settings/llm",
+    );
+    expect(llm?.type).toBe("item");
+    if (llm?.type === "item") {
+      expect(llm.disabled).toBe(true);
+      expect(llm.disabledAgentName).toBe("MyClaude");
+    }
   });
 
   it("filters hidden routes from the OSS settings items", () => {
@@ -129,8 +181,7 @@ describe("useSettingsNavItems", () => {
       result.current
         .filter((item) => item.type === "item")
         .map(
-          (item) =>
-            [item.type === "item" ? item.item.to : "", item] as const,
+          (item) => [item.type === "item" ? item.item.to : "", item] as const,
         ),
     );
 

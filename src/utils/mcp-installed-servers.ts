@@ -8,8 +8,8 @@ export function flattenMcpConfig(config: MCPConfig): MCPServerConfig[] {
       type: "sse" as const,
       name: typeof server === "object" ? server.name : undefined,
       url: typeof server === "string" ? server : server.url,
-      api_key: typeof server === "object" ? server.api_key : undefined,
       headers: typeof server === "object" ? server.headers : undefined,
+      auth: typeof server === "object" ? server.auth : undefined,
     })),
     ...config.stdio_servers.map((server, index) => ({
       id: `stdio-${index}`,
@@ -24,9 +24,9 @@ export function flattenMcpConfig(config: MCPConfig): MCPServerConfig[] {
       type: "shttp" as const,
       name: typeof server === "object" ? server.name : undefined,
       url: typeof server === "string" ? server : server.url,
-      api_key: typeof server === "object" ? server.api_key : undefined,
       headers: typeof server === "object" ? server.headers : undefined,
       timeout: typeof server === "object" ? server.timeout : undefined,
+      auth: typeof server === "object" ? server.auth : undefined,
     })),
   ];
 }
