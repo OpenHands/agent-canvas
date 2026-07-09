@@ -11,7 +11,7 @@ export interface SettingsNavItem {
   /** Short grey subline under the page title (`settings.tsx`). */
   subtitle: string;
   // When true, this item is greyed out (and its route redirects to
-  // ``/settings/agent``) while the active agent is ACP. The ACP sub-agent
+  // ``/settings/agents``) while the active agent is ACP. The ACP sub-agent
   // manages its own LLM / condenser / MCP, so these OpenHands-side
   // surfaces have nothing useful to configure. Drives both the navigation
   // disable in ``use-settings-nav-items.ts`` and the loader redirect in
@@ -21,10 +21,14 @@ export interface SettingsNavItem {
 
 export const OSS_NAV_ITEMS: SettingsNavItem[] = [
   {
+    // "Agent" is the Agent Profile library: it lists the user's agent profiles
+    // and its create/edit view is the reused Agent settings form plus a name.
+    // The active profile is the current agent (#1571). Replaces the old split
+    // of a global "Agent" form + a separate "Agent profiles" library.
     icon: <RobotIcon width={16} height={16} />,
-    to: "/settings/agent",
+    to: "/settings/agents",
     text: "SETTINGS$NAV_AGENT",
-    subtitle: "SETTINGS$PAGE_AGENT_SUBLINE",
+    subtitle: "SETTINGS$PAGE_AGENT_PROFILES_SUBLINE",
   },
   {
     icon: <CircuitIcon width={16} height={16} />,

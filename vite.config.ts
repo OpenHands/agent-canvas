@@ -42,6 +42,17 @@ const appBuildConfig = {
       codeSplitting: {
         groups: [
           {
+            // Keep the styling core (HeroUI + tailwind-variants + its
+            // tailwind-merge/clsx deps) in one un-size-split chunk. When the
+            // generic size-split vendor group slices these apart, a HeroUI
+            // component's top-level `tv()` recipe can evaluate before
+            // tailwind-variants' core is initialized, throwing
+            // "TypeError: s is not a function" at module load and blanking the
+            // whole app (root-layout module fails to load → reload loop).
+            name: "vendor-styling",
+            test: /node_modules[\\/](@heroui[\\/]|tailwind-variants[\\/]|tailwind-merge[\\/]|clsx[\\/])/,
+          },
+          {
             name: "vendor",
             test: /node_modules[\\/]/,
             maxSize: APP_CHUNK_MAX_BYTES,

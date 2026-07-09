@@ -115,7 +115,7 @@ describe("useChatInputModelState", () => {
       acpContext({
         isActiveAcpConversation: true,
         isAcpContext: true,
-        destinationPath: "/settings/agent",
+        destinationPath: "/settings/agents",
         destinationLabel: "Agent",
       }),
     );
@@ -133,7 +133,7 @@ describe("useChatInputModelState", () => {
     expect(result.current.showAcpPicker).toBe(true);
     // Live switch targets the navigation conversation id.
     expect(result.current.switchConversationId).toBe("c1");
-    expect(result.current.destinationPath).toBe("/settings/agent");
+    expect(result.current.destinationPath).toBe("/settings/agents");
   });
 
   it("home ACP: resolves the configured acp_model and exposes the picker, but no live-switch target", () => {
@@ -152,7 +152,7 @@ describe("useChatInputModelState", () => {
       acpContext({
         isHomeAcp: true,
         isAcpContext: true,
-        destinationPath: "/settings/agent",
+        destinationPath: "/settings/agents",
         destinationLabel: "Agent",
       }),
     );
