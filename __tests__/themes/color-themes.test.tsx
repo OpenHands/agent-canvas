@@ -44,6 +44,39 @@ describe("color themes", () => {
     document.body.style.removeProperty("--oh-warning");
   });
 
+  it("injects override rules with order-independent doubled scope selectors", () => {
+    // Act
+    applyColorTheme("openhands-neutral");
+
+    // Assert: doubled selectors (0,2,0) out-specify the base sheet's unlayered
+    // [data-agent-server-ui] variable rules (0,1,0), so the override wins even
+    // when React 19 re-inserts the base stylesheet <link> after this tag.
+    const styleEl = document.getElementById("oh-color-theme-override");
+    expect(styleEl?.textContent).toContain(
+      "[data-agent-server-ui][data-agent-server-ui] {",
+    );
+    expect(styleEl?.textContent).toContain("[data-theme=dark][data-theme=dark] {");
+
+    styleEl?.remove();
+  });
+
+  it("re-appends the override style tag to the end of <head> on every apply", () => {
+    // Arrange: first apply creates the tag, then a later stylesheet lands
+    // after it (as React 19 does with the base CSS <link> in the built SPA).
+    applyColorTheme("openhands-neutral");
+    const laterSheet = document.createElement("style");
+    document.head.appendChild(laterSheet);
+
+    // Act
+    applyColorTheme("openhands-deepsea");
+
+    // Assert
+    expect(document.head.lastElementChild?.id).toBe("oh-color-theme-override");
+
+    laterSheet.remove();
+    document.getElementById("oh-color-theme-override")?.remove();
+  });
+
   it("applies Neo button tokens on the scoped UI root used by primary buttons", () => {
     render(
       <AgentServerUIRoot>
