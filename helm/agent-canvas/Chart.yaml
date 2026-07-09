@@ -11,7 +11,7 @@ version: 0.1.0
 # config/defaults.json (`versions.agentCanvas`). Override via
 # `--set image.tag=...` to pull a different build (e.g. `main`, `latest`,
 # or a `sha-<git-sha>` tag).
-appVersion: "1.1.0"
+appVersion: "1.2.0"
 kubeVersion: ">=1.24.0-0"
 home: https://github.com/OpenHands/agent-canvas
 sources:
