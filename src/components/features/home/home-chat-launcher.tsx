@@ -34,6 +34,8 @@ import { OpenWorkspaceDialog } from "./open-workspace-dialog";
 import { OpenRepositoryDialog } from "./open-repository-dialog";
 import { HomeGitControlBarPreview } from "./home-git-control-bar-preview";
 
+const CREATING_CONVERSATION_TOAST_TIMEOUT_MS = 30_000;
+
 export function HomeChatLauncher() {
   const { t } = useTranslation("openhands");
   const { backend } = useActiveBackend();
@@ -124,10 +126,10 @@ export function HomeChatLauncher() {
 
     // Loading toast gives the user a clear signal that the request is in
     // flight; dismissed precisely once the mutation resolves.
-    const toastId = toast.loading(
-      t(I18nKey.HOME$CREATING_CONVERSATION),
-      TOAST_OPTIONS,
-    );
+    const toastId = toast.loading(t(I18nKey.HOME$CREATING_CONVERSATION), {
+      ...TOAST_OPTIONS,
+      duration: CREATING_CONVERSATION_TOAST_TIMEOUT_MS,
+    });
 
     void (async () => {
       try {
