@@ -218,6 +218,22 @@ export const useTracking = () => {
     track("automation_edited", { backend_kind: backendKind });
   };
 
+  const trackAutomationExported = ({
+    backendKind,
+  }: {
+    backendKind: BackendKind;
+  }) => {
+    track("automation_exported", { backend_kind: backendKind });
+  };
+
+  const trackAutomationImported = ({
+    backendKind,
+  }: {
+    backendKind: BackendKind;
+  }) => {
+    track("automation_imported", { backend_kind: backendKind });
+  };
+
   const trackBackendAdded = ({
     backendKind,
     connectionMethod,
@@ -308,6 +324,8 @@ export const useTracking = () => {
     trackAutomationDeleted,
     trackAutomationDeactivated,
     trackAutomationEdited,
+    trackAutomationExported,
+    trackAutomationImported,
     trackBackendAdded,
     trackOnboardingStarted,
     trackOnboardingStepViewed,

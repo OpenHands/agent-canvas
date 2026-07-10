@@ -25,6 +25,7 @@ interface AutomationListRowProps {
   onRunNow: (id: string) => void;
   isRunPending?: boolean;
   onDelete: (id: string) => void;
+  onExport: (automation: Automation) => void;
   onEdit?: (id: string) => void;
 }
 
@@ -34,6 +35,7 @@ export function AutomationListRow({
   onRunNow,
   isRunPending = false,
   onDelete,
+  onExport,
   onEdit,
 }: AutomationListRowProps) {
   const { navigate } = useNavigation();
@@ -58,6 +60,7 @@ export function AutomationListRow({
     onRunNow,
     isRunPending,
     onView: handleView,
+    onExport,
     onEdit,
     onToggle,
     onDelete,
