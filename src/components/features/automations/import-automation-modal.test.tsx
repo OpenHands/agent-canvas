@@ -15,7 +15,10 @@ vi.mock("#/components/shared/modals/modal-backdrop", () => ({
 }));
 
 vi.mock("#/components/shared/modals/modal-close-button", () => ({
-  ModalCloseButton: () => <button type="button">close</button>,
+  ModalCloseButton: () => (
+    // eslint-disable-next-line i18next/no-literal-string
+    <button type="button">close</button>
+  ),
 }));
 
 const spec: AutomationSpec = {
