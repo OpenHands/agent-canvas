@@ -20,6 +20,12 @@ export interface EventSearchOptions {
   timestampGte?: string;
   /** Filter: event timestamp < this value (ISO 8601). */
   timestampLt?: string;
+  /**
+   * Surface unsupported cloud pagination instead of degrading to an empty
+   * page. Callers that require a complete result (such as transcript export)
+   * must set this so a partial history is never mistaken for exhaustion.
+   */
+  strictPagination?: boolean;
 }
 
 export interface EventSearchPage<TEvent> {
