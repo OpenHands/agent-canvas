@@ -182,6 +182,7 @@ describe("SettingsService", () => {
       git_user_name: "Alice",
       git_user_email: "alice@example.com",
       enable_sound_notifications: true,
+      enable_desktop_notifications: true,
       user_consents_to_analytics: true,
       disabled_skills: ["SSH Microagent"],
     };
@@ -195,6 +196,7 @@ describe("SettingsService", () => {
       git_user_name: settings.git_user_name,
       git_user_email: settings.git_user_email,
       enable_sound_notifications: settings.enable_sound_notifications,
+      enable_desktop_notifications: settings.enable_desktop_notifications,
       user_consents_to_analytics: settings.user_consents_to_analytics,
       disabled_skills: settings.disabled_skills,
     }).toEqual(appPrefs);
