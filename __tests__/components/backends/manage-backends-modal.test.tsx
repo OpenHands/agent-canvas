@@ -49,18 +49,19 @@ vi.mock("#/api/cloud/organization-service.api", () => ({
   getCurrentCloudApiKey: vi.fn(),
 }));
 
-vi.mock("#/api/device-flow-client", () => ({
-  startDeviceFlow: deviceFlowMocks.startDeviceFlow,
-  pollForToken: deviceFlowMocks.pollForToken,
-  DeviceFlowError: class DeviceFlowError extends Error {
-    code: string;
-
-    constructor(message: string, code: string) {
-      super(message);
-      this.code = code;
-    }
-  },
-}));
+// Partial mock: only the device-flow network calls are stubbed. The pure
+// host-classifier `isOpenHandsCloudHost` (which the backend form uses to infer
+// a backend's kind) is inherited from the real module so classification stays
+// faithful to production.
+vi.mock("#/api/device-flow-client", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("#/api/device-flow-client")>();
+  return {
+    ...actual,
+    startDeviceFlow: deviceFlowMocks.startDeviceFlow,
+    pollForToken: deviceFlowMocks.pollForToken,
+  };
+});
 
 // Mock the services useTracking depends on (PostHog client + settings) so the
 // consent gate is open and captured events are observable. useTracking itself

@@ -39,7 +39,7 @@ export const clientLoader = async ({ request }: Route.ClientLoaderArgs) => {
 
   // ACP guard: the pages flagged ``disabledByAcp`` (LLM, Condenser, …)
   // have no useful content while an external ACP subprocess drives
-  // conversations. Bounce them to ``/settings/agent``. Driven by the
+  // conversations. Bounce them to ``/settings/agents``. Driven by the
   // same ``disabledByAcp`` flag the nav hook uses for greying out, so
   // the list of redirected paths and the greyed-out paths can never
   // drift apart. See {@link redirectIfAcpActive} for why the redirect
