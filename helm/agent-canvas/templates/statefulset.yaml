@@ -153,7 +153,11 @@ spec:
     - metadata:
         name: {{ include "agent-canvas.pvcClaimName" . }}
         labels:
-          {{- include "agent-canvas.labels" . | nindent 10 }}
+          {{- /* MUST use immutableLabels here, not the full label set.
+                 volumeClaimTemplates is under STS.spec (not spec.template)
+                 and is rejected by the apiserver on any diff, including
+                 label churn from `appVersion` / chart `version` bumps. */}}
+          {{- include "agent-canvas.immutableLabels" . | nindent 10 }}
         {{- with .Values.persistence.annotations }}
         annotations:
           {{- toYaml . | nindent 10 }}

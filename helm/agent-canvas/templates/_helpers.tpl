@@ -46,6 +46,29 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{/*
+Immutable labels — the subset of common labels that are safe to stamp
+into resource fields that Kubernetes rejects modifications to after
+creation. Excludes `helm.sh/chart` and `app.kubernetes.io/version`,
+both of which change whenever the chart version or appVersion is
+bumped.
+
+Use this (not `agent-canvas.labels`) inside anything under
+`StatefulSet.spec.volumeClaimTemplates[].metadata` — that subtree is
+immutable, and any diff there causes `helm upgrade` to fail with:
+
+    StatefulSet.apps ... is invalid: spec: Forbidden: updates to
+    statefulset spec for fields other than 'replicas', 'ordinals',
+    'template', ... are forbidden
+
+Object-level `metadata.labels` (on the STS itself, Services, etc.)
+are mutable, so those keep the full `agent-canvas.labels` set.
+*/}}
+{{- define "agent-canvas.immutableLabels" -}}
+{{ include "agent-canvas.selectorLabels" . }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end -}}
+
+{{/*
 ServiceAccount name to use.
 */}}
 {{- define "agent-canvas.serviceAccountName" -}}
