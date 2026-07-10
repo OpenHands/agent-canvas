@@ -251,7 +251,7 @@ describe("InstallServerModal", () => {
       mcp_config: Record<string, unknown>;
     };
     expect(sent.mcp_config).toMatchObject({
-      synthetic_oauth: {
+      "synthetic-oauth": {
         url: "https://mcp.example.com/mcp",
         auth: {
           strategy: "oauth2",
@@ -338,7 +338,7 @@ describe("InstallServerModal", () => {
       mcp_config: Record<string, unknown>;
     };
     expect(sent.mcp_config).toMatchObject({
-      datadog_style: {
+      "datadog-style": {
         url: "https://mcp.example.com/mcp",
         auth: {
           strategy: "header",
@@ -404,7 +404,7 @@ describe("InstallServerModal", () => {
       mcp_config: Record<string, unknown>;
     };
     expect(sent.mcp_config).toMatchObject({
-      datadog_style: {
+      "datadog-style": {
         url: "https://mcp.us5.example.com/v1/mcp",
         auth: {
           strategy: "header",
