@@ -189,7 +189,7 @@ export default function AutomationDetail() {
             createdAt={automation.created_at}
             lastRunAt={automation.last_triggered_at}
           />
-          <ActivityLogSection automationId={automation.id} />
+          <ActivityLogSection automation={automation} />
           <DeleteConfirmationModal
             automationName={automation.name}
             isOpen={showDeleteModal}

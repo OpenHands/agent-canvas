@@ -63,6 +63,7 @@ export const useHandlePlanClick = () => {
         {
           parentConversationId: conversation.id,
           agentType: "plan",
+          entryPoint: "plan_sub_conversation",
         },
         {
           onSuccess: (data) => {

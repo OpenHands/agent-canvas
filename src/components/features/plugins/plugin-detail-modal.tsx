@@ -62,6 +62,11 @@ export function PluginDetailModal({
           ) : null}
 
           <div className="flex flex-wrap gap-2">
+            {plugin.isLocal ? (
+              <span className={extensionModuleCardPillClassName}>
+                {t(I18nKey.SETTINGS$PLUGINS_FILTER_LOCAL)}
+              </span>
+            ) : null}
             {plugin.version ? (
               <span className={extensionModuleCardPillClassName}>
                 {t(I18nKey.SETTINGS$SKILLS_VERSION, {
@@ -120,7 +125,7 @@ export function PluginDetailModal({
                 {t(I18nKey.SETTINGS$PLUGINS_UNINSTALL)}
               </BrandButton>
             </>
-          ) : (
+          ) : plugin.isLocal ? null : (
             <BrandButton
               type="button"
               variant="primary"

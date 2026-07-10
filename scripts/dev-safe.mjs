@@ -48,21 +48,12 @@ const LOCAL_AGENT_SERVER_SUBDIRS = [
   "openhands-workspace",
 ];
 const DEFAULT_AGENT_SERVER_VERSION = SHARED_DEFAULTS.versions.agentServer;
+// Temporary transitive-dep pin: openhands-sdk 1.33.0 leaves agent-client-protocol
+// unbounded (>=0.10.1), but acp 0.11.0 reordered the ACP prompt() args and breaks
+// the SDK's ACP client. Hold acp <0.11 until a fixed SDK ships. See config/defaults.json.
+const AGENT_CLIENT_PROTOCOL_CONSTRAINT =
+  SHARED_DEFAULTS.constraints?.agentClientProtocol;
 const FRONTEND_REQUIRED_BINS = ["cross-env", "react-router"];
-
-// agent-client-protocol 0.11.0 swapped the positional args of
-// ClientSideConnection.prompt() from (prompt, session_id) to
-// (session_id, prompt). openhands-sdk through at least 1.29.x calls
-// conn.prompt(prompt_blocks, session_id) positionally, so acp>=0.11
-// causes "2 validation errors for PromptRequest" — session_id receives
-// the prompt list and prompt receives the session_id string. Pin acp
-// to <0.11 for all PyPI-based agent-server invocations until the SDK
-// ships a version that adapts to the new signature. Local-path and
-// git-ref builds install their own acp version and are exempt.
-const AGENT_SERVER_EXTRA_WITH = [
-  "--with",
-  "agent-client-protocol>=0.10.1,<0.11",
-];
 
 /**
  * Generate a cryptographically secure random API key.
@@ -408,7 +399,7 @@ export function validateFrontendDependencies(
  *   edits are picked up without a manual reinstall. The agent-server itself
  *   is rebuilt from local source on each invocation (--reinstall).
  * - OH_AGENT_SERVER_GIT_REF: Git commit SHA or branch name
- * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.29.3")
+ * - OH_AGENT_SERVER_VERSION: Specific PyPI version (e.g., "1.33.0")
  *
  * If none are set, defaults to the released version specified by
  * DEFAULT_AGENT_SERVER_VERSION. Set OH_AGENT_SERVER_GIT_REF to use a
@@ -481,9 +472,11 @@ export function buildAgentServerCommand(env = process.env) {
       `openhands-tools==${version}`,
       "--with",
       `openhands-workspace==${version}`,
-      ...AGENT_SERVER_EXTRA_WITH,
-      "agent-server",
     );
+    if (AGENT_CLIENT_PROTOCOL_CONSTRAINT) {
+      uvxArgs.push("--with", AGENT_CLIENT_PROTOCOL_CONSTRAINT);
+    }
+    uvxArgs.push("agent-server");
     source = `PyPI (${version})`;
   } else {
     // Default to released PyPI version
@@ -497,9 +490,11 @@ export function buildAgentServerCommand(env = process.env) {
       `openhands-tools==${DEFAULT_AGENT_SERVER_VERSION}`,
       "--with",
       `openhands-workspace==${DEFAULT_AGENT_SERVER_VERSION}`,
-      ...AGENT_SERVER_EXTRA_WITH,
-      "agent-server",
     );
+    if (AGENT_CLIENT_PROTOCOL_CONSTRAINT) {
+      uvxArgs.push("--with", AGENT_CLIENT_PROTOCOL_CONSTRAINT);
+    }
+    uvxArgs.push("agent-server");
     source = `PyPI (${DEFAULT_AGENT_SERVER_VERSION}, default)`;
   }
 
