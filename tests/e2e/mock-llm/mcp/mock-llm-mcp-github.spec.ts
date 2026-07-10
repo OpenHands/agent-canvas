@@ -23,7 +23,7 @@ import {
   routeSessionApiKey,
   dismissAnalyticsModal,
   waitForTestId,
-  ensureMockLLMProfileViaAPI,
+  ensureMockLLMProfile,
 } from "../utils/mock-llm-helpers";
 
 const FAKE_PAT = "github_pat_test_1234567890abcdef";
@@ -106,10 +106,9 @@ test.describe("MCP GitHub server install flow", () => {
 
   test("step 3: full install flow — fill PAT, submit, verify installed", async ({
     page,
-    request,
   }) => {
     // We need an LLM profile configured for settings to work properly
-    await ensureMockLLMProfileViaAPI(request);
+    await ensureMockLLMProfile(page);
 
     await routeSessionApiKey(page);
 
