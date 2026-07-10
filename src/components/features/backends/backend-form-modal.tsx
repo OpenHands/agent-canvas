@@ -11,12 +11,14 @@ import {
 import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
+import { SegmentedToggle } from "#/components/features/files-tab/segmented-toggle";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useNavigation } from "#/context/navigation-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { useTracking } from "#/hooks/use-tracking";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { getLockedCloudHost } from "#/api/agent-server-config";
+import { isOpenHandsCloudHost } from "#/api/device-flow-client";
 import {
   assertAgentServerVersionIsSupported,
   getDisplayAgentServerVersion,
@@ -45,12 +47,18 @@ interface BackendFormModalProps {
   source?: BackendAddedSource;
 }
 
+/**
+ * Seed the default backend kind from the host. Uses proper hostname-suffix
+ * matching (via {@link isOpenHandsCloudHost}) rather than a substring test, so
+ * a look-alike host such as `all-hands-testing.dev` isn't misread as cloud.
+ *
+ * This is only a *default*: a self-hosted OpenHands Cloud/Enterprise instance
+ * on a truly custom domain is indistinguishable from a local agent-server by
+ * host alone, so the manual add form lets the user override the kind
+ * explicitly (see the Type selector in ManualConnectionColumn).
+ */
 function inferKindFromHost(host: string): BackendKind {
-  const trimmed = host.trim().toLowerCase();
-  if (trimmed.includes("all-hands.dev") || trimmed.includes("openhands.dev")) {
-    return "cloud";
-  }
-  return "local";
+  return isOpenHandsCloudHost(host) ? "cloud" : "local";
 }
 
 /**
@@ -316,8 +324,15 @@ function useBackendForm({
     null,
   );
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [kindOverride, setKindOverride] = React.useState<BackendKind | null>(
+    null,
+  );
 
-  const kind = inferKindFromHost(host);
+  // Kind follows host inference until the user explicitly picks a type, then
+  // respects that choice. A custom-domain OHE can't be distinguished from a
+  // custom-domain local agent-server by host alone, so ManualConnectionColumn
+  // exposes `setKind` (a Type selector) to let the user declare it.
+  const kind = kindOverride ?? inferKindFromHost(host);
   const needsApiKey = requireApiKey || kind !== "local";
   const canSubmit =
     name.trim().length > 0 &&
@@ -385,6 +400,7 @@ function useBackendForm({
     setConnectionError,
     isSubmitting,
     kind,
+    setKind: setKindOverride,
     canSubmit,
     handleSubmit,
   };
@@ -786,6 +802,7 @@ function ManualConnectionColumn({
     setConnectionError,
     isSubmitting,
     kind,
+    setKind,
     canSubmit,
     handleSubmit,
   } = useBackendForm({
@@ -854,6 +871,20 @@ function ManualConnectionColumn({
         >
           {t(I18nKey.BACKEND$HOST_HELPER)}
         </p>
+      </div>
+
+      <div className="flex flex-col items-start gap-2.5">
+        <span className="text-sm">{t(I18nKey.BACKEND$KIND_LABEL)}</span>
+        <SegmentedToggle<BackendKind>
+          value={kind}
+          options={[
+            { value: "local", label: t(I18nKey.BACKEND$KIND_LOCAL) },
+            { value: "cloud", label: t(I18nKey.BACKEND$KIND_CLOUD) },
+          ]}
+          onChange={(value) => setKind(value)}
+          ariaLabel={t(I18nKey.BACKEND$KIND_LABEL)}
+          testId={`${testIdRoot}-kind`}
+        />
       </div>
 
       <SettingsInput

@@ -155,6 +155,7 @@ describe("recommended automations", () => {
       "slack-channel-monitor",
       "slack-standup-digest",
       "linear-triage-assistant",
+      "jira-issue-to-pr",
       "research-brief-writer",
       "incident-retrospective-drafter",
     ]);
@@ -180,7 +181,7 @@ describe("recommended automations", () => {
     expect(betaHeading).toHaveTextContent(
       I18nKey.RECOMMENDED_AUTOMATIONS$BETA_LABEL,
     );
-    expect(within(betaHeading).getByText("4")).toBeInTheDocument();
+    expect(within(betaHeading).getByText("5")).toBeInTheDocument();
 
     const betaSection = screen.getByTestId(
       "recommended-automations-beta-section",

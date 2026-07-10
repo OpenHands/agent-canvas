@@ -11,6 +11,7 @@ vi.mock("react-i18next", () => ({
         "BUTTON$RENAME": "Rename",
         "BUTTON$DUPLICATE": "Duplicate",
         "SETTINGS$PROFILE_SET_ACTIVE": "Set as active",
+        "SETTINGS$PROFILE_SET_DEFAULT": "Set as default",
         "BUTTON$DELETE": "Delete",
       };
       return translations[key] || key;
@@ -38,7 +39,7 @@ describe("ProfileActionsMenu", () => {
     expect(screen.getByTestId("profile-duplicate")).toHaveTextContent(
       "Duplicate",
     );
-    expect(screen.getByTestId("profile-set-active")).toHaveTextContent("Set as active");
+    expect(screen.getByTestId("profile-set-active")).toHaveTextContent("Set as default");
     expect(screen.getByTestId("profile-delete")).toHaveTextContent("Delete");
   });
 

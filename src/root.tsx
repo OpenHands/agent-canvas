@@ -28,6 +28,7 @@ import {
 import { getEffectiveLocalBackend } from "#/api/backend-registry/active-store";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import {
+  isCloudBackendApiKeyOrNetworkHealthError,
   isCloudBackendLoggedOutHealthError,
   useBackendsHealth,
 } from "#/hooks/query/use-backends-health";
@@ -252,6 +253,15 @@ export default function App() {
     active.backend.kind === "cloud" &&
     activeCloudHealth?.isConnected === false &&
     isCloudBackendLoggedOutHealthError(activeCloudHealth.lastError);
+  // A cloud backend the health probe has given up on (disabled after repeated
+  // CORS/network failures) is unreachable from this origin — most commonly a
+  // self-hosted OHE that doesn't allow this frontend's origin. Route to the
+  // same recovery screen as a logged-out backend so the user sees the real
+  // connectivity error, not a misleading "LLM not configured" home page.
+  const activeCloudUnreachable =
+    active.backend.kind === "cloud" &&
+    activeCloudHealth?.disabled === true &&
+    isCloudBackendApiKeyOrNetworkHealthError(activeCloudHealth.lastError);
 
   if (showFirstRunOnboarding) {
     return <FirstRunOnboardingScreen onClose={markCompleted} />;
@@ -271,7 +281,11 @@ export default function App() {
     return <AgentServerBootstrapLoading />;
   }
 
-  if (activeCloudLoggedOut || isAgentServerUnavailableError(config.error)) {
+  if (
+    activeCloudLoggedOut ||
+    activeCloudUnreachable ||
+    isAgentServerUnavailableError(config.error)
+  ) {
     return <MissingAgentServerScreen />;
   }
 

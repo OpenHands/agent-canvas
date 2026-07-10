@@ -1,98 +1,39 @@
 import { renderHook } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-// The wrapper drives the base mutation; mock it so we can deterministically
-// trigger the success / error callbacks the wrapper passes in.
+// The wrapper is a thin positional adapter over the base mutation; the inline
+// message, metadata persist, and error reporting all live in the mutation
+// itself (see use-switch-llm-profile.test.tsx) so they survive the switcher
+// menu unmounting on select.
 const switchMutateMock = vi.fn();
 vi.mock("#/hooks/mutation/use-switch-llm-profile", () => ({
   useSwitchLlmProfile: () => ({ mutate: switchMutateMock, isPending: false }),
 }));
 
-vi.mock("#/hooks/chat/record-model-switch-message", () => ({
-  recordModelSwitchMessage: vi.fn(),
-}));
-
-vi.mock("#/hooks/chat/model-command-event-anchor", () => ({
-  getLastRenderableEventId: () => null,
-}));
-
-vi.mock("#/utils/custom-toast-handlers", () => ({
-  displayErrorToast: vi.fn(),
-}));
-
 import { useSwitchLlmProfileAndLog } from "#/hooks/mutation/use-switch-llm-profile-and-log";
-import {
-  getStoredConversationMetadata,
-  setStoredConversationMetadata,
-} from "#/api/conversation-metadata-store";
 
 describe("useSwitchLlmProfileAndLog", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    window.localStorage.clear();
   });
 
-  it("stamps the switched-to profile onto the conversation metadata, preserving repo/workspace (#1082)", () => {
-    switchMutateMock.mockImplementation((_vars, opts) => opts?.onSuccess?.());
-    // Repo metadata persisted at creation must survive the merge.
-    setStoredConversationMetadata("conv-1", {
-      selected_repository: "octocat/hello-world",
-      selected_branch: "main",
-      git_provider: "github",
-    });
-
+  it("maps positional args to the base mutation for the per-conversation path", () => {
     const { result } = renderHook(() => useSwitchLlmProfileAndLog());
     result.current.switchAndLog("conv-1", "claude-sonnet-4.6");
 
-    expect(getStoredConversationMetadata("conv-1")).toEqual({
-      selected_repository: "octocat/hello-world",
-      selected_branch: "main",
-      git_provider: "github",
-      selected_workspace: null,
-      active_profile: "claude-sonnet-4.6",
-      plugins: null,
+    expect(switchMutateMock).toHaveBeenCalledWith({
+      conversationId: "conv-1",
+      profileName: "claude-sonnet-4.6",
     });
   });
 
-  it("preserves the conversation's attached plugins across a profile switch", () => {
-    switchMutateMock.mockImplementation((_vars, opts) => opts?.onSuccess?.());
-    // A plugin snapshot persisted at creation must survive the full-object
-    // metadata replace the switch performs.
-    setStoredConversationMetadata("conv-1", {
-      selected_repository: null,
-      selected_branch: null,
-      git_provider: null,
-      plugins: [
-        { source: "github:acme/city-weather", ref: null, repo_path: null },
-      ],
-    });
-
-    const { result } = renderHook(() => useSwitchLlmProfileAndLog());
-    result.current.switchAndLog("conv-1", "claude-sonnet-4.6");
-
-    expect(getStoredConversationMetadata("conv-1")?.plugins).toEqual([
-      { source: "github:acme/city-weather", ref: null, repo_path: null },
-    ]);
-  });
-
-  it("does not stamp metadata for the home-page activate path (conversationId === null)", () => {
-    switchMutateMock.mockImplementation((_vars, opts) => opts?.onSuccess?.());
-
+  it("passes a null conversationId through for the home-page activate path", () => {
     const { result } = renderHook(() => useSwitchLlmProfileAndLog());
     result.current.switchAndLog(null, "claude-sonnet-4.6");
 
-    // No conversation to scope the stamp to → nothing written.
-    expect(getStoredConversationMetadata("conv-1")).toBeNull();
-  });
-
-  it("does not stamp metadata when the switch fails", () => {
-    switchMutateMock.mockImplementation((_vars, opts) =>
-      opts?.onError?.(new Error("boom")),
-    );
-
-    const { result } = renderHook(() => useSwitchLlmProfileAndLog());
-    result.current.switchAndLog("conv-1", "claude-sonnet-4.6");
-
-    expect(getStoredConversationMetadata("conv-1")).toBeNull();
+    expect(switchMutateMock).toHaveBeenCalledWith({
+      conversationId: null,
+      profileName: "claude-sonnet-4.6",
+    });
   });
 });
