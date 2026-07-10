@@ -68,9 +68,13 @@ class AgentServerGitService {
       }));
     }
 
+    // No `ref`: let the server auto-detect the base (origin branch /
+    // merge-base), so changes the agent has already committed still show
+    // up. `ref: "HEAD"` would go blank after every `git commit` — and the
+    // cloud-proxy branch above already omits `ref`.
     const changes = await new RemoteWorkspace(
       getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
-    ).gitChanges(path, { ref: "HEAD" });
+    ).gitChanges(path);
 
     if (!Array.isArray(changes)) {
       throw new Error(
@@ -111,9 +115,11 @@ class AgentServerGitService {
       } as GitChangeDiff;
     }
 
+    // No `ref` for the same reason as getGitChanges: the base must match
+    // the one the change list was computed against.
     const diff = (await new RemoteWorkspace(
       getAgentServerClientOptions({ conversationUrl, sessionApiKey }),
-    ).gitDiff(path, { ref: "HEAD" })) as GitChangeDiff & { diff?: string };
+    ).gitDiff(path)) as GitChangeDiff & { diff?: string };
 
     return {
       modified: diff.modified ?? "",
