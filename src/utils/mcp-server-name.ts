@@ -7,7 +7,7 @@ export function isValidMcpServerName(name: string): boolean {
 export function toMcpServerName(value: string, fallback = "mcp"): string {
   const normalized = value
     .trim()
-    .replace(/[^a-zA-Z0-9_]+/g, "_")
+    .replace(/[^a-zA-Z0-9_-]+/g, "_")
     .replace(/_+/g, "_")
     .replace(/^_+|_+$/g, "");
 

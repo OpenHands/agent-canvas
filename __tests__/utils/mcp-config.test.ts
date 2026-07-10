@@ -117,7 +117,7 @@ describe("toSdkMcpConfig", () => {
     });
   });
 
-  it("normalizes MCP server names before using them as SDK keys", () => {
+  it("preserves valid hyphenated MCP server names as SDK keys", () => {
     const config: MCPConfig = {
       sse_servers: [
         { name: "integrations-hub", url: "https://hub.example/mcp" },
@@ -129,8 +129,8 @@ describe("toSdkMcpConfig", () => {
     const out = toSdkMcpConfig(config);
 
     expect(Object.keys(out!)).toEqual([
-      "integrations_hub",
-      "docs_server",
+      "integrations-hub",
+      "docs-server",
     ]);
   });
 
