@@ -47,7 +47,9 @@ export function useAcpModelContext(): AcpModelContext {
     (activeAgentKind ?? settings?.agent_settings?.agent_kind) === "acp";
   const isAcpContext = isActiveAcpConversation || isHomeAcp;
 
-  const destinationPath = isAcpContext ? AGENT_SETTINGS_PATH : LLM_SETTINGS_PATH;
+  const destinationPath = isAcpContext
+    ? AGENT_SETTINGS_PATH
+    : LLM_SETTINGS_PATH;
   const destinationLabel = t(
     isAcpContext
       ? I18nKey.SETTINGS$NAV_AGENT
