@@ -24,6 +24,7 @@ interface AutomationCardProps {
   onRunNow: (id: string) => void;
   isRunPending?: boolean;
   onDelete: (id: string) => void;
+  onExport: (automation: Automation) => void;
   onEdit?: (id: string) => void;
 }
 
@@ -33,6 +34,7 @@ export function AutomationCard({
   onRunNow,
   isRunPending = false,
   onDelete,
+  onExport,
   onEdit,
 }: AutomationCardProps) {
   const { navigate } = useNavigation();
@@ -57,6 +59,7 @@ export function AutomationCard({
     onRunNow,
     isRunPending,
     onView: handleView,
+    onExport,
     onEdit,
     onToggle,
     onDelete,
