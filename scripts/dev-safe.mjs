@@ -264,7 +264,9 @@ export async function assertPortsFree(portConfigs, host = "127.0.0.1") {
   const busy = results.filter(({ free }) => !free);
   if (busy.length === 0) return;
 
-  const lines = busy.map(({ name, port }) => `   • ${name}: port ${port}`).join("\n");
+  const lines = busy
+    .map(({ name, port }) => `   • ${name}: port ${port}`)
+    .join("\n");
   throw new Error(
     `Cannot start: the following ports are already in use:\n\n${lines}\n\n` +
       `Another agent-canvas instance may already be running.\n` +
@@ -619,8 +621,7 @@ function buildConfigFromPorts(ports, cwd, env) {
   // ~/.openhands/agent-canvas/secret-key.txt. Persisting ensures dev mode
   // and Docker mode share the same encryption key when they mount the same
   // ~/.openhands directory (docker/entrypoint.sh reads/writes the same file).
-  const secretKeyPath =
-    env.OH_SECRET_KEY_PATH || DEFAULT_SECRET_KEY_PATH;
+  const secretKeyPath = env.OH_SECRET_KEY_PATH || DEFAULT_SECRET_KEY_PATH;
   const secretKey =
     env.OH_SECRET_KEY || getOrCreatePersistedApiKey(secretKeyPath, "secret");
   // Use the user-provided LOCAL_BACKEND_API_KEY or fall back to a key
@@ -739,10 +740,9 @@ export function buildNpmScriptCommand(
   // On Windows, always use cmd.exe regardless of whether npm_execpath is set.
   // npm_execpath points to a path like
   // "C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js" which contains
-  // spaces. When that path is passed as an argument with shell:true in
-  // spawnService, cmd.exe splits on the space and tries to run "C:\Program"
-  // as a command, producing "not recognized as an internal or external command".
-  // Using "npm" via cmd.exe avoids the problem entirely.
+  // spaces, and npm itself is exposed as npm.cmd rather than a native executable.
+  // Explicitly invoking cmd.exe keeps service spawning shell-free while still
+  // resolving npm correctly.
   if (platform === "win32") {
     return {
       command: env.ComSpec || "cmd.exe",

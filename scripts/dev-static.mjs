@@ -221,7 +221,6 @@ function spawnService(name, command, args, options = {}) {
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, ...options.env },
       cwd: options.cwd,
-      shell: process.platform === "win32",
     }),
   );
 

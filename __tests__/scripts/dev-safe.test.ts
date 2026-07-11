@@ -747,9 +747,8 @@ describe("buildNpmScriptCommand", () => {
   it("runs npm through cmd.exe on Windows even when npm_execpath is set", () => {
     // npm_execpath points to a path with spaces like
     // "C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js".
-    // spawnService uses shell:true on Windows, so passing that path as an
-    // argument causes cmd.exe to split on the space and fail with
-    // "'C:\Program' is not recognized as an internal or external command".
+    // Shell-free service spawning cannot execute npm.cmd directly, so the
+    // launcher must invoke cmd.exe explicitly instead.
     // The win32 branch must fire BEFORE the npm_execpath branch.
     const command = buildNpmScriptCommand(
       "dev:frontend",
