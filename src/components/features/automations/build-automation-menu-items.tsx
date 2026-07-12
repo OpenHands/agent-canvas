@@ -1,4 +1,4 @@
-import { FileText } from "lucide-react";
+import { Download, FileText } from "lucide-react";
 import PlayIcon from "#/icons/play.svg?react";
 import PowerIcon from "#/icons/power.svg?react";
 import TrashIcon from "#/icons/trash.svg?react";
@@ -14,6 +14,7 @@ interface BuildAutomationMenuItemsOptions {
   onRunNow: (id: string) => void;
   isRunPending: boolean;
   onView: () => void;
+  onExport: (automation: Automation) => void;
   onEdit?: (id: string) => void;
   onToggle: (id: string, enabled: boolean) => void;
   onDelete: (id: string) => void;
@@ -26,6 +27,7 @@ export function buildAutomationMenuItems({
   onRunNow,
   isRunPending,
   onView,
+  onExport,
   onEdit,
   onToggle,
   onDelete,
@@ -45,6 +47,11 @@ export function buildAutomationMenuItems({
       label: t(I18nKey.COMMON$VIEW),
       icon: <FileText className="size-4" aria-hidden />,
       onClick: onView,
+    },
+    {
+      label: t(I18nKey.AUTOMATIONS$EXPORT),
+      icon: <Download className="size-4" aria-hidden />,
+      onClick: () => onExport(automation),
     },
     ...(canManage && onEdit
       ? [
