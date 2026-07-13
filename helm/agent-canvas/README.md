@@ -8,6 +8,48 @@ RBAC.
 > [!WARNING]
 > This Helm chart is experimental. Agent Canvas is an unauthenticated, single-tenant application. This helm chart doesn't address scale or zero-downtime deployments.
 
+## When to use this
+
+This chart turns a Kubernetes cluster into a shared, always-on Agent Canvas
+backend: one pod running the UI, agent-server, and automation stack, with a
+PVC that survives pod restarts and image upgrades. It's a good fit when you
+want:
+
+- **A self-hosted, persistent backend** instead of the laptop-friendly Docker
+  setup — so conversations, secrets, and the automation SQLite DB persist
+  across restarts without you managing the volume by hand.
+- **An internal "vibecoding" platform.** With [RBAC enabled](#rbac), give the
+  agent a skill that teaches it to deploy the small web apps it builds
+  straight into the cluster. From that point on, anyone with access to the
+  Agent Canvas UI can build and ship code into the cluster — and save it to
+  GitHub — with just a prompt. No pipelines, no manual `kubectl`, no
+  hand-written manifests.
+
+Put it behind an authenticated ingress before exposing it to the internet (see
+the [Security](#security) notes).
+
+## Relationship to OpenHands Enterprise
+
+Agent Canvas is an **unauthenticated, single-tenant** application. This chart
+runs exactly that: **one** shared instance where all agents are comingled on
+the same pod and PVC, with no built-in auth, RBAC for users, or tenant
+isolation. It's well suited to a single team or individual running their own
+backend.
+
+[OpenHands Enterprise (OHE)](https://www.all-hands.ai/enterprise) is the
+productized upgrade path when you need a hardened, multi-user deployment. OHE
+adds:
+
+- **Authentication** (SSO / SAML / OIDC) so users must log in.
+- **Role-based access control** over who can run agents and manage the
+  deployment.
+- **Multi-tenancy** so different teams get isolated spaces.
+- **Isolated agent sandboxes** — each agent run gets its own container rather
+  than every agent sharing the pod's filesystem.
+
+Use this chart for self-hosted, single-tenant setups; reach for OHE when you
+need authentication, multi-tenancy, or isolated agent execution.
+
 ## TL;DR
 
 ```bash
@@ -141,6 +183,24 @@ Point automation at an external Postgres:
 config:
   automationDbUrl: postgresql+asyncpg://user:pass@postgres/agentcanvas
 ```
+
+## Security
+
+The agent server can read and write the pod filesystem, execute shell
+commands, and — when RBAC is enabled — mutate the Kubernetes cluster it runs
+in. There is no built-in authentication in Agent Canvas, so treat the release
+namespace as trusted infrastructure:
+
+- Put it behind an **authenticated** ingress (oauth2-proxy, Cloudflare Access,
+  tailscale-serve, etc.) before exposing it to the internet.
+- Avoid a bare `LoadBalancer` — the agent server accepts any request with the
+  right `LOCAL_BACKEND_API_KEY`, so exposing it directly means anyone who can
+  guess the key can drive the agent.
+- Only turn on `rbac.clusterAdmin` when you truly need cluster-wide access;
+  prefer scoping to specific namespaces via `rbac.namespaces`.
+
+For authentication, role-based access control, multi-tenancy, and isolated
+agent sandboxes, see [OpenHands Enterprise](#relationship-to-openhands-enterprise).
 
 ## Uninstall
 
