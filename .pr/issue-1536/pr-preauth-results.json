@@ -1,0 +1,42 @@
+[
+  {
+    "name": "pr-desktop-preauth",
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "url": "http://127.0.0.1:12000/conversations",
+    "bodyText": "OpenHands Cloud\n\nConnect instantly to OpenHands Cloud to try out Agent Canvas\n\nLogin with OpenHands Cloud",
+    "hasFirstRunScreen": 1,
+    "hasOnboardingModal": 1,
+    "hasProgressBar": 0,
+    "hasCloudTitle": 1,
+    "hasLoginButton": 1,
+    "hasCloseButton": 0,
+    "hasAdvancedToggle": 0,
+    "containsOldCopy": false,
+    "containsNewCopy": true,
+    "stillVisibleAfterEscapeAndBackdropClick": true,
+    "consoleMessages": []
+  },
+  {
+    "name": "pr-narrow-preauth",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "url": "http://127.0.0.1:12000/conversations",
+    "bodyText": "OpenHands Cloud\n\nConnect instantly to OpenHands Cloud to try out Agent Canvas\n\nLogin with OpenHands Cloud",
+    "hasFirstRunScreen": 1,
+    "hasOnboardingModal": 1,
+    "hasProgressBar": 0,
+    "hasCloudTitle": 1,
+    "hasLoginButton": 1,
+    "hasCloseButton": 0,
+    "hasAdvancedToggle": 0,
+    "containsOldCopy": false,
+    "containsNewCopy": true,
+    "stillVisibleAfterEscapeAndBackdropClick": true,
+    "consoleMessages": []
+  }
+]
