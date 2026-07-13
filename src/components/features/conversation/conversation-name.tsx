@@ -14,6 +14,7 @@ import { HooksModal } from "../conversation-panel/hooks-modal";
 import { ConfirmDeleteModal } from "../conversation-panel/confirm-delete-modal";
 import { ConfirmStopModal } from "../conversation-panel/confirm-stop-modal";
 import { MetricsModal } from "./metrics-modal/metrics-modal";
+import { TranscriptExportModal } from "./transcript-export-modal";
 
 export function ConversationName() {
   const { t } = useTranslation("openhands");
@@ -23,6 +24,8 @@ export function ConversationName() {
 
   const [titleMode, setTitleMode] = React.useState<"view" | "edit">("view");
   const [contextMenuOpen, setContextMenuOpen] = React.useState(false);
+  const [transcriptExportModalVisible, setTranscriptExportModalVisible] =
+    React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const ellipsisAnchorRef = React.useRef<HTMLDivElement>(null);
 
@@ -121,6 +124,15 @@ export function ConversationName() {
     setContextMenuOpen(false);
   };
 
+  const handleExportTranscript = (
+    event: React.MouseEvent<HTMLButtonElement>,
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setTranscriptExportModalVisible(true);
+    setContextMenuOpen(false);
+  };
+
   React.useEffect(() => {
     if (titleMode === "edit") {
       inputRef.current?.focus();
@@ -182,6 +194,7 @@ export function ConversationName() {
                 onTogglePublic={handleTogglePublic}
                 onCopyShareLink={handleCopyShareLink}
                 shareUrl={shareUrl}
+                onExportTranscript={handleExportTranscript}
                 onDownloadConversation={
                   shouldShowDownloadConversation
                     ? handleDownloadConversation
@@ -200,6 +213,17 @@ export function ConversationName() {
         isOpen={metricsModalVisible}
         onOpenChange={setMetricsModalVisible}
       />
+
+      {transcriptExportModalVisible && conversationId && (
+        <TranscriptExportModal
+          conversationId={conversationId}
+          conversationUrl={conversation.conversation_url}
+          sessionApiKey={conversation.session_api_key}
+          conversationTitle={conversation.title}
+          model={conversation.llm_model}
+          onClose={() => setTranscriptExportModalVisible(false)}
+        />
+      )}
 
       {/* System Message Modal */}
       <SystemMessageModal

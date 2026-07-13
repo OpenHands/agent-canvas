@@ -33,6 +33,7 @@ describe("AutomationCard", () => {
         automation={automation}
         onToggle={vi.fn()}
         onRunNow={vi.fn()}
+        onExport={vi.fn()}
         onDelete={vi.fn()}
       />,
     );
@@ -52,6 +53,7 @@ describe("AutomationCard", () => {
         automation={automation}
         onToggle={vi.fn()}
         onRunNow={vi.fn()}
+        onExport={vi.fn()}
         onDelete={vi.fn()}
       />,
     );
