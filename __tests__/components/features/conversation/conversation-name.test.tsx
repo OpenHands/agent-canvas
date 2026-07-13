@@ -89,6 +89,8 @@ vi.mock("react-i18next", async () => {
           CONVERSATION$TITLE_UPDATED: "Conversation title updated",
           BUTTON$RENAME: "Rename",
           BUTTON$EXPORT_CONVERSATION: "Export Conversation",
+          BUTTON$EXPORT_TRANSCRIPT: "Export…",
+          BUTTON$DOWNLOAD_CONVERSATION_DATA: "Download conversation data",
           BUTTON$DOWNLOAD_VIA_VSCODE: "Download via VS Code",
           BUTTON$SHOW_AGENT_TOOLS_AND_METADATA: "Show Agent Tools",
           CONVERSATION$SHOW_SKILLS: "Show Skills",
@@ -548,6 +550,7 @@ describe("ConversationNameContextMenu", () => {
       onDisplayCost: vi.fn(),
       onShowAgentTools: vi.fn(),
       onShowSkills: vi.fn(),
+      onExportTranscript: vi.fn(),
       onDownloadConversation: vi.fn(),
     };
 
@@ -571,8 +574,11 @@ describe("ConversationNameContextMenu", () => {
     expect(screen.getByTestId("show-skills-button")).toHaveTextContent(
       "Show Skills",
     );
+    expect(screen.getByTestId("export-transcript-button")).toHaveTextContent(
+      "Export…",
+    );
     expect(screen.getByTestId("download-trajectory-button")).toHaveTextContent(
-      "Export Conversation",
+      "Download conversation data",
     );
   });
 

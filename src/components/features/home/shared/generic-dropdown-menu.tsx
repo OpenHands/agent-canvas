@@ -29,6 +29,13 @@ export interface GenericDropdownMenuProps<T> {
       options: UseComboboxGetItemPropsOptions<T> & Options,
     ) => any, // eslint-disable-line @typescript-eslint/no-explicit-any
   ) => React.ReactNode;
+  /**
+   * Optional presentational node rendered immediately BEFORE an item (e.g. a
+   * group header). It is a sibling of the item, not part of downshift's `items`
+   * array, so it consumes no item index — mirroring the `numberOfRecentItems`
+   * divider. The consumer owns when a prefix appears (e.g. at group boundaries).
+   */
+  renderItemPrefix?: (item: T, index: number) => React.ReactNode;
   renderEmptyState: (inputValue: string) => React.ReactNode;
   stickyTopItem?: React.ReactNode;
   stickyFooterItem?: React.ReactNode;
@@ -48,6 +55,7 @@ export function GenericDropdownMenu<T>({
   onScroll,
   menuRef,
   renderItem,
+  renderItemPrefix,
   renderEmptyState,
   stickyTopItem,
   stickyFooterItem,
@@ -106,6 +114,7 @@ export function GenericDropdownMenu<T>({
                 const key = itemKey(item);
                 return (
                   <React.Fragment key={key}>
+                    {renderItemPrefix?.(item, index)}
                     {renderItem(
                       item,
                       index,
@@ -115,7 +124,11 @@ export function GenericDropdownMenu<T>({
                     )}
                     {numberOfRecentItems > 0 &&
                       index === numberOfRecentItems - 1 && (
-                        <div className="border-b border-[var(--oh-border-input)] bg-tertiary pb-1 mb-1 h-[1px]" />
+                        <li
+                          role="presentation"
+                          aria-hidden="true"
+                          className="border-b border-[var(--oh-border-input)] bg-tertiary pb-1 mb-1 h-[1px]"
+                        />
                       )}
                   </React.Fragment>
                 );
