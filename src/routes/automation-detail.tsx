@@ -30,6 +30,12 @@ import { BackendNotConfigured } from "#/components/features/automations/backend-
 import { DeleteConfirmationModal } from "#/components/features/automations/delete-confirmation-modal";
 import { EditAutomationModal } from "#/components/features/automations/detail/edit-automation-modal";
 import { useTracking } from "#/hooks/use-tracking";
+import AutomationService from "#/api/automation-service/automation-service.api";
+import {
+  getAutomationExportFilename,
+  serializeAutomation,
+} from "#/utils/automation-export";
+import { downloadBlob } from "#/utils/utils";
 
 export default function AutomationDetail() {
   const { t } = useTranslation("openhands");
@@ -67,7 +73,8 @@ export default function AutomationDetail() {
     enabled: isBackendHealthy && !backendChanged,
   });
 
-  const { trackPrebuiltAutomationEnabled } = useTracking();
+  const { trackPrebuiltAutomationEnabled, trackAutomationExported } =
+    useTracking();
   const toggleMutation = useToggleAutomation();
   const deleteMutation = useDeleteAutomation();
   const dispatchMutation = useDispatchAutomation();
@@ -163,6 +170,15 @@ export default function AutomationDetail() {
     });
   };
 
+  const handleExport = () => {
+    const contents = `${JSON.stringify(serializeAutomation(automation), null, 2)}\n`;
+    downloadBlob(
+      new Blob([contents], { type: "application/json" }),
+      getAutomationExportFilename(automation),
+    );
+    trackAutomationExported({ backendKind: active.backend.kind });
+  };
+
   // Edit is a local-backend-only feature in MVP — cloud automations
   // are managed elsewhere and we don't yet surface them here.
   const canEdit = active.backend.kind === "local";
@@ -177,6 +193,10 @@ export default function AutomationDetail() {
             onToggle={handleToggle}
             onEdit={canEdit ? () => setShowEditModal(true) : undefined}
             onDelete={() => setShowDeleteModal(true)}
+            onExport={handleExport}
+            onDownloadTarball={() =>
+              AutomationService.downloadTarball(automation.id, automation.name)
+            }
             onRunNow={handleRunNow}
             isRunningNow={dispatchMutation.isPending}
           />

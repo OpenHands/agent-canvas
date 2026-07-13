@@ -2,9 +2,12 @@ import axios from "axios";
 import type {
   Automation,
   AutomationRun,
+  AutomationSpec,
+  AutomationTrigger,
   AutomationsResponse,
   AutomationRunsResponse,
 } from "#/types/automation";
+import type { Backend, ResolvedActiveBackend } from "../backend-registry/types";
 import {
   getActiveBackend,
   getEffectiveLocalBackend,
@@ -26,6 +29,10 @@ export interface AutomationHealthResponse {
 const localAutomationAxios = axios.create();
 
 localAutomationAxios.interceptors.request.use((config) => {
+  // Import uses an explicit baseURL/header pair so its POST, PATCH, and
+  // cleanup stay pinned to the backend selected when the mutation started.
+  if (config.baseURL) return config;
+
   // Resolve the local backend on every call so it tracks the
   // currently-active local backend (and any host/key edits made via the
   // manage-backends UI), rather than freezing whatever value the
@@ -37,7 +44,7 @@ localAutomationAxios.interceptors.request.use((config) => {
   const backend = getEffectiveLocalBackend();
   if (!backend) throw new NoBackendAvailableError();
   // eslint-disable-next-line no-param-reassign
-  if (!config.baseURL) config.baseURL = backend.host;
+  config.baseURL = backend.host;
 
   const apiKey = backend.apiKey?.trim();
   if (apiKey) {
@@ -51,6 +58,83 @@ function buildPaginationQuery(limit: number, offset: number): string {
   params.set("limit", String(limit));
   params.set("offset", String(offset));
   return params.toString();
+}
+
+function buildImportedTrigger(spec: AutomationSpec): AutomationTrigger {
+  if (spec.trigger.type === "event") {
+    return {
+      type: "event",
+      source: spec.trigger.source,
+      on: spec.trigger.on,
+      ...(spec.trigger.filter && { filter: spec.trigger.filter }),
+    };
+  }
+
+  return {
+    type: "cron",
+    schedule: spec.trigger.schedule,
+    timezone: spec.timezone ?? spec.trigger.timezone ?? "UTC",
+  };
+}
+
+function generatePendingImportEvent(): string {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return `pending.${crypto.randomUUID()}`;
+  }
+  return `pending.${Date.now()}.${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function buildCreateAutomationRequest(spec: AutomationSpec) {
+  if (!spec.prompt) {
+    throw new Error("An automation prompt is required for import.");
+  }
+
+  const repos = spec.repository
+    ? [
+        {
+          url: spec.repository,
+          ...(spec.branch && { ref: spec.branch }),
+          ...(!spec.repository.includes("://") &&
+            !spec.repository.startsWith("git@") && { provider: "github" }),
+        },
+      ]
+    : undefined;
+
+  return {
+    path: `${AUTOMATION_BASE_PATH}/v1/preset/${spec.plugins?.length ? "plugin" : "prompt"}`,
+    body: {
+      name: spec.name,
+      prompt: spec.prompt,
+      // Preset creation defaults to enabled. A unique event trigger keeps the
+      // new record inert until the real trigger and disabled state are applied
+      // together in the follow-up PATCH.
+      trigger: {
+        type: "event",
+        source: "agent-canvas-import",
+        on: generatePendingImportEvent(),
+      },
+      ...(spec.model && { model: spec.model }),
+      ...(repos && { repos }),
+      ...(spec.plugins?.length && {
+        plugins: spec.plugins.map((source) => ({ source })),
+      }),
+    },
+  };
+}
+
+function buildPinnedLocalConfig(backend: Backend) {
+  const apiKey = backend.apiKey.trim();
+  return {
+    baseURL: backend.host,
+    ...(apiKey && { headers: { "X-Session-API-Key": apiKey } }),
+  };
+}
+
+function buildPinnedCloudHeaders(active: ResolvedActiveBackend) {
+  return active.orgId ? { "X-Org-Id": active.orgId } : undefined;
 }
 
 class AutomationService {
@@ -96,6 +180,76 @@ class AutomationService {
 
     const { data } = await localAutomationAxios.get<Automation>(path);
     return data;
+  }
+
+  static async createAutomation(spec: AutomationSpec): Promise<Automation> {
+    const active = getActiveBackend();
+    const { path, body } = buildCreateAutomationRequest(spec);
+
+    let created: Automation;
+    if (active.backend.kind === "cloud") {
+      created = await callCloudProxy<Automation>({
+        backend: active.backend,
+        method: "POST",
+        path,
+        body,
+        headers: buildPinnedCloudHeaders(active),
+      });
+    } else {
+      const { data } = await localAutomationAxios.post<Automation>(
+        path,
+        body,
+        buildPinnedLocalConfig(active.backend),
+      );
+      created = data;
+    }
+
+    const updatePath = `${AUTOMATION_BASE_PATH}/v1/${encodeURIComponent(created.id)}`;
+    const updateBody: Partial<Automation> = {
+      trigger: buildImportedTrigger(spec),
+      enabled: false,
+    };
+
+    try {
+      if (active.backend.kind === "cloud") {
+        return await callCloudProxy<Automation>({
+          backend: active.backend,
+          method: "PATCH",
+          path: updatePath,
+          body: updateBody,
+          headers: buildPinnedCloudHeaders(active),
+        });
+      }
+
+      const { data } = await localAutomationAxios.patch<Automation>(
+        updatePath,
+        updateBody,
+        buildPinnedLocalConfig(active.backend),
+      );
+      return data;
+    } catch (updateError) {
+      try {
+        if (active.backend.kind === "cloud") {
+          await callCloudProxy<unknown>({
+            backend: active.backend,
+            method: "DELETE",
+            path: updatePath,
+            headers: buildPinnedCloudHeaders(active),
+          });
+        } else {
+          await localAutomationAxios.delete(
+            updatePath,
+            buildPinnedLocalConfig(active.backend),
+          );
+        }
+      } catch (cleanupError) {
+        throw new AggregateError(
+          [updateError, cleanupError],
+          "Failed to disable the imported automation and clean it up.",
+        );
+      }
+      throw updateError;
+    }
   }
 
   static async updateAutomation(

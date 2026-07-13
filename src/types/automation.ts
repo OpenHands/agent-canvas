@@ -11,6 +11,8 @@ export interface AutomationTrigger {
   schedule?: string;
   /** Human-readable schedule description (schedule triggers only). */
   schedule_human?: string;
+  /** IANA timezone name (schedule triggers only). */
+  timezone?: string;
   /** Event source, e.g. "github" (event triggers only). */
   source?: string;
   /** Event key pattern(s) to match, e.g. "pull_request.opened" or ["push", "release.*"]. */
@@ -36,6 +38,17 @@ export interface Automation {
   notification?: string;
   timezone?: string;
   last_triggered_at?: string | null;
+}
+
+export type AutomationSpec = Omit<
+  Automation,
+  "id" | "created_at" | "updated_at" | "last_triggered_at"
+>;
+
+export interface AutomationExportFile {
+  version: 1;
+  kind: "automation";
+  spec: AutomationSpec;
 }
 
 export interface AutomationsResponse {

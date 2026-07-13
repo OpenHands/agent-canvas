@@ -36,6 +36,7 @@ interface ConversationNameContextMenuProps {
   onShowHooks?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onTogglePublic?: (nextIsPublic: boolean) => void;
   onCopyShareLink?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onExportTranscript?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onDownloadConversation?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   shareUrl?: string;
   position?: "top" | "bottom";
@@ -98,6 +99,7 @@ export function ConversationNameContextMenu({
   onShowHooks,
   onTogglePublic,
   onCopyShareLink,
+  onExportTranscript,
   onDownloadConversation,
   shareUrl,
   position = "bottom",
@@ -231,6 +233,18 @@ export function ConversationNameContextMenu({
         </ArchivedDisabledTooltip>
       )}
 
+      {onExportTranscript && (
+        <ContextMenuListItem
+          testId="export-transcript-button"
+          onClick={onExportTranscript}
+        >
+          <ConversationNameContextMenuIconText
+            icon={<DownloadIcon width={16} height={16} />}
+            text={t(I18nKey.BUTTON$EXPORT_TRANSCRIPT)}
+          />
+        </ContextMenuListItem>
+      )}
+
       {onDownloadConversation && (
         <ContextMenuListItem
           testId="download-trajectory-button"
@@ -238,7 +252,7 @@ export function ConversationNameContextMenu({
         >
           <ConversationNameContextMenuIconText
             icon={<DownloadIcon width={16} height={16} />}
-            text={t(I18nKey.BUTTON$EXPORT_CONVERSATION)}
+            text={t(I18nKey.BUTTON$DOWNLOAD_CONVERSATION_DATA)}
           />
         </ContextMenuListItem>
       )}

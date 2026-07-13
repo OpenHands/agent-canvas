@@ -86,7 +86,37 @@ describe("MCPServerForm validation", () => {
     });
   });
 
-  it("rejects hyphenated server names because they become tool prefixes", () => {
+  it("allows hyphenated local stdio server names", () => {
+    const onSubmit = vi.fn();
+
+    render(
+      <MCPServerForm
+        mode="add"
+        server={{ id: "tmp", type: "stdio" }}
+        existingServers={[]}
+        onSubmit={onSubmit}
+        onCancel={noop}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId("name-input"), {
+      target: { value: "integrations-hub" },
+    });
+    fireEvent.change(screen.getByTestId("command-input"), {
+      target: { value: "npx" },
+    });
+
+    fireEvent.click(screen.getByTestId("submit-button"));
+
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      type: "stdio",
+      name: "integrations-hub",
+      command: "npx",
+    });
+  });
+
+  it("allows hyphenated remote server names", () => {
     const onSubmit = vi.fn();
 
     render(
@@ -108,10 +138,12 @@ describe("MCPServerForm validation", () => {
 
     fireEvent.click(screen.getByTestId("submit-button"));
 
-    expect(
-      screen.getByText("SETTINGS$MCP_ERROR_NAME_INVALID"),
-    ).toBeInTheDocument();
-    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({
+      type: "shttp",
+      name: "integrations-hub",
+      url: "https://api.example.com/mcp",
+    });
   });
 
   it("submits header authentication as a tagged auth credential", () => {
