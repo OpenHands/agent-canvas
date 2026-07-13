@@ -7,7 +7,7 @@ import type { Backend } from "#/api/backend-registry/types";
 import type { Automation, AutomationSpec } from "#/types/automation";
 import AutomationService from "./automation-service.api";
 
-const { localAxios, axiosRequest } = vi.hoisted(() => ({
+const { localAxios, callCloudProxy } = vi.hoisted(() => ({
   localAxios: {
     interceptors: { request: { use: vi.fn() } },
     get: vi.fn(),
@@ -15,15 +15,18 @@ const { localAxios, axiosRequest } = vi.hoisted(() => ({
     patch: vi.fn(),
     delete: vi.fn(),
   },
-  axiosRequest: vi.fn(),
+  callCloudProxy: vi.fn(),
 }));
 
 vi.mock("axios", () => ({
   default: {
     create: () => localAxios,
-    request: axiosRequest,
     post: vi.fn(),
   },
+}));
+
+vi.mock("#/api/cloud/proxy", () => ({
+  callCloudProxy,
 }));
 
 const localBackend: Backend = {
@@ -169,32 +172,30 @@ describe("AutomationService.createAutomation", () => {
   it("uses the selected cloud backend and organization for both requests", async () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id, orgId: "org-1" });
-    axiosRequest
-      .mockResolvedValueOnce({ data: createdAutomation })
-      .mockResolvedValueOnce({
-        data: { ...createdAutomation, enabled: false },
-      });
+    callCloudProxy
+      .mockResolvedValueOnce(createdAutomation)
+      .mockResolvedValueOnce({ ...createdAutomation, enabled: false });
 
     const created = await AutomationService.createAutomation(spec);
 
-    expect(axiosRequest).toHaveBeenNthCalledWith(
+    expect(callCloudProxy).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        url: `${cloudBackend.host}/api/automation/v1/preset/plugin`,
+        backend: cloudBackend,
         method: "POST",
-        headers: expect.objectContaining({
-          Authorization: `Bearer ${cloudBackend.apiKey}`,
-          "X-Org-Id": "org-1",
-        }),
+        path: "/api/automation/v1/preset/plugin",
+        body: expect.objectContaining({ name: spec.name }),
+        headers: { "X-Org-Id": "org-1" },
       }),
     );
-    expect(axiosRequest).toHaveBeenNthCalledWith(
+    expect(callCloudProxy).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        url: `${cloudBackend.host}/api/automation/v1/created-automation`,
+        backend: cloudBackend,
         method: "PATCH",
-        data: expect.objectContaining({ enabled: false }),
-        headers: expect.objectContaining({ "X-Org-Id": "org-1" }),
+        path: "/api/automation/v1/created-automation",
+        body: expect.objectContaining({ enabled: false }),
+        headers: { "X-Org-Id": "org-1" },
       }),
     );
     expect(created.enabled).toBe(false);
