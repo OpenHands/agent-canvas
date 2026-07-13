@@ -8,9 +8,6 @@ RBAC.
 > [!WARNING]
 > This Helm chart is experimental. Agent Canvas is an unauthenticated, single-tenant application. This helm chart doesn't address scale or zero-downtime deployments.
 
-> [!WARNING]
-> This Helm chart is experimental. Agent Canvas is an unauthenticated, single-tenant application. This helm chart doesn't address scale or zero-downtime deployments.
-
 ## TL;DR
 
 ```bash
