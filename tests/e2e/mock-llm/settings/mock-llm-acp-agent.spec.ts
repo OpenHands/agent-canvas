@@ -235,8 +235,8 @@ test.describe("mock-LLM ACP agent conversation", () => {
 
     // Wait for navigation to the new conversation page
     await waitForPath(page, /\/conversations\/.+/, 30_000);
-    conversationId = getConversationIdFromURL(page);
     page.off("request", capturePayload);
+    conversationId = getConversationIdFromURL(page);
 
     // ── Verify: the conversation launched from the active (ACP) profile ──
     // Conversations now launch from the active AgentProfile (#1571): the
@@ -287,7 +287,7 @@ test.describe("mock-LLM ACP agent conversation", () => {
                   (e: any) =>
                     `  [${e.kind ?? "?"}] source=${e.source ?? "?"} ${JSON.stringify(
                       e.llm_message?.content ?? e.content ?? e.message ?? "",
-                    ).slice(0, 200)}`,
+                    ).slice(0, 120)}`,
                 )
                 .join("\n");
           } else {

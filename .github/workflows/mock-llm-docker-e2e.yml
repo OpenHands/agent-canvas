@@ -138,7 +138,6 @@ jobs:
         id: defaults
         run: |
           echo "agent_server_version=$(node -p "require('./config/defaults.json').versions.agentServer")" >> "$GITHUB_OUTPUT"
-          echo "acp_constraint=$(node -p "require('./config/defaults.json').constraints.agentClientProtocol")" >> "$GITHUB_OUTPUT"
 
       - name: Resolve linked SDK PR
         id: linked_sdk
@@ -291,17 +290,12 @@ jobs:
         env:
           AGENT_SERVER_VERSION: ${{ steps.defaults.outputs.agent_server_version }}
           SDK_GIT_REF: ${{ steps.linked_sdk.outputs.git_ref }}
-          # Pin agent-client-protocol to the range openhands-sdk 1.33.0 is
-          # compatible with for released-SDK runs. Linked SDK PRs may carry
-          # their own ACP compatibility change, so do not force the constraint
-          # on that path.
-          ACP_CONSTRAINT: ${{ steps.defaults.outputs.acp_constraint }}
         run: |
           uv venv .mock-llm-venv
           if [ -n "$SDK_GIT_REF" ]; then
             uv pip install -p .mock-llm-venv "git+https://github.com/OpenHands/software-agent-sdk@${SDK_GIT_REF}#subdirectory=openhands-sdk"
           else
-            uv pip install -p .mock-llm-venv "openhands-sdk==$AGENT_SERVER_VERSION" "$ACP_CONSTRAINT"
+            uv pip install -p .mock-llm-venv "openhands-sdk==$AGENT_SERVER_VERSION"
           fi
 
       - name: Verify mock LLM server starts
