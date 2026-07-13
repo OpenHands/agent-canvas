@@ -21,6 +21,7 @@ interface AutomationGroupProps {
   onRunNow: (id: string) => void;
   runPendingId?: string | null;
   onDelete: (id: string) => void;
+  onExport: (automation: Automation) => void;
   onEdit?: (id: string) => void;
 }
 
@@ -33,6 +34,7 @@ export function AutomationGroup({
   onRunNow,
   runPendingId = null,
   onDelete,
+  onExport,
   onEdit,
 }: AutomationGroupProps) {
   if (automations.length === 0) return null;
@@ -54,6 +56,7 @@ export function AutomationGroup({
                 onRunNow={onRunNow}
                 isRunPending={runPendingId === automation.id}
                 onDelete={onDelete}
+                onExport={onExport}
                 onEdit={onEdit}
               />
             ))}
@@ -71,6 +74,7 @@ export function AutomationGroup({
                   onRunNow={onRunNow}
                   isRunPending={runPendingId === automation.id}
                   onDelete={onDelete}
+                  onExport={onExport}
                   onEdit={onEdit}
                 />
               ))}

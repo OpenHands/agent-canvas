@@ -42,6 +42,12 @@ vi.mock("#/api/runtime-service/agent-server-runtime-service", () => ({
   },
 }));
 
+const readCloudConversationFileMock = vi.fn();
+vi.mock("#/api/cloud/conversation-service.api", () => ({
+  readCloudConversationFile: (...args: unknown[]) =>
+    readCloudConversationFileMock(...args),
+}));
+
 const fetchMock = vi.fn();
 
 function makeWrapper() {
@@ -72,6 +78,7 @@ describe("useWorkspaceFileContent", () => {
     useRuntimeIsReadyMock.mockReset();
     getActiveBackendMock.mockReset();
     downloadFileMock.mockReset();
+    readCloudConversationFileMock.mockReset();
     useRuntimeIsReadyMock.mockReturnValue(true);
     useActiveConversationMock.mockReturnValue({
       data: {
@@ -283,8 +290,8 @@ describe("useWorkspaceFileContent", () => {
       });
     });
 
-    it("fetches text via downloadFile and exposes a data: URI staticUrl", async () => {
-      downloadFileMock.mockResolvedValue(arrayBufferFromString("# Hello"));
+    it("fetches text via the cloud file endpoint and exposes a data: URI staticUrl", async () => {
+      readCloudConversationFileMock.mockResolvedValue("# Hello");
 
       const { result } = renderHook(
         () => useWorkspaceFileContent("docs/readme.md"),
@@ -293,11 +300,14 @@ describe("useWorkspaceFileContent", () => {
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-      expect(downloadFileMock).toHaveBeenCalledWith(
-        "https://agent.example.com/api/conversations/conv-1",
-        "session-key",
-        "docs/readme.md",
+      // Cloud uses the first-class cloud API endpoint, never the removed
+      // cloud-proxy / downloadFile path, and passes an ABSOLUTE path (the
+      // runtime's /api/file/download rejects relative paths).
+      expect(readCloudConversationFileMock).toHaveBeenCalledWith(
+        "conv-1",
+        "/workspace/project/docs/readme.md",
       );
+      expect(downloadFileMock).not.toHaveBeenCalled();
       expect(fetchMock).not.toHaveBeenCalled();
       expect(result.current.data).toEqual({
         path: "docs/readme.md",
@@ -308,24 +318,52 @@ describe("useWorkspaceFileContent", () => {
       });
     });
 
-    it("renders images via base64 data URI bytes from downloadFile", async () => {
-      const imageBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]).buffer;
-      downloadFileMock.mockResolvedValue(imageBytes);
+    it("anchors the file path to the conversation's working dir", async () => {
+      useActiveConversationMock.mockReturnValue({
+        data: {
+          id: "conv-1",
+          conversation_url:
+            "https://agent.example.com/api/conversations/conv-1",
+          session_api_key: "session-key",
+          workspace: { working_dir: "/workspace/project/my-repo" },
+        },
+      });
+      readCloudConversationFileMock.mockResolvedValue("hi");
 
       const { result } = renderHook(
-        () => useWorkspaceFileContent("assets/logo.png"),
+        () => useWorkspaceFileContent("src/index.ts"),
         { wrapper: makeWrapper() },
       );
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
+      expect(readCloudConversationFileMock).toHaveBeenCalledWith(
+        "conv-1",
+        "/workspace/project/my-repo/src/index.ts",
+      );
+    });
+
+    it("renders images via base64 data URI from the cloud file endpoint", async () => {
+      // The cloud endpoint returns text; use an SVG (text-based image) since
+      // binary bytes can't round-trip faithfully through the string API.
+      const svg = "<svg></svg>";
+      readCloudConversationFileMock.mockResolvedValue(svg);
+
+      const { result } = renderHook(
+        () => useWorkspaceFileContent("assets/logo.svg"),
+        { wrapper: makeWrapper() },
+      );
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(downloadFileMock).not.toHaveBeenCalled();
       expect(fetchMock).not.toHaveBeenCalled();
       expect(result.current.data).toEqual({
-        path: "assets/logo.png",
+        path: "assets/logo.svg",
         kind: "image",
         text: null,
-        staticUrl: `data:image/png;base64,${btoa("\x89PNG")}`,
-        mimeType: "image/png",
+        staticUrl: `data:image/svg+xml;base64,${btoa(svg)}`,
+        mimeType: "image/svg+xml",
       });
     });
   });

@@ -117,6 +117,23 @@ export const displaySuccessToast = (message: string) => {
   );
 };
 
+export const displaySuccessToastWithLink = (
+  message: string,
+  linkLabel: string,
+  href: string,
+) => {
+  const duration = calculateToastDuration(`${message} ${linkLabel}`, 5000);
+  toast.success(
+    <span className="[word-break:break-word] [overflow-wrap:anywhere]">
+      {message}{" "}
+      <a className="underline hover:no-underline" href={href}>
+        {linkLabel}
+      </a>
+    </span>,
+    { ...TOAST_OPTIONS, duration },
+  );
+};
+
 /**
  * Neutral, non-success notice — used when an action completed but the outcome
  * is qualified (e.g. a secret was saved but the active backend can't consume it
