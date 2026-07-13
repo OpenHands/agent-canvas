@@ -429,7 +429,21 @@ describe("handleEventForUI", () => {
       ]);
     });
 
-    it("appends a distinct final message that does not match streamed text", () => {
+    it("reconciles leading whitespace differences without duplicating the final message", () => {
+      const streamedDelta = makeStreamingDelta(
+        "delta-1",
+        "\nI'll start working on that. Done.",
+      );
+
+      const result = handleEventForUI(mockAgentMessageEvent, [
+        mockMessageEvent,
+        streamedDelta,
+      ]);
+
+      expect(result).toEqual([mockMessageEvent, streamedDelta]);
+    });
+
+    it("replaces unmatched streamed text with the canonical final message", () => {
       const streamedDelta = makeStreamingDelta(
         "delta-1",
         "I'll start working on that.",
@@ -447,7 +461,32 @@ describe("handleEventForUI", () => {
         streamedDelta,
       ]);
 
-      expect(result).toEqual([mockMessageEvent, streamedDelta, finalMessage]);
+      expect(result).toEqual([mockMessageEvent, finalMessage]);
+    });
+
+    it("preserves streamed reasoning when the final message replaces unmatched text", () => {
+      const streamedDelta: StreamingDeltaEvent = {
+        ...makeStreamingDelta("delta-1", "Stale partial text"),
+        reasoning_content: "Reasoning available only in the stream",
+      };
+      const finalMessage: MessageEvent = {
+        ...mockAgentMessageEvent,
+        llm_message: {
+          role: "assistant",
+          content: [{ type: "text", text: "Canonical final text" }],
+        },
+      };
+
+      const result = handleEventForUI(finalMessage, [
+        mockMessageEvent,
+        streamedDelta,
+      ]);
+
+      expect(result).toEqual([
+        mockMessageEvent,
+        { ...streamedDelta, content: null },
+        finalMessage,
+      ]);
     });
 
     it("keeps deltas from older turns when a later turn finishes", () => {
@@ -480,7 +519,6 @@ describe("handleEventForUI", () => {
         oldUserMessage,
         oldDelta,
         nextUserMessage,
-        currentDelta,
         mockFinishActionEvent,
       ]);
     });

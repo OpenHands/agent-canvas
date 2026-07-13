@@ -176,4 +176,30 @@ describe("issue #1534 — streamed intermediate message duplication", () => {
 
     expect(countOccurrences(container.textContent ?? "", THOUGHT)).toBe(1);
   });
+
+  it("renders once when streamed text has leading whitespace", () => {
+    const leadingWhitespaceDelta: StreamingDeltaEvent = {
+      ...streamingDelta,
+      content: `\n${THOUGHT}`,
+    };
+    const finalMessage: MessageEvent = {
+      id: "agent-msg-leading-whitespace",
+      timestamp: "2026-06-12T12:00:02Z",
+      source: "agent",
+      llm_message: {
+        role: "assistant",
+        content: [{ type: "text", text: THOUGHT }],
+      },
+      activated_microagents: [],
+      extended_content: [],
+    };
+    const allEvents = [userMessage, leadingWhitespaceDelta, finalMessage];
+    const uiEvents = reduce(allEvents);
+
+    const { container } = renderWithProviders(
+      <Messages messages={uiEvents} allEvents={allEvents} />,
+    );
+
+    expect(countOccurrences(container.textContent ?? "", THOUGHT)).toBe(1);
+  });
 });

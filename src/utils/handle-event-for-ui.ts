@@ -120,17 +120,43 @@ const getTrailingContentDeltas = (
   return deltas;
 };
 
+const supersedeStreamingContent = (
+  uiEvents: OpenHandsEvent[],
+  contentDeltas: { event: StreamingDeltaEvent; index: number }[],
+  replacementRendersReasoning: boolean,
+): OpenHandsEvent[] => {
+  const indexesToStrip = new Set(contentDeltas.map(({ index }) => index));
+  const nextUiEvents: OpenHandsEvent[] = [];
+  uiEvents.forEach((event, index) => {
+    if (!indexesToStrip.has(index) || !isStreamingDeltaEvent(event)) {
+      nextUiEvents.push(event);
+      return;
+    }
+
+    // Keep the delta only to render reasoning the replacement itself lacks.
+    if (!replacementRendersReasoning && event.reasoning_content) {
+      nextUiEvents.push({ ...event, content: null });
+    }
+  });
+  return nextUiEvents;
+};
+
 // Whether the streamed `segments` (in order) reconcile against `targetText`.
 // `lastMatchEnd` is the offset past the matched text, so callers can recover
-// any not-yet-streamed suffix. The SDK strips the finalized text, so it may
-// lack trailing whitespace the model streamed; the match tolerates that by
-// also trying the trailing-trimmed streamed text.
+// any not-yet-streamed suffix. The SDK strips the finalized text, so tolerate
+// leading and trailing whitespace that appeared only in the stream.
 const matchStreamedSegments = (
   targetText: string,
   segments: string[],
 ): { matched: boolean; lastMatchEnd: number } => {
   const streamedText = segments.join("");
-  for (const candidate of [streamedText, streamedText.trimEnd()]) {
+  const candidates = new Set([
+    streamedText,
+    streamedText.trimEnd(),
+    streamedText.trimStart(),
+    streamedText.trim(),
+  ]);
+  for (const candidate of candidates) {
     if (candidate && targetText.startsWith(candidate)) {
       return { matched: true, lastMatchEnd: candidate.length };
     }
@@ -166,7 +192,16 @@ const finalizeStreamingDeltasInPlace = (
     streamingSegments,
   );
   if (!matched) {
-    return null;
+    const finalEventRendersReasoning =
+      isActionEvent(finalEvent) &&
+      getReasoningContent(finalEvent).trim().length > 0;
+    const nextUiEvents = supersedeStreamingContent(
+      uiEvents,
+      contentStreamingDeltas,
+      finalEventRendersReasoning,
+    );
+    nextUiEvents.push(finalEvent);
+    return nextUiEvents;
   }
 
   const nextUiEvents = [...uiEvents];
@@ -235,21 +270,11 @@ const supersedeStreamedThoughtWithAction = (
   }
 
   // Keeping the delta's reasoning would duplicate the action's own "Thinking".
-  const actionRendersReasoning = getReasoningContent(action).trim().length > 0;
-  const indexesToStrip = new Set(contentDeltas.map(({ index }) => index));
-  const nextUiEvents: OpenHandsEvent[] = [];
-  uiEvents.forEach((event, index) => {
-    if (!indexesToStrip.has(index) || !isStreamingDeltaEvent(event)) {
-      nextUiEvents.push(event);
-      return;
-    }
-    // Keep the delta only to render reasoning the action itself lacks.
-    if (!actionRendersReasoning && event.reasoning_content) {
-      nextUiEvents.push({ ...event, content: null });
-    }
-  });
-
-  return nextUiEvents;
+  return supersedeStreamingContent(
+    uiEvents,
+    contentDeltas,
+    getReasoningContent(action).trim().length > 0,
+  );
 };
 
 /**
@@ -295,11 +320,9 @@ export const handleEventForUI = (
       newUiEvents,
     );
     if (finalizedUiEvents) {
-      // The reconciled streaming delta intentionally replaces this final event
-      // for rendering. Today streamed agent responses only render text and
-      // reasoning content; if final-event metadata such as activated
-      // microagents becomes meaningful for streamed responses, add a rendered
-      // wrapper that carries both the stable delta identity and that metadata.
+      // A matching stream remains the rendered bubble; an unmatched stream is
+      // replaced by this canonical final event. Both paths preserve stream-only
+      // reasoning without rendering two copies of the assistant text.
       return finalizedUiEvents;
     }
   }
