@@ -5,6 +5,9 @@ all-in-one image (frontend + agent-server + automation) on Kubernetes as a
 `StatefulSet` with persistent storage, an `Ingress`, and optional in-cluster
 RBAC.
 
+> [!WARNING]
+> This Helm chart is experimental. Agent Canvas is an unauthenticated, single-tenant application. This helm chart doesn't address scale or zero-downtime deployments.
+
 ## TL;DR
 
 ```bash
