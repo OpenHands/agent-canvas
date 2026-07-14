@@ -15,6 +15,15 @@ const FILE_EDIT_OBSERVATION_KINDS = new Set([
 // disk. We don't want to invalidate caches for those.
 const READ_ONLY_COMMANDS = new Set(["view"]);
 
+// Bash observations are how `git commit` / `git push` (and any file edit
+// done through the shell) arrive, so they must refresh the Diff view too.
+// Legacy agent-servers emit `ExecuteBashObservation`; the current SDK
+// emits `TerminalObservation`.
+const BASH_OBSERVATION_KINDS = new Set([
+  "ExecuteBashObservation",
+  "TerminalObservation",
+]);
+
 function isFileMutationObservation(event: OHEvent): boolean {
   // ObservationEvents have `source: "environment"` and an `observation`
   // field — narrow to that shape without pulling in the whole event union.
@@ -26,12 +35,33 @@ function isFileMutationObservation(event: OHEvent): boolean {
   return true;
 }
 
+// Note: `READ_ONLY_COMMANDS` intentionally doesn't apply here — for bash
+// observations `command` is the whole shell command line, not a
+// file-editor sub-command.
+function isBashObservation(event: OHEvent): boolean {
+  const obs = (event as { observation?: { kind?: string } }).observation;
+  return (
+    !!obs &&
+    typeof obs.kind === "string" &&
+    BASH_OBSERVATION_KINDS.has(obs.kind)
+  );
+}
+
 /**
  * Watches the conversation event stream and invalidates the workspace file
  * queries whenever the agent commits a file-editor mutation (create / edit /
  * insert / undo_edit). This keeps the Files tab's list, content view and
  * diff view in sync with what the agent has actually written to disk,
  * without requiring the user to click refresh manually.
+ *
+ * Bash observations also refresh the git-diff queries (`file_changes` /
+ * `file_diff`) — a `git commit` or `git push` changes what the Diff view
+ * should display, and shell commands can edit files too. They deliberately
+ * do NOT touch the workspace file queries or the workspace mutation
+ * counter: bumping the counter reloads canvas iframes, and doing that for
+ * every shell command the agent runs would cause constant flicker.
+ * Invalidation only refetches actively-mounted queries, so the cost is
+ * limited to when the Files tab is open.
  *
  * Mount this hook inside any component that should drive auto-refresh —
  * the Files tab is the obvious caller. Multiple mounts are safe because
@@ -73,7 +103,8 @@ export function useAutoRefreshFilesOnEdit(): void {
   const processedEventsRef = useRef<WeakSet<OHEvent>>(new WeakSet());
 
   useEffect(() => {
-    const newMutationEvents: OHEvent[] = [];
+    let hasNewFileEdits = false;
+    let hasNewBashCommands = false;
     for (const event of events) {
       const id: string | number | undefined =
         "id" in event ? event.id : undefined;
@@ -88,21 +119,28 @@ export function useAutoRefreshFilesOnEdit(): void {
         } else {
           processedEventsRef.current.add(event);
         }
-        if (isFileMutationObservation(event)) newMutationEvents.push(event);
+        if (isFileMutationObservation(event)) hasNewFileEdits = true;
+        else if (isBashObservation(event)) hasNewBashCommands = true;
       }
     }
 
-    if (newMutationEvents.length === 0) return;
+    if (!hasNewFileEdits && !hasNewBashCommands) return;
 
-    queryClient.invalidateQueries({ queryKey: ["workspace-files"] });
-    queryClient.invalidateQueries({ queryKey: ["workspace-file-content"] });
+    // Editor and bash mutations both change what the git Diff view shows —
+    // including the per-file diff content of an already-expanded file.
     queryClient.invalidateQueries({ queryKey: ["file_changes"] });
-    // Force iframes / <img> tags pointing at the static workspace
-    // fileserver to re-fetch. Without this they happily keep showing the
-    // stale (browser-cached) bytes even after the agent has rewritten the
-    // file on disk — e.g. tweaking style.css would silently have no
-    // visible effect on the rendered index.html until the user reloaded
-    // the whole canvas.
-    bumpWorkspaceMutationCounter();
+    queryClient.invalidateQueries({ queryKey: ["file_diff"] });
+
+    if (hasNewFileEdits) {
+      queryClient.invalidateQueries({ queryKey: ["workspace-files"] });
+      queryClient.invalidateQueries({ queryKey: ["workspace-file-content"] });
+      // Force iframes / <img> tags pointing at the static workspace
+      // fileserver to re-fetch. Without this they happily keep showing the
+      // stale (browser-cached) bytes even after the agent has rewritten the
+      // file on disk — e.g. tweaking style.css would silently have no
+      // visible effect on the rendered index.html until the user reloaded
+      // the whole canvas.
+      bumpWorkspaceMutationCounter();
+    }
   }, [events, queryClient, bumpWorkspaceMutationCounter]);
 }

@@ -64,9 +64,9 @@ describe("AgentServerGitService", () => {
         apiKey: "my-session-key",
         workingDir: "workspace/project",
       });
-      expect(mockGitChanges).toHaveBeenCalledWith("/workspace/project", {
-        ref: "HEAD",
-      });
+      // No `ref`: the server auto-detects the base so committed (and
+      // pushed) changes stay visible.
+      expect(mockGitChanges).toHaveBeenCalledWith("/workspace/project");
     });
 
     test("preserves slashes in path when using workspace helper", async () => {
@@ -80,9 +80,7 @@ describe("AgentServerGitService", () => {
         pathWithSlashes,
       );
 
-      expect(mockGitChanges).toHaveBeenCalledWith(pathWithSlashes, {
-        ref: "HEAD",
-      });
+      expect(mockGitChanges).toHaveBeenCalledWith(pathWithSlashes);
     });
 
     test("maps V1 git statuses to V0 format", async () => {
@@ -127,9 +125,8 @@ describe("AgentServerGitService", () => {
         apiKey: "test-api-key",
         workingDir: "workspace/project",
       });
-      expect(mockGitDiff).toHaveBeenCalledWith("/workspace/project/file.ts", {
-        ref: "HEAD",
-      });
+      // No `ref`: must match getGitChanges' auto-detected base.
+      expect(mockGitDiff).toHaveBeenCalledWith("/workspace/project/file.ts");
     });
 
     test("preserves slashes in file path when using workspace helper", async () => {
@@ -143,7 +140,7 @@ describe("AgentServerGitService", () => {
         filePath,
       );
 
-      expect(mockGitDiff).toHaveBeenCalledWith(filePath, { ref: "HEAD" });
+      expect(mockGitDiff).toHaveBeenCalledWith(filePath);
     });
 
     test("returns the diff data from the response", async () => {

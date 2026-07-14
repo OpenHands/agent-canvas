@@ -178,6 +178,10 @@ export const useTracking = () => {
     track("download_trajectory_button_clicked");
   };
 
+  const trackConversationExported = (format: "markdown" | "html") => {
+    track("conversation_exported", { format });
+  };
+
   const trackAutomationCreated = ({
     backendKind,
   }: {
@@ -216,6 +220,22 @@ export const useTracking = () => {
     backendKind: BackendKind;
   }) => {
     track("automation_edited", { backend_kind: backendKind });
+  };
+
+  const trackAutomationExported = ({
+    backendKind,
+  }: {
+    backendKind: BackendKind;
+  }) => {
+    track("automation_exported", { backend_kind: backendKind });
+  };
+
+  const trackAutomationImported = ({
+    backendKind,
+  }: {
+    backendKind: BackendKind;
+  }) => {
+    track("automation_imported", { backend_kind: backendKind });
   };
 
   const trackBackendAdded = ({
@@ -303,11 +323,14 @@ export const useTracking = () => {
     trackSettingsSaved,
     trackMcpConfigUpdated,
     trackDownloadTrajectoryButtonClicked,
+    trackConversationExported,
     trackAutomationCreated,
     trackAutomationExecuted,
     trackAutomationDeleted,
     trackAutomationDeactivated,
     trackAutomationEdited,
+    trackAutomationExported,
+    trackAutomationImported,
     trackBackendAdded,
     trackOnboardingStarted,
     trackOnboardingStepViewed,
