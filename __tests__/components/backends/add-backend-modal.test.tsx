@@ -304,7 +304,7 @@ describe("AddBackendModal – redirect after adding a backend", () => {
   }
 
   it.each([
-    { path: "/automations/auto-1", expected: "/automations" },
+    { path: "/automations/auto-1", expected: "/automations/workflows" },
     { path: "/conversations/abc", expected: "/conversations" },
   ])(
     "redirects to the section list when adding from $path",

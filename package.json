@@ -27,6 +27,8 @@
     "@openhands/typescript-client": "1.32.1",
     "@react-router/node": "7.17.0",
     "@react-router/serve": "7.17.0",
+    "@rolldown/binding-darwin-arm64": "1.1.5",
+    "@rolldown/binding-darwin-x64": "1.1.5",
     "@tailwindcss/vite": "4.2.4",
     "@tanstack/react-query": "5.100.9",
     "@types/shell-quote": "1.7.5",

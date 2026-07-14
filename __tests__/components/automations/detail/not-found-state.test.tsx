@@ -11,6 +11,6 @@ describe("NotFoundState", () => {
     // Check for the link to go back
     const link = screen.getByRole("link");
     expect(link).toBeInTheDocument();
-    expect(link).toHaveAttribute("href", "/automations");
+    expect(link).toHaveAttribute("href", "/automations/workflows");
   });
 });

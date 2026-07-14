@@ -51,13 +51,13 @@ import { downloadBlob } from "#/utils/utils";
 
 const PAGE_SIZE = 50;
 
-export interface AutomationsListProps {
+export interface AutomationsListViewProps {
   filterType?: "all" | "routines" | "responders";
 }
 
-export default function AutomationsList({
+export function AutomationsListView({
   filterType = "all",
-}: AutomationsListProps) {
+}: AutomationsListViewProps) {
   const { t } = useTranslation("openhands");
 
   const { titleKey, subtitleKey } = useMemo(() => {
@@ -80,6 +80,7 @@ export default function AutomationsList({
         };
     }
   }, [filterType]);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState<AutomationViewMode>(() =>
     readStoredAutomationViewMode(),

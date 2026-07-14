@@ -345,7 +345,7 @@ export function BackendSelector({
 
       // @spec BM-002 — Switching backends keeps the user on the same page
       if (conversationMatch) navigate("/conversations");
-      else if (automationDetailMatch) navigate("/automations");
+      else if (automationDetailMatch) navigate("/automations/workflows");
 
       setActive(target.id, orgId);
       onSelectOption?.();

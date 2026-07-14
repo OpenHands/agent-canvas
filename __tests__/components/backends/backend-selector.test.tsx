@@ -415,7 +415,7 @@ describe("BackendSelector", () => {
       name: "automation detail → automations list",
       startPath: "/automations/abc-123",
       startRoute: "/automations/:automationId",
-      landingRoute: "/automations",
+      landingRoute: "/automations/workflows",
       expectRedirect: true,
     },
     {

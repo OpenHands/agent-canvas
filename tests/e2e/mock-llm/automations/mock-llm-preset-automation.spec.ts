@@ -180,7 +180,7 @@ test.describe("preset automation → slash command conversation", () => {
     });
 
     await routeSessionApiKey(page);
-    await page.goto("/automations", { waitUntil: "domcontentloaded" });
+    await page.goto("/automations/templates", { waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
 
     // Click the Slack standup digest automation card

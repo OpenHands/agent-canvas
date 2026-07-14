@@ -681,7 +681,8 @@ export function BackendForm({
 function useRedirectAfterAddBackend() {
   const { currentPath, navigate } = useNavigation();
   return React.useCallback(() => {
-    if (/^\/automations\/[^/]+/.test(currentPath)) navigate("/automations");
+    if (/^\/automations\/[^/]+/.test(currentPath))
+      navigate("/automations/workflows");
     else if (/^\/conversations\/[^/]+/.test(currentPath))
       navigate("/conversations");
   }, [currentPath, navigate]);

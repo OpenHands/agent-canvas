@@ -6,7 +6,7 @@ export function BackLink() {
   const { t } = useTranslation("openhands");
 
   return (
-    <BackNavButton to="/automations">
+    <BackNavButton to="/automations/workflows">
       {t(I18nKey.AUTOMATIONS$DETAIL$BACK_TO_LIST)}
     </BackNavButton>
   );

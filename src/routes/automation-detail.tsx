@@ -148,7 +148,7 @@ export default function AutomationDetail() {
   const handleDelete = () => {
     deleteMutation.mutate(automation.id, {
       onSuccess: () => {
-        navigate?.("/automations");
+        navigate?.("/automations/workflows");
       },
     });
   };

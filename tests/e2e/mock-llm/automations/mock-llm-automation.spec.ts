@@ -478,7 +478,7 @@ test.describe("mock-LLM automation lifecycle", () => {
   }) => {
     test.setTimeout(60_000);
     await routeSessionApiKey(page);
-    await page.goto("/automations", { waitUntil: "domcontentloaded" });
+    await page.goto("/automations/workflows", { waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
 
     await test.step("automation card visible on list page", async () => {
