@@ -25,10 +25,11 @@ import { pluginReferenceKey } from "#/utils/plugin-display";
 import {
   getStoredConversationMetadata,
   setStoredConversationMetadata,
+  toPluginCoordinates,
   type WorkspaceMode,
 } from "#/api/conversation-metadata-store";
 
-interface CreateConversationVariables {
+export interface CreateConversationVariables {
   query?: string;
   repository?: {
     name: string;
@@ -48,6 +49,8 @@ interface CreateConversationVariables {
   agentProfileId?: string;
   entryPoint?: string; // analytics only; not forwarded to the service
 }
+
+export const CREATE_CONVERSATION_MUTATION_KEY = ["create-conversation"];
 
 interface CreateConversationResponse {
   conversation_id: string;
@@ -73,7 +76,7 @@ export const useCreateConversation = () => {
   useAgentProfiles();
 
   return useMutation({
-    mutationKey: ["create-conversation"],
+    mutationKey: CREATE_CONVERSATION_MUTATION_KEY,
     mutationFn: async (
       variables: CreateConversationVariables,
     ): Promise<CreateConversationResponse> => {
@@ -238,12 +241,7 @@ export const useCreateConversation = () => {
       //   1. plugins explicitly attached at creation (e.g. the /launch flow);
       //   2. enabled installed plugins, which the SDK auto-loads into every new
       //      local conversation (see use-set-plugin-enabled).
-      const explicitPlugins =
-        plugins?.map((plugin) => ({
-          source: plugin.source,
-          ref: plugin.ref ?? null,
-          repo_path: plugin.repo_path ?? null,
-        })) ?? [];
+      const explicitPlugins = plugins?.map(toPluginCoordinates) ?? [];
       let attachedPlugins: PluginSpec[] = explicitPlugins;
       if (localConversationId) {
         let installed: InstalledPluginInfo[] = [];
