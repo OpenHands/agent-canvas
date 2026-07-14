@@ -124,6 +124,9 @@ describe("buildStartConversationRequest — agentProfileId path", () => {
 
     expect(payload.agent_profile_id).toBe("profile-xyz");
     expect(payload.agent_settings).toBeUndefined();
+    expect(payload.client_tools.map((tool) => tool.name)).toEqual([
+      "canvas_ui_client",
+    ]);
   });
 
   it("suppresses the ACP server tag when launching from a profile", () => {

@@ -308,11 +308,13 @@ export interface SwitchLLMAction extends ActionBase<"SwitchLLMAction"> {
 }
 
 /**
- * Frontend-injected custom tool. Emitted over the existing WebSocket as a
- * regular ActionEvent; intercepted client-side by handleCanvasUIAction.
- * The Python definition lives in tools/canvas_ui_tool.py.
+ * Canvas UI action emitted over the existing WebSocket and intercepted by
+ * handleCanvasUIAction. Legacy conversations use CanvasUIAction; conversations
+ * created through client_tools use ClientAction_canvas_ui_client.
  */
-export interface CanvasUIAction extends ActionBase<"CanvasUIAction"> {
+export interface CanvasUIAction extends ActionBase<
+  "CanvasUIAction" | "ClientAction_canvas_ui_client"
+> {
   command: "navigate_to_file" | "open_tab" | "show_preview";
   path?: string | null;
   tab?: string | null;

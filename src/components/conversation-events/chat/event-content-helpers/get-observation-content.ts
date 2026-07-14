@@ -417,6 +417,13 @@ export const getObservationContent = (event: ObservationEvent): string => {
         event as ObservationEvent<CanvasUIObservation>,
       );
 
+    case "ClientToolObservation":
+      return event.tool_name === "canvas_ui_client"
+        ? getCanvasUIObservationContent(
+            event as ObservationEvent<CanvasUIObservation>,
+          )
+        : getDefaultEventContent(event);
+
     case "SwitchLLMObservation":
       return getSwitchLLMObservationContent(
         event as ObservationEvent<SwitchLLMObservation>,

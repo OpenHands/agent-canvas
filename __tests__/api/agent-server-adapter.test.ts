@@ -117,7 +117,6 @@ describe("buildStartConversationRequest", () => {
       { name: "terminal", params: {} },
       { name: "file_editor", params: {} },
       { name: "task_tracker", params: {} },
-      { name: "canvas_ui", params: {} },
       { name: "browser_tool_set", params: {} },
       { name: "task_tool_set", params: {} },
     ]);
@@ -412,11 +411,7 @@ describe("buildStartConversationRequest", () => {
     }) as Record<string, unknown>;
 
     expect(payload.hook_config).toEqual({ on_start: [] });
-    // Canvas-UI tool is auto-injected; user-supplied entries are merged in
-    // alongside it. The dedicated canvas_ui describe block below pins the
-    // exact merge semantics.
     expect(payload.tool_module_qualnames).toEqual({
-      canvas_ui: "canvas_ui_tool",
       demo_tool: "pkg.tools.demo",
     });
     expect(payload.agent_definitions).toEqual([
@@ -595,40 +590,50 @@ describe("buildStartConversationRequest", () => {
     });
   });
 
-  describe("canvas_ui tool injection", () => {
-    it("registers canvas_ui_tool in tool_module_qualnames when the backend advertises canvas_ui", () => {
+  describe("canvas_ui client tool injection", () => {
+    it("sends canvas_ui as a client-defined JSON tool", () => {
       const payload = buildStartConversationRequest({
         settings: DEFAULT_SETTINGS,
-      }) as { tool_module_qualnames: Record<string, string> };
-
-      expect(payload.tool_module_qualnames).toMatchObject({
-        canvas_ui: "canvas_ui_tool",
       });
-    });
 
-    it("omits canvas_ui and its module qualname when the backend does not advertise canvas_ui", () => {
-      mockIsAgentServerToolAvailable.mockImplementation(
-        (toolName: string) => toolName !== "canvas_ui",
-      );
-
-      const payload = buildStartConversationRequest({
-        settings: DEFAULT_SETTINGS,
-      }) as {
-        agent_settings: { tools: Array<{ name: string }> };
-        tool_module_qualnames?: Record<string, string>;
-      };
-
+      expect(payload.client_tools).toHaveLength(1);
+      expect(payload.client_tools[0]).toMatchObject({
+        name: "canvas_ui_client",
+        parameters: {
+          type: "object",
+          properties: {
+            command: {
+              enum: ["navigate_to_file", "open_tab", "show_preview"],
+            },
+          },
+          required: ["command"],
+        },
+        annotations: {
+          readOnlyHint: true,
+          destructiveHint: false,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
+      });
       expect(
-        payload.agent_settings.tools.map((tool) => tool.name),
+        payload.agent_settings?.tools?.map((tool) => tool.name) ?? [],
       ).not.toContain("canvas_ui");
       expect(payload.tool_module_qualnames).toBeUndefined();
     });
 
-    it("drops a user-supplied canvas_ui module qualname when the backend does not advertise canvas_ui", () => {
-      mockIsAgentServerToolAvailable.mockImplementation(
-        (toolName: string) => toolName !== "canvas_ui",
-      );
+    it("sends the client tool when resuming a conversation", () => {
+      const payload = buildStartConversationRequest({
+        settings: DEFAULT_SETTINGS,
+        conversationId: "legacy-conversation-id",
+      }) as { conversation_id: string; client_tools: Array<{ name: string }> };
 
+      expect(payload.conversation_id).toBe("legacy-conversation-id");
+      expect(payload.client_tools.map((tool) => tool.name)).toEqual([
+        "canvas_ui_client",
+      ]);
+    });
+
+    it("drops conflicting user-supplied Canvas module qualnames", () => {
       const payload = buildStartConversationRequest({
         settings: {
           ...DEFAULT_SETTINGS,
@@ -636,6 +641,7 @@ describe("buildStartConversationRequest", () => {
             ...DEFAULT_SETTINGS.conversation_settings,
             tool_module_qualnames: {
               canvas_ui: "custom_canvas_ui_tool",
+              canvas_ui_client: "custom_canvas_ui_client_tool",
               my_tool: "my_package.my_tool",
             },
           },
@@ -647,7 +653,7 @@ describe("buildStartConversationRequest", () => {
       });
     });
 
-    it("merges user-supplied tool_module_qualnames alongside canvas_ui_tool without dropping either side", () => {
+    it("preserves non-Canvas custom tool modules", () => {
       const payload = buildStartConversationRequest({
         settings: {
           ...DEFAULT_SETTINGS,
@@ -659,7 +665,6 @@ describe("buildStartConversationRequest", () => {
       }) as { tool_module_qualnames: Record<string, string> };
 
       expect(payload.tool_module_qualnames).toEqual({
-        canvas_ui: "canvas_ui_tool",
         my_tool: "my_package.my_tool",
       });
     });

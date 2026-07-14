@@ -104,8 +104,18 @@ describe("isCanvasUIActionEvent", () => {
     };
   }
 
-  it("returns true for an ActionEvent whose tool_name is canvas_ui", () => {
-    expect(isCanvasUIActionEvent(makeActionEvent() as never)).toBe(true);
+  it.each([
+    ["CanvasUIAction", "canvas_ui"],
+    ["ClientAction_canvas_ui_client", "canvas_ui_client"],
+  ])("returns true for a %s ActionEvent from %s", (kind, toolName) => {
+    expect(
+      isCanvasUIActionEvent(
+        makeActionEvent({
+          action: { kind, command: "open_tab" },
+          tool_name: toolName,
+        }) as never,
+      ),
+    ).toBe(true);
   });
 
   it("returns false when tool_name belongs to a different tool", () => {

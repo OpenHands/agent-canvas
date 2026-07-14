@@ -382,8 +382,8 @@ describe("useCreateConversation", () => {
     // The active profile IS the well-known default → it's the enriched baseline
     // (mirrors agent_settings), not a deliberate profile pick, so the launch
     // stays on the agent_settings path (no profile tail) even though its
-    // llm_profile_ref resolves. Keeps <RUNTIME_SERVICES>/canvas_ui/project
-    // skills, which the profile-resolution path drops.
+    // llm_profile_ref resolves. Keeps <RUNTIME_SERVICES> and project skills,
+    // which the profile-resolution path drops.
     listAgentProfilesMock.mockResolvedValue({
       profiles: [
         {
