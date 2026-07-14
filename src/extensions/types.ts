@@ -73,7 +73,7 @@ export interface ViewItem {
   /** Capabilities granted to the owning extension (gates the webview's host API). */
   capabilities?: Capability[];
   /**
-   * Extension source ref (e.g., "gh:owner/repo@sha") for asset relay.
+   * Extension source ref (e.g., "github:owner/repo@sha") for asset relay.
    * Enables webviews to request additional assets via postMessage.
    */
   extensionSource?: string;
@@ -129,7 +129,7 @@ export interface SettingsPageItem {
   /** Capabilities granted to the owning extension (gates the webview's host API). */
   capabilities?: Capability[];
   /**
-   * Extension source ref (e.g., "gh:owner/repo@sha") for asset relay.
+   * Extension source ref (e.g., "github:owner/repo@sha") for asset relay.
    * Enables webviews to request additional assets via postMessage.
    */
   extensionSource?: string;
@@ -158,7 +158,7 @@ export interface PageItem {
   /** Capabilities granted to the owning extension (gates the webview's host API). */
   capabilities?: Capability[];
   /**
-   * Extension source ref (e.g., "gh:owner/repo@sha") for asset relay.
+   * Extension source ref (e.g., "github:owner/repo@sha") for asset relay.
    * Enables webviews to request additional assets via postMessage.
    */
   extensionSource?: string;
@@ -188,7 +188,7 @@ export interface ConversationPanelTabItem {
   /** Capabilities granted to the owning extension (gates the webview's host API). */
   capabilities?: Capability[];
   /**
-   * Extension source ref (e.g., "gh:owner/repo@sha") for asset relay.
+   * Extension source ref (e.g., "github:owner/repo@sha") for asset relay.
    * Enables webviews to request additional assets via postMessage.
    */
   extensionSource?: string;

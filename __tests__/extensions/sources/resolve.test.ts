@@ -109,11 +109,11 @@ describe("resolveSource", () => {
       const descriptor = await resolveSource("gh:acme/exts@main", fetchImpl);
 
       expect(descriptor).toEqual({
-        sourceRef: "gh:acme/exts@main",
+        sourceRef: "github:acme/exts@main",
         kind: "gh",
         version: sha,
         // baseUrl is now a proxy source ref, not a jsDelivr URL
-        baseUrl: `gh:acme/exts@${sha}`,
+        baseUrl: `github:acme/exts@${sha}`,
         format: "dir",
         requiresProxy: true,
       });
@@ -136,11 +136,11 @@ describe("resolveSource", () => {
       );
 
       expect(descriptor).toEqual({
-        sourceRef: "gh:acme/exts/packages/hello@main",
+        sourceRef: "github:acme/exts/packages/hello@main",
         kind: "gh",
         version: sha,
         // baseUrl includes the subpath for the proxy
-        baseUrl: `gh:acme/exts/packages/hello@${sha}`,
+        baseUrl: `github:acme/exts/packages/hello@${sha}`,
         format: "dir",
         requiresProxy: true,
       });
@@ -164,10 +164,10 @@ describe("resolveSource", () => {
       );
 
       expect(descriptor).toEqual({
-        sourceRef: "gh:acme/exts@feature/ui/extensions",
+        sourceRef: "github:acme/exts@feature/ui/extensions",
         kind: "gh",
         version: sha,
-        baseUrl: `gh:acme/exts@${sha}`,
+        baseUrl: `github:acme/exts@${sha}`,
         format: "dir",
         requiresProxy: true,
       });
@@ -216,10 +216,10 @@ describe("resolveSource", () => {
       const descriptor = await resolveSource("gh:acme/exts@v1.0.0", fetchImpl);
 
       expect(descriptor).toEqual({
-        sourceRef: "gh:acme/exts@v1.0.0",
+        sourceRef: "github:acme/exts@v1.0.0",
         kind: "gh",
         version: sha,
-        baseUrl: `gh:acme/exts@${sha}`,
+        baseUrl: `github:acme/exts@${sha}`,
         format: "dir",
         requiresProxy: true,
       });
@@ -239,10 +239,10 @@ describe("resolveSource", () => {
       const descriptor = await resolveSource(`gh:acme/exts@${sha}`, fetchImpl);
 
       expect(descriptor).toEqual({
-        sourceRef: `gh:acme/exts@${sha}`,
+        sourceRef: `github:acme/exts@${sha}`,
         kind: "gh",
         version: sha,
-        baseUrl: `gh:acme/exts@${sha}`,
+        baseUrl: `github:acme/exts@${sha}`,
         format: "dir",
         requiresProxy: true,
       });
@@ -357,10 +357,10 @@ describe("toBundleSource", () => {
     vi.stubGlobal("fetch", fetchImpl);
     try {
       const source = toBundleSource({
-        sourceRef: "gh:acme/repo@main",
+        sourceRef: "github:acme/repo@main",
         kind: "gh",
         version: sha,
-        baseUrl: `gh:acme/repo@${sha}`,
+        baseUrl: `github:acme/repo@${sha}`,
         format: "dir",
         requiresProxy: true,
       });

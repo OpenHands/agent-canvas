@@ -52,7 +52,7 @@ export type LoadResult =
 
 export interface LoadExtensionOptions {
   /**
-   * Extension source ref (e.g., "gh:owner/repo@sha") for asset relay.
+   * Extension source ref (e.g., "github:owner/repo@sha") for asset relay.
    * When provided, enables webviews to request additional assets via postMessage.
    * Pass this when loading from a gh: source.
    */

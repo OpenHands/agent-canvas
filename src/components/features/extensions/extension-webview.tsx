@@ -145,7 +145,7 @@ interface ExtensionWebviewProps {
   /** Accessible title for the iframe. */
   title: string;
   /**
-   * Extension source ref (e.g., "gh:owner/repo@sha") for asset relay.
+   * Extension source ref (e.g., "github:owner/repo@sha") for asset relay.
    * When provided, enables the webview to request additional assets via postMessage.
    */
   extensionSource?: string;

@@ -2,15 +2,20 @@
  * Parsing and URL-building for marketplace / git sources, mirroring the OpenHands
  * conventions (`software-agent-sdk` + `Plugin-Directory`):
  *
- * - Source URIs: `github://owner/repo[@ref]`, the `owner/repo[@ref]` shorthand, a
- *   `github.com` web URL, or a direct `https://…` catalog URL.
+ * - Source URIs: `github:owner/repo[@ref]` (canonical; `gh:`/`github://` are accepted
+ *   aliases), the `owner/repo[@ref]` shorthand, a `github.com` web URL, or a direct
+ *   `https://…` catalog URL.
  * - The marketplace manifest lives at `.plugin/marketplace.json` (preferred) or
  *   `.claude-plugin/marketplace.json` (Claude-compatible) at the repo root.
  *
- * Everything is fetched over HTTPS from `raw.githubusercontent.com` (which serves
- * `Access-Control-Allow-Origin: *`), so no git clone or backend is required for
+ * GitHub scheme detection funnels through {@link splitGithubScheme} in `../sources/ref`
+ * so there is exactly one grammar (case-insensitive scheme token, `gh:`/`github://`
+ * aliases). Everything is fetched over HTTPS from `raw.githubusercontent.com` (which
+ * serves `Access-Control-Allow-Origin: *`), so no git clone or backend is required for
  * public repositories.
  */
+
+import { splitGithubScheme } from "../sources/ref";
 
 const DEFAULT_REF = "main";
 
@@ -52,15 +57,16 @@ function parseOwnerRepoRef(spec: string): GithubSource {
 
 /**
  * Parse a marketplace source string into a structured source.
- * Accepts `github://owner/repo[@ref]`, `owner/repo[@ref]`, a `github.com` URL, or a
- * direct `https://…` URL to a catalog JSON.
+ * Accepts `github:owner/repo[@ref]` (canonical; `gh:`/`github://` aliases),
+ * `owner/repo[@ref]`, a `github.com` URL, or a direct `https://…` URL to a catalog JSON.
  */
 export function parseMarketplaceSource(raw: string): MarketplaceSource {
   const input = raw.trim();
   if (!input) throw new Error("empty marketplace source");
 
-  if (input.startsWith("github://")) {
-    return parseOwnerRepoRef(input.slice("github://".length));
+  const githubRemainder = splitGithubScheme(input);
+  if (githubRemainder !== null) {
+    return parseOwnerRepoRef(githubRemainder);
   }
 
   if (input.startsWith("http://") || input.startsWith("https://")) {
@@ -74,7 +80,7 @@ export function parseMarketplaceSource(raw: string): MarketplaceSource {
   }
 
   throw new Error(
-    `unsupported marketplace source "${raw}": use github://owner/repo, owner/repo, a github.com URL, or an https:// catalog URL`,
+    `unsupported marketplace source "${raw}": use github:owner/repo, owner/repo, a github.com URL, or an https:// catalog URL`,
   );
 }
 

@@ -32,7 +32,7 @@ export interface RelayBundleSourceOptions {
  * 3. Injects a base tag for relative asset resolution
  * 4. Returns a blob URL with proper CSP headers via a data URL wrapper
  *
- * @param source - The resolved source ref (e.g., "gh:owner/repo/path@sha")
+ * @param source - The resolved source ref (e.g., "github:owner/repo/path@sha")
  * @param options - Optional configuration
  * @returns A BundleSource that routes fetches through the relay
  */

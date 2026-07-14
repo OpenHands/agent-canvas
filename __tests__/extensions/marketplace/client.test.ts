@@ -56,8 +56,8 @@ describe("fetchMarketplace", () => {
         version: "1.0.0",
         author: "Acme",
         homepage: undefined,
-        // Relative paths in GitHub catalogs now generate gh: refs for asset relay
-        installSource: "gh:acme/repo/hello-sidebar@main",
+        // Relative paths in GitHub catalogs now generate github: refs for asset relay
+        installSource: "github:acme/repo/hello-sidebar@main",
       },
       {
         name: "versioned-npm",
@@ -73,7 +73,7 @@ describe("fetchMarketplace", () => {
         version: undefined,
         author: undefined,
         homepage: undefined,
-        installSource: "gh:acme/exts/packages/hello@^2",
+        installSource: "github:acme/exts/packages/hello@^2",
       },
     ]);
   });

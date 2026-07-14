@@ -42,49 +42,39 @@ Navigate to `/extensions` in Agent Canvas. If extensions are disabled, you'll se
 ### From the Extensions Page
 
 1. **Navigate to Extensions:** Click **Extensions** in the left sidebar (below Skills) or go to `/extensions`
-2. **Click "Add"** to open the installation dialog
+2. **Click "Add extension"** to open the installation dialog
 
-The installation dialog offers two methods:
+### Add an extension
 
-### Method 1: Install from a Source Reference
-
-Paste a **source reference** in one of these formats:
+There is a single **Add extension** button. Paste one source; Agent Canvas auto-detects whether it points at a single extension or a whole marketplace, then routes you to the permission-consent card before anything is installed.
 
 | Format | Example | Use Case |
 |--------|---------|----------|
 | **npm package** | `npm:@acme/hello-extension@^1.0.0` | Extensions published to npm (recommended) |
-| **GitHub repository** | `gh:owner/repo/path@^1.0.0` | Extensions hosted on GitHub |
+| **GitHub repository** | `github:owner/repo` | Extensions or marketplaces hosted on GitHub |
 | **Direct URL** | `https://cdn.example.com/my-extension` | Self-hosted or development extensions |
 
 **Examples:**
 
 ```
 npm:@openhands/example-extension@latest
-gh:acme/extensions/packages/sidebar-tool@^1.2.0
-gh:myorg/tools@feature/new-ui
+github:acme/extensions
+github:myorg/tools
 https://example.com/extensions/my-custom-tool
 ```
 
+`github:` is the canonical scheme. `gh:` and `github://` are still accepted as silent aliases, so older links keep working, but the UI only ever shows `github:`.
+
+**What happens on submit:**
+1. Agent Canvas probes the source for a single extension manifest (`extension.json`) and for a marketplace catalog (`.plugin/marketplace.json`, then `.claude-plugin/marketplace.json`).
+2. A single extension goes straight to the consent card. A marketplace shows a picker of its UI extensions (a one-entry marketplace skips the picker). A source that is both is treated as a marketplace.
+3. You review the requested permissions and confirm — that is the only point at which anything is installed.
+
 **Version Resolution:**
-- `npm:` and `gh:` sources support **semantic versioning** (e.g., `^1.0.0`, `~2.1.0`, `latest`)
-- Versions resolve to **pinned releases** served from CDNs (jsDelivr for npm, GitHub raw content for gh)
+- `npm:` sources support **semantic versioning** (e.g., `^1.0.0`, `~2.1.0`, `latest`)
+- `github:` sources resolve a **branch, tag, or commit SHA** (semver ranges are not supported for GitHub); the install is then pinned to that commit SHA
+- Versions resolve to **pinned releases** served from CDNs (jsDelivr for npm, the parent-window asset relay for GitHub)
 - `https://` URLs have **no version management** and always load the current content
-
-### Method 2: Install from a Marketplace
-
-Paste a **marketplace location** in one of these formats:
-
-```
-github://owner/repo
-owner/repo
-https://github.com/owner/repo
-https://raw.githubusercontent.com/.../marketplace.json
-```
-
-Agent Canvas will:
-1. Fetch the marketplace catalog
-2. Display available UI extensions
-3. Let you choose one to install
 
 ---
 
@@ -222,7 +212,7 @@ Extensions run in a **strict security sandbox**:
 Before installing an extension:
 - **Review the requested permissions** — do they make sense for what the extension does?
 - **Check the source** — is it from a trusted author or organization?
-- **Use versioned installs** — `npm:` and `gh:` sources are pinned and immutable
+- **Use versioned installs** — `npm:` and `github:` sources are pinned and immutable
 - **Be cautious with `https://` URLs** — these can change without notice
 
 **When in doubt, don't install.**
@@ -247,7 +237,7 @@ Before installing an extension:
 
 **Possible causes:**
 - The source URL is incorrect or inaccessible
-- For `gh:` sources, the repository or path doesn't exist
+- For `github:` sources, the repository or path doesn't exist
 - For `npm:` sources, the package doesn't exist or isn't published
 
 **Solution:** Double-check the source reference for typos.

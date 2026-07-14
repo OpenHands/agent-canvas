@@ -1,0 +1,158 @@
+{
+  "_comment": "Anti-drift fixture table shared with the canonical Python parser in software-agent-sdk (openhands/sdk/extensions/fetch.py::parse_extension_source, tests/sdk/extensions/test_fetch.py). Extracted from the SDK's test_fetch.py. Each row records the SDK classification/normalization AND the browser-side TypeScript expectation. The parser agrees on the GitHub shorthand everywhere; for git/local sources the browser parser cannot clone/ssh/self-host, so it either treats an https bundle URL as a `url` source or throws (`ts` field). Keep this table in lockstep in both repos.",
+  "rows": [
+    {
+      "input": "github:owner/repo",
+      "sdkType": "github",
+      "sdkUrl": "https://github.com/owner/repo.git",
+      "ts": "github",
+      "owner": "owner",
+      "repo": "repo"
+    },
+    {
+      "input": "  github:owner/repo  ",
+      "sdkType": "github",
+      "sdkUrl": "https://github.com/owner/repo.git",
+      "ts": "github",
+      "owner": "owner",
+      "repo": "repo"
+    },
+    {
+      "input": "Github:owner/repo",
+      "sdkType": "github",
+      "sdkUrl": "https://github.com/owner/repo.git",
+      "ts": "github",
+      "owner": "owner",
+      "repo": "repo"
+    },
+    {
+      "input": "GitHub:owner/repo",
+      "sdkType": "github",
+      "sdkUrl": "https://github.com/owner/repo.git",
+      "ts": "github",
+      "owner": "owner",
+      "repo": "repo"
+    },
+    {
+      "input": "GITHUB:owner/repo",
+      "sdkType": "github",
+      "sdkUrl": "https://github.com/owner/repo.git",
+      "ts": "github",
+      "owner": "owner",
+      "repo": "repo"
+    },
+    {
+      "input": "GitHub:Owner/RepoName",
+      "sdkType": "github",
+      "sdkUrl": "https://github.com/Owner/RepoName.git",
+      "ts": "github",
+      "owner": "Owner",
+      "repo": "RepoName"
+    },
+    {
+      "input": "gh:owner/repo",
+      "sdkType": "github",
+      "sdkUrl": "https://github.com/owner/repo.git",
+      "ts": "github",
+      "owner": "owner",
+      "repo": "repo"
+    },
+    {
+      "input": "github://owner/repo",
+      "sdkType": "github",
+      "sdkUrl": "https://github.com/owner/repo.git",
+      "ts": "github",
+      "owner": "owner",
+      "repo": "repo"
+    },
+    {
+      "input": "github:owner/repo.git",
+      "sdkType": "github",
+      "sdkUrl": "https://github.com/owner/repo.git",
+      "ts": "github",
+      "owner": "owner",
+      "repo": "repo"
+    },
+    { "input": "github:invalid", "sdkType": "error", "ts": "throws" },
+    { "input": "github:too/many/parts", "sdkType": "error", "ts": "throws" },
+    {
+      "input": "https://github.com/owner/repo",
+      "sdkType": "git",
+      "sdkUrl": "https://github.com/owner/repo.git",
+      "ts": "url"
+    },
+    {
+      "input": "https://github.com/owner/repo.git",
+      "sdkType": "git",
+      "sdkUrl": "https://github.com/owner/repo.git",
+      "ts": "url"
+    },
+    {
+      "input": "https://github.com/owner/repo/",
+      "sdkType": "git",
+      "sdkUrl": "https://github.com/owner/repo.git",
+      "ts": "url"
+    },
+    {
+      "input": "https://gitlab.com/org/repo",
+      "sdkType": "git",
+      "sdkUrl": "https://gitlab.com/org/repo.git",
+      "ts": "url"
+    },
+    {
+      "input": "http://internal-git.local/repo",
+      "sdkType": "git",
+      "sdkUrl": "http://internal-git.local/repo.git",
+      "ts": "url"
+    },
+    {
+      "input": "git@github.com:owner/repo.git",
+      "sdkType": "git",
+      "sdkUrl": "git@github.com:owner/repo.git",
+      "ts": "throws"
+    },
+    {
+      "input": "git://github.com/owner/repo.git",
+      "sdkType": "git",
+      "sdkUrl": "git://github.com/owner/repo.git",
+      "ts": "throws"
+    },
+    {
+      "input": "deploy@git.example.com:project/repo.git",
+      "sdkType": "git",
+      "sdkUrl": "deploy@git.example.com:project/repo.git",
+      "ts": "throws"
+    },
+    {
+      "input": "/path/to/extension",
+      "sdkType": "local",
+      "sdkUrl": "/path/to/extension",
+      "ts": "throws"
+    },
+    {
+      "input": "~/extensions/my-ext",
+      "sdkType": "local",
+      "sdkUrl": "~/extensions/my-ext",
+      "ts": "throws"
+    },
+    {
+      "input": "./extensions/my-ext",
+      "sdkType": "local",
+      "sdkUrl": "./extensions/my-ext",
+      "ts": "throws"
+    },
+    {
+      "input": "extensions/my-ext",
+      "sdkType": "local",
+      "sdkUrl": "extensions/my-ext",
+      "ts": "throws"
+    },
+    {
+      "input": "path/to/my/extension",
+      "sdkType": "local",
+      "sdkUrl": "path/to/my/extension",
+      "ts": "throws"
+    },
+    { "input": "invalid-source-format", "sdkType": "error", "ts": "throws" }
+  ]
+}

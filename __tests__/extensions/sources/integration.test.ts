@@ -138,10 +138,11 @@ describe("GitHub Extension Integration", () => {
       );
 
       expect(descriptor).toEqual({
-        sourceRef: "gh:testowner/testrepo@feature/ui/extensions",
+        sourceRef: "github:testowner/testrepo@feature/ui/extensions",
         kind: "gh",
         version: "abc123def456789012345678901234567890abcd",
-        baseUrl: "gh:testowner/testrepo@abc123def456789012345678901234567890abcd",
+        baseUrl:
+          "github:testowner/testrepo@abc123def456789012345678901234567890abcd",
         format: "dir",
         requiresProxy: true,
       });
@@ -163,7 +164,7 @@ describe("GitHub Extension Integration", () => {
 
       expect(descriptor.kind).toBe("gh");
       expect(descriptor.baseUrl).toBe(
-        "gh:testowner/testrepo/packages/ext@main123456789012345678901234567890abcde",
+        "github:testowner/testrepo/packages/ext@main123456789012345678901234567890abcde",
       );
       expect(descriptor.requiresProxy).toBe(true);
     });

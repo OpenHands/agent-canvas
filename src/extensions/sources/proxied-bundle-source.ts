@@ -6,7 +6,7 @@
  * from the same origin, satisfying CSP `connect-src` policies.
  *
  * The proxy endpoint at `/api/extensions/proxy` accepts:
- *   - `source`: The resolved source ref (e.g., "gh:owner/repo/path@sha")
+ *   - `source`: The resolved source ref (e.g., "github:owner/repo/path@sha")
  *   - `file`: The file path within the bundle (e.g., "extension.json")
  *
  * Example URL: `/api/extensions/proxy?source=gh:acme/repo@abc123&file=extension.json`
@@ -24,7 +24,7 @@ function buildProxyUrl(source: string, file: string): string {
 /**
  * Create a BundleSource that loads assets through the backend proxy endpoint.
  *
- * @param source - The resolved source ref (e.g., "gh:owner/repo/path@sha")
+ * @param source - The resolved source ref (e.g., "github:owner/repo/path@sha")
  * @returns A BundleSource that routes fetches through `/api/extensions/proxy`
  */
 export function createProxiedBundleSource(source: string): BundleSource {

@@ -74,7 +74,7 @@ export type EntrySource =
   | GhEntrySource;
 
 /** A string source that is a versioned ref or absolute URL, not a repo-relative path. */
-const DIRECT_SOURCE_PATTERN = /^(npm:|gh:|https?:\/\/)/i;
+const DIRECT_SOURCE_PATTERN = /^(npm:|github:|gh:|github:\/\/|https?:\/\/)/i;
 
 export interface MarketplaceEntry {
   name: string;
@@ -246,13 +246,13 @@ export function resolveEntryInstallSource(
     if (DIRECT_SOURCE_PATTERN.test(entrySource.trim())) {
       return entrySource.trim();
     }
-    // For GitHub marketplace sources with relative paths, generate a gh: ref
+    // For GitHub marketplace sources with relative paths, generate a github: ref
     // so the extension loads through the asset relay (blob URLs) instead of
     // directly from raw.githubusercontent.com (which blocks iframe embedding).
     if (source.kind === "github") {
       const relative = entrySource.replace(/^\.\//, "").replace(/^\/+/, "");
       const path = relative ? `/${relative}` : "";
-      return `gh:${source.owner}/${source.repo}${path}@${source.ref}`;
+      return `github:${source.owner}/${source.repo}${path}@${source.ref}`;
     }
     return resolveEntryBundleUrl(source, catalogUrl, entry);
   }
@@ -266,7 +266,7 @@ export function resolveEntryInstallSource(
       ? `/${entrySource.path.replace(/^\/+/, "").replace(/\/+$/, "")}`
       : "";
     const ref = entrySource.ref ? `@${entrySource.ref}` : "";
-    return `gh:${entrySource.repo}${path}${ref}`;
+    return `github:${entrySource.repo}${path}${ref}`;
   }
 
   // Legacy github/url object sources: fall back to a resolved raw URL.

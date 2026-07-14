@@ -158,17 +158,17 @@ describe("resolveEntryInstallSource", () => {
           ref: "^2",
         },
       }),
-    ).toBe("gh:acme/exts/packages/hello@^2");
+    ).toBe("github:acme/exts/packages/hello@^2");
     expect(
       resolveEntryInstallSource(github, catalogUrl, {
         name: "x",
         source: { source: "gh", repo: "acme/hello" },
       }),
-    ).toBe("gh:acme/hello");
+    ).toBe("github:acme/hello");
   });
 
-  it("generates gh: refs for relative sources in GitHub catalogs (for asset relay)", () => {
-    // Relative paths in GitHub catalogs now generate gh: refs so extensions
+  it("generates github: refs for relative sources in GitHub catalogs (for asset relay)", () => {
+    // Relative paths in GitHub catalogs now generate github: refs so extensions
     // load through the asset relay (blob URLs) instead of raw.githubusercontent.com
     // which blocks iframe embedding via X-Frame-Options.
     expect(
@@ -176,7 +176,7 @@ describe("resolveEntryInstallSource", () => {
         name: "x",
         source: "./hello",
       }),
-    ).toBe("gh:acme/repo/hello@main");
+    ).toBe("github:acme/repo/hello@main");
   });
 
   it("accepts npm and gh object sources in catalog validation", () => {

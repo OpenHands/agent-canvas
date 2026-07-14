@@ -42,7 +42,7 @@ export interface ArtifactDescriptor {
   /**
    * Base URL or source ref for the bundle.
    * - For `npm:` and `url:`: direct URL to the bundle directory
-   * - For `gh:`: the resolved source ref to pass to the proxy (e.g., "gh:owner/repo/path@sha")
+   * - For `gh:`: the resolved source ref to pass to the proxy (e.g., "github:owner/repo/path@sha")
    *
    * Use `toBundleSource()` to get the appropriate loader.
    */
@@ -108,9 +108,9 @@ export async function resolveSourceRef(
         ref.range,
         ghOptions,
       );
-      // Build the source ref that the proxy will use to fetch from GitHub
+      // Build the source ref that the asset relay will use to fetch from GitHub.
       const version = resolved.sha;
-      const proxySourceRef = `gh:${ref.owner}/${ref.repo}${
+      const proxySourceRef = `github:${ref.owner}/${ref.repo}${
         ref.subpath ? `/${ref.subpath}` : ""
       }@${version}`;
       return {

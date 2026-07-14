@@ -82,8 +82,12 @@ function getMockContent(file: string): string | null {
 
 /** Validate a source ref format. */
 function isValidSource(source: string): boolean {
-  // Must start with a known prefix
-  return source.startsWith("gh:") || source.startsWith("npm:");
+  // Must start with a known prefix (canonical `github:` plus the `gh:` alias).
+  return (
+    source.startsWith("github:") ||
+    source.startsWith("gh:") ||
+    source.startsWith("npm:")
+  );
 }
 
 /** Validate file path (prevent traversal). */

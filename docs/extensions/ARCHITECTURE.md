@@ -117,8 +117,10 @@ source string ──parse──▶ ExtensionSourceRef ──resolve──▶ Art
 | Source | Format | Example | Resolution |
 |--------|--------|---------|------------|
 | **npm** | `npm:<package>[@<range>]` | `npm:@acme/ext@^1.0.0` | jsDelivr API → CDN URL |
-| **GitHub** | `gh:<owner>/<repo>[/<path>][@<range>]` | `gh:acme/repo/ext@^1.0.0` | GitHub API → SHA → Asset Relay |
+| **GitHub** | `github:<owner>/<repo>[/<path>][@<ref>]` | `github:acme/repo/ext@v1.0.0` | GitHub API → SHA → Asset Relay |
 | **URL** | `https://...` | `https://cdn.example.com/ext` | Pass-through |
+
+`github:` is the canonical GitHub scheme. `gh:` and `github://` are accepted as **parser-only aliases** and normalized to `github:` (the scheme token is matched case-insensitively; owner/repo/ref/subpath are case-sensitive). All parsing — single installs, marketplaces, and the asset relay — funnels through the one `parseGithubRef` helper in `src/extensions/sources/ref.ts`. Note that the GitHub `<ref>` is a **branch, tag, or SHA only**; semver ranges are rejected by the resolver (`github-api.ts`), so GitHub installs are not range-versioned the way npm sources are.
 
 ### Resolution Details
 
@@ -145,13 +147,13 @@ source string ──parse──▶ ExtensionSourceRef ──resolve──▶ Art
 
 **File:** `src/extensions/sources/github-api.ts`, `src/extensions/sources/resolve.ts`
 
-1. Parse source ref: `gh:acme/repo/path@feature/my-branch`
+1. Parse source ref: `github:acme/repo/path@feature/my-branch`
 2. Resolve ref via **GitHub REST API**:
    ```
    GET https://api.github.com/repos/acme/repo/git/ref/heads/feature/my-branch
    ```
 3. Get commit SHA (e.g., `abc123...`)
-4. Build source ref: `gh:acme/repo/path@abc123`
+4. Build source ref: `github:acme/repo/path@abc123`
 5. Create **relay bundle source** (parent-window asset loader)
 
 **Why GitHub API instead of jsDelivr?**

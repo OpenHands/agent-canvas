@@ -9,6 +9,7 @@
  */
 
 import type { ExtensionManifest } from "./manifest";
+import { splitGithubScheme } from "./sources/ref";
 
 export interface AssetLoaderOptions {
   /** GitHub token for private repos or higher rate limits. */
@@ -62,7 +63,7 @@ export class AssetLoader {
   /**
    * Load an asset from a GitHub extension source.
    *
-   * @param source - Resolved source ref (e.g., "gh:owner/repo/path@sha")
+   * @param source - Resolved source ref (e.g., "github:owner/repo/path@sha")
    * @param file - File path within the extension
    * @returns Loaded asset with content and blob URL
    */
@@ -150,19 +151,27 @@ export class AssetLoader {
   }
 
   private parseSource(source: string): ParsedGitHubSource {
-    // Parse gh:owner/repo/subpath@sha or gh:owner/repo@sha
-    const match = source.match(/^gh:([^/]+)\/([^@]+)@(.+)$/);
-    if (!match) throw new Error(`Invalid GitHub source: ${source}`);
+    // Parse the resolved, SHA-pinned proxy ref `github:owner/repo[/subpath]@sha`.
+    // The scheme is funneled through the shared parser so `gh:`/`github://` aliases and
+    // a case-insensitive scheme token behave identically to every other GitHub parser.
+    const remainder = splitGithubScheme(source);
+    if (remainder === null) {
+      throw new Error(`Invalid GitHub source: ${source}`);
+    }
+    const at = remainder.lastIndexOf("@");
+    if (at <= 0) {
+      throw new Error(`Invalid GitHub source: ${source}`);
+    }
+    const ownerRepoPath = remainder.slice(0, at);
+    const sha = remainder.slice(at + 1);
+    const segments = ownerRepoPath.split("/").filter(Boolean);
+    if (segments.length < 2 || !sha) {
+      throw new Error(`Invalid GitHub source: ${source}`);
+    }
 
-    const [, owner, repoPathFull, sha] = match;
-
-    // Split repoPathFull into repo and optional subpath
-    // e.g., "oh-examples/agent-canvas-extensions/dad-jokes" -> repo="oh-examples", subpath="agent-canvas-extensions/dad-jokes"
-    const pathParts = repoPathFull.split("/");
-    const repo = pathParts[0];
-    const subpath = pathParts.slice(1).join("/");
-
-    return { owner, repo, subpath, sha };
+    // e.g. "owner/repo/nested/dir" -> owner="owner", repo="repo", subpath="nested/dir"
+    const [owner, repo, ...rest] = segments;
+    return { owner, repo, subpath: rest.join("/"), sha };
   }
 
   private buildGitHubUrl(source: string, file: string): string {

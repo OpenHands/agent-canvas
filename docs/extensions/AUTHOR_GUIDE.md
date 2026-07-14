@@ -720,26 +720,30 @@ git push --tags
 3. **Users install via:**
 
 ```
-gh:yourorg/yourrepo/path/to/extension@^1.0.0
+github:yourorg/yourrepo@v1.0.0
 ```
+
+`github:` is the canonical scheme (`gh:` and `github://` are accepted aliases).
 
 **For monorepos:** Include the subpath to your extension folder:
 ```
-gh:yourorg/mono/packages/my-extension@^1.0.0
+github:yourorg/mono/packages/my-extension@v1.0.0
 ```
 
 **For single-extension repos:** Omit the subpath:
 ```
-gh:yourorg/my-extension@^1.0.0
+github:yourorg/my-extension@v1.0.0
 ```
 
 ### Version Management
 
-Both npm and GitHub sources support **semantic versioning**:
+npm sources support **semantic versioning**:
 - `@latest` — Latest version
 - `@^1.0.0` — Compatible with 1.x (>= 1.0.0, < 2.0.0)
 - `@~1.2.0` — Patch updates only (>= 1.2.0, < 1.3.0)
 - `@1.0.0` — Exact version
+
+GitHub sources resolve a **branch, tag, or commit SHA** (semver ranges are not supported for `github:` sources); the install is then pinned to that commit SHA. Publish releases as tags (e.g. `@v1.0.0`) so users get stable, immutable installs.
 
 **Update discipline:**
 - **Patch version (1.0.x):** Bug fixes only, no new capabilities
@@ -779,13 +783,13 @@ Share multiple extensions via a marketplace catalog:
 
 **Source options:**
 - `"npm:<package>[@range]"` — npm package
-- `"gh:<owner>/<repo>[/<path>][@range]"` — GitHub repository
+- `"github:<owner>/<repo>[/<path>][@ref]"` — GitHub repository (`ref` is a branch, tag, or SHA)
 - `"./relative/path"` — Relative to marketplace catalog
 - `"https://..."` — Absolute URL
 
 **Users install from your marketplace:**
 ```
-github://yourorg/yourrepo
+github:yourorg/yourrepo
 ```
 
 Agent Canvas fetches your catalog and displays available extensions.

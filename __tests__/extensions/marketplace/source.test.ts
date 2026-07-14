@@ -26,6 +26,18 @@ describe("parseMarketplaceSource", () => {
     });
   });
 
+  it("accepts the canonical github: scheme and the gh: alias, case-insensitively", () => {
+    const expected = {
+      kind: "github",
+      owner: "acme",
+      repo: "repo",
+      ref: "main",
+    };
+    expect(parseMarketplaceSource("github:acme/repo")).toEqual(expected);
+    expect(parseMarketplaceSource("gh:acme/repo")).toEqual(expected);
+    expect(parseMarketplaceSource("GitHub:acme/repo")).toEqual(expected);
+  });
+
   it("parses the owner/repo shorthand", () => {
     expect(parseMarketplaceSource("acme/repo@dev")).toEqual({
       kind: "github",

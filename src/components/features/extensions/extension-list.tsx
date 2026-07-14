@@ -16,6 +16,7 @@ import {
   type InstalledExtension,
 } from "#/extensions/installed-store";
 import { useExtensionContext } from "#/components/providers/extension-manager-provider";
+import { splitGithubScheme } from "#/extensions/sources/ref";
 import { capabilityLabelKey } from "./capability-labels";
 import {
   displayErrorToast,
@@ -52,7 +53,7 @@ function ExtensionCard({
     if (extension.sourceRef.startsWith("npm:")) {
       return t(I18nKey.EXTENSIONS$REF_TYPE_NPM, { defaultValue: "npm" });
     }
-    if (extension.sourceRef.startsWith("gh:")) {
+    if (splitGithubScheme(extension.sourceRef) !== null) {
       return t(I18nKey.EXTENSIONS$REF_TYPE_GH, { defaultValue: "GitHub" });
     }
     if (
