@@ -74,6 +74,14 @@ const OnboardingModal = React.lazy(() =>
   })),
 );
 
+// Rendered for first-run in locked-to-Cloud mode; shows Cloud login directly
+// without the onboarding progress bars.
+const BackendFormModal = React.lazy(() =>
+  import("#/components/features/backends/backend-form-modal").then((m) => ({
+    default: m.BackendFormModal,
+  })),
+);
+
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -159,6 +167,31 @@ function FirstRunOnboardingScreen({ onClose }: { onClose: () => void }) {
     }),
     [conversationId, location.pathname, navigate, routerNavigation.location],
   );
+
+  const lockedCloudHost = getLockedCloudHost();
+  const isLockedToCloud = lockedCloudHost !== null;
+
+  // In locked-to-Cloud mode, show the Add Backend modal directly with Cloud
+  // login, instead of the full onboarding flow with progress bars. This
+  // matches the UX expectation for canvas.openhands.dev where Cloud is the
+  // only backend option.
+  if (isLockedToCloud) {
+    return (
+      <main
+        data-testid="first-run-onboarding-screen"
+        className="min-h-screen bg-base"
+      >
+        <React.Suspense fallback={<AgentServerBootstrapLoading />}>
+          <BackendFormModal
+            mode="add"
+            onClose={onClose}
+            source="manage_backends_modal"
+            hideCloseButton
+          />
+        </React.Suspense>
+      </main>
+    );
+  }
 
   return (
     <main
