@@ -28,6 +28,7 @@ export const MOCK_AUTOMATIONS_RESPONSE: AutomationsResponse = {
       enabled: true,
       repository: "acme/frontend-app",
       model: "triage-fast",
+      timeout: 600,
       created_at: daysAgo(90),
       updated_at: now,
       prompt:
@@ -49,6 +50,7 @@ export const MOCK_AUTOMATIONS_RESPONSE: AutomationsResponse = {
       enabled: true,
       repository: "acme/backend-api",
       model: "security-careful",
+      timeout: 900,
       created_at: daysAgo(60),
       updated_at: now,
       prompt:
@@ -134,6 +136,7 @@ export const MOCK_AUTOMATIONS_RESPONSE: AutomationsResponse = {
       enabled: true,
       repository: "acme/frontend-app",
       model: "review-fast",
+      timeout: 1800,
       created_at: daysAgo(15),
       updated_at: now,
       prompt:

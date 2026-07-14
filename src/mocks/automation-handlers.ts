@@ -58,6 +58,7 @@ export const AUTOMATION_HANDLERS = [
       trigger: Automation["trigger"];
       repos?: { url: string; ref?: string }[];
       plugins?: { source: string }[];
+      timeout?: number;
     };
     const now = new Date().toISOString();
     const automation: Automation = {
@@ -77,6 +78,7 @@ export const AUTOMATION_HANDLERS = [
       ...(body.plugins && {
         plugins: body.plugins.map((plugin) => plugin.source),
       }),
+      ...(typeof body.timeout === "number" && { timeout: body.timeout }),
       ...(typeof body.trigger.timezone === "string" && {
         timezone: body.trigger.timezone,
       }),

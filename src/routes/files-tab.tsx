@@ -25,7 +25,9 @@ import { SegmentedToggle } from "#/components/features/files-tab/segmented-toggl
 import type { ViewMode } from "#/components/features/files-tab/view-mode";
 import RefreshIcon from "#/icons/u-refresh.svg?react";
 import LinkExternalIcon from "#/icons/link-external.svg?react";
+import { useUnifiedGitCommits } from "#/hooks/query/use-unified-git-commits";
 import GitChanges from "./changes-tab";
+import GitCommits from "./commits-tab";
 
 function FilesTab() {
   const { t } = useTranslation("openhands");
@@ -62,6 +64,18 @@ function FilesTab() {
     (hasAttachedSource || isAttachedSourceLoading) && hasCommits !== false;
   const diffViewEnabled = persistedState.filesTabDiffView ?? diffViewDefault;
   const contentViewMode = persistedState.filesTabContentViewMode;
+
+  // Commit history gets a third toggle segment, offered only when the
+  // agent server supports the commits API (older servers 404 → the toggle
+  // stays two-way and the tab looks exactly as it did before). The
+  // selection is session-local; the persisted diff/files preference is
+  // untouched so falling out of the commits view restores it.
+  const { isSuccess: commitsIsSuccess, isUnsupported: commitsUnsupported } =
+    useUnifiedGitCommits();
+  const showCommitsOption = commitsIsSuccess && !commitsUnsupported;
+  const [commitsViewSelected, setCommitsViewSelected] = useState(false);
+  let activeView: "on" | "off" | "commits" = diffViewEnabled ? "on" : "off";
+  if (commitsViewSelected && showCommitsOption) activeView = "commits";
 
   // Collapsed by default — the quick-access pill row at the top is usually
   // enough; the user can expand the tree on demand.
@@ -125,6 +139,7 @@ function FilesTab() {
     refetchGitChanges();
     queryClient.invalidateQueries({ queryKey: ["workspace-files"] });
     queryClient.invalidateQueries({ queryKey: ["workspace-file-content"] });
+    queryClient.invalidateQueries({ queryKey: ["git_commits"] });
   };
 
   return (
@@ -135,18 +150,33 @@ function FilesTab() {
       {/* Top toolbar: diff/files + rich/plain toggles (left-aligned) plus
           the refresh button on the right. */}
       <div className="flex items-center gap-3 px-3 py-1.5 border-b border-[var(--oh-border)]">
-        <SegmentedToggle<"on" | "off">
+        <SegmentedToggle<"on" | "off" | "commits">
           ariaLabel={t(I18nKey.FILES$DIFF_VIEW)}
           testId="files-tab-diff-toggle"
-          value={diffViewEnabled ? "on" : "off"}
+          value={activeView}
           options={[
             { value: "on", label: t(I18nKey.FILES$DIFF_VIEW) },
             { value: "off", label: t(I18nKey.COMMON$FILES) },
+            ...(showCommitsOption
+              ? [
+                  {
+                    value: "commits" as const,
+                    label: t(I18nKey.DIFF_VIEWER$COMMITS),
+                  },
+                ]
+              : []),
           ]}
-          onChange={(value) => setFilesTabDiffView(value === "on")}
+          onChange={(value) => {
+            if (value === "commits") {
+              setCommitsViewSelected(true);
+            } else {
+              setCommitsViewSelected(false);
+              setFilesTabDiffView(value === "on");
+            }
+          }}
         />
 
-        {!diffViewEnabled && (
+        {activeView === "off" && (
           <SegmentedToggle<ViewMode>
             ariaLabel={t(I18nKey.FILES$RICH)}
             testId="files-tab-content-mode-toggle"
@@ -163,7 +193,7 @@ function FilesTab() {
           {/* Open the currently-selected file in a new browser tab. Only
               meaningful while we're showing a file (not the diff view) and
               we've resolved its staticUrl from the workspace fileserver. */}
-          {!diffViewEnabled && selectedFileStaticUrl && (
+          {activeView === "off" && selectedFileStaticUrl && (
             <a
               href={selectedFileStaticUrl}
               target="_blank"
@@ -195,11 +225,17 @@ function FilesTab() {
         </div>
       </div>
 
-      {diffViewEnabled ? (
+      {activeView === "on" && (
         <div className="flex-1 min-h-0">
           <GitChanges />
         </div>
-      ) : (
+      )}
+      {activeView === "commits" && (
+        <div className="flex-1 min-h-0">
+          <GitCommits />
+        </div>
+      )}
+      {activeView === "off" && (
         <div className="flex flex-1 flex-col min-h-0">
           {filesQuery.isLoading ? (
             <div className="flex flex-1 items-center justify-center text-sm text-[var(--oh-muted)]">
