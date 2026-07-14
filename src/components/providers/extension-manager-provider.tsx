@@ -22,6 +22,7 @@ import {
   toBundleSource,
   type ArtifactDescriptor,
 } from "#/extensions/sources/resolve";
+import { splitGithubScheme } from "#/extensions/sources/ref";
 import {
   githubUrlPath,
   githubUrlToSource,
@@ -37,11 +38,33 @@ import {
 } from "#/extensions/feature-flag";
 import type { HostApiDeps } from "#/extensions/host/host-api";
 
+/**
+ * Outcome of auto-detecting what lives at a source: a single extension manifest, a
+ * marketplace catalog, or neither. Detection changes *routing* through the install
+ * pipeline; it never skips the capability-consent step.
+ */
+export type SourceDetection =
+  | {
+      kind: "manifest";
+      /** The install source to hand to `installFromUrl` after consent. */
+      installSource: string;
+      preview: ManifestPreview;
+    }
+  | { kind: "catalog"; installSource: string; result: MarketplaceResult }
+  | { kind: "none" };
+
 interface ExtensionContextValue {
   manager: ExtensionManager;
   deps: HostApiDeps;
   /** Fetch + validate a bundle manifest to show its requested permissions (consent). */
   previewManifest: (source: string) => Promise<ManifestPreview>;
+  /**
+   * Probe a single source for a bundle manifest and/or a marketplace catalog in
+   * parallel and classify it. A source that is both is treated as a marketplace
+   * (the superset); a catalog with exactly one entry resolves straight to that
+   * entry's manifest so the caller can route it to the consent card.
+   */
+  detectSource: (source: string) => Promise<SourceDetection>;
   /** Install a bundle from a source ref and record it as a persisted user install. */
   installFromUrl: (source: string) => Promise<InstalledExtension>;
   /** Load a plugin marketplace (git repo or URL) and list its UI extensions. */
@@ -142,6 +165,54 @@ export function ExtensionManagerProviderInner({
       };
     },
     [],
+  );
+
+  const loadMarketplaceResult = React.useCallback(
+    (source: string) => fetchMarketplace(source),
+    [],
+  );
+
+  const detectSource = React.useCallback(
+    async (source: string): Promise<SourceDetection> => {
+      const trimmed = source.trim();
+      // Probe both conventional locations in parallel: a single-extension manifest and
+      // a marketplace catalog. Whichever resolves classifies the source; the JSON shape
+      // (manifest vs catalog) is the real arbiter, handled by previewManifest /
+      // fetchMarketplace respectively. A marketplace source string is not a valid
+      // bundle base for previewManifest, so a rejection there is expected and non-fatal.
+      const [manifestResult, catalogResult] = await Promise.allSettled([
+        previewManifest(trimmed),
+        loadMarketplaceResult(trimmed),
+      ]);
+
+      const catalog =
+        catalogResult.status === "fulfilled" ? catalogResult.value : null;
+      const preview =
+        manifestResult.status === "fulfilled" ? manifestResult.value : null;
+
+      // A catalog is the superset: if a source is both a manifest and a catalog, treat
+      // it as a marketplace. A single-entry catalog short-circuits to that entry's
+      // consent card (still consent — routing only).
+      if (catalog) {
+        if (catalog.listings.length === 1) {
+          const [only] = catalog.listings;
+          const entryPreview = await previewManifest(only.installSource);
+          return {
+            kind: "manifest",
+            installSource: only.installSource,
+            preview: entryPreview,
+          };
+        }
+        return { kind: "catalog", installSource: trimmed, result: catalog };
+      }
+
+      if (preview) {
+        return { kind: "manifest", installSource: trimmed, preview };
+      }
+
+      return { kind: "none" };
+    },
+    [previewManifest, loadMarketplaceResult],
   );
 
   const installFromUrl = React.useCallback(
@@ -274,17 +345,18 @@ export function ExtensionManagerProviderInner({
     const store = useInstalledExtensionsStore.getState();
 
     /**
-     * Install from a pinned source URL. For gh: sources (which start with "gh:"),
-     * we need to use the relay bundle source and pass the extensionSource for
-     * the webview's asset relay. For HTTP URLs (npm/dev bundles), direct loading works.
+     * Install from a pinned source URL. For GitHub sources (canonical `github:`, or the
+     * legacy `gh:` alias in older persisted records), we need to use the relay bundle
+     * source and pass the extensionSource for the webview's asset relay. For HTTP URLs
+     * (npm/dev bundles), direct loading works.
      */
     const installFrom = async (
       url: string,
       origin: InstalledExtensionOrigin,
       sourceRef?: string,
     ) => {
-      // Detect gh: sources that require the asset relay system
-      const isGitHubSource = url.startsWith("gh:");
+      // Detect GitHub sources that require the asset relay system.
+      const isGitHubSource = splitGithubScheme(url) !== null;
       const bundleSource = isGitHubSource
         ? toBundleSource({
             sourceRef: sourceRef ?? url,
@@ -333,18 +405,14 @@ export function ExtensionManagerProviderInner({
     };
   }, [manager]);
 
-  const loadMarketplace = React.useCallback(
-    (source: string) => fetchMarketplace(source),
-    [],
-  );
-
   const value = React.useMemo(
     () => ({
       manager,
       deps,
       previewManifest,
+      detectSource,
       installFromUrl,
-      fetchMarketplace: loadMarketplace,
+      fetchMarketplace: loadMarketplaceResult,
       checkForUpdate,
       updateExtension,
       uninstall,
@@ -353,8 +421,9 @@ export function ExtensionManagerProviderInner({
       manager,
       deps,
       previewManifest,
+      detectSource,
       installFromUrl,
-      loadMarketplace,
+      loadMarketplaceResult,
       checkForUpdate,
       updateExtension,
       uninstall,

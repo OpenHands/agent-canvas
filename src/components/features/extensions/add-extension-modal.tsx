@@ -12,113 +12,183 @@ import {
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
 import type { ManifestPreview } from "#/extensions/installed-store";
-import type { UiExtensionListing } from "#/extensions/marketplace/client";
+import type { MarketplaceResult } from "#/extensions/marketplace/client";
 import { useExtensionContext } from "#/components/providers/extension-manager-provider";
+import { parseSourceRef } from "#/extensions/sources/ref";
+import type {
+  ExtensionSourceRef,
+  GithubSourceRef,
+} from "#/extensions/sources/ref";
 import { capabilityLabelKey } from "./capability-labels";
 
 interface AddExtensionModalProps {
   onClose: () => void;
 }
 
-type Mode = "url" | "marketplace";
-
 /**
- * Two-step install with capability consent: pick a source (a bundle URL / git repo, or
- * a UI extension from a plugin marketplace), then review the permissions the manifest
- * requests before granting them. Nothing is installed until the user confirms in the
- * review step, matching VS Code's all-or-nothing consent.
+ * A single **auto-detecting** install flow with capability consent. The user pastes one
+ * source (npm ref, `github:` ref, or bundle URL); on submit we probe the conventional
+ * locations in parallel and classify the result by JSON shape:
+ *
+ * - a single extension manifest → straight to the capability-consent card;
+ * - a marketplace catalog → the listing picker (a one-entry catalog skips the list and
+ *   forwards to that entry's consent card);
+ * - neither → a clear error.
+ *
+ * Detection changes *routing* only — every path, including the single-entry fast path,
+ * routes through the consent card before anything is installed. This replaces the old
+ * inline form + two-tab modal, which were the same flow implemented three times.
  */
+
+type Phase =
+  | { step: "input" }
+  | { step: "detecting" }
+  | { step: "listing"; result: MarketplaceResult }
+  | { step: "reviewing"; installSource: string; preview: ManifestPreview }
+  | { step: "installing"; installSource: string; preview: ManifestPreview };
+
+function getRefTypeI18nKey(kind: ExtensionSourceRef["kind"]): I18nKey {
+  switch (kind) {
+    case "npm":
+      return I18nKey.EXTENSIONS$REF_TYPE_NPM;
+    case "gh":
+      return I18nKey.EXTENSIONS$REF_TYPE_GH;
+    case "url":
+      return I18nKey.EXTENSIONS$REF_TYPE_URL;
+  }
+}
+
+/** Parse the source for the live type badge; returns null while it is not yet valid. */
+function tryParse(input: string): ExtensionSourceRef | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+  try {
+    return parseSourceRef(trimmed);
+  } catch {
+    return null;
+  }
+}
+
 export function AddExtensionModal({ onClose }: AddExtensionModalProps) {
   const { t } = useTranslation("openhands");
   const context = useExtensionContext();
 
-  const [mode, setMode] = React.useState<Mode>("url");
   const [source, setSource] = React.useState("");
-  const [marketplaceSource, setMarketplaceSource] = React.useState("");
-  const [listings, setListings] = React.useState<UiExtensionListing[] | null>(
-    null,
-  );
-  const [target, setTarget] = React.useState<string | null>(null);
-  const [preview, setPreview] = React.useState<ManifestPreview | null>(null);
-  const [isPending, setIsPending] = React.useState(false);
+  const [phase, setPhase] = React.useState<Phase>({ step: "input" });
   const [error, setError] = React.useState<string | null>(null);
 
   const trimmedSource = source.trim();
-  const trimmedMarketplace = marketplaceSource.trim();
+  const parsed = React.useMemo(() => tryParse(source), [source]);
 
   if (!context) return null;
-  const { previewManifest, installFromUrl, fetchMarketplace } = context;
+  const { detectSource, previewManifest, installFromUrl } = context;
 
-  const switchMode = (next: Mode) => {
-    setMode(next);
-    setPreview(null);
-    setTarget(null);
-    setListings(null);
-    setError(null);
-  };
+  const isBusy = phase.step === "detecting" || phase.step === "installing";
 
-  const reviewTarget = async (bundleUrl: string) => {
-    if (isPending) return;
-    setIsPending(true);
+  const handleDetect = async () => {
+    if (trimmedSource.length === 0 || isBusy) return;
     setError(null);
+    setPhase({ step: "detecting" });
     try {
-      const result = await previewManifest(bundleUrl);
-      setTarget(bundleUrl);
-      setPreview(result);
+      const detection = await detectSource(trimmedSource);
+      if (detection.kind === "manifest") {
+        setPhase({
+          step: "reviewing",
+          installSource: detection.installSource,
+          preview: detection.preview,
+        });
+      } else if (detection.kind === "catalog") {
+        setPhase({ step: "listing", result: detection.result });
+      } else {
+        setPhase({ step: "input" });
+        setError(t(I18nKey.EXTENSIONS$DETECT_NONE, { source: trimmedSource }));
+      }
     } catch (e) {
+      setPhase({ step: "input" });
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setIsPending(false);
     }
   };
 
-  const handleBrowse = async () => {
-    if (trimmedMarketplace.length === 0 || isPending) return;
-    setIsPending(true);
+  const reviewListing = async (installSource: string) => {
+    if (isBusy) return;
     setError(null);
+    const previousResult = phase.step === "listing" ? phase.result : undefined;
+    setPhase({ step: "detecting" });
     try {
-      const result = await fetchMarketplace(trimmedMarketplace);
-      setListings(result.listings);
+      const preview = await previewManifest(installSource);
+      setPhase({ step: "reviewing", installSource, preview });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setIsPending(false);
-    }
-  };
-
-  const handleSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (mode === "url") {
-      if (trimmedSource.length > 0) reviewTarget(trimmedSource);
-    } else {
-      handleBrowse();
+      // Return to the listing so the user can pick another entry.
+      if (previousResult) {
+        setPhase({ step: "listing", result: previousResult });
+      } else {
+        setPhase({ step: "input" });
+      }
     }
   };
 
   const handleInstall = async () => {
-    if (isPending || !target) return;
-    setIsPending(true);
+    if (phase.step !== "reviewing") return;
+    const { installSource, preview } = phase;
+    setPhase({ step: "installing", installSource, preview });
     setError(null);
     try {
-      await installFromUrl(target);
+      await installFromUrl(installSource);
       displaySuccessToast(t(I18nKey.EXTENSIONS$INSTALL_SUCCESS));
       onClose();
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       setError(message);
       displayErrorToast(message);
-    } finally {
-      setIsPending(false);
+      setPhase({ step: "reviewing", installSource, preview });
     }
   };
 
-  const tabButtonClass = (active: boolean) =>
-    cn(
-      "rounded-md px-3 py-1.5 text-xs font-medium",
-      active
-        ? "bg-base-tertiary text-white"
-        : "text-tertiary-light hover:text-white",
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (phase.step === "input") handleDetect();
+  };
+
+  const backToInput = () => {
+    setError(null);
+    setPhase({ step: "input" });
+  };
+
+  const preview =
+    phase.step === "reviewing" || phase.step === "installing"
+      ? phase.preview
+      : null;
+
+  const renderTypeBadge = () => {
+    if (!trimmedSource) return null;
+    if (!parsed) {
+      return (
+        <div
+          data-testid="source-validation-invalid"
+          className="mt-1 flex items-center gap-1.5 text-xs text-danger"
+        >
+          <span className="inline-block h-2 w-2 rounded-full bg-danger" />
+          <span>{t(I18nKey.EXTENSIONS$SOURCE_INVALID)}</span>
+        </div>
+      );
+    }
+    return (
+      <div
+        data-testid="source-validation-valid"
+        className="mt-1 flex items-center gap-1.5 text-xs text-success"
+      >
+        <span className="inline-block h-2 w-2 rounded-full bg-success" />
+        <span>{t(getRefTypeI18nKey(parsed.kind))}</span>
+        {parsed.kind === "gh" && (
+          <span className="text-tertiary-alt">
+            {(parsed as GithubSourceRef).owner}/
+            {(parsed as GithubSourceRef).repo}
+          </span>
+        )}
+      </div>
     );
+  };
 
   return (
     <ModalBackdrop
@@ -142,34 +212,10 @@ export function AddExtensionModal({ onClose }: AddExtensionModalProps) {
           <p className="mt-4 text-sm text-tertiary-light">
             {t(I18nKey.EXTENSIONS$ADD_MODAL_INTRO)}
           </p>
-          {!preview ? (
-            <div className="mt-4 flex gap-1" role="tablist">
-              <button
-                type="button"
-                role="tab"
-                data-testid="add-extension-tab-url"
-                aria-selected={mode === "url"}
-                className={tabButtonClass(mode === "url")}
-                onClick={() => switchMode("url")}
-              >
-                {t(I18nKey.EXTENSIONS$TAB_URL)}
-              </button>
-              <button
-                type="button"
-                role="tab"
-                data-testid="add-extension-tab-marketplace"
-                aria-selected={mode === "marketplace"}
-                className={tabButtonClass(mode === "marketplace")}
-                onClick={() => switchMode("marketplace")}
-              >
-                {t(I18nKey.EXTENSIONS$TAB_MARKETPLACE)}
-              </button>
-            </div>
-          ) : null}
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 custom-scrollbar">
-          {!preview && mode === "url" ? (
+          {!preview && phase.step !== "listing" ? (
             <div className="flex flex-col gap-1.5">
               <SettingsInput
                 testId="add-extension-source-input"
@@ -181,8 +227,10 @@ export function AddExtensionModal({ onClose }: AddExtensionModalProps) {
                   setError(null);
                 }}
                 placeholder={t(I18nKey.EXTENSIONS$SOURCE_PLACEHOLDER)}
+                isDisabled={isBusy}
                 showRequiredTag
               />
+              {renderTypeBadge()}
               <p
                 data-testid="add-extension-source-help"
                 className="text-xs text-tertiary-alt"
@@ -192,61 +240,68 @@ export function AddExtensionModal({ onClose }: AddExtensionModalProps) {
             </div>
           ) : null}
 
-          {!preview && mode === "marketplace" ? (
+          {phase.step === "detecting" ? (
+            <div
+              data-testid="add-extension-detecting"
+              className="flex items-center gap-2 text-sm text-tertiary-light"
+            >
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              <span>
+                {t(I18nKey.EXTENSIONS$DETECT_INSPECTING, {
+                  source: trimmedSource,
+                })}
+              </span>
+            </div>
+          ) : null}
+
+          {phase.step === "listing" ? (
             <>
-              <SettingsInput
-                testId="add-extension-marketplace-input"
-                label={t(I18nKey.EXTENSIONS$MARKETPLACE_LABEL)}
-                type="text"
-                value={marketplaceSource}
-                onChange={(value) => {
-                  setMarketplaceSource(value);
-                  setListings(null);
-                  setError(null);
-                }}
-                placeholder={t(I18nKey.EXTENSIONS$MARKETPLACE_PLACEHOLDER)}
-                showRequiredTag
-              />
-              {listings !== null ? (
-                <ul
-                  data-testid="marketplace-listings"
-                  className="flex flex-col gap-2"
-                >
-                  {listings.length === 0 ? (
-                    <li className="text-xs text-tertiary-alt">
-                      {t(I18nKey.EXTENSIONS$MARKETPLACE_EMPTY)}
-                    </li>
-                  ) : (
-                    listings.map((listing) => (
-                      <li key={listing.installSource}>
-                        <button
-                          type="button"
-                          data-testid={`marketplace-listing-${listing.name}`}
-                          disabled={isPending}
-                          onClick={() => reviewTarget(listing.installSource)}
-                          className="w-full rounded-lg border border-[var(--oh-border)] p-3 text-left hover:border-primary disabled:opacity-50"
+              <p
+                data-testid="marketplace-header"
+                className="text-xs font-medium text-tertiary-light"
+              >
+                {t(I18nKey.EXTENSIONS$MARKETPLACE_HEADER, {
+                  name: phase.result.catalogName,
+                  count: phase.result.listings.length,
+                })}
+              </p>
+              <ul
+                data-testid="marketplace-listings"
+                className="flex flex-col gap-2"
+              >
+                {phase.result.listings.length === 0 ? (
+                  <li className="text-xs text-tertiary-alt">
+                    {t(I18nKey.EXTENSIONS$MARKETPLACE_EMPTY)}
+                  </li>
+                ) : (
+                  phase.result.listings.map((listing) => (
+                    <li key={listing.installSource}>
+                      <button
+                        type="button"
+                        data-testid={`marketplace-listing-${listing.name}`}
+                        onClick={() => reviewListing(listing.installSource)}
+                        className="w-full rounded-lg border border-[var(--oh-border)] p-3 text-left hover:border-primary disabled:opacity-50"
+                      >
+                        <span className="block truncate text-sm font-medium text-white">
+                          {listing.name}
+                        </span>
+                        {listing.description ? (
+                          <span className="block truncate text-xs text-tertiary-alt">
+                            {listing.description}
+                          </span>
+                        ) : null}
+                        <span
+                          data-testid={`marketplace-listing-source-${listing.name}`}
+                          className="mt-0.5 block truncate font-mono text-[11px] text-tertiary-light"
+                          title={listing.installSource}
                         >
-                          <span className="block truncate text-sm font-medium text-white">
-                            {listing.name}
-                          </span>
-                          {listing.description ? (
-                            <span className="block truncate text-xs text-tertiary-alt">
-                              {listing.description}
-                            </span>
-                          ) : null}
-                          <span
-                            data-testid={`marketplace-listing-source-${listing.name}`}
-                            className="mt-0.5 block truncate font-mono text-[11px] text-tertiary-light"
-                            title={listing.installSource}
-                          >
-                            {listing.installSource}
-                          </span>
-                        </button>
-                      </li>
-                    ))
-                  )}
-                </ul>
-              ) : null}
+                          {listing.installSource}
+                        </span>
+                      </button>
+                    </li>
+                  ))
+                )}
+              </ul>
             </>
           ) : null}
 
@@ -305,11 +360,8 @@ export function AddExtensionModal({ onClose }: AddExtensionModalProps) {
                 type="button"
                 variant="secondary"
                 testId="add-extension-back"
-                isDisabled={isPending}
-                onClick={() => {
-                  setPreview(null);
-                  setTarget(null);
-                }}
+                isDisabled={phase.step === "installing"}
+                onClick={backToInput}
               >
                 {t(I18nKey.EXTENSIONS$BACK_BUTTON)}
               </BrandButton>
@@ -317,16 +369,25 @@ export function AddExtensionModal({ onClose }: AddExtensionModalProps) {
                 type="button"
                 variant="primary"
                 testId="add-extension-install"
-                isDisabled={isPending}
+                isDisabled={phase.step === "installing"}
                 onClick={handleInstall}
               >
                 {t(
-                  isPending
+                  phase.step === "installing"
                     ? I18nKey.EXTENSIONS$INSTALLING
                     : I18nKey.EXTENSIONS$INSTALL_BUTTON,
                 )}
               </BrandButton>
             </>
+          ) : phase.step === "listing" ? (
+            <BrandButton
+              type="button"
+              variant="secondary"
+              testId="add-extension-back"
+              onClick={backToInput}
+            >
+              {t(I18nKey.EXTENSIONS$BACK_BUTTON)}
+            </BrandButton>
           ) : (
             <>
               <BrandButton
@@ -337,33 +398,20 @@ export function AddExtensionModal({ onClose }: AddExtensionModalProps) {
               >
                 {t(I18nKey.BUTTON$CLOSE)}
               </BrandButton>
-              {mode === "url" ? (
-                <BrandButton
-                  type="submit"
-                  variant="primary"
-                  testId="add-extension-review"
-                  isDisabled={trimmedSource.length === 0 || isPending}
-                >
-                  {t(
-                    isPending
-                      ? I18nKey.EXTENSIONS$REVIEWING
-                      : I18nKey.EXTENSIONS$REVIEW_BUTTON,
-                  )}
-                </BrandButton>
-              ) : (
-                <BrandButton
-                  type="submit"
-                  variant="primary"
-                  testId="add-extension-browse"
-                  isDisabled={trimmedMarketplace.length === 0 || isPending}
-                >
-                  {t(
-                    isPending
-                      ? I18nKey.EXTENSIONS$MARKETPLACE_LOADING
-                      : I18nKey.EXTENSIONS$MARKETPLACE_LOAD,
-                  )}
-                </BrandButton>
-              )}
+              <BrandButton
+                type="submit"
+                variant="primary"
+                testId="add-extension-submit"
+                isDisabled={
+                  trimmedSource.length === 0 || parsed === null || isBusy
+                }
+              >
+                {t(
+                  isBusy
+                    ? I18nKey.EXTENSIONS$DETECTING
+                    : I18nKey.EXTENSIONS$ADD_BUTTON,
+                )}
+              </BrandButton>
             </>
           )}
         </footer>

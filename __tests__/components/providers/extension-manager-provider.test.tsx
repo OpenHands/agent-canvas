@@ -191,6 +191,96 @@ describe("ExtensionManagerProvider update detection", () => {
     expect(installed?.version).toBe("1.0.0");
   });
 
+  it("detectSource classifies a single-extension manifest URL", async () => {
+    const state: FetchState = {
+      latestVersion: "1.0.0",
+      manifests: {
+        "https://cdn.example.com/ext": manifest({ version: "1.0.0" }),
+      },
+    };
+    // Marketplace catalog probes 404 for this source, so only the manifest resolves.
+    vi.stubGlobal("fetch", installFetch(state));
+    const ctx = await mountProvider();
+
+    const detection = await ctx.detectSource("https://cdn.example.com/ext");
+    expect(detection.kind).toBe("manifest");
+    if (detection.kind === "manifest") {
+      expect(detection.installSource).toBe("https://cdn.example.com/ext");
+      expect(detection.preview.id).toBe("acme.test");
+    }
+  });
+
+  it("detectSource returns 'none' when neither manifest nor catalog is found", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => jsonResponse(null, 404)) as unknown as typeof fetch,
+    );
+    const ctx = await mountProvider();
+    const detection = await ctx.detectSource("https://cdn.example.com/missing");
+    expect(detection.kind).toBe("none");
+  });
+
+  it("detectSource treats a catalog as marketplace and lists its entries", async () => {
+    const catalog = {
+      name: "Examples",
+      owner: { name: "Acme" },
+      uiExtensions: [
+        { name: "a", source: "npm:@acme/a@^1" },
+        { name: "b", source: "npm:@acme/b@^1" },
+      ],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes(".plugin/marketplace.json")) {
+          return jsonResponse(catalog);
+        }
+        return jsonResponse(null, 404);
+      }) as unknown as typeof fetch,
+    );
+    const ctx = await mountProvider();
+
+    const detection = await ctx.detectSource("github:acme/exts");
+    expect(detection.kind).toBe("catalog");
+    if (detection.kind === "catalog") {
+      expect(detection.result.listings.map((l) => l.name)).toEqual(["a", "b"]);
+    }
+  });
+
+  it("detectSource short-circuits a single-entry catalog to that entry's consent card", async () => {
+    const catalog = {
+      name: "Examples",
+      owner: { name: "Acme" },
+      uiExtensions: [{ name: "only", source: "npm:acme-test@^1" }],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.includes(".plugin/marketplace.json")) {
+          return jsonResponse(catalog);
+        }
+        if (url.includes("data.jsdelivr.com")) {
+          return jsonResponse({ version: "1.0.0" });
+        }
+        if (url.endsWith("/extension.json")) {
+          return jsonResponse(manifest({ version: "1.0.0" }));
+        }
+        return jsonResponse(null, 404);
+      }) as unknown as typeof fetch,
+    );
+    const ctx = await mountProvider();
+
+    const detection = await ctx.detectSource("github:acme/exts");
+    // Routing changes (skip the list), but the result is still a consent card.
+    expect(detection.kind).toBe("manifest");
+    if (detection.kind === "manifest") {
+      expect(detection.installSource).toBe("npm:acme-test@^1");
+      expect(detection.preview.id).toBe("acme.test");
+    }
+  });
+
   it("reports no update channel for url-kind installs", async () => {
     const state: FetchState = {
       latestVersion: "1.0.0",

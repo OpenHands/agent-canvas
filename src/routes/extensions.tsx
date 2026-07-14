@@ -1,7 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { ExtensionsNavigation } from "#/components/features/skills/extensions-navigation";
-import { InstallExtensionForm } from "#/components/features/extensions/install-extension-form";
 import { ExtensionList } from "#/components/features/extensions/extension-list";
 import { AddExtensionModal } from "#/components/features/extensions/add-extension-modal";
 import { BrandButton } from "#/components/features/settings/brand-button";
@@ -15,7 +14,6 @@ export default function ExtensionsScreen() {
   const { t } = useTranslation("openhands");
   const context = useExtensionContext();
   const [showAddModal, setShowAddModal] = React.useState(false);
-  const [showInlineInstall, setShowInlineInstall] = React.useState(false);
 
   return (
     <div
@@ -41,23 +39,12 @@ export default function ExtensionsScreen() {
               <div className="flex flex-shrink-0 gap-2">
                 <BrandButton
                   type="button"
-                  variant="secondary"
-                  testId="extensions-inline-add-button"
-                  className="whitespace-nowrap"
-                  onClick={() => setShowInlineInstall(!showInlineInstall)}
-                >
-                  {showInlineInstall
-                    ? t(I18nKey.BUTTON$CLOSE)
-                    : t(I18nKey.EXTENSIONS$ADD_BUTTON)}
-                </BrandButton>
-                <BrandButton
-                  type="button"
-                  variant="secondary"
+                  variant="primary"
                   testId="extensions-add-button"
                   className="whitespace-nowrap"
                   onClick={() => setShowAddModal(true)}
                 >
-                  {t(I18nKey.EXTENSIONS$TAB_MARKETPLACE)}
+                  {t(I18nKey.EXTENSIONS$ADD_BUTTON)}
                 </BrandButton>
               </div>
             ) : null}
@@ -73,14 +60,7 @@ export default function ExtensionsScreen() {
               </p>
             </div>
           ) : (
-            <>
-              {showInlineInstall && (
-                <InstallExtensionForm
-                  onInstallComplete={() => setShowInlineInstall(false)}
-                />
-              )}
-              <ExtensionList />
-            </>
+            <ExtensionList />
           )}
 
           {showAddModal && (

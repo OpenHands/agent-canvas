@@ -27,6 +27,7 @@ function makeContext() {
     manager: {},
     deps: {},
     previewManifest: vi.fn(),
+    detectSource: vi.fn(),
     installFromUrl: vi.fn(),
     checkForUpdate: vi.fn().mockResolvedValue(null),
     updateExtension: vi.fn(),
@@ -68,11 +69,15 @@ describe("ExtensionsScreen", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the empty state when enabled with nothing installed", () => {
+  it("shows the empty state and a single add button when enabled with nothing installed", () => {
     ctx.value = makeContext();
     render(<ExtensionsScreen />);
     expect(screen.getByTestId("extension-list-empty")).toBeInTheDocument();
     expect(screen.getByTestId("extensions-add-button")).toBeInTheDocument();
+    // The redundant inline "install from URL" button was consolidated away.
+    expect(
+      screen.queryByTestId("extensions-inline-add-button"),
+    ).not.toBeInTheDocument();
   });
 
   it("lists installed extensions and opens the add modal", async () => {
@@ -88,9 +93,7 @@ describe("ExtensionsScreen", () => {
     });
 
     render(<ExtensionsScreen />);
-    expect(
-      screen.getByTestId("extension-card-acme.hello"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("extension-card-acme.hello")).toBeInTheDocument();
 
     await user.click(screen.getByTestId("extensions-add-button"));
     expect(screen.getByTestId("add-extension-modal")).toBeInTheDocument();
