@@ -46,6 +46,7 @@ import {
 interface ChatInputActionsProps {
   disabled: boolean;
   canSubmit?: boolean;
+  hasStartedConversation?: boolean;
   onAddFileClick?: () => void;
   showButton?: boolean;
   buttonClassName?: string;
@@ -55,6 +56,7 @@ interface ChatInputActionsProps {
 export function ChatInputActions({
   disabled,
   canSubmit = true,
+  hasStartedConversation,
   onAddFileClick = () => {},
   showButton = true,
   buttonClassName = "",
@@ -247,6 +249,7 @@ export function ChatInputActions({
   // `resolve-picker-kind.test.ts`).
   const pickerKind = resolvePickerKind({
     hasConversation: !!conversationId,
+    hasStartedConversation,
     isCloud,
     isAcp: modelState.isAcpContext,
     profilesAvailable: !agentProfilesUnavailableOnHome,

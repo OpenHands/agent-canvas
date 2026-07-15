@@ -29,6 +29,11 @@ export interface Automation {
   repository?: string;
   /** LLM/model profile name used for automation runs. */
   model?: string | null;
+  /**
+   * Maximum run time in seconds. `null`/omitted uses the server default
+   * (600s, 10 min); the server caps it at 1800s (30 min).
+   */
+  timeout?: number | null;
 
   created_at: string;
   updated_at: string;

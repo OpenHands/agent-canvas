@@ -557,6 +557,32 @@ describe("AgentServerConversationService", () => {
       expect(result.items[0]?.sandbox_status).toBe("PAUSED");
     });
 
+    it("preserves the launched Agent Profile through the wire normalizer", async () => {
+      mockHttpGet.mockResolvedValue({
+        data: [
+          {
+            id: "conv-profile",
+            created_at: "2024-01-01",
+            updated_at: "2024-01-01",
+            launched_agent_profile: {
+              agent_profile_id: "profile-1",
+              revision: 3,
+            },
+          },
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-profile",
+        ]);
+
+      expect(conversation?.launched_agent_profile).toEqual({
+        agent_profile_id: "profile-1",
+        revision: 3,
+      });
+    });
+
     it("passes sandbox_status null through when field is absent", async () => {
       mockHttpGet.mockResolvedValue({
         data: [

@@ -71,6 +71,14 @@ describe("automation export files", () => {
     );
   });
 
+  it("preserves a positive timeout through an export/import round-trip", () => {
+    const withTimeout: Automation = { ...cronAutomation, timeout: 900 };
+
+    const exported = serializeAutomation(withTimeout);
+
+    expect(parseAutomationFile(exported).timeout).toBe(900);
+  });
+
   it("reports every malformed field with its path", () => {
     const malformed = {
       version: 2,
@@ -82,6 +90,7 @@ describe("automation export files", () => {
         trigger: { type: "event", source: 42, on: [] },
         plugins: ["github:openhands/extensions", 42],
         model: false,
+        timeout: -5,
       },
     };
 
@@ -106,6 +115,7 @@ describe("automation export files", () => {
           "spec.trigger.on: required for an event trigger",
           "spec.plugins: expected an array of non-empty strings",
           "spec.model: expected a non-empty string or null",
+          "spec.timeout: expected a positive integer",
         ]),
       );
     }

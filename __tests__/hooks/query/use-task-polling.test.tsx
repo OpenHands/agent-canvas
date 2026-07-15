@@ -13,6 +13,7 @@ import {
   setPendingTaskDraft,
 } from "#/utils/conversation-local-storage";
 import { resetPendingTaskMessageLinkState } from "#/utils/pending-task-message-link";
+import { getStoredConversationMetadata } from "#/api/conversation-metadata-store";
 
 vi.mock(
   "#/api/conversation-service/agent-server-conversation-service.api",
@@ -98,6 +99,45 @@ describe("useTaskPolling", () => {
     expect(AgentServerConversationService.getStartTask).toHaveBeenCalledWith(
       "123",
     );
+  });
+
+  it("stores cloud task plugin coordinates on the real conversation", async () => {
+    vi.mocked(AgentServerConversationService.getStartTask).mockResolvedValue({
+      ...readyTask,
+      request: {
+        selected_repository: "OpenHands/agent-canvas",
+        selected_branch: "main",
+        git_provider: "github",
+        plugins: [
+          {
+            source: "github:OpenHands/extensions",
+            ref: "v1",
+            repo_path: "plugins/weather",
+            parameters: { apiKey: "secret" },
+          },
+        ],
+      },
+    });
+
+    renderHook(() => useTaskPolling(), { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(navigate).toHaveBeenCalledWith("/conversations/conversation-1", {
+        replace: true,
+      });
+    });
+    expect(getStoredConversationMetadata("conversation-1")).toEqual({
+      selected_repository: "OpenHands/agent-canvas",
+      selected_branch: "main",
+      git_provider: "github",
+      plugins: [
+        {
+          source: "github:OpenHands/extensions",
+          ref: "v1",
+          repo_path: "plugins/weather",
+        },
+      ],
+    });
   });
 
   it("reassigns optimistic pending messages on the real conversation route", async () => {

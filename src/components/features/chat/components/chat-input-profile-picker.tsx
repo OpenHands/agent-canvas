@@ -36,8 +36,13 @@ export function ChatInputProfileMenuContent({
   settingsIconClassName,
 }: ChatInputProfileMenuContentProps) {
   const { t } = useTranslation("openhands");
-  const { profiles, currentProfileId, selectProfile } =
-    useChatInputProfileState();
+  const {
+    profiles,
+    currentProfileId,
+    isInConversation,
+    isSwitching,
+    selectProfile,
+  } = useChatInputProfileState();
 
   const handleSelect = (profile: (typeof profiles)[number]) => {
     selectProfile(profile);
@@ -62,6 +67,7 @@ export function ChatInputProfileMenuContent({
               <ContextMenuListItem
                 key={profile.id ?? profile.name}
                 testId={`chat-input-agent-profile-option-${profile.name}`}
+                isDisabled={isSwitching}
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -93,6 +99,13 @@ export function ChatInputProfileMenuContent({
               </ContextMenuListItem>
             );
           })}
+          {isInConversation && (
+            <li role="presentation" className="px-2 pt-0.5 pb-1">
+              <Typography.Text className="text-[11px] text-[var(--oh-text-dim)] leading-4">
+                {t(I18nKey.CHAT$START_NEW_WITH_PROFILE_HINT)}
+              </Typography.Text>
+            </li>
+          )}
         </>
       )}
       {profiles.length > 0 && <Divider inset={dividerInset} />}

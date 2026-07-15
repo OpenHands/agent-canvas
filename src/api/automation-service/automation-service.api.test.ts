@@ -216,4 +216,14 @@ describe("AutomationService.createAutomation", () => {
       },
     );
   });
+
+  it("includes the timeout in the create request when the spec sets one", async () => {
+    await AutomationService.createAutomation({ ...spec, timeout: 1200 });
+
+    expect(localAxios.post).toHaveBeenCalledWith(
+      "/api/automation/v1/preset/plugin",
+      expect.objectContaining({ timeout: 1200 }),
+      expect.any(Object),
+    );
+  });
 });

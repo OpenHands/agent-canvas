@@ -121,6 +121,7 @@ function buildCreateAutomationRequest(spec: AutomationSpec) {
       ...(spec.plugins?.length && {
         plugins: spec.plugins.map((source) => ({ source })),
       }),
+      ...(spec.timeout != null && { timeout: spec.timeout }),
     },
   };
 }

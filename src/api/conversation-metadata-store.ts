@@ -35,17 +35,15 @@ export interface ConversationMetadata {
    * is ambiguous (issue #1082).
    */
   active_profile?: string | null;
-  /**
-   * Snapshot of the plugins loaded into the conversation, captured at creation
-   * (coordinates only — `parameters` are stripped): plugins explicitly attached
-   * at creation plus the enabled installed plugins the SDK auto-loads into new
-   * local conversations. The agent-server doesn't expose a live conversation's
-   * loaded plugins, so this is the client-side source for the in-conversation
-   * plugins view. Local + forward-only: only set for conversations created
-   * after this shipped, and only when `app_conversation_id` is known.
-   */
+  /** Store plugin coordinates only; parameters may contain secrets. */
   plugins?: PluginSpec[] | null;
 }
+
+export const toPluginCoordinates = (plugin: PluginSpec): PluginSpec => ({
+  source: plugin.source,
+  ref: plugin.ref ?? null,
+  repo_path: plugin.repo_path ?? null,
+});
 
 type StoredMetadata = Record<string, ConversationMetadata>;
 
