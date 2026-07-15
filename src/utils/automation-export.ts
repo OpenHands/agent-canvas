@@ -159,6 +159,7 @@ export function serializeAutomation(a: Automation): AutomationExportFile {
     prompt: a.prompt,
     ...(a.repository !== undefined && { repository: a.repository }),
     ...(a.model !== undefined && { model: a.model }),
+    ...(a.timeout != null && { timeout: a.timeout }),
     ...(a.branch !== undefined && { branch: a.branch }),
     ...(a.plugins !== undefined && { plugins: [...a.plugins] }),
     ...(a.notification !== undefined && { notification: a.notification }),
@@ -247,6 +248,19 @@ export function parseAutomationFile(json: unknown): AutomationSpec {
     issues.push("spec.model: expected a non-empty string or null");
   }
 
+  let timeout: number | null | undefined;
+  if (json.spec.timeout === null || json.spec.timeout === undefined) {
+    timeout = json.spec.timeout;
+  } else if (
+    typeof json.spec.timeout === "number" &&
+    Number.isInteger(json.spec.timeout) &&
+    json.spec.timeout > 0
+  ) {
+    timeout = json.spec.timeout;
+  } else {
+    issues.push("spec.timeout: expected a positive integer");
+  }
+
   let plugins: string[] | undefined;
   if (json.spec.plugins !== undefined) {
     if (
@@ -272,6 +286,7 @@ export function parseAutomationFile(json: unknown): AutomationSpec {
     enabled: enabled as boolean,
     ...(repository !== undefined && { repository }),
     ...(model !== undefined && { model }),
+    ...(timeout !== undefined && { timeout }),
     ...(branch !== undefined && { branch }),
     ...(plugins !== undefined && { plugins }),
     ...(notification !== undefined && { notification }),

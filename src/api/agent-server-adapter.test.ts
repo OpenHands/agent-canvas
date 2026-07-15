@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CANVAS_UI_CLIENT_TOOL_NAME } from "#/constants/canvas-ui";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import type { Settings } from "#/types/settings";
 import { buildStartConversationRequest } from "./agent-server-adapter";
@@ -120,10 +121,14 @@ describe("buildStartConversationRequest — agentProfileId path", () => {
     const payload = buildStartConversationRequest({
       settings,
       agentProfileId: "profile-xyz",
+      agentProfileKind: "openhands",
     });
 
     expect(payload.agent_profile_id).toBe("profile-xyz");
     expect(payload.agent_settings).toBeUndefined();
+    expect(payload.client_tools.map((tool) => tool.name)).toEqual([
+      CANVAS_UI_CLIENT_TOOL_NAME,
+    ]);
   });
 
   it("suppresses the ACP server tag when launching from a profile", () => {

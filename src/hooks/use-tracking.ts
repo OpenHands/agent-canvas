@@ -178,6 +178,10 @@ export const useTracking = () => {
     track("download_trajectory_button_clicked");
   };
 
+  const trackConversationExported = (format: "markdown" | "html") => {
+    track("conversation_exported", { format });
+  };
+
   const trackAutomationCreated = ({
     backendKind,
   }: {
@@ -319,6 +323,7 @@ export const useTracking = () => {
     trackSettingsSaved,
     trackMcpConfigUpdated,
     trackDownloadTrajectoryButtonClicked,
+    trackConversationExported,
     trackAutomationCreated,
     trackAutomationExecuted,
     trackAutomationDeleted,

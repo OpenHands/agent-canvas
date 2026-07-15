@@ -10,7 +10,7 @@ import {
   VSCodeClient,
 } from "@openhands/typescript-client/clients";
 import { v4 as uuidv4 } from "uuid";
-import { Provider } from "#/types/settings";
+import { AgentKind, Provider } from "#/types/settings";
 import type { ConversationRuntimeContext } from "#/api/conversation-file-upload.api";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import {
@@ -181,6 +181,17 @@ function normalizeTags(value: unknown): Record<string, string> | null {
   return tags;
 }
 
+function normalizeLaunchedAgentProfile(
+  value: unknown,
+): DirectConversationInfo["launched_agent_profile"] {
+  if (!isRecord(value)) return null;
+  const { agent_profile_id: agentProfileId, revision } = value;
+  if (typeof agentProfileId !== "string" || typeof revision !== "number") {
+    return null;
+  }
+  return { agent_profile_id: agentProfileId, revision };
+}
+
 function normalizeAbsolutePath(path: string): string | null {
   if (!path.startsWith("/")) return null;
 
@@ -231,6 +242,9 @@ function requireDirectConversationInfo(item: unknown): DirectConversationInfo {
     agent: normalizeAgent(item.agent),
     workspace: normalizeWorkspace(item.workspace),
     tags: normalizeTags(item.tags),
+    launched_agent_profile: normalizeLaunchedAgentProfile(
+      item.launched_agent_profile,
+    ),
     // SDK-runtime ACP model fields (populated when the agent-server supports
     // ``ConversationInfo.current_model_*``). Consumed by the conversation
     // adapter to drive the per-card chip's model text. Older agent-servers
@@ -362,6 +376,7 @@ class AgentServerConversationService {
     // cloud app-server (OpenHands #15060): local threads it through the
     // encrypted-settings builder; cloud sends it as a flat request field.
     agentProfileId?: string,
+    agentProfileKind?: AgentKind,
   ): Promise<AppConversationStartTask> {
     if (getActiveBackend().backend.kind === "cloud") {
       // Cloud path mirrors OpenHands' frontend: build a flat
@@ -415,6 +430,7 @@ class AgentServerConversationService {
       workingDir,
       worktree: resolvedWorkspaceMode === "new_worktree",
       agentProfileId,
+      agentProfileKind,
     });
 
     const data = await new ConversationClient(

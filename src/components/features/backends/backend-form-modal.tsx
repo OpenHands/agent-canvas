@@ -45,6 +45,8 @@ interface BackendFormModalProps {
   onClose: () => void;
   /** Analytics surface for the `backend_added` event (add mode only). */
   source?: BackendAddedSource;
+  /** Hide the close button and disable backdrop/escape dismissal. Used for locked Cloud first-run. */
+  hideCloseButton?: boolean;
 }
 
 /**
@@ -965,7 +967,7 @@ function CloudLoginColumn({
   };
 
   return (
-    <div className="flex flex-1 min-w-0 flex-col items-center gap-3 pb-7">
+    <div className="flex flex-1 min-w-0 flex-col items-center gap-3 pb-8">
       <div className="flex flex-col items-center gap-1">
         <OpenHandsLogoWhite width={56} height={56} aria-hidden />
 
@@ -1080,33 +1082,41 @@ export function BackendFormModal({
   backend,
   onClose,
   source = "add_backend_modal",
+  hideCloseButton = false,
 }: BackendFormModalProps) {
   const { t } = useTranslation("openhands");
 
   if (mode === "add") {
     return (
       <ModalBackdrop
-        onClose={onClose}
+        onClose={hideCloseButton ? undefined : onClose}
         closeOnEscape={false}
+        closeOnBackdropClick={!hideCloseButton}
         aria-label={t(I18nKey.BACKEND$ADD_TITLE)}
       >
         <div
-          data-testid="add-backend-modal"
+          data-testid={
+            hideCloseButton ? "onboarding-modal" : "add-backend-modal"
+          }
           className={cn(
             "relative rounded-xl border border-[var(--oh-border)] bg-base-secondary",
             modalWidthClassName("xl"),
             MODAL_MAX_WIDTH_VIEWPORT,
           )}
         >
-          <ModalCloseButton onClose={onClose} testId="add-backend-close" />
-          {/* Header */}
-          <div className="px-6 pt-6 pb-2 pr-12">
-            <h2 className={modalTitleLgClassName}>
-              {t(I18nKey.BACKEND$ADD_TITLE)}
-            </h2>
-          </div>
+          {hideCloseButton ? null : (
+            <ModalCloseButton onClose={onClose} testId="add-backend-close" />
+          )}
+          {/* Header - hide in locked Cloud first-run mode for cleaner UX */}
+          {hideCloseButton ? null : (
+            <div className="px-6 pt-6 pb-2 pr-12">
+              <h2 className={modalTitleLgClassName}>
+                {t(I18nKey.BACKEND$ADD_TITLE)}
+              </h2>
+            </div>
+          )}
 
-          <div className="px-6 pb-6 pt-2">
+          <div className={cn("px-6 pb-6", hideCloseButton ? "pt-6" : "pt-2")}>
             <AddBackendConnectionOptions onClose={onClose} source={source} />
           </div>
         </div>

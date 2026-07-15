@@ -2,7 +2,7 @@ import { ACP_SETTINGS_KEYS } from "@openhands/typescript-client";
 import { SKILLS_CATALOG } from "@openhands/extensions/skills";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
-import { Settings, SettingsValue } from "#/types/settings";
+import { AgentKind, Settings, SettingsValue } from "#/types/settings";
 import {
   getAcpPreferredDefaultModel,
   getAcpProvider,
@@ -28,6 +28,12 @@ import {
   OPENAI_SUBSCRIPTION_VENDOR,
   isSubscriptionLlmConfig,
 } from "#/constants/llm-subscription";
+import {
+  CANVAS_UI_CLIENT_TOOL,
+  CANVAS_UI_CLIENT_TOOL_NAME,
+  LEGACY_CANVAS_UI_TOOL_NAME,
+  type ClientToolSpec,
+} from "./canvas-ui-client-tool";
 
 export interface DirectConversationInfo {
   id: string;
@@ -82,20 +88,13 @@ export interface DirectConversationInfo {
    * values are opaque strings.
    */
   tags?: Record<string, string> | null;
+  launched_agent_profile?: {
+    agent_profile_id: string;
+    revision: number;
+  } | null;
 }
 
-// Module qualname for the Canvas-UI tool. The agent-server imports this via
-// tool_module_qualnames; the host directory is exposed via OH_EXTRA_PYTHON_PATH
-// (see scripts/dev-safe.mjs).
-const CANVAS_UI_TOOL_NAME = "canvas_ui";
-const CANVAS_UI_TOOL_MODULE = "canvas_ui_tool";
-
-const DEFAULT_TOOL_NAMES = [
-  "terminal",
-  "file_editor",
-  "task_tracker",
-  CANVAS_UI_TOOL_NAME,
-];
+const DEFAULT_TOOL_NAMES = ["terminal", "file_editor", "task_tracker"];
 const BROWSER_TOOL_SET_NAME = "browser_tool_set";
 const TASK_TOOL_SET_NAME = "task_tool_set";
 
@@ -329,6 +328,7 @@ export function toAppConversation(
     pr_number: [],
     agent_kind: isAcp ? "acp" : "openhands",
     acp_server: acpServer,
+    launched_agent_profile: info.launched_agent_profile ?? null,
     // Chip path: omit ``providerDefault`` so that when no concrete model
     // resolves, the chip falls back to the provider display name in
     // ConversationCardFooter rather than a registry default the session may
@@ -513,10 +513,6 @@ function isToolRecord(
 }
 
 function shouldIncludeTool(name: string, agentSettings: SettingsRecord) {
-  if (name === CANVAS_UI_TOOL_NAME) {
-    return isAgentServerToolAvailable(name);
-  }
-
   if (name === BROWSER_TOOL_SET_NAME) {
     return browserToolsEnabled() && isAgentServerToolAvailable(name);
   }
@@ -884,6 +880,7 @@ type StartConversationPayload = Record<string, unknown> & {
   conversation_id?: string;
   secrets?: Record<string, LookupSecret>;
   tags?: Record<string, string>;
+  client_tools: ClientToolSpec[];
   tool_module_qualnames?: Record<string, string>;
 };
 
@@ -902,6 +899,7 @@ export interface StartConversationOptions {
   // When set, the conversation launches from this AgentProfile (resolved
   // server-side) instead of an inline ``agent_settings`` dump (#3727).
   agentProfileId?: string;
+  agentProfileKind?: AgentKind;
 }
 
 export function buildStartConversationRequest(
@@ -912,6 +910,11 @@ export function buildStartConversationRequest(
     : options.settings;
 
   const acpMode = isAcpAgent(sourceAgentSettings);
+  const launchAgentKind = options.agentProfileId
+    ? options.agentProfileKind
+    : acpMode
+      ? "acp"
+      : "openhands";
   const agentSettings = buildConfiguredAgentSettings(sourceAgentSettings);
   const acpServerTag = acpMode
     ? getAcpServerTag(sourceAgentSettings)
@@ -942,14 +945,15 @@ export function buildStartConversationRequest(
     // server/SDK's responsibility to restore on the profile path — tracked in
     // software-agent-sdk#3967 (profile resolution must attach the default
     // toolset + public skills, else a profile-launched OpenHands agent has only
-    // Finish/Think). The two genuinely canvas-only enrichments — the
-    // ``canvas_ui`` tool and the dev ``RUNTIME_SERVICES`` system-message-suffix
-    // (``buildAgentContext``) — have no server-side representation and are
-    // intentionally not carried on the profile path.
+    // Finish/Think). The dev ``RUNTIME_SERVICES`` system-message suffix remains
+    // agent-settings-only; the Canvas UI tool is a top-level client tool and
+    // therefore works on both inline-agent and profile launch paths.
     ...(options.agentProfileId
       ? { agent_profile_id: options.agentProfileId }
       : { agent_settings: agentSettings }),
     workspace: conversationSettings.workspace,
+    client_tools:
+      launchAgentKind === "openhands" ? [CANVAS_UI_CLIENT_TOOL] : [],
     confirmation_policy:
       getConversationConfirmationPolicy(conversationSettings),
     max_iterations:
@@ -1003,20 +1007,13 @@ export function buildStartConversationRequest(
     payload.hook_config = conversationSettings.hook_config;
   }
 
-  const toolModuleQualnames: Record<string, string> = {};
-  const canvasUiAvailable = isAgentServerToolAvailable(CANVAS_UI_TOOL_NAME);
-  if (canvasUiAvailable) {
-    toolModuleQualnames[CANVAS_UI_TOOL_NAME] = CANVAS_UI_TOOL_MODULE;
-  }
-  Object.assign(
-    toolModuleQualnames,
-    (conversationSettings.tool_module_qualnames as
+  const toolModuleQualnames = {
+    ...((conversationSettings.tool_module_qualnames as
       | Record<string, string>
-      | undefined) ?? {},
-  );
-  if (!canvasUiAvailable) {
-    delete toolModuleQualnames[CANVAS_UI_TOOL_NAME];
-  }
+      | undefined) ?? {}),
+  };
+  delete toolModuleQualnames[LEGACY_CANVAS_UI_TOOL_NAME];
+  delete toolModuleQualnames[CANVAS_UI_CLIENT_TOOL_NAME];
   if (Object.keys(toolModuleQualnames).length > 0) {
     payload.tool_module_qualnames = toolModuleQualnames;
   }
@@ -1085,6 +1082,7 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   workingDir?: string;
   worktree?: boolean;
   agentProfileId?: string;
+  agentProfileKind?: AgentKind;
 }): Promise<Record<string, unknown>> {
   const { SecretsService } = await import("./secrets-service");
 
