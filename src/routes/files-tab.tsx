@@ -156,7 +156,6 @@ function FilesTab() {
           value={activeView}
           options={[
             { value: "on", label: t(I18nKey.FILES$DIFF_VIEW) },
-            { value: "off", label: t(I18nKey.COMMON$FILES) },
             ...(showCommitsOption
               ? [
                   {
@@ -165,6 +164,7 @@ function FilesTab() {
                   },
                 ]
               : []),
+            { value: "off", label: t(I18nKey.COMMON$FILES) },
           ]}
           onChange={(value) => {
             if (value === "commits") {
