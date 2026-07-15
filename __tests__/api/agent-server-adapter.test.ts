@@ -621,6 +621,44 @@ describe("buildStartConversationRequest", () => {
       expect(payload.tool_module_qualnames).toBeUndefined();
     });
 
+    it("omits the client tool for an inline ACP agent", () => {
+      const payload = buildStartConversationRequest({
+        settings: {
+          ...DEFAULT_SETTINGS,
+          agent_settings: {
+            ...DEFAULT_SETTINGS.agent_settings,
+            agent_kind: "acp",
+            acp_server: "custom",
+            acp_command: ["custom-acp"],
+          },
+        },
+      });
+
+      expect(payload.client_tools).toEqual([]);
+    });
+
+    it("omits the client tool for an ACP profile when global settings are stale", () => {
+      const payload = buildStartConversationRequest({
+        settings: DEFAULT_SETTINGS,
+        agentProfileId: "profile-acp",
+        agentProfileKind: "acp",
+      });
+
+      expect(payload.client_tools).toEqual([]);
+    });
+
+    it("sends the client tool for an OpenHands profile", () => {
+      const payload = buildStartConversationRequest({
+        settings: DEFAULT_SETTINGS,
+        agentProfileId: "profile-openhands",
+        agentProfileKind: "openhands",
+      });
+
+      expect(payload.client_tools.map((tool) => tool.name)).toEqual([
+        "canvas_ui_client",
+      ]);
+    });
+
     it("sends the client tool when resuming a conversation", () => {
       const payload = buildStartConversationRequest({
         settings: DEFAULT_SETTINGS,

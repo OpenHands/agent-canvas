@@ -120,6 +120,7 @@ describe("buildStartConversationRequest — agentProfileId path", () => {
     const payload = buildStartConversationRequest({
       settings,
       agentProfileId: "profile-xyz",
+      agentProfileKind: "openhands",
     });
 
     expect(payload.agent_profile_id).toBe("profile-xyz");

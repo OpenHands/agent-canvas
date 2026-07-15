@@ -2,7 +2,7 @@ import { ACP_SETTINGS_KEYS } from "@openhands/typescript-client";
 import { SKILLS_CATALOG } from "@openhands/extensions/skills";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { ExecutionStatus } from "#/types/agent-server/core";
-import { Settings, SettingsValue } from "#/types/settings";
+import { AgentKind, Settings, SettingsValue } from "#/types/settings";
 import {
   getAcpPreferredDefaultModel,
   getAcpProvider,
@@ -899,6 +899,7 @@ export interface StartConversationOptions {
   // When set, the conversation launches from this AgentProfile (resolved
   // server-side) instead of an inline ``agent_settings`` dump (#3727).
   agentProfileId?: string;
+  agentProfileKind?: AgentKind;
 }
 
 export function buildStartConversationRequest(
@@ -909,6 +910,11 @@ export function buildStartConversationRequest(
     : options.settings;
 
   const acpMode = isAcpAgent(sourceAgentSettings);
+  const launchAgentKind = options.agentProfileId
+    ? options.agentProfileKind
+    : acpMode
+      ? "acp"
+      : "openhands";
   const agentSettings = buildConfiguredAgentSettings(sourceAgentSettings);
   const acpServerTag = acpMode
     ? getAcpServerTag(sourceAgentSettings)
@@ -946,7 +952,8 @@ export function buildStartConversationRequest(
       ? { agent_profile_id: options.agentProfileId }
       : { agent_settings: agentSettings }),
     workspace: conversationSettings.workspace,
-    client_tools: [CANVAS_UI_CLIENT_TOOL],
+    client_tools:
+      launchAgentKind === "openhands" ? [CANVAS_UI_CLIENT_TOOL] : [],
     confirmation_policy:
       getConversationConfirmationPolicy(conversationSettings),
     max_iterations:
@@ -1075,6 +1082,7 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   workingDir?: string;
   worktree?: boolean;
   agentProfileId?: string;
+  agentProfileKind?: AgentKind;
 }): Promise<Record<string, unknown>> {
   const { SecretsService } = await import("./secrets-service");
 

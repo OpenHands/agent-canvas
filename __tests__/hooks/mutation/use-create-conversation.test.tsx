@@ -461,6 +461,7 @@ describe("useCreateConversation", () => {
 
     const call = createConversationSpy.mock.lastCall;
     expect(call?.[9]).toBe("profile-acp-default");
+    expect(call?.[10]).toBe("acp");
   });
 
   it("launches the seeded `default` profile from its resolved id on cloud (no agent_settings fallback exists there) (#1571)", async () => {

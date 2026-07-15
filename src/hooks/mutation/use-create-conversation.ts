@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { PluginSpec } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { SuggestedTask } from "#/utils/types";
-import { Provider } from "#/types/settings";
+import { AgentKind, Provider } from "#/types/settings";
 import { useTracking } from "#/hooks/use-tracking";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useAgentProfiles } from "#/hooks/query/use-agent-profiles";
@@ -198,15 +198,20 @@ export const useCreateConversation = () => {
         }
       }
 
-      // Only extend the call with the [sandboxId, agentProfileId] tail when
-      // launching from a profile, so a plain create stays byte-identical to
-      // the legacy agent_settings path (#3727). sandboxId is unused here.
-      // TODO(#1587): createConversation has grown to 10 positional params;
+      // Only extend the call with the profile tail when launching from a
+      // profile, so a plain create stays byte-identical to the legacy
+      // agent_settings path (#3727). sandboxId is unused here.
+      // TODO(#1587): createConversation has grown to 11 positional params;
       // refactor it to an options object so this position-skipping tail isn't
       // needed.
-      const profileArgs: [undefined, string] | [] = effectiveAgentProfileId
-        ? [undefined, effectiveAgentProfileId]
-        : [];
+      const profileArgs: [undefined, string, AgentKind | undefined] | [] =
+        effectiveAgentProfileId
+          ? [
+              undefined,
+              effectiveAgentProfileId,
+              resolvedAgentProfile?.agent_kind,
+            ]
+          : [];
 
       const conversation =
         await AgentServerConversationService.createConversation(
