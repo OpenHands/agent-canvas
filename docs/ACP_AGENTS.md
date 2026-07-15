@@ -145,7 +145,7 @@ point Canvas at it). In short:
 ```bash
 # 1. Agent Server in a container (CORS allows localhost, so the browser talks
 #    to it directly). The image pre-installs the ACP CLI wrappers. New
-#    canvas_ui_client calls use client_tools; the Python mount keeps
+#    canvas_ui_control calls use client_tools; the Python mount keeps
 #    pre-migration conversations loadable when persisted metadata imports
 #    canvas_ui_tool.
 # Minimum image: 1.28.0-python (first compatible ACP provider/model protocol

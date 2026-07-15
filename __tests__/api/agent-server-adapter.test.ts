@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CANVAS_UI_CLIENT_TOOL_NAME } from "#/constants/canvas-ui";
 
 import {
   ACP_SERVER_TAG_KEY,
@@ -598,7 +599,7 @@ describe("buildStartConversationRequest", () => {
 
       expect(payload.client_tools).toHaveLength(1);
       expect(payload.client_tools[0]).toMatchObject({
-        name: "canvas_ui_client",
+        name: CANVAS_UI_CLIENT_TOOL_NAME,
         parameters: {
           type: "object",
           properties: {
@@ -655,7 +656,7 @@ describe("buildStartConversationRequest", () => {
       });
 
       expect(payload.client_tools.map((tool) => tool.name)).toEqual([
-        "canvas_ui_client",
+        CANVAS_UI_CLIENT_TOOL_NAME,
       ]);
     });
 
@@ -667,7 +668,7 @@ describe("buildStartConversationRequest", () => {
 
       expect(payload.conversation_id).toBe("legacy-conversation-id");
       expect(payload.client_tools.map((tool) => tool.name)).toEqual([
-        "canvas_ui_client",
+        CANVAS_UI_CLIENT_TOOL_NAME,
       ]);
     });
 
@@ -679,7 +680,7 @@ describe("buildStartConversationRequest", () => {
             ...DEFAULT_SETTINGS.conversation_settings,
             tool_module_qualnames: {
               canvas_ui: "custom_canvas_ui_tool",
-              canvas_ui_client: "custom_canvas_ui_client_tool",
+              [CANVAS_UI_CLIENT_TOOL_NAME]: "custom_canvas_ui_control_tool",
               my_tool: "my_package.my_tool",
             },
           },

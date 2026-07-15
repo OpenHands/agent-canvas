@@ -1,5 +1,9 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import {
+  CANVAS_UI_CLIENT_ACTION_KIND,
+  CANVAS_UI_CLIENT_TOOL_NAME,
+} from "#/constants/canvas-ui";
 import { getEventContent } from "#/components/conversation-events/chat";
 import {
   ActionEvent,
@@ -339,18 +343,18 @@ describe("getEventContent", () => {
       thought: [],
       thinking_blocks: [],
       action: {
-        kind: "ClientAction_canvas_ui_client",
+        kind: CANVAS_UI_CLIENT_ACTION_KIND,
         command: "open_tab",
         path: null,
         tab: "files",
       },
-      tool_name: "canvas_ui_client",
+      tool_name: CANVAS_UI_CLIENT_TOOL_NAME,
       tool_call_id: "tool-canvas-client",
       tool_call: {
         id: "tool-canvas-client",
         type: "function",
         function: {
-          name: "canvas_ui_client",
+          name: CANVAS_UI_CLIENT_TOOL_NAME,
           arguments: '{"command":"open_tab","tab":"files"}',
         },
       },
@@ -362,7 +366,7 @@ describe("getEventContent", () => {
       id: "obs-canvas-client",
       timestamp: new Date().toISOString(),
       source: "environment",
-      tool_name: "canvas_ui_client",
+      tool_name: CANVAS_UI_CLIENT_TOOL_NAME,
       tool_call_id: "tool-canvas-client",
       action_id: "action-canvas-client",
       observation: {

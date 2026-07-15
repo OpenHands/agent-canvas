@@ -1,3 +1,11 @@
+import { CANVAS_UI_CLIENT_TOOL_NAME } from "#/constants/canvas-ui";
+
+export {
+  CANVAS_UI_CLIENT_ACTION_KIND,
+  CANVAS_UI_CLIENT_TOOL_NAME,
+  LEGACY_CANVAS_UI_TOOL_NAME,
+} from "#/constants/canvas-ui";
+
 export interface ClientToolSpec {
   name: string;
   description: string;
@@ -10,9 +18,6 @@ export interface ClientToolSpec {
     openWorldHint: boolean;
   };
 }
-
-export const LEGACY_CANVAS_UI_TOOL_NAME = "canvas_ui";
-export const CANVAS_UI_CLIENT_TOOL_NAME = "canvas_ui_client";
 
 const CANVAS_UI_DESCRIPTION = `The user is interacting with you inside Agent Canvas — a web UI with a chat panel on the left and a tabbed right-side panel (files, terminal, browser, vscode, planner, tasklist). This tool lets you drive that right-side panel so the user sees what you just produced.
 
@@ -48,7 +53,7 @@ When to call (pick the most specific option that matches your last action):
     the Browser tab will open without a screenshot.)
 
 Call this BEFORE writing your chat-message summary of the change, so the
-artifact is visible while the user reads what you did. One canvas_ui_client
+artifact is visible while the user reads what you did. One canvas_ui_control
 call per logical step is enough — don't repeat it for the same file or tab in
 the same turn.`;
 

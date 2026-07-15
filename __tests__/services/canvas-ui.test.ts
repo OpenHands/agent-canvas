@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  CANVAS_UI_CLIENT_ACTION_KIND,
+  CANVAS_UI_CLIENT_TOOL_NAME,
+  LEGACY_CANVAS_UI_TOOL_NAME,
+} from "#/constants/canvas-ui";
 import { handleCanvasUIAction } from "#/services/canvas-ui";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useFilesTabStore } from "#/stores/files-tab-store";
@@ -98,15 +103,15 @@ describe("isCanvasUIActionEvent", () => {
       timestamp: "2026-05-13T00:00:00Z",
       source: "agent",
       action: { kind: "CanvasUIAction" },
-      tool_name: "canvas_ui",
+      tool_name: LEGACY_CANVAS_UI_TOOL_NAME,
       tool_call_id: "call-1",
       ...overrides,
     };
   }
 
   it.each([
-    ["CanvasUIAction", "canvas_ui"],
-    ["ClientAction_canvas_ui_client", "canvas_ui_client"],
+    ["CanvasUIAction", LEGACY_CANVAS_UI_TOOL_NAME],
+    [CANVAS_UI_CLIENT_ACTION_KIND, CANVAS_UI_CLIENT_TOOL_NAME],
   ])("returns true for a %s ActionEvent from %s", (kind, toolName) => {
     expect(
       isCanvasUIActionEvent(
@@ -132,7 +137,7 @@ describe("isCanvasUIActionEvent", () => {
       timestamp: "2026-05-13T00:00:00Z",
       source: "environment",
       observation: { kind: "ExecuteBashObservation" },
-      tool_name: "canvas_ui",
+      tool_name: LEGACY_CANVAS_UI_TOOL_NAME,
       tool_call_id: "call-1",
     };
 

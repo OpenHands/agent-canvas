@@ -4,7 +4,9 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  CANVAS_UI_CLIENT_ACTION_KIND,
   CANVAS_UI_CLIENT_TOOL,
+  CANVAS_UI_CLIENT_TOOL_NAME,
   LEGACY_CANVAS_UI_TOOL_NAME,
 } from "#/api/canvas-ui-client-tool";
 
@@ -28,7 +30,10 @@ describe("canvas_ui client tool", () => {
     );
   });
 
-  it("uses a distinct name from the legacy Python registration", () => {
+  it("exports the semantic tool name and generated action kind", () => {
+    expect(CANVAS_UI_CLIENT_TOOL_NAME).toBe("canvas_ui_control");
+    expect(CANVAS_UI_CLIENT_ACTION_KIND).toBe("ClientAction_canvas_ui_control");
+    expect(CANVAS_UI_CLIENT_TOOL.name).toBe(CANVAS_UI_CLIENT_TOOL_NAME);
     expect(CANVAS_UI_CLIENT_TOOL.name).not.toBe(LEGACY_CANVAS_UI_TOOL_NAME);
   });
 

@@ -12,7 +12,7 @@
  *
  * Requires agent-server v1.28.0: it includes both software-agent-sdk#3510 for
  * off-loop LookupSecret resolution and the client_tools API used by
- * canvas_ui_client. Older images either deadlock resolving ACP credentials or
+ * canvas_ui_control. Older images either deadlock resolving ACP credentials or
  * omit the Canvas UI tool.
  *
  * Excluded from `npm test` (lives under tests/). Run it by hand against a

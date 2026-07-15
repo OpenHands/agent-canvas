@@ -1,6 +1,6 @@
 """Legacy conversation compatibility for the former Python Canvas UI tool.
 
-New conversations define ``canvas_ui_client`` through the agent-server's
+New conversations define ``canvas_ui_control`` through the agent-server's
 ``client_tools`` JSON API. The distinct name avoids colliding with this
 process-global legacy registration. This module remains importable because
 persisted conversations store
@@ -11,7 +11,7 @@ registration remain resolvable.
 
 The server-side executor is a no-op that returns an acknowledgment. The actual
 UI effect happens client-side: the frontend watches the WebSocket stream for
-legacy ``canvas_ui`` and current ``canvas_ui_client`` ActionEvents and dispatches
+legacy ``canvas_ui`` and current ``canvas_ui_control`` ActionEvents and dispatches
 the command.
 """
 

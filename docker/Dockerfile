@@ -128,7 +128,7 @@ COPY scripts/runtime-services-info.mjs /opt/agent-canvas/runtime-services-info.m
 
 # Persisted conversations created before the client_tools migration still
 # import canvas_ui_tool by qualname. Keep the compatibility module available;
-# new conversations define canvas_ui_client through a JSON client tool.
+# new conversations define canvas_ui_control through a JSON client tool.
 COPY tools/ /opt/agent-canvas/tools/
 
 # Copy generated defaults.env (from config/defaults.json via config-gen stage)

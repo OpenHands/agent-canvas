@@ -1,3 +1,4 @@
+import { CANVAS_UI_CLIENT_TOOL_NAME } from "#/constants/canvas-ui";
 import { ObservationEvent } from "#/types/agent-server/core";
 import { getObservationResult } from "./get-observation-result";
 import { getDefaultEventContent, MAX_CONTENT_LENGTH } from "./shared";
@@ -418,7 +419,7 @@ export const getObservationContent = (event: ObservationEvent): string => {
       );
 
     case "ClientToolObservation":
-      return event.tool_name === "canvas_ui_client"
+      return event.tool_name === CANVAS_UI_CLIENT_TOOL_NAME
         ? getCanvasUIObservationContent(
             event as ObservationEvent<CanvasUIObservation>,
           )

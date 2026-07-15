@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { CANVAS_UI_CLIENT_TOOL_NAME } from "#/constants/canvas-ui";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import type { Settings } from "#/types/settings";
 import { buildStartConversationRequest } from "./agent-server-adapter";
@@ -126,7 +127,7 @@ describe("buildStartConversationRequest — agentProfileId path", () => {
     expect(payload.agent_profile_id).toBe("profile-xyz");
     expect(payload.agent_settings).toBeUndefined();
     expect(payload.client_tools.map((tool) => tool.name)).toEqual([
-      "canvas_ui_client",
+      CANVAS_UI_CLIENT_TOOL_NAME,
     ]);
   });
 

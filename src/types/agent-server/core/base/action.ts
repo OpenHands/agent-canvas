@@ -1,3 +1,4 @@
+import { CANVAS_UI_CLIENT_ACTION_KIND } from "#/constants/canvas-ui";
 import { ActionBase } from "./base";
 import { TaskItem } from "./common";
 
@@ -309,11 +310,11 @@ export interface SwitchLLMAction extends ActionBase<"SwitchLLMAction"> {
 
 /**
  * Canvas UI action emitted over the existing WebSocket and intercepted by
- * handleCanvasUIAction. Legacy conversations use CanvasUIAction; conversations
- * created through client_tools use ClientAction_canvas_ui_client.
+ * handleCanvasUIAction. Legacy conversations use CanvasUIAction; new
+ * conversations use the SDK-generated client action kind.
  */
 export interface CanvasUIAction extends ActionBase<
-  "CanvasUIAction" | "ClientAction_canvas_ui_client"
+  "CanvasUIAction" | typeof CANVAS_UI_CLIENT_ACTION_KIND
 > {
   command: "navigate_to_file" | "open_tab" | "show_preview";
   path?: string | null;

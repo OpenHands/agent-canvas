@@ -1,6 +1,10 @@
 import { Trans } from "react-i18next";
 import React from "react";
 import {
+  CANVAS_UI_CLIENT_ACTION_KIND,
+  CANVAS_UI_CLIENT_TOOL_NAME,
+} from "#/constants/canvas-ui";
+import {
   OpenHandsEvent,
   ObservationEvent,
   ActionEvent,
@@ -238,7 +242,7 @@ const getActionEventTitle = (event: OpenHandsEvent): React.ReactNode => {
       actionKey = "ACTION_MESSAGE$BROWSE";
       break;
     case "CanvasUIAction":
-    case "ClientAction_canvas_ui_client":
+    case CANVAS_UI_CLIENT_ACTION_KIND:
       return "CANVASUI";
     default:
       // For unknown actions, use the type name
@@ -329,7 +333,7 @@ const getObservationEventTitle = (
       observationKey = "OBSERVATION_MESSAGE$CANVAS_UI";
       break;
     case "ClientToolObservation":
-      if (event.tool_name === "canvas_ui_client") {
+      if (event.tool_name === CANVAS_UI_CLIENT_TOOL_NAME) {
         observationKey = "OBSERVATION_MESSAGE$CANVAS_UI";
         break;
       }
@@ -392,7 +396,7 @@ const getCanvasUIClientObservationContent = (
 ): string | null => {
   if (
     event.observation.kind !== "ClientToolObservation" ||
-    event.tool_name !== "canvas_ui_client" ||
+    event.tool_name !== CANVAS_UI_CLIENT_TOOL_NAME ||
     !correspondingAction ||
     !isCanvasUIActionEvent(correspondingAction)
   ) {
