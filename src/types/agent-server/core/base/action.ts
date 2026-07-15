@@ -1,3 +1,4 @@
+import { CANVAS_UI_CLIENT_ACTION_KIND } from "#/constants/canvas-ui";
 import { ActionBase } from "./base";
 import { TaskItem } from "./common";
 
@@ -308,11 +309,13 @@ export interface SwitchLLMAction extends ActionBase<"SwitchLLMAction"> {
 }
 
 /**
- * Frontend-injected custom tool. Emitted over the existing WebSocket as a
- * regular ActionEvent; intercepted client-side by handleCanvasUIAction.
- * The Python definition lives in tools/canvas_ui_tool.py.
+ * Canvas UI action emitted over the existing WebSocket and intercepted by
+ * handleCanvasUIAction. Legacy conversations use CanvasUIAction; new
+ * conversations use the SDK-generated client action kind.
  */
-export interface CanvasUIAction extends ActionBase<"CanvasUIAction"> {
+export interface CanvasUIAction extends ActionBase<
+  "CanvasUIAction" | typeof CANVAS_UI_CLIENT_ACTION_KIND
+> {
   command: "navigate_to_file" | "open_tab" | "show_preview";
   path?: string | null;
   tab?: string | null;

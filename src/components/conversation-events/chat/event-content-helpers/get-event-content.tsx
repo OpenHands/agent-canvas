@@ -1,6 +1,10 @@
 import { Trans } from "react-i18next";
 import React from "react";
 import {
+  CANVAS_UI_CLIENT_ACTION_KIND,
+  CANVAS_UI_CLIENT_TOOL_NAME,
+} from "#/constants/canvas-ui";
+import {
   OpenHandsEvent,
   ObservationEvent,
   ActionEvent,
@@ -9,6 +13,7 @@ import {
   isActionEvent,
   isObservationEvent,
   isACPToolCallEvent,
+  isCanvasUIActionEvent,
 } from "#/types/agent-server/type-guards";
 import { MonoComponent } from "../../../features/chat/mono-component";
 import { PathComponent } from "../../../features/chat/path-component";
@@ -236,6 +241,9 @@ const getActionEventTitle = (event: OpenHandsEvent): React.ReactNode => {
     case "BrowserCloseTabAction":
       actionKey = "ACTION_MESSAGE$BROWSE";
       break;
+    case "CanvasUIAction":
+    case CANVAS_UI_CLIENT_ACTION_KIND:
+      return "CANVASUI";
     default:
       // For unknown actions, use the type name
       return String(actionType).replace("Action", "").toUpperCase();
@@ -324,6 +332,12 @@ const getObservationEventTitle = (
     case "CanvasUIObservation":
       observationKey = "OBSERVATION_MESSAGE$CANVAS_UI";
       break;
+    case "ClientToolObservation":
+      if (event.tool_name === CANVAS_UI_CLIENT_TOOL_NAME) {
+        observationKey = "OBSERVATION_MESSAGE$CANVAS_UI";
+        break;
+      }
+      return observationType.replace("Observation", "").toUpperCase();
     case "SwitchLLMObservation":
       observationKey = event.observation.is_error
         ? "MODEL$SWITCH_FAILED"
@@ -376,6 +390,22 @@ const getObservationEventTitle = (
   return observationType;
 };
 
+const getCanvasUIClientObservationContent = (
+  event: ObservationEvent,
+  correspondingAction?: ActionEvent,
+): string | null => {
+  if (
+    event.observation.kind !== "ClientToolObservation" ||
+    event.tool_name !== CANVAS_UI_CLIENT_TOOL_NAME ||
+    !correspondingAction ||
+    !isCanvasUIActionEvent(correspondingAction)
+  ) {
+    return null;
+  }
+
+  return `UI command '${correspondingAction.action.command}' dispatched to the Agent Canvas frontend.`;
+};
+
 export const getEventContent = (
   event: OpenHandsEvent | SkillReadyEvent,
   correspondingAction?: ActionEvent,
@@ -409,6 +439,7 @@ export const getEventContent = (
       );
     } else {
       details =
+        getCanvasUIClientObservationContent(event, correspondingAction) ??
         resolveVisualizerBody(event, correspondingAction) ??
         getObservationContent(event);
     }

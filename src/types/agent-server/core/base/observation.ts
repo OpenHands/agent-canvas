@@ -325,7 +325,9 @@ export interface TaskObservation extends ObservationBase<"TaskObservation"> {
   status: string;
 }
 
-export interface CanvasUIObservation extends ObservationBase<"CanvasUIObservation"> {
+export interface CanvasUIObservation extends ObservationBase<
+  "CanvasUIObservation" | "ClientToolObservation"
+> {
   /**
    * Acknowledgement text returned after the canvas UI command is dispatched.
    */

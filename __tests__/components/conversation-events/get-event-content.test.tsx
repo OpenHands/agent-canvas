@@ -1,7 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import {
+  CANVAS_UI_CLIENT_ACTION_KIND,
+  CANVAS_UI_CLIENT_TOOL_NAME,
+} from "#/constants/canvas-ui";
 import { getEventContent } from "#/components/conversation-events/chat";
-import { ActionEvent, ObservationEvent, SecurityRisk } from "#/types/agent-server/core";
+import {
+  ActionEvent,
+  ObservationEvent,
+  SecurityRisk,
+} from "#/types/agent-server/core";
 
 const terminalActionEvent: ActionEvent = {
   id: "action-1",
@@ -322,6 +330,64 @@ describe("getEventContent", () => {
       screen.getByText("OBSERVATION_MESSAGE$CANVAS_UI"),
     ).toBeInTheDocument();
     // The body is exactly the acknowledgement text, not a JSON dump.
+    expect(details).toBe(
+      "UI command 'open_tab' dispatched to the Agent Canvas frontend.",
+    );
+  });
+
+  it("renders client-defined Canvas UI events like legacy events", () => {
+    const canvasUIAction: ActionEvent = {
+      id: "action-canvas-client",
+      timestamp: new Date().toISOString(),
+      source: "agent",
+      thought: [],
+      thinking_blocks: [],
+      action: {
+        kind: CANVAS_UI_CLIENT_ACTION_KIND,
+        command: "open_tab",
+        path: null,
+        tab: "files",
+      },
+      tool_name: CANVAS_UI_CLIENT_TOOL_NAME,
+      tool_call_id: "tool-canvas-client",
+      tool_call: {
+        id: "tool-canvas-client",
+        type: "function",
+        function: {
+          name: CANVAS_UI_CLIENT_TOOL_NAME,
+          arguments: '{"command":"open_tab","tab":"files"}',
+        },
+      },
+      llm_response_id: "response-canvas-client",
+      security_risk: SecurityRisk.LOW,
+      summary: "",
+    };
+    const canvasUIObservation: ObservationEvent = {
+      id: "obs-canvas-client",
+      timestamp: new Date().toISOString(),
+      source: "environment",
+      tool_name: CANVAS_UI_CLIENT_TOOL_NAME,
+      tool_call_id: "tool-canvas-client",
+      action_id: "action-canvas-client",
+      observation: {
+        kind: "ClientToolObservation",
+        content: [{ type: "text", text: "Tool call dispatched to client." }],
+        is_error: false,
+      },
+    };
+
+    const actionContent = getEventContent(canvasUIAction);
+    render(<span>{actionContent.title}</span>);
+    expect(screen.getByText("CANVASUI")).toBeInTheDocument();
+
+    const { title, details } = getEventContent(
+      canvasUIObservation,
+      canvasUIAction,
+    );
+    render(<span>{title}</span>);
+    expect(
+      screen.getByText("OBSERVATION_MESSAGE$CANVAS_UI"),
+    ).toBeInTheDocument();
     expect(details).toBe(
       "UI command 'open_tab' dispatched to the Agent Canvas frontend.",
     );

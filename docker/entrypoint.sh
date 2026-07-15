@@ -126,9 +126,8 @@ export AGENT_SERVER_URL="${AGENT_SERVER_URL:-http://127.0.0.1:${AGENT_SERVER_POR
 # for locally-generated session keys.
 export AUTOMATION_AGENT_SERVER_URL="${AUTOMATION_AGENT_SERVER_URL:-http://127.0.0.1:${AGENT_SERVER_PORT}}"
 
-# Make custom tools (e.g. canvas_ui_tool.py) importable by the agent-server
-# via tool_module_qualnames. Matches what scripts/dev-safe.mjs does with
-# OH_EXTRA_PYTHON_PATH: config.canvasToolsDir.
+# Keep the legacy canvas_ui_tool module importable when the agent-server restores
+# conversations whose persisted metadata still references its module qualname.
 export OH_EXTRA_PYTHON_PATH="${OH_EXTRA_PYTHON_PATH:-/opt/agent-canvas/tools}"
 
 # Track child PIDs so we can clean up on exit.
