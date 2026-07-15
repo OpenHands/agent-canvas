@@ -70,6 +70,14 @@ const modeledAutomation: Automation = {
   model: "fast",
 };
 
+// An automation carrying an explicit run timeout (in seconds). The base
+// fixtures intentionally leave `timeout` unset.
+const timeoutAutomation: Automation = {
+  ...dailyAutomation,
+  id: "auto-4",
+  timeout: 600,
+};
+
 const profilesResponse = {
   profiles: [
     {
@@ -344,5 +352,98 @@ describe("EditAutomationModal", () => {
         screen.queryByLabelText("AUTOMATIONS$DETAIL$MODEL"),
       ).not.toBeInTheDocument();
     });
+  });
+
+  it("pre-fills the timeout and sends the new value when it changes", async () => {
+    // Arrange — automation currently times out after 600s.
+    vi.mocked(AutomationService.updateAutomation).mockResolvedValue({
+      ...timeoutAutomation,
+      timeout: 1800,
+    });
+    const user = userEvent.setup();
+    renderModal(timeoutAutomation);
+
+    // Sanity-check pre-fill before editing.
+    const timeoutInput = screen.getByTestId(
+      "edit-automation-timeout",
+    ) as HTMLInputElement;
+    expect(timeoutInput.value).toBe("600");
+
+    // Act — raise the timeout to the 1800s maximum and save.
+    await user.clear(timeoutInput);
+    await user.type(timeoutInput, "1800");
+    await user.click(screen.getByTestId("edit-automation-save"));
+
+    // Assert — the PATCH carries just the new timeout.
+    await waitFor(() => {
+      expect(AutomationService.updateAutomation).toHaveBeenCalledTimes(1);
+    });
+    expect(AutomationService.updateAutomation).toHaveBeenCalledWith("auto-4", {
+      timeout: 1800,
+    });
+  });
+
+  it("sends timeout: null when the timeout field is cleared", async () => {
+    // Arrange — automation has an explicit 600s timeout.
+    vi.mocked(AutomationService.updateAutomation).mockResolvedValue({
+      ...timeoutAutomation,
+      timeout: null,
+    });
+    const user = userEvent.setup();
+    renderModal(timeoutAutomation);
+
+    // Act — clear the field to fall back to the server default, then save.
+    await user.clear(screen.getByTestId("edit-automation-timeout"));
+    await user.click(screen.getByTestId("edit-automation-save"));
+
+    // Assert — the PATCH resets the stored timeout to null.
+    await waitFor(() => {
+      expect(AutomationService.updateAutomation).toHaveBeenCalledTimes(1);
+    });
+    expect(AutomationService.updateAutomation).toHaveBeenCalledWith("auto-4", {
+      timeout: null,
+    });
+  });
+
+  it("blocks submit and shows a validation error for an out-of-range timeout", async () => {
+    // Arrange
+    const user = userEvent.setup();
+    renderModal(timeoutAutomation);
+
+    // Act — enter a timeout beyond the 1800s cap and try to save.
+    const timeoutInput = screen.getByTestId("edit-automation-timeout");
+    await user.clear(timeoutInput);
+    await user.type(timeoutInput, "2000");
+    await user.click(screen.getByTestId("edit-automation-save"));
+
+    // Assert — no PATCH fired, inline error appears.
+    expect(AutomationService.updateAutomation).not.toHaveBeenCalled();
+    expect(
+      screen.getByTestId("edit-automation-timeout-error"),
+    ).toBeInTheDocument();
+  });
+
+  it("omits the timeout from the payload when it is left unchanged", async () => {
+    // Arrange
+    vi.mocked(AutomationService.updateAutomation).mockResolvedValue(
+      timeoutAutomation,
+    );
+    const user = userEvent.setup();
+    renderModal(timeoutAutomation);
+
+    // Act — rename the automation but leave the timeout at 600.
+    const nameInput = screen.getByTestId("edit-automation-name");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Renamed digest");
+    await user.click(screen.getByTestId("edit-automation-save"));
+
+    // Assert — the PATCH renames but does not resend the unchanged timeout.
+    await waitFor(() => {
+      expect(AutomationService.updateAutomation).toHaveBeenCalledTimes(1);
+    });
+    const [, body] = vi.mocked(AutomationService.updateAutomation).mock
+      .calls[0];
+    expect(body).toMatchObject({ name: "Renamed digest" });
+    expect(body).not.toHaveProperty("timeout");
   });
 });

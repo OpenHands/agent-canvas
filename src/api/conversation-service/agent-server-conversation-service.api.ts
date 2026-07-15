@@ -181,6 +181,17 @@ function normalizeTags(value: unknown): Record<string, string> | null {
   return tags;
 }
 
+function normalizeLaunchedAgentProfile(
+  value: unknown,
+): DirectConversationInfo["launched_agent_profile"] {
+  if (!isRecord(value)) return null;
+  const { agent_profile_id: agentProfileId, revision } = value;
+  if (typeof agentProfileId !== "string" || typeof revision !== "number") {
+    return null;
+  }
+  return { agent_profile_id: agentProfileId, revision };
+}
+
 function normalizeAbsolutePath(path: string): string | null {
   if (!path.startsWith("/")) return null;
 
@@ -231,6 +242,9 @@ function requireDirectConversationInfo(item: unknown): DirectConversationInfo {
     agent: normalizeAgent(item.agent),
     workspace: normalizeWorkspace(item.workspace),
     tags: normalizeTags(item.tags),
+    launched_agent_profile: normalizeLaunchedAgentProfile(
+      item.launched_agent_profile,
+    ),
     // SDK-runtime ACP model fields (populated when the agent-server supports
     // ``ConversationInfo.current_model_*``). Consumed by the conversation
     // adapter to drive the per-card chip's model text. Older agent-servers

@@ -82,6 +82,10 @@ export interface DirectConversationInfo {
    * values are opaque strings.
    */
   tags?: Record<string, string> | null;
+  launched_agent_profile?: {
+    agent_profile_id: string;
+    revision: number;
+  } | null;
 }
 
 // Module qualname for the Canvas-UI tool. The agent-server imports this via
@@ -329,6 +333,7 @@ export function toAppConversation(
     pr_number: [],
     agent_kind: isAcp ? "acp" : "openhands",
     acp_server: acpServer,
+    launched_agent_profile: info.launched_agent_profile ?? null,
     // Chip path: omit ``providerDefault`` so that when no concrete model
     // resolves, the chip falls back to the provider display name in
     // ConversationCardFooter rather than a registry default the session may

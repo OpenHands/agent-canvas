@@ -126,6 +126,11 @@ export interface ConversationWorkspace {
   working_dir: string | null;
 }
 
+export interface LaunchedAgentProfile {
+  agent_profile_id: string;
+  revision: number;
+}
+
 export interface AppConversation {
   id: string;
   created_by_user_id: string | null;
@@ -144,6 +149,7 @@ export interface AppConversation {
    * carry the ACP subprocess model for display).
    */
   agent_kind?: "openhands" | "acp" | null;
+  launched_agent_profile?: LaunchedAgentProfile | null;
   /**
    * For ACP conversations, the registry key of the ACP CLI server the
    * conversation was launched against (e.g. ``"claude-code"``, ``"codex"``,

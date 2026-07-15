@@ -167,6 +167,25 @@ describe("FileDiffViewer", () => {
     expect(screen.queryByTestId("view-mode-new")).not.toBeInTheDocument();
   });
 
+  it("renders a deleted file's diff content in commit mode instead of the placeholder", async () => {
+    // Arrange — in per-commit mode both sides come from git objects, so a
+    // deleted file has real content to show (original vs empty).
+    mockDiff = { original: "old content", modified: "" };
+    const user = userEvent.setup();
+    render(
+      <FileDiffViewer path="src/removed.ts" type="D" commit={"a".repeat(40)} />,
+    );
+
+    // Act
+    await expand(user);
+
+    // Assert
+    expect(
+      screen.queryByTestId("file-deleted-message"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("file-diff-viewer")).toBeInTheDocument();
+  });
+
   it("reflects the active view mode via aria-pressed on the toggle buttons", async () => {
     const user = userEvent.setup();
     render(<FileDiffViewer path="src/index.ts" type="M" />);
