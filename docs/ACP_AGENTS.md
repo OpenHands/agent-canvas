@@ -144,9 +144,10 @@ point Canvas at it). In short:
 
 ```bash
 # 1. Agent Server in a container (CORS allows localhost, so the browser talks
-#    to it directly). The image pre-installs the ACP CLI wrappers. The
-#    canvas_ui tool is mounted so the agent-server can import the module Canvas
-#    references in every start request.
+#    to it directly). The image pre-installs the ACP CLI wrappers. New
+#    canvas_ui_control calls use client_tools; the Python mount keeps
+#    pre-migration conversations loadable when persisted metadata imports
+#    canvas_ui_tool.
 # Minimum image: 1.28.0-python (first compatible ACP provider/model protocol
 # surface for current Canvas). Override SHA with a newer build.
 docker run -d --name oh-acp -p 8010:8000 -v acp-data:/workspace \

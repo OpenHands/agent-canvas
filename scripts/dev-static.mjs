@@ -386,6 +386,9 @@ function startStaticServer(config) {
       join(config.canvasPath, "build"),
       "--port",
       String(config.vitePort),
+      ...(process.env.VITE_BASE_PATH
+        ? ["--base-path", process.env.VITE_BASE_PATH]
+        : []),
       // Inject the API key so the pre-built frontend can authenticate
       // to the agent-server without a baked-in VITE_SESSION_API_KEY.
       ...(config.sessionApiKey
