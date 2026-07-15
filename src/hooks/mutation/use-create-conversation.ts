@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { PluginSpec } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { SuggestedTask } from "#/utils/types";
-import { Provider } from "#/types/settings";
+import { AgentKind, Provider } from "#/types/settings";
 import { useTracking } from "#/hooks/use-tracking";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useAgentProfiles } from "#/hooks/query/use-agent-profiles";
@@ -149,17 +149,17 @@ export const useCreateConversation = () => {
         // deliberate profile pick — it mirrors global agent_settings. Launch it
         // via agent_settings so the canvas-only enrichments the profile-resolution
         // path drops survive for the common home-launch: the <RUNTIME_SERVICES>
-        // system-message suffix, the canvas_ui tool, and project-skill loading
-        // (buildAgentContext). Named profiles are deliberate custom configs and
-        // still use the profile path (accepting that enrichment boundary).
+        // system-message suffix and project-skill loading (buildAgentContext).
+        // Named profiles are deliberate custom configs and still use the profile
+        // path (accepting that enrichment boundary).
         // Trade-off: per-profile fields set on `default` itself don't apply on
         // home-launch — custom per-profile config belongs in a named profile.
         //
         // Scoped to OpenHands: an ACP `default` must keep the profile path.
         // Activation is pointer-only, so global agent_settings is stale (often
         // still OpenHands) when an ACP profile is active — launching it via
-        // agent_settings would start the wrong agent. ACP also carries no
-        // <RUNTIME_SERVICES>/canvas_ui enrichment, so there's nothing to preserve.
+        // agent_settings would start the wrong agent. ACP carries no
+        // <RUNTIME_SERVICES> enrichment, so there's nothing to preserve.
         //
         // Scoped to local: cloud never writes agent_settings, so it always
         // resolves `default` server-side via agent_profile_id (validated below).
@@ -198,15 +198,20 @@ export const useCreateConversation = () => {
         }
       }
 
-      // Only extend the call with the [sandboxId, agentProfileId] tail when
-      // launching from a profile, so a plain create stays byte-identical to
-      // the legacy agent_settings path (#3727). sandboxId is unused here.
-      // TODO(#1587): createConversation has grown to 10 positional params;
+      // Only extend the call with the profile tail when launching from a
+      // profile, so a plain create stays byte-identical to the legacy
+      // agent_settings path (#3727). sandboxId is unused here.
+      // TODO(#1587): createConversation has grown to 11 positional params;
       // refactor it to an options object so this position-skipping tail isn't
       // needed.
-      const profileArgs: [undefined, string] | [] = effectiveAgentProfileId
-        ? [undefined, effectiveAgentProfileId]
-        : [];
+      const profileArgs: [undefined, string, AgentKind | undefined] | [] =
+        effectiveAgentProfileId
+          ? [
+              undefined,
+              effectiveAgentProfileId,
+              resolvedAgentProfile?.agent_kind,
+            ]
+          : [];
 
       const conversation =
         await AgentServerConversationService.createConversation(

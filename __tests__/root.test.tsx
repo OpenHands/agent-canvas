@@ -714,4 +714,21 @@ describe("App root document links", () => {
       href: "/favicon.svg",
     });
   });
+
+  it("prefixes document links when Canvas is mounted under a base path", () => {
+    // Arrange
+    vi.stubEnv("VITE_BASE_PATH", "/canvas");
+
+    // Act
+    const documentLinks = links();
+
+    // Assert
+    expect(documentLinks).toContainEqual({
+      rel: "icon",
+      type: "image/svg+xml",
+      href: "/canvas/favicon.svg",
+    });
+
+    vi.unstubAllEnvs();
+  });
 });

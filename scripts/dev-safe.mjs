@@ -636,10 +636,9 @@ function buildConfigFromPorts(ports, cwd, env) {
     env.LOCAL_BACKEND_API_KEY ||
     getOrCreatePersistedApiKeyFile(persistedKeyPath);
 
-  // Host directory containing Agent-Canvas-specific Python tools (e.g. the
-  // canvas_ui tool). Added to OH_EXTRA_PYTHON_PATH below so the agent-server
-  // can import the modules listed in `tool_module_qualnames`. Lives at
-  // <repo-root>/tools relative to this script.
+  // Host directory containing the legacy canvas_ui Python module. Persisted
+  // conversations created before the client_tools migration still reference
+  // its module qualname, so the agent-server can import it when resuming them.
   const canvasToolsDir = fileURLToPath(new URL("../tools", import.meta.url));
 
   return {
@@ -719,8 +718,8 @@ export function buildAgentServerEnv(config) {
     // a follow-up change to the automation preset reads
     // OH_SESSION_API_KEYS_0 directly (which is already in env).
     AGENT_SERVER_URL: config.backendBaseUrl,
-    // Make the host tools/ directory importable so the agent-server can
-    // resolve modules listed in tool_module_qualnames (e.g. canvas_ui_tool).
+    // Let the agent-server resolve canvas_ui_tool when old persisted metadata
+    // requests that compatibility module during startup.
     OH_EXTRA_PYTHON_PATH: config.canvasToolsDir,
   };
 }

@@ -25,12 +25,16 @@ describe("static-server.mjs", () => {
     }
   });
 
-  async function startServer(dir: string) {
+  async function startServer(
+    dir: string,
+    overrides: Partial<Parameters<typeof startStaticServer>[0]> = {},
+  ) {
     const server = await startStaticServer({
       port: 0,
       host: "127.0.0.1",
       dir,
       routes: {},
+      ...overrides,
     });
     servers.push(server);
 
@@ -79,6 +83,21 @@ describe("static-server.mjs", () => {
     it("treats empty string as null for lockToCloud", () => {
       const config = parseArgs(["--lock-to-cloud", ""]);
       expect(config.lockToCloud).toBeNull();
+    });
+
+    it("defaults basePath to root", () => {
+      const config = parseArgs([]);
+      expect(config.basePath).toBe("/");
+    });
+
+    it("parses and normalizes --base-path", () => {
+      const config = parseArgs(["--base-path", "canvas/"]);
+      expect(config.basePath).toBe("/canvas");
+    });
+
+    it("treats empty string as root for basePath", () => {
+      const config = parseArgs(["--base-path", ""]);
+      expect(config.basePath).toBe("/");
     });
 
     it("parses --runtime-services-info", () => {
@@ -402,6 +421,76 @@ describe("static-server.mjs", () => {
       "application/javascript",
     );
     await expect(response.text()).resolves.toContain("loaded = true");
+  });
+
+  describe("base path mounting", () => {
+    it("serves index.html and injects the base path under the mount", async () => {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(
+        path.join(buildDir, "index.html"),
+        "<html><head></head><body>app</body></html>",
+      );
+
+      const origin = await startServer(buildDir, { basePath: "/canvas" });
+      const response = await fetch(`${origin}/canvas/conversations/abc`);
+      const body = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(body).toContain("window.__AGENT_CANVAS_BASE_PATH__");
+      expect(body).toContain('"/canvas"');
+    });
+
+    it("serves static assets from underneath the mount", async () => {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      mkdirSync(path.join(buildDir, "assets"));
+      writeFileSync(path.join(buildDir, "index.html"), "<main>app</main>");
+      writeFileSync(
+        path.join(buildDir, "assets", "entry.client-test.js"),
+        "export const loaded = true;\n",
+      );
+
+      const origin = await startServer(buildDir, { basePath: "/canvas" });
+      const response = await fetch(
+        `${origin}/canvas/assets/entry.client-test.js`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain(
+        "application/javascript",
+      );
+      await expect(response.text()).resolves.toContain("loaded = true");
+    });
+
+    it("redirects app routes outside the mount to the configured base path", async () => {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(path.join(buildDir, "index.html"), "<main>app</main>");
+
+      const origin = await startServer(buildDir, { basePath: "/canvas" });
+      const response = await fetch(`${origin}/conversations/abc?tab=files`, {
+        redirect: "manual",
+      });
+
+      expect(response.status).toBe(308);
+      expect(response.headers.get("location")).toBe(
+        "/canvas/conversations/abc?tab=files",
+      );
+    });
+
+    it("does not redirect asset-like requests outside the configured mount", async () => {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(path.join(buildDir, "index.html"), "<main>app</main>");
+
+      const origin = await startServer(buildDir, { basePath: "/canvas" });
+      const response = await fetch(`${origin}/assets/missing.js`, {
+        redirect: "manual",
+      });
+
+      expect(response.status).toBe(404);
+    });
   });
 
   it("keeps paths confined to the static directory", async () => {

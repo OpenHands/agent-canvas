@@ -1,3 +1,5 @@
+import { CANVAS_UI_CLIENT_ACTION_KIND } from "#/constants/canvas-ui";
+
 type EventType =
   | "MCPTool"
   | "Finish"
@@ -22,9 +24,8 @@ type ActionOnlyType =
   | "BrowserListTabs"
   | "BrowserSwitchTab"
   | "BrowserCloseTab"
-  // Frontend-injected custom tool. Not part of the upstream SDK Action
-  // union but emitted as a regular ActionEvent over the WebSocket. See
-  // tools/canvas_ui_tool.py and src/services/canvas-ui.ts.
+  // Legacy Python-defined Canvas tool kind. The client-tool kind is added
+  // separately below because the SDK generates its full discriminator.
   | "CanvasUI";
 
 type ObservationOnlyType = "Browser";
@@ -35,7 +36,8 @@ type ActionEventType =
   | "GlobAction"
   | "GrepAction"
   // The `task` tool delegating work to a spawned subagent.
-  | "TaskAction";
+  | "TaskAction"
+  | typeof CANVAS_UI_CLIENT_ACTION_KIND;
 type ObservationEventType =
   | `${ObservationOnlyType}Observation`
   | `${EventType}Observation`
@@ -44,8 +46,9 @@ type ObservationEventType =
   | "GrepObservation"
   // Result of the `task` tool, which delegates work to a spawned subagent.
   | "TaskObservation"
-  // Acknowledgement emitted after a `canvas_ui` command is dispatched.
-  | "CanvasUIObservation";
+  // Legacy and client-defined acknowledgements for Canvas UI dispatches.
+  | "CanvasUIObservation"
+  | "ClientToolObservation";
 
 export interface ActionBase<T extends ActionEventType = ActionEventType> {
   kind: T;

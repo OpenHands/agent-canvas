@@ -5,6 +5,7 @@ import {
   type Locator,
   type Page,
 } from "@playwright/test";
+import { CANVAS_UI_CLIENT_TOOL } from "../../../../src/api/canvas-ui-client-tool";
 
 export const BACKEND_URL =
   process.env.LIVE_E2E_BACKEND_URL ?? "http://127.0.0.1:18100";
@@ -46,7 +47,6 @@ const DEFAULT_AGENT_TOOLS = [
   { name: "terminal", params: {} },
   { name: "file_editor", params: {} },
   { name: "task_tracker", params: {} },
-  { name: "canvas_ui", params: {} },
 ];
 export const sessionApiKey = firstNonEmpty(
   process.env.LIVE_E2E_SESSION_API_KEY,
@@ -249,9 +249,7 @@ export async function createLiveConversation(
         verification: buildLiveVerificationSettings(options),
         tools: DEFAULT_AGENT_TOOLS,
       },
-      tool_module_qualnames: {
-        canvas_ui: "canvas_ui_tool",
-      },
+      client_tools: [CANVAS_UI_CLIENT_TOOL],
     },
   });
 

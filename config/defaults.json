@@ -25,7 +25,8 @@
     "stateSubdir": "agent-canvas",
     "conversations": "agent-canvas/conversations",
     "bashEvents": "agent-canvas/bash_events",
-    "automationDb": "automation/automations.db"
+    "automationDb": "automation/automations.db",
+    "canvasBasePath": "/canvas"
   },
   "packages": {
     "agentServer": "openhands-agent-server",
