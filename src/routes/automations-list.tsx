@@ -1,9 +1,17 @@
-import { useState, useMemo, useCallback } from "react";
+import {
+  useState,
+  useMemo,
+  useCallback,
+  useRef,
+  type ChangeEvent,
+} from "react";
+import { FileUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { isAxiosError } from "axios";
 import { I18nKey } from "#/i18n/declaration";
 import {
   displaySuccessToast,
+  displaySuccessToastWithLink,
   displayErrorToast,
 } from "#/utils/custom-toast-handlers";
 import {
@@ -11,6 +19,7 @@ import {
   useToggleAutomation,
   useDeleteAutomation,
   useDispatchAutomation,
+  useImportAutomation,
 } from "#/hooks/query/use-automations";
 import { useAutomationHealth } from "#/hooks/query/use-automation-health";
 import { useActiveBackend } from "#/contexts/active-backend-context";
@@ -29,10 +38,17 @@ import { BackendNotConfigured } from "#/components/features/automations/backend-
 import { DeleteConfirmationModal } from "#/components/features/automations/delete-confirmation-modal";
 import { EditAutomationModal } from "#/components/features/automations/detail/edit-automation-modal";
 import { AddAutomationModal } from "#/components/features/automations/add-automation-modal";
+import { ImportAutomationModal } from "#/components/features/automations/import-automation-modal";
 import { RecommendedAutomationsLauncher } from "#/components/features/automations/recommended-automations-launcher";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { useTracking } from "#/hooks/use-tracking";
-import type { Automation } from "#/types/automation";
+import type { Automation, AutomationSpec } from "#/types/automation";
+import {
+  getAutomationExportFilename,
+  parseAutomationFile,
+  serializeAutomation,
+} from "#/utils/automation-export";
+import { downloadBlob } from "#/utils/utils";
 
 const PAGE_SIZE = 50;
 
@@ -49,6 +65,8 @@ export default function AutomationsList() {
   } | null>(null);
   const [editTarget, setEditTarget] = useState<Automation | null>(null);
   const [isAddAutomationOpen, setIsAddAutomationOpen] = useState(false);
+  const [importSpec, setImportSpec] = useState<AutomationSpec | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const active = useActiveBackend();
   // Edit is a local-backend-only feature in MVP — cloud automations
@@ -69,10 +87,12 @@ export default function AutomationsList() {
     offset: 0,
     enabled: isBackendHealthy,
   });
-  const { trackPrebuiltAutomationEnabled } = useTracking();
+  const { trackPrebuiltAutomationEnabled, trackAutomationExported } =
+    useTracking();
   const toggleMutation = useToggleAutomation();
   const deleteMutation = useDeleteAutomation();
   const dispatchMutation = useDispatchAutomation();
+  const importMutation = useImportAutomation();
 
   const filtered = useMemo(() => {
     if (!data?.automations) return [];
@@ -137,6 +157,67 @@ export default function AutomationsList() {
     if (automation) {
       setEditTarget(automation);
     }
+  };
+
+  const handleExport = (automation: Automation) => {
+    const contents = `${JSON.stringify(serializeAutomation(automation), null, 2)}\n`;
+    downloadBlob(
+      new Blob([contents], { type: "application/json" }),
+      getAutomationExportFilename(automation),
+    );
+    trackAutomationExported({ backendKind: active.backend.kind });
+  };
+
+  const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+
+    try {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(await file.text()) as unknown;
+      } catch {
+        displayErrorToast(t(I18nKey.AUTOMATIONS$IMPORT_INVALID_JSON));
+        return;
+      }
+      setImportSpec(parseAutomationFile(parsed));
+    } catch (error) {
+      displayErrorToast(
+        error instanceof Error ? error.message : t(I18nKey.ERROR$GENERIC),
+      );
+    }
+  };
+
+  const handleImportConfirm = () => {
+    if (!importSpec) return;
+
+    importMutation.mutate(
+      { ...importSpec, enabled: false },
+      {
+        onSuccess: (created) => {
+          setImportSpec(null);
+          displaySuccessToastWithLink(
+            t(I18nKey.AUTOMATIONS$IMPORT_SUCCESS, { name: created.name }),
+            t(I18nKey.AUTOMATIONS$IMPORT_VIEW),
+            `/automations/${encodeURIComponent(created.id)}`,
+          );
+        },
+        onError: (error) => {
+          const detail = isAxiosError(error)
+            ? (error.response?.data as { detail?: unknown } | undefined)?.detail
+            : undefined;
+          const message =
+            typeof detail === "string"
+              ? detail
+              : isAxiosError(error)
+                ? error.message
+                : t(I18nKey.ERROR$GENERIC);
+          displayErrorToast(message);
+        },
+      },
+    );
   };
 
   const handleDeleteConfirm = () => {
@@ -206,15 +287,35 @@ export default function AutomationsList() {
               {t(I18nKey.AUTOMATIONS$SUBTITLE)}
             </p>
           </div>
-          <BrandButton
-            type="button"
-            variant="secondary"
-            testId="automations-add-automation"
-            className="shrink-0 whitespace-nowrap"
-            onClick={() => setIsAddAutomationOpen(true)}
-          >
-            {t(I18nKey.AUTOMATIONS$ADD_AUTOMATION)}
-          </BrandButton>
+          <div className="flex shrink-0 flex-wrap justify-end gap-2">
+            <BrandButton
+              type="button"
+              variant="secondary"
+              testId="automations-import-automation"
+              className="whitespace-nowrap"
+              onClick={() => importInputRef.current?.click()}
+              startContent={<FileUp className="size-4" aria-hidden />}
+            >
+              {t(I18nKey.AUTOMATIONS$IMPORT)}
+            </BrandButton>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              data-testid="automations-import-file"
+              onChange={handleImportFile}
+            />
+            <BrandButton
+              type="button"
+              variant="secondary"
+              testId="automations-add-automation"
+              className="whitespace-nowrap"
+              onClick={() => setIsAddAutomationOpen(true)}
+            >
+              {t(I18nKey.AUTOMATIONS$ADD_AUTOMATION)}
+            </BrandButton>
+          </div>
         </div>
 
         {/* Search */}
@@ -256,6 +357,7 @@ export default function AutomationsList() {
                     : null
                 }
                 onDelete={handleDeleteRequest}
+                onExport={handleExport}
                 onEdit={canEdit ? handleEditRequest : undefined}
               />
               <AutomationGroup
@@ -271,6 +373,7 @@ export default function AutomationsList() {
                     : null
                 }
                 onDelete={handleDeleteRequest}
+                onExport={handleExport}
                 onEdit={canEdit ? handleEditRequest : undefined}
               />
 
@@ -311,6 +414,14 @@ export default function AutomationsList() {
         <AddAutomationModal
           isOpen={isAddAutomationOpen}
           onClose={() => setIsAddAutomationOpen(false)}
+        />
+
+        <ImportAutomationModal
+          isOpen={importSpec !== null}
+          spec={importSpec}
+          isImporting={importMutation.isPending}
+          onClose={() => setImportSpec(null)}
+          onImport={handleImportConfirm}
         />
       </div>
     </div>

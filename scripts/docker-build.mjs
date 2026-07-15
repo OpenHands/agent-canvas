@@ -25,6 +25,7 @@ const config = JSON.parse(
 
 const agentServerImage = `${config.images.agentServer}:${config.versions.agentServer}-python`;
 const automationVersion = config.versions.automation;
+const canvasBasePath = config.paths.canvasBasePath;
 
 // Parse CLI: --tag <name> and everything after -- is passed to docker build
 let tag = "agent-canvas:local";
@@ -50,6 +51,8 @@ const cmd = [
   `AGENT_SERVER_IMAGE=${agentServerImage}`,
   "--build-arg",
   `AUTOMATION_VERSION=${automationVersion}`,
+  "--build-arg",
+  `VITE_BASE_PATH=${canvasBasePath}`,
   "-t",
   tag,
   ...extraArgs,
@@ -58,6 +61,7 @@ const cmd = [
 
 console.log(`Agent Server image      : ${agentServerImage}`);
 console.log(`Automation version      : ${automationVersion}`);
+console.log(`Canvas base path        : ${canvasBasePath}`);
 console.log(`Tag                     : ${tag}`);
 console.log(`\n$ ${cmd.join(" ")}\n`);
 

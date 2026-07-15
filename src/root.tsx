@@ -38,6 +38,7 @@ import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useConfig } from "#/hooks/query/use-config";
 import { QUERY_KEYS } from "#/hooks/query/query-keys";
 import { AgentServerUIRoot } from "#/components/providers";
+import { buildAgentCanvasPath } from "#/utils/base-path";
 import { useOnboardingCompletion } from "#/components/features/onboarding/use-onboarding-completion";
 import { NavigationProvider } from "#/context/navigation-context";
 import {
@@ -71,6 +72,14 @@ const ApiKeyEntryScreen = React.lazy(
 const OnboardingModal = React.lazy(() =>
   import("#/components/features/onboarding/onboarding-modal").then((m) => ({
     default: m.OnboardingModal,
+  })),
+);
+
+// Rendered for first-run in locked-to-Cloud mode; shows Cloud login directly
+// without the onboarding progress bars.
+const BackendFormModal = React.lazy(() =>
+  import("#/components/features/backends/backend-form-modal").then((m) => ({
+    default: m.BackendFormModal,
   })),
 );
 
@@ -160,6 +169,31 @@ function FirstRunOnboardingScreen({ onClose }: { onClose: () => void }) {
     [conversationId, location.pathname, navigate, routerNavigation.location],
   );
 
+  const lockedCloudHost = getLockedCloudHost();
+  const isLockedToCloud = lockedCloudHost !== null;
+
+  // In locked-to-Cloud mode, show the Add Backend modal directly with Cloud
+  // login, instead of the full onboarding flow with progress bars. This
+  // matches the UX expectation for canvas.openhands.dev where Cloud is the
+  // only backend option.
+  if (isLockedToCloud) {
+    return (
+      <main
+        data-testid="first-run-onboarding-screen"
+        className="min-h-screen bg-base"
+      >
+        <React.Suspense fallback={<AgentServerBootstrapLoading />}>
+          <BackendFormModal
+            mode="add"
+            onClose={onClose}
+            source="manage_backends_modal"
+            hideCloseButton
+          />
+        </React.Suspense>
+      </main>
+    );
+  }
+
   return (
     <main
       data-testid="first-run-onboarding-screen"
@@ -175,7 +209,11 @@ function FirstRunOnboardingScreen({ onClose }: { onClose: () => void }) {
 }
 
 export const links: LinksFunction = () => [
-  { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
+  {
+    rel: "icon",
+    type: "image/svg+xml",
+    href: buildAgentCanvasPath("/favicon.svg"),
+  },
 ];
 
 export const meta: MetaFunction = () => [

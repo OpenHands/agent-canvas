@@ -47,6 +47,54 @@ export const AUTOMATION_HANDLERS = [
     return HttpResponse.json(response);
   }),
 
+  // POST /api/automation/v1/preset/:kind — Create a prompt/plugin automation
+  http.post("*/api/automation/v1/preset/:kind", async ({ params, request }) => {
+    await delay(200);
+
+    const body = (await request.clone().json()) as {
+      name: string;
+      prompt: string;
+      model?: string;
+      trigger: Automation["trigger"];
+      repos?: { url: string; ref?: string }[];
+      plugins?: { source: string }[];
+      timeout?: number;
+    };
+    const now = new Date().toISOString();
+    const automation: Automation = {
+      id: crypto.randomUUID(),
+      name: body.name,
+      prompt: body.prompt,
+      model: body.model ?? null,
+      trigger: body.trigger,
+      enabled: true,
+      created_at: now,
+      updated_at: now,
+      last_triggered_at: null,
+      ...(body.repos?.[0] && {
+        repository: body.repos[0].url,
+        branch: body.repos[0].ref,
+      }),
+      ...(body.plugins && {
+        plugins: body.plugins.map((plugin) => plugin.source),
+      }),
+      ...(typeof body.timeout === "number" && { timeout: body.timeout }),
+      ...(typeof body.trigger.timezone === "string" && {
+        timezone: body.trigger.timezone,
+      }),
+    };
+
+    if (params.kind !== "prompt" && params.kind !== "plugin") {
+      return HttpResponse.json(
+        { detail: "Unknown preset kind" },
+        { status: 404 },
+      );
+    }
+
+    automations.set(automation.id, automation);
+    return HttpResponse.json(automation, { status: 201 });
+  }),
+
   // GET /api/automation/v1/:id/runs — List automation runs
   http.get("*/api/automation/v1/:id/runs", async ({ params, request }) => {
     await delay(200);

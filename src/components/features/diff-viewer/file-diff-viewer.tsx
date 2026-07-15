@@ -72,9 +72,15 @@ const beforeMount = (monaco: Monaco) => {
 export interface FileDiffViewerProps {
   path: string;
   type: GitChangeStatus;
+  /**
+   * When set, show the file's diff as changed by this commit instead of
+   * the working-tree-vs-base diff. Deleted files render their content in
+   * commit mode (both sides come from git objects).
+   */
+  commit?: string;
 }
 
-export function FileDiffViewer({ path, type }: FileDiffViewerProps) {
+export function FileDiffViewer({ path, type, commit }: FileDiffViewerProps) {
   const { t } = useTranslation("openhands");
   const [isCollapsed, setIsCollapsed] = React.useState(true);
   const [editorHeight, setEditorHeight] = React.useState(400);
@@ -102,6 +108,7 @@ export function FileDiffViewer({ path, type }: FileDiffViewerProps) {
     filePath,
     type,
     enabled: !isCollapsed,
+    commit,
   });
 
   const updateEditorHeight = React.useCallback(() => {
@@ -249,7 +256,7 @@ export function FileDiffViewer({ path, type }: FileDiffViewerProps) {
         </span>
       </div>
 
-      {!isCollapsed && isDeleted && (
+      {!isCollapsed && isDeleted && !commit && (
         <div
           data-testid="file-deleted-message"
           className="w-full border-b border-[var(--oh-border)] p-4 bg-base text-[var(--oh-text-dim)] text-sm"
@@ -258,7 +265,7 @@ export function FileDiffViewer({ path, type }: FileDiffViewerProps) {
         </div>
       )}
 
-      {!isCollapsed && !isDeleted && isSuccess && renderContent()}
+      {!isCollapsed && (!isDeleted || !!commit) && isSuccess && renderContent()}
     </div>
   );
 }

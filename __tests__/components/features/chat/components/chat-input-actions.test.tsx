@@ -102,14 +102,38 @@ describe("ChatInputActions", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("renders the LLM-profile switcher inside a local OpenHands conversation", () => {
+  it("renders the AgentProfile picker inside a blank local OpenHands conversation", () => {
+    useActiveConversationMock.mockReturnValue({
+      data: { conversation_id: "test-conversation-id", llm_model: null },
+    });
+
+    renderWithProviders(
+      <ChatInputActions disabled={false} hasStartedConversation={false} />,
+      {
+        navigation: { conversationId: "test-conversation-id" },
+      },
+    );
+
+    expect(screen.getByTestId("agent-profile-picker-stub")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("llm-profile-picker-stub"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("chat-input-llm-model"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the LLM-profile switcher inside a started local OpenHands conversation", () => {
     useActiveConversationMock.mockReturnValue({
       data: { conversation_id: "test-conversation-id", llm_model: "gpt-4o" },
     });
 
-    renderWithProviders(<ChatInputActions disabled={false} />, {
-      navigation: { conversationId: "test-conversation-id" },
-    });
+    renderWithProviders(
+      <ChatInputActions disabled={false} hasStartedConversation />,
+      {
+        navigation: { conversationId: "test-conversation-id" },
+      },
+    );
 
     // In a conversation the user live-switches the LLM profile, not start-new.
     expect(screen.getByTestId("llm-profile-picker-stub")).toBeInTheDocument();
@@ -130,9 +154,12 @@ describe("ChatInputActions", () => {
       },
     });
 
-    renderWithProviders(<ChatInputActions disabled={false} />, {
-      navigation: { conversationId: "test-conversation-id" },
-    });
+    renderWithProviders(
+      <ChatInputActions disabled={false} hasStartedConversation />,
+      {
+        navigation: { conversationId: "test-conversation-id" },
+      },
+    );
 
     // ACP in a conversation live-switches the running model via ChatInputModel.
     expect(screen.getByTestId("chat-input-llm-model")).toBeInTheDocument();
@@ -157,7 +184,7 @@ describe("ChatInputActions", () => {
 
     renderWithProviders(
       <ActiveBackendProvider>
-        <ChatInputActions disabled={false} />
+        <ChatInputActions disabled={false} hasStartedConversation />
       </ActiveBackendProvider>,
     );
 
@@ -182,7 +209,7 @@ describe("ChatInputActions", () => {
 
     renderWithProviders(
       <ActiveBackendProvider>
-        <ChatInputActions disabled={false} />
+        <ChatInputActions disabled={false} hasStartedConversation />
       </ActiveBackendProvider>,
     );
 
@@ -203,7 +230,7 @@ describe("ChatInputActions", () => {
 
     renderWithProviders(
       <ActiveBackendProvider>
-        <ChatInputActions disabled={false} />
+        <ChatInputActions disabled={false} hasStartedConversation />
       </ActiveBackendProvider>,
     );
 

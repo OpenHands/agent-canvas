@@ -79,6 +79,7 @@ export function WorkspaceSelectionForm({
   const { mutate: removeWorkspaceParent } = useRemoveWorkspaceParent();
   const {
     workspaces,
+    parents: resolvedParents,
     isLoading: isLoadingWorkspaces,
     isError: hasWorkspaceError,
     error: resolvedWorkspacesError,
@@ -183,6 +184,7 @@ export function WorkspaceSelectionForm({
       <div className="flex flex-col gap-[10px] pb-4">
         <WorkspaceDropdown
           workspaces={workspaces}
+          parents={resolvedParents}
           value={selectedWorkspace}
           placeholder={
             workspacesUnsupportedMessage

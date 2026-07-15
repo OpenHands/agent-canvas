@@ -108,6 +108,20 @@ export interface GitChangeDiff {
   original: string;
 }
 
+export interface GitCommit {
+  sha: string;
+  shortSha: string;
+  subject: string;
+  author: string;
+  // ISO 8601 author date with UTC offset (git log %aI).
+  timestamp: string;
+}
+
+export interface GitCommitsPage {
+  commits: GitCommit[];
+  hasMore: boolean;
+}
+
 export interface InputMetadata {
   name: string;
   description: string;

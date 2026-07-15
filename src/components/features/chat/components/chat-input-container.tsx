@@ -13,6 +13,7 @@ interface ChatInputContainerProps {
   isDragOver: boolean;
   disabled: boolean;
   canSubmit: boolean;
+  hasStartedConversation?: boolean;
   isNewConversationPending?: boolean;
   showButton: boolean;
   buttonClassName: string;
@@ -38,6 +39,7 @@ export function ChatInputContainer({
   isDragOver,
   disabled,
   canSubmit,
+  hasStartedConversation,
   isNewConversationPending = false,
   showButton,
   buttonClassName,
@@ -102,6 +104,7 @@ export function ChatInputContainer({
       <ChatInputActions
         disabled={disabled}
         canSubmit={canSubmit}
+        hasStartedConversation={hasStartedConversation}
         onAddFileClick={() => handleFileIconClick(disabled)}
         showButton={showButton}
         buttonClassName={buttonClassName}

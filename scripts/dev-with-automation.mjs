@@ -1376,6 +1376,9 @@ function startStaticFrontend(config, staticDir) {
       staticDir,
       "--port",
       String(config.vitePort),
+      ...(process.env.VITE_BASE_PATH
+        ? ["--base-path", process.env.VITE_BASE_PATH]
+        : []),
       // In local mode, inject the API key so the pre-built frontend can
       // authenticate transparently. In public mode, pass --auth-required
       // so the frontend shows the API key entry screen instead.

@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  CANVAS_UI_CLIENT_ACTION_KIND,
+  CANVAS_UI_CLIENT_TOOL_NAME,
+  LEGACY_CANVAS_UI_TOOL_NAME,
+} from "#/constants/canvas-ui";
 import { handleCanvasUIAction } from "#/services/canvas-ui";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useFilesTabStore } from "#/stores/files-tab-store";
@@ -98,14 +103,24 @@ describe("isCanvasUIActionEvent", () => {
       timestamp: "2026-05-13T00:00:00Z",
       source: "agent",
       action: { kind: "CanvasUIAction" },
-      tool_name: "canvas_ui",
+      tool_name: LEGACY_CANVAS_UI_TOOL_NAME,
       tool_call_id: "call-1",
       ...overrides,
     };
   }
 
-  it("returns true for an ActionEvent whose tool_name is canvas_ui", () => {
-    expect(isCanvasUIActionEvent(makeActionEvent() as never)).toBe(true);
+  it.each([
+    ["CanvasUIAction", LEGACY_CANVAS_UI_TOOL_NAME],
+    [CANVAS_UI_CLIENT_ACTION_KIND, CANVAS_UI_CLIENT_TOOL_NAME],
+  ])("returns true for a %s ActionEvent from %s", (kind, toolName) => {
+    expect(
+      isCanvasUIActionEvent(
+        makeActionEvent({
+          action: { kind, command: "open_tab" },
+          tool_name: toolName,
+        }) as never,
+      ),
+    ).toBe(true);
   });
 
   it("returns false when tool_name belongs to a different tool", () => {
@@ -122,7 +137,7 @@ describe("isCanvasUIActionEvent", () => {
       timestamp: "2026-05-13T00:00:00Z",
       source: "environment",
       observation: { kind: "ExecuteBashObservation" },
-      tool_name: "canvas_ui",
+      tool_name: LEGACY_CANVAS_UI_TOOL_NAME,
       tool_call_id: "call-1",
     };
 

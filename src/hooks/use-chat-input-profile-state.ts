@@ -1,7 +1,15 @@
 import { useCallback } from "react";
 import { useIsMutating } from "@tanstack/react-query";
 import type { AgentProfileSummary } from "#/api/agent-profiles-service/agent-profiles-service.api";
+import { getStoredConversationMetadata } from "#/api/conversation-metadata-store";
+import { useNavigation } from "#/context/navigation-context";
 import { useAgentProfiles } from "#/hooks/query/use-agent-profiles";
+import { useActiveConversation } from "#/hooks/query/use-active-conversation";
+import {
+  CREATE_CONVERSATION_MUTATION_KEY,
+  useCreateConversation,
+  type CreateConversationVariables,
+} from "#/hooks/mutation/use-create-conversation";
 import {
   useActivateAgentProfile,
   ACTIVATE_AGENT_PROFILE_MUTATION_KEY,
@@ -9,51 +17,98 @@ import {
 
 export interface ChatInputProfileState {
   profiles: AgentProfileSummary[];
-  /** id of the active profile the next conversation will launch from. */
   currentProfileId: string | null;
   currentProfileName: string | null;
+  isInConversation: boolean;
   isLoading: boolean;
   isSwitching: boolean;
-  /** Activate a profile so the next conversation launches from it. */
   selectProfile: (profile: AgentProfileSummary) => void;
 }
 
-/**
- * Backs the home chat-input AgentProfile picker. This picker is only rendered
- * on the home screen — inside a conversation the chat input shows the
- * in-conversation LLM-profile picker (OpenHands) or model picker (ACP) instead
- * (see `chat-input-actions.tsx` `pickerKind`). So selecting a profile here
- * simply activates it as the launch default; `useCreateConversation` reads the
- * active profile when the next conversation starts.
- */
 export function useChatInputProfileState(): ChatInputProfileState {
-  const { data: agentProfiles, isLoading } = useAgentProfiles();
+  const { conversationId, navigate } = useNavigation();
+  const { data: conversation, isLoading: isLoadingConversation } =
+    useActiveConversation();
+  const { data: agentProfiles, isLoading: isLoadingProfiles } =
+    useAgentProfiles();
+  const createConversation = useCreateConversation();
   const activateProfile = useActivateAgentProfile();
-  // Observe the activation globally by mutation key so the picker button (a
-  // separate hook instance from the menu that fires it) disables correctly
-  // while a switch is in flight (#1571).
+  const activatingProfiles = useIsMutating({
+    mutationKey: ACTIVATE_AGENT_PROFILE_MUTATION_KEY,
+  });
+  const creatingConversations = useIsMutating({
+    mutationKey: CREATE_CONVERSATION_MUTATION_KEY,
+  });
+  const isTaskRoute = conversationId?.startsWith("task-") ?? false;
   const isSwitching =
-    useIsMutating({ mutationKey: ACTIVATE_AGENT_PROFILE_MUTATION_KEY }) > 0;
+    isTaskRoute || activatingProfiles > 0 || creatingConversations > 0;
 
   const profiles = agentProfiles?.profiles ?? [];
-  const currentProfileId = agentProfiles?.active_agent_profile_id ?? null;
+  const isInConversation = Boolean(conversationId);
+  const currentProfileId = isInConversation
+    ? (conversation?.launched_agent_profile?.agent_profile_id ??
+      agentProfiles?.active_agent_profile_id ??
+      null)
+    : (agentProfiles?.active_agent_profile_id ?? null);
   const currentProfileName =
     profiles.find((p) => p.id != null && p.id === currentProfileId)?.name ??
     null;
 
   const selectProfile = useCallback(
     (profile: AgentProfileSummary) => {
-      if (!profile.id || profile.id === currentProfileId) return;
-      activateProfile.mutate(profile.id);
+      if (isTaskRoute || !profile.id || profile.id === currentProfileId) return;
+      if (!isInConversation) {
+        activateProfile.mutate(profile.id);
+        return;
+      }
+
+      const metadata = conversationId
+        ? getStoredConversationMetadata(conversationId)
+        : null;
+      const variables: CreateConversationVariables = {
+        agentProfileId: profile.id,
+        entryPoint: "blank_conversation_profile_picker",
+      };
+      if (conversation?.selected_repository) {
+        variables.repository = {
+          name: conversation.selected_repository,
+          gitProvider: conversation.git_provider ?? "github",
+          branch: conversation.selected_branch ?? undefined,
+        };
+      }
+      if (conversation?.selected_workspace) {
+        variables.workingDir = conversation.selected_workspace;
+        variables.workspaceMode = metadata?.workspace_mode ?? "local_repo";
+      }
+      if (metadata?.plugins?.length) {
+        variables.plugins = metadata.plugins;
+      }
+
+      createConversation.mutate(variables, {
+        onSuccess: (data) => navigate(`/conversations/${data.conversation_id}`),
+      });
     },
-    [currentProfileId, activateProfile],
+    [
+      activateProfile,
+      conversation,
+      conversationId,
+      createConversation,
+      currentProfileId,
+      isInConversation,
+      isTaskRoute,
+      navigate,
+    ],
   );
 
   return {
     profiles,
     currentProfileId,
     currentProfileName,
-    isLoading,
+    isInConversation,
+    isLoading:
+      isLoadingProfiles ||
+      isTaskRoute ||
+      (isInConversation && isLoadingConversation),
     isSwitching,
     selectProfile,
   };

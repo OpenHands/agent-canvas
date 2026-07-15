@@ -25,6 +25,14 @@ const LIB_EXTERNALS = [
 ];
 const APP_CHUNK_MAX_BYTES = 450 * 1024;
 
+const normalizeBasePath = (value?: string) => {
+  const raw = value?.trim();
+  if (!raw || raw === "/") return "/";
+
+  const withLeadingSlash = raw.startsWith("/") ? raw : `/${raw}`;
+  return `${withLeadingSlash.replace(/\/+$/, "")}/`;
+};
+
 // Absolute path to the bundled extensions skills directory in node_modules.
 // Injected as __EXTENSIONS_SKILLS_DIR__ so agent-server-adapter.ts can pass
 // real filesystem paths to the Python agent-server (which uses them to
@@ -71,6 +79,7 @@ export default defineConfig(({ mode }) => {
     VITE_USE_TLS = "false",
     VITE_FRONTEND_PORT = "3001",
     VITE_INSECURE_SKIP_VERIFY = "false",
+    VITE_BASE_PATH,
   } = loadEnv(mode, process.cwd());
 
   const isLibraryBuild = process.env.BUILD_LIB === "true";
@@ -82,8 +91,10 @@ export default defineConfig(({ mode }) => {
   const API_URL = `${PROTOCOL}://${VITE_BACKEND_HOST}/`;
   const WS_URL = `${WS_PROTOCOL}://${VITE_BACKEND_HOST}/`;
   const FE_PORT = Number.parseInt(VITE_FRONTEND_PORT, 10);
+  const base = normalizeBasePath(VITE_BASE_PATH);
 
   return {
+    base,
     define: {
       // Empty string for library builds so consumers aren't bound to this
       // machine's node_modules path; agent-server-adapter falls back to

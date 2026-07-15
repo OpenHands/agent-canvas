@@ -18,6 +18,7 @@ interface PluginDetailModalProps {
   onUninstall: () => void;
   onRefresh: () => void;
   onClose: () => void;
+  onStartConversation?: () => void;
 }
 
 export function PluginDetailModal({
@@ -29,6 +30,7 @@ export function PluginDetailModal({
   onUninstall,
   onRefresh,
   onClose,
+  onStartConversation,
 }: PluginDetailModalProps) {
   const { t } = useTranslation("openhands");
   const actionsDisabled = isDisabled || isBusy;
@@ -128,7 +130,7 @@ export function PluginDetailModal({
           ) : plugin.isLocal ? null : (
             <BrandButton
               type="button"
-              variant="primary"
+              variant="secondary"
               testId={`plugin-detail-install-${plugin.name}`}
               isDisabled={actionsDisabled}
               onClick={onInstall}
@@ -140,6 +142,16 @@ export function PluginDetailModal({
               )}
             </BrandButton>
           )}
+          {plugin.source && onStartConversation ? (
+            <BrandButton
+              type="button"
+              variant="secondary"
+              testId={`plugin-detail-start-conversation-${plugin.name}`}
+              onClick={onStartConversation}
+            >
+              {t(I18nKey.COMMON$START_CONVERSATION)}
+            </BrandButton>
+          ) : null}
           <BrandButton
             type="button"
             variant="secondary"
