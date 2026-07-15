@@ -310,7 +310,7 @@ describe("handleEventForUI", () => {
       ]);
     });
 
-    it("finalizes streamed deltas in place when finish arrives", () => {
+    it("keeps the canonical finish event after streamed content", () => {
       const first = makeStreamingDelta("delta-1", "I'll start ");
       const second = makeStreamingDelta("delta-2", "working on that.");
       const streamedDelta = handleEventForUI(
@@ -321,16 +321,11 @@ describe("handleEventForUI", () => {
 
       const result = handleEventForUI(mockFinishActionEvent, uiEvents);
 
-      expect(result).toEqual([
-        mockMessageEvent,
-        {
-          ...streamedDelta,
-          content: "I'll start working on that. Done.",
-        },
-      ]);
+      expect(result).toEqual([mockMessageEvent, mockFinishActionEvent]);
+      expect(result.at(-1)).toBe(mockFinishActionEvent);
     });
 
-    it("finalizes streamed deltas in place when an agent message arrives", () => {
+    it("keeps the canonical agent message after streamed content", () => {
       const first = makeStreamingDelta("delta-1", "I'll start ");
       const second = makeStreamingDelta("delta-2", "working on that.");
       const streamedDelta = handleEventForUI(
@@ -341,16 +336,11 @@ describe("handleEventForUI", () => {
 
       const result = handleEventForUI(mockAgentMessageEvent, uiEvents);
 
-      expect(result).toEqual([
-        mockMessageEvent,
-        {
-          ...streamedDelta,
-          content: "I'll start working on that. Done.",
-        },
-      ]);
+      expect(result).toEqual([mockMessageEvent, mockAgentMessageEvent]);
+      expect(result.at(-1)).toBe(mockAgentMessageEvent);
     });
 
-    it("keeps streamed deltas in their original locations when the final message aggregates them", () => {
+    it("replaces aggregated streamed content with the canonical final message", () => {
       const first = makeStreamingDelta(
         "delta-1",
         "I'll start working on that.",
@@ -379,13 +369,12 @@ describe("handleEventForUI", () => {
 
       expect(result).toEqual([
         mockMessageEvent,
-        first,
         mockObservationEvent,
-        second,
+        aggregateAgentMessage,
       ]);
     });
 
-    it("appends unstreamed suffix to the last content-bearing delta", () => {
+    it("uses canonical final content while retaining reasoning-only deltas", () => {
       const contentDelta = makeStreamingDelta(
         "delta-content",
         "I'll start working on that.",
@@ -420,16 +409,13 @@ describe("handleEventForUI", () => {
 
       expect(result).toEqual([
         mockMessageEvent,
-        {
-          ...contentDelta,
-          content: "I'll start working on that. Done.",
-        },
         mockObservationEvent,
         reasoningDelta,
+        finalMessage,
       ]);
     });
 
-    it("reconciles leading whitespace differences without duplicating the final message", () => {
+    it("keeps the canonical final message after leading streamed whitespace", () => {
       const streamedDelta = makeStreamingDelta(
         "delta-1",
         "\nI'll start working on that. Done.",
@@ -440,7 +426,8 @@ describe("handleEventForUI", () => {
         streamedDelta,
       ]);
 
-      expect(result).toEqual([mockMessageEvent, streamedDelta]);
+      expect(result).toEqual([mockMessageEvent, mockAgentMessageEvent]);
+      expect(result.at(-1)).toBe(mockAgentMessageEvent);
     });
 
     it("replaces unmatched streamed text with the canonical final message", () => {
@@ -487,6 +474,32 @@ describe("handleEventForUI", () => {
         { ...streamedDelta, content: null },
         finalMessage,
       ]);
+    });
+
+    it("drops streamed reasoning when the final message renders it inline", () => {
+      const streamedDelta: StreamingDeltaEvent = {
+        ...makeStreamingDelta("delta-1", "Canonical final text"),
+        reasoning_content: "Reasoning rendered by the final message",
+      };
+      const finalMessage: MessageEvent = {
+        ...mockAgentMessageEvent,
+        llm_message: {
+          role: "assistant",
+          content: [
+            {
+              type: "text",
+              text: "<think>Reasoning rendered by the final message</think>Canonical final text",
+            },
+          ],
+        },
+      };
+
+      const result = handleEventForUI(finalMessage, [
+        mockMessageEvent,
+        streamedDelta,
+      ]);
+
+      expect(result).toEqual([mockMessageEvent, finalMessage]);
     });
 
     it("keeps deltas from older turns when a later turn finishes", () => {
