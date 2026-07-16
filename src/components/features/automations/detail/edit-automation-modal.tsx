@@ -21,6 +21,11 @@ import {
   formatEventOn,
   type SchedulePresetKind,
 } from "#/utils/automation-schedule";
+import {
+  validateAutomationTimeout,
+  AUTOMATION_TIMEOUT_DEFAULT_SECONDS,
+  AUTOMATION_TIMEOUT_MAX_SECONDS,
+} from "#/utils/automation-timeout";
 import { cn } from "#/utils/utils";
 import {
   formControlMultilineFieldClassName,
@@ -61,9 +66,11 @@ interface FormState {
   timeOfDay: string;
   isCustomSchedule: boolean;
   rawSchedule: string;
+  timeout: string;
 }
 
 function buildInitialState(automation: Automation): FormState {
+  const timeout = automation.timeout != null ? String(automation.timeout) : "";
   if (automation.trigger.type === "event") {
     return {
       name: automation.name,
@@ -74,6 +81,7 @@ function buildInitialState(automation: Automation): FormState {
       timeOfDay: "",
       isCustomSchedule: true,
       rawSchedule: "",
+      timeout,
     };
   }
   const parsed = parseCronSchedule(automation.trigger.schedule);
@@ -90,6 +98,7 @@ function buildInitialState(automation: Automation): FormState {
           : "",
       isCustomSchedule: true,
       rawSchedule: parsed.raw,
+      timeout,
     };
   }
   return {
@@ -101,6 +110,7 @@ function buildInitialState(automation: Automation): FormState {
     timeOfDay: formatTimeOfDay(parsed.hour, parsed.minute),
     isCustomSchedule: false,
     rawSchedule: automation.trigger.schedule ?? "",
+    timeout,
   };
 }
 
@@ -121,11 +131,13 @@ export function EditAutomationModal({
   const initial = useMemo(() => buildInitialState(automation), [automation]);
   const [form, setForm] = useState<FormState>(initial);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [timeoutError, setTimeoutError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setForm(initial);
       setNameError(null);
+      setTimeoutError(null);
     }
   }, [isOpen, initial]);
 
@@ -174,6 +186,13 @@ export function EditAutomationModal({
     }
     setNameError(null);
 
+    const timeoutResult = validateAutomationTimeout(form.timeout);
+    if ("errorKey" in timeoutResult) {
+      setTimeoutError(t(timeoutResult.errorKey));
+      return;
+    }
+    setTimeoutError(null);
+
     const body: Partial<Automation> = {};
 
     if (trimmedName !== automation.name) {
@@ -190,6 +209,10 @@ export function EditAutomationModal({
     const initialModel = automation.model ?? "";
     if (selectedModel !== initialModel) {
       body.model = selectedModel === "" ? null : selectedModel;
+    }
+
+    if ((timeoutResult.value ?? null) !== (automation.timeout ?? null)) {
+      body.timeout = timeoutResult.value;
     }
 
     if (!form.isCustomSchedule && form.frequency !== "custom") {
@@ -261,6 +284,7 @@ export function EditAutomationModal({
 
         <form
           onSubmit={handleSubmit}
+          noValidate
           className="mt-4 flex flex-col gap-4"
           aria-label={t(I18nKey.AUTOMATIONS$EDIT_TITLE)}
         >
@@ -312,6 +336,29 @@ export function EditAutomationModal({
               }
             />
           )}
+
+          <div className="flex flex-col gap-2.5 w-full min-w-0">
+            <SettingsInput
+              testId="edit-automation-timeout"
+              name="timeout"
+              type="number"
+              label={t(I18nKey.AUTOMATIONS$TIMEOUT)}
+              value={form.timeout}
+              onChange={(value) => setForm((f) => ({ ...f, timeout: value }))}
+              error={timeoutError ?? undefined}
+              showOptionalTag
+              min={1}
+              max={AUTOMATION_TIMEOUT_MAX_SECONDS}
+              step={1}
+              placeholder={String(AUTOMATION_TIMEOUT_DEFAULT_SECONDS)}
+            />
+            <span
+              data-testid="edit-automation-timeout-hint"
+              className="text-xs text-muted"
+            >
+              {t(I18nKey.AUTOMATIONS$TIMEOUT_HINT)}
+            </span>
+          </div>
 
           {automation.trigger.type === "event" ? (
             <div className="flex flex-col gap-3 rounded-lg bg-[var(--oh-surface-raised)] p-3">

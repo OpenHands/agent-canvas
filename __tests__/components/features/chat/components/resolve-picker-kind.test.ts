@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  hasConversationStarted,
   resolvePickerKind,
   type ResolvePickerKindInput,
 } from "#/components/features/chat/components/resolve-picker-kind";
@@ -53,11 +54,46 @@ describe("resolvePickerKind", () => {
   });
 
   describe("inside a conversation", () => {
+    it("shows the agent-profile picker for an unstarted conversation when profiles exist", () => {
+      expect(
+        resolvePickerKind({
+          ...base,
+          hasConversation: true,
+          hasStartedConversation: false,
+          isCloud: false,
+          isAcp: false,
+          profilesAvailable: true,
+        }),
+      ).toBe("agent-profile");
+    });
+
+    it("uses the pre-run fallback for an unstarted conversation when profiles are unavailable", () => {
+      expect(
+        resolvePickerKind({
+          ...base,
+          hasConversation: true,
+          hasStartedConversation: false,
+          isCloud: false,
+          profilesAvailable: false,
+        }),
+      ).toBe("llm-profile");
+      expect(
+        resolvePickerKind({
+          ...base,
+          hasConversation: true,
+          hasStartedConversation: false,
+          isCloud: true,
+          profilesAvailable: false,
+        }),
+      ).toBe("model");
+    });
+
     it("shows the model picker for an ACP conversation regardless of backend", () => {
       expect(
         resolvePickerKind({
           ...base,
           hasConversation: true,
+          hasStartedConversation: true,
           isCloud: false,
           isAcp: true,
         }),
@@ -66,6 +102,7 @@ describe("resolvePickerKind", () => {
         resolvePickerKind({
           ...base,
           hasConversation: true,
+          hasStartedConversation: true,
           isCloud: true,
           isAcp: true,
         }),
@@ -80,6 +117,7 @@ describe("resolvePickerKind", () => {
         resolvePickerKind({
           ...base,
           hasConversation: true,
+          hasStartedConversation: true,
           isCloud: false,
           isAcp: false,
         }),
@@ -88,6 +126,7 @@ describe("resolvePickerKind", () => {
         resolvePickerKind({
           ...base,
           hasConversation: true,
+          hasStartedConversation: true,
           isCloud: true,
           isAcp: false,
         }),
@@ -99,11 +138,36 @@ describe("resolvePickerKind", () => {
         resolvePickerKind({
           ...base,
           hasConversation: true,
+          hasStartedConversation: true,
           isCloud: false,
           isAcp: false,
           profilesAvailable: false,
         }),
       ).toBe("llm-profile");
     });
+  });
+});
+
+describe("hasConversationStarted", () => {
+  const empty = {
+    isLoadingHistory: false,
+    hasUserEvents: false,
+    hasPendingUserMessages: false,
+    hasSubstantiveAgentActions: false,
+    hasModelEntries: false,
+  };
+
+  it("keeps a fully loaded blank conversation in pre-run state", () => {
+    expect(hasConversationStarted(empty)).toBe(false);
+  });
+
+  it.each([
+    "isLoadingHistory",
+    "hasUserEvents",
+    "hasPendingUserMessages",
+    "hasSubstantiveAgentActions",
+    "hasModelEntries",
+  ] as const)("treats %s as started", (field) => {
+    expect(hasConversationStarted({ ...empty, [field]: true })).toBe(true);
   });
 });

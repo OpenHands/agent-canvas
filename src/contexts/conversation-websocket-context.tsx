@@ -637,10 +637,9 @@ export function ConversationWebSocketProvider({
             invalidateConversationQueries(queryClient, conversationId);
           }
 
-          // Handle canvas_ui custom-tool ActionEvents - drive the frontend
-          // (navigate to a file, switch tabs, show a preview). The tool
-          // executes server-side as a no-op; the actual UI change happens
-          // here on the client.
+          // Handle canvas_ui ActionEvents from both the legacy Python tool and
+          // the client-defined JSON tool. The server acknowledges immediately;
+          // the actual UI change happens here on the client.
           if (isCanvasUIActionEvent(event)) {
             handleCanvasUIAction(event.action, conversationId ?? null);
           }

@@ -16,11 +16,13 @@ import { isTaskPolling } from "#/utils/utils";
 interface InteractiveChatBoxProps {
   onSubmit: (message: string, images: File[], files: File[]) => void;
   disabled?: boolean;
+  hasStartedConversation?: boolean;
 }
 
 export function InteractiveChatBox({
   onSubmit,
   disabled = false,
+  hasStartedConversation,
 }: InteractiveChatBoxProps) {
   const {
     images,
@@ -67,6 +69,7 @@ export function InteractiveChatBox({
       <CustomChatInput
         disabled={isDisabled}
         isNewConversationPending={disabled}
+        hasStartedConversation={hasStartedConversation}
         onSubmit={handleSubmit}
         onFilesPaste={handleUpload}
       />

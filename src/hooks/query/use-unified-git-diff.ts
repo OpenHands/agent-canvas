@@ -10,6 +10,11 @@ type UseUnifiedGitDiffConfig = {
   filePath: string;
   type: GitChangeStatus;
   enabled: boolean;
+  /**
+   * When set, fetch the file's diff as changed by this commit (both sides
+   * from git objects) instead of the working-tree-vs-base diff.
+   */
+  commit?: string;
 };
 
 export const useUnifiedGitDiff = (config: UseUnifiedGitDiffConfig) => {
@@ -29,17 +34,33 @@ export const useUnifiedGitDiff = (config: UseUnifiedGitDiffConfig) => {
   // Deleted files no longer exist on disk, so the agent server's
   // `/api/git/diff` endpoint returns a `GitPathError` (HTTP 400) for them.
   // Skip the request entirely and let the UI render a "file deleted"
-  // placeholder instead of triggering an error toast.
+  // placeholder instead of triggering an error toast. Per-commit diffs are
+  // exempt: both sides come from git objects, so deleted files render.
   const isDeleted = config.type === "D";
 
+  // Per-commit diffs get their own cache root: they must not collide with
+  // the working-tree diff of the same file, and — being sha-addressed and
+  // immutable — must not be refetched by the bash-observation invalidation
+  // of ["file_diff"].
+  const queryKey = config.commit
+    ? [
+        "commit_file_diff",
+        conversationId,
+        conversationUrl,
+        sessionApiKey,
+        config.commit,
+        absoluteFilePath,
+      ]
+    : [
+        "file_diff",
+        conversationId,
+        conversationUrl,
+        sessionApiKey,
+        absoluteFilePath,
+      ];
+
   return useQuery({
-    queryKey: [
-      "file_diff",
-      conversationId,
-      conversationUrl,
-      sessionApiKey,
-      absoluteFilePath,
-    ],
+    queryKey,
     queryFn: async () => {
       if (!conversationId) throw new Error("No conversation ID");
 
@@ -48,10 +69,11 @@ export const useUnifiedGitDiff = (config: UseUnifiedGitDiffConfig) => {
         conversationUrl,
         sessionApiKey,
         absoluteFilePath,
+        config.commit,
       );
     },
-    enabled: config.enabled && !isDeleted,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    enabled: config.enabled && (!isDeleted || !!config.commit),
+    staleTime: config.commit ? Infinity : 1000 * 60 * 5, // 5 minutes
     gcTime: 1000 * 60 * 15, // 15 minutes
   });
 };

@@ -382,8 +382,8 @@ describe("useCreateConversation", () => {
     // The active profile IS the well-known default → it's the enriched baseline
     // (mirrors agent_settings), not a deliberate profile pick, so the launch
     // stays on the agent_settings path (no profile tail) even though its
-    // llm_profile_ref resolves. Keeps <RUNTIME_SERVICES>/canvas_ui/project
-    // skills, which the profile-resolution path drops.
+    // llm_profile_ref resolves. Keeps <RUNTIME_SERVICES> and project skills,
+    // which the profile-resolution path drops.
     listAgentProfilesMock.mockResolvedValue({
       profiles: [
         {
@@ -461,6 +461,7 @@ describe("useCreateConversation", () => {
 
     const call = createConversationSpy.mock.lastCall;
     expect(call?.[9]).toBe("profile-acp-default");
+    expect(call?.[10]).toBe("acp");
   });
 
   it("launches the seeded `default` profile from its resolved id on cloud (no agent_settings fallback exists there) (#1571)", async () => {

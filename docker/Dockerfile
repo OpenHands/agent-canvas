@@ -42,10 +42,14 @@ COPY . .
 # VITE_POSTHOG_CLIENT_KEY is the PostHog project key exposed via the web client
 # config (option-service). Not a secret — it's a public, client-side key. CI
 # passes the prod key for tagged releases and the staging key otherwise.
+# VITE_BASE_PATH is baked into React Router/Vite so the Docker image serves
+# Canvas under the Cloud subpath instead of a dedicated hostname.
 ARG VITE_APP_ENV=""
 ARG VITE_POSTHOG_CLIENT_KEY=""
+ARG VITE_BASE_PATH="/canvas"
 ENV VITE_APP_ENV=${VITE_APP_ENV}
 ENV VITE_POSTHOG_CLIENT_KEY=${VITE_POSTHOG_CLIENT_KEY}
+ENV VITE_BASE_PATH=${VITE_BASE_PATH}
 RUN npm run build
 
 # ── Stage 1b: Generate shell-sourceable defaults from config/defaults.json ──
@@ -62,6 +66,7 @@ RUN node -e " \
     'CONFIG_CONVERSATIONS=' + c.paths.conversations, \
     'CONFIG_BASH_EVENTS=' + c.paths.bashEvents, \
     'CONFIG_AUTOMATION_DB=' + c.paths.automationDb, \
+    'CONFIG_CANVAS_BASE_PATH=' + c.paths.canvasBasePath, \
   ]; \
   require('fs').writeFileSync('/tmp/defaults.env', lines.join('\n') + '\n'); \
 "
@@ -73,6 +78,7 @@ ARG AUTOMATION_VERSION
 ARG AGENT_SERVER_SDK_GIT_REF=""
 ARG OPENHANDS_BUILD_GIT_SHA=unknown
 ARG OPENHANDS_BUILD_GIT_REF=unknown
+ARG VITE_BASE_PATH="/canvas"
 
 ARG AGENT_CANVAS_VERSION=dev
 LABEL org.opencontainers.image.title="agent-canvas"
@@ -83,6 +89,7 @@ LABEL org.opencontainers.image.revision="${OPENHANDS_BUILD_GIT_SHA}"
 
 ENV AGENT_CANVAS_BUILD_GIT_SHA=${OPENHANDS_BUILD_GIT_SHA}
 ENV AGENT_CANVAS_BUILD_GIT_REF=${OPENHANDS_BUILD_GIT_REF}
+ENV AGENT_CANVAS_BASE_PATH=${VITE_BASE_PATH}
 
 USER root
 
@@ -126,8 +133,9 @@ COPY --from=frontend-build /build/node_modules/totalist /opt/agent-canvas/node_m
 # emit the agent's <RUNTIME_SERVICES> block; same builder the dev stack uses).
 COPY scripts/runtime-services-info.mjs /opt/agent-canvas/runtime-services-info.mjs
 
-# Copy custom tools (e.g. canvas_ui_tool.py) so the agent-server can import
-# them via tool_module_qualnames. OH_EXTRA_PYTHON_PATH is set in entrypoint.sh.
+# Persisted conversations created before the client_tools migration still
+# import canvas_ui_tool by qualname. Keep the compatibility module available;
+# new conversations define canvas_ui_control through a JSON client tool.
 COPY tools/ /opt/agent-canvas/tools/
 
 # Copy generated defaults.env (from config/defaults.json via config-gen stage)

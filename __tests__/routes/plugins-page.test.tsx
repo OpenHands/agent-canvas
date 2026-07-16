@@ -16,6 +16,7 @@ import {
 import type { Backend } from "#/api/backend-registry/types";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
+import { buildPluginLaunchPath } from "#/utils/plugin-launch-url";
 
 const navigateMock = vi.fn();
 
@@ -240,5 +241,43 @@ describe("SkillsPluginsScreen", () => {
     });
 
     expect(screen.getByTestId("plugins-no-match")).toBeInTheDocument();
+  });
+
+  it("navigates to the launch flow with the plugin's coordinates when Start Conversation is clicked", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(PluginsService, "getPluginsMarketplace").mockResolvedValue([
+      buildCatalogPlugin(),
+    ]);
+
+    renderPluginsScreen();
+    await user.click(await screen.findByTestId("plugin-card-demo-plugin"));
+    await user.click(
+      await screen.findByTestId("plugin-detail-start-conversation-demo-plugin"),
+    );
+
+    expect(navigateMock).toHaveBeenCalledWith(
+      buildPluginLaunchPath([
+        {
+          source: "github:OpenHands/extensions",
+          ref: null,
+          repo_path: "plugins/demo-plugin",
+        },
+      ]),
+    );
+  });
+
+  it("omits the Start Conversation action for a local plugin without a source", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(PluginsService, "getLocalPlugins").mockResolvedValue([
+      { name: "ambient-plugin", version: "1.0.0", description: "Ambient" },
+    ]);
+
+    renderPluginsScreen();
+    await user.click(await screen.findByTestId("plugin-card-ambient-plugin"));
+    await screen.findByTestId("plugin-detail-modal");
+
+    expect(
+      screen.queryByTestId("plugin-detail-start-conversation-ambient-plugin"),
+    ).not.toBeInTheDocument();
   });
 });

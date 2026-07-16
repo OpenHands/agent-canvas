@@ -128,8 +128,13 @@ export function useAutoRefreshFilesOnEdit(): void {
 
     // Editor and bash mutations both change what the git Diff view shows —
     // including the per-file diff content of an already-expanded file.
+    // The commits list refreshes too (a `git commit` arrives as a bash
+    // observation); per-commit queries (`commit_changes` /
+    // `commit_file_diff`) are sha-addressed and immutable, so they are
+    // deliberately NOT invalidated.
     queryClient.invalidateQueries({ queryKey: ["file_changes"] });
     queryClient.invalidateQueries({ queryKey: ["file_diff"] });
+    queryClient.invalidateQueries({ queryKey: ["git_commits"] });
 
     if (hasNewFileEdits) {
       queryClient.invalidateQueries({ queryKey: ["workspace-files"] });

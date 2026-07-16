@@ -86,6 +86,7 @@ export function parseArgs(argv = process.argv.slice(2)) {
     authRequired: false,
     runtimeServicesInfo: null,
     lockToCloud: null,
+    basePath: "/",
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -127,6 +128,9 @@ export function parseArgs(argv = process.argv.slice(2)) {
       case "--lock-to-cloud":
         config.lockToCloud = argv[++i] || null;
         break;
+      case "--base-path":
+        config.basePath = normalizeBasePath(argv[++i]);
+        break;
 
       case "--auth-required":
         config.authRequired = true;
@@ -166,6 +170,14 @@ export function parseArgs(argv = process.argv.slice(2)) {
   return config;
 }
 
+function normalizeBasePath(value) {
+  const raw = (value ?? "").trim();
+  if (!raw || raw === "/") return "/";
+
+  const withLeadingSlash = raw.startsWith("/") ? raw : `/${raw}`;
+  return withLeadingSlash.replace(/\/+$/, "");
+}
+
 function showHelp() {
   console.log(`
 Combined static file server + reverse proxy.
@@ -194,6 +206,9 @@ OPTIONS:
   --lock-to-cloud <cloud-url>  Lock backend setup to a single OpenHands Cloud
                                URL. Hides manual/local backend setup and the
                                custom Cloud URL field in the pre-built frontend.
+  --base-path <path>           Mount the SPA under <path> (default: /).
+                               For example, --base-path /canvas serves
+                               index.html and assets under /canvas.
   --reject-prefix <prefix>     Return 503 for requests matching <prefix>
                                instead of SPA-fallbacking to index.html;
                                may be repeated. Useful in --frontend-only
@@ -247,12 +262,17 @@ ROUTING:
  *   `window.__AGENT_CANVAS_LOCK_TO_CLOUD__`. Read by `getLockedCloudHost()` in
  *   `agent-server-config.ts` so pre-built frontend bundles can hide manual
  *   backend setup and the custom Cloud URL field at runtime.
+ *
+ * - `basePath`: the path prefix the SPA is mounted under, exposed as
+ *   `window.__AGENT_CANVAS_BASE_PATH__` so runtime static assets like locale
+ *   files can resolve through the same subpath as the built bundle.
  */
 function makeConfigInjectionScript(
   sessionApiKey,
   authRequired,
   runtimeServicesInfo,
   lockToCloud,
+  basePath,
 ) {
   const parts = [];
 
@@ -296,6 +316,12 @@ function makeConfigInjectionScript(
     );
   }
 
+  if (basePath && basePath !== "/") {
+    parts.push(
+      `window.__AGENT_CANVAS_BASE_PATH__=${JSON.stringify(basePath)};`,
+    );
+  }
+
   if (parts.length === 0) return "";
 
   return `<script>(function(){${parts.join("")}}());</script>`;
@@ -309,7 +335,13 @@ async function serveInjectedIndexHtml(
   req,
   res,
   indexPath,
-  { sessionApiKey, authRequired, runtimeServicesInfo, lockToCloud } = {},
+  {
+    sessionApiKey,
+    authRequired,
+    runtimeServicesInfo,
+    lockToCloud,
+    basePath,
+  } = {},
 ) {
   let content;
   try {
@@ -323,6 +355,7 @@ async function serveInjectedIndexHtml(
     authRequired,
     runtimeServicesInfo,
     lockToCloud,
+    basePath,
   );
   // Inject right before </head> so the key is available before any app code runs.
   // replace() targets the first (and only) </head> in well-formed HTML.
@@ -370,7 +403,8 @@ function needsRuntimeInjection(injectionOpts) {
     injectionOpts.sessionApiKey ||
     injectionOpts.authRequired ||
     injectionOpts.runtimeServicesInfo ||
-    injectionOpts.lockToCloud,
+    injectionOpts.lockToCloud ||
+    (injectionOpts.basePath && injectionOpts.basePath !== "/"),
   );
 }
 
@@ -391,6 +425,36 @@ function rejectUnavailable(res) {
 function notFound(res) {
   res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
   res.end("Not Found");
+}
+
+function isMountedPath(urlPath, basePath) {
+  return (
+    basePath === "/" ||
+    urlPath === basePath ||
+    urlPath.startsWith(`${basePath}/`)
+  );
+}
+
+function stripBasePathFromUrl(rawUrl, basePath) {
+  if (basePath === "/") return rawUrl;
+
+  const [rawPath = "/", ...rest] = (rawUrl || "/").split("?");
+  const suffix = rawPath.slice(basePath.length) || "/";
+  const path = suffix.startsWith("/") ? suffix : `/${suffix}`;
+  return rest.length > 0 ? `${path}?${rest.join("?")}` : path;
+}
+
+function redirectToMountedPath(req, res, urlPath, basePath) {
+  if (basePath === "/" || !isGetOrHead(req) || looksLikeAssetRequest(urlPath)) {
+    return false;
+  }
+
+  const [, query = ""] = (req.url ?? "/").split("?", 2);
+  const path = urlPath === "/" ? "/" : urlPath;
+  const location = `${basePath}${path}${query ? `?${query}` : ""}`;
+  res.writeHead(308, { Location: location });
+  res.end();
+  return true;
 }
 
 function setStaticHeaders(res, pathname) {
@@ -421,9 +485,23 @@ async function handleStatic(
   staticMiddleware,
   injectionOpts = {},
   rejectPrefixes = [],
+  basePath = "/",
 ) {
   const urlPath = parseUrlPath(req, res);
   if (urlPath === null) return;
+
+  if (!isMountedPath(urlPath, basePath)) {
+    if (matchesAnyPrefix(urlPath, rejectPrefixes)) {
+      rejectUnavailable(res);
+      return;
+    }
+    if (!redirectToMountedPath(req, res, urlPath, basePath)) notFound(res);
+    return;
+  }
+
+  const mountedUrl = stripBasePathFromUrl(req.url ?? "/", basePath);
+  const mountedPath = parseUrlPath({ ...req, url: mountedUrl }, res);
+  if (mountedPath === null) return;
 
   const injectRuntimeConfig = needsRuntimeInjection(injectionOpts);
   const indexPath = resolve(dirAbs, "index.html");
@@ -431,19 +509,22 @@ async function handleStatic(
   if (
     injectRuntimeConfig &&
     isGetOrHead(req) &&
-    (urlPath === "/" || urlPath === "/index.html")
+    (mountedPath === "/" || mountedPath === "/index.html")
   ) {
     if (await serveInjectedIndexHtml(req, res, indexPath, injectionOpts))
       return;
   }
 
-  staticMiddleware(req, res, async () => {
-    if (matchesAnyPrefix(urlPath, rejectPrefixes)) {
+  const mountedReq = Object.create(req);
+  mountedReq.url = mountedUrl;
+
+  staticMiddleware(mountedReq, res, async () => {
+    if (matchesAnyPrefix(mountedPath, rejectPrefixes)) {
       rejectUnavailable(res);
       return;
     }
 
-    if (isGetOrHead(req) && !looksLikeAssetRequest(urlPath)) {
+    if (isGetOrHead(req) && !looksLikeAssetRequest(mountedPath)) {
       if (await serveInjectedIndexHtml(req, res, indexPath, injectionOpts)) {
         return;
       }
@@ -466,7 +547,9 @@ export function startStaticServer(config) {
     authRequired: config.authRequired || false,
     runtimeServicesInfo: config.runtimeServicesInfo || null,
     lockToCloud: config.lockToCloud || null,
+    basePath: normalizeBasePath(config.basePath),
   };
+  const basePath = injectionOpts.basePath;
   const rejectPrefixes = config.rejectPrefixes ?? [];
   const staticMiddleware = createStaticMiddleware(dirAbs);
 
@@ -485,6 +568,7 @@ export function startStaticServer(config) {
       staticMiddleware,
       injectionOpts,
       rejectPrefixes,
+      basePath,
     ).catch((err) => {
       console.error(`Static handler error for ${req.url}:`, err);
       if (!res.headersSent) {
@@ -506,11 +590,13 @@ export function startStaticServer(config) {
 
   return new Promise((resolveListen) => {
     server.listen(config.port, config.host, () => {
+      const displayPath = basePath === "/" ? "/" : `${basePath}/`;
       console.log("");
       console.log(
-        `Static-server + proxy listening on http://${config.host}:${config.port}/`,
+        `Static-server + proxy listening on http://${config.host}:${config.port}${displayPath}`,
       );
       console.log(`  Static dir: ${dirAbs}`);
+      console.log(`  Base path: ${basePath}`);
       const sortedRoutes = Object.entries(config.routes).sort(
         ([a], [b]) => b.length - a.length,
       );
