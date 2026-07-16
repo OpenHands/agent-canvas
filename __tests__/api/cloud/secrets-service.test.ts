@@ -127,4 +127,24 @@ describe("SecretsService against cloud backend", () => {
       headers: { Authorization: "Bearer bearer-token" },
     });
   });
+
+  it("treats a delete 404 as success (secret already gone)", async () => {
+    // Fresh Response per attempt: the retry helper re-fetches and a
+    // Response body can only be consumed once. Fake timers skip the
+    // retry backoff sleeps.
+    fetchMock.mockImplementation(() =>
+      Promise.resolve(mockJsonResponse({ detail: "Secret not found" }, 404)),
+    );
+    vi.useFakeTimers();
+
+    try {
+      const assertion = expect(
+        SecretsService.deleteSecret("ALREADY_GONE"),
+      ).resolves.toBeUndefined();
+      await vi.runAllTimersAsync();
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

@@ -1,12 +1,13 @@
 import { useRef, useState } from "react";
 import { useParams } from "react-router";
-import { isAxiosError } from "axios";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import {
   displaySuccessToast,
   displayErrorToast,
 } from "#/utils/custom-toast-handlers";
+import { getApiErrorMessage } from "#/utils/api-error-message";
+import { getErrorStatus } from "#/hooks/query/use-settings";
 import { useAutomationDetail } from "#/hooks/query/use-automation-detail";
 import {
   useToggleAutomation,
@@ -79,8 +80,7 @@ export default function AutomationDetail() {
   const deleteMutation = useDeleteAutomation();
   const dispatchMutation = useDispatchAutomation();
 
-  const is404 =
-    isError && isAxiosError(error) && error.response?.status === 404;
+  const is404 = isError && getErrorStatus(error) === 404;
 
   // Show loading state while checking health
   if (isHealthLoading) {
@@ -159,13 +159,9 @@ export default function AutomationDetail() {
         displaySuccessToast(t(I18nKey.AUTOMATIONS$RUN_NOW_SUCCESS));
       },
       onError: (error) => {
-        const message = isAxiosError(error)
-          ? (error.response?.data as { message?: string } | undefined)
-              ?.message ||
-            error.message ||
-            t(I18nKey.AUTOMATIONS$RUN_NOW_ERROR)
-          : (error as Error).message || t(I18nKey.AUTOMATIONS$RUN_NOW_ERROR);
-        displayErrorToast(message);
+        displayErrorToast(
+          getApiErrorMessage(error, t(I18nKey.AUTOMATIONS$RUN_NOW_ERROR)),
+        );
       },
     });
   };

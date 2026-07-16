@@ -16,6 +16,15 @@ function requireCloudBackend(backend?: Backend): Backend {
   return active;
 }
 
+/**
+ * Send `X-Org-Id` so the upstream scopes per-request to the org the user
+ * selected locally, instead of the user's globally-shared `current_org_id`
+ * on the cloud backend. Restricted to calls against the active backend: the
+ * selector also fans out per-backend bookkeeping calls (e.g.
+ * `getCloudOrganizations(b)`) that would otherwise carry the active
+ * backend's orgId across an unrelated API key, which the cloud backend
+ * rejects when api_key_org_id and X-Org-Id disagree.
+ */
 function activeOrgForBackend(backend: Backend): string | null {
   const active = getActiveBackend();
   return active.backend.id === backend.id ? active.orgId : null;
@@ -30,6 +39,10 @@ export function createCloudClient(backend?: Backend): CloudClient {
     host: target.host,
     apiKey: target.apiKey,
     orgId: activeOrgForBackend(target),
+    // Default request timeout in ms, matching the 30s the previous axios
+    // transport used for direct and proxied calls. Per-request
+    // `timeoutSeconds` still overrides it for direct calls.
+    timeout: 30_000,
     ...(proxyBaseUrl
       ? {
           proxy: {
