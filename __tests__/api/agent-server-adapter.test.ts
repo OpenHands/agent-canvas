@@ -1445,7 +1445,7 @@ describe("buildStartConversationRequest — ACP discriminator", () => {
     expect(payload.agent_settings.acp_command).toEqual([
       "npx",
       "-y",
-      "@zed-industries/codex-acp@0.16.0",
+      "@agentclientprotocol/codex-acp@1.1.2",
     ]);
   });
 
