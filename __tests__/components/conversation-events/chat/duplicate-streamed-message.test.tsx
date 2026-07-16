@@ -176,4 +176,85 @@ describe("issue #1534 — streamed intermediate message duplication", () => {
 
     expect(countOccurrences(container.textContent ?? "", THOUGHT)).toBe(1);
   });
+
+  it("renders a single Thinking section when the action carries reasoning but has an empty thought array", () => {
+    const reasoningOnlyDelta: StreamingDeltaEvent = {
+      id: "delta-reasoning",
+      kind: "StreamingDeltaEvent",
+      timestamp: "2026-06-12T12:00:01Z",
+      source: "agent",
+      content: null,
+      reasoning_content: "Thinking about the tool to use...",
+    };
+
+    const actionWithReasoningOnly: ActionEvent = {
+      ...action,
+      thought: [], // empty thought text
+      reasoning_content: "Thinking about the tool to use...",
+    };
+
+    const allEvents = [
+      userMessage,
+      reasoningOnlyDelta,
+      actionWithReasoningOnly,
+      observation,
+    ];
+    const uiEvents = reduce(allEvents);
+
+    renderWithProviders(<Messages messages={uiEvents} allEvents={allEvents} />);
+
+    // Assert that we only have ONE CollapsibleThinking rendered
+    expect(screen.getAllByTestId("collapsible-thinking")).toHaveLength(1);
+
+    // Expand and verify the reasoning content matches
+    fireEvent.click(screen.getByTestId("collapsible-thinking-toggle"));
+    expect(
+      screen.getByTestId("collapsible-thinking-content").textContent ?? "",
+    ).toContain("Thinking about the tool to use...");
+  });
+
+  it("handles multiple streaming deltas and renders a single Thinking section when the action carries reasoning but empty thought", () => {
+    const delta1: StreamingDeltaEvent = {
+      id: "delta-1",
+      kind: "StreamingDeltaEvent",
+      timestamp: "2026-06-12T12:00:01Z",
+      source: "agent",
+      content: null,
+      reasoning_content: "Thinking",
+    };
+    const delta2: StreamingDeltaEvent = {
+      id: "delta-2",
+      kind: "StreamingDeltaEvent",
+      timestamp: "2026-06-12T12:00:02Z",
+      source: "agent",
+      content: null,
+      reasoning_content: " about the tool...",
+    };
+
+    const actionWithReasoningOnly: ActionEvent = {
+      ...action,
+      thought: [],
+      reasoning_content: "Thinking about the tool...",
+    };
+
+    const allEvents = [
+      userMessage,
+      delta1,
+      delta2,
+      actionWithReasoningOnly,
+      observation,
+    ];
+    const uiEvents = reduce(allEvents);
+
+    renderWithProviders(<Messages messages={uiEvents} allEvents={allEvents} />);
+
+    // Assert that we only have ONE CollapsibleThinking rendered
+    expect(screen.getAllByTestId("collapsible-thinking")).toHaveLength(1);
+
+    // Expand and verify the reasoning content matches
+    fireEvent.click(screen.getByTestId("collapsible-thinking-toggle"));
+    expect(
+      screen.getByTestId("collapsible-thinking-content").textContent ?? "",
+    ).toContain("Thinking about the tool...");
+  });
 });

@@ -101,25 +101,6 @@ const getCurrentTurnContentDeltas = (
     );
 };
 
-// The current step's streaming delta(s): the trailing run at the end of
-// `uiEvents`. Earlier steps' deltas are separated by their observations, so
-// this never folds an earlier step's delta into the current one.
-const getTrailingContentDeltas = (
-  uiEvents: OpenHandsEvent[],
-): { event: StreamingDeltaEvent; index: number }[] => {
-  const deltas: { event: StreamingDeltaEvent; index: number }[] = [];
-  for (let index = uiEvents.length - 1; index >= 0; index -= 1) {
-    const event = uiEvents[index];
-    if (!isStreamingDeltaEvent(event)) {
-      break;
-    }
-    if ((event.content?.length ?? 0) > 0) {
-      deltas.unshift({ event, index });
-    }
-  }
-  return deltas;
-};
-
 // Whether the streamed `segments` (in order) reconcile against `targetText`.
 // `lastMatchEnd` is the offset past the matched text, so callers can recover
 // any not-yet-streamed suffix. The SDK strips the finalized text, so it may
@@ -216,36 +197,59 @@ const supersedeStreamedThoughtWithAction = (
   uiEvents: OpenHandsEvent[],
 ): OpenHandsEvent[] | null => {
   const thoughtText = joinTextBlocks(action.thought);
-  if (!thoughtText) {
-    return null;
-  }
-
-  const contentDeltas = getTrailingContentDeltas(uiEvents);
-  if (contentDeltas.length === 0) {
-    return null;
-  }
-
-  const streamingSegments = contentDeltas.map(
-    ({ event }) => event.content ?? "",
-  );
-
-  // Only strip when the streamed text is the action's rendered thought.
-  if (!matchStreamedSegments(thoughtText, streamingSegments).matched) {
-    return null;
-  }
-
-  // Keeping the delta's reasoning would duplicate the action's own "Thinking".
   const actionRendersReasoning = getReasoningContent(action).trim().length > 0;
-  const indexesToStrip = new Set(contentDeltas.map(({ index }) => index));
+
+  if (!thoughtText && !actionRendersReasoning) {
+    return null;
+  }
+
+  // Get all trailing streaming deltas (both content-bearing and reasoning-only)
+  const deltas: { event: StreamingDeltaEvent; index: number }[] = [];
+  for (let index = uiEvents.length - 1; index >= 0; index -= 1) {
+    const event = uiEvents[index];
+    if (!isStreamingDeltaEvent(event)) {
+      break;
+    }
+    deltas.unshift({ event, index });
+  }
+
+  if (deltas.length === 0) {
+    return null;
+  }
+
+  // If the action has thought text, verify that the streamed content matches it
+  if (thoughtText) {
+    const contentDeltas = deltas.filter(
+      (d) => (d.event.content?.length ?? 0) > 0,
+    );
+    const streamingSegments = contentDeltas.map(
+      ({ event }) => event.content ?? "",
+    );
+    if (!matchStreamedSegments(thoughtText, streamingSegments).matched) {
+      return null;
+    }
+  }
+
+  const indexesToStrip = new Set(deltas.map(({ index }) => index));
   const nextUiEvents: OpenHandsEvent[] = [];
   uiEvents.forEach((event, index) => {
     if (!indexesToStrip.has(index) || !isStreamingDeltaEvent(event)) {
       nextUiEvents.push(event);
       return;
     }
-    // Keep the delta only to render reasoning the action itself lacks.
-    if (!actionRendersReasoning && event.reasoning_content) {
-      nextUiEvents.push({ ...event, content: null });
+
+    const keepContent = thoughtText ? false : (event.content?.length ?? 0) > 0;
+
+    const keepReasoning = actionRendersReasoning
+      ? false
+      : !!event.reasoning_content;
+
+    if (keepContent || keepReasoning) {
+      nextUiEvents.push({
+        ...event,
+        content: keepContent ? event.content : null,
+        reasoning_content: keepReasoning ? event.reasoning_content : null,
+      });
     }
   });
 
