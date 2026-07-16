@@ -95,7 +95,19 @@ export function GitRepoDropdown({
    * from "Most Recent" may not be present in those results yet, so use the
    * locally selected item as a fallback to keep the UI stable.
    */
-  const effectiveSelectedRepository = selectedRepository ?? localSelectedItem;
+  const effectiveSelectedRepository = useMemo(() => {
+    if (selectedRepository) return selectedRepository;
+    if (localSelectedItem) return localSelectedItem;
+    if (value && repositoryName) {
+      return {
+        id: value,
+        full_name: repositoryName,
+        git_provider: provider,
+        is_public: true,
+      } as GitRepository;
+    }
+    return null;
+  }, [selectedRepository, localSelectedItem, value, repositoryName, provider]);
 
   // Get recent repositories filtered by provider and input keyword
   const recentRepositories = useMemo(() => {

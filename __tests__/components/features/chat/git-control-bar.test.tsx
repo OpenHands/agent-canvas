@@ -155,6 +155,7 @@ describe("GitControlBar repo button visibility", () => {
     } as unknown as ReturnType<typeof useUpdateConversationRepository>);
     vi.mocked(useHomeStore).mockReturnValue({
       addRecentRepository: vi.fn(),
+      setRecentBranch: vi.fn(),
     } as unknown as ReturnType<typeof useHomeStore>);
     vi.mocked(useOptimisticUserMessageStore).mockImplementation(((
       selector: (s: unknown) => unknown,
@@ -237,6 +238,7 @@ describe("GitControlBar - Auto-scroll on clone (issue #817)", () => {
     } as unknown as ReturnType<typeof useUpdateConversationRepository>);
     vi.mocked(useHomeStore).mockReturnValue({
       addRecentRepository: vi.fn(),
+      setRecentBranch: vi.fn(),
     } as unknown as ReturnType<typeof useHomeStore>);
     vi.mocked(useOptimisticUserMessageStore).mockImplementation(((
       selector: (s: unknown) => unknown,

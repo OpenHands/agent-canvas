@@ -6,6 +6,7 @@ import { Provider } from "#/types/settings";
 interface HomeState {
   recentRepositories: GitRepository[];
   lastSelectedProvider: Provider | null;
+  recentBranches: Record<string, string>; // repository full_name -> branch name
 }
 
 interface HomeActions {
@@ -14,6 +15,8 @@ interface HomeActions {
   getRecentRepositories: () => GitRepository[];
   setLastSelectedProvider: (provider: Provider | null) => void;
   getLastSelectedProvider: () => Provider | null;
+  setRecentBranch: (repoFullName: string, branchName: string) => void;
+  getRecentBranch: (repoFullName: string) => string | null;
 }
 
 type HomeStore = HomeState & HomeActions;
@@ -21,6 +24,7 @@ type HomeStore = HomeState & HomeActions;
 const initialState: HomeState = {
   recentRepositories: [],
   lastSelectedProvider: null,
+  recentBranches: {},
 };
 
 export const useHomeStore = create<HomeStore>()(
@@ -46,6 +50,7 @@ export const useHomeStore = create<HomeStore>()(
       clearRecentRepositories: () =>
         set(() => ({
           recentRepositories: [],
+          recentBranches: {},
         })),
 
       getRecentRepositories: () => get().recentRepositories,
@@ -56,6 +61,17 @@ export const useHomeStore = create<HomeStore>()(
         })),
 
       getLastSelectedProvider: () => get().lastSelectedProvider,
+
+      setRecentBranch: (repoFullName: string, branchName: string) =>
+        set((state) => ({
+          recentBranches: {
+            ...state.recentBranches,
+            [repoFullName]: branchName,
+          },
+        })),
+
+      getRecentBranch: (repoFullName: string) =>
+        get().recentBranches[repoFullName] || null,
     }),
     {
       name: "home-store", // unique name for localStorage

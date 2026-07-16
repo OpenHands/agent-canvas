@@ -37,7 +37,7 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
   const [isOpenRepoModalOpen, setIsOpenRepoModalOpen] = useState(false);
   const [isWorkspaceMenuOpen, setIsWorkspaceMenuOpen] = useState(false);
   const workspaceMenuContainerRef = useRef<HTMLDivElement>(null);
-  const { addRecentRepository } = useHomeStore();
+  const { addRecentRepository, setRecentBranch } = useHomeStore();
   const enqueuePendingMessage = useOptimisticUserMessageStore(
     (state) => state.enqueuePendingMessage,
   );
@@ -142,6 +142,7 @@ export function GitControlBar({ onSuggestionsClick }: GitControlBarProps) {
 
     // Persist to recent repositories list (matches home page behavior)
     addRecentRepository(repository);
+    setRecentBranch(repository.full_name, branch.name);
 
     // Note: We update repository metadata first, then send clone command.
     // The clone command is sent to the agent via WebSocket (fire-and-forget).

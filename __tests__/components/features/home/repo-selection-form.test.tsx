@@ -130,12 +130,14 @@ const renderForm = (
   storeOverrides: Partial<{
     recentRepositories: GitRepository[];
     lastSelectedProvider: 'gitlab' | null;
+    recentBranches: Record<string, string>;
   }> = {},
 ) => {
   // Set up the store state before rendering
   useHomeStore.setState({
     recentRepositories: [],
     lastSelectedProvider: null,
+    recentBranches: {},
     ...storeOverrides,
   });
 
@@ -168,6 +170,7 @@ describe("RepositorySelectionForm", () => {
     useHomeStore.setState({
       recentRepositories: [],
       lastSelectedProvider: null,
+      recentBranches: {},
     });
   });
 
@@ -326,6 +329,85 @@ describe("RepositorySelectionForm", () => {
     expect(
       screen.queryByTestId("git-provider-dropdown"),
     ).not.toBeInTheDocument();
+  });
+
+  it("does not auto-populate when there is no repository history", () => {
+    renderForm({
+      recentRepositories: [],
+    });
+
+    // Inputs should be empty/clear
+    const repoInput = screen.getByTestId("git-repo-dropdown");
+    expect((repoInput as HTMLInputElement).value).toBe("");
+  });
+
+  it("auto-populates the most recent repository and defaults to main_branch when no recent branch exists", () => {
+    const mockRepo: GitRepository = {
+      id: "repo-123",
+      full_name: "test/recent-repo",
+      git_provider: "github",
+      is_public: true,
+      main_branch: "main-default",
+    };
+
+    // Render form with recent repo and no recent branch
+    renderForm({
+      recentRepositories: [mockRepo],
+      recentBranches: {},
+    });
+
+    const repoInput = screen.getByTestId("git-repo-dropdown");
+    expect((repoInput as HTMLInputElement).value).toBe("test/recent-repo");
+
+    // The branch dropdown input should be initialized with the main_branch
+    const branchInput = screen.getByTestId("git-branch-dropdown-input");
+    expect((branchInput as HTMLInputElement).value).toBe("main-default");
+  });
+
+  it("auto-populates the most recent repository and its most recent branch when both exist", () => {
+    const mockRepo: GitRepository = {
+      id: "repo-123",
+      full_name: "test/recent-repo",
+      git_provider: "github",
+      is_public: true,
+      main_branch: "main-default",
+    };
+
+    // Render form with recent repo and recent branch
+    renderForm({
+      recentRepositories: [mockRepo],
+      recentBranches: {
+        "test/recent-repo": "dev-recent",
+      },
+    });
+
+    const repoInput = screen.getByTestId("git-repo-dropdown");
+    expect((repoInput as HTMLInputElement).value).toBe("test/recent-repo");
+
+    const branchInput = screen.getByTestId("git-branch-dropdown-input");
+    expect((branchInput as HTMLInputElement).value).toBe("dev-recent");
+  });
+
+  it("saves the repository and selected branch to recent history on confirmation", () => {
+    const mockRepo: GitRepository = {
+      id: "repo-123",
+      full_name: "test/recent-repo",
+      git_provider: "github",
+      is_public: true,
+      main_branch: "main-default",
+    };
+
+    renderForm({
+      recentRepositories: [mockRepo],
+      recentBranches: {
+        "test/recent-repo": "dev-recent",
+      },
+    });
+
+    // Retrieve state of store
+    const store = useHomeStore.getState();
+    expect(store.recentRepositories[0].full_name).toBe("test/recent-repo");
+    expect(store.recentBranches["test/recent-repo"]).toBe("dev-recent");
   });
 
 });

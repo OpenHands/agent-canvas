@@ -12,6 +12,7 @@ import { GitRepoDropdown } from "#/components/features/home/git-repo-dropdown/gi
 import { GitBranchDropdown } from "#/components/features/home/git-branch-dropdown/git-branch-dropdown";
 import { GitProviderDropdown } from "#/components/features/home/git-provider-dropdown/git-provider-dropdown";
 import { useUserProviders } from "#/hooks/use-user-providers";
+import { useHomeStore } from "#/stores/home-store";
 
 interface OpenRepositoryModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ export function OpenRepositoryModal({
 }: OpenRepositoryModalProps) {
   const { t } = useTranslation("openhands");
   const { providers } = useUserProviders();
+  const { recentRepositories, recentBranches } = useHomeStore();
 
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(
     null,
@@ -36,8 +38,42 @@ export function OpenRepositoryModal({
     useState<GitRepository | null>(null);
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
 
+  // Auto-populate provider, repository and branch when modal opens
+  useEffect(() => {
+    if (isOpen && recentRepositories.length > 0 && !selectedRepository) {
+      const mostRecentRepo = recentRepositories[0];
+      if (providers.includes(mostRecentRepo.git_provider)) {
+        setSelectedProvider(mostRecentRepo.git_provider);
+        setSelectedRepository(mostRecentRepo);
+
+        const recentBranchName = recentBranches[mostRecentRepo.full_name];
+        if (recentBranchName) {
+          setSelectedBranch({
+            name: recentBranchName,
+            commit_sha: "",
+            protected: false,
+          });
+        } else if (mostRecentRepo.main_branch) {
+          setSelectedBranch({
+            name: mostRecentRepo.main_branch,
+            commit_sha: "",
+            protected: false,
+          });
+        }
+      }
+    }
+  }, [
+    isOpen,
+    recentRepositories,
+    recentBranches,
+    providers,
+    selectedRepository,
+  ]);
+
   // Auto-select provider: single provider auto-selects, multiple uses defaultProvider if available
   useEffect(() => {
+    if (selectedRepository) return; // Skip if we auto-populated the repository
+
     if (providers.length === 1 && !selectedProvider) {
       setSelectedProvider(providers[0]);
     } else if (providers.length > 1 && !selectedProvider && defaultProvider) {
@@ -45,7 +81,7 @@ export function OpenRepositoryModal({
         setSelectedProvider(defaultProvider);
       }
     }
-  }, [providers, selectedProvider, defaultProvider]);
+  }, [providers, selectedProvider, defaultProvider, selectedRepository]);
 
   const handleProviderChange = useCallback(
     (provider: Provider | null) => {
@@ -57,15 +93,29 @@ export function OpenRepositoryModal({
     [selectedProvider],
   );
 
-  const handleRepositoryChange = useCallback((repository?: GitRepository) => {
-    if (repository) {
-      setSelectedRepository(repository);
-      setSelectedBranch(null);
-    } else {
-      setSelectedRepository(null);
-      setSelectedBranch(null);
-    }
-  }, []);
+  const handleRepositoryChange = useCallback(
+    (repository?: GitRepository) => {
+      if (repository) {
+        setSelectedRepository(repository);
+
+        // Auto-select recent branch if it exists in history
+        const recentBranchName = recentBranches[repository.full_name];
+        if (recentBranchName) {
+          setSelectedBranch({
+            name: recentBranchName,
+            commit_sha: "",
+            protected: false,
+          });
+        } else {
+          setSelectedBranch(null);
+        }
+      } else {
+        setSelectedRepository(null);
+        setSelectedBranch(null);
+      }
+    },
+    [recentBranches],
+  );
 
   const handleBranchSelect = useCallback((branch: Branch | null) => {
     setSelectedBranch(branch);

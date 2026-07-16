@@ -55,9 +55,12 @@ export function RepositorySelectionForm({
 
   const { providers } = useUserProviders();
   const {
+    recentRepositories,
+    recentBranches,
     addRecentRepository,
     setLastSelectedProvider,
     getLastSelectedProvider,
+    setRecentBranch,
   } = useHomeStore();
   const {
     mutate: createConversation,
@@ -69,24 +72,54 @@ export function RepositorySelectionForm({
 
   const { t } = useTranslation("openhands");
 
-  // Auto-select provider logic
+  // Auto-populate provider, repository and branch on initialization
   React.useEffect(() => {
     if (providers.length === 0) return;
 
-    // If there's only one provider, auto-select it
-    if (providers.length === 1 && !selectedProvider) {
-      setSelectedProvider(providers[0]);
-      return;
-    }
+    // Only auto-populate on initial load when nothing is selected yet
+    if (!selectedProvider && !selectedRepository) {
+      const mostRecentRepo = recentRepositories[0];
+      if (mostRecentRepo && providers.includes(mostRecentRepo.git_provider)) {
+        setSelectedProvider(mostRecentRepo.git_provider);
+        setSelectedRepository(mostRecentRepo);
+        onRepoSelection?.(mostRecentRepo);
 
-    // If there are multiple providers and none is selected, try to use the last selected one
-    if (providers.length > 1 && !selectedProvider) {
-      const lastSelected = getLastSelectedProvider();
-      if (lastSelected && providers.includes(lastSelected)) {
-        setSelectedProvider(lastSelected);
+        const recentBranchName = recentBranches[mostRecentRepo.full_name];
+        if (recentBranchName) {
+          setSelectedBranch({
+            name: recentBranchName,
+            commit_sha: "",
+            protected: false,
+          });
+        } else if (mostRecentRepo.main_branch) {
+          setSelectedBranch({
+            name: mostRecentRepo.main_branch,
+            commit_sha: "",
+            protected: false,
+          });
+        }
+      } else {
+        // Fallback: If there's only one provider, auto-select it
+        if (providers.length === 1) {
+          setSelectedProvider(providers[0]);
+        } else {
+          // If there are multiple providers, try to use the last selected one
+          const lastSelected = getLastSelectedProvider();
+          if (lastSelected && providers.includes(lastSelected)) {
+            setSelectedProvider(lastSelected);
+          }
+        }
       }
     }
-  }, [providers, selectedProvider, getLastSelectedProvider]);
+  }, [
+    providers,
+    recentRepositories,
+    recentBranches,
+    onRepoSelection,
+    selectedProvider,
+    selectedRepository,
+    getLastSelectedProvider,
+  ]);
 
   // We check for isSuccess because the app might require time to render
   // into the new conversation screen after the conversation is created.
@@ -135,6 +168,18 @@ export function RepositorySelectionForm({
       if (repository) {
         onRepoSelection?.(repository);
         setSelectedRepository(repository);
+
+        // Auto-select recent branch if it exists in history
+        const recentBranchName = recentBranches[repository.full_name];
+        if (recentBranchName) {
+          setSelectedBranch({
+            name: recentBranchName,
+            commit_sha: "",
+            protected: false,
+          });
+        } else {
+          setSelectedBranch(null);
+        }
       } else {
         onRepoSelection?.(null); // Notify parent component that repo was cleared
         setSelectedRepository(null);
@@ -215,6 +260,7 @@ export function RepositorySelectionForm({
           // Persist the repository to recent repositories on every confirm so
           // the home launcher and the inline path stay in sync.
           addRecentRepository(selectedRepository);
+          setRecentBranch(selectedRepository.full_name, selectedBranch.name);
 
           if (onConfirm) {
             onConfirm({

@@ -132,11 +132,21 @@ export function GitBranchDropdown({
         : actionAndChanges.changes,
   });
 
+  const prevRepositoryRef = useRef<string | null>(null);
+
   // Reset branch selection when repository changes
   useEffect(() => {
     if (repository) {
-      onBranchSelect(null);
-      setUserManuallyCleared(false); // Reset the manual clear flag when repository changes
+      if (
+        prevRepositoryRef.current &&
+        prevRepositoryRef.current !== repository
+      ) {
+        onBranchSelect(null);
+        setUserManuallyCleared(false); // Reset the manual clear flag when repository changes
+      }
+      prevRepositoryRef.current = repository;
+    } else {
+      prevRepositoryRef.current = null;
     }
   }, [repository, onBranchSelect]);
 

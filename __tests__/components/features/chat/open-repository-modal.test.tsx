@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { OpenRepositoryModal } from "#/components/features/chat/open-repository-modal";
+import { useHomeStore } from "#/stores/home-store";
 
 // Mock react-i18next
 vi.mock("react-i18next", () => ({
@@ -109,6 +110,11 @@ describe("OpenRepositoryModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockProviders.current = ["github"];
+    useHomeStore.setState({
+      recentRepositories: [],
+      recentBranches: {},
+      lastSelectedProvider: null,
+    });
   });
 
   it("should not render when isOpen is false", () => {
@@ -380,6 +386,83 @@ describe("OpenRepositoryModal", () => {
       // Launch should be disabled (repo and branch reset)
       launchButton = screen.getByText("BUTTON$LAUNCH").closest("button");
       expect(launchButton).toBeDisabled();
+    });
+  });
+
+  describe("auto-population", () => {
+    it("does not auto-populate when there is no repository history", () => {
+      useHomeStore.setState({
+        recentRepositories: [],
+        recentBranches: {},
+      });
+
+      render(
+        <OpenRepositoryModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onLaunch={mockOnLaunch}
+        />,
+      );
+
+      // Launch button should be disabled as no repo is selected
+      const launchButton = screen.getByText("BUTTON$LAUNCH").closest("button");
+      expect(launchButton).toBeDisabled();
+    });
+
+    it("auto-populates repository and defaults to main_branch when no recent branch exists", () => {
+      const mockRepo = {
+        id: "repo-456",
+        full_name: "test/modal-repo",
+        git_provider: "github" as const,
+        is_public: true,
+        main_branch: "default-main-branch",
+      };
+
+      useHomeStore.setState({
+        recentRepositories: [mockRepo],
+        recentBranches: {},
+      });
+
+      render(
+        <OpenRepositoryModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onLaunch={mockOnLaunch}
+        />,
+      );
+
+      // Launch button should be enabled since both are auto-populated
+      const launchButton = screen.getByText("BUTTON$LAUNCH").closest("button");
+      expect(launchButton).not.toBeDisabled();
+    });
+
+    it("auto-populates repository and recent branch when both exist", () => {
+      const mockRepo = {
+        id: "repo-456",
+        full_name: "test/modal-repo",
+        git_provider: "github" as const,
+        is_public: true,
+        main_branch: "default-main-branch",
+      };
+
+      useHomeStore.setState({
+        recentRepositories: [mockRepo],
+        recentBranches: {
+          "test/modal-repo": "recent-branch-name",
+        },
+      });
+
+      render(
+        <OpenRepositoryModal
+          isOpen={true}
+          onClose={mockOnClose}
+          onLaunch={mockOnLaunch}
+        />,
+      );
+
+      // Launch button should be enabled
+      const launchButton = screen.getByText("BUTTON$LAUNCH").closest("button");
+      expect(launchButton).not.toBeDisabled();
     });
   });
 });
