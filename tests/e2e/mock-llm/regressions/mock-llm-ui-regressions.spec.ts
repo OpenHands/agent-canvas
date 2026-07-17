@@ -15,7 +15,7 @@ import type { ActionEvent, MessageEvent } from "#/types/agent-server/core";
 import { SecurityRisk } from "#/types/agent-server/core";
 import type { FinishAction } from "#/types/agent-server/core/base/action";
 import type { CriticResult } from "#/types/agent-server/core/base/critic";
-import { seedLocalStorage, routeSessionApiKey } from "../utils/mock-llm-helpers";
+import { seedLocalStorage, routeSessionApiKey, dismissAnalyticsModal } from "../utils/mock-llm-helpers";
 
 test.describe.configure({ mode: "serial" });
 
@@ -643,5 +643,81 @@ test.describe("UI regressions", () => {
     const dropdown = page.getByTestId("workspace-dropdown");
     await expect(dropdown).toBeEnabled({ timeout: 15_000 });
     await expect(dropdown).toHaveValue("");
+  });
+
+  test("repro/fix for issue #1813: long /btw responses can be scrolled and don't overflow the viewport", async ({
+    page,
+  }) => {
+    await routeSessionApiKey(page);
+
+    const CONVID = "btw-scrolling-test";
+
+    await page.route(/\/api\/conversations\?/, async (route, req) => {
+      if (req.method() !== "GET") {
+        await route.fallback();
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          {
+            id: CONVID,
+            conversation_id: CONVID,
+            status: "STOPPED",
+            execution_status: "stopped",
+            created_at: timestampForEvent(1),
+            selected_workspace_path: "/workspace/project",
+          },
+        ]),
+      });
+    });
+
+    await page.route(
+      `**/api/conversations/${CONVID}/events/search**`,
+      async (route, req) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ items: [], next_page_id: null }),
+        });
+      },
+    );
+
+    const longResponse = "paragraph text\n\n".repeat(200);
+    await page.route(
+      `**/api/conversations/${CONVID}/ask_agent`,
+      async (route, req) => {
+        if (req.method() !== "POST") {
+          await route.fallback();
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ response: longResponse }),
+        });
+      },
+    );
+
+    await page.goto(`/conversations/${CONVID}`, { waitUntil: "domcontentloaded" });
+    await dismissAnalyticsModal(page);
+
+    const chatInput = page.getByTestId("chat-input");
+    await chatInput.fill("/btw test question");
+    await chatInput.press("Enter");
+
+    const btwContainer = page.getByTestId("btw-response-container");
+    await expect(btwContainer).toBeVisible({ timeout: 15_000 });
+
+    const box = await btwContainer.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.height).toBeLessThanOrEqual(350);
+
+    const overflowY = await btwContainer.evaluate((el) => window.getComputedStyle(el).overflowY);
+    expect(overflowY).toBe("auto");
+
+    await expect(chatInput).toBeVisible();
+    await expect(chatInput).toBeEditable();
   });
 });

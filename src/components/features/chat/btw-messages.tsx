@@ -3,6 +3,7 @@ import { I18nKey } from "#/i18n/declaration";
 import { useBtwStore } from "#/stores/btw-store";
 import { GenericEventMessage } from "./generic-event-message";
 import { GotItButton } from "./got-it-button";
+import { MarkdownRenderer } from "../markdown/markdown-renderer";
 
 export interface BtwMessagesProps {
   conversationId: string | null | undefined;
@@ -38,9 +39,16 @@ export function BtwMessages({ conversationId }: BtwMessagesProps) {
               </span>
             }
             details={
-              isPending
-                ? t(I18nKey.CHAT_INTERFACE$BTW_WAITING_FOR_ANSWER)
-                : (entry.response ?? "")
+              isPending ? (
+                t(I18nKey.CHAT_INTERFACE$BTW_WAITING_FOR_ANSWER)
+              ) : (
+                <div
+                  data-testid="btw-response-container"
+                  className="max-h-[25vh] md:max-h-[350px] overflow-y-auto custom-scrollbar-always pr-2"
+                >
+                  <MarkdownRenderer>{entry.response ?? ""}</MarkdownRenderer>
+                </div>
+              )
             }
             initiallyExpanded={!isPending}
             chevronPosition="before"

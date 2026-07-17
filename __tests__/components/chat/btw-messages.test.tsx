@@ -67,4 +67,28 @@ describe("<BtwMessages />", () => {
       screen.queryByText(I18nKey.CHAT_INTERFACE$BTW_WAITING_FOR_ANSWER),
     ).toBeNull();
   });
+
+  it("renders resolved responses inside a scrollable container with max-height and custom scrollbar classes", () => {
+    const id = useBtwStore.getState().addPending(CONV, "why?");
+    useBtwStore.getState().resolve(CONV, id, "because");
+    render(<BtwMessages conversationId={CONV} />);
+
+    const container = screen.getByTestId("btw-response-container");
+    expect(container).toBeInTheDocument();
+    expect(container).toHaveClass("max-h-[25vh]");
+    expect(container).toHaveClass("md:max-h-[350px]");
+    expect(container).toHaveClass("overflow-y-auto");
+    expect(container).toHaveClass("custom-scrollbar-always");
+  });
+
+  it("handles very long responses in the container properly", () => {
+    const longResponse = "line\n".repeat(500);
+    const id = useBtwStore.getState().addPending(CONV, "why?");
+    useBtwStore.getState().resolve(CONV, id, longResponse);
+    render(<BtwMessages conversationId={CONV} />);
+
+    const container = screen.getByTestId("btw-response-container");
+    expect(container).toBeInTheDocument();
+    expect(container.textContent).toContain("line");
+  });
 });
