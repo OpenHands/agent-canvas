@@ -1,5 +1,5 @@
-import axios from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { HttpError } from "@openhands/typescript-client";
 import {
   __resetActiveStoreForTests,
   setRegisteredBackends,
@@ -10,8 +10,6 @@ import {
 } from "#/api/cloud/organization-service.api";
 import type { Backend } from "#/api/backend-registry/types";
 
-vi.mock("axios");
-
 const cloudBackend: Backend = {
   id: "prod",
   name: "Production",
@@ -20,35 +18,48 @@ const cloudBackend: Backend = {
   kind: "cloud",
 };
 
+const originalFetch = global.fetch;
+const fetchMock = vi.fn();
+
+function mockJsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    statusText: status === 200 ? "OK" : "Error",
+    headers: { "content-type": "application/json" },
+  });
+}
+
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
   setRegisteredBackends([]);
-  vi.mocked(axios.request).mockReset();
+  fetchMock.mockReset();
+  global.fetch = fetchMock as typeof fetch;
 });
 
 afterEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
-  vi.mocked(axios.request).mockReset();
+  fetchMock.mockReset();
+  global.fetch = originalFetch;
 });
 
 describe("cloud organization-service", () => {
   it("getCloudOrganizations calls the cloud API directly and returns normalized data", async () => {
-    vi.mocked(axios.request).mockResolvedValue({
-      data: {
+    fetchMock.mockResolvedValueOnce(
+      mockJsonResponse({
         items: [{ id: "org-1", name: "Personal" }],
         current_org_id: "org-1",
-      },
-    });
+      }),
+    );
 
     const result = await getCloudOrganizations(cloudBackend);
 
-    expect(axios.request).toHaveBeenCalledOnce();
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, init] = fetchMock.mock.calls[0]!;
 
-    expect(config).toMatchObject({
-      url: `${cloudBackend.host}/api/organizations`,
+    expect(url).toBe(`${cloudBackend.host}/api/organizations`);
+    expect(init).toMatchObject({
       method: "GET",
       headers: { Authorization: "Bearer bearer-token" },
     });
@@ -60,21 +71,21 @@ describe("cloud organization-service", () => {
   });
 
   it("getCurrentCloudApiKey hits /api/keys/current and returns the bound orgId", async () => {
-    vi.mocked(axios.request).mockResolvedValue({
-      data: {
+    fetchMock.mockResolvedValueOnce(
+      mockJsonResponse({
         id: "key-1",
         name: "k",
         org_id: "org-bound",
         user_id: "user-1",
         auth_type: "bearer",
-      },
-    });
+      }),
+    );
 
     const result = await getCurrentCloudApiKey(cloudBackend);
 
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
-    expect(config).toMatchObject({
-      url: `${cloudBackend.host}/api/keys/current`,
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe(`${cloudBackend.host}/api/keys/current`);
+    expect(init).toMatchObject({
       method: "GET",
       headers: { Authorization: "Bearer bearer-token" },
     });
@@ -82,11 +93,7 @@ describe("cloud organization-service", () => {
   });
 
   it("getCurrentCloudApiKey treats an upstream 400 as a legacy key (no binding)", async () => {
-    const error = Object.assign(new Error("Bad Request"), {
-      response: { status: 400 },
-    });
-    vi.mocked(axios.isAxiosError).mockReturnValueOnce(true);
-    vi.mocked(axios.request).mockRejectedValueOnce(error);
+    fetchMock.mockResolvedValueOnce(mockJsonResponse({ detail: "bad" }, 400));
 
     const result = await getCurrentCloudApiKey(cloudBackend);
 
@@ -94,12 +101,12 @@ describe("cloud organization-service", () => {
   });
 
   it("getCurrentCloudApiKey rethrows non-400 upstream errors (e.g. revoked key)", async () => {
-    const error = Object.assign(new Error("Unauthorized"), {
-      response: { status: 401 },
-    });
-    vi.mocked(axios.isAxiosError).mockReturnValueOnce(true);
-    vi.mocked(axios.request).mockRejectedValueOnce(error);
+    fetchMock.mockResolvedValueOnce(
+      mockJsonResponse({ detail: "unauthorized" }, 401),
+    );
 
-    await expect(getCurrentCloudApiKey(cloudBackend)).rejects.toBe(error);
+    await expect(getCurrentCloudApiKey(cloudBackend)).rejects.toBeInstanceOf(
+      HttpError,
+    );
   });
 });

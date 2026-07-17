@@ -11,6 +11,8 @@ export interface AutomationTrigger {
   schedule?: string;
   /** Human-readable schedule description (schedule triggers only). */
   schedule_human?: string;
+  /** IANA timezone name (schedule triggers only). */
+  timezone?: string;
   /** Event source, e.g. "github" (event triggers only). */
   source?: string;
   /** Event key pattern(s) to match, e.g. "pull_request.opened" or ["push", "release.*"]. */
@@ -27,6 +29,11 @@ export interface Automation {
   repository?: string;
   /** LLM/model profile name used for automation runs. */
   model?: string | null;
+  /**
+   * Maximum run time in seconds. `null`/omitted uses the server default
+   * (600s, 10 min); the server caps it at 1800s (30 min).
+   */
+  timeout?: number | null;
 
   created_at: string;
   updated_at: string;
@@ -36,6 +43,17 @@ export interface Automation {
   notification?: string;
   timezone?: string;
   last_triggered_at?: string | null;
+}
+
+export type AutomationSpec = Omit<
+  Automation,
+  "id" | "created_at" | "updated_at" | "last_triggered_at"
+>;
+
+export interface AutomationExportFile {
+  version: 1;
+  kind: "automation";
+  spec: AutomationSpec;
 }
 
 export interface AutomationsResponse {

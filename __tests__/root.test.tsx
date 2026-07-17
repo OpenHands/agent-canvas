@@ -608,6 +608,37 @@ describe("App root agent-server availability guard", () => {
     ).toBeNull();
   });
 
+  it("renders Cloud login directly for a fresh locked-to-Cloud first run", async () => {
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
+    vi.stubEnv("VITE_SESSION_API_KEY", "");
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_SESSION_API_KEY__;
+    __resetActiveStoreForTests();
+
+    renderApp(["/"]);
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("first-run-onboarding-screen"),
+      ).toBeInTheDocument();
+    });
+
+    expect(await screen.findByTestId("onboarding-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("add-backend-cloud-title")).toBeVisible();
+    expect(screen.getByTestId("add-backend-login-button")).toBeVisible();
+    expect(
+      screen.queryByTestId("onboarding-step-check-backend"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("onboarding-progress-bar"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("add-backend-close")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("add-backend-advanced-toggle"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("app-outlet")).not.toBeInTheDocument();
+  });
+
   it("hides first-run onboarding immediately after Cloud login completes in locked-to-Cloud mode (no flicker)", async () => {
     // Regression for hieptl's flicker report on PR #1389: after Cloud
     // login succeeds in locked-to-Cloud mode, the onboarding modal's
@@ -682,5 +713,22 @@ describe("App root document links", () => {
       type: "image/svg+xml",
       href: "/favicon.svg",
     });
+  });
+
+  it("prefixes document links when Canvas is mounted under a base path", () => {
+    // Arrange
+    vi.stubEnv("VITE_BASE_PATH", "/canvas");
+
+    // Act
+    const documentLinks = links();
+
+    // Assert
+    expect(documentLinks).toContainEqual({
+      rel: "icon",
+      type: "image/svg+xml",
+      href: "/canvas/favicon.svg",
+    });
+
+    vi.unstubAllEnvs();
   });
 });

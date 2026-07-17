@@ -1,6 +1,6 @@
 ---
 name: release
-description: Guide the release process for @openhands/agent-canvas — version bump on the release branch, QA, then tag to publish to npm and Docker.
+description: Guide the release process for @openhands/agent-canvas — review the release-please draft PR, mark it ready, merge it; the tag push publishes to npm and Docker.
 triggers:
 - release
 - new release
@@ -13,135 +13,71 @@ triggers:
 
 ## Overview
 
-Releases use a **long-lived release branch** model:
+Releases are **trunk-based and automated by release-please**, via the shared reusable
+workflows in [`OpenHands/release-actions`](https://github.com/OpenHands/release-actions):
 
-1. A `rel-X.Y.Z` branch is created from `main` at the start of a release cycle.
-2. QA and fixes land on the branch (cherry-picked from main or landed directly).
-3. When ready, a tag (`vX.Y.Z-rc.1`, `vX.Y.Z`, etc.) is pushed to the branch.
-4. The tag push triggers all downstream workflows automatically.
-5. **The release branch is never merged back to main.**
+1. PRs merge to `main` with **Conventional Commit titles** (`feat`, `fix`, `perf`, `docs`, `chore`, `build`, `ci`, `refactor`, `style`, `test`, `revert`). `.github/workflows/pr.yml` lints the title and applies the matching `type:` label; squash merge uses the PR title as the commit message.
+2. On every push to `main`, `.github/workflows/release.yml` runs release-please, which maintains a **draft release PR** titled `chore(main): release X.Y.Z` accumulating everything merged since the last release.
+3. The release PR pre-stages **every version bump**: `package.json`, `package-lock.json`, `config/defaults.json` (`versions.agentCanvas`), and the Docker image pins in `README.md` / `README.windows.md` (lines annotated with `x-release-please-version`).
+4. Marking the release PR **Ready for review** is the explicit cut-a-release signal: `.github/workflows/release-ready.yml` notifies `#proj-agent-canvas` on Slack and labels the PR `release: ready`.
+5. Merging the release PR makes release-please push the `vX.Y.Z` tag (using the org release App token) and create the GitHub Release. The same tag push triggers `npm-publish.yml` (npm) and `docker.yml` (multi-arch GHCR images).
 
-npm dist-tags by version tier:
+The next version is derived from the conventional-commit types merged since the last release: `fix` → patch, `feat` → minor, any `!` suffix or `BREAKING CHANGE` footer → major. Other types (`docs`, `chore`, `refactor`, …) appear in the release notes but do not by themselves produce a release PR. Release notes are grouped by the `type:` labels via `.github/release.yml`; there is no `CHANGELOG.md` file — GitHub Releases are the changelog.
 
-The workflow checks npm at publish time to see whether any full stable release (no pre-release suffix) has ever been published:
+Configuration lives in `release-please-config.json` (version surfaces, draft PR) and `.release-please-manifest.json` (current released version). Maintenance releases for an older line use `release/**` branches (`release.yml` triggers there too).
 
-**Before the first stable release** — all versions use `--tag latest`:
-
-| Version | Example | npm dist-tag | `npm install` resolves? |
-|---|---|---|---|
-| Alpha | `1.0.0-alpha.1` | `latest` | ✅ default |
-| Beta | `1.0.0-beta.1` | `latest` | ✅ default |
-| RC | `1.0.0-rc.1` | `latest` | ✅ default |
-| Stable | `1.0.0` | `latest` | ✅ default |
-
-**After the first stable release** — pre-release versions revert to their own dist-tags:
-
-| Version | Example | npm dist-tag | `npm install` resolves? |
-|---|---|---|---|
-| Alpha | `1.0.0-alpha.1` | `alpha` | `@alpha` only |
-| Beta | `1.0.0-beta.1` | `beta` | `@beta` only |
-| RC | `1.0.0-rc.1` | `rc` | `@rc` only |
-| Stable | `1.0.0` | `latest` | ✅ default |
-
-This transition is automatic — no workflow changes are needed when the first stable version ships.
+**Never commit to the release PR's branch by hand** — release-please owns it and force-pushes it on every push to `main`.
 
 ---
 
-## Step 1: Confirm the Release Branch Exists
-
-The branch must be named `rel-X.Y.Z` (e.g. `rel-1.0.0`). Check:
+## Step 1: Find the Release PR
 
 ```bash
-git branch -r | grep rel-
+gh pr list --state open --label "autorelease: pending"
 ```
 
-If it doesn't exist yet, create it from main:
+If no release PR is open, nothing releasable (`feat`/`fix`/breaking) has merged since the last release — or `release.yml` is failing on `main`:
 
 ```bash
-git checkout main && git pull origin main
-git checkout -b rel-<X.Y.Z>
-git push -u origin rel-<X.Y.Z>
+gh run list --workflow=release.yml --limit=3
 ```
-
-**STOP HERE if the branch doesn't exist.** Ask the user to confirm the release series (e.g. `1.0.0`) before creating it.
 
 ---
 
-## Step 2: Ensure `package.json` Version Is Set
+## Step 2: Review It
 
-The version in `package.json` must match the tag you're about to push.
+Open the release PR and confirm:
 
-Check the current version:
-
-```bash
-node -p "require('./package.json').version"
-```
-
-If it needs updating (e.g. bumping from `1.0.0-alpha.8` to `1.0.0-rc.1`), update both `package.json` and `package-lock.json`:
-
-```bash
-git checkout rel-<X.Y.Z>
-git pull origin rel-<X.Y.Z>
-npm version <new-version> --no-git-tag-version
-git add package.json package-lock.json
-git commit -m "chore: bump version to <new-version>"
-git push
-```
-
-**Also update the documented Docker install version** on the release branch before tagging (the `create-release.yml` workflow fails if `versions.agentCanvas` does not match the tag):
-
-```bash
-VERSION=<new-version>
-export VERSION
-node <<'NODE'
-const fs = require("fs");
-const version = process.env.VERSION;
-const configPath = "config/defaults.json";
-const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-config.versions.agentCanvas = version;
-fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
-const image = `${config.images.agentCanvas}:${version}`;
-const imageRefPattern = /ghcr\.io\/openhands\/agent-canvas:[^\s`"]+/g;
-for (const file of ["README.md", "README.windows.md"]) {
-  fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace(imageRefPattern, image));
-}
-NODE
-git add config/defaults.json README.md README.windows.md
-git commit -m "docs: update Docker install version to $VERSION"
-git push
-```
-
-External install docs on docs.openhands.dev are maintained separately; update them there when closing #1073. Pre-release Docker images are tagged by exact version only (`latest` is published for stable releases).
+- **The version** in the title matches expectations. It is computed from the merged commit types — if it looks wrong, check the conventional types of the PR titles merged since the last release. To force a specific version, merge a commit to `main` whose message contains a `Release-As: X.Y.Z` footer.
+- **The staged bumps** cover all version surfaces (`package.json`, `package-lock.json`, `config/defaults.json`, `README.md`, `README.windows.md`) and the notes list the expected changes.
 
 ---
 
-## Step 3: Push the Tag
+## Step 3: Cut the Release
 
-Confirm the branch is in the right state (CI green, QA done), then push the tag:
+**STOP HERE and confirm with the user before proceeding.** Marking the PR ready and merging it publishes to npm and GHCR.
 
 ```bash
-git checkout rel-<X.Y.Z>
-git pull origin rel-<X.Y.Z>
-git tag v<version>
-git push origin v<version>
+gh pr ready <release-pr-number>
 ```
 
-Examples:
-- First release candidate: `git tag v1.0.0-rc.1 && git push origin v1.0.0-rc.1`
-- Subsequent RC: `git tag v1.0.0-rc.2 && git push origin v1.0.0-rc.2`
-- Full release: `git tag v1.0.0 && git push origin v1.0.0`
-
-**The tag push is the release trigger.** Three workflows fire in parallel:
-
-| Workflow | What it does |
-|---|---|
-| `create-release.yml` | Creates the GitHub Release object with auto-generated notes |
-| `npm-publish.yml` | Builds and publishes to npm with the correct dist-tag |
-| `docker.yml` | Builds and pushes multi-arch Docker images to GHCR |
+This fires the release-ready gate: a Slack notification lands in `#proj-agent-canvas` and the PR is labeled `release: ready`. Then merge the release PR (squash, like any other PR).
 
 ---
 
-## Step 4: Verify the Release
+## Step 4: Watch the Pipeline
+
+Merging the release PR triggers `release.yml` on `main`, which pushes the `vX.Y.Z` tag and creates the GitHub Release; the tag push then fires the publish workflows:
+
+```bash
+gh run list --workflow=release.yml --limit=3
+gh run list --workflow=npm-publish.yml --limit=3
+gh run list --workflow=docker.yml --limit=3
+```
+
+---
+
+## Step 5: Verify the Release
 
 ```bash
 # GitHub release
@@ -149,38 +85,26 @@ gh release view v<version>
 
 # npm (allow ~2 min for publish to propagate)
 npm view @openhands/agent-canvas@<version>
-npm view @openhands/agent-canvas dist-tags  # confirm correct dist-tag
+npm view @openhands/agent-canvas dist-tags  # stable releases get `latest`
 
 # Docker
 docker pull ghcr.io/openhands/agent-canvas:<version>
 ```
 
-Monitor workflow runs:
-
-```bash
-gh run list --workflow=npm-publish.yml --limit=3
-gh run list --workflow=docker.yml --limit=3
-```
+External install docs on docs.openhands.dev are maintained separately; update them there when closing #1073.
 
 ---
 
 ## Troubleshooting
 
+### No release PR appears after merging to main
+Only `feat`, `fix`, and breaking changes produce a release PR. Also check `release.yml` runs on `main` — the workflow fails by design if the org secrets `RELEASE_APP_ID` / `RELEASE_APP_PRIVATE_KEY` are unavailable (a `GITHUB_TOKEN` fallback would create a tag that never triggers the publish workflows).
+
+### The proposed version is wrong
+The version comes from the conventional-commit history since the last release. Fix forward: merge a commit to `main` with a `Release-As: X.Y.Z` footer to pin the next version.
+
+### No Slack message when the PR was marked ready
+`SLACK_BOT_TOKEN` is optional by design — the gate still applies the `release: ready` label and the release proceeds normally.
+
 ### package.json version doesn't match the tag
-`npm-publish.yml` validates that `package.json` version equals the tag version and fails if they differ. Fix the version on the branch, push, then delete and re-push the tag:
-```bash
-git push origin :refs/tags/v<version>   # delete remote tag
-git tag -d v<version>                    # delete local tag
-# fix package.json, commit, push
-git tag v<version> && git push origin v<version>
-```
-
-### GitHub release already exists
-`create-release.yml` skips silently if the release already exists. To recreate it:
-```bash
-gh release delete v<version> --yes
-```
-Then the workflow will re-create it on the next tag push (or run it manually from the Actions tab).
-
-### npm publish failed mid-way
-Check the `npm-publish.yml` run logs. The dist-tag is resolved dynamically: if no stable release (no `-` in the version) has ever been published to npm, all versions use `latest`; once a stable version exists, pre-release versions use their own tag (`alpha` / `beta` / `rc`) and only stable versions use `latest`.
+This cannot happen in the normal flow: release-please bumps `package.json` in the release PR and tags the resulting merge commit, and `npm-publish.yml` validates they match. If it ever fails, someone pushed a tag by hand — delete the tag and let release-please own tagging.

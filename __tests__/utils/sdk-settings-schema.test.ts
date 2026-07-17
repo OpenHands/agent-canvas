@@ -183,7 +183,7 @@ describe("sdk settings schema helpers", () => {
   });
 
   it("treats empty object value as equivalent to null default (mcp_config serializer artifact)", () => {
-    // The backend serialises mcp_config=None as {} via a custom Pydantic
+    // The backend serializes absent mcp_config as {} via a custom Pydantic
     // serializer, but the schema default is null.  The view should stay
     // "basic" because an empty object is semantically the same as null.
     const withEmptyMcpConfig: Settings = {

@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router";
+import { HttpError } from "@openhands/typescript-client";
 
 import { I18nKey } from "#/i18n/declaration";
 
@@ -149,6 +150,24 @@ describe("AutomationDetail — Edit is local-only", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: I18nKey.AUTOMATIONS$DELETE }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("AutomationDetail — not-found handling", () => {
+  it("renders the not-found state when the lookup rejects with an HttpError 404", async () => {
+    // Arrange — cloud transport 404s surface as the shared client's HttpError.
+    vi.mocked(AutomationService.getAutomation).mockRejectedValue(
+      new HttpError(404, "Not Found", { detail: "No such automation" }),
+    );
+
+    // Act
+    renderDetail();
+
+    // Assert — the 404 branch renders NotFoundState instead of the generic
+    // error state.
+    expect(
+      await screen.findByText(I18nKey.AUTOMATIONS$DETAIL$NOT_FOUND_TITLE),
     ).toBeInTheDocument();
   });
 });

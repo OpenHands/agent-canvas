@@ -15,13 +15,16 @@ import {
 } from "#/components/features/plugins/build-plugins-view-model";
 import { usePluginsMarketplace } from "#/hooks/query/use-plugins-marketplace";
 import { usePlugins } from "#/hooks/query/use-plugins";
+import { useLocalPlugins } from "#/hooks/query/use-local-plugins";
 import { useInstallPlugin } from "#/hooks/mutation/use-install-plugin";
 import { useSetPluginEnabled } from "#/hooks/mutation/use-set-plugin-enabled";
 import { useUninstallPlugin } from "#/hooks/mutation/use-uninstall-plugin";
 import { useRefreshPlugin } from "#/hooks/mutation/use-refresh-plugin";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import { useNavigation } from "#/context/navigation-context";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
+import { buildPluginLaunchPath } from "#/utils/plugin-launch-url";
 import { settingsLikeMainScrollClassName } from "#/utils/settings-like-page-layout-classes";
 import {
   extensionModuleCardGridClassName,
@@ -32,11 +35,13 @@ import {
 export default function SkillsPluginsScreen() {
   const { t } = useTranslation("openhands");
   const { backend } = useActiveBackend();
+  const { navigate } = useNavigation();
   const isLocal = backend.kind === "local";
 
   const { data: marketplace, isLoading: marketplaceLoading } =
     usePluginsMarketplace();
   const { data: installed, isLoading: installedLoading } = usePlugins();
+  const { data: local, isLoading: localLoading } = useLocalPlugins();
 
   const installPlugin = useInstallPlugin();
   const setPluginEnabled = useSetPluginEnabled();
@@ -50,8 +55,8 @@ export default function SkillsPluginsScreen() {
   const [showAddModal, setShowAddModal] = React.useState(false);
 
   const plugins = React.useMemo(
-    () => buildPluginsViewModel(marketplace, installed),
-    [marketplace, installed],
+    () => buildPluginsViewModel(marketplace, installed, local),
+    [marketplace, installed, local],
   );
 
   const filteredPlugins = React.useMemo(
@@ -68,7 +73,7 @@ export default function SkillsPluginsScreen() {
     ? (plugins.find((plugin) => plugin.name === selectedName) ?? null)
     : null;
 
-  const isLoading = marketplaceLoading || installedLoading;
+  const isLoading = marketplaceLoading || installedLoading || localLoading;
 
   const pendingName =
     (setPluginEnabled.isPending
@@ -104,6 +109,15 @@ export default function SkillsPluginsScreen() {
 
   const handleRefresh = (plugin: PluginViewModel) => {
     refreshPlugin.mutate(plugin.name);
+  };
+
+  const handleStartConversation = (plugin: PluginViewModel) => {
+    if (!plugin.source) return;
+    navigate(
+      buildPluginLaunchPath([
+        { source: plugin.source, ref: plugin.ref, repo_path: plugin.repoPath },
+      ]),
+    );
   };
 
   return (
@@ -211,6 +225,9 @@ export default function SkillsPluginsScreen() {
               onInstall={() => handleInstall(selectedPlugin)}
               onUninstall={() => handleUninstall(selectedPlugin)}
               onRefresh={() => handleRefresh(selectedPlugin)}
+              onStartConversation={() =>
+                handleStartConversation(selectedPlugin)
+              }
               onClose={() => setSelectedName(null)}
             />
           )}

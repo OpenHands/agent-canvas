@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
+import { isSdkHttpError } from "#/api/agent-server-compatibility";
 import BashService from "#/api/bash-service/bash-service.api";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import type { SandboxStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
@@ -56,21 +57,44 @@ function sandboxIssueFromStatus(
 }
 
 /**
- * Detect "the runtime is unreachable" axios errors from the cloud
- * proxy. The proxy itself returns 5xx when the upstream sandbox is
- * gone; runtimes return 4xx/5xx for various ephemeral states. We
- * classify 5xx and network errors as "unreachable" so the modal can
- * render the sandbox-gone state instead of dumping an axios string.
+ * Detect "the runtime is unreachable" errors from the cloud proxy. The
+ * proxy itself returns 5xx when the upstream sandbox is gone; runtimes
+ * return 4xx/5xx for various ephemeral states. We classify 5xx and
+ * network errors as "unreachable" so the modal can render the
+ * sandbox-gone state instead of dumping a raw error. Cloud calls go
+ * through the shared TypeScript client and throw its `HttpError`;
+ * axios-shaped errors are still recognized as well.
  */
 function classifyFetchError(error: unknown): SandboxIssue | null {
-  if (!axios.isAxiosError(error)) return null;
-  // No response at all → DNS/connect/abort
-  if (!error.response) return "unreachable";
-  const status = error.response.status;
-  // Treat 502/503/504 (proxy can't reach upstream) and 404 (sandbox or
-  // resource no longer exists) as the sandbox being gone. We do not
-  // collapse 401/403 here — those are auth bugs we want to surface.
-  if (status === 404 || status >= 500) return "unreachable";
+  const status = axios.isAxiosError(error)
+    ? error.response?.status
+    : isSdkHttpError(error)
+      ? (error as { status: number }).status
+      : undefined;
+  if (status !== undefined) {
+    // Treat 502/503/504 (proxy can't reach upstream) and 404 (sandbox or
+    // resource no longer exists) as the sandbox being gone. We do not
+    // collapse 401/403 here — those are auth bugs we want to surface.
+    return status === 404 || status >= 500 ? "unreachable" : null;
+  }
+  // No status → the request never got a response. Axios reports these as
+  // response-less errors; fetch (the shared client) throws `TypeError`
+  // for network failures and `AbortError`/`TimeoutError` for timeouts,
+  // sometimes wrapped in a plain `Error` with the original as `cause`.
+  if (axios.isAxiosError(error) || error instanceof TypeError) {
+    return "unreachable";
+  }
+  if (error instanceof Error) {
+    const causeName = error.cause instanceof Error ? error.cause.name : null;
+    if (
+      error.name === "AbortError" ||
+      error.name === "TimeoutError" ||
+      causeName === "AbortError" ||
+      causeName === "TimeoutError"
+    ) {
+      return "unreachable";
+    }
+  }
   return null;
 }
 

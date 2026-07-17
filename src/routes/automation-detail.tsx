@@ -1,12 +1,13 @@
 import { useRef, useState } from "react";
 import { useParams } from "react-router";
-import { isAxiosError } from "axios";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import {
   displaySuccessToast,
   displayErrorToast,
 } from "#/utils/custom-toast-handlers";
+import { getApiErrorMessage } from "#/utils/api-error-message";
+import { getErrorStatus } from "#/hooks/query/use-settings";
 import { useAutomationDetail } from "#/hooks/query/use-automation-detail";
 import {
   useToggleAutomation,
@@ -30,6 +31,12 @@ import { BackendNotConfigured } from "#/components/features/automations/backend-
 import { DeleteConfirmationModal } from "#/components/features/automations/delete-confirmation-modal";
 import { EditAutomationModal } from "#/components/features/automations/detail/edit-automation-modal";
 import { useTracking } from "#/hooks/use-tracking";
+import AutomationService from "#/api/automation-service/automation-service.api";
+import {
+  getAutomationExportFilename,
+  serializeAutomation,
+} from "#/utils/automation-export";
+import { downloadBlob } from "#/utils/utils";
 
 export default function AutomationDetail() {
   const { t } = useTranslation("openhands");
@@ -67,13 +74,13 @@ export default function AutomationDetail() {
     enabled: isBackendHealthy && !backendChanged,
   });
 
-  const { trackPrebuiltAutomationEnabled } = useTracking();
+  const { trackPrebuiltAutomationEnabled, trackAutomationExported } =
+    useTracking();
   const toggleMutation = useToggleAutomation();
   const deleteMutation = useDeleteAutomation();
   const dispatchMutation = useDispatchAutomation();
 
-  const is404 =
-    isError && isAxiosError(error) && error.response?.status === 404;
+  const is404 = isError && getErrorStatus(error) === 404;
 
   // Show loading state while checking health
   if (isHealthLoading) {
@@ -152,15 +159,20 @@ export default function AutomationDetail() {
         displaySuccessToast(t(I18nKey.AUTOMATIONS$RUN_NOW_SUCCESS));
       },
       onError: (error) => {
-        const message = isAxiosError(error)
-          ? (error.response?.data as { message?: string } | undefined)
-              ?.message ||
-            error.message ||
-            t(I18nKey.AUTOMATIONS$RUN_NOW_ERROR)
-          : (error as Error).message || t(I18nKey.AUTOMATIONS$RUN_NOW_ERROR);
-        displayErrorToast(message);
+        displayErrorToast(
+          getApiErrorMessage(error, t(I18nKey.AUTOMATIONS$RUN_NOW_ERROR)),
+        );
       },
     });
+  };
+
+  const handleExport = () => {
+    const contents = `${JSON.stringify(serializeAutomation(automation), null, 2)}\n`;
+    downloadBlob(
+      new Blob([contents], { type: "application/json" }),
+      getAutomationExportFilename(automation),
+    );
+    trackAutomationExported({ backendKind: active.backend.kind });
   };
 
   // Edit is a local-backend-only feature in MVP — cloud automations
@@ -177,6 +189,10 @@ export default function AutomationDetail() {
             onToggle={handleToggle}
             onEdit={canEdit ? () => setShowEditModal(true) : undefined}
             onDelete={() => setShowDeleteModal(true)}
+            onExport={handleExport}
+            onDownloadTarball={() =>
+              AutomationService.downloadTarball(automation.id, automation.name)
+            }
             onRunNow={handleRunNow}
             isRunningNow={dispatchMutation.isPending}
           />
@@ -189,7 +205,7 @@ export default function AutomationDetail() {
             createdAt={automation.created_at}
             lastRunAt={automation.last_triggered_at}
           />
-          <ActivityLogSection automationId={automation.id} />
+          <ActivityLogSection automation={automation} />
           <DeleteConfirmationModal
             automationName={automation.name}
             isOpen={showDeleteModal}

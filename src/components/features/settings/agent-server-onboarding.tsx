@@ -12,6 +12,7 @@ import {
 } from "#/api/backend-registry/default-backend";
 import type { Backend } from "#/api/backend-registry/types";
 import { cn } from "#/utils/utils";
+import { buildAgentCanvasPath } from "#/utils/base-path";
 import { BrandButton } from "./brand-button";
 import { SettingsInput } from "./settings-input";
 import { I18nKey } from "#/i18n/declaration";
@@ -44,7 +45,7 @@ export function AgentServerConnectionForm({
   const shouldShowSectionHeader = showSectionHeader ?? isOnboarding;
 
   const reconnect = () => {
-    window.location.assign("/");
+    window.location.assign(buildAgentCanvasPath("/"));
   };
 
   const syncDefaultBackendInRegistry = () => {

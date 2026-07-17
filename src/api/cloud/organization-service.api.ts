@@ -1,4 +1,4 @@
-import axios from "axios";
+import { HttpError } from "@openhands/typescript-client";
 import { getActiveBackend } from "../backend-registry/active-store";
 import type { Backend } from "../backend-registry/types";
 import { callCloudProxy } from "./proxy";
@@ -75,7 +75,7 @@ export async function getCurrentCloudApiKey(
     });
     return { orgId: data?.org_id ?? null, isLegacyKey: false };
   } catch (e) {
-    if (axios.isAxiosError(e) && e.response?.status === 400) {
+    if (e instanceof HttpError && e.status === 400) {
       return { orgId: null, isLegacyKey: true };
     }
     throw e;
@@ -93,7 +93,7 @@ export async function getCurrentCloudApiKey(
  * `null` if the upstream omits it). `permissions` is the server-defined
  * permission set for that role (e.g. `edit_org_settings`); it is `null` on
  * older app-servers that don't return it, so callers fall back to the role.
- * See `useCanManageLlmProfiles`.
+ * See `useCanManageOrgProfiles`.
  */
 export async function getCloudOrganizationMe(
   orgId: string,

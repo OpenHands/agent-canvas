@@ -1,12 +1,18 @@
-"""Canvas UI control tool.
+"""Legacy conversation compatibility for the former Python Canvas UI tool.
 
-Shipped with Agent Canvas. Mounted into the agent-server container at
-``/canvas-tools`` and loaded via ``tool_module_qualnames`` so the agent can
-direct the frontend (navigate to a file, switch tabs, show a preview).
+New conversations define ``canvas_ui_control`` through the agent-server's
+``client_tools`` JSON API. The distinct name avoids colliding with this
+process-global legacy registration. This module remains importable because
+persisted conversations store
+``tool_module_qualnames = {"canvas_ui": "canvas_ui_tool"}`` and may contain
+``CanvasUIAction`` / ``CanvasUIObservation`` events. Agent-server imports the
+module before restoring those conversations so the legacy event kinds and tool
+registration remain resolvable.
 
 The server-side executor is a no-op that returns an acknowledgment. The actual
 UI effect happens client-side: the frontend watches the WebSocket stream for
-``ActionEvent``s with ``tool_name == "canvas_ui"`` and dispatches the command.
+legacy ``canvas_ui`` and current ``canvas_ui_control`` ActionEvents and dispatches
+the command.
 """
 
 from collections.abc import Sequence
@@ -127,7 +133,7 @@ class CanvasUITool(ToolDefinition[CanvasUIAction, CanvasUIObservation]):
         ]
 
 
-# Auto-register at import time. The agent-server imports this module via
-# tool_module_qualnames; this call wires the tool into the registry so it can
-# be referenced by name in conversation tool lists.
+# Persisted pre-client_tools conversations import this module by qualname before
+# restoring their agent and events. Keep the registration until those records
+# have a server-side migration path.
 register_tool("canvas_ui", CanvasUITool)

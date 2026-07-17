@@ -8,6 +8,7 @@ import { Settings } from "#/types/settings";
 import { DEFAULT_SETTINGS } from "#/services/settings";
 import { HelpLink } from "#/ui/help-link";
 import { modalTitleClassName } from "#/utils/modal-classes";
+import { buildAgentCanvasPath } from "#/utils/base-path";
 
 interface SettingsModalProps {
   settings?: Settings;
@@ -34,7 +35,7 @@ export function SettingsModal({ onClose, settings }: SettingsModalProps) {
           testId="advanced-settings-link"
           text={`${t(I18nKey.SETTINGS$DESCRIPTION)}. ${t(I18nKey.SETTINGS$FOR_OTHER_OPTIONS)} ${t(I18nKey.COMMON$SEE)}`}
           linkText={t(I18nKey.COMMON$ADVANCED_SETTINGS)}
-          href="/settings"
+          href={buildAgentCanvasPath("/settings")}
           suffix="."
           size="settings"
           linkColor="white"

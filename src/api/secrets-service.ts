@@ -1,4 +1,5 @@
 import { SettingsClient } from "@openhands/typescript-client/clients";
+import { isSdkHttpStatusError } from "./agent-server-compatibility";
 import { getActiveBackend } from "./backend-registry/active-store";
 import {
   createCloudSecret,
@@ -132,12 +133,16 @@ export class SecretsService {
         new SettingsClient(getAgentServerClientOptions()).deleteSecret(name),
       );
     } catch (error) {
-      // 404 means secret doesn't exist - treat as successful deletion
+      // 404 means secret doesn't exist - treat as successful deletion.
+      // Both the SDK's HttpError (status on the error itself) and
+      // axios-style errors (status under `response`) count.
       if (
-        error &&
-        typeof error === "object" &&
-        "response" in error &&
-        (error as { response?: { status?: number } }).response?.status === 404
+        isSdkHttpStatusError(error, 404) ||
+        (error &&
+          typeof error === "object" &&
+          "response" in error &&
+          (error as { response?: { status?: number } }).response?.status ===
+            404)
       ) {
         return;
       }

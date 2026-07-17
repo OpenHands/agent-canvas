@@ -72,6 +72,60 @@ describe("useAutoRefreshFilesOnEdit", () => {
     expect(invalidatedKeys).toContain("workspace-files");
     expect(invalidatedKeys).toContain("workspace-file-content");
     expect(invalidatedKeys).toContain("file_changes");
+    expect(invalidatedKeys).toContain("file_diff");
+  });
+
+  it.each(["ExecuteBashObservation", "TerminalObservation"])(
+    "refreshes only the git diff queries when a %s arrives",
+    (kind) => {
+      // Arrange
+      const client = new QueryClient();
+      const spy = vi.spyOn(client, "invalidateQueries");
+      renderHook(() => useAutoRefreshFilesOnEdit(), {
+        wrapper: makeWrapper(client),
+      });
+
+      // Act — bash observations are how `git commit` / shell file edits
+      // reach the event stream.
+      act(() => {
+        useEventStore
+          .getState()
+          .addEvent(makeObservationEvent("1", kind, "git commit -m 'done'"));
+      });
+
+      // Assert — the diff and commit-list queries refresh, and nothing
+      // else does (workspace file queries on every shell command would
+      // churn the Files tab; per-commit queries are immutable).
+      const invalidatedKeys = spy.mock.calls.map(
+        (call) => (call[0] as { queryKey: unknown[] }).queryKey[0],
+      );
+      expect(invalidatedKeys).toEqual([
+        "file_changes",
+        "file_diff",
+        "git_commits",
+      ]);
+    },
+  );
+
+  it("does not apply the file-editor read-only filter to bash commands", () => {
+    // Arrange — `READ_ONLY_COMMANDS` matches editor sub-commands; for bash
+    // observations `command` is a whole shell command line and must not be
+    // filtered even if it collides with an editor sub-command name.
+    const client = new QueryClient();
+    const spy = vi.spyOn(client, "invalidateQueries");
+    renderHook(() => useAutoRefreshFilesOnEdit(), {
+      wrapper: makeWrapper(client),
+    });
+
+    // Act
+    act(() => {
+      useEventStore
+        .getState()
+        .addEvent(makeObservationEvent("1", "ExecuteBashObservation", "view"));
+    });
+
+    // Assert
+    expect(spy).toHaveBeenCalled();
   });
 
   it("ignores read-only `view` observations", () => {
@@ -91,7 +145,7 @@ describe("useAutoRefreshFilesOnEdit", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
-  it("ignores non-file observation kinds", () => {
+  it("ignores observation kinds that are neither file-editor nor bash", () => {
     const client = new QueryClient();
     const spy = vi.spyOn(client, "invalidateQueries");
 
@@ -102,9 +156,7 @@ describe("useAutoRefreshFilesOnEdit", () => {
     act(() => {
       useEventStore
         .getState()
-        .addEvent(
-          makeObservationEvent("1", "ExecuteBashObservation", "ls"),
-        );
+        .addEvent(makeObservationEvent("1", "BrowserObservation", "navigate"));
     });
 
     expect(spy).not.toHaveBeenCalled();

@@ -1,27 +1,16 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSettings } from "#/hooks/query/use-settings";
 import SettingsService from "#/api/settings-service/settings-service.api";
+import { MCPConfig } from "#/types/settings";
+import type { MCPServerConfig } from "#/types/mcp-server";
 import {
-  MCPSHTTPServer,
-  MCPConfig,
-  MCPSSEServer,
-  MCPStdioServer,
-} from "#/types/settings";
-import { parseMcpConfig, toSdkMcpConfig } from "#/utils/mcp-config";
+  parseMcpConfig,
+  toMcpShttpServer,
+  toMcpSseServer,
+  toMcpStdioServer,
+  toSdkMcpConfig,
+} from "#/utils/mcp-config";
 import { SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
-
-type MCPServerType = "sse" | "stdio" | "shttp";
-
-interface MCPServerConfig {
-  type: MCPServerType;
-  name?: string;
-  url?: string;
-  api_key?: string;
-  timeout?: number;
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
-}
 
 export function useAddMcpServer() {
   const queryClient = useQueryClient();
@@ -40,28 +29,11 @@ export function useAddMcpServer() {
       };
 
       if (server.type === "sse") {
-        const sseServer: MCPSSEServer = {
-          ...(server.name && { name: server.name }),
-          url: server.url!,
-          ...(server.api_key && { api_key: server.api_key }),
-        };
-        newConfig.sse_servers.push(sseServer);
+        newConfig.sse_servers.push(toMcpSseServer(server));
       } else if (server.type === "stdio") {
-        const stdioServer: MCPStdioServer = {
-          name: server.name!,
-          command: server.command!,
-          ...(server.args && { args: server.args }),
-          ...(server.env && { env: server.env }),
-        };
-        newConfig.stdio_servers.push(stdioServer);
+        newConfig.stdio_servers.push(toMcpStdioServer(server));
       } else if (server.type === "shttp") {
-        const shttpServer: MCPSHTTPServer = {
-          ...(server.name && { name: server.name }),
-          url: server.url!,
-          ...(server.api_key && { api_key: server.api_key }),
-          ...(server.timeout !== undefined && { timeout: server.timeout }),
-        };
-        newConfig.shttp_servers.push(shttpServer);
+        newConfig.shttp_servers.push(toMcpShttpServer(server));
       }
 
       await SettingsService.saveSettings({

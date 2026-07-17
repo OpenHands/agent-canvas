@@ -103,11 +103,9 @@ function settingsWithMcpConfig(mcp_config: unknown) {
 
 function settingsWithGithubMcp() {
   return settingsWithMcpConfig({
-    mcpServers: {
-      github: {
-        url: GITHUB_HOSTED_MCP_URL,
-        auth: "github-token",
-      },
+    github: {
+      url: GITHUB_HOSTED_MCP_URL,
+      auth: { strategy: "bearer", value: "github-token" },
     },
   });
 }
@@ -120,7 +118,7 @@ describe("recommended automations", () => {
     setRegisteredBackends([localBackend]);
     setActiveSelection({ backendId: localBackend.id });
     mockUseSettings.mockReturnValue({
-      data: settingsWithMcpConfig({ mcpServers: {} }),
+      data: settingsWithMcpConfig({}),
     });
     // Pre-flight connectivity test must pass so save mutations are reached.
     vi.spyOn(McpService, "testServer").mockResolvedValue({
@@ -157,6 +155,7 @@ describe("recommended automations", () => {
       "slack-channel-monitor",
       "slack-standup-digest",
       "linear-triage-assistant",
+      "jira-issue-to-pr",
       "research-brief-writer",
       "incident-retrospective-drafter",
     ]);
@@ -182,7 +181,7 @@ describe("recommended automations", () => {
     expect(betaHeading).toHaveTextContent(
       I18nKey.RECOMMENDED_AUTOMATIONS$BETA_LABEL,
     );
-    expect(within(betaHeading).getByText("4")).toBeInTheDocument();
+    expect(within(betaHeading).getByText("5")).toBeInTheDocument();
 
     const betaSection = screen.getByTestId(
       "recommended-automations-beta-section",

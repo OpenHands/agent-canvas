@@ -1,7 +1,7 @@
-import type { MarketplacePlugin } from "#/api/plugins-service";
+import type { MarketplacePlugin, LocalPlugin } from "#/api/plugins-service";
 import type { InstalledPluginInfo } from "#/api/plugins-management-service";
 
-export type PluginStatusFilter = "all" | "installed" | "available";
+export type PluginStatusFilter = "all" | "installed" | "available" | "local";
 
 /**
  * A single row in the plugins management list, reconciling the dynamic
@@ -21,6 +21,11 @@ export interface PluginViewModel {
   version: string | null;
   /** Present in the marketplace catalog. */
   inCatalog: boolean;
+  /**
+   * Discovered from a local ambient directory (e.g. `~/.agents/plugins`).
+   * Read-only: it auto-loads into conversations and is not installed/managed.
+   */
+  isLocal: boolean;
 }
 
 /**
@@ -33,6 +38,7 @@ export interface PluginViewModel {
 export function buildPluginsViewModel(
   marketplace: MarketplacePlugin[] | undefined,
   installed: InstalledPluginInfo[] | undefined,
+  local: LocalPlugin[] | undefined = undefined,
 ): PluginViewModel[] {
   const byName = new Map<string, PluginViewModel>();
 
@@ -47,6 +53,7 @@ export function buildPluginsViewModel(
       enabled: false,
       version: null,
       inCatalog: true,
+      isLocal: false,
     });
   }
 
@@ -62,11 +69,37 @@ export function buildPluginsViewModel(
       enabled: entry.enabled,
       version: entry.version ?? null,
       inCatalog: existing?.inCatalog ?? false,
+      isLocal: false,
     });
   }
 
+  // Ambient local plugins are additive and read-only. A local plugin whose name
+  // is already installed or in the catalog is skipped — that managed entry is
+  // authoritative (the agent-server also folds enabled installed plugins into
+  // this list), so it must not spawn a duplicate read-only "Local" card.
+  for (const entry of local ?? []) {
+    if (byName.has(entry.name)) continue;
+    byName.set(entry.name, {
+      name: entry.name,
+      description: entry.description || null,
+      source: null,
+      ref: null,
+      repoPath: null,
+      installed: false,
+      enabled: false,
+      version: entry.version || null,
+      inCatalog: false,
+      isLocal: true,
+    });
+  }
+
+  // Sort installed first, then local, then available; alphabetical within each.
+  const rank = (plugin: PluginViewModel): number =>
+    plugin.installed ? 0 : plugin.isLocal ? 1 : 2;
+
   return Array.from(byName.values()).sort((a, b) => {
-    if (a.installed !== b.installed) return a.installed ? -1 : 1;
+    const rankDelta = rank(a) - rank(b);
+    if (rankDelta !== 0) return rankDelta;
     return a.name.localeCompare(b.name);
   });
 }
@@ -94,6 +127,10 @@ export function matchesPluginStatus(
   filter: PluginStatusFilter,
 ): boolean {
   if (filter === "installed") return plugin.installed;
-  if (filter === "available") return !plugin.installed;
+  // "Available" means installable from the catalog; local plugins are neither
+  // installed nor installable, so they are excluded here and grouped under
+  // "local" instead.
+  if (filter === "available") return !plugin.installed && !plugin.isLocal;
+  if (filter === "local") return plugin.isLocal;
   return true;
 }

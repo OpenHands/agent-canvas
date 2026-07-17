@@ -2,6 +2,7 @@ import { createInstance, type i18n as I18nInstance } from "i18next";
 import Backend from "i18next-http-backend";
 import LanguageDetector from "i18next-browser-languagedetector";
 import { initReactI18next } from "react-i18next";
+import { buildAgentCanvasPath } from "#/utils/base-path";
 
 // Re-export so library consumers (`@openhands/agent-canvas/i18n`) keep working
 // without pulling the 1 MB `translation.json` into the app build. Rollup drops
@@ -46,7 +47,7 @@ const initializeI18n = (instance: I18nInstance) => {
         defaultNS: OPENHANDS_I18N_NAMESPACE,
         fallbackNS: OPENHANDS_I18N_NAMESPACE,
         backend: {
-          loadPath: "/locales/{{lng}}/{{ns}}.json",
+          loadPath: buildAgentCanvasPath("/locales/{{lng}}/{{ns}}.json"),
         },
         // React escapes interpolated values at render time; leaving i18next's
         // default escaping on double-escapes them, turning paths like

@@ -18,6 +18,7 @@ interface PluginDetailModalProps {
   onUninstall: () => void;
   onRefresh: () => void;
   onClose: () => void;
+  onStartConversation?: () => void;
 }
 
 export function PluginDetailModal({
@@ -29,6 +30,7 @@ export function PluginDetailModal({
   onUninstall,
   onRefresh,
   onClose,
+  onStartConversation,
 }: PluginDetailModalProps) {
   const { t } = useTranslation("openhands");
   const actionsDisabled = isDisabled || isBusy;
@@ -62,6 +64,11 @@ export function PluginDetailModal({
           ) : null}
 
           <div className="flex flex-wrap gap-2">
+            {plugin.isLocal ? (
+              <span className={extensionModuleCardPillClassName}>
+                {t(I18nKey.SETTINGS$PLUGINS_FILTER_LOCAL)}
+              </span>
+            ) : null}
             {plugin.version ? (
               <span className={extensionModuleCardPillClassName}>
                 {t(I18nKey.SETTINGS$SKILLS_VERSION, {
@@ -120,10 +127,10 @@ export function PluginDetailModal({
                 {t(I18nKey.SETTINGS$PLUGINS_UNINSTALL)}
               </BrandButton>
             </>
-          ) : (
+          ) : plugin.isLocal ? null : (
             <BrandButton
               type="button"
-              variant="primary"
+              variant="secondary"
               testId={`plugin-detail-install-${plugin.name}`}
               isDisabled={actionsDisabled}
               onClick={onInstall}
@@ -135,6 +142,16 @@ export function PluginDetailModal({
               )}
             </BrandButton>
           )}
+          {plugin.source && onStartConversation ? (
+            <BrandButton
+              type="button"
+              variant="secondary"
+              testId={`plugin-detail-start-conversation-${plugin.name}`}
+              onClick={onStartConversation}
+            >
+              {t(I18nKey.COMMON$START_CONVERSATION)}
+            </BrandButton>
+          ) : null}
           <BrandButton
             type="button"
             variant="secondary"

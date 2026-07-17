@@ -68,6 +68,7 @@ jobs:
         run: |
           echo "agent_server_version=$(node -p "require('./config/defaults.json').versions.agentServer")" >> "$GITHUB_OUTPUT"
           echo "automation_version=$(node -p "require('./config/defaults.json').versions.automation")" >> "$GITHUB_OUTPUT"
+          echo "acp_constraint=$(node -p "require('./config/defaults.json').constraints.agentClientProtocol")" >> "$GITHUB_OUTPUT"
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -107,9 +108,14 @@ jobs:
       - name: Install openhands-sdk (for mock LLM server)
         env:
           AGENT_SERVER_VERSION: ${{ steps.defaults.outputs.agent_server_version }}
+          # Pin agent-client-protocol to the range openhands-sdk 1.35.0 is
+          # compatible with. acp 0.11.0 reordered the ACP prompt() args and
+          # breaks the SDK's ACP client; the mock ACP server runs from this
+          # venv, so keep it on the same acp version as the agent-server.
+          ACP_CONSTRAINT: ${{ steps.defaults.outputs.acp_constraint }}
         run: |
           uv venv .mock-llm-venv
-          uv pip install -p .mock-llm-venv "openhands-sdk==$AGENT_SERVER_VERSION"
+          uv pip install -p .mock-llm-venv "openhands-sdk==$AGENT_SERVER_VERSION" "$ACP_CONSTRAINT"
 
       - name: Pre-warm automation backend (uvx cache)
         env:

@@ -1,4 +1,5 @@
 import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
+import { AxiosError } from "axios";
 import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -7,11 +8,13 @@ import {
 } from "#/api/backend-registry/active-store";
 import { callCloudProxy } from "#/api/cloud/proxy";
 import type { Backend } from "#/api/backend-registry/types";
+import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import AgentServerGitService from "../../src/api/git-service/agent-server-git-service.api";
 
-const { mockGitChanges, mockGitDiff } = vi.hoisted(() => ({
+const { mockGitChanges, mockGitDiff, mockClientGet } = vi.hoisted(() => ({
   mockGitChanges: vi.fn(),
   mockGitDiff: vi.fn(),
+  mockClientGet: vi.fn(),
 }));
 
 vi.mock("@openhands/typescript-client/workspace/remote-workspace", () => ({
@@ -19,6 +22,9 @@ vi.mock("@openhands/typescript-client/workspace/remote-workspace", () => ({
     return {
       gitChanges: mockGitChanges,
       gitDiff: mockGitDiff,
+      // The commit endpoints go through the SDK's raw HttpClient (the
+      // typed wrappers don't know them).
+      client: { get: mockClientGet },
     };
   }),
 }));
@@ -32,6 +38,7 @@ describe("AgentServerGitService", () => {
     vi.clearAllMocks();
     mockGitChanges.mockReset();
     mockGitDiff.mockReset();
+    mockClientGet.mockReset();
     vi.mocked(RemoteWorkspace).mockClear();
   });
 
@@ -64,9 +71,9 @@ describe("AgentServerGitService", () => {
         apiKey: "my-session-key",
         workingDir: "workspace/project",
       });
-      expect(mockGitChanges).toHaveBeenCalledWith("/workspace/project", {
-        ref: "HEAD",
-      });
+      // No `ref`: the server auto-detects the base so committed (and
+      // pushed) changes stay visible.
+      expect(mockGitChanges).toHaveBeenCalledWith("/workspace/project");
     });
 
     test("preserves slashes in path when using workspace helper", async () => {
@@ -80,9 +87,7 @@ describe("AgentServerGitService", () => {
         pathWithSlashes,
       );
 
-      expect(mockGitChanges).toHaveBeenCalledWith(pathWithSlashes, {
-        ref: "HEAD",
-      });
+      expect(mockGitChanges).toHaveBeenCalledWith(pathWithSlashes);
     });
 
     test("maps V1 git statuses to V0 format", async () => {
@@ -127,9 +132,8 @@ describe("AgentServerGitService", () => {
         apiKey: "test-api-key",
         workingDir: "workspace/project",
       });
-      expect(mockGitDiff).toHaveBeenCalledWith("/workspace/project/file.ts", {
-        ref: "HEAD",
-      });
+      // No `ref`: must match getGitChanges' auto-detected base.
+      expect(mockGitDiff).toHaveBeenCalledWith("/workspace/project/file.ts");
     });
 
     test("preserves slashes in file path when using workspace helper", async () => {
@@ -143,7 +147,7 @@ describe("AgentServerGitService", () => {
         filePath,
       );
 
-      expect(mockGitDiff).toHaveBeenCalledWith(filePath, { ref: "HEAD" });
+      expect(mockGitDiff).toHaveBeenCalledWith(filePath);
     });
 
     test("returns the diff data from the response", async () => {
@@ -164,6 +168,121 @@ describe("AgentServerGitService", () => {
         original: "",
         diff: expectedDiff.diff,
       });
+    });
+  });
+
+  describe("getGitCommits", () => {
+    test("fetches recent commits via the raw client and maps to camelCase", async () => {
+      // Arrange
+      mockClientGet.mockResolvedValue({
+        data: {
+          commits: [
+            {
+              sha: "a".repeat(40),
+              short_sha: "aaaaaaa",
+              subject: "add logging",
+              author: "Agent",
+              timestamp: "2026-07-10T12:00:00+07:00",
+            },
+          ],
+          has_more: true,
+        },
+      });
+
+      // Act
+      const page = await AgentServerGitService.getGitCommits(
+        "http://localhost:3000/api/conversations/123",
+        "test-api-key",
+        "/workspace/project",
+      );
+
+      // Assert
+      expect(mockClientGet).toHaveBeenCalledWith("/api/git/commits", {
+        params: { path: "/workspace/project", limit: "50" },
+      });
+      expect(page).toEqual({
+        commits: [
+          {
+            sha: "a".repeat(40),
+            shortSha: "aaaaaaa",
+            subject: "add logging",
+            author: "Agent",
+            timestamp: "2026-07-10T12:00:00+07:00",
+          },
+        ],
+        hasMore: true,
+      });
+    });
+
+    test("resolves null when the agent server predates the endpoint (404)", async () => {
+      // Arrange — the SDK HttpClient throws a raw HttpError carrying status.
+      mockClientGet.mockRejectedValue(
+        Object.assign(new Error("Not Found"), {
+          name: "HttpError",
+          status: 404,
+        }),
+      );
+
+      // Act
+      const page = await AgentServerGitService.getGitCommits(
+        "http://localhost:3000/api/conversations/123",
+        "test-api-key",
+        "/workspace/project",
+      );
+
+      // Assert
+      expect(page).toBeNull();
+    });
+  });
+
+  describe("getCommitChanges", () => {
+    test("fetches a commit's files and maps statuses to the client format", async () => {
+      // Arrange
+      const sha = "b".repeat(40);
+      mockClientGet.mockResolvedValue({
+        data: [{ status: "DELETED", path: "doomed.txt" }],
+      });
+
+      // Act
+      const changes = await AgentServerGitService.getCommitChanges(
+        "http://localhost:3000/api/conversations/123",
+        "test-api-key",
+        "/workspace/project",
+        sha,
+      );
+
+      // Assert
+      expect(mockClientGet).toHaveBeenCalledWith(
+        `/api/git/commits/${sha}/changes`,
+        { params: { path: "/workspace/project" } },
+      );
+      expect(changes).toEqual([{ status: "D", path: "doomed.txt" }]);
+    });
+  });
+
+  describe("getGitChangeDiff with commit", () => {
+    test("fetches the per-commit diff via the raw client, not the wrapper", async () => {
+      // Arrange
+      const sha = "c".repeat(40);
+      mockClientGet.mockResolvedValue({
+        data: { modified: "", original: "contents" },
+      });
+
+      // Act
+      const diff = await AgentServerGitService.getGitChangeDiff(
+        "123",
+        "http://localhost:3000/api/conversations/123",
+        "test-api-key",
+        "/workspace/project/doomed.txt",
+        sha,
+      );
+
+      // Assert
+      expect(mockClientGet).toHaveBeenCalledWith("/api/git/diff", {
+        params: { path: "/workspace/project/doomed.txt", commit: sha },
+      });
+      expect(mockGitDiff).not.toHaveBeenCalled();
+      expect(diff).toEqual({ modified: "", original: "contents" });
     });
   });
 
@@ -266,6 +385,53 @@ describe("AgentServerGitService", () => {
           original: "old content",
           modified: "new content",
         });
+      });
+    });
+
+    describe("getGitCommits", () => {
+      test("reaches the runtime through the generic cloud-proxy envelope", async () => {
+        // Arrange
+        vi.mocked(callCloudProxy).mockResolvedValue({
+          commits: [],
+          has_more: false,
+        });
+
+        // Act
+        await AgentServerGitService.getGitCommits(
+          runtimeConversationUrl,
+          "session-key",
+          "workspace/project",
+        );
+
+        // Assert — session-api-key envelope to the conversation's runtime
+        // host, with the git path normalized to an absolute runtime path.
+        expect(callCloudProxy).toHaveBeenCalledWith({
+          backend: cloudBackend,
+          method: "GET",
+          hostOverride: buildHttpBaseUrl(runtimeConversationUrl),
+          path: "/api/git/commits?path=%2Fworkspace%2Fproject&limit=50",
+          authMode: "session-api-key",
+          sessionApiKey: "session-key",
+        });
+      });
+
+      test("resolves null when the runtime predates the endpoint (404)", async () => {
+        // Arrange — the proxy hop surfaces upstream failures as AxiosErrors.
+        vi.mocked(callCloudProxy).mockRejectedValue(
+          Object.assign(new AxiosError("Not Found"), {
+            response: { status: 404 },
+          }),
+        );
+
+        // Act
+        const page = await AgentServerGitService.getGitCommits(
+          runtimeConversationUrl,
+          "session-key",
+          "workspace/project",
+        );
+
+        // Assert
+        expect(page).toBeNull();
       });
     });
 

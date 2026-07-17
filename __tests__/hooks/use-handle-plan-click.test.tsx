@@ -289,6 +289,7 @@ describe("useHandlePlanClick", () => {
         {
           parentConversationId: conversationId,
           agentType: "plan",
+          entryPoint: "plan_sub_conversation",
         },
         expect.objectContaining({
           onSuccess: expect.any(Function),

@@ -14,16 +14,20 @@ import type {
 } from "@openhands/extensions/integrations";
 import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
 import { ExtendedMCPTestFailure, MCPServerConfig } from "#/types/mcp-server";
+import type { MCPAuthCredential } from "#/types/mcp-auth";
 import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
 import { useTestMcpServer } from "#/hooks/mutation/use-test-mcp-server";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
 import {
+  getMcpOAuthAuthenticationConfig,
   getInstallableMcpConnectionOption,
   type McpMarketplaceConnectionOption,
 } from "#/utils/mcp-marketplace-utils";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import { useSaveFieldsAsSecrets } from "#/hooks/mutation/use-save-fields-as-secrets";
 import { modalTitleLgClassName } from "#/utils/modal-classes";
+import McpService from "#/api/mcp-service/mcp-service.api";
+import { toMcpServerName } from "#/utils/mcp-server-name";
 
 /**
  * Renders a helperText string as React nodes, converting any `[text](url)`
@@ -76,7 +80,13 @@ function optionNeedsCredentialField(
   if (option?.transport.kind !== "shttp" && option?.transport.kind !== "sse") {
     return false;
   }
-  return ["api_key", "bearer", "basic"].includes(option.auth.strategy);
+  return ["api_key", "bearer"].includes(option.auth.strategy);
+}
+
+function isOAuthOption(
+  option: McpMarketplaceConnectionOption | undefined,
+): boolean {
+  return !!option && option.auth.strategy === "oauth2";
 }
 
 function isCredentialOptional(option: McpMarketplaceConnectionOption): boolean {
@@ -84,6 +94,15 @@ function isCredentialOptional(option: McpMarketplaceConnectionOption): boolean {
     return option.auth.apiKeyOptional ?? false;
   }
   return option.auth.apiKeyOptional ?? option.transport.apiKeyOptional ?? false;
+}
+
+function getRemoteHeaderFields(
+  option: McpMarketplaceConnectionOption | undefined,
+): MarketplaceField[] {
+  if (option?.transport.kind !== "shttp" && option?.transport.kind !== "sse") {
+    return [];
+  }
+  return option.transport.headerFields ?? [];
 }
 
 function makeInitialState(entry: MarketplaceEntry): FieldState {
@@ -100,11 +119,18 @@ function makeInitialState(entry: MarketplaceEntry): FieldState {
     for (const field of template.argFields ?? []) {
       values[field.key] = "";
     }
-  } else if (optionNeedsCredentialField(option)) {
-    values.api_key = "";
-    if (option?.auth.credentialSecretName) {
-      savedAsSecret.api_key =
-        option.auth.saveCredentialAsSecretByDefault ?? false;
+  } else if (template?.kind === "shttp" || template?.kind === "sse") {
+    values.url = template.url;
+    for (const field of getRemoteHeaderFields(option)) {
+      values[field.key] = "";
+      savedAsSecret[field.key] = field.type === "password";
+    }
+    if (optionNeedsCredentialField(option)) {
+      values.api_key = "";
+      if (option?.auth.credentialSecretName) {
+        savedAsSecret.api_key =
+          option.auth.saveCredentialAsSecretByDefault ?? false;
+      }
     }
   }
   return { values, errors: {}, savedAsSecret };
@@ -136,10 +162,12 @@ export function InstallServerModal({
 
   const [globalError, setGlobalError] = React.useState<string | null>(null);
   const [isFinalizingInstall, setIsFinalizingInstall] = React.useState(false);
+  const [isAuthorizingOAuth, setIsAuthorizingOAuth] = React.useState(false);
   const option = getInstallableMcpConnectionOption(entry);
   const template = option?.transport;
 
-  const isPending = isTesting || isAdding || isFinalizingInstall;
+  const isPending =
+    isTesting || isAuthorizingOAuth || isAdding || isFinalizingInstall;
 
   const setValue = (key: string, value: string) => {
     setState((prev) => ({
@@ -185,7 +213,14 @@ export function InstallServerModal({
       );
     }
     if (template?.kind === "shttp" || template?.kind === "sse") {
-      return saveHostedCredentialAsSecret();
+      return Promise.all([
+        saveHostedCredentialAsSecret(),
+        saveFieldsAsSecrets(
+          getRemoteHeaderFields(option),
+          stateRef.current.values,
+          stateRef.current.savedAsSecret,
+        ),
+      ]).then(() => undefined);
     }
     return Promise.resolve();
   };
@@ -204,6 +239,46 @@ export function InstallServerModal({
   };
 
   const submitServer = (payload: MCPServerConfig) => {
+    if (payload.auth?.strategy === "oauth2") {
+      setIsAuthorizingOAuth(true);
+      void McpService.authorizeOAuth(payload)
+        .then((result) => {
+          if (!result.ok) {
+            setGlobalError(makeTestErrorMessage(result));
+            return;
+          }
+          const serverToSave = result.oauth_state
+            ? {
+                ...payload,
+                auth: { ...payload.auth!, state: result.oauth_state },
+              }
+            : payload;
+          addMcpServer(serverToSave, {
+            onSuccess: () => {
+              displaySuccessToast(t(I18nKey.MCP$INSTALL_SUCCESS));
+              setIsFinalizingInstall(true);
+              void (async () => {
+                try {
+                  await saveSelectedSecrets();
+                } finally {
+                  onSuccess?.(entry);
+                  onClose();
+                }
+              })();
+            },
+            onError: (err: unknown) => {
+              const message = retrieveAxiosErrorMessage(err as AxiosError);
+              setGlobalError(message || t(I18nKey.ERROR$GENERIC));
+            },
+          });
+        })
+        .catch((err: unknown) => {
+          const message = retrieveAxiosErrorMessage(err as AxiosError);
+          setGlobalError(message || t(I18nKey.ERROR$GENERIC));
+        })
+        .finally(() => setIsAuthorizingOAuth(false));
+      return;
+    }
     testMcpServer(payload, {
       onSuccess: (result) => {
         if (!result.ok) {
@@ -211,7 +286,14 @@ export function InstallServerModal({
           // Modal stays open — do NOT call onClose.
           return;
         }
-        addMcpServer(payload, {
+        const serverToSave =
+          result.oauth_state && payload.auth?.strategy === "oauth2"
+            ? {
+                ...payload,
+                auth: { ...payload.auth, state: result.oauth_state },
+              }
+            : payload;
+        addMcpServer(serverToSave, {
           onSuccess: () => {
             displaySuccessToast(t(I18nKey.MCP$INSTALL_SUCCESS));
             setIsFinalizingInstall(true);
@@ -250,23 +332,83 @@ export function InstallServerModal({
     }
     if (!option) return;
     const apiKey = state.values.api_key?.trim() ?? "";
+    const url = template.urlEditable
+      ? (state.values.url?.trim() ?? "")
+      : template.url;
+    const oauthMode = isOAuthOption(option);
     const needsCredential = optionNeedsCredentialField(option);
-    if (needsCredential && !isCredentialOptional(option) && !apiKey) {
-      setState((prev) => ({
-        ...prev,
-        errors: { api_key: t(I18nKey.MCP$ERROR_FIELD_REQUIRED) },
-      }));
+    const headerFields = getRemoteHeaderFields(option);
+    const headerErrors: Record<string, string | null> = {};
+    if (!url) {
+      headerErrors.url = t(I18nKey.SETTINGS$MCP_ERROR_URL_REQUIRED);
+    } else {
+      try {
+        const parsedUrl = new URL(url);
+        if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+          headerErrors.url = t(I18nKey.SETTINGS$MCP_ERROR_URL_INVALID_PROTOCOL);
+        }
+      } catch {
+        headerErrors.url = t(I18nKey.SETTINGS$MCP_ERROR_URL_INVALID);
+      }
+    }
+    for (const field of headerFields) {
+      if (field.required && !(state.values[field.key] ?? "").trim()) {
+        headerErrors[field.key] = t(I18nKey.MCP$ERROR_FIELD_REQUIRED);
+      }
+    }
+    if (
+      !oauthMode &&
+      needsCredential &&
+      !isCredentialOptional(option) &&
+      !apiKey
+    ) {
+      headerErrors.api_key = t(I18nKey.MCP$ERROR_FIELD_REQUIRED);
+    }
+    if (Object.values(headerErrors).some(Boolean)) {
+      setState((prev) => ({ ...prev, errors: headerErrors }));
       return;
+    }
+    const oauthAuthentication = oauthMode
+      ? getMcpOAuthAuthenticationConfig(option)
+      : undefined;
+    const fieldHeaders = Object.fromEntries(
+      headerFields
+        .map((field) => [field.key, state.values[field.key]?.trim() ?? ""])
+        .filter(([, value]) => value),
+    );
+    const hasFieldHeaders = Object.keys(fieldHeaders).length > 0;
+    let auth: MCPAuthCredential | undefined;
+    if (oauthMode) {
+      auth = {
+        strategy: "oauth2",
+        ...(oauthAuthentication && { authentication: oauthAuthentication }),
+      };
+    } else if (needsCredential && apiKey) {
+      auth =
+        option.auth.strategy === "api_key"
+          ? {
+              strategy: "api_key",
+              value: apiKey,
+              ...(option.auth.apiKeyHeaderName && {
+                header_name: option.auth.apiKeyHeaderName,
+              }),
+            }
+          : { strategy: "bearer", value: apiKey };
+    } else if (hasFieldHeaders) {
+      auth = { strategy: "header", headers: fieldHeaders };
     }
     const payload: MCPServerConfig = {
       id: `${template.kind}-${uuidv4()}`,
       type: template.kind,
       // Name remote servers after the catalog slug (e.g. "github") so they
-      // get a referenceable mcp_config key instead of the auto-generated
-      // "sse"/"shttp" fallback. Stdio installs already carry serverName.
-      name: entry.id,
-      url: template.url,
-      ...(needsCredential && apiKey && { api_key: apiKey }),
+      // get a referenceable, LLM-tool-safe mcp_config key instead of the
+      // auto-generated "sse"/"shttp" fallback. Stdio installs already carry
+      // serverName from the catalog.
+      name: toMcpServerName(entry.id),
+      url,
+      ...(auth && { auth }),
+      ...(hasFieldHeaders &&
+        auth?.strategy !== "header" && { headers: fieldHeaders }),
     };
     submitServer(payload);
   };
@@ -329,9 +471,11 @@ export function InstallServerModal({
 
   const renderFields = () => {
     if (template?.kind === "shttp" || template?.kind === "sse") {
+      const oauthMode = isOAuthOption(option);
       const shouldRenderCredential = optionNeedsCredentialField(option);
       const apiKeyOptional = option ? isCredentialOptional(option) : false;
       const credentialSecretName = option?.auth.credentialSecretName;
+      const headerFields = getRemoteHeaderFields(option);
       return (
         <>
           <SettingsInput
@@ -339,12 +483,60 @@ export function InstallServerModal({
             name="url"
             type="url"
             label={t(I18nKey.SETTINGS$MCP_URL)}
-            value={template.url}
-            onChange={() => {}}
-            isDisabled
+            value={state.values.url ?? template.url}
+            onChange={(value) => setValue("url", value)}
+            isDisabled={!template.urlEditable}
             className="w-full"
           />
-          {shouldRenderCredential ? (
+          {state.errors.url && (
+            <p className="text-xs text-red-500">{state.errors.url}</p>
+          )}
+          {headerFields.map((field) => (
+            <div key={field.key} className="flex flex-col gap-1">
+              <SettingsInput
+                testId={`mcp-install-field-${field.key}`}
+                name={field.key}
+                type={field.type === "password" ? "password" : "text"}
+                label={field.label}
+                value={state.values[field.key] ?? ""}
+                onChange={(v) => setValue(field.key, v)}
+                placeholder={field.placeholder}
+                required={field.required}
+                showOptionalTag={!field.required}
+                className="w-full"
+              />
+              {field.helperText && (
+                <p className="text-xs text-tertiary-alt">
+                  {renderHelperText(field.helperText)}
+                </p>
+              )}
+              {state.errors[field.key] && (
+                <p className="text-xs text-red-500">
+                  {state.errors[field.key]}
+                </p>
+              )}
+              {field.key in state.savedAsSecret && (
+                <SaveAsSecretToggle
+                  fieldKey={field.key}
+                  checked={state.savedAsSecret[field.key] ?? false}
+                  onToggle={(v) => toggleSecret(field.key, v)}
+                />
+              )}
+            </div>
+          ))}
+          {oauthMode ? (
+            <div
+              data-testid="mcp-install-oauth-info"
+              className="flex flex-col gap-2 p-3 rounded-lg border border-[var(--oh-border)] bg-base-tertiary"
+            >
+              <p className="text-sm text-secondary-light">
+                {t(I18nKey.MCP$OAUTH_CONNECT_INFO)}
+              </p>
+              <p className="text-xs text-tertiary-alt">
+                {t(I18nKey.MCP$OAUTH_CONNECT_HINT)}
+              </p>
+            </div>
+          ) : shouldRenderCredential ? (
             <div className="flex flex-col gap-1">
               <SettingsInput
                 testId="mcp-install-field-api_key"
@@ -523,7 +715,7 @@ export function InstallServerModal({
             isDisabled={isPending}
             testId="mcp-install-submit"
           >
-            {isTesting
+            {isTesting || isAuthorizingOAuth
               ? t(I18nKey.MCP$VERIFYING)
               : isAdding || isFinalizingInstall
                 ? t(I18nKey.SETTINGS$SAVING)

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { I18nKey } from "#/i18n/declaration";
 import { RunLogsModal } from "#/components/features/automations/detail/run-logs-modal";
+import { AutomationRunStatus, type AutomationRun } from "#/types/automation";
 
 const { useBashCommandLogsMock } = vi.hoisted(() => ({
   useBashCommandLogsMock: vi.fn(),
@@ -10,6 +11,17 @@ const { useBashCommandLogsMock } = vi.hoisted(() => ({
 vi.mock("#/hooks/query/use-bash-command-logs", () => ({
   useBashCommandLogs: useBashCommandLogsMock,
 }));
+
+// The debug button owns its own query/navigation stack; stub it so these tests
+// only verify whether the modal chooses to render it.
+vi.mock(
+  "#/components/features/automations/detail/debug-automation-button",
+  () => ({
+    DebugAutomationButton: ({ run }: { run: AutomationRun }) => (
+      <div data-testid="debug-automation-button-stub" data-run-id={run.id} />
+    ),
+  }),
+);
 
 function makeHookResult(
   overrides: Partial<ReturnType<typeof baseResult>> = {},
@@ -272,5 +284,49 @@ describe("RunLogsModal", () => {
     );
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("RunLogsModal — Debug with OpenHands button", () => {
+  const makeRun = (status: AutomationRunStatus): AutomationRun => ({
+    id: "run-1",
+    status,
+    conversation_id: "conv-1",
+    bash_command_id: "cmd-1",
+    error_detail: status === AutomationRunStatus.FAILED ? "boom" : null,
+    started_at: "2026-01-01T10:00:00Z",
+    completed_at: "2026-01-01T10:02:00Z",
+  });
+
+  it("renders the debug button for a failed run", () => {
+    useBashCommandLogsMock.mockReturnValue(makeHookResult());
+    render(
+      <RunLogsModal
+        isOpen
+        conversationId="conv-1"
+        bashCommandId="cmd-1"
+        onClose={() => {}}
+        run={makeRun(AutomationRunStatus.FAILED)}
+      />,
+    );
+    expect(
+      screen.getByTestId("debug-automation-button-stub"),
+    ).toBeInTheDocument();
+  });
+
+  it("does not render the debug button for a successful run", () => {
+    useBashCommandLogsMock.mockReturnValue(makeHookResult());
+    render(
+      <RunLogsModal
+        isOpen
+        conversationId="conv-1"
+        bashCommandId="cmd-1"
+        onClose={() => {}}
+        run={makeRun(AutomationRunStatus.COMPLETED)}
+      />,
+    );
+    expect(
+      screen.queryByTestId("debug-automation-button-stub"),
+    ).not.toBeInTheDocument();
   });
 });
