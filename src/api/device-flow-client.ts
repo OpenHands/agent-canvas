@@ -1,18 +1,18 @@
 import {
   pollForToken as sdkPollForToken,
   startDeviceFlow as sdkStartDeviceFlow,
-} from "@openhands/typescript-client/clients";
+} from "@openhands/typescript-client/client/device-flow-client";
 import type {
   DeviceAuthorizationResponse,
   DeviceTokenResponse,
   PollDeviceTokenOptions,
-} from "@openhands/typescript-client/clients";
+} from "@openhands/typescript-client/client/device-flow-client";
 import { AGENT_CANVAS_CLIENT_HEADERS } from "./client-source";
 
 export {
   DeviceFlowError,
   isOpenHandsCloudHost,
-} from "@openhands/typescript-client/clients";
+} from "@openhands/typescript-client/client/device-flow-client";
 
 export function startDeviceFlow(
   host: string,
@@ -35,4 +35,4 @@ export type {
   DeviceAuthorizationResponse,
   DeviceTokenResponse,
   PollDeviceTokenOptions as PollOptions,
-} from "@openhands/typescript-client/clients";
+} from "@openhands/typescript-client/client/device-flow-client";

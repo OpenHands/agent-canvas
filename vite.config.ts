@@ -282,6 +282,7 @@ export default defineConfig(({ mode }) => {
         // OpenHands typescript client
         "@openhands/typescript-client",
         "@openhands/typescript-client/client/http-client",
+        "@openhands/typescript-client/client/device-flow-client",
         "@openhands/typescript-client/clients",
         "@openhands/typescript-client/events/remote-events-list",
         "@openhands/typescript-client/workspace/remote-workspace",
