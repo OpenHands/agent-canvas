@@ -9,11 +9,25 @@ import {
 } from "#/api/backend-registry/storage";
 import type { Backend } from "#/api/backend-registry/types";
 
+const ORIGINAL_LOCATION = window.location;
+
+function mockWindowLocation(url: string) {
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: new URL(url),
+  });
+}
+
 afterEach(() => {
   window.localStorage.clear();
   window.sessionStorage.clear();
   delete (window as unknown as Record<string, unknown>)
     .__AGENT_CANVAS_LOCK_TO_CLOUD__;
+  Object.defineProperty(window, "location", {
+    configurable: true,
+    value: ORIGINAL_LOCATION,
+  });
+
   vi.unstubAllEnvs();
 });
 
@@ -106,6 +120,24 @@ describe("backend-registry storage", () => {
     });
   });
 
+  it("seeds the cookie-auth Cloud backend on the current origin when the locked host is an equivalent transition domain", () => {
+    mockWindowLocation("https://pr-254.staging.openhands.dev/canvas");
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_LOCK_TO_CLOUD__ = "https://pr-254.staging.all-hands.dev";
+
+    expect(readStoredBackends()).toEqual([
+      {
+        id: "locked-cloud",
+        name: "OpenHands Cloud",
+        host: "https://pr-254.staging.openhands.dev",
+        apiKey: "",
+        kind: "cloud",
+        authMode: "cookie",
+      },
+    ]);
+  });
+
   it("preserves an existing locked Cloud org selection while reseeding", () => {
     (
       window as unknown as Record<string, unknown>
@@ -118,7 +150,6 @@ describe("backend-registry storage", () => {
       orgId: "org-1",
     });
   });
-
 
   it("does not seed a cookie-auth Cloud backend when locked cross-origin", () => {
     (

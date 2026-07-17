@@ -654,8 +654,8 @@ describe("App root agent-server availability guard", () => {
       configurable: true,
       value: {
         ...ORIGINAL_LOCATION,
-        origin: "https://pr-254.staging.all-hands.dev",
-        hostname: "pr-254.staging.all-hands.dev",
+        origin: "https://pr-254.staging.openhands.dev",
+        hostname: "pr-254.staging.openhands.dev",
         pathname: "/canvas",
         search: "?tab=home",
         hash: "#top",

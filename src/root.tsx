@@ -280,12 +280,12 @@ export default function App() {
   // active suppresses reopen flicker. (The flag is only honored when the
   // active backend really is the locked Cloud host, so the stale-flag bypass
   // concerns above don't apply here.)
-  const showFirstRunOnboarding = isLockedToCloud
-    ? !isActiveLockedCloudBackend ||
-      (lockedCloudAuthMode !== "cookie" && !onboardingCompleted)
-    : !onboardingCompleted;
-
   const shouldCheckMainAppAuth = shouldUseMainAppCookieAuth();
+  const showFirstRunOnboarding = isLockedToCloud
+    ? !shouldCheckMainAppAuth &&
+      (!isActiveLockedCloudBackend ||
+        (lockedCloudAuthMode !== "cookie" && !onboardingCompleted))
+    : !onboardingCompleted;
   const mainAppAuth = useQuery({
     queryKey: QUERY_KEYS.MAIN_APP_COOKIE_AUTH,
     queryFn: authenticateWithMainAppCookie,
