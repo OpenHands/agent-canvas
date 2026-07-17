@@ -4,6 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
+import { HttpError } from "@openhands/typescript-client";
 
 import { I18nKey } from "#/i18n/declaration";
 
@@ -314,6 +315,28 @@ describe("AutomationsList — Run now toasts", () => {
       expect(displayErrorToast).toHaveBeenCalledWith("dispatch failed");
     });
     expect(displaySuccessToast).not.toHaveBeenCalled();
+  });
+
+  it("shows the server-provided message when the dispatch API rejects with an HttpError", async () => {
+    // Arrange — cloud transport failures surface as the shared client's
+    // HttpError, whose parsed body lives on `response`.
+    vi.mocked(AutomationService.dispatchAutomation).mockRejectedValue(
+      new HttpError(500, "Internal Server Error", {
+        message: "Runner quota exceeded",
+      }),
+    );
+    const { displayErrorToast } = await import("#/utils/custom-toast-handlers");
+    const user = userEvent.setup();
+    renderList();
+    await screen.findByText(automation.name);
+
+    // Act — click the row's "Run now" button.
+    await user.click(screen.getByTestId(`automation-run-now-${automation.id}`));
+
+    // Assert — the toast shows the body's message, not a generic fallback.
+    await waitFor(() => {
+      expect(displayErrorToast).toHaveBeenCalledWith("Runner quota exceeded");
+    });
   });
 });
 

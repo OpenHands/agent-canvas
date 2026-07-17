@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { isAxiosError } from "axios";
 import { I18nKey } from "#/i18n/declaration";
 import type { Automation } from "#/types/automation";
 import { useUpdateAutomation } from "#/hooks/query/use-automations";
@@ -12,6 +11,7 @@ import {
   displaySuccessToast,
   displayErrorToast,
 } from "#/utils/custom-toast-handlers";
+import { getApiErrorMessage } from "#/utils/api-error-message";
 import { modalTitleLgMediumClassName } from "#/utils/modal-classes";
 import {
   parseCronSchedule,
@@ -246,13 +246,9 @@ export function EditAutomationModal({
           onClose();
         },
         onError: (error) => {
-          const message = isAxiosError(error)
-            ? (error.response?.data as { message?: string } | undefined)
-                ?.message ||
-              error.message ||
-              t(I18nKey.AUTOMATIONS$EDIT_ERROR)
-            : (error as Error).message || t(I18nKey.AUTOMATIONS$EDIT_ERROR);
-          displayErrorToast(message);
+          displayErrorToast(
+            getApiErrorMessage(error, t(I18nKey.AUTOMATIONS$EDIT_ERROR)),
+          );
         },
       },
     );

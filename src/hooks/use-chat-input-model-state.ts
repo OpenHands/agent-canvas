@@ -1,6 +1,9 @@
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useSettings } from "#/hooks/query/use-settings";
-import { useAcpModelContext } from "#/hooks/use-acp-model-context";
+import {
+  type AcpModelContext,
+  useAcpModelContext,
+} from "#/hooks/use-acp-model-context";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import {
   getAcpPreferredDefaultModel,
@@ -17,7 +20,7 @@ export interface ChatInputModelState {
   availableAcpModels: ACPModelOption[];
   showAcpPicker: boolean;
   switchConversationId: string | null;
-  destinationPath: "/settings/agents" | "/settings";
+  destinationPath: AcpModelContext["destinationPath"];
   destinationLabel: string;
 }
 

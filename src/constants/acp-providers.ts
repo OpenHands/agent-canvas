@@ -95,7 +95,7 @@ export interface ACPProviderConfig {
    * ACP server — the codex CLI has no ``acp`` subcommand and exits with
    * ``Error: stdin is not a terminal`` when spawned without a TTY, which
    * silently deadlocks the agent-server's ACP handshake. Use
-   * ``@zed-industries/codex-acp`` (the Zed-shipped wrapper) instead.
+   * ``@agentclientprotocol/codex-acp`` (the codex ACP wrapper) instead.
    */
   default_command: string[];
   /**

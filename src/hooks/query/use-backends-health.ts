@@ -1,6 +1,7 @@
 import React from "react";
 import axios from "axios";
 import { useQueries } from "@tanstack/react-query";
+import { HttpError } from "@openhands/typescript-client";
 import {
   ServerClient,
   SettingsClient,
@@ -85,7 +86,10 @@ async function probeBackend(backend: Backend): Promise<true> {
     try {
       await getCurrentCloudApiKey(backend);
     } catch (error) {
-      if (axios.isAxiosError(error) && error.response?.status === 401) {
+      if (
+        (axios.isAxiosError(error) && error.response?.status === 401) ||
+        (error instanceof HttpError && error.status === 401)
+      ) {
         throw new Error(CLOUD_BACKEND_LOGGED_OUT_ERROR);
       }
       if (isCorsOrNetworkError(error)) {

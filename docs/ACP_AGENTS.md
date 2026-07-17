@@ -41,7 +41,7 @@ changing a provider happens upstream in the SDK, not here.
 | Provider | Default command |
 |---|---|
 | **Claude Code** | `npx -y @agentclientprotocol/claude-agent-acp` |
-| **Codex** | `npx -y @zed-industries/codex-acp` |
+| **Codex** | `npx -y @agentclientprotocol/codex-acp` |
 | **Gemini CLI** | `npx -y @google/gemini-cli --acp` |
 
 See [Authentication](#authentication) for how each one authenticates.
