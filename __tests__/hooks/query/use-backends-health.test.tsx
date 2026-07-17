@@ -24,6 +24,7 @@ import {
 const getSettingsMock = vi.fn();
 const getServerInfoMock = vi.fn();
 const getCurrentCloudApiKeyMock = vi.fn();
+const getCloudOrganizationsMock = vi.fn();
 
 vi.mock("@openhands/typescript-client/clients", () => ({
   ServerClient: vi.fn(function ServerClientMock() {
@@ -35,6 +36,8 @@ vi.mock("@openhands/typescript-client/clients", () => ({
 }));
 
 vi.mock("#/api/cloud/organization-service.api", () => ({
+  getCloudOrganizations: (...args: unknown[]) =>
+    getCloudOrganizationsMock(...args),
   getCurrentCloudApiKey: (...args: unknown[]) =>
     getCurrentCloudApiKeyMock(...args),
 }));
@@ -67,6 +70,7 @@ beforeEach(() => {
   getServerInfoMock.mockReset();
   getServerInfoMock.mockResolvedValue({ version: "1.28.0" });
   getCurrentCloudApiKeyMock.mockReset();
+  getCloudOrganizationsMock.mockReset();
   vi.mocked(ServerClient).mockClear();
   vi.mocked(SettingsClient).mockClear();
   window.localStorage.clear();
@@ -187,6 +191,26 @@ describe("useBackendsHealth", () => {
     );
     expect(getCurrentCloudApiKeyMock).toHaveBeenCalledWith(cloudBackend);
     expect(getSettingsMock).not.toHaveBeenCalled();
+  });
+
+  it("probes cookie-auth cloud backends via organizations without an API key", async () => {
+    const cookieBackend: Backend = {
+      ...cloudBackend,
+      id: "cloud-cookie",
+      apiKey: "",
+      authMode: "cookie",
+    };
+    getCloudOrganizationsMock.mockResolvedValue({ items: [], currentOrgId: null });
+
+    const { result } = renderHook(() => useBackendsHealth([cookieBackend]), {
+      wrapper,
+    });
+
+    await waitFor(() =>
+      expect(result.current[cookieBackend.id].isConnected).toBe(true),
+    );
+    expect(getCloudOrganizationsMock).toHaveBeenCalledWith(cookieBackend);
+    expect(getCurrentCloudApiKeyMock).not.toHaveBeenCalled();
   });
 
   it("reports disconnected when the cloud probe throws", async () => {

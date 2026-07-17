@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AxiosError, AxiosHeaders } from "axios";
+import { HttpError } from "@openhands/typescript-client";
 import type { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { useBashCommandLogs } from "#/hooks/query/use-bash-command-logs";
 
@@ -262,6 +263,103 @@ describe("useBashCommandLogs — cloud sandbox state handling", () => {
     await waitFor(() => expect(result.current.error).toBeTruthy());
     expect(result.current.sandboxIssue).toBeNull();
   });
+
+  it.each([
+    { status: 404, label: "404 not-found" },
+    { status: 503, label: "503 unavailable" },
+  ])(
+    "classifies shared-client HttpError $label responses as sandboxIssue=unreachable",
+    async ({ status }) => {
+      setConversation({
+        conversation_url: "https://runtime.example.com",
+        sandbox_status: "RUNNING",
+      });
+      listOutputsMock.mockRejectedValueOnce(
+        new HttpError(status, "Error", { detail: "sandbox gone" }),
+      );
+
+      const { result } = renderHook(
+        () =>
+          useBashCommandLogs({
+            conversationId: "conv-1",
+            bashCommandId: "cmd-1",
+          }),
+        { wrapper },
+      );
+
+      await waitFor(() =>
+        expect(result.current.sandboxIssue).toBe("unreachable"),
+      );
+      expect(result.current.error).toBeNull();
+    },
+  );
+
+  it("does NOT collapse an HttpError 401 into unreachable (auth bugs surface as errors)", async () => {
+    setConversation({
+      conversation_url: "https://runtime.example.com",
+      sandbox_status: "RUNNING",
+    });
+    listOutputsMock.mockRejectedValueOnce(
+      new HttpError(401, "Unauthorized", { detail: "bad token" }),
+    );
+
+    const { result } = renderHook(
+      () =>
+        useBashCommandLogs({
+          conversationId: "conv-1",
+          bashCommandId: "cmd-1",
+        }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.error).toBeTruthy());
+    expect(result.current.sandboxIssue).toBeNull();
+  });
+
+  it.each([
+    {
+      label: "network TypeError",
+      makeError: () => new TypeError("Failed to fetch"),
+    },
+    {
+      label: "TimeoutError abort",
+      makeError: () =>
+        Object.assign(new Error("The operation timed out"), {
+          name: "TimeoutError",
+        }),
+    },
+    {
+      label: "timeout wrapped with cause",
+      makeError: () =>
+        new Error("Request timeout after 30000ms", {
+          cause: Object.assign(new Error("timed out"), {
+            name: "TimeoutError",
+          }),
+        }),
+    },
+  ])(
+    "classifies fetch transport failures ($label) as sandboxIssue=unreachable",
+    async ({ makeError }) => {
+      setConversation({
+        conversation_url: "https://runtime.example.com",
+        sandbox_status: "RUNNING",
+      });
+      listOutputsMock.mockRejectedValueOnce(makeError());
+
+      const { result } = renderHook(
+        () =>
+          useBashCommandLogs({
+            conversationId: "conv-1",
+            bashCommandId: "cmd-1",
+          }),
+        { wrapper },
+      );
+
+      await waitFor(() =>
+        expect(result.current.sandboxIssue).toBe("unreachable"),
+      );
+    },
+  );
 });
 
 describe("useBashCommandLogs — local backend", () => {

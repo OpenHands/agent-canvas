@@ -1,5 +1,5 @@
 /* eslint-disable react/jsx-props-no-spreading */
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -651,6 +651,28 @@ describe("FilesTab", () => {
       expect(
         screen.queryByTestId("files-tab-diff-toggle-option-commits"),
       ).not.toBeInTheDocument();
+    });
+
+    it("renders the Commits option between Diff and Files", () => {
+      // Arrange — beforeEach default: commits supported.
+      useHasAttachedSourceMock.mockReturnValue({
+        hasAttachedSource: true,
+        isLoading: false,
+      });
+
+      // Act
+      renderTab();
+
+      // Assert — Commits sits beside Diff, ahead of Files: Diff → Commits → Files.
+      const toggle = screen.getByTestId("files-tab-diff-toggle");
+      const order = within(toggle)
+        .getAllByRole("radio")
+        .map((option) => option.getAttribute("data-testid"));
+      expect(order).toEqual([
+        "files-tab-diff-toggle-option-on",
+        "files-tab-diff-toggle-option-commits",
+        "files-tab-diff-toggle-option-off",
+      ]);
     });
 
     it("switches the panel to the commits view when the Commits option is selected", async () => {

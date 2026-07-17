@@ -30,10 +30,9 @@ services:
       # host:container — Canvas points VITE_BACKEND_BASE_URL at http://localhost:8010.
       - "8010:8000"
     environment:
-      # Canvas's start request always references the bundled ``canvas_ui`` tool
-      # via ``tool_module_qualnames``; the agent-server imports that module from
-      # OH_EXTRA_PYTHON_PATH at conversation creation. Without the mount below +
-      # this var, conversation creation fails to import ``canvas_ui_tool``.
+      # New conversations define canvas_ui_control through client_tools. Keep the
+      # old Python module importable so conversations persisted before that migration
+      # can restore CanvasUIAction / CanvasUIObservation events after a restart.
       - OH_EXTRA_PYTHON_PATH=/canvas-tools
       # Optional cipher key. ACP conversations work without it (Canvas sends ACP
       # provider credentials as loopback LookupSecrets resolved from the
@@ -66,8 +65,8 @@ services:
       # Persist conversations AND the credential files the SDK materialises
       # (Codex auth.json under CODEX_HOME, Gemini ADC/SA JSON) across restarts.
       - acp-data:/workspace
-      # Canvas-specific Python tools (the canvas_ui tool) the agent-server loads
-      # via OH_EXTRA_PYTHON_PATH. Path is relative to this compose file.
+      # Legacy canvas_ui module used only when restoring pre-client_tools state.
+      # Path is relative to this compose file.
       - ../../tools:/canvas-tools:ro
     restart: unless-stopped
 

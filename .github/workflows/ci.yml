@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - "rel-*"
+      - "release/**"
   workflow_dispatch:
     inputs:
       pr_number:
@@ -13,8 +14,12 @@ on:
         required: true
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Push runs get a per-COMMIT group and never cancel: the "Release Tag" ruleset
+  # requires `test-and-build (ubuntu)` to be green on the exact commit release-please
+  # tags (the release-PR merge commit), so a later push to main must not cancel an
+  # earlier commit's checks. PR/dispatch runs keep cheap cancel-on-update.
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'push' }}
 
 permissions:
   contents: read

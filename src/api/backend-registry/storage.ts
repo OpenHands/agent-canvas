@@ -1,14 +1,24 @@
 import {
   SEEDED_DEFAULT_BACKEND_ID,
   makeDefaultLocalBackend,
+  makeLockedCloudBackend,
 } from "./default-backend";
-import type { Backend, BackendKind, BackendSelection } from "./types";
+import type {
+  Backend,
+  BackendAuthMode,
+  BackendKind,
+  BackendSelection,
+} from "./types";
 
 export const BACKENDS_STORAGE_KEY = "openhands-backends";
 export const ACTIVE_BACKEND_STORAGE_KEY = "openhands-active-backend";
 
 function isValidKind(value: unknown): value is BackendKind {
   return value === "local" || value === "cloud";
+}
+
+function isValidAuthMode(value: unknown): value is BackendAuthMode {
+  return value === undefined || value === "api-key" || value === "cookie";
 }
 
 function isValidBackend(value: unknown): value is Backend {
@@ -20,7 +30,8 @@ function isValidBackend(value: unknown): value is Backend {
     typeof v.name === "string" &&
     typeof v.host === "string" &&
     typeof v.apiKey === "string" &&
-    isValidKind(v.kind)
+    isValidKind(v.kind) &&
+    isValidAuthMode(v.authMode)
   );
 }
 
@@ -90,6 +101,16 @@ export function readStoredBackends(): Backend[] {
   if (typeof window === "undefined") return [];
 
   try {
+    const lockedCloudBackend = makeLockedCloudBackend();
+    if (lockedCloudBackend) {
+      writeStoredBackends([lockedCloudBackend]);
+      const activeSelection = readStoredActiveBackend();
+      if (activeSelection?.backendId !== lockedCloudBackend.id) {
+        writeStoredActiveBackend({ backendId: lockedCloudBackend.id });
+      }
+      return [lockedCloudBackend];
+    }
+
     const raw = window.localStorage.getItem(BACKENDS_STORAGE_KEY);
 
     // First install: seed only when the launcher supplied enough information

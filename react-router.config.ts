@@ -1,6 +1,16 @@
 import type { Config } from "@react-router/dev/config";
 import { vercelPreset } from "@vercel/react-router/vite";
 
+const normalizeBasePath = (value?: string) => {
+  const raw = value?.trim();
+  if (!raw || raw === "/") return undefined;
+
+  const withLeadingSlash = raw.startsWith("/") ? raw : `/${raw}`;
+  return withLeadingSlash.replace(/\/+$/, "");
+};
+
+const basename = normalizeBasePath(process.env.VITE_BASE_PATH);
+
 /**
  * This script is used to unpack the client directory from the frontend build directory.
  * Remix SPA mode builds the client directory into the build directory. This function
@@ -77,6 +87,7 @@ const unpackClientDirectory = async () => {
 
 export default {
   appDirectory: "src",
+  ...(basename ? { basename } : {}),
   buildEnd: unpackClientDirectory,
   presets: [vercelPreset()],
   ssr: false,

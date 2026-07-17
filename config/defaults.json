@@ -1,9 +1,9 @@
 {
   "_comment": "Single source of truth for version pins, ports, paths, and defaults shared across the npm and Docker install paths. Read by scripts/dev-safe.mjs, scripts/dev-with-automation.mjs, docker/entrypoint.sh (via generated defaults.env), and .github/workflows/docker.yml.",
   "versions": {
-    "agentServer": "1.35.0",
+    "agentServer": "1.36.1",
     "agentCanvas": "1.4.0",
-    "automation": "1.1.6"
+    "automation": "1.1.7"
   },
   "compatibility": {
     "minimumAgentServer": "1.28.0"
@@ -25,7 +25,8 @@
     "stateSubdir": "agent-canvas",
     "conversations": "agent-canvas/conversations",
     "bashEvents": "agent-canvas/bash_events",
-    "automationDb": "automation/automations.db"
+    "automationDb": "automation/automations.db",
+    "canvasBasePath": "/canvas"
   },
   "packages": {
     "agentServer": "openhands-agent-server",

@@ -4,7 +4,6 @@ import {
   ProfilesClient,
   SettingsClient,
 } from "@openhands/typescript-client/clients";
-import axios from "axios";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -13,8 +12,11 @@ import {
 } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
-
-vi.mock("axios");
+import {
+  getFetchCall,
+  getJsonBody,
+  mockJsonResponse,
+} from "./cloud/fetch-test-utils";
 
 const {
   mockHttpGet,
@@ -43,6 +45,9 @@ const {
   mockGetProfile: vi.fn(),
   mockActivateProfile: vi.fn(),
 }));
+
+const originalFetch = global.fetch;
+const fetchMock = vi.fn();
 
 vi.mock("@openhands/typescript-client/clients", async () => {
   const actual = await vi.importActual<
@@ -102,6 +107,8 @@ describe("AgentServerConversationService", () => {
     mockActivateProfile.mockReset();
     mockSwitchProfile.mockReset();
     mockSwitchLLM.mockReset();
+    fetchMock.mockReset();
+    global.fetch = originalFetch;
     vi.mocked(ConversationClient).mockClear();
     vi.mocked(FileClient).mockClear();
     vi.mocked(ProfilesClient).mockClear();
@@ -419,6 +426,8 @@ describe("AgentServerConversationService", () => {
     afterEach(() => {
       window.localStorage.clear();
       __resetActiveStoreForTests();
+      fetchMock.mockReset();
+      global.fetch = originalFetch;
     });
 
     it("hits the local /api/file/download-trajectory endpoint with responseType blob when active backend is local", async () => {
@@ -886,17 +895,20 @@ describe("AgentServerConversationService", () => {
       };
       setRegisteredBackends([cloudBackend]);
       setActiveSelection({ backendId: cloudBackend.id });
-      vi.mocked(axios.request).mockReset();
-      vi.mocked(axios.request).mockResolvedValue({ data: { success: true } });
+      fetchMock.mockResolvedValueOnce(mockJsonResponse({ success: true }));
+      global.fetch = fetchMock as typeof fetch;
 
       await AgentServerConversationService.switchProfile("conv-1", "haiku");
 
-      const [cfg] = vi.mocked(axios.request).mock.calls[0]!;
-      expect(cfg).toMatchObject({
+      const [url, init] = getFetchCall(fetchMock);
+      expect(url).toBe(
+        "https://app.all-hands.dev/api/v1/app-conversations/conv-1/switch_profile",
+      );
+      expect(init).toMatchObject({
         method: "POST",
-        url: "https://app.all-hands.dev/api/v1/app-conversations/conv-1/switch_profile",
-        data: { profile_name: "haiku" },
+        headers: { Authorization: "Bearer bearer-token" },
       });
+      expect(getJsonBody(init)).toEqual({ profile_name: "haiku" });
       // Cloud resolves the swap server-side: no client-side encrypted profile
       // fetch and no direct switch_llm call.
       expect(mockGetProfile).not.toHaveBeenCalled();
@@ -918,18 +930,21 @@ describe("AgentServerConversationService", () => {
       __resetActiveStoreForTests();
       setRegisteredBackends([cloudBackend]);
       setActiveSelection({ backendId: cloudBackend.id });
-      vi.mocked(axios.request).mockReset();
+      fetchMock.mockReset();
+      global.fetch = fetchMock as typeof fetch;
     });
 
     afterEach(() => {
       window.localStorage.clear();
       __resetActiveStoreForTests();
+      fetchMock.mockReset();
+      global.fetch = originalFetch;
     });
 
     it("forwards parent_conversation_id, agent_type, and sandbox_id to the cloud createConversation payload", async () => {
       // Arrange
-      vi.mocked(axios.request).mockResolvedValue({
-        data: {
+      fetchMock.mockResolvedValueOnce(
+        mockJsonResponse({
           id: "task-1",
           status: "WORKING",
           app_conversation_id: null,
@@ -937,8 +952,8 @@ describe("AgentServerConversationService", () => {
           request: {},
           created_at: "2024-01-01",
           updated_at: "2024-01-01",
-        },
-      });
+        }),
+      );
 
       // Act
       await AgentServerConversationService.createConversation(
@@ -954,13 +969,13 @@ describe("AgentServerConversationService", () => {
       );
 
       // Assert
-      const [config] = vi.mocked(axios.request).mock.calls[0]!;
-      expect(config).toMatchObject({
-        url: `${cloudBackend.host}/api/v1/app-conversations`,
+      const [url, init] = getFetchCall(fetchMock);
+      expect(url).toBe(`${cloudBackend.host}/api/v1/app-conversations`);
+      expect(init).toMatchObject({
         method: "POST",
         headers: { Authorization: "Bearer bearer-token" },
       });
-      expect((config as { data: Record<string, unknown> }).data).toMatchObject({
+      expect(getJsonBody(init)).toMatchObject({
         parent_conversation_id: "parent-conv-1",
         agent_type: "plan",
         sandbox_id: "sandbox-9",
@@ -969,7 +984,12 @@ describe("AgentServerConversationService", () => {
 
     it("routes readConversationFile to the cloud file endpoint with the file_path query param", async () => {
       // Arrange
-      vi.mocked(axios.request).mockResolvedValue({ data: "# PLAN content" });
+      fetchMock.mockResolvedValueOnce(
+        new Response("# PLAN content", {
+          status: 200,
+          headers: { "content-type": "text/plain" },
+        }),
+      );
 
       // Act
       const content =
@@ -979,12 +999,12 @@ describe("AgentServerConversationService", () => {
 
       // Assert
       expect(content).toBe("# PLAN content");
-      const [config] = vi.mocked(axios.request).mock.calls[0]!;
-      expect(config).toMatchObject({
+      const [url, init] = getFetchCall(fetchMock);
+      expect(init).toMatchObject({
         method: "GET",
         headers: { Authorization: "Bearer bearer-token" },
       });
-      expect((config as { url: string }).url).toBe(
+      expect(url).toBe(
         `${cloudBackend.host}/api/v1/app-conversations/conv-cloud-1/file?file_path=%2Fworkspace%2Fproject%2F.agents_tmp%2FPLAN.md`,
       );
     });
