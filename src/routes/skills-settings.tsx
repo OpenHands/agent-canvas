@@ -22,6 +22,8 @@ import {
 } from "#/utils/extension-module-card-classes";
 import type { SkillInfo } from "#/types/settings";
 import { getSkillCardDescription } from "#/components/features/skills/get-skill-card-description";
+import { useActiveBackendContext } from "#/contexts/active-backend-context";
+import { isNoBackend } from "#/api/backend-registry/active-store";
 
 function matchesSearch(skill: SkillInfo, query: string): boolean {
   if (!query) return true;
@@ -41,6 +43,16 @@ function matchesSearch(skill: SkillInfo, query: string): boolean {
 
 function SkillsSettingsScreen() {
   const { t } = useTranslation("openhands");
+  const { active } = useActiveBackendContext();
+  const { backend } = active;
+  const isCloud = backend.kind === "cloud" && !isNoBackend(backend);
+
+  React.useEffect(() => {
+    if (isCloud) {
+      const targetUrl = `${backend.host.replace(/\/+$/, "")}/settings/skills`;
+      window.location.replace(targetUrl);
+    }
+  }, [isCloud, backend.host]);
 
   const { mutate: saveSettings } = useSaveSettings();
   const { data: settings, isLoading: settingsLoading } = useSettings();
@@ -99,6 +111,10 @@ function SkillsSettingsScreen() {
         matchesSearch(skill, searchQuery),
     );
   }, [skills, typeFilter, searchQuery]);
+
+  if (isCloud) {
+    return null;
+  }
 
   return (
     <div

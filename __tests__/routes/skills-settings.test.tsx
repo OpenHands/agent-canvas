@@ -12,6 +12,14 @@ import {
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { Settings, SkillInfo } from "#/types/settings";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
+import {
+  __resetActiveStoreForTests,
+  setActiveSelection,
+  setRegisteredBackends,
+} from "#/api/backend-registry/active-store";
+import type { Backend } from "#/api/backend-registry/types";
+
+import { ExtensionsNavigation } from "#/components/features/skills/extensions-navigation";
 
 const navigateMock = vi.fn();
 
@@ -24,6 +32,14 @@ vi.mock("#/context/navigation-context", () => ({
   }),
   NavigationProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
+
+const localBackend: Backend = {
+  id: "local",
+  name: "Local",
+  host: "http://127.0.0.1:8001",
+  apiKey: "",
+  kind: "local",
+};
 
 function buildSettings(overrides: Partial<Settings> = {}): Settings {
   return {
@@ -75,6 +91,9 @@ describe("SkillsSettingsScreen", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     navigateMock.mockReset();
+    __resetActiveStoreForTests();
+    setRegisteredBackends([localBackend]);
+    setActiveSelection({ backendId: localBackend.id });
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
   });
 
@@ -395,5 +414,74 @@ Full skill body.`,
     await user.click(screen.getByTestId("add-skill-modal-example-copy"));
 
     expect(writeText).toHaveBeenCalledWith(ADD_SKILL_EXAMPLE_COMMAND);
+  });
+
+  it("redirects to OHE settings skills page when the active backend is Cloud", async () => {
+    const replaceMock = vi.fn();
+    vi.stubGlobal("location", {
+      ...window.location,
+      replace: replaceMock,
+    });
+
+    const cloudBackend: Backend = {
+      id: "cloud-ohe",
+      name: "Cloud",
+      host: "https://cloud.openhands.dev",
+      apiKey: "some-api-key",
+      kind: "cloud",
+    };
+
+    __resetActiveStoreForTests();
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+
+    renderSkillsSettingsScreen();
+
+    await waitFor(() => {
+      expect(replaceMock).toHaveBeenCalledWith(
+        "https://cloud.openhands.dev/settings/skills",
+      );
+    });
+
+    // Verify it returns null and doesn't render local elements
+    expect(screen.queryByTestId("skills-settings-screen")).not.toBeInTheDocument();
+
+    vi.unstubAllGlobals();
+  });
+
+  it("renders skills settings link pointing to cloud settings skills page when active backend is Cloud", async () => {
+    const cloudBackend: Backend = {
+      id: "cloud-ohe",
+      name: "Cloud",
+      host: "https://cloud.openhands.dev",
+      apiKey: "some-api-key",
+      kind: "cloud",
+    };
+
+    __resetActiveStoreForTests();
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+
+    render(<ExtensionsNavigation />, {
+      wrapper: ({ children }) => (
+        <QueryClientProvider
+          client={
+            new QueryClient({
+              defaultOptions: { queries: { retry: false } },
+            })
+          }
+        >
+          <ActiveBackendProvider>{children}</ActiveBackendProvider>
+        </QueryClientProvider>
+      ),
+    });
+
+    const link = await screen.findByTestId("sidebar-extensions-/skills");
+    expect(link).toHaveAttribute(
+      "href",
+      "https://cloud.openhands.dev/settings/skills",
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
 });

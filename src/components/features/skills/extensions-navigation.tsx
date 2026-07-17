@@ -9,6 +9,8 @@ import {
   sidebarNavRowClassName,
 } from "#/components/features/sidebar/sidebar-layout";
 import { I18nKey } from "#/i18n/declaration";
+import { useActiveBackendContext } from "#/contexts/active-backend-context";
+import { isNoBackend } from "#/api/backend-registry/active-store";
 
 interface ExtensionNavItem {
   to: string;
@@ -58,6 +60,9 @@ export const EXTENSIONS_NAV_ITEMS: ExtensionNavItem[] = [
 
 export function ExtensionsNavigation() {
   const { t } = useTranslation("openhands");
+  const { active } = useActiveBackendContext();
+  const { backend } = active;
+  const isCloud = backend.kind === "cloud" && !isNoBackend(backend);
 
   return (
     <aside
@@ -69,6 +74,16 @@ export function ExtensionsNavigation() {
       </span>
       <div className="flex flex-col gap-0.5 pt-0.5">
         {EXTENSIONS_NAV_ITEMS.map((item) => {
+          const isSkills = item.to === "/skills";
+          const href =
+            isSkills && isCloud
+              ? `${backend.host.replace(/\/+$/, "")}/settings/skills`
+              : item.to;
+          // eslint-disable-next-line i18next/no-literal-string
+          const target = isSkills && isCloud ? "_blank" : undefined;
+          // eslint-disable-next-line i18next/no-literal-string
+          const rel = isSkills && isCloud ? "noopener noreferrer" : undefined;
+
           const baseRow = (
             <span className="shrink-0 flex items-center justify-center">
               {item.icon}
@@ -84,7 +99,9 @@ export function ExtensionsNavigation() {
           return (
             <NavigationLink
               key={item.to}
-              to={item.to}
+              to={href}
+              target={target}
+              rel={rel}
               end={item.end}
               data-testid={`sidebar-extensions-${item.to}`}
               className={({ isActive }) =>
