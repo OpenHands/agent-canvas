@@ -81,16 +81,15 @@ describe("device-flow-client", () => {
 
       expect(result).toEqual(mockResponse);
       // Should call the cloud endpoint directly.
-      expect(fetch).toHaveBeenCalledWith(
-        `${TEST_HOST_URL}/oauth/device/authorize`,
-        expect.objectContaining({
-          method: "POST",
-          headers: expect.objectContaining({
-            "Content-Type": "application/json",
-            ...AGENT_CANVAS_CLIENT_HEADERS,
-          }),
-        }),
-      );
+      const fetchCall = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(fetchCall[0]).toBe(`${TEST_HOST_URL}/oauth/device/authorize`);
+      expect(fetchCall[1]).toEqual(expect.objectContaining({ method: "POST" }));
+
+      const headers = new Headers(fetchCall[1].headers);
+      expect(headers.get("Content-Type")).toBe("application/json");
+      for (const [name, value] of Object.entries(AGENT_CANVAS_CLIENT_HEADERS)) {
+        expect(headers.get(name)).toBe(value);
+      }
     });
 
     it("normalizes host URL by removing trailing slashes", async () => {
@@ -178,16 +177,17 @@ describe("device-flow-client", () => {
 
       expect(result).toEqual(mockTokenResponse);
       // Should call the cloud endpoint directly.
-      expect(fetch).toHaveBeenCalledWith(
-        `${TEST_HOST_URL}/oauth/device/token`,
-        expect.objectContaining({
-          method: "POST",
-          headers: expect.objectContaining({
-            "Content-Type": "application/x-www-form-urlencoded",
-            ...AGENT_CANVAS_CLIENT_HEADERS,
-          }),
-        }),
+      const fetchCall = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(fetchCall[0]).toBe(`${TEST_HOST_URL}/oauth/device/token`);
+      expect(fetchCall[1]).toEqual(expect.objectContaining({ method: "POST" }));
+
+      const headers = new Headers(fetchCall[1].headers);
+      expect(headers.get("Content-Type")).toBe(
+        "application/x-www-form-urlencoded",
       );
+      for (const [name, value] of Object.entries(AGENT_CANVAS_CLIENT_HEADERS)) {
+        expect(headers.get(name)).toBe(value);
+      }
     });
 
     it("polls until authorization is complete", async () => {
