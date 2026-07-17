@@ -61,6 +61,21 @@ const appBuildConfig = {
             test: /node_modules[\\/](@heroui[\\/]|tailwind-variants[\\/]|tailwind-merge[\\/]|clsx[\\/])/,
           },
           {
+            // Keep the markdown / syntax-highlight ecosystem
+            // (react-syntax-highlighter + refractor/lowlight/highlight.js and
+            // the unified/hast/mdast/micromark/vfile module tree it pulls in)
+            // in one un-size-split chunk. Same failure mode as vendor-styling
+            // above: once the file-viewer (HighlightedSourceView) is imported
+            // from a second route, the generic size-split vendor group slices
+            // this tree across chunk boundaries, so a vfile/unified module's
+            // interop `require` shim can evaluate before the chunk that defines
+            // it, throwing "TypeError: i is not a function" at module load and
+            // blanking the whole app (the shared home/conversation/files-tab
+            // chunk fails to load → route-module reload loop).
+            name: "vendor-markdown",
+            test: /node_modules[\\/](react-syntax-highlighter[\\/]|refractor[\\/]|lowlight[\\/]|highlight\.js[\\/]|hastscript[\\/]|(hast|mdast|unist|micromark|remark|rehype)[^\\/]*[\\/]|unified[\\/]|vfile[^\\/]*[\\/]|property-information[\\/]|(comma|space)-separated-tokens[\\/]|character-entities[^\\/]*[\\/]|(parse|stringify)-entities[\\/]|decode-named-character-reference[\\/]|bail[\\/]|trough[\\/]|is-plain-obj[\\/]|zwitch[\\/]|longest-streak[\\/]|ccount[\\/]|escape-string-regexp[\\/]|markdown-table[\\/]|devlop[\\/])/,
+          },
+          {
             name: "vendor",
             test: /node_modules[\\/]/,
             maxSize: APP_CHUNK_MAX_BYTES,
