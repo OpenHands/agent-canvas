@@ -20,6 +20,8 @@ export const LOCKED_CLOUD_BACKEND_ID = "locked-cloud";
 export const LOCKED_CLOUD_BACKEND_NAME = "OpenHands Cloud";
 
 export function makeLockedCloudBackend(): Backend | null {
+  if (!getLockedCloudHost()) return null;
+
   const host = getCookieAuthCloudHost();
   if (!host) return null;
 
