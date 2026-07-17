@@ -113,12 +113,19 @@ test.describe("MCP GitHub server install flow", () => {
     await routeSessionApiKey(page);
 
     // Intercept the MCP test endpoint to return success; the test environment
-    // should not contact GitHub's hosted MCP endpoint.
+    // should not contact GitHub's hosted MCP endpoint. Mirror the real
+    // agent-server success shape: `tools` (a required field) lists the
+    // advertised tools including the `get_me` credential probe, and
+    // `tool_result` carries that read-only probe's passing outcome.
     await page.route("**/api/mcp/test", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ ok: true }),
+        body: JSON.stringify({
+          ok: true,
+          tools: ["get_me", "list_issues"],
+          tool_result: { is_error: false, text: '{"login":"octocat"}' },
+        }),
       });
     });
 
