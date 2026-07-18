@@ -1,8 +1,10 @@
 import React from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { PostHogProvider } from "posthog-js/react";
-import OptionService from "#/api/option-service/option-service.api";
-import { QUERY_KEYS, CONFIG_CACHE_OPTIONS } from "#/hooks/query/query-keys";
+import type { PostHog } from "posthog-js";
+import {
+  configurePostHogBootstrap,
+  initializePostHogClient,
+} from "#/services/telemetry";
 
 const POSTHOG_BOOTSTRAP_KEY = "posthog_bootstrap";
 
@@ -39,46 +41,38 @@ function getBootstrapIds() {
 }
 
 export function PostHogWrapper({ children }: { children: React.ReactNode }) {
-  const queryClient = useQueryClient();
-  const [posthogClientKey, setPosthogClientKey] = React.useState<string | null>(
+  const [posthogClient, setPosthogClient] = React.useState<PostHog | null>(
     null,
   );
-  const [isLoading, setIsLoading] = React.useState(true);
   const bootstrapIds = React.useMemo(() => getBootstrapIds(), []);
+  const bootstrapConfiguredRef = React.useRef(false);
+
+  // Configure bootstrap synchronously so a child telemetry effect cannot win
+  // the initialization race on the first render.
+  if (!bootstrapConfiguredRef.current) {
+    configurePostHogBootstrap(bootstrapIds);
+    bootstrapConfiguredRef.current = true;
+  }
 
   React.useEffect(() => {
-    (async () => {
-      try {
-        // Use fetchQuery for automatic caching and deduplication
-        const config = await queryClient.fetchQuery({
-          queryKey: QUERY_KEYS.WEB_CLIENT_CONFIG,
-          queryFn: OptionService.getConfig,
-          meta: { disableToast: true },
-          ...CONFIG_CACHE_OPTIONS,
-        });
-        setPosthogClientKey(config.posthog_client_key);
-      } catch {
-        // Analytics are optional; keep onboarding and recovery flows quiet.
-      } finally {
-        setIsLoading(false);
-      }
-    })();
-  }, [queryClient]);
+    let cancelled = false;
+    void initializePostHogClient()
+      .then((client) => {
+        if (!cancelled && client) {
+          setPosthogClient(client);
+        }
+      })
+      .catch(() => {
+        // Analytics are optional; render children without a provider.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  if (isLoading || !posthogClientKey) {
+  if (!posthogClient) {
     return children;
   }
 
-  return (
-    <PostHogProvider
-      apiKey={posthogClientKey}
-      options={{
-        api_host: "https://us.i.posthog.com",
-        person_profiles: "identified_only",
-        bootstrap: bootstrapIds,
-      }}
-    >
-      {children}
-    </PostHogProvider>
-  );
+  return <PostHogProvider client={posthogClient}>{children}</PostHogProvider>;
 }

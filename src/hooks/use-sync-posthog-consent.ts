@@ -1,6 +1,5 @@
 import React from "react";
-import { usePostHog } from "posthog-js/react";
-import { handleCaptureConsent } from "#/utils/handle-capture-consent";
+import { setTelemetryConsent } from "#/services/telemetry";
 import { useSettings } from "./query/use-settings";
 
 /**
@@ -16,14 +15,15 @@ import { useSettings } from "./query/use-settings";
  *           or on first visit, prevents capturing before the user has decided)
  */
 export const useSyncPostHogConsent = () => {
-  const posthog = usePostHog();
   const { data: settings } = useSettings();
 
   React.useEffect(() => {
-    if (!posthog || settings === undefined) return;
+    if (settings === undefined) return;
 
     // null and false are both treated as "not consented".
     // Only an explicit true opts PostHog in.
-    handleCaptureConsent(posthog, settings.user_consents_to_analytics === true);
-  }, [posthog, settings]);
+    void setTelemetryConsent(
+      settings.user_consents_to_analytics === true ? "granted" : "denied",
+    );
+  }, [settings]);
 };

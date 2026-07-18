@@ -9,7 +9,6 @@ vi.mock("react-i18next", async (importOriginal) =>
   importOriginal<typeof import("react-i18next")>(),
 );
 
-import OptionService from "#/api/option-service/option-service.api";
 import {
   AGENT_SERVER_UI_SCOPE_SELECTOR,
   AgentServerUIRoot,
@@ -26,8 +25,12 @@ import {
 } from "#/index";
 import i18n from "#/i18n";
 
+const postHogProviderMock = vi.hoisted(() => vi.fn());
 vi.mock("posthog-js/react", () => ({
-  PostHogProvider: ({ children }: { children: React.ReactNode }) => children,
+  PostHogProvider: (props: { children: React.ReactNode }) => {
+    postHogProviderMock(props);
+    return props.children;
+  },
 }));
 
 const BaseProbe = ({ translation }: { translation?: string }) => {
@@ -166,9 +169,7 @@ describe("AgentServerUIProviders", () => {
   });
 
   it("only mounts PostHog analytics when the host app opts in", async () => {
-    const getConfigSpy = vi
-      .spyOn(OptionService, "getConfig")
-      .mockResolvedValue({ posthog_client_key: "phc_test_key" } as never);
+    postHogProviderMock.mockClear();
 
     const noAnalyticsView = render(
       <AgentServerUIProviders>
@@ -177,7 +178,7 @@ describe("AgentServerUIProviders", () => {
     );
 
     expect(screen.getByTestId("child")).toHaveTextContent("child");
-    expect(getConfigSpy).not.toHaveBeenCalled();
+    expect(postHogProviderMock).not.toHaveBeenCalled();
 
     noAnalyticsView.unmount();
 
@@ -188,7 +189,7 @@ describe("AgentServerUIProviders", () => {
     );
 
     await waitFor(() => {
-      expect(getConfigSpy).toHaveBeenCalledTimes(1);
+      expect(postHogProviderMock).toHaveBeenCalledTimes(1);
     });
   });
 

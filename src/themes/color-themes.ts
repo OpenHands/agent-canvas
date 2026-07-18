@@ -231,8 +231,8 @@ const THEME_STYLE_TAG_ID = "oh-color-theme-override";
  *   "Later sheet wins the tie" cannot be relied on: in the built SPA
  *   (ssr:false, prerendered shell) React 19 re-creates the <head> elements it
  *   manages (<Meta/>/<Links/>) whenever the tree above the router remounts —
- *   e.g. PostHogWrapper swapping in <PostHogProvider> once the analytics key
- *   resolves, which only happens in builds with VITE_POSTHOG_CLIENT_KEY baked
+ *   e.g. PostHogWrapper swapping in <PostHogProvider> once the shared
+ *   telemetry client resolves
  *   (the published npm package / tagged Docker images). That re-inserts the
  *   base stylesheet <link> AFTER this tag, which would let the base sheet's
  *   unlayered [data-agent-server-ui] variable rules (0,1,0) win every tie.

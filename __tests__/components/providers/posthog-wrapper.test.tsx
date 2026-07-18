@@ -1,187 +1,77 @@
 import { type ReactNode } from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
 import { PostHogWrapper } from "#/components/providers/posthog-wrapper";
-import OptionService from "#/api/option-service/option-service.api";
 
-// Mock PostHogProvider to capture the options passed to it
-const mockPostHogProvider = vi.fn();
+const mocks = vi.hoisted(() => ({
+  client: { capture: vi.fn() },
+  configureBootstrap: vi.fn(),
+  initializeClient: vi.fn(),
+  provider: vi.fn(),
+}));
+
+vi.mock("#/services/telemetry", () => ({
+  configurePostHogBootstrap: mocks.configureBootstrap,
+  initializePostHogClient: mocks.initializeClient,
+}));
+
 vi.mock("posthog-js/react", () => ({
   PostHogProvider: (props: Record<string, unknown>) => {
-    mockPostHogProvider(props);
+    mocks.provider(props);
     return props.children;
   },
 }));
 
-const renderWithQueryClient = (children: ReactNode) =>
-  render(
-    <QueryClientProvider
-      client={
-        new QueryClient({
-          defaultOptions: {
-            queries: { retry: false },
-          },
-        })
-      }
-    >
-      {children}
-    </QueryClientProvider>,
-  );
+const renderWrapper = (children: ReactNode) =>
+  render(<PostHogWrapper>{children}</PostHogWrapper>);
 
 describe("PostHogWrapper", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Reset URL hash
+    mocks.initializeClient.mockResolvedValue(mocks.client);
     window.location.hash = "";
-    // Clear sessionStorage
     sessionStorage.clear();
-    // Mock the config fetch
-    // @ts-expect-error - partial mock
-    vi.spyOn(OptionService, "getConfig").mockResolvedValue({
-      posthog_client_key: "test-posthog-key",
+  });
+
+  it("shares the telemetry-owned client and bootstraps IDs from the URL", async () => {
+    window.location.hash = "distinct_id=user-123&session_id=session-456";
+
+    renderWrapper(<div data-testid="child" />);
+
+    expect(mocks.configureBootstrap).toHaveBeenCalledWith({
+      distinctID: "user-123",
+      sessionID: "session-456",
     });
-  });
-
-  it("should initialize PostHog with bootstrap IDs from URL hash (without ph_ prefix)", async () => {
-    // Webflow sends distinct_id and session_id without the ph_ prefix
-    window.location.hash = "distinct_id=user-123&session_id=session-456";
-
-    renderWithQueryClient(
-      <PostHogWrapper>
-        <div data-testid="child" />
-      </PostHogWrapper>,
-    );
-
-    await screen.findByTestId("child");
-
-    expect(mockPostHogProvider).toHaveBeenCalledWith(
-      expect.objectContaining({
-        options: expect.objectContaining({
-          bootstrap: {
-            distinctID: "user-123",
-            sessionID: "session-456",
-          },
-        }),
-      }),
-    );
-  });
-
-  it("should clean up URL hash after extracting bootstrap IDs", async () => {
-    window.location.hash = "distinct_id=user-123&session_id=session-456";
-
-    renderWithQueryClient(
-      <PostHogWrapper>
-        <div data-testid="child" />
-      </PostHogWrapper>,
-    );
-
-    await screen.findByTestId("child");
-
     expect(window.location.hash).toBe("");
-  });
-
-  it("should persist bootstrap IDs to sessionStorage for OAuth survival", async () => {
-    window.location.hash = "distinct_id=user-123&session_id=session-456";
-
-    renderWithQueryClient(
-      <PostHogWrapper>
-        <div data-testid="child" />
-      </PostHogWrapper>,
-    );
-
-    await screen.findByTestId("child");
-
-    // After extracting from hash, IDs should NOT remain in sessionStorage
-    // because they were already consumed during this page load.
-    // But if a full-page redirect happened before PostHog init,
-    // sessionStorage would still have them for the next load.
-    // We verify the write happened by checking the provider received the IDs.
-    expect(mockPostHogProvider).toHaveBeenCalledWith(
-      expect.objectContaining({
-        options: expect.objectContaining({
-          bootstrap: {
-            distinctID: "user-123",
-            sessionID: "session-456",
-          },
-        }),
-      }),
+    await waitFor(() =>
+      expect(mocks.provider).toHaveBeenCalledWith(
+        expect.objectContaining({ client: mocks.client }),
+      ),
     );
   });
 
-  it("should read bootstrap IDs from sessionStorage when hash is absent (post-OAuth)", async () => {
-    // Simulate returning from OAuth: no hash, but sessionStorage has the IDs
+  it("restores bootstrap IDs after an OAuth redirect", async () => {
     sessionStorage.setItem(
       "posthog_bootstrap",
       JSON.stringify({ distinctID: "user-123", sessionID: "session-456" }),
     );
 
-    renderWithQueryClient(
-      <PostHogWrapper>
-        <div data-testid="child" />
-      </PostHogWrapper>,
-    );
+    renderWrapper(<div data-testid="child" />);
 
-    await screen.findByTestId("child");
-
-    expect(mockPostHogProvider).toHaveBeenCalledWith(
-      expect.objectContaining({
-        options: expect.objectContaining({
-          bootstrap: {
-            distinctID: "user-123",
-            sessionID: "session-456",
-          },
-        }),
-      }),
-    );
-  });
-
-  it("should clean up sessionStorage after consuming bootstrap IDs", async () => {
-    sessionStorage.setItem(
-      "posthog_bootstrap",
-      JSON.stringify({ distinctID: "user-123", sessionID: "session-456" }),
-    );
-
-    renderWithQueryClient(
-      <PostHogWrapper>
-        <div data-testid="child" />
-      </PostHogWrapper>,
-    );
-
-    await screen.findByTestId("child");
-
+    expect(mocks.configureBootstrap).toHaveBeenCalledWith({
+      distinctID: "user-123",
+      sessionID: "session-456",
+    });
     expect(sessionStorage.getItem("posthog_bootstrap")).toBeNull();
+    await waitFor(() => expect(mocks.provider).toHaveBeenCalled());
   });
 
-  it("should initialize without bootstrap when neither hash nor sessionStorage has IDs", async () => {
-    renderWithQueryClient(
-      <PostHogWrapper>
-        <div data-testid="child" />
-      </PostHogWrapper>,
-    );
+  it("keeps rendering children if PostHog cannot initialize", async () => {
+    mocks.initializeClient.mockRejectedValueOnce(new Error("unavailable"));
 
-    await screen.findByTestId("child");
+    renderWrapper(<div data-testid="child" />);
 
-    expect(mockPostHogProvider).toHaveBeenCalledWith(
-      expect.objectContaining({
-        options: expect.objectContaining({
-          bootstrap: undefined,
-        }),
-      }),
-    );
-  });
-
-  it("keeps rendering children when config fetch fails", async () => {
-    vi.spyOn(OptionService, "getConfig").mockRejectedValueOnce(new Error("boom"));
-
-    renderWithQueryClient(
-      <PostHogWrapper>
-        <div data-testid="child" />
-      </PostHogWrapper>,
-    );
-
-    await screen.findByTestId("child");
-
-    expect(mockPostHogProvider).not.toHaveBeenCalled();
+    expect(await screen.findByTestId("child")).toBeInTheDocument();
+    expect(mocks.provider).not.toHaveBeenCalled();
   });
 });

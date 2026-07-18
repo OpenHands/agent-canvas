@@ -1,63 +1,66 @@
 import { waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { gunzipSync } from "node:zlib";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { server } from "#/mocks/node";
 import {
   clearTelemetryData,
   getPostHogInstance,
+  initializePostHogClient,
   setTelemetryConsent,
+  trackInstall,
   trackEvent,
 } from "#/services/telemetry";
 
 describe("Canvas telemetry delivery", () => {
+  beforeEach(async () => {
+    await clearTelemetryData();
+  });
+
   afterEach(async () => {
     await clearTelemetryData();
   });
 
-  it("delivers a consented event through the real named PostHog client", async () => {
-    const requestBodies: string[] = [];
+  it("uses one client identity for install and consented funnel events", async () => {
+    const requestBodies: Record<string, unknown>[] = [];
     server.use(
       http.post("https://z.openhands.dev/*", async ({ request }) => {
         const body = Buffer.from(await request.arrayBuffer());
         const compression = new URL(request.url).searchParams.get(
           "compression",
         );
-        requestBodies.push(
+        const decoded =
           compression === "gzip-js"
             ? gunzipSync(body).toString("utf8")
-            : body.toString("utf8"),
-        );
+            : body.toString("utf8");
+        requestBodies.push(JSON.parse(decoded) as Record<string, unknown>);
         return HttpResponse.json(null, { status: 200 });
       }),
     );
 
-    await setTelemetryConsent("granted");
-    const client = await getPostHogInstance();
+    const client = await initializePostHogClient();
     expect(client).not.toBeNull();
-
-    // Reproduce the host-app lifecycle that previously broke Canvas events:
-    // its default client is initialized and opted out after Canvas opts in.
-    const { default: hostPosthog } = await import("posthog-js");
-    hostPosthog.init(client!.config.token, {
-      api_host: "https://z.openhands.dev",
-      advanced_disable_flags: true,
-      autocapture: false,
-      capture_pageview: false,
-    });
-    hostPosthog.opt_out_capturing();
-    expect(hostPosthog.has_opted_out_capturing()).toBe(true);
-    expect(client!.has_opted_out_capturing()).toBe(false);
-
-    // Send this assertion event immediately and without compression so the
-    // test validates the SDK's actual HTTP delivery rather than a capture mock.
     client!.set_config({ request_batching: false, disable_compression: true });
+    await trackInstall();
+    expect(await getPostHogInstance()).toBe(client);
+
+    const { default: sharedPosthog } = await import("posthog-js");
+    expect(client).toBe(sharedPosthog);
+
+    await setTelemetryConsent("granted");
     await trackEvent("canvas_delivery_test", { source: "vitest" });
 
-    await waitFor(() =>
-      expect(
-        requestBodies.some((body) => body.includes("canvas_delivery_test")),
-      ).toBe(true),
+    await waitFor(() => expect(requestBodies.length).toBeGreaterThanOrEqual(2));
+    const install = requestBodies.find(
+      (body) => body.event === "canvas_install",
     );
+    const funnel = requestBodies.find(
+      (body) => body.event === "canvas_delivery_test",
+    );
+    expect(install).toBeDefined();
+    expect(funnel).toBeDefined();
+    expect(
+      (funnel?.properties as Record<string, unknown>).distinct_id,
+    ).toBe((install?.properties as Record<string, unknown>).distinct_id);
   });
 });

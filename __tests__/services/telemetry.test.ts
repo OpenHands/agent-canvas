@@ -48,7 +48,7 @@ describe("Telemetry Service", () => {
   });
 
   describe("PostHog ownership", () => {
-    it("uses an isolated named client for Canvas consent and events", async () => {
+    it("uses the default client as the single owner of consent and events", async () => {
       await setTelemetryConsent("granted");
 
       expect(mockPosthog.init).toHaveBeenCalledWith(
@@ -56,11 +56,9 @@ describe("Telemetry Service", () => {
         expect.objectContaining({
           api_host: expect.any(String),
           ui_host: expect.any(String),
-          persistence_name: "agent-canvas",
-          consent_persistence_name: "agent-canvas-consent",
         }),
-        "agent-canvas",
       );
+      expect(mockPosthog.init.mock.calls[0]).toHaveLength(2);
       expect(mockPosthog.opt_in_capturing).toHaveBeenCalled();
     });
   });
@@ -94,6 +92,16 @@ describe("Telemetry Service", () => {
       expect(localStorage.getItem("openhands-telemetry-consent")).toBe(
         "denied",
       );
+    });
+
+    it("applies consent synchronously once the shared client is initialized", async () => {
+      await setTelemetryConsent("denied");
+      vi.clearAllMocks();
+
+      const update = setTelemetryConsent("granted");
+
+      expect(mockPosthog.opt_in_capturing).toHaveBeenCalledTimes(1);
+      await update;
     });
   });
 

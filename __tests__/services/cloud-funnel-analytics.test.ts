@@ -11,7 +11,6 @@ vi.mock("#/services/telemetry", () => ({
 }));
 
 import {
-  trackCanvasBackendAdded,
   trackCloudConversationReady,
   trackCloudDeviceAuthorizationStarted,
   trackCloudDeviceAuthorizationSucceeded,
@@ -50,28 +49,11 @@ describe("cloud funnel analytics", () => {
     );
   });
 
-  it("emits backend and ready milestones without raw host or credentials", () => {
-    trackCanvasBackendAdded({
-      backendKind: "cloud",
-      connectionMethod: "cloud_login",
-      host: "https://app.all-hands.dev",
-      hasApiKey: true,
-      source: "add_backend_modal",
-    });
+  it("emits the ready milestone without conversation content", () => {
     trackCloudConversationReady("task-id", "conversation-id");
 
     expect(mocks.trackEvent).toHaveBeenNthCalledWith(
       1,
-      "backend_added",
-      expect.objectContaining({
-        backend_kind: "cloud",
-        connection_method: "cloud_login",
-        has_api_key: true,
-      }),
-    );
-    expect(mocks.trackEvent.mock.calls[0][1]).not.toHaveProperty("host");
-    expect(mocks.trackEvent).toHaveBeenNthCalledWith(
-      2,
       "cloud_conversation_ready",
       expect.objectContaining({
         task_id: "task-id",

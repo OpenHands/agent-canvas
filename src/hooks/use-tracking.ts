@@ -4,6 +4,10 @@ import { Provider } from "#/types/settings";
 import type { BackendKind } from "#/api/backend-registry/types";
 import type { WorkspaceMode } from "#/api/conversation-metadata-store";
 import type { CloudConnectionSource } from "#/services/cloud-funnel-analytics";
+import {
+  AGENT_CANVAS_CLIENT_SOURCE,
+  AGENT_CANVAS_CLIENT_VERSION,
+} from "#/api/client-source";
 
 /**
  * Hook that provides tracking functions with automatic data collection
@@ -11,7 +15,7 @@ import type { CloudConnectionSource } from "#/services/cloud-funnel-analytics";
  *
  * All events require explicit user consent (user_consents_to_analytics === true).
  * Events are silently dropped when:
- *  - posthog is not initialized (VITE_POSTHOG_CLIENT_KEY not set)
+ *  - the shared PostHog client is unavailable
  *  - user_consents_to_analytics is false or null (consent not yet collected)
  */
 export const useTracking = () => {
@@ -255,6 +259,8 @@ export const useTracking = () => {
     source?: CloudConnectionSource;
   }) => {
     track("backend_added", {
+      client_source: AGENT_CANVAS_CLIENT_SOURCE,
+      client_version: AGENT_CANVAS_CLIENT_VERSION,
       backend_kind: backendKind,
       connection_method: connectionMethod,
       is_openhands_cloud: isOpenhandsCloud,

@@ -25,13 +25,12 @@
  * - Browser's Do Not Track setting
  */
 
-import type { PostHog } from "posthog-js";
+import type { BootstrapConfig, PostHog } from "posthog-js";
 import packageJson from "../../package.json";
 
 const TELEMETRY_CONSENT_KEY = "openhands-telemetry-consent";
 const TELEMETRY_FIRST_USE_KEY = "openhands-telemetry-first-use";
 const TELEMETRY_SESSION_KEY = "openhands-telemetry-session";
-const POSTHOG_INSTANCE_NAME = "agent-canvas";
 
 // PostHog project keys — one per deployment environment, hardcoded so they
 // are baked into the static bundle at build time and cannot drift at runtime.
@@ -44,6 +43,7 @@ const POSTHOG_STAGING_KEY = "phc_kBtz5nKmxVRRQ7HtPwr2QX9eMC5j65zE86QKocVNwb4U";
 // Library consumers can always override with VITE_POSTHOG_API_KEY.
 const POSTHOG_API_KEY: string =
   (import.meta.env.VITE_POSTHOG_API_KEY as string | undefined) ||
+  (import.meta.env.VITE_POSTHOG_CLIENT_KEY as string | undefined) ||
   (import.meta.env.VITE_APP_ENV === "production"
     ? POSTHOG_PROD_KEY
     : POSTHOG_STAGING_KEY);
@@ -63,6 +63,8 @@ export type TelemetryConsent = "granted" | "denied" | "pending";
 
 let isInitialized = false;
 let posthogInstance: PostHog | null = null;
+let initializationPromise: Promise<PostHog | null> | null = null;
+let pendingBootstrap: BootstrapConfig | undefined;
 
 /**
  * Check if we're in a browser environment
@@ -130,52 +132,63 @@ function isDoNotTrackEnabled(): boolean {
  * @param enableCapturing - If true, enable capturing immediately (for install tracking).
  *                          If false, start with capturing disabled (for consent-gated tracking).
  */
-async function initializePostHog(
+export function configurePostHogBootstrap(
+  bootstrap: BootstrapConfig | undefined,
+): void {
+  if (!isInitialized && bootstrap) {
+    pendingBootstrap = bootstrap;
+  }
+}
+
+export async function initializePostHogClient(
   enableCapturing = false,
 ): Promise<PostHog | null> {
   if (isInitialized) {
     return posthogInstance;
   }
 
-  const posthog = await getPostHog();
-  if (!posthog) {
-    return null;
+  if (initializationPromise) {
+    return initializationPromise;
   }
 
-  // Canvas telemetry must not share PostHog's default singleton with host-app
-  // analytics. A named instance gives it independent configuration, consent,
-  // persistence, and delivery state.
-  posthogInstance = posthog.init(
-    POSTHOG_API_KEY,
-    {
-      api_host: POSTHOG_HOST,
-      // UI host is required when using a reverse proxy so PostHog features work correctly
-      ui_host: POSTHOG_UI_HOST,
-      // Start with capturing disabled by default - we enable it explicitly when needed
-      opt_out_capturing_by_default: !enableCapturing,
-      // Don't auto-capture page views - we control when to track
-      capture_pageview: false,
-      // Don't auto-capture clicks etc.
-      autocapture: false,
-      // Use localStorage for persistence
-      persistence: "localStorage",
-      persistence_name: POSTHOG_INSTANCE_NAME,
-      consent_persistence_name: `${POSTHOG_INSTANCE_NAME}-consent`,
-      // Disable session recording
-      disable_session_recording: true,
-      // Set default properties for all events
-      loaded: (ph) => {
-        ph.register({
-          package_name: packageJson.name,
-          package_version: packageJson.version,
-        });
-      },
-    },
-    POSTHOG_INSTANCE_NAME,
-  );
+  initializationPromise = (async () => {
+    const posthog = await getPostHog();
+    if (!posthog) {
+      return null;
+    }
 
-  isInitialized = true;
-  return posthogInstance;
+    // telemetry.ts is the sole owner of the default PostHog client. React is
+    // given this exact instance instead of initializing another client.
+    posthogInstance =
+      posthog.init(POSTHOG_API_KEY, {
+        api_host: POSTHOG_HOST,
+        ui_host: POSTHOG_UI_HOST,
+        opt_out_capturing_by_default: !enableCapturing,
+        capture_pageview: false,
+        autocapture: false,
+        persistence: "localStorage",
+        person_profiles: "identified_only",
+        disable_session_recording: true,
+        bootstrap: pendingBootstrap,
+        loaded: (ph) => {
+          ph.register({
+            package_name: packageJson.name,
+            package_version: packageJson.version,
+          });
+        },
+      }) ?? posthog;
+
+    isInitialized = true;
+    return posthogInstance;
+  })();
+
+  try {
+    return await initializationPromise;
+  } finally {
+    if (!isInitialized) {
+      initializationPromise = null;
+    }
+  }
 }
 
 /**
@@ -216,8 +229,9 @@ export async function setTelemetryConsent(
   try {
     localStorage.setItem(TELEMETRY_CONSENT_KEY, consent);
 
-    // Initialize PostHog if not already done
-    const posthog = await initializePostHog();
+    // Reuse an initialized client synchronously so a same-flush identify()
+    // cannot run before consent is applied. Only the cold path awaits import.
+    const posthog = posthogInstance ?? (await initializePostHogClient());
     if (!posthog) {
       return;
     }
@@ -298,7 +312,7 @@ export async function trackInstall(): Promise<void> {
   }
 
   // Initialize PostHog with capturing enabled (for this one event)
-  const posthog = await initializePostHog(true);
+  const posthog = await initializePostHogClient(true);
   if (!posthog) {
     return;
   }
@@ -376,7 +390,7 @@ export async function trackSessionStart(): Promise<void> {
   }
 
   // Initialize PostHog if needed
-  const posthog = await initializePostHog();
+  const posthog = await initializePostHogClient();
   if (!posthog) {
     return;
   }
@@ -401,7 +415,7 @@ export async function trackEvent(
   }
 
   // Initialize PostHog if needed
-  const posthog = await initializePostHog();
+  const posthog = await initializePostHogClient();
   if (!posthog) {
     return;
   }
@@ -424,6 +438,7 @@ export async function clearTelemetryData(): Promise<void> {
 
     // Reset PostHog if initialized
     if (isInitialized && posthogInstance) {
+      posthogInstance.opt_out_capturing();
       posthogInstance.reset();
     }
   } catch {

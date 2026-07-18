@@ -1,4 +1,3 @@
-import type { BackendKind } from "#/api/backend-registry/types";
 import {
   AGENT_CANVAS_CLIENT_SOURCE,
   AGENT_CANVAS_CLIENT_VERSION,
@@ -49,28 +48,6 @@ export function trackCloudDeviceAuthorizationSucceeded(
 ): boolean {
   return trackCloudFunnelEvent("cloud_device_authorization_succeeded", {
     ...hostClassification(host),
-    source,
-  });
-}
-
-export function trackCanvasBackendAdded({
-  backendKind,
-  connectionMethod,
-  host,
-  hasApiKey,
-  source,
-}: {
-  backendKind: BackendKind;
-  connectionMethod: "manual" | "cloud_login";
-  host: string;
-  hasApiKey: boolean;
-  source?: CloudConnectionSource;
-}): boolean {
-  return trackCloudFunnelEvent("backend_added", {
-    backend_kind: backendKind,
-    connection_method: connectionMethod,
-    ...hostClassification(host),
-    has_api_key: hasApiKey,
     source,
   });
 }

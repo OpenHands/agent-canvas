@@ -1,10 +1,8 @@
 import React from "react";
-import { usePostHog } from "posthog-js/react";
-import { handleCaptureConsent } from "#/utils/handle-capture-consent";
+import { setTelemetryConsent } from "#/services/telemetry";
 import { useSaveSettings } from "./mutation/use-save-settings";
 
 export const useMigrateUserConsent = () => {
-  const posthog = usePostHog();
   const { mutate: saveUserSettings } = useSaveSettings();
 
   /**
@@ -21,7 +19,9 @@ export const useMigrateUserConsent = () => {
           { user_consents_to_analytics: userAnalyticsConsent === "true" },
           {
             onSuccess: () => {
-              handleCaptureConsent(posthog, userAnalyticsConsent === "true");
+              void setTelemetryConsent(
+                userAnalyticsConsent === "true" ? "granted" : "denied",
+              );
             },
           },
         );
@@ -29,7 +29,7 @@ export const useMigrateUserConsent = () => {
         localStorage.removeItem("analytics-consent");
       }
     },
-    [posthog, saveUserSettings],
+    [saveUserSettings],
   );
 
   return { migrateUserConsent };

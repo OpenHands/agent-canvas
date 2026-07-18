@@ -321,6 +321,8 @@ describe("useTracking", () => {
       });
 
       expect(captureMock).toHaveBeenCalledWith("backend_added", {
+        client_source: "agent_canvas",
+        client_version: expect.any(String),
         backend_kind: "cloud",
         connection_method: "cloud_login",
         is_openhands_cloud: true,
