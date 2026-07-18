@@ -5,32 +5,15 @@ import { useSaveSettings } from "./mutation/use-save-settings";
 export const useMigrateUserConsent = () => {
   const { mutate: saveUserSettings } = useSaveSettings();
 
-  /**
-   * Migrate user consent to the settings store on the server.
-   */
-  const migrateUserConsent = React.useCallback(
-    async (args?: { handleAnalyticsWasPresentInLocalStorage: () => void }) => {
-      const userAnalyticsConsent = localStorage.getItem("analytics-consent");
+  const migrateUserConsent = React.useCallback(() => {
+    const legacyConsent = localStorage.getItem("analytics-consent");
+    if (legacyConsent === null) return;
 
-      if (userAnalyticsConsent) {
-        args?.handleAnalyticsWasPresentInLocalStorage();
-
-        saveUserSettings(
-          { user_consents_to_analytics: userAnalyticsConsent === "true" },
-          {
-            onSuccess: () => {
-              void setTelemetryConsent(
-                userAnalyticsConsent === "true" ? "granted" : "denied",
-              );
-            },
-          },
-        );
-
-        localStorage.removeItem("analytics-consent");
-      }
-    },
-    [saveUserSettings],
-  );
+    localStorage.removeItem("analytics-consent");
+    const consent = legacyConsent === "true";
+    void setTelemetryConsent(consent ? "granted" : "denied");
+    saveUserSettings({ user_consents_to_analytics: consent });
+  }, [saveUserSettings]);
 
   return { migrateUserConsent };
 };

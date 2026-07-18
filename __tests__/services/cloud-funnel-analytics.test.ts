@@ -62,12 +62,18 @@ describe("cloud funnel analytics", () => {
     );
   });
 
-  it("does not enqueue funnel events without Canvas consent", () => {
+  it("emits the ready milestone only once across polling consumers", () => {
+    trackCloudConversationReady("task-dedupe", "conversation-dedupe");
+    trackCloudConversationReady("task-dedupe", "conversation-dedupe");
+
+    expect(mocks.trackEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not enqueue funnel events without consent", () => {
     mocks.enabled = false;
 
-    expect(
-      trackCloudDeviceAuthorizationStarted("https://app.all-hands.dev"),
-    ).toBe(false);
+    trackCloudDeviceAuthorizationStarted("https://app.all-hands.dev");
+
     expect(mocks.trackEvent).not.toHaveBeenCalled();
   });
 });

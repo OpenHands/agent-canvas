@@ -39,13 +39,13 @@ vi.mock("#/utils/custom-toast-handlers", () => ({
   TOAST_OPTIONS: { position: "top-right" },
 }));
 
-// /new fires conversation_created through the real useTracking hook. Observe
-// the typed event at the shared telemetry boundary.
+// /new fires conversation_created through the real useTracking hook. Mock the
+// lower-level deps (posthog + settings) rather than useTracking itself so the
+// emitted payload can be asserted.
 const { captureMock } = vi.hoisted(() => ({ captureMock: vi.fn() }));
 
-vi.mock("#/services/telemetry", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("#/services/telemetry")>()),
-  trackEvent: (...args: unknown[]) => captureMock(...args),
+vi.mock("posthog-js/react", () => ({
+  usePostHog: () => ({ capture: captureMock }),
 }));
 
 vi.mock("#/hooks/query/use-settings", () => ({
@@ -137,10 +137,9 @@ describe("useNewConversationCommand", () => {
       app_conversation_id: null,
     });
 
-    vi.spyOn(
-      AgentServerConversationService,
-      "createConversation",
-    ).mockResolvedValue(errorTask as never);
+    vi.spyOn(AgentServerConversationService, "createConversation").mockResolvedValue(
+      errorTask as never,
+    );
 
     const { result } = renderHook(() => useNewConversationCommand(), {
       wrapper,
@@ -156,10 +155,9 @@ describe("useNewConversationCommand", () => {
       app_conversation_id: null,
     });
 
-    vi.spyOn(
-      AgentServerConversationService,
-      "createConversation",
-    ).mockResolvedValue(workingTask as never);
+    vi.spyOn(AgentServerConversationService, "createConversation").mockResolvedValue(
+      workingTask as never,
+    );
 
     const { result } = renderHook(() => useNewConversationCommand(), {
       wrapper,
@@ -177,10 +175,9 @@ describe("useNewConversationCommand", () => {
   it("invalidates conversation list queries on success", async () => {
     const readyTask = makeStartTask();
 
-    vi.spyOn(
-      AgentServerConversationService,
-      "createConversation",
-    ).mockResolvedValue(readyTask as never);
+    vi.spyOn(AgentServerConversationService, "createConversation").mockResolvedValue(
+      readyTask as never,
+    );
 
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
 
@@ -233,10 +230,9 @@ describe("useNewConversationCommand", () => {
   it("shows a loading toast and dismisses it on success", async () => {
     const readyTask = makeStartTask();
 
-    vi.spyOn(
-      AgentServerConversationService,
-      "createConversation",
-    ).mockResolvedValue(readyTask as never);
+    vi.spyOn(AgentServerConversationService, "createConversation").mockResolvedValue(
+      readyTask as never,
+    );
 
     const { result } = renderHook(() => useNewConversationCommand(), {
       wrapper,

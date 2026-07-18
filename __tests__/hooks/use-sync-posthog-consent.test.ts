@@ -1,15 +1,46 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const useSettingsMock = vi.fn();
+const saveSettingsMock = vi.fn();
+const clearPendingCloudTelemetryConsentMock = vi.fn();
+const setTelemetryConsentMock = vi.fn();
+const state = {
+  backendId: "backend-1",
+  backendKind: "cloud" as "cloud" | "local",
+  pendingConsent: null as "granted" | "denied" | null,
+  isSavingSettings: false,
+};
+let pendingConsentListener: (() => void) | null = null;
+
 vi.mock("#/hooks/query/use-settings", () => ({
   useSettings: () => useSettingsMock(),
 }));
 
-const setTelemetryConsentMock = vi.fn();
+vi.mock("#/hooks/mutation/use-save-settings", () => ({
+  useSaveSettings: () => ({
+    mutate: saveSettingsMock,
+    isPending: state.isSavingSettings,
+  }),
+}));
+
+vi.mock("#/contexts/active-backend-context", () => ({
+  useActiveBackend: () => ({
+    backend: { id: state.backendId, kind: state.backendKind },
+  }),
+}));
+
 vi.mock("#/services/telemetry", () => ({
-  setTelemetryConsent: (...args: unknown[]) =>
-    setTelemetryConsentMock(...args),
+  clearPendingCloudTelemetryConsent: (...args: unknown[]) =>
+    clearPendingCloudTelemetryConsentMock(...args),
+  getPendingCloudTelemetryConsent: () => state.pendingConsent,
+  setTelemetryConsent: (...args: unknown[]) => setTelemetryConsentMock(...args),
+  subscribeTelemetryConsent: (listener: () => void) => {
+    pendingConsentListener = listener;
+    return () => {
+      pendingConsentListener = null;
+    };
+  },
 }));
 
 // Import after mocks so the module sees the stubbed dependencies.
@@ -18,6 +49,11 @@ import { useSyncPostHogConsent } from "#/hooks/use-sync-posthog-consent";
 describe("useSyncPostHogConsent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    state.backendId = "backend-1";
+    state.backendKind = "cloud";
+    state.pendingConsent = null;
+    state.isSavingSettings = false;
+    pendingConsentListener = null;
   });
 
   it("calls opt-out when user_consents_to_analytics is null", () => {
@@ -27,7 +63,9 @@ describe("useSyncPostHogConsent", () => {
 
     renderHook(() => useSyncPostHogConsent());
 
-    expect(setTelemetryConsentMock).toHaveBeenCalledWith("denied");
+    expect(setTelemetryConsentMock).toHaveBeenCalledWith("denied", {
+      syncToCloud: false,
+    });
   });
 
   it("calls opt-out when user_consents_to_analytics is false", () => {
@@ -37,7 +75,9 @@ describe("useSyncPostHogConsent", () => {
 
     renderHook(() => useSyncPostHogConsent());
 
-    expect(setTelemetryConsentMock).toHaveBeenCalledWith("denied");
+    expect(setTelemetryConsentMock).toHaveBeenCalledWith("denied", {
+      syncToCloud: false,
+    });
   });
 
   it("calls opt-in when user_consents_to_analytics is true", () => {
@@ -47,7 +87,9 @@ describe("useSyncPostHogConsent", () => {
 
     renderHook(() => useSyncPostHogConsent());
 
-    expect(setTelemetryConsentMock).toHaveBeenCalledWith("granted");
+    expect(setTelemetryConsentMock).toHaveBeenCalledWith("granted", {
+      syncToCloud: false,
+    });
   });
 
   it("does nothing while settings are still loading (data === undefined)", () => {
@@ -58,38 +100,79 @@ describe("useSyncPostHogConsent", () => {
     expect(setTelemetryConsentMock).not.toHaveBeenCalled();
   });
 
-  it("re-syncs when settings update from null to true (consent granted after load)", () => {
-    useSettingsMock.mockReturnValue({
-      data: { user_consents_to_analytics: null },
-    });
-
-    const { rerender } = renderHook(() => useSyncPostHogConsent());
-
-    expect(setTelemetryConsentMock).toHaveBeenCalledWith("denied");
-    setTelemetryConsentMock.mockClear();
-
-    useSettingsMock.mockReturnValue({
-      data: { user_consents_to_analytics: true },
-    });
-    rerender();
-
-    expect(setTelemetryConsentMock).toHaveBeenCalledWith("granted");
-  });
-
-  it("re-syncs when settings update from true to false (consent revoked)", () => {
-    useSettingsMock.mockReturnValue({
-      data: { user_consents_to_analytics: true },
-    });
-
-    const { rerender } = renderHook(() => useSyncPostHogConsent());
-
-    setTelemetryConsentMock.mockClear();
-
+  it("persists a newer pre-login grant instead of applying a stale backend denial", () => {
+    state.pendingConsent = "granted";
     useSettingsMock.mockReturnValue({
       data: { user_consents_to_analytics: false },
     });
+
+    renderHook(() => useSyncPostHogConsent());
+
+    expect(saveSettingsMock).toHaveBeenCalledWith(
+      { user_consents_to_analytics: true },
+      expect.objectContaining({ onSettled: expect.any(Function) }),
+    );
+    expect(setTelemetryConsentMock).not.toHaveBeenCalled();
+    expect(clearPendingCloudTelemetryConsentMock).not.toHaveBeenCalled();
+  });
+
+  it("clears a pending browser choice only after the backend confirms it", () => {
+    state.pendingConsent = "granted";
+    useSettingsMock.mockReturnValue({
+      data: { user_consents_to_analytics: true },
+    });
+
+    renderHook(() => useSyncPostHogConsent());
+
+    expect(clearPendingCloudTelemetryConsentMock).toHaveBeenCalledWith(
+      "granted",
+    );
+    expect(saveSettingsMock).not.toHaveBeenCalled();
+    expect(setTelemetryConsentMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps the choice pending when only a local backend confirms it", () => {
+    state.backendKind = "local";
+    state.pendingConsent = "granted";
+    useSettingsMock.mockReturnValue({
+      data: { user_consents_to_analytics: true },
+    });
+
+    renderHook(() => useSyncPostHogConsent());
+
+    expect(clearPendingCloudTelemetryConsentMock).not.toHaveBeenCalled();
+    expect(saveSettingsMock).not.toHaveBeenCalled();
+  });
+
+  it("does not enqueue duplicate writes while one backend sync is outstanding", () => {
+    state.pendingConsent = "granted";
+    useSettingsMock.mockReturnValue({
+      data: { user_consents_to_analytics: false },
+    });
+
+    const { rerender } = renderHook(() => useSyncPostHogConsent());
     rerender();
 
-    expect(setTelemetryConsentMock).toHaveBeenCalledWith("denied");
+    expect(saveSettingsMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("reacts when a first-run choice is made after the hook has mounted", () => {
+    useSettingsMock.mockReturnValue({
+      data: { user_consents_to_analytics: false },
+    });
+    renderHook(() => useSyncPostHogConsent());
+    expect(setTelemetryConsentMock).toHaveBeenCalledWith("denied", {
+      syncToCloud: false,
+    });
+
+    vi.clearAllMocks();
+    state.pendingConsent = "granted";
+    act(() => pendingConsentListener?.());
+
+    expect(saveSettingsMock).toHaveBeenCalledWith(
+      { user_consents_to_analytics: true },
+      expect.objectContaining({ onSettled: expect.any(Function) }),
+    );
+    expect(setTelemetryConsentMock).not.toHaveBeenCalled();
   });
 });

@@ -11,9 +11,8 @@ import { I18nKey } from "#/i18n/declaration";
 import { useConversationStore } from "#/stores/conversation-store";
 
 const captureMock = vi.fn();
-vi.mock("#/services/telemetry", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("#/services/telemetry")>()),
-  trackEvent: (...args: unknown[]) => captureMock(...args),
+vi.mock("posthog-js/react", () => ({
+  usePostHog: () => ({ capture: captureMock }),
 }));
 
 vi.mock("#/hooks/query/use-settings", () => ({

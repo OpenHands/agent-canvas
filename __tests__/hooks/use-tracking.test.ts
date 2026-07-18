@@ -2,8 +2,8 @@ import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const captureMock = vi.fn();
-vi.mock("#/services/telemetry", () => ({
-  trackEvent: (...args: unknown[]) => captureMock(...args),
+vi.mock("posthog-js/react", () => ({
+  usePostHog: () => ({ capture: captureMock }),
 }));
 
 const useSettingsMock = vi.fn();

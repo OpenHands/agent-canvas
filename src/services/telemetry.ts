@@ -29,12 +29,14 @@ import type { BootstrapConfig, PostHog } from "posthog-js";
 import packageJson from "../../package.json";
 
 const TELEMETRY_CONSENT_KEY = "openhands-telemetry-consent";
+const TELEMETRY_CONSENT_PENDING_CLOUD_SYNC_KEY =
+  "openhands-telemetry-consent-pending-cloud-sync";
+const TELEMETRY_CONSENT_CHANGE_EVENT = "openhands-telemetry-consent-change";
 const TELEMETRY_FIRST_USE_KEY = "openhands-telemetry-first-use";
 const TELEMETRY_SESSION_KEY = "openhands-telemetry-session";
 
 // PostHog project keys — one per deployment environment, hardcoded so they
 // are baked into the static bundle at build time and cannot drift at runtime.
-// Replace POSTHOG_STAGING_KEY with a dedicated project key once provisioned.
 const POSTHOG_PROD_KEY = "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK";
 const POSTHOG_STAGING_KEY = "phc_kBtz5nKmxVRRQ7HtPwr2QX9eMC5j65zE86QKocVNwb4U";
 
@@ -43,7 +45,6 @@ const POSTHOG_STAGING_KEY = "phc_kBtz5nKmxVRRQ7HtPwr2QX9eMC5j65zE86QKocVNwb4U";
 // Library consumers can always override with VITE_POSTHOG_API_KEY.
 const POSTHOG_API_KEY: string =
   (import.meta.env.VITE_POSTHOG_API_KEY as string | undefined) ||
-  (import.meta.env.VITE_POSTHOG_CLIENT_KEY as string | undefined) ||
   (import.meta.env.VITE_APP_ENV === "production"
     ? POSTHOG_PROD_KEY
     : POSTHOG_STAGING_KEY);
@@ -60,8 +61,13 @@ const POSTHOG_UI_HOST =
   import.meta.env.VITE_POSTHOG_UI_HOST || "https://us.posthog.com";
 
 export type TelemetryConsent = "granted" | "denied" | "pending";
+export type ResolvedTelemetryConsent = Exclude<TelemetryConsent, "pending">;
 
-let isInitialized = false;
+export interface SetTelemetryConsentOptions {
+  /** Do not persist a value mirrored from backend settings back to Cloud. */
+  syncToCloud?: boolean;
+}
+
 let posthogInstance: PostHog | null = null;
 let initializationPromise: Promise<PostHog | null> | null = null;
 let pendingBootstrap: BootstrapConfig | undefined;
@@ -135,7 +141,7 @@ function isDoNotTrackEnabled(): boolean {
 export function configurePostHogBootstrap(
   bootstrap: BootstrapConfig | undefined,
 ): void {
-  if (!isInitialized && bootstrap) {
+  if (!posthogInstance && bootstrap) {
     pendingBootstrap = bootstrap;
   }
 }
@@ -143,7 +149,7 @@ export function configurePostHogBootstrap(
 export async function initializePostHogClient(
   enableCapturing = false,
 ): Promise<PostHog | null> {
-  if (isInitialized) {
+  if (posthogInstance) {
     return posthogInstance;
   }
 
@@ -159,33 +165,31 @@ export async function initializePostHogClient(
 
     // telemetry.ts is the sole owner of the default PostHog client. React is
     // given this exact instance instead of initializing another client.
-    posthogInstance =
-      posthog.init(POSTHOG_API_KEY, {
-        api_host: POSTHOG_HOST,
-        ui_host: POSTHOG_UI_HOST,
-        opt_out_capturing_by_default: !enableCapturing,
-        capture_pageview: false,
-        autocapture: false,
-        persistence: "localStorage",
-        person_profiles: "identified_only",
-        disable_session_recording: true,
-        bootstrap: pendingBootstrap,
-        loaded: (ph) => {
-          ph.register({
-            package_name: packageJson.name,
-            package_version: packageJson.version,
-          });
-        },
-      }) ?? posthog;
+    posthogInstance = posthog.init(POSTHOG_API_KEY, {
+      api_host: POSTHOG_HOST,
+      ui_host: POSTHOG_UI_HOST,
+      opt_out_capturing_by_default: !enableCapturing,
+      capture_pageview: false,
+      autocapture: false,
+      persistence: "localStorage",
+      person_profiles: "identified_only",
+      disable_session_recording: true,
+      bootstrap: pendingBootstrap,
+      loaded: (ph) => {
+        ph.register({
+          package_name: packageJson.name,
+          package_version: packageJson.version,
+        });
+      },
+    });
 
-    isInitialized = true;
     return posthogInstance;
   })();
 
   try {
     return await initializationPromise;
   } finally {
-    if (!isInitialized) {
+    if (!posthogInstance) {
       initializationPromise = null;
     }
   }
@@ -217,10 +221,85 @@ export function getTelemetryConsent(): TelemetryConsent {
 }
 
 /**
+ * Return an explicit browser choice that still needs to survive a Cloud login.
+ * It remains pending across local backends so their settings cannot consume a
+ * decision that must still be applied after the user connects to Cloud.
+ */
+export function getPendingCloudTelemetryConsent(): ResolvedTelemetryConsent | null {
+  if (!isBrowser()) return null;
+
+  try {
+    const consent = localStorage.getItem(
+      TELEMETRY_CONSENT_PENDING_CLOUD_SYNC_KEY,
+    );
+    return consent === "granted" || consent === "denied" ? consent : null;
+  } catch {
+    return null;
+  }
+}
+
+export function subscribeTelemetryConsent(listener: () => void): () => void {
+  if (!isBrowser()) return () => {};
+  const handleStorage = (event: StorageEvent) => {
+    if (
+      event.key === TELEMETRY_CONSENT_KEY ||
+      event.key === TELEMETRY_CONSENT_PENDING_CLOUD_SYNC_KEY
+    ) {
+      listener();
+    }
+  };
+  window.addEventListener(TELEMETRY_CONSENT_CHANGE_EVENT, listener);
+  window.addEventListener("storage", handleStorage);
+
+  return () => {
+    window.removeEventListener(TELEMETRY_CONSENT_CHANGE_EVENT, listener);
+    window.removeEventListener("storage", handleStorage);
+  };
+}
+
+function notifyTelemetryConsentListeners(): void {
+  if (isBrowser())
+    window.dispatchEvent(new Event(TELEMETRY_CONSENT_CHANGE_EVENT));
+}
+
+function markTelemetryConsentForCloudSync(
+  consent: ResolvedTelemetryConsent,
+): void {
+  if (!isBrowser()) return;
+
+  try {
+    localStorage.setItem(TELEMETRY_CONSENT_PENDING_CLOUD_SYNC_KEY, consent);
+  } catch {
+    // Ignore storage errors; the in-browser consent decision still applies.
+  }
+}
+
+export function clearPendingCloudTelemetryConsent(
+  expected?: ResolvedTelemetryConsent,
+): void {
+  if (!isBrowser()) return;
+
+  try {
+    if (
+      expected !== undefined &&
+      localStorage.getItem(TELEMETRY_CONSENT_PENDING_CLOUD_SYNC_KEY) !==
+        expected
+    ) {
+      return;
+    }
+    localStorage.removeItem(TELEMETRY_CONSENT_PENDING_CLOUD_SYNC_KEY);
+    notifyTelemetryConsentListeners();
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
+/**
  * Set user's telemetry consent preference
  */
 export async function setTelemetryConsent(
-  consent: "granted" | "denied",
+  consent: ResolvedTelemetryConsent,
+  { syncToCloud = true }: SetTelemetryConsentOptions = {},
 ): Promise<void> {
   if (!isBrowser()) {
     return;
@@ -245,6 +324,14 @@ export async function setTelemetryConsent(
     }
   } catch {
     // Ignore storage errors
+  } finally {
+    // Notify UI/backend/identity reconcilers only after the browser capture state
+    // reflects this decision. Otherwise a pre-login grant can trigger an
+    // identify while PostHog is still opted out and lose funnel continuity.
+    if (syncToCloud) {
+      markTelemetryConsentForCloudSync(consent);
+    }
+    notifyTelemetryConsentListeners();
   }
 }
 
@@ -374,26 +461,38 @@ function markSessionSent(): void {
   }
 }
 
+/** Return the shared client only when a consented capture is safe to emit. */
+async function getPostHogForConsentedCapture(): Promise<PostHog | null> {
+  if (!isTelemetryEnabled()) return null;
+
+  const posthog = await initializePostHogClient();
+  if (!posthog || !isTelemetryEnabled()) return null;
+
+  // The browser preference is the canonical capture decision. PostHog may
+  // still carry an older opt-out marker while backend consent is loading or
+  // after a previous backend temporarily reported a stale value. Heal that
+  // drift at the event boundary so capture() cannot silently discard an event
+  // that the user has explicitly allowed.
+  if (posthog.has_opted_out_capturing?.()) {
+    posthog.opt_in_capturing();
+  }
+
+  return posthog;
+}
+
 /**
  * Track a session start event.
  * Called each time a new browser session starts (respects consent).
  * Uses sessionStorage for deduplication - only sends once per browser session.
  */
 export async function trackSessionStart(): Promise<void> {
-  if (!isTelemetryEnabled()) {
-    return;
-  }
-
   // Already sent session event this browser session
   if (hasSessionSent()) {
     return;
   }
 
-  // Initialize PostHog if needed
-  const posthog = await initializePostHogClient();
-  if (!posthog) {
-    return;
-  }
+  const posthog = await getPostHogForConsentedCapture();
+  if (!posthog) return;
 
   posthog.capture("canvas_new_session", {
     is_first_use: !hasFirstUseSent(),
@@ -410,22 +509,8 @@ export async function trackEvent(
   eventName: string,
   properties: Record<string, unknown> = {},
 ): Promise<void> {
-  if (!isTelemetryEnabled()) {
-    return;
-  }
-
-  // Initialize PostHog if needed
-  const posthog = await initializePostHogClient();
-  if (!posthog) {
-    return;
-  }
-
-  // Consent may change while a cold client import/initialization is pending.
-  // Re-check immediately before capture so an in-flight event cannot escape a
-  // concurrent opt-out.
-  if (!isTelemetryEnabled()) {
-    return;
-  }
+  const posthog = await getPostHogForConsentedCapture();
+  if (!posthog) return;
 
   posthog.capture(eventName, properties);
 }
@@ -440,11 +525,12 @@ export async function clearTelemetryData(): Promise<void> {
 
   try {
     localStorage.removeItem(TELEMETRY_CONSENT_KEY);
+    clearPendingCloudTelemetryConsent();
     localStorage.removeItem(TELEMETRY_FIRST_USE_KEY);
     sessionStorage.removeItem(TELEMETRY_SESSION_KEY);
 
     // Reset PostHog if initialized
-    if (isInitialized && posthogInstance) {
+    if (posthogInstance) {
       posthogInstance.opt_out_capturing();
       posthogInstance.reset();
     }
@@ -459,8 +545,5 @@ export async function clearTelemetryData(): Promise<void> {
  * Note: This is async because PostHog is lazily loaded.
  */
 export async function getPostHogInstance(): Promise<PostHog | null> {
-  if (!isInitialized) {
-    return null;
-  }
   return posthogInstance;
 }

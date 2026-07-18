@@ -33,11 +33,11 @@ by a human, report the exact validator error rather than editing them yourself.
 One PostHog client owns Canvas telemetry and app analytics.
 
 - `src/services/telemetry.ts` is the only module that initializes the default PostHog client. `PostHogWrapper` obtains that exact client and passes it to React with `<PostHogProvider client={...}>`; never initialize another default or named instance.
-- The client uses the production/staging key selected in `telemetry.ts` and routes through `https://z.openhands.dev`. `VITE_POSTHOG_API_KEY` and `VITE_POSTHOG_CLIENT_KEY` are optional build-time overrides of that same client.
-- `setTelemetryConsent` is the only capture-consent controller. Backend `user_consents_to_analytics` changes are mirrored to it by `useSyncPostHogConsent`; no other hook or component should call `opt_in_capturing` / `opt_out_capturing` directly.
+- The client uses the production/staging key selected in `telemetry.ts` and routes through `https://z.openhands.dev`. `VITE_POSTHOG_API_KEY` is the sole optional build-time override.
+- `setTelemetryConsent` is the only capture-consent controller. An explicit first-run browser decision remains pending across local backends until `useSyncPostHogConsent` persists it to Cloud; a stale/default backend value must not overwrite that newer choice during login or navigation. Once Cloud confirms the choice, backend `user_consents_to_analytics` changes are authoritative and mirrored to the client. No other hook or component should call `opt_in_capturing` / `opt_out_capturing` directly.
 - `canvas_install` fires once, pre-consent, with the client's anonymous distinct ID. After consent, Cloud `identify()` follows PostHog's normal anonymous-to-identified lifecycle, so install, Cloud-funnel, and app events remain queryable as one user journey.
 - `trackEvent`, `useTelemetry`, and `TelemetryConsentBanner` remain the public library telemetry API for npm consumers. Non-React state machines use typed functions in `cloud-funnel-analytics.ts`; they do not call `trackEvent` directly.
-- React app events use typed functions in `src/hooks/use-tracking.ts`; components never call `posthog.capture()` raw. The hook attaches `current_url` and `user_email` automatically, then delegates to `trackEvent`. It may read backend settings for event properties, but must never gate capture on a settings snapshot: `useSyncPostHogConsent` has already mirrored the authoritative decision to the telemetry service, and settings can be stale during a backend transition.
+- React app events use typed functions in `src/hooks/use-tracking.ts`; components never call `posthog.capture()` raw. The hook attaches `current_url` and `user_email` automatically and captures through the shared provider client. It may read backend settings for event properties, but must never gate capture on a settings snapshot: `useSyncPostHogConsent` has already mirrored the authoritative decision to the telemetry service, and settings can be stale during a backend transition.
 - A business milestone has one canonical event capture. Do not conditionally switch between telemetry and app clients or emit duplicate events.
 
 ### Cloud funnel observability
@@ -51,7 +51,7 @@ One PostHog client owns Canvas telemetry and app analytics.
 3. Destructure and call it from the component: `const { trackFoo } = useTracking()`
 
 ### Env vars
-`VITE_POSTHOG_API_KEY` and `VITE_POSTHOG_CLIENT_KEY` optionally override the staging/production key selected by `telemetry.ts`. Both configure the same client; do not assign them to different projects in one build.
+`VITE_POSTHOG_API_KEY` optionally overrides the staging/production key selected by `telemetry.ts`.
 
 ## Runtime Services in Dev Stacks
 

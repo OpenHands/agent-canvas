@@ -22,9 +22,6 @@ describe("npm publish workflow", () => {
 
     expect(buildAppStep).toBeTruthy();
     expect(buildAppStep).toContain("VITE_APP_ENV: production");
-    expect(buildAppStep).toContain(
-      "VITE_POSTHOG_CLIENT_KEY: ${{ vars.POSTHOG_PROD_KEY }}",
-    );
     expect(buildAppStep).toContain("npm run build");
   });
 });

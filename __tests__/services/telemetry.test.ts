@@ -17,10 +17,14 @@ vi.mock("posthog-js", () => ({
 }));
 
 import {
+  clearPendingCloudTelemetryConsent,
   getTelemetryConsent,
+  getPendingCloudTelemetryConsent,
   setTelemetryConsent,
+  subscribeTelemetryConsent,
   isTelemetryEnabled,
   trackInstall,
+  trackSessionStart,
   trackEvent,
   clearTelemetryData,
 } from "#/services/telemetry";
@@ -40,6 +44,7 @@ describe("Telemetry Service", () => {
     sessionStorage.clear();
     // Reset mock
     vi.clearAllMocks();
+    mockPosthog.has_opted_out_capturing.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -102,6 +107,45 @@ describe("Telemetry Service", () => {
 
       expect(mockPosthog.opt_in_capturing).toHaveBeenCalledTimes(1);
       await update;
+    });
+
+    it("marks an explicit pre-login choice for backend reconciliation", async () => {
+      const listener = vi.fn();
+      const unsubscribe = subscribeTelemetryConsent(listener);
+      await setTelemetryConsent("granted");
+
+      expect(getPendingCloudTelemetryConsent()).toBe("granted");
+      expect(listener).toHaveBeenCalledTimes(1);
+      unsubscribe();
+    });
+
+    it("applies capture consent before notifying identity reconcilers", async () => {
+      const listener = vi.fn(() => {
+        expect(getTelemetryConsent()).toBe("granted");
+        expect(mockPosthog.opt_in_capturing).toHaveBeenCalledTimes(1);
+      });
+      const unsubscribe = subscribeTelemetryConsent(listener);
+
+      await setTelemetryConsent("granted");
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      unsubscribe();
+    });
+
+    it("does not mark consent mirrored from backend settings as pending", async () => {
+      await setTelemetryConsent("granted", { syncToCloud: false });
+
+      expect(getPendingCloudTelemetryConsent()).toBeNull();
+    });
+
+    it("only clears the pending decision it expects", async () => {
+      await setTelemetryConsent("granted");
+
+      clearPendingCloudTelemetryConsent("denied");
+      expect(getPendingCloudTelemetryConsent()).toBe("granted");
+
+      clearPendingCloudTelemetryConsent("granted");
+      expect(getPendingCloudTelemetryConsent()).toBeNull();
     });
   });
 
@@ -194,6 +238,31 @@ describe("Telemetry Service", () => {
         button: "submit",
       });
     });
+
+    it("repairs a stale SDK opt-out before a consented custom event", async () => {
+      localStorage.setItem("openhands-telemetry-consent", "granted");
+      mockPosthog.has_opted_out_capturing.mockReturnValue(true);
+
+      await trackEvent("custom_action");
+
+      expect(mockPosthog.opt_in_capturing).toHaveBeenCalledTimes(1);
+      expect(mockPosthog.capture).toHaveBeenCalledWith("custom_action", {});
+    });
+  });
+
+  describe("trackSessionStart", () => {
+    it("repairs a stale SDK opt-out before recording the session", async () => {
+      localStorage.setItem("openhands-telemetry-consent", "granted");
+      mockPosthog.has_opted_out_capturing.mockReturnValue(true);
+
+      await trackSessionStart();
+
+      expect(mockPosthog.opt_in_capturing).toHaveBeenCalledTimes(1);
+      expect(mockPosthog.capture).toHaveBeenCalledWith(
+        "canvas_new_session",
+        expect.any(Object),
+      );
+    });
   });
 
   describe("clearTelemetryData", () => {
@@ -204,6 +273,7 @@ describe("Telemetry Service", () => {
       await clearTelemetryData();
 
       expect(localStorage.getItem("openhands-telemetry-consent")).toBeNull();
+      expect(getPendingCloudTelemetryConsent()).toBeNull();
       expect(localStorage.getItem("openhands-telemetry-first-use")).toBeNull();
     });
   });

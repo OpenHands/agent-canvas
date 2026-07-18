@@ -22,11 +22,10 @@ const llmSettingsScreenMock = vi.hoisted(() => vi.fn());
 const getServerInfoMock = vi.hoisted(() => vi.fn());
 const captureMock = vi.hoisted(() => vi.fn());
 
-// Keep the typed useTracking payload builder real while observing its calls at
-// the shared telemetry boundary.
-vi.mock("#/services/telemetry", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("#/services/telemetry")>()),
-  trackEvent: (...args: unknown[]) => captureMock(...args),
+// useTracking depends on PostHog's `usePostHog`. Mock that underlying service
+// (not useTracking itself) so the onboarding analytics events can be asserted.
+vi.mock("posthog-js/react", () => ({
+  usePostHog: () => ({ capture: captureMock }),
 }));
 
 // Both the backend status badge in the embedded edit form and the

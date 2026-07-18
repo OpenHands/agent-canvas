@@ -14,14 +14,14 @@ const commonProperties = {
   client_source: AGENT_CANVAS_CLIENT_SOURCE,
   client_version: AGENT_CANVAS_CLIENT_VERSION,
 };
+const trackedReadyTaskIds = new Set<string>();
 
 function trackCloudFunnelEvent(
   event: string,
   properties: Record<string, unknown>,
-): boolean {
-  if (!isTelemetryEnabled()) return false;
+): void {
+  if (!isTelemetryEnabled()) return;
   void trackEvent(event, { ...properties, ...commonProperties });
-  return true;
 }
 
 function hostClassification(host: string) {
@@ -35,8 +35,8 @@ function hostClassification(host: string) {
 export function trackCloudDeviceAuthorizationStarted(
   host: string,
   source?: CloudConnectionSource,
-): boolean {
-  return trackCloudFunnelEvent("cloud_device_authorization_started", {
+): void {
+  trackCloudFunnelEvent("cloud_device_authorization_started", {
     ...hostClassification(host),
     source,
   });
@@ -45,8 +45,8 @@ export function trackCloudDeviceAuthorizationStarted(
 export function trackCloudDeviceAuthorizationSucceeded(
   host: string,
   source?: CloudConnectionSource,
-): boolean {
-  return trackCloudFunnelEvent("cloud_device_authorization_succeeded", {
+): void {
+  trackCloudFunnelEvent("cloud_device_authorization_succeeded", {
     ...hostClassification(host),
     source,
   });
@@ -55,8 +55,14 @@ export function trackCloudDeviceAuthorizationSucceeded(
 export function trackCloudConversationReady(
   taskId: string,
   conversationId: string,
-): boolean {
-  return trackCloudFunnelEvent("cloud_conversation_ready", {
+): void {
+  // useTaskPolling is consumed by several mounted surfaces. Its component
+  // ref prevents repeats within one hook instance, but the analytics boundary
+  // must deduplicate across all instances observing the same Cloud task.
+  if (trackedReadyTaskIds.has(taskId)) return;
+  trackedReadyTaskIds.add(taskId);
+
+  trackCloudFunnelEvent("cloud_conversation_ready", {
     task_id: taskId,
     conversation_id: conversationId,
   });

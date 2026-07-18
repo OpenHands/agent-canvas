@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const fakePosthog = {
@@ -26,6 +26,20 @@ vi.mock("#/hooks/query/use-cloud-current-user-id", () => ({
   useCloudCurrentUserId: () => useCloudCurrentUserIdMock(),
 }));
 
+const consentState = {
+  value: "granted" as "granted" | "denied" | "pending",
+};
+let consentListener: (() => void) | null = null;
+vi.mock("#/services/telemetry", () => ({
+  getTelemetryConsent: () => consentState.value,
+  subscribeTelemetryConsent: (listener: () => void) => {
+    consentListener = listener;
+    return () => {
+      consentListener = null;
+    };
+  },
+}));
+
 import { usePostHogIdentify } from "#/hooks/use-posthog-identify";
 
 const BACKEND_ID = "cloud-1";
@@ -35,6 +49,8 @@ const localBackend = { kind: "local" as const, id: "local-1" };
 describe("usePostHogIdentify", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    consentState.value = "granted";
+    consentListener = null;
     posthogInstance = fakePosthog;
     useActiveBackendMock.mockReturnValue({ backend: cloudBackend });
     useSettingsMock.mockReturnValue({
@@ -64,19 +80,8 @@ describe("usePostHogIdentify", () => {
       expect(fakePosthog.reset).not.toHaveBeenCalled();
     });
 
-    it("does nothing while settings are still loading (data === undefined)", () => {
-      useSettingsMock.mockReturnValue({ data: undefined });
-
-      renderHook(() => usePostHogIdentify());
-
-      expect(fakePosthog.identify).not.toHaveBeenCalled();
-      expect(fakePosthog.reset).not.toHaveBeenCalled();
-    });
-
-    it("does nothing when consent is null (decision not yet made)", () => {
-      useSettingsMock.mockReturnValue({
-        data: { user_consents_to_analytics: null, email: "user@example.com" },
-      });
+    it("does nothing while consent is pending", () => {
+      consentState.value = "pending";
 
       renderHook(() => usePostHogIdentify());
 
@@ -133,13 +138,21 @@ describe("usePostHogIdentify", () => {
         email: "new@example.com",
       });
     });
+
+    it("reacts when canonical consent is granted", () => {
+      consentState.value = "pending";
+      renderHook(() => usePostHogIdentify());
+
+      consentState.value = "granted";
+      act(() => consentListener?.());
+
+      expect(fakePosthog.identify).toHaveBeenCalledOnce();
+    });
   });
 
   describe("reset", () => {
-    it("calls posthog.reset when consent is explicitly false", () => {
-      useSettingsMock.mockReturnValue({
-        data: { user_consents_to_analytics: false, email: "user@example.com" },
-      });
+    it("calls posthog.reset when consent is explicitly denied", () => {
+      consentState.value = "denied";
 
       renderHook(() => usePostHogIdentify());
 
@@ -171,16 +184,14 @@ describe("usePostHogIdentify", () => {
       expect(fakePosthog.identify).not.toHaveBeenCalled();
     });
 
-    it("calls posthog.reset when consent changes from true to false after identify", () => {
-      const { rerender } = renderHook(() => usePostHogIdentify());
+    it("calls posthog.reset when consent changes after identify", () => {
+      renderHook(() => usePostHogIdentify());
 
       expect(fakePosthog.identify).toHaveBeenCalledOnce();
       fakePosthog.identify.mockClear();
 
-      useSettingsMock.mockReturnValue({
-        data: { user_consents_to_analytics: false, email: "user@example.com" },
-      });
-      rerender();
+      consentState.value = "denied";
+      act(() => consentListener?.());
 
       expect(fakePosthog.reset).toHaveBeenCalledOnce();
       expect(fakePosthog.identify).not.toHaveBeenCalled();

@@ -21,13 +21,13 @@ vi.mock("@openhands/typescript-client/clients", () => ({
   }),
 }));
 
-// Keep the typed useTracking payload builder real while observing its calls at
-// the shared telemetry boundary.
+// Mock the services useTracking depends on (PostHog client + settings) so the
+// consent gate is open and captured events are observable. useTracking itself
+// is never mocked.
 const captureMock = vi.hoisted(() => vi.fn());
 
-vi.mock("#/services/telemetry", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("#/services/telemetry")>()),
-  trackEvent: (...args: unknown[]) => captureMock(...args),
+vi.mock("posthog-js/react", () => ({
+  usePostHog: () => ({ capture: captureMock }),
 }));
 
 vi.mock("#/hooks/query/use-settings", () => ({
