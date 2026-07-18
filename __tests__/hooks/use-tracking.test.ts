@@ -2,12 +2,8 @@ import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const captureMock = vi.fn();
-let posthogMock: { capture: typeof captureMock } | undefined = {
-  capture: captureMock,
-};
-
-vi.mock("posthog-js/react", () => ({
-  usePostHog: () => posthogMock,
+vi.mock("#/services/telemetry", () => ({
+  trackEvent: (...args: unknown[]) => captureMock(...args),
 }));
 
 const useSettingsMock = vi.fn();
@@ -25,7 +21,6 @@ let COMMON: { current_url: string; user_email: string };
 describe("useTracking", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    posthogMock = { capture: captureMock };
     useSettingsMock.mockReturnValue({
       data: { email: TEST_EMAIL, user_consents_to_analytics: true },
     });
@@ -334,41 +329,56 @@ describe("useTracking", () => {
     });
   });
 
-  describe("consent gate", () => {
-    it("does not capture when posthog is not initialized", () => {
-      posthogMock = undefined;
-
-      getTracking().trackPushButtonClick();
-
-      expect(captureMock).not.toHaveBeenCalled();
-    });
-
-    it("does not capture when user_consents_to_analytics is false", () => {
+  describe("shared telemetry boundary", () => {
+    it("delegates consent enforcement when backend settings report false", () => {
       useSettingsMock.mockReturnValue({
         data: { email: TEST_EMAIL, user_consents_to_analytics: false },
       });
 
       getTracking().trackPushButtonClick();
 
-      expect(captureMock).not.toHaveBeenCalled();
+      expect(captureMock).toHaveBeenCalledWith(
+        "push_button_clicked",
+        expect.objectContaining(COMMON),
+      );
     });
 
-    it("does not capture when user_consents_to_analytics is null", () => {
+    it("delegates consent enforcement when backend settings report null", () => {
       useSettingsMock.mockReturnValue({
         data: { email: TEST_EMAIL, user_consents_to_analytics: null },
       });
 
       getTracking().trackPushButtonClick();
 
-      expect(captureMock).not.toHaveBeenCalled();
+      expect(captureMock).toHaveBeenCalledWith(
+        "push_button_clicked",
+        expect.objectContaining(COMMON),
+      );
     });
 
-    it("does not capture when settings are still loading", () => {
+    it("does not drop backend milestones while settings are loading", () => {
       useSettingsMock.mockReturnValue({ data: undefined });
 
-      getTracking().trackPushButtonClick();
+      getTracking().trackBackendAdded({
+        backendKind: "cloud",
+        connectionMethod: "cloud_login",
+        isOpenhandsCloud: true,
+        isCustomHost: false,
+        hasApiKey: true,
+        source: "onboarding",
+      });
 
-      expect(captureMock).not.toHaveBeenCalled();
+      expect(captureMock).toHaveBeenCalledWith(
+        "backend_added",
+        expect.objectContaining({
+          client_source: "agent_canvas",
+          backend_kind: "cloud",
+          connection_method: "cloud_login",
+          is_openhands_cloud: true,
+          source: "onboarding",
+          user_email: null,
+        }),
+      );
     });
   });
 

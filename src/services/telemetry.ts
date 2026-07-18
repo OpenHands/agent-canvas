@@ -420,6 +420,13 @@ export async function trackEvent(
     return;
   }
 
+  // Consent may change while a cold client import/initialization is pending.
+  // Re-check immediately before capture so an in-flight event cannot escape a
+  // concurrent opt-out.
+  if (!isTelemetryEnabled()) {
+    return;
+  }
+
   posthog.capture(eventName, properties);
 }
 

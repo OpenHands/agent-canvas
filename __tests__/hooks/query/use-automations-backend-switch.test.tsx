@@ -43,8 +43,9 @@ vi.mock("#/api/automation-service/automation-service.api", () => ({
 }));
 
 const captureMock = vi.fn();
-vi.mock("posthog-js/react", () => ({
-  usePostHog: () => ({ capture: captureMock }),
+vi.mock("#/services/telemetry", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("#/services/telemetry")>()),
+  trackEvent: (...args: unknown[]) => captureMock(...args),
 }));
 
 vi.mock("#/hooks/query/use-settings", () => ({

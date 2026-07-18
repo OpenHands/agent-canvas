@@ -1,5 +1,5 @@
-import { usePostHog } from "posthog-js/react";
 import { useSettings } from "./query/use-settings";
+import { trackEvent } from "#/services/telemetry";
 import { Provider } from "#/types/settings";
 import type { BackendKind } from "#/api/backend-registry/types";
 import type { WorkspaceMode } from "#/api/conversation-metadata-store";
@@ -13,13 +13,12 @@ import {
  * Hook that provides tracking functions with automatic data collection
  * from available hooks (settings, etc.)
  *
- * All events require explicit user consent (user_consents_to_analytics === true).
- * Events are silently dropped when:
- *  - the shared PostHog client is unavailable
- *  - user_consents_to_analytics is false or null (consent not yet collected)
+ * All events require explicit user consent. The telemetry service is the sole
+ * capture/consent boundary; this hook must not independently gate on the
+ * active backend's settings because those settings are transiently stale or
+ * unavailable while a backend is being added or switched.
  */
 export const useTracking = () => {
-  const posthog = usePostHog();
   const { data: settings } = useSettings();
 
   // Common properties included in all tracking events
@@ -29,12 +28,12 @@ export const useTracking = () => {
   };
 
   /**
-   * Capture an event only when PostHog is available and the user has
-   * explicitly consented. null and false are both treated as "not consented".
+   * Delegate capture to the shared telemetry service. `trackEvent` applies the
+   * current canonical consent decision and delivers through the one PostHog
+   * client owned by telemetry.ts.
    */
   const track = (event: string, properties: Record<string, unknown> = {}) => {
-    if (!posthog || settings?.user_consents_to_analytics !== true) return;
-    posthog.capture(event, { ...properties, ...commonProperties });
+    void trackEvent(event, { ...properties, ...commonProperties });
   };
 
   const trackLoginButtonClick = ({ provider }: { provider: Provider }) => {
