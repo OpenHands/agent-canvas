@@ -86,8 +86,9 @@ describe("Telemetry Service", () => {
 
     it("treats same-origin locked Cloud cookie auth as granted", () => {
       localStorage.setItem("openhands-telemetry-consent", "denied");
-      (window as unknown as Record<string, unknown>).__AGENT_CANVAS_LOCK_TO_CLOUD__ =
-        window.location.origin;
+      (
+        window as unknown as Record<string, unknown>
+      ).__AGENT_CANVAS_LOCK_TO_CLOUD__ = window.location.origin;
 
       expect(getTelemetryConsent()).toBe("granted");
     });
