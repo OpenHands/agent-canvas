@@ -31,6 +31,7 @@ import packageJson from "../../package.json";
 const TELEMETRY_CONSENT_KEY = "openhands-telemetry-consent";
 const TELEMETRY_FIRST_USE_KEY = "openhands-telemetry-first-use";
 const TELEMETRY_SESSION_KEY = "openhands-telemetry-session";
+const POSTHOG_INSTANCE_NAME = "agent-canvas";
 
 // PostHog project keys — one per deployment environment, hardcoded so they
 // are baked into the static bundle at build time and cannot drift at runtime.
@@ -85,7 +86,6 @@ async function getPostHog(): Promise<PostHog | null> {
 
   try {
     const { default: posthog } = await import("posthog-js");
-    posthogInstance = posthog;
     return posthog;
   } catch {
     // Failed to load PostHog - telemetry will be disabled
@@ -142,31 +142,40 @@ async function initializePostHog(
     return null;
   }
 
-  posthog.init(POSTHOG_API_KEY, {
-    api_host: POSTHOG_HOST,
-    // UI host is required when using a reverse proxy so PostHog features work correctly
-    ui_host: POSTHOG_UI_HOST,
-    // Start with capturing disabled by default - we enable it explicitly when needed
-    opt_out_capturing_by_default: !enableCapturing,
-    // Don't auto-capture page views - we control when to track
-    capture_pageview: false,
-    // Don't auto-capture clicks etc.
-    autocapture: false,
-    // Use localStorage for persistence
-    persistence: "localStorage",
-    // Disable session recording
-    disable_session_recording: true,
-    // Set default properties for all events
-    loaded: (ph) => {
-      ph.register({
-        package_name: packageJson.name,
-        package_version: packageJson.version,
-      });
+  // Canvas telemetry must not share PostHog's default singleton with host-app
+  // analytics. A named instance gives it independent configuration, consent,
+  // persistence, and delivery state.
+  posthogInstance = posthog.init(
+    POSTHOG_API_KEY,
+    {
+      api_host: POSTHOG_HOST,
+      // UI host is required when using a reverse proxy so PostHog features work correctly
+      ui_host: POSTHOG_UI_HOST,
+      // Start with capturing disabled by default - we enable it explicitly when needed
+      opt_out_capturing_by_default: !enableCapturing,
+      // Don't auto-capture page views - we control when to track
+      capture_pageview: false,
+      // Don't auto-capture clicks etc.
+      autocapture: false,
+      // Use localStorage for persistence
+      persistence: "localStorage",
+      persistence_name: POSTHOG_INSTANCE_NAME,
+      consent_persistence_name: `${POSTHOG_INSTANCE_NAME}-consent`,
+      // Disable session recording
+      disable_session_recording: true,
+      // Set default properties for all events
+      loaded: (ph) => {
+        ph.register({
+          package_name: packageJson.name,
+          package_version: packageJson.version,
+        });
+      },
     },
-  });
+    POSTHOG_INSTANCE_NAME,
+  );
 
   isInitialized = true;
-  return posthog;
+  return posthogInstance;
 }
 
 /**

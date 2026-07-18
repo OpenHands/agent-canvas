@@ -10,6 +10,7 @@ const mockPosthog = {
   reset: vi.fn(),
   register: vi.fn(),
 };
+mockPosthog.init.mockReturnValue(mockPosthog);
 
 vi.mock("posthog-js", () => ({
   default: mockPosthog,
@@ -44,6 +45,24 @@ describe("Telemetry Service", () => {
   afterEach(() => {
     localStorage.clear();
     sessionStorage.clear();
+  });
+
+  describe("PostHog ownership", () => {
+    it("uses an isolated named client for Canvas consent and events", async () => {
+      await setTelemetryConsent("granted");
+
+      expect(mockPosthog.init).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          api_host: expect.any(String),
+          ui_host: expect.any(String),
+          persistence_name: "agent-canvas",
+          consent_persistence_name: "agent-canvas-consent",
+        }),
+        "agent-canvas",
+      );
+      expect(mockPosthog.opt_in_capturing).toHaveBeenCalled();
+    });
   });
 
   describe("getTelemetryConsent", () => {
@@ -190,24 +209,6 @@ describe("Telemetry Service", () => {
     it("calls opt_out_capturing when consent is denied", async () => {
       await setTelemetryConsent("denied");
       expect(mockPosthog.opt_out_capturing).toHaveBeenCalled();
-    });
-
-    it("initializes PostHog with ui_host for proxy support", async () => {
-      // Note: PostHog init may have been called in previous tests due to module caching
-      // We test that the configuration includes ui_host by checking any init call
-      // The actual initialization happens once per module load with the correct config
-      await trackInstall();
-
-      // Check that init was called at some point with the expected config
-      // This verifies our telemetry service passes ui_host to PostHog
-      const initCalls = mockPosthog.init.mock.calls;
-      if (initCalls.length > 0) {
-        const [, config] = initCalls[0];
-        expect(config).toHaveProperty("api_host");
-        expect(config).toHaveProperty("ui_host");
-      }
-      // If init wasn't called in this test, it was already called in a previous test
-      // with the correct config, which is fine
     });
   });
 });

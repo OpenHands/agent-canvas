@@ -8,6 +8,8 @@ import { SettingsScope } from "#/types/settings";
 export const QUERY_KEYS = {
   /** Web client configuration from the server */
   WEB_CLIENT_CONFIG: ["web-client-config"] as const,
+  /** Same-origin OpenHands app cookie authentication status */
+  MAIN_APP_COOKIE_AUTH: ["main-app-cookie-auth"] as const,
 } as const;
 
 export const SETTINGS_QUERY_KEYS = {

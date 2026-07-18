@@ -14,6 +14,7 @@ import {
   setConversationState,
 } from "#/utils/conversation-local-storage";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { trackCloudConversationReady } from "#/services/cloud-funnel-analytics";
 import { flushPendingTaskAttachments } from "#/utils/flush-pending-task-attachments";
 import {
   clearPendingTaskMessageLink,
@@ -128,6 +129,7 @@ export const useTaskPolling = () => {
     }
 
     handledReadyTaskIdRef.current = taskId;
+    trackCloudConversationReady(taskId, appConversationId);
     storeTaskPlugins(task, appConversationId);
 
     void (async () => {

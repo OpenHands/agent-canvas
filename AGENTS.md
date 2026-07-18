@@ -32,13 +32,14 @@ by a human, report the exact validator error rather than editing them yourself.
 
 Two distinct PostHog systems exist. **Never mix them at a call site.**
 
-### System 1 — `telemetry.ts` (library-level, anonymous)
-- **Purpose**: anonymous npm-consumer telemetry (`canvas_install`, `canvas_new_session`)
+### System 1 — `telemetry.ts` (Canvas-level, anonymous)
+- **Purpose**: anonymous npm-consumer telemetry and the consented OSS Cloud funnel
 - **Keys**: hardcoded staging/prod keys in `telemetry.ts`; routed through `https://z.openhands.dev`
+- **Isolation**: the named `agent-canvas` PostHog instance has its own persistence and consent namespaces; never replace it with the default singleton
 - **Consent**: `localStorage["openhands-telemetry-consent"]` via `useTelemetry` / `TelemetryConsentBanner`
 - **`canvas_install`** fires once, pre-consent, per installation
 - **Exports**: `trackEvent`, `useTelemetry`, `TelemetryConsentBanner`, etc. from `src/lib/index.ts` — these are the **public library API for npm consumers**
-- **Rule**: Do NOT import `trackEvent` from `#/services/telemetry` in app routes or components
+- **Rule**: app routes/components use the typed functions in `cloud-funnel-analytics.ts`; do not call `trackEvent` directly
 
 ### System 2 — `useTracking` hook (app-level, identified)
 - **Purpose**: product analytics for app behaviour events
@@ -47,6 +48,11 @@ Two distinct PostHog systems exist. **Never mix them at a call site.**
 - **All events** are typed, named functions in `src/hooks/use-tracking.ts` — add a new function there for every new event; never call `posthog.capture()` raw from a component
 - **`commonProperties`** (`current_url`, `user_email`) are attached automatically by the hook
 - **Rule**: Do NOT use raw `usePostHog()` + `posthog.capture()` in components — always go through `useTracking`
+
+### Cloud funnel observability
+- OAuth device authorization and Cloud conversation-start requests include the coarse `X-OpenHands-Client: agent_canvas` and `X-OpenHands-Client-Version` headers from `src/api/client-source.ts`. Never put device codes, API keys, conversation content, raw hosts, or other user data in these headers.
+- Production ingress must retain those two headers as structured Datadog facets before source-specific operational queries will work.
+- The consented OSS funnel uses typed `cloud_device_authorization_started`, `cloud_device_authorization_succeeded`, `backend_added`, and `cloud_conversation_ready` events from `cloud-funnel-analytics.ts`.
 
 ### Adding a new event
 1. Add a typed function to `useTracking` in `src/hooks/use-tracking.ts`

@@ -3,6 +3,7 @@ import { useSettings } from "./query/use-settings";
 import { Provider } from "#/types/settings";
 import type { BackendKind } from "#/api/backend-registry/types";
 import type { WorkspaceMode } from "#/api/conversation-metadata-store";
+import type { CloudConnectionSource } from "#/services/cloud-funnel-analytics";
 
 /**
  * Hook that provides tracking functions with automatic data collection
@@ -251,7 +252,7 @@ export const useTracking = () => {
     isOpenhandsCloud: boolean;
     isCustomHost: boolean;
     hasApiKey: boolean;
-    source?: "add_backend_modal" | "manage_backends_modal";
+    source?: CloudConnectionSource;
   }) => {
     track("backend_added", {
       backend_kind: backendKind,
