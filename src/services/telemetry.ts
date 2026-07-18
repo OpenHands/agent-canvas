@@ -26,6 +26,7 @@
  */
 
 import type { PostHog } from "posthog-js";
+import { getLockedCloudAuthMode } from "#/api/agent-server-config";
 import packageJson from "../../package.json";
 
 const TELEMETRY_CONSENT_KEY = "openhands-telemetry-consent";
@@ -189,6 +190,10 @@ export function getTelemetryConsent(): TelemetryConsent {
   // Check environment variable for opt-out
   if (isDoNotTrackEnabled()) {
     return "denied";
+  }
+
+  if (getLockedCloudAuthMode() === "cookie") {
+    return "granted";
   }
 
   try {
