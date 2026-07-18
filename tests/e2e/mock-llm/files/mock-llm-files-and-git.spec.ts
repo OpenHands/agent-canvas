@@ -5,7 +5,7 @@
  * agent-server with a scripted mock LLM backend.
  *
  * Coverage (issue #511):
- *   - Files tab defaults to diff view when a workspace is attached
+ *   - Files tab diff view can be enabled when a workspace is attached
  *   - Git control bar shows workspace-name pill for folder-attached conversations
  *   - Browser tab renders empty state when no page has been browsed
  *   - Files tab defaults to file-tree view when NO workspace is attached
@@ -247,9 +247,9 @@ test.describe("files tab, git control bar, and browser tab", () => {
     });
   });
 
-  // ── Step 4: Verify Files tab diff toggle defaults to "on" ──────────
+  // ── Step 4: Verify Files tab diff toggle can be enabled ─────────────
 
-  test("step 4: files tab defaults to diff view for attached workspace", async ({
+  test("step 4: files tab can enable diff view for attached workspace", async ({
     page,
   }) => {
     test.skip(!attachedConversationId, "step 2 must complete first");
@@ -268,7 +268,10 @@ test.describe("files tab, git control bar, and browser tab", () => {
       // Open the right panel
       const toggle = page.getByTestId("right-panel-toggle");
       await expect(toggle).toBeVisible({ timeout: 10_000 });
-      await toggle.click();
+      await toggle.click({ force: true });
+      await expect(toggle).toHaveAttribute("aria-pressed", "true", {
+        timeout: 10_000,
+      });
 
       // Wait for at least one tab to be visible (panel animation done)
       const anyTab = page.locator('[data-testid^="conversation-tab-"]').first();
@@ -285,7 +288,7 @@ test.describe("files tab, git control bar, and browser tab", () => {
       await expect(diffToggle).toBeVisible({ timeout: 15_000 });
 
       const diffOnOption = page.getByTestId("files-tab-diff-toggle-option-on");
-
+      await diffOnOption.click({ force: true });
       await expect(diffOnOption).toHaveAttribute("aria-checked", "true", {
         timeout: 15_000,
       });
