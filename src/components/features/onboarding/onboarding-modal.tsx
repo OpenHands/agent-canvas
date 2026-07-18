@@ -13,6 +13,7 @@ import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useTracking } from "#/hooks/use-tracking";
+import { getTelemetryConsent } from "#/services/telemetry";
 import { OnboardingProgressBar } from "./onboarding-progress-bar";
 import {
   ChooseAgentStep,
@@ -135,7 +136,11 @@ export function OnboardingModal({
 }: OnboardingModalProps) {
   const { t } = useTranslation("openhands");
   const { data: settings } = useSettings();
-  const analyticsEnabled = settings?.user_consents_to_analytics === true;
+  const telemetryConsent = getTelemetryConsent();
+  const analyticsEnabled =
+    telemetryConsent === "granted" ||
+    (telemetryConsent === "pending" &&
+      settings?.user_consents_to_analytics === true);
   const {
     trackOnboardingStarted,
     trackOnboardingStepViewed,

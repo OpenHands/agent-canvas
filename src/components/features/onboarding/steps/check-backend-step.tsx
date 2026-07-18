@@ -13,11 +13,14 @@ import { DEFAULT_LOCAL_BACKEND_NAME } from "#/api/backend-registry/default-backe
 import {
   BackendConnectionOptions,
   type BackendFormSubmitPayload,
+  type BackendConnectionMethod,
+  DEFAULT_OPENHANDS_CLOUD_HOST,
 } from "#/components/features/backends/backend-form-modal";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { I18nKey } from "#/i18n/declaration";
+import { useTracking } from "#/hooks/use-tracking";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { cn } from "#/utils/utils";
 import { getBackendStatusLabel } from "#/components/features/backends/backend-status-label";
@@ -119,6 +122,7 @@ export function CheckBackendStep({
   const { t } = useTranslation("openhands");
   const { active, addBackend, setActive, updateBackend } =
     useActiveBackendContext();
+  const { trackBackendAdded } = useTracking();
   const { backend } = active;
   const noBackendSelected = isNoBackend(backend);
   const lockedCloudHost = getLockedCloudHost();
@@ -168,7 +172,10 @@ export function CheckBackendStep({
   const hideConfigurationFields = isConnected === true && !configurationOpen;
 
   const handleConnected = React.useCallback(
-    (payload: BackendFormSubmitPayload) => {
+    (
+      payload: BackendFormSubmitPayload,
+      connectionMethod?: BackendConnectionMethod,
+    ) => {
       if (noBackendSelected) {
         addBackend(payload);
       } else {
@@ -185,6 +192,17 @@ export function CheckBackendStep({
           setActive(backend.id, null);
         }
       }
+
+      const isOpenHandsCloud = payload.host === DEFAULT_OPENHANDS_CLOUD_HOST;
+      trackBackendAdded({
+        backendKind: payload.kind,
+        connectionMethod: connectionMethod ?? "manual",
+        isOpenhandsCloud: isOpenHandsCloud,
+        isCustomHost: !isOpenHandsCloud,
+        hasApiKey: Boolean(payload.apiKey),
+        source: "onboarding",
+      });
+
       // In locked-to-Cloud mode, Cloud login IS the onboarding
       // completion: dismiss the modal immediately so the user never
       // sees the next slide (Choose Agent) flash before the root gate
@@ -206,6 +224,7 @@ export function CheckBackendStep({
       onClose,
       onNext,
       setActive,
+      trackBackendAdded,
       updateBackend,
     ],
   );

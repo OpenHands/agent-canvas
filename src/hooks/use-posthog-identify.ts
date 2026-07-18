@@ -3,6 +3,7 @@ import { usePostHog } from "posthog-js/react";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useCloudCurrentUserId } from "#/hooks/query/use-cloud-current-user-id";
 import { useSettings } from "#/hooks/query/use-settings";
+import { getTelemetryConsent } from "#/services/telemetry";
 
 /**
  * Calls posthog.identify() for cloud users who have granted analytics consent.
@@ -25,7 +26,13 @@ export const usePostHogIdentify = () => {
 
   const isCloud = backend.kind === "cloud";
   const userId = isCloud ? (userIds[backend.id]?.userId ?? null) : null;
-  const consent = settings?.user_consents_to_analytics;
+  const telemetryConsent = getTelemetryConsent();
+  const consent =
+    telemetryConsent === "granted"
+      ? true
+      : telemetryConsent === "denied"
+        ? false
+        : settings?.user_consents_to_analytics;
 
   React.useEffect(() => {
     if (!posthog || !isCloud || settings === undefined) return;

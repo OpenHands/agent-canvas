@@ -3,6 +3,7 @@ import { useSettings } from "./query/use-settings";
 import { Provider } from "#/types/settings";
 import type { BackendKind } from "#/api/backend-registry/types";
 import type { WorkspaceMode } from "#/api/conversation-metadata-store";
+import { getTelemetryConsent } from "#/services/telemetry";
 
 /**
  * Hook that provides tracking functions with automatic data collection
@@ -28,7 +29,11 @@ export const useTracking = () => {
    * explicitly consented. null and false are both treated as "not consented".
    */
   const track = (event: string, properties: Record<string, unknown> = {}) => {
-    if (!posthog || settings?.user_consents_to_analytics !== true) return;
+    const consent = getTelemetryConsent();
+    if (consent === "denied") return;
+    if (consent === "pending" && settings?.user_consents_to_analytics !== true)
+      return;
+    if (!posthog) return;
     posthog.capture(event, { ...properties, ...commonProperties });
   };
 
@@ -251,7 +256,7 @@ export const useTracking = () => {
     isOpenhandsCloud: boolean;
     isCustomHost: boolean;
     hasApiKey: boolean;
-    source?: "add_backend_modal" | "manage_backends_modal";
+    source?: "add_backend_modal" | "manage_backends_modal" | "onboarding";
   }) => {
     track("backend_added", {
       backend_kind: backendKind,
@@ -261,6 +266,14 @@ export const useTracking = () => {
       has_api_key: hasApiKey,
       source,
     });
+  };
+
+  const trackCloudDeviceAuthorizationStarted = () => {
+    track("cloud_device_authorization_started");
+  };
+
+  const trackCloudDeviceAuthorizationSucceeded = () => {
+    track("cloud_device_authorization_succeeded");
   };
 
   const trackOnboardingStarted = () => {
@@ -332,6 +345,8 @@ export const useTracking = () => {
     trackAutomationExported,
     trackAutomationImported,
     trackBackendAdded,
+    trackCloudDeviceAuthorizationStarted,
+    trackCloudDeviceAuthorizationSucceeded,
     trackOnboardingStarted,
     trackOnboardingStepViewed,
     trackOnboardingCompleted,

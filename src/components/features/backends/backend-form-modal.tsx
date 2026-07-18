@@ -136,7 +136,7 @@ function isValidHostUrl(host: string): boolean {
   }
 }
 
-const DEFAULT_OPENHANDS_CLOUD_HOST = "https://app.all-hands.dev";
+export const DEFAULT_OPENHANDS_CLOUD_HOST = "https://app.all-hands.dev";
 
 export type BackendConnectionMethod = "manual" | "cloud_login";
 

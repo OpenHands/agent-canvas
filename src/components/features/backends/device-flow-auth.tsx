@@ -6,6 +6,7 @@ import { ModalBody } from "#/components/shared/modals/modal-body";
 import { useDeviceFlow, type DeviceFlowStatus } from "#/hooks/use-device-flow";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
+import { useTracking } from "#/hooks/use-tracking";
 
 type DeviceFlowButtonVariant =
   | "primary"
@@ -72,6 +73,10 @@ export function DeviceFlowAuth({
   const { t } = useTranslation("openhands");
   const deviceFlow = useDeviceFlow();
   const popupRef = React.useRef<Window | null>(null);
+  const {
+    trackCloudDeviceAuthorizationStarted,
+    trackCloudDeviceAuthorizationSucceeded,
+  } = useTracking();
 
   // Close popup on unmount or when auth completes/errors
   React.useEffect(() => {
@@ -111,15 +116,23 @@ export function DeviceFlowAuth({
   React.useEffect(() => {
     if (deviceFlow.status === "success" && deviceFlow.apiKey) {
       try {
+        trackCloudDeviceAuthorizationSucceeded();
         onSuccess(deviceFlow.apiKey);
       } finally {
         deviceFlow.reset();
         popupRef.current?.close();
       }
     }
-  }, [deviceFlow.status, deviceFlow.apiKey, deviceFlow.reset, onSuccess]);
+  }, [
+    deviceFlow.status,
+    deviceFlow.apiKey,
+    deviceFlow.reset,
+    onSuccess,
+    trackCloudDeviceAuthorizationSucceeded,
+  ]);
 
   const handleStartAuth = () => {
+    trackCloudDeviceAuthorizationStarted();
     // Normalize and validate the host URL
     const normalizedHost = host.trim().replace(/\/+$/, "");
     const fullHost = /^https?:\/\//i.test(normalizedHost)

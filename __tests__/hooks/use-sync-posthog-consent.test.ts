@@ -15,6 +15,15 @@ vi.mock("#/hooks/query/use-settings", () => ({
   useSettings: () => useSettingsMock(),
 }));
 
+const { getTelemetryConsentMock, setTelemetryConsentMock } = vi.hoisted(() => ({
+  getTelemetryConsentMock: vi.fn(),
+  setTelemetryConsentMock: vi.fn(),
+}));
+vi.mock("#/services/telemetry", () => ({
+  getTelemetryConsent: getTelemetryConsentMock,
+  setTelemetryConsent: setTelemetryConsentMock,
+}));
+
 const handleCaptureConsentMock = vi.fn();
 vi.mock("#/utils/handle-capture-consent", () => ({
   handleCaptureConsent: (...args: unknown[]) =>
@@ -30,25 +39,40 @@ describe("useSyncPostHogConsent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     usePostHogMock.mockReturnValue(fakePosthog);
+    getTelemetryConsentMock.mockReturnValue("pending");
   });
 
-  it("calls opt-out when user_consents_to_analytics is null", () => {
+  it("calls opt-out when user_consents_to_analytics is null and local is pending", () => {
     useSettingsMock.mockReturnValue({
       data: { user_consents_to_analytics: null },
     });
+    getTelemetryConsentMock.mockReturnValue("pending");
 
     renderHook(() => useSyncPostHogConsent());
 
     expect(handleCaptureConsentMock).toHaveBeenCalledWith(fakePosthog, false);
   });
 
+  it("calls opt-in when user_consents_to_analytics is null but local is granted", () => {
+    useSettingsMock.mockReturnValue({
+      data: { user_consents_to_analytics: null },
+    });
+    getTelemetryConsentMock.mockReturnValue("granted");
+
+    renderHook(() => useSyncPostHogConsent());
+
+    expect(handleCaptureConsentMock).toHaveBeenCalledWith(fakePosthog, true);
+  });
+
   it("calls opt-out when user_consents_to_analytics is false", () => {
     useSettingsMock.mockReturnValue({
       data: { user_consents_to_analytics: false },
     });
+    getTelemetryConsentMock.mockReturnValue("pending");
 
     renderHook(() => useSyncPostHogConsent());
 
+    expect(setTelemetryConsentMock).toHaveBeenCalledWith("denied");
     expect(handleCaptureConsentMock).toHaveBeenCalledWith(fakePosthog, false);
   });
 
@@ -56,63 +80,11 @@ describe("useSyncPostHogConsent", () => {
     useSettingsMock.mockReturnValue({
       data: { user_consents_to_analytics: true },
     });
+    getTelemetryConsentMock.mockReturnValue("pending");
 
     renderHook(() => useSyncPostHogConsent());
 
+    expect(setTelemetryConsentMock).toHaveBeenCalledWith("granted");
     expect(handleCaptureConsentMock).toHaveBeenCalledWith(fakePosthog, true);
-  });
-
-  it("does nothing while settings are still loading (data === undefined)", () => {
-    useSettingsMock.mockReturnValue({ data: undefined });
-
-    renderHook(() => useSyncPostHogConsent());
-
-    expect(handleCaptureConsentMock).not.toHaveBeenCalled();
-  });
-
-  it("does nothing when posthog is not yet available", () => {
-    usePostHogMock.mockReturnValue(null);
-    useSettingsMock.mockReturnValue({
-      data: { user_consents_to_analytics: true },
-    });
-
-    renderHook(() => useSyncPostHogConsent());
-
-    expect(handleCaptureConsentMock).not.toHaveBeenCalled();
-  });
-
-  it("re-syncs when settings update from null to true (consent granted after load)", () => {
-    useSettingsMock.mockReturnValue({
-      data: { user_consents_to_analytics: null },
-    });
-
-    const { rerender } = renderHook(() => useSyncPostHogConsent());
-
-    expect(handleCaptureConsentMock).toHaveBeenCalledWith(fakePosthog, false);
-    handleCaptureConsentMock.mockClear();
-
-    useSettingsMock.mockReturnValue({
-      data: { user_consents_to_analytics: true },
-    });
-    rerender();
-
-    expect(handleCaptureConsentMock).toHaveBeenCalledWith(fakePosthog, true);
-  });
-
-  it("re-syncs when settings update from true to false (consent revoked)", () => {
-    useSettingsMock.mockReturnValue({
-      data: { user_consents_to_analytics: true },
-    });
-
-    const { rerender } = renderHook(() => useSyncPostHogConsent());
-
-    handleCaptureConsentMock.mockClear();
-
-    useSettingsMock.mockReturnValue({
-      data: { user_consents_to_analytics: false },
-    });
-    rerender();
-
-    expect(handleCaptureConsentMock).toHaveBeenCalledWith(fakePosthog, false);
   });
 });

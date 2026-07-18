@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useTelemetry } from "#/hooks/use-telemetry";
+import { useSaveSettings } from "#/hooks/mutation/use-save-settings";
 import { I18nKey } from "#/i18n/declaration";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalBody } from "#/components/shared/modals/modal-body";
@@ -43,6 +44,7 @@ export function TelemetryConsentBanner({
 }: TelemetryConsentBannerProps) {
   const { t, ready } = useTranslation("openhands");
   const { showConsentPrompt, grantConsent, denyConsent } = useTelemetry();
+  const { mutate: saveSettings } = useSaveSettings();
 
   // Delay showing the modal slightly to ensure smooth rendering
   // This prevents the modal from flashing during initial hydration
@@ -67,6 +69,7 @@ export function TelemetryConsentBanner({
     } else {
       denyConsent();
     }
+    saveSettings({ user_consents_to_analytics: analytics });
     onChoice?.(analytics);
   };
 

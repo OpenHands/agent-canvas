@@ -15,6 +15,14 @@ vi.mock("#/hooks/query/use-settings", () => ({
   useSettings: () => useSettingsMock(),
 }));
 
+const { getTelemetryConsentMock } = vi.hoisted(() => ({
+  getTelemetryConsentMock: vi.fn(),
+}));
+
+vi.mock("#/services/telemetry", () => ({
+  getTelemetryConsent: () => getTelemetryConsentMock(),
+}));
+
 import { useTracking } from "#/hooks/use-tracking";
 
 const TEST_EMAIL = "user@example.com";
@@ -29,6 +37,7 @@ describe("useTracking", () => {
     useSettingsMock.mockReturnValue({
       data: { email: TEST_EMAIL, user_consents_to_analytics: true },
     });
+    getTelemetryConsentMock.mockReturnValue("granted");
     COMMON = {
       current_url: window.location.href,
       user_email: TEST_EMAIL,
@@ -332,6 +341,24 @@ describe("useTracking", () => {
     });
   });
 
+  describe("cloud device authorization", () => {
+    it("captures cloud_device_authorization_started", () => {
+      getTracking().trackCloudDeviceAuthorizationStarted();
+
+      expect(captureMock).toHaveBeenCalledWith("cloud_device_authorization_started", {
+        ...COMMON,
+      });
+    });
+
+    it("captures cloud_device_authorization_succeeded", () => {
+      getTracking().trackCloudDeviceAuthorizationSucceeded();
+
+      expect(captureMock).toHaveBeenCalledWith("cloud_device_authorization_succeeded", {
+        ...COMMON,
+      });
+    });
+  });
+
   describe("consent gate", () => {
     it("does not capture when posthog is not initialized", () => {
       posthogMock = undefined;
@@ -341,17 +368,16 @@ describe("useTracking", () => {
       expect(captureMock).not.toHaveBeenCalled();
     });
 
-    it("does not capture when user_consents_to_analytics is false", () => {
-      useSettingsMock.mockReturnValue({
-        data: { email: TEST_EMAIL, user_consents_to_analytics: false },
-      });
+    it("does not capture when getTelemetryConsent() is denied", () => {
+      getTelemetryConsentMock.mockReturnValue("denied");
 
       getTracking().trackPushButtonClick();
 
       expect(captureMock).not.toHaveBeenCalled();
     });
 
-    it("does not capture when user_consents_to_analytics is null", () => {
+    it("does not capture when getTelemetryConsent() is pending and backend setting is not true", () => {
+      getTelemetryConsentMock.mockReturnValue("pending");
       useSettingsMock.mockReturnValue({
         data: { email: TEST_EMAIL, user_consents_to_analytics: null },
       });
@@ -361,12 +387,13 @@ describe("useTracking", () => {
       expect(captureMock).not.toHaveBeenCalled();
     });
 
-    it("does not capture when settings are still loading", () => {
+    it("captures when getTelemetryConsent() is granted even if settings are loading", () => {
+      getTelemetryConsentMock.mockReturnValue("granted");
       useSettingsMock.mockReturnValue({ data: undefined });
 
       getTracking().trackPushButtonClick();
 
-      expect(captureMock).not.toHaveBeenCalled();
+      expect(captureMock).toHaveBeenCalled();
     });
   });
 
