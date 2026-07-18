@@ -62,7 +62,7 @@ describe("AppSettingsScreen", () => {
     );
   });
 
-  it("shows analytics disabled until consent is explicitly granted", async () => {
+  it("shows analytics enabled by default while consent is undecided", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       buildSettings({ user_consents_to_analytics: null }),
     );
@@ -70,7 +70,7 @@ describe("AppSettingsScreen", () => {
     renderAppSettingsScreen();
 
     await waitFor(() => {
-      expect(screen.getByTestId("enable-analytics-switch")).not.toBeChecked();
+      expect(screen.getByTestId("enable-analytics-switch")).toBeChecked();
     });
   });
 

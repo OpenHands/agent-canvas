@@ -9,7 +9,6 @@ import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import i18n from "#/i18n";
 import { useConfig } from "#/hooks/query/use-config";
-import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { AnalyticsConsentFormModal } from "#/components/features/analytics/analytics-consent-form-modal";
 import { Sidebar } from "#/components/features/sidebar/sidebar";
 import { SidebarMobileNavProvider } from "#/components/features/sidebar/sidebar-mobile-nav-context";
@@ -77,7 +76,6 @@ export default function MainApp() {
   const appTitle = useAppTitle();
   const { data: settings } = useSettings();
   const { migrateUserConsent } = useMigrateUserConsent();
-  const { active } = useActiveBackendContext();
   const config = useConfig();
   const [consentFormIsOpen, setConsentFormIsOpen] = React.useState(false);
 
@@ -93,11 +91,8 @@ export default function MainApp() {
   }, [settings?.language]);
 
   React.useEffect(() => {
-    setConsentFormIsOpen(
-      active.backend.kind === "cloud" &&
-        settings?.user_consents_to_analytics === null,
-    );
-  }, [active.backend.kind, settings?.user_consents_to_analytics]);
+    setConsentFormIsOpen(settings?.user_consents_to_analytics === null);
+  }, [settings?.user_consents_to_analytics]);
 
   React.useEffect(() => {
     migrateUserConsent({

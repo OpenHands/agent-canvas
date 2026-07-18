@@ -130,7 +130,7 @@ describe("root layout", () => {
     expect(screen.getByTestId("loading-spinner")).toBeInTheDocument();
   });
 
-  it("does not show the analytics modal for local backends when consent is missing", () => {
+  it("shows the analytics modal for local backends when consent is missing", async () => {
     useSettingsMock.mockReturnValue({
       data: {
         language: "en",
@@ -147,8 +147,8 @@ describe("root layout", () => {
     expect(screen.getByTestId("sidebar")).toBeInTheDocument();
     expect(screen.getByTestId("outlet-content")).toBeInTheDocument();
     expect(
-      screen.queryByTestId("analytics-consent-modal"),
-    ).not.toBeInTheDocument();
+      await screen.findByTestId("analytics-consent-modal"),
+    ).toBeInTheDocument();
     expect(migrateUserConsentMock).toHaveBeenCalled();
   });
 
