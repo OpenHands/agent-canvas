@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { MockInstance } from "vitest";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import {
@@ -10,6 +11,7 @@ import {
   type NavigationContextValue,
 } from "#/context/navigation-context";
 import { AddBackendModal } from "#/components/features/backends/add-backend-modal";
+import * as telemetry from "#/services/telemetry";
 
 const getServerInfoMock = vi.hoisted(() => vi.fn());
 
@@ -21,14 +23,7 @@ vi.mock("@openhands/typescript-client/clients", () => ({
   }),
 }));
 
-// Mock the services useTracking depends on (PostHog client + settings) so the
-// consent gate is open and captured events are observable. useTracking itself
-// is never mocked.
-const captureMock = vi.hoisted(() => vi.fn());
-
-vi.mock("posthog-js/react", () => ({
-  usePostHog: () => ({ capture: captureMock }),
-}));
+let captureMock: MockInstance<typeof telemetry.trackEvent>;
 
 vi.mock("#/hooks/query/use-settings", () => ({
   useSettings: () => ({
@@ -57,14 +52,15 @@ function renderWithProviders(
 }
 
 beforeEach(() => {
+  captureMock = vi.spyOn(telemetry, "trackEvent").mockResolvedValue(undefined);
   window.localStorage.clear();
   getServerInfoMock.mockReset();
   getServerInfoMock.mockResolvedValue({ version: "1.28.0" });
-  captureMock.mockClear();
   __resetActiveStoreForTests();
 });
 
 afterEach(() => {
+  captureMock.mockRestore();
   window.localStorage.clear();
   __resetActiveStoreForTests();
 });

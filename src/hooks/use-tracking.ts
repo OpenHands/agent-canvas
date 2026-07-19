@@ -1,4 +1,3 @@
-import { usePostHog } from "posthog-js/react";
 import { useSettings } from "./query/use-settings";
 import { Provider } from "#/types/settings";
 import type { BackendKind } from "#/api/backend-registry/types";
@@ -8,6 +7,7 @@ import {
   AGENT_CANVAS_CLIENT_SOURCE,
   AGENT_CANVAS_CLIENT_VERSION,
 } from "#/api/client-source";
+import { trackEvent } from "#/services/telemetry";
 
 /**
  * Hook that provides tracking functions with automatic data collection
@@ -18,7 +18,6 @@ import {
  * backend settings because they can be stale while a backend changes.
  */
 export const useTracking = () => {
-  const posthog = usePostHog();
   const { data: settings } = useSettings();
 
   // Common properties included in all tracking events
@@ -33,7 +32,7 @@ export const useTracking = () => {
    * backend is being added or switched.
    */
   const track = (event: string, properties: Record<string, unknown> = {}) => {
-    posthog?.capture(event, { ...properties, ...commonProperties });
+    void trackEvent(event, { ...properties, ...commonProperties });
   };
 
   const trackLoginButtonClick = ({ provider }: { provider: Provider }) => {

@@ -1,10 +1,6 @@
 import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const captureMock = vi.fn();
-vi.mock("posthog-js/react", () => ({
-  usePostHog: () => ({ capture: captureMock }),
-}));
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as telemetry from "#/services/telemetry";
 
 const useSettingsMock = vi.fn();
 vi.mock("#/hooks/query/use-settings", () => ({
@@ -19,8 +15,13 @@ const TEST_EMAIL = "user@example.com";
 let COMMON: { current_url: string; user_email: string };
 
 describe("useTracking", () => {
+  let captureMock: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
-    vi.clearAllMocks();
+    captureMock = vi
+      .spyOn(telemetry, "trackEvent")
+      .mockResolvedValue(undefined);
+    useSettingsMock.mockReset();
     useSettingsMock.mockReturnValue({
       data: { email: TEST_EMAIL, user_consents_to_analytics: true },
     });
@@ -28,6 +29,10 @@ describe("useTracking", () => {
       current_url: window.location.href,
       user_email: TEST_EMAIL,
     };
+  });
+
+  afterEach(() => {
+    captureMock.mockRestore();
   });
 
   const getTracking = () => renderHook(() => useTracking()).result.current;

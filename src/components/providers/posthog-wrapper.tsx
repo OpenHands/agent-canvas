@@ -5,14 +5,20 @@ import {
   configurePostHogBootstrap,
   configureTelemetry,
   initializePostHogClient,
+  trackEvent,
+  trackException,
   type TelemetryConfiguration,
 } from "#/services/telemetry";
 
 const POSTHOG_BOOTSTRAP_KEY = "posthog_bootstrap";
 const noop = () => undefined;
-const INERT_POSTHOG_CLIENT = Object.freeze({
-  capture: noop,
-  captureException: noop,
+const DEFERRED_POSTHOG_CLIENT = Object.freeze({
+  capture: (event: string, properties?: Record<string, unknown>) => {
+    void trackEvent(event, properties);
+  },
+  captureException: (error: unknown, properties?: Record<string, unknown>) => {
+    void trackException(error, properties);
+  },
   identify: noop,
   reset: noop,
 }) as unknown as PostHog;
@@ -60,8 +66,9 @@ export function PostHogWrapper({
   children: React.ReactNode;
   config?: TelemetryConfiguration;
 }) {
-  const [posthogClient, setPosthogClient] =
-    React.useState<PostHog>(INERT_POSTHOG_CLIENT);
+  const [posthogClient, setPosthogClient] = React.useState<PostHog>(
+    DEFERRED_POSTHOG_CLIENT,
+  );
   const bootstrapIds = React.useMemo(() => getBootstrapIds(), []);
   const bootstrapConfiguredRef = React.useRef(false);
   const analyticsEnabled = config !== false;

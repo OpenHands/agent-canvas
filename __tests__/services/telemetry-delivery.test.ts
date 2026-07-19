@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import posthog from "posthog-js";
 import { PostHogProvider, usePostHog } from "posthog-js/react";
@@ -50,7 +50,9 @@ describe("Canvas telemetry delivery", () => {
       hasApiKey: true,
       source: "onboarding",
     });
-    expect(capture).toHaveBeenCalledWith("backend_added", expect.any(Object));
+    await waitFor(() =>
+      expect(capture).toHaveBeenCalledWith("backend_added", expect.any(Object)),
+    );
     expect(client!.get_distinct_id()).toBe(installDistinctId);
   });
 });
