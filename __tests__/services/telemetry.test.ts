@@ -18,6 +18,7 @@ vi.mock("posthog-js", () => ({
 
 import {
   clearPendingCloudTelemetryConsent,
+  configureTelemetry,
   getTelemetryConsent,
   getPendingCloudTelemetryConsent,
   setTelemetryConsent,
@@ -53,17 +54,29 @@ describe("Telemetry Service", () => {
   });
 
   describe("PostHog ownership", () => {
-    it("uses the default client as the single owner of consent and events", async () => {
+    it("uses one named Canvas client with runtime configuration", async () => {
+      configureTelemetry({
+        apiKey: "phc_embedded",
+        apiHost: "https://events.example.com",
+        uiHost: "https://posthog.example.com",
+      });
+      configureTelemetry({
+        apiKey: undefined,
+        apiHost: undefined,
+        uiHost: undefined,
+      });
       await setTelemetryConsent("granted");
 
       expect(mockPosthog.init).toHaveBeenCalledWith(
-        expect.any(String),
+        "phc_embedded",
         expect.objectContaining({
-          api_host: expect.any(String),
-          ui_host: expect.any(String),
+          api_host: "https://events.example.com",
+          ui_host: "https://posthog.example.com",
+          persistence_name: "agent-canvas",
+          consent_persistence_name: "agent-canvas-consent",
         }),
+        "agent-canvas",
       );
-      expect(mockPosthog.init.mock.calls[0]).toHaveLength(2);
       expect(mockPosthog.opt_in_capturing).toHaveBeenCalled();
     });
   });

@@ -6,12 +6,14 @@ import { PostHogWrapper } from "#/components/providers/posthog-wrapper";
 const mocks = vi.hoisted(() => ({
   client: { capture: vi.fn() },
   configureBootstrap: vi.fn(),
+  configureTelemetry: vi.fn(),
   initializeClient: vi.fn(),
   provider: vi.fn(),
 }));
 
 vi.mock("#/services/telemetry", () => ({
   configurePostHogBootstrap: mocks.configureBootstrap,
+  configureTelemetry: mocks.configureTelemetry,
   initializePostHogClient: mocks.initializeClient,
 }));
 
@@ -22,8 +24,14 @@ vi.mock("posthog-js/react", () => ({
   },
 }));
 
+const runtimeConfig = {
+  apiKey: "phc_embedded",
+  apiHost: "https://events.example.com",
+  uiHost: "https://posthog.example.com",
+};
+
 const renderWrapper = (children: ReactNode) =>
-  render(<PostHogWrapper>{children}</PostHogWrapper>);
+  render(<PostHogWrapper config={runtimeConfig}>{children}</PostHogWrapper>);
 
 describe("PostHogWrapper", () => {
   beforeEach(() => {
@@ -42,6 +50,7 @@ describe("PostHogWrapper", () => {
       distinctID: "user-123",
       sessionID: "session-456",
     });
+    expect(mocks.configureTelemetry).toHaveBeenCalledWith(runtimeConfig);
     expect(window.location.hash).toBe("");
     await waitFor(() =>
       expect(mocks.provider).toHaveBeenCalledWith(
@@ -72,6 +81,21 @@ describe("PostHogWrapper", () => {
     renderWrapper(<div data-testid="child" />);
 
     expect(await screen.findByTestId("child")).toBeInTheDocument();
-    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalledWith(
+      expect.objectContaining({ client: mocks.client }),
+    );
+  });
+
+  it("uses an inert provider and never initializes when analytics are disabled", () => {
+    render(
+      <PostHogWrapper config={false}>
+        <div data-testid="disabled-child" />
+      </PostHogWrapper>,
+    );
+
+    expect(screen.getByTestId("disabled-child")).toBeInTheDocument();
+    expect(mocks.configureTelemetry).toHaveBeenCalledWith(false);
+    expect(mocks.initializeClient).not.toHaveBeenCalled();
+    expect(mocks.provider).toHaveBeenCalled();
   });
 });

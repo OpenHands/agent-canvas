@@ -13,7 +13,6 @@ import {
   AGENT_SERVER_UI_SCOPE_SELECTOR,
   AgentServerUIRoot,
   AgentServerUIProviders,
-  DEFAULT_AGENT_SERVER_ANALYTICS,
   OPENHANDS_I18N_NAMESPACE,
   getDefaultI18n,
   getDefaultQueryClient,
@@ -25,10 +24,10 @@ import {
 } from "#/index";
 import i18n from "#/i18n";
 
-const postHogProviderMock = vi.hoisted(() => vi.fn());
-vi.mock("posthog-js/react", () => ({
-  PostHogProvider: (props: { children: React.ReactNode }) => {
-    postHogProviderMock(props);
+const postHogWrapperMock = vi.hoisted(() => vi.fn());
+vi.mock("#/components/providers/posthog-wrapper", () => ({
+  PostHogWrapper: (props: { children: React.ReactNode; config?: unknown }) => {
+    postHogWrapperMock(props);
     return props.children;
   },
 }));
@@ -168,8 +167,8 @@ describe("AgentServerUIProviders", () => {
     expect(getI18n()).toBe(getDefaultI18n());
   });
 
-  it("only mounts PostHog analytics when the host app opts in", async () => {
-    postHogProviderMock.mockClear();
+  it("passes disabled and runtime analytics configuration to PostHogWrapper", () => {
+    postHogWrapperMock.mockClear();
 
     const noAnalyticsView = render(
       <AgentServerUIProviders>
@@ -178,19 +177,35 @@ describe("AgentServerUIProviders", () => {
     );
 
     expect(screen.getByTestId("child")).toHaveTextContent("child");
-    expect(postHogProviderMock).not.toHaveBeenCalled();
+    expect(postHogWrapperMock).toHaveBeenCalledWith(
+      expect.objectContaining({ config: false }),
+    );
 
     noAnalyticsView.unmount();
+    postHogWrapperMock.mockClear();
+
+    const analytics = {
+      provider: "posthog" as const,
+      apiKey: "phc_embedded",
+      apiHost: "https://events.example.com",
+      uiHost: "https://posthog.example.com",
+    };
 
     render(
-      <AgentServerUIProviders analytics={DEFAULT_AGENT_SERVER_ANALYTICS}>
+      <AgentServerUIProviders analytics={analytics}>
         <div data-testid="child-with-analytics">child</div>
       </AgentServerUIProviders>,
     );
 
-    await waitFor(() => {
-      expect(postHogProviderMock).toHaveBeenCalledTimes(1);
-    });
+    expect(postHogWrapperMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: {
+          apiKey: analytics.apiKey,
+          apiHost: analytics.apiHost,
+          uiHost: analytics.uiHost,
+        },
+      }),
+    );
   });
 
   it("wraps children in a scoped, customizable style root by default", () => {

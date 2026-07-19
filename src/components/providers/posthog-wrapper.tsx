@@ -3,12 +3,25 @@ import { PostHogProvider } from "posthog-js/react";
 import type { PostHog } from "posthog-js";
 import {
   configurePostHogBootstrap,
+  configureTelemetry,
   initializePostHogClient,
+  type TelemetryConfiguration,
 } from "#/services/telemetry";
 
 const POSTHOG_BOOTSTRAP_KEY = "posthog_bootstrap";
+const noop = () => undefined;
+const INERT_POSTHOG_CLIENT = Object.freeze({
+  capture: noop,
+  captureException: noop,
+  identify: noop,
+  reset: noop,
+}) as unknown as PostHog;
 
 function getBootstrapIds() {
+  if (typeof window === "undefined" || typeof sessionStorage === "undefined") {
+    return undefined;
+  }
+
   // Try to extract from URL hash (e.g. #distinct_id=abc&session_id=xyz)
   const hash = window.location.hash.substring(1);
   const params = new URLSearchParams(hash);
@@ -40,21 +53,30 @@ function getBootstrapIds() {
   return undefined;
 }
 
-export function PostHogWrapper({ children }: { children: React.ReactNode }) {
-  const [posthogClient, setPosthogClient] = React.useState<PostHog | null>(
-    null,
-  );
+export function PostHogWrapper({
+  children,
+  config = {},
+}: {
+  children: React.ReactNode;
+  config?: TelemetryConfiguration;
+}) {
+  const [posthogClient, setPosthogClient] =
+    React.useState<PostHog>(INERT_POSTHOG_CLIENT);
   const bootstrapIds = React.useMemo(() => getBootstrapIds(), []);
   const bootstrapConfiguredRef = React.useRef(false);
+  const analyticsEnabled = config !== false;
 
   // Configure bootstrap synchronously so a child telemetry effect cannot win
   // the initialization race on the first render.
   if (!bootstrapConfiguredRef.current) {
+    configureTelemetry(config);
     configurePostHogBootstrap(bootstrapIds);
     bootstrapConfiguredRef.current = true;
   }
 
   React.useEffect(() => {
+    if (!analyticsEnabled) return undefined;
+
     let cancelled = false;
     void initializePostHogClient()
       .then((client) => {
@@ -63,16 +85,12 @@ export function PostHogWrapper({ children }: { children: React.ReactNode }) {
         }
       })
       .catch(() => {
-        // Analytics are optional; render children without a provider.
+        // Analytics are optional; keep children on the inert provider.
       });
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  if (!posthogClient) {
-    return children;
-  }
+  }, [analyticsEnabled]);
 
   return <PostHogProvider client={posthogClient}>{children}</PostHogProvider>;
 }

@@ -36,14 +36,13 @@ RUN npm ci
 COPY . .
 
 # Build the static frontend.
-# VITE_APP_ENV controls the PostHog telemetry key baked into the bundle:
-#   "production" → prod key (set by CI for tagged releases)
-#   anything else → staging key (default for PR / main / local builds)
+# VITE_POSTHOG_API_KEY is a public client key baked into the bundle. CI passes
+# production for tagged releases and staging for PR/main images.
 # VITE_BASE_PATH is baked into React Router/Vite so the Docker image serves
 # Canvas under the Cloud subpath instead of a dedicated hostname.
-ARG VITE_APP_ENV=""
+ARG VITE_POSTHOG_API_KEY=""
 ARG VITE_BASE_PATH="/canvas"
-ENV VITE_APP_ENV=${VITE_APP_ENV}
+ENV VITE_POSTHOG_API_KEY=${VITE_POSTHOG_API_KEY}
 ENV VITE_BASE_PATH=${VITE_BASE_PATH}
 RUN npm run build
 

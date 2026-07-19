@@ -14,16 +14,19 @@ import {
   setI18n,
 } from "#/i18n";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
+import type { TelemetryConfig } from "#/services/telemetry";
 import { PostHogWrapper } from "./posthog-wrapper";
 import {
   AgentServerUIRoot,
   type AgentServerUIRootProps,
 } from "./agent-server-ui-root";
 
+export interface AgentServerUIPostHogAnalyticsConfig extends TelemetryConfig {
+  provider: "posthog";
+}
+
 export type AgentServerUIAnalyticsConfig =
-  | {
-      provider: "posthog";
-    }
+  | AgentServerUIPostHogAnalyticsConfig
   | false
   | null;
 
@@ -84,12 +87,17 @@ export function AgentServerUIProviders({
     [],
   );
 
-  const content =
-    analytics && analytics.provider === "posthog" ? (
-      <PostHogWrapper>{children}</PostHogWrapper>
-    ) : (
-      children
-    );
+  const posthogConfig =
+    analytics && analytics.provider === "posthog"
+      ? {
+          apiKey: analytics.apiKey,
+          apiHost: analytics.apiHost,
+          uiHost: analytics.uiHost,
+        }
+      : false;
+  const content = (
+    <PostHogWrapper config={posthogConfig}>{children}</PostHogWrapper>
+  );
 
   const wrappedContent = withStyleRoot ? (
     <AgentServerUIRoot

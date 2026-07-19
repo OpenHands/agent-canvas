@@ -18,7 +18,8 @@
  * - VITE_POSTHOG_UI_HOST: PostHog UI host (defaults to https://us.posthog.com)
  *
  * IMPORTANT: By default, telemetry is sent to the OpenHands PostHog project.
- * Library consumers can override this by setting VITE_POSTHOG_API_KEY.
+ * Source builds can override this with VITE_POSTHOG_API_KEY. Precompiled
+ * library consumers can pass the same settings to configureTelemetry().
  *
  * Users can disable all telemetry (including install tracking) via:
  * - Setting VITE_DO_NOT_TRACK=1 environment variable
@@ -34,31 +35,36 @@ const TELEMETRY_CONSENT_PENDING_CLOUD_SYNC_KEY =
 const TELEMETRY_CONSENT_CHANGE_EVENT = "openhands-telemetry-consent-change";
 const TELEMETRY_FIRST_USE_KEY = "openhands-telemetry-first-use";
 const TELEMETRY_SESSION_KEY = "openhands-telemetry-session";
+const POSTHOG_INSTANCE_NAME = "agent-canvas";
 
-// PostHog project keys — one per deployment environment, hardcoded so they
-// are baked into the static bundle at build time and cannot drift at runtime.
-const POSTHOG_PROD_KEY = "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK";
+// Unconfigured source builds use staging. Production release workflows pass
+// VITE_POSTHOG_API_KEY explicitly for both the app and library artifacts.
 const POSTHOG_STAGING_KEY = "phc_kBtz5nKmxVRRQ7HtPwr2QX9eMC5j65zE86QKocVNwb4U";
-
-// Always use the staging key unless VITE_APP_ENV is explicitly set to
-// "production" at bundle time (hardcoded in build:lib and production CI).
-// Library consumers can always override with VITE_POSTHOG_API_KEY.
-const POSTHOG_API_KEY: string =
+const DEFAULT_POSTHOG_API_KEY: string =
   (import.meta.env.VITE_POSTHOG_API_KEY as string | undefined) ||
-  (import.meta.env.VITE_APP_ENV === "production"
-    ? POSTHOG_PROD_KEY
-    : POSTHOG_STAGING_KEY);
+  POSTHOG_STAGING_KEY;
 
 // Default to OpenHands' reverse proxy to bypass ad blockers.
 // The proxy at z.openhands.dev routes to PostHog's US region.
 // Library consumers can override this with their own proxy or direct PostHog URL.
-const POSTHOG_HOST =
+const DEFAULT_POSTHOG_HOST =
   import.meta.env.VITE_POSTHOG_HOST || "https://z.openhands.dev";
 
 // UI host is needed for PostHog features like toolbar to work correctly
 // when using a reverse proxy. Defaults to US region.
-const POSTHOG_UI_HOST =
+const DEFAULT_POSTHOG_UI_HOST =
   import.meta.env.VITE_POSTHOG_UI_HOST || "https://us.posthog.com";
+
+export interface TelemetryConfig {
+  /** PostHog project key. Useful for precompiled library consumers. */
+  apiKey?: string;
+  /** Event ingestion host or reverse proxy. */
+  apiHost?: string;
+  /** PostHog UI host used by toolbar links and other UI features. */
+  uiHost?: string;
+}
+
+export type TelemetryConfiguration = TelemetryConfig | false;
 
 export type TelemetryConsent = "granted" | "denied" | "pending";
 export type ResolvedTelemetryConsent = Exclude<TelemetryConsent, "pending">;
@@ -71,6 +77,38 @@ export interface SetTelemetryConsentOptions {
 let posthogInstance: PostHog | null = null;
 let initializationPromise: Promise<PostHog | null> | null = null;
 let pendingBootstrap: BootstrapConfig | undefined;
+let telemetryConfiguration: TelemetryConfiguration = {};
+
+/**
+ * Configure the single Canvas telemetry client before its first use.
+ * Passing false disables telemetry and install tracking for embedded hosts.
+ */
+export function configureTelemetry(config: TelemetryConfiguration): void {
+  if (posthogInstance || initializationPromise) return;
+
+  if (config === false) {
+    telemetryConfiguration = false;
+    return;
+  }
+
+  const definedConfig = Object.fromEntries(
+    Object.entries(config).filter(([, value]) => value !== undefined),
+  ) as TelemetryConfig;
+  telemetryConfiguration = {
+    ...(telemetryConfiguration === false ? {} : telemetryConfiguration),
+    ...definedConfig,
+  };
+}
+
+function getResolvedTelemetryConfig(): Required<TelemetryConfig> | null {
+  if (telemetryConfiguration === false) return null;
+
+  return {
+    apiKey: telemetryConfiguration.apiKey || DEFAULT_POSTHOG_API_KEY,
+    apiHost: telemetryConfiguration.apiHost || DEFAULT_POSTHOG_HOST,
+    uiHost: telemetryConfiguration.uiHost || DEFAULT_POSTHOG_UI_HOST,
+  };
+}
 
 /**
  * Check if we're in a browser environment
@@ -106,6 +144,10 @@ async function getPostHog(): Promise<PostHog | null> {
  * Works in both Node.js and browser (Vite) environments.
  */
 function isDoNotTrackEnabled(): boolean {
+  if (telemetryConfiguration === false) {
+    return true;
+  }
+
   // Check Vite environment variable (browser)
   if (
     typeof import.meta !== "undefined" &&
@@ -158,30 +200,42 @@ export async function initializePostHogClient(
   }
 
   initializationPromise = (async () => {
+    const config = getResolvedTelemetryConfig();
+    if (!config) {
+      return null;
+    }
+
     const posthog = await getPostHog();
     if (!posthog) {
       return null;
     }
 
-    // telemetry.ts is the sole owner of the default PostHog client. React is
-    // given this exact instance instead of initializing another client.
-    posthogInstance = posthog.init(POSTHOG_API_KEY, {
-      api_host: POSTHOG_HOST,
-      ui_host: POSTHOG_UI_HOST,
-      opt_out_capturing_by_default: !enableCapturing,
-      capture_pageview: false,
-      autocapture: false,
-      persistence: "localStorage",
-      person_profiles: "identified_only",
-      disable_session_recording: true,
-      bootstrap: pendingBootstrap,
-      loaded: (ph) => {
-        ph.register({
-          package_name: packageJson.name,
-          package_version: packageJson.version,
-        });
+    // A named instance isolates Canvas configuration, consent, identity, and
+    // persistence from a host application's default PostHog singleton. React
+    // receives this exact returned instance, so Canvas still has one identity.
+    posthogInstance = posthog.init(
+      config.apiKey,
+      {
+        api_host: config.apiHost,
+        ui_host: config.uiHost,
+        opt_out_capturing_by_default: !enableCapturing,
+        capture_pageview: false,
+        autocapture: false,
+        persistence: "localStorage",
+        persistence_name: POSTHOG_INSTANCE_NAME,
+        consent_persistence_name: `${POSTHOG_INSTANCE_NAME}-consent`,
+        person_profiles: "identified_only",
+        disable_session_recording: true,
+        bootstrap: pendingBootstrap,
+        loaded: (ph) => {
+          ph.register({
+            package_name: packageJson.name,
+            package_version: packageJson.version,
+          });
+        },
       },
-    });
+      POSTHOG_INSTANCE_NAME,
+    );
 
     return posthogInstance;
   })();

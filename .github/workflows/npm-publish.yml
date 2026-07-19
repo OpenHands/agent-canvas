@@ -61,11 +61,15 @@ jobs:
 
       - name: Build app
         env:
-          # Build the packaged static app with the production telemetry key.
-          VITE_APP_ENV: production
+          # Public client key baked into the packaged production app.
+          VITE_POSTHOG_API_KEY: ${{ vars.POSTHOG_PROD_KEY }}
         run: npm run build
 
       - name: Build library
+        env:
+          # The precompiled library keeps the production default; embedded
+          # consumers can still override it through runtime analytics config.
+          VITE_POSTHOG_API_KEY: ${{ vars.POSTHOG_PROD_KEY }}
         run: npm run build:lib
 
       - name: Verify package contents

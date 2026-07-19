@@ -1,5 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { createElement } from "react";
+import posthog from "posthog-js";
 import { PostHogProvider, usePostHog } from "posthog-js/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -23,6 +24,7 @@ describe("Canvas telemetry delivery", () => {
   it("keeps install and backend-transition events on one client identity", async () => {
     const client = await initializePostHogClient();
     expect(client).not.toBeNull();
+    expect(client).not.toBe(posthog);
     const capture = vi.spyOn(client!, "capture");
 
     await trackInstall();
