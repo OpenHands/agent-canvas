@@ -3,10 +3,6 @@ import { Provider } from "#/types/settings";
 import type { BackendKind } from "#/api/backend-registry/types";
 import type { WorkspaceMode } from "#/api/conversation-metadata-store";
 import type { CloudConnectionSource } from "#/services/cloud-funnel-analytics";
-import {
-  AGENT_CANVAS_CLIENT_SOURCE,
-  AGENT_CANVAS_CLIENT_VERSION,
-} from "#/api/client-source";
 import { trackEvent } from "#/services/telemetry";
 
 /**
@@ -257,8 +253,6 @@ export const useTracking = () => {
     source?: CloudConnectionSource;
   }) => {
     track("backend_added", {
-      client_source: AGENT_CANVAS_CLIENT_SOURCE,
-      client_version: AGENT_CANVAS_CLIENT_VERSION,
       backend_kind: backendKind,
       connection_method: connectionMethod,
       is_openhands_cloud: isOpenhandsCloud,

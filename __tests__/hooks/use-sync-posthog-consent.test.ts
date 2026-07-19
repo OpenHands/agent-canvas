@@ -108,10 +108,9 @@ describe("useSyncPostHogConsent", () => {
 
     renderHook(() => useSyncPostHogConsent());
 
-    expect(saveSettingsMock).toHaveBeenCalledWith(
-      { user_consents_to_analytics: true },
-      expect.objectContaining({ onSettled: expect.any(Function) }),
-    );
+    expect(saveSettingsMock).toHaveBeenCalledWith({
+      user_consents_to_analytics: true,
+    });
     expect(setTelemetryConsentMock).not.toHaveBeenCalled();
     expect(clearPendingCloudTelemetryConsentMock).not.toHaveBeenCalled();
   });
@@ -144,13 +143,16 @@ describe("useSyncPostHogConsent", () => {
     expect(saveSettingsMock).not.toHaveBeenCalled();
   });
 
-  it("does not enqueue duplicate writes while one backend sync is outstanding", () => {
+  it("does not retry a rejected backend write in a render loop", () => {
     state.pendingConsent = "granted";
     useSettingsMock.mockReturnValue({
       data: { user_consents_to_analytics: false },
     });
 
     const { rerender } = renderHook(() => useSyncPostHogConsent());
+    state.isSavingSettings = true;
+    rerender();
+    state.isSavingSettings = false;
     rerender();
 
     expect(saveSettingsMock).toHaveBeenCalledTimes(1);
@@ -169,10 +171,9 @@ describe("useSyncPostHogConsent", () => {
     state.pendingConsent = "granted";
     act(() => pendingConsentListener?.());
 
-    expect(saveSettingsMock).toHaveBeenCalledWith(
-      { user_consents_to_analytics: true },
-      expect.objectContaining({ onSettled: expect.any(Function) }),
-    );
+    expect(saveSettingsMock).toHaveBeenCalledWith({
+      user_consents_to_analytics: true,
+    });
     expect(setTelemetryConsentMock).not.toHaveBeenCalled();
   });
 });

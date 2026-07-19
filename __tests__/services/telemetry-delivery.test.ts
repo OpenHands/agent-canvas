@@ -5,7 +5,6 @@ import { PostHogProvider, usePostHog } from "posthog-js/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearTelemetryData,
-  getPostHogInstance,
   initializePostHogClient,
   setTelemetryConsent,
   trackInstall,
@@ -29,7 +28,6 @@ describe("Canvas telemetry delivery", () => {
 
     await trackInstall();
     expect(capture).toHaveBeenCalledWith("canvas_install", expect.any(Object));
-    expect(await getPostHogInstance()).toBe(client);
     const installDistinctId = client!.get_distinct_id();
 
     await setTelemetryConsent("granted");

@@ -61,17 +61,9 @@ export const useSyncPostHogConsent = () => {
       if (isSavingSettings || attemptedSyncRef.current === syncKey) return;
 
       attemptedSyncRef.current = syncKey;
-      saveSettings(
-        {
-          user_consents_to_analytics: pendingBrowserConsent === "granted",
-        },
-        {
-          // Keep the marker until the refetched backend value confirms it.
-          onSettled: () => {
-            attemptedSyncRef.current = null;
-          },
-        },
-      );
+      saveSettings({
+        user_consents_to_analytics: pendingBrowserConsent === "granted",
+      });
       return;
     }
 

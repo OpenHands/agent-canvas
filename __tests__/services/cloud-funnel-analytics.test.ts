@@ -1,12 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  enabled: true,
   trackEvent: vi.fn(),
 }));
 
 vi.mock("#/services/telemetry", () => ({
-  isTelemetryEnabled: () => mocks.enabled,
   trackEvent: mocks.trackEvent,
 }));
 
@@ -18,7 +16,6 @@ import {
 
 describe("cloud funnel analytics", () => {
   beforeEach(() => {
-    mocks.enabled = true;
     mocks.trackEvent.mockReset();
   });
 
@@ -39,13 +36,12 @@ describe("cloud funnel analytics", () => {
         is_openhands_cloud: true,
         is_custom_host: false,
         source: "onboarding",
-        client_source: "agent_canvas",
       }),
     );
     expect(mocks.trackEvent).toHaveBeenNthCalledWith(
       2,
       "cloud_device_authorization_succeeded",
-      expect.objectContaining({ client_source: "agent_canvas" }),
+      expect.objectContaining({ source: "onboarding" }),
     );
   });
 
@@ -62,18 +58,17 @@ describe("cloud funnel analytics", () => {
     );
   });
 
-  it("emits the ready milestone only once across polling consumers", () => {
+  it("uses a stable insert ID to deduplicate polling consumers at ingestion", () => {
     trackCloudConversationReady("task-dedupe", "conversation-dedupe");
     trackCloudConversationReady("task-dedupe", "conversation-dedupe");
 
-    expect(mocks.trackEvent).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not enqueue funnel events without consent", () => {
-    mocks.enabled = false;
-
-    trackCloudDeviceAuthorizationStarted("https://app.all-hands.dev");
-
-    expect(mocks.trackEvent).not.toHaveBeenCalled();
+    expect(mocks.trackEvent).toHaveBeenCalledTimes(2);
+    expect(mocks.trackEvent).toHaveBeenNthCalledWith(
+      2,
+      "cloud_conversation_ready",
+      expect.objectContaining({
+        $insert_id: "agent_canvas:cloud_conversation_ready:task-dedupe",
+      }),
+    );
   });
 });

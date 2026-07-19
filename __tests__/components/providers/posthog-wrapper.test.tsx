@@ -144,4 +144,26 @@ describe("PostHogWrapper", () => {
     expect(configureTelemetryMock).toHaveBeenCalledWith(false);
     expect(initializeClientMock).not.toHaveBeenCalled();
   });
+
+  it("replaces an initialized client when analytics are disabled", async () => {
+    const providedClients: PostHog[] = [];
+    const onClient = (providedClient: PostHog) => {
+      providedClients.push(providedClient);
+    };
+    const { rerender } = render(
+      <PostHogWrapper config={runtimeConfig}>
+        <ClientProbe onClient={onClient} />
+      </PostHogWrapper>,
+    );
+    await waitFor(() => expect(providedClients.at(-1)).toBe(client));
+
+    rerender(
+      <PostHogWrapper config={false}>
+        <ClientProbe onClient={onClient} />
+      </PostHogWrapper>,
+    );
+
+    await waitFor(() => expect(providedClients.at(-1)).not.toBe(client));
+    expect(configureTelemetryMock).toHaveBeenLastCalledWith(false);
+  });
 });

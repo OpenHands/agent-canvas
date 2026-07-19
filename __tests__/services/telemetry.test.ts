@@ -4,6 +4,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 const mockPosthog = {
   init: vi.fn(),
   capture: vi.fn(),
+  captureException: vi.fn(),
   opt_in_capturing: vi.fn(),
   opt_out_capturing: vi.fn(),
   has_opted_out_capturing: vi.fn(() => false),
@@ -27,6 +28,7 @@ import {
   trackInstall,
   trackSessionStart,
   trackEvent,
+  trackException,
   clearTelemetryData,
 } from "#/services/telemetry";
 
@@ -49,6 +51,7 @@ describe("Telemetry Service", () => {
   });
 
   afterEach(() => {
+    configureTelemetry({});
     localStorage.clear();
     sessionStorage.clear();
   });
@@ -78,6 +81,12 @@ describe("Telemetry Service", () => {
         "agent-canvas",
       );
       expect(mockPosthog.opt_in_capturing).toHaveBeenCalled();
+      expect(mockPosthog.register).toHaveBeenCalledWith(
+        expect.objectContaining({
+          client_source: "agent_canvas",
+          client_version: expect.any(String),
+        }),
+      );
     });
   });
 
@@ -261,6 +270,29 @@ describe("Telemetry Service", () => {
       expect(mockPosthog.opt_in_capturing).toHaveBeenCalledTimes(1);
       expect(mockPosthog.capture).toHaveBeenCalledWith("custom_action", {});
     });
+
+    it("stops an initialized client when telemetry is disabled", async () => {
+      await setTelemetryConsent("granted");
+      vi.clearAllMocks();
+
+      configureTelemetry(false);
+      await trackEvent("custom_action");
+
+      expect(mockPosthog.opt_out_capturing).toHaveBeenCalledTimes(1);
+      expect(mockPosthog.capture).not.toHaveBeenCalled();
+      configureTelemetry({});
+    });
+
+    it("does not let a consent refresh override a hard disable", async () => {
+      await setTelemetryConsent("denied");
+      configureTelemetry(false);
+      vi.clearAllMocks();
+
+      await setTelemetryConsent("granted", { syncToCloud: false });
+
+      expect(mockPosthog.opt_in_capturing).not.toHaveBeenCalled();
+      configureTelemetry({});
+    });
   });
 
   describe("trackSessionStart", () => {
@@ -275,6 +307,19 @@ describe("Telemetry Service", () => {
         "canvas_new_session",
         expect.any(Object),
       );
+    });
+  });
+
+  describe("trackException", () => {
+    it("uses the consent-aware boundary", async () => {
+      await setTelemetryConsent("granted");
+      const error = new Error("failure");
+
+      await trackException(error, { error_source: "test" });
+
+      expect(mockPosthog.captureException).toHaveBeenCalledWith(error, {
+        error_source: "test",
+      });
     });
   });
 

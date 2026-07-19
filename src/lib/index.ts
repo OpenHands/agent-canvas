@@ -52,7 +52,6 @@ export {
   trackSessionStart,
   trackEvent,
   clearTelemetryData,
-  getPostHogInstance,
   type TelemetryConfig,
   type TelemetryConfiguration,
   type TelemetryConsent,

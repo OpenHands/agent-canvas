@@ -12,6 +12,12 @@ import {
 
 const POSTHOG_BOOTSTRAP_KEY = "posthog_bootstrap";
 const noop = () => undefined;
+const INERT_POSTHOG_CLIENT = Object.freeze({
+  capture: noop,
+  captureException: noop,
+  identify: noop,
+  reset: noop,
+}) as unknown as PostHog;
 const DEFERRED_POSTHOG_CLIENT = Object.freeze({
   capture: (event: string, properties?: Record<string, unknown>) => {
     void trackEvent(event, properties);
@@ -70,16 +76,15 @@ export function PostHogWrapper({
     DEFERRED_POSTHOG_CLIENT,
   );
   const bootstrapIds = React.useMemo(() => getBootstrapIds(), []);
-  const bootstrapConfiguredRef = React.useRef(false);
   const analyticsEnabled = config !== false;
+  const apiKey = config === false ? undefined : config.apiKey;
+  const apiHost = config === false ? undefined : config.apiHost;
+  const uiHost = config === false ? undefined : config.uiHost;
 
-  // Configure bootstrap synchronously so a child telemetry effect cannot win
-  // the initialization race on the first render.
-  if (!bootstrapConfiguredRef.current) {
-    configureTelemetry(config);
+  React.useLayoutEffect(() => {
+    configureTelemetry(analyticsEnabled ? { apiKey, apiHost, uiHost } : false);
     configurePostHogBootstrap(bootstrapIds);
-    bootstrapConfiguredRef.current = true;
-  }
+  }, [analyticsEnabled, apiHost, apiKey, bootstrapIds, uiHost]);
 
   React.useEffect(() => {
     if (!analyticsEnabled) return undefined;
@@ -92,12 +97,19 @@ export function PostHogWrapper({
         }
       })
       .catch(() => {
-        // Analytics are optional; keep children on the inert provider.
+        // Analytics are optional; keep the deferred provider so a later
+        // capture can retry initialization.
       });
     return () => {
       cancelled = true;
     };
-  }, [analyticsEnabled]);
+  }, [analyticsEnabled, apiHost, apiKey, uiHost]);
 
-  return <PostHogProvider client={posthogClient}>{children}</PostHogProvider>;
+  return (
+    <PostHogProvider
+      client={analyticsEnabled ? posthogClient : INERT_POSTHOG_CLIENT}
+    >
+      {children}
+    </PostHogProvider>
+  );
 }
