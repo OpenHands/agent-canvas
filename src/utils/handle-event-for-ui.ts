@@ -144,6 +144,20 @@ const matchStreamedSegments = (
   return findTextSegmentsInOrder(targetText, searchSegments);
 };
 
+// A `<function=` marker can only appear in streamed text when native tool
+// calling is disabled and the model's raw completion streamed a prompted
+// (XML) function call: the SDK only strips `<function=...` and everything
+// after it from the persisted thought/message once the *complete* response
+// is available (`_strip_function_call_from_content` in
+// `fn_call_converter.py`), so an in-progress delta can carry that raw XML
+// even though the finalized text never will. Its presence makes the
+// streamed text a superset of (not a prefix/substring of) the finalized
+// text, so it will never satisfy `matchStreamedSegments` even though it's
+// the same underlying turn -- this is a second, unambiguous signal callers
+// can use to reconcile that case instead of falling back to displaying both.
+const hasUnstrippedFunctionCallMarker = (segments: string[]): boolean =>
+  segments.some((segment) => segment.includes("<function="));
+
 const finalizeStreamingDeltasInPlace = (
   finalEvent: OpenHandsEvent,
   uiEvents: OpenHandsEvent[],
@@ -195,6 +209,44 @@ const finalizeStreamingDeltasInPlace = (
   return nextUiEvents;
 };
 
+// Companion to `finalizeStreamingDeltasInPlace` for the case that function
+// can't reconcile: the current turn's streamed content is a superset of the
+// clean final text (carries an unstripped `<function=...>` marker, see
+// `hasUnstrippedFunctionCallMarker`) rather than a prefix of it, so it isn't
+// usable as the canonical rendered bubble the way a true prefix match is.
+// Clears it instead, keeping only reasoning content it may carry -- the
+// caller is then expected to append the clean final event normally.
+const clearRawFunctionCallDeltas = (
+  uiEvents: OpenHandsEvent[],
+): OpenHandsEvent[] | null => {
+  const contentDeltas = getCurrentTurnContentDeltas(uiEvents);
+  if (contentDeltas.length === 0) {
+    return null;
+  }
+
+  const streamingSegments = contentDeltas.map(
+    ({ event }) => event.content ?? "",
+  );
+  if (!hasUnstrippedFunctionCallMarker(streamingSegments)) {
+    return null;
+  }
+
+  const indexesToClear = new Set(contentDeltas.map(({ index }) => index));
+  const nextUiEvents: OpenHandsEvent[] = [];
+  uiEvents.forEach((event, index) => {
+    if (!indexesToClear.has(index) || !isStreamingDeltaEvent(event)) {
+      nextUiEvents.push(event);
+      return;
+    }
+    // Keep the delta only to render reasoning that would otherwise be lost.
+    if (event.reasoning_content) {
+      nextUiEvents.push({ ...event, content: null });
+    }
+  });
+
+  return nextUiEvents;
+};
+
 /**
  * Reconcile the current turn's streaming delta when an intermediate
  * (tool-calling) `ActionEvent` arrives. With `stream=true` the step's
@@ -229,8 +281,14 @@ const supersedeStreamedThoughtWithAction = (
     ({ event }) => event.content ?? "",
   );
 
-  // Only strip when the streamed text is the action's rendered thought.
-  if (!matchStreamedSegments(thoughtText, streamingSegments).matched) {
+  // Strip when the streamed text is the action's rendered thought, or when
+  // it carries an unstripped <function=...> marker (see
+  // hasUnstrippedFunctionCallMarker): in that case the streamed text is the
+  // thought PLUS the raw XML the SDK stripped before persisting
+  // `action.thought`, a superset rather than a prefix/substring, so it can
+  // never satisfy matchStreamedSegments even though it's the same turn.
+  const { matched } = matchStreamedSegments(thoughtText, streamingSegments);
+  if (!matched && !hasUnstrippedFunctionCallMarker(streamingSegments)) {
     return null;
   }
 
@@ -301,6 +359,18 @@ export const handleEventForUI = (
       // microagents becomes meaningful for streamed responses, add a rendered
       // wrapper that carries both the stable delta identity and that metadata.
       return finalizedUiEvents;
+    }
+
+    // The streamed text isn't a prefix of the clean final text -- if that's
+    // because non-native tool calling streamed the raw, unstripped
+    // <function=...> XML (a superset of the clean text, not a prefix), clear
+    // it here instead of falling through to the generic append below, which
+    // would otherwise leave the raw XML delta rendered alongside the clean
+    // final text.
+    const clearedUiEvents = clearRawFunctionCallDeltas(newUiEvents);
+    if (clearedUiEvents) {
+      clearedUiEvents.push(event);
+      return clearedUiEvents;
     }
   }
 

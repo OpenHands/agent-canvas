@@ -450,6 +450,62 @@ describe("handleEventForUI", () => {
       expect(result).toEqual([mockMessageEvent, streamedDelta, finalMessage]);
     });
 
+    // Regression: with native_tool_calling disabled, a prompted (XML)
+    // function call streams as raw `<function=...>` text before the SDK
+    // strips it into the clean final action/message -- see
+    // hasUnstrippedFunctionCallMarker in handle-event-for-ui.ts. The streamed
+    // text is then a superset of the clean text, not a prefix, so the normal
+    // match fails; without special-casing it, both the raw XML delta and the
+    // clean final event would render, showing the tool call twice.
+    it("clears a streamed delta carrying unstripped <function=...> XML when finish arrives", () => {
+      const rawXmlDelta = makeStreamingDelta(
+        "delta-1",
+        "<function=finish>\n<parameter=message>I'll start working on that. Done.</parameter>\n<parameter=security_risk>LOW</parameter>\n</function>",
+      );
+
+      const result = handleEventForUI(mockFinishActionEvent, [
+        mockMessageEvent,
+        rawXmlDelta,
+      ]);
+
+      expect(result).toEqual([mockMessageEvent, mockFinishActionEvent]);
+    });
+
+    it("clears a streamed delta carrying unstripped <function=...> XML when an agent message arrives", () => {
+      const rawXmlDelta = makeStreamingDelta(
+        "delta-1",
+        "<function=terminal>\n<parameter=command>echo hi</parameter>\n</function>",
+      );
+
+      const result = handleEventForUI(mockAgentMessageEvent, [
+        mockMessageEvent,
+        rawXmlDelta,
+      ]);
+
+      expect(result).toEqual([mockMessageEvent, mockAgentMessageEvent]);
+    });
+
+    it("keeps reasoning content when clearing an unstripped <function=...> delta", () => {
+      const rawXmlDelta: StreamingDeltaEvent = {
+        ...makeStreamingDelta(
+          "delta-1",
+          "<function=finish>\n<parameter=message>Done.</parameter>\n</function>",
+        ),
+        reasoning_content: "pondering the wrap-up",
+      };
+
+      const result = handleEventForUI(mockFinishActionEvent, [
+        mockMessageEvent,
+        rawXmlDelta,
+      ]);
+
+      expect(result).toEqual([
+        mockMessageEvent,
+        { ...rawXmlDelta, content: null },
+        mockFinishActionEvent,
+      ]);
+    });
+
     it("keeps deltas from older turns when a later turn finishes", () => {
       const oldUserMessage: MessageEvent = {
         ...mockMessageEvent,
@@ -602,6 +658,25 @@ describe("handleEventForUI", () => {
       const result = handleEventForUI(action, [mockMessageEvent, delta]);
 
       expect(result).toEqual([mockMessageEvent, delta, action]);
+    });
+
+    // Regression: the streamed delta for a non-native tool call is the
+    // thought PLUS the raw, not-yet-stripped <function=...> block (a
+    // superset of `action.thought`, not a prefix/substring of it), so the
+    // exact-match check alone would leave it untouched and it would render
+    // twice alongside the action. hasUnstrippedFunctionCallMarker's presence
+    // check reconciles this case too.
+    it("clears the delta when streamed text is the thought plus an unstripped <function=...> block", () => {
+      const thought = "Coding and executing";
+      const delta = makeStreamingDelta(
+        "delta-1",
+        `${thought}<function=terminal>\n<parameter=command>echo hi</parameter>\n</function>`,
+      );
+      const action = makeThoughtAction("intermediate-1", thought);
+
+      const result = handleEventForUI(action, [mockMessageEvent, delta]);
+
+      expect(result).toEqual([mockMessageEvent, action]);
     });
 
     it("does not reconcile a ThinkAction (its thought renders separately)", () => {
