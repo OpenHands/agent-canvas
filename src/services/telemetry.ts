@@ -26,7 +26,7 @@
  * - Browser's Do Not Track setting
  */
 
-import type { BootstrapConfig, PostHog } from "posthog-js";
+import type { BootstrapConfig, CaptureResult, PostHog } from "posthog-js";
 import packageJson from "../../package.json";
 import {
   AGENT_CANVAS_CLIENT_SOURCE,
@@ -84,12 +84,91 @@ let pendingBootstrap: BootstrapConfig | undefined;
 let telemetryConfig: TelemetryConfig = {};
 let telemetryDisabled = false;
 
+interface TelemetryIdentity {
+  distinctId: string;
+  properties: Record<string, unknown>;
+}
+
+// undefined means that Cloud identity has not resolved yet; null means that it
+// resolved without a user. This distinction prevents startup from resetting a
+// persisted identity while the current account is still loading.
+let desiredTelemetryIdentity: TelemetryIdentity | null | undefined;
+let desiredIdentityRevision = 0;
+let appliedIdentityRevision = -1;
+
 const CANVAS_EVENT_PROPERTIES = Object.freeze({
   client_source: AGENT_CANVAS_CLIENT_SOURCE,
   client_version: AGENT_CANVAS_CLIENT_VERSION,
   package_name: packageJson.name,
   package_version: packageJson.version,
 });
+
+function addCanvasEventProperties(
+  event: CaptureResult | null,
+): CaptureResult | null {
+  if (!event) return null;
+
+  return {
+    ...event,
+    properties: {
+      ...event.properties,
+      ...CANVAS_EVENT_PROPERTIES,
+    },
+  };
+}
+
+function restorePostHogConsent(posthog: PostHog): void {
+  if (telemetryDisabled || getTelemetryConsent() !== "granted") {
+    posthog.opt_out_capturing();
+  } else {
+    posthog.opt_in_capturing();
+  }
+}
+
+function resetPostHogIdentity(posthog: PostHog, resetDeviceId = false): void {
+  posthog.reset(resetDeviceId);
+  appliedIdentityRevision = -1;
+  // PostHog reset clears its own consent persistence, so immediately restore
+  // the canonical Canvas decision kept in localStorage.
+  restorePostHogConsent(posthog);
+}
+
+function applyDesiredTelemetryIdentity(posthog: PostHog): void {
+  if (desiredTelemetryIdentity === undefined || !isTelemetryEnabled()) return;
+
+  const desiredId = desiredTelemetryIdentity?.distinctId;
+  const currentId = posthog.get_property("$user_id");
+  if (currentId != null && currentId !== desiredId) {
+    resetPostHogIdentity(posthog);
+  }
+
+  if (desiredTelemetryIdentity === null) {
+    appliedIdentityRevision = desiredIdentityRevision;
+    return;
+  }
+
+  if (
+    posthog.get_property("$user_id") !== desiredTelemetryIdentity.distinctId ||
+    appliedIdentityRevision !== desiredIdentityRevision
+  ) {
+    posthog.identify(
+      desiredTelemetryIdentity.distinctId,
+      desiredTelemetryIdentity.properties,
+    );
+    appliedIdentityRevision = desiredIdentityRevision;
+  }
+}
+
+function propertiesEqual(
+  left: Record<string, unknown>,
+  right: Record<string, unknown>,
+): boolean {
+  const keys = Object.keys(left);
+  return (
+    keys.length === Object.keys(right).length &&
+    keys.every((key) => left[key] === right[key])
+  );
+}
 
 /**
  * Configure the single Canvas telemetry client before its first use.
@@ -115,8 +194,9 @@ export function configureTelemetry(config: TelemetryConfiguration): void {
   }
 
   if (wasDisabled) {
-    if (getTelemetryConsent() === "granted") {
-      posthogInstance?.opt_in_capturing();
+    if (posthogInstance) {
+      restorePostHogConsent(posthogInstance);
+      applyDesiredTelemetryIdentity(posthogInstance);
     }
     notifyTelemetryConsentListeners();
   }
@@ -205,7 +285,7 @@ function isDoNotTrackEnabled(): boolean {
 export function configurePostHogBootstrap(
   bootstrap: BootstrapConfig | undefined,
 ): void {
-  if (!posthogInstance && bootstrap) {
+  if (!posthogInstance) {
     pendingBootstrap = bootstrap;
   }
 }
@@ -233,9 +313,8 @@ export async function initializePostHogClient(
     }
 
     // A named instance isolates Canvas configuration, consent, identity, and
-    // persistence from a host application's default PostHog singleton. React
-    // receives this exact returned instance, so Canvas still has one identity.
-    posthogInstance = posthog.init(
+    // persistence from a host application's default PostHog singleton.
+    const initializedPostHog = posthog.init(
       config.apiKey,
       {
         api_host: config.apiHost,
@@ -249,12 +328,23 @@ export async function initializePostHogClient(
         person_profiles: "identified_only",
         disable_session_recording: true,
         bootstrap: pendingBootstrap,
+        before_send: addCanvasEventProperties,
       },
       POSTHOG_INSTANCE_NAME,
     );
-    posthogInstance.register(CANVAS_EVENT_PROPERTIES);
+    if (!initializedPostHog) return null;
 
-    if (telemetryDisabled) posthogInstance.opt_out_capturing();
+    posthogInstance = initializedPostHog;
+    pendingBootstrap = undefined;
+
+    if (telemetryDisabled) {
+      posthogInstance.opt_out_capturing();
+    } else if (getTelemetryConsent() === "granted") {
+      posthogInstance.opt_in_capturing();
+      applyDesiredTelemetryIdentity(posthogInstance);
+    } else if (!enableCapturing) {
+      posthogInstance.opt_out_capturing();
+    }
 
     return posthogInstance;
   })();
@@ -390,11 +480,14 @@ export async function setTelemetryConsent(
     }
 
     if (consent === "granted") {
-      // Enable capturing
       posthog.opt_in_capturing();
+      applyDesiredTelemetryIdentity(posthog);
     } else {
-      // Disable capturing and clear any queued events
-      posthog.opt_out_capturing();
+      if (posthog.get_property("$user_id") != null) {
+        resetPostHogIdentity(posthog);
+      } else {
+        posthog.opt_out_capturing();
+      }
     }
   } catch {
     // Ignore storage errors
@@ -406,6 +499,37 @@ export async function setTelemetryConsent(
       markTelemetryConsentForCloudSync(consent);
     }
     notifyTelemetryConsentListeners();
+  }
+}
+
+/**
+ * Declare the current Cloud identity. The telemetry service applies it only
+ * after consent and owns all reset/account-switch semantics.
+ */
+export async function setTelemetryIdentity(
+  distinctId: string | null,
+  properties: Record<string, unknown> = {},
+): Promise<void> {
+  const nextIdentity = distinctId === null ? null : { distinctId, properties };
+  const unchanged =
+    desiredTelemetryIdentity === nextIdentity ||
+    (desiredTelemetryIdentity !== undefined &&
+      desiredTelemetryIdentity !== null &&
+      nextIdentity !== null &&
+      desiredTelemetryIdentity.distinctId === nextIdentity.distinctId &&
+      propertiesEqual(desiredTelemetryIdentity.properties, properties));
+  if (unchanged) return;
+
+  desiredTelemetryIdentity = nextIdentity;
+  desiredIdentityRevision += 1;
+  appliedIdentityRevision = -1;
+
+  if (!isTelemetryEnabled()) return;
+  const posthog = posthogInstance ?? (await initializePostHogClient());
+  if (posthog && isTelemetryEnabled()) {
+    // Read the desired identity after the await so a newer account always wins
+    // if identity changes while the SDK is loading.
+    applyDesiredTelemetryIdentity(posthog);
   }
 }
 
@@ -551,6 +675,8 @@ async function getPostHogForConsentedCapture(): Promise<PostHog | null> {
     posthog.opt_in_capturing();
   }
 
+  applyDesiredTelemetryIdentity(posthog);
+
   return posthog;
 }
 
@@ -610,16 +736,31 @@ export async function clearTelemetryData(): Promise<void> {
 
   try {
     localStorage.removeItem(TELEMETRY_CONSENT_KEY);
-    clearPendingCloudTelemetryConsent();
     localStorage.removeItem(TELEMETRY_FIRST_USE_KEY);
+  } catch {
+    // Continue clearing the in-memory and SDK identity if storage is blocked.
+  }
+  clearPendingCloudTelemetryConsent();
+  try {
     sessionStorage.removeItem(TELEMETRY_SESSION_KEY);
+  } catch {
+    // Continue clearing the in-memory and SDK identity if storage is blocked.
+  }
 
-    // Reset PostHog if initialized
+  desiredTelemetryIdentity = null;
+  desiredIdentityRevision += 1;
+  appliedIdentityRevision = -1;
+
+  try {
     if (posthogInstance) {
-      posthogInstance.opt_out_capturing();
-      posthogInstance.reset();
+      resetPostHogIdentity(posthogInstance, true);
     }
   } catch {
-    // Ignore storage errors
+    // A reset failure must not leave capture enabled after a privacy clear.
+    try {
+      posthogInstance?.opt_out_capturing();
+    } catch {
+      // Telemetry failures must not break the application.
+    }
   }
 }

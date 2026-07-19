@@ -1,7 +1,5 @@
 import { renderHook, waitFor } from "@testing-library/react";
-import { createElement } from "react";
 import posthog from "posthog-js";
-import { PostHogProvider, usePostHog } from "posthog-js/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearTelemetryData,
@@ -31,16 +29,9 @@ describe("Canvas telemetry delivery", () => {
     const installDistinctId = client!.get_distinct_id();
 
     await setTelemetryConsent("granted");
-    const { result } = renderHook(
-      () => ({ tracking: useTracking(), client: usePostHog() }),
-      {
-        wrapper: ({ children }) =>
-          createElement(PostHogProvider, { client: client! }, children),
-      },
-    );
-    expect(result.current.client).toBe(client);
+    const { result } = renderHook(() => useTracking());
 
-    result.current.tracking.trackBackendAdded({
+    result.current.trackBackendAdded({
       backendKind: "cloud",
       connectionMethod: "cloud_login",
       isOpenhandsCloud: true,

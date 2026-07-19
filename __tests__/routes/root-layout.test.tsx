@@ -15,12 +15,12 @@ vi.mock("#/hooks/query/use-settings", () => ({
   useSettings: () => useSettingsMock(),
 }));
 
-vi.mock("#/hooks/use-sync-posthog-consent", () => ({
-  useSyncPostHogConsent: () => {},
+vi.mock("#/hooks/use-sync-telemetry-consent", () => ({
+  useSyncTelemetryConsent: () => {},
 }));
 
-vi.mock("#/hooks/use-posthog-identify", () => ({
-  usePostHogIdentify: () => {},
+vi.mock("#/hooks/use-telemetry-identity", () => ({
+  useTelemetryIdentity: () => {},
 }));
 
 vi.mock("#/hooks/use-app-title", () => ({

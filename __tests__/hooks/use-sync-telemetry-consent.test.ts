@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const useSettingsMock = vi.fn();
 const saveSettingsMock = vi.fn();
+const useSaveSettingsMock = vi.fn();
 const clearPendingCloudTelemetryConsentMock = vi.fn();
 const setTelemetryConsentMock = vi.fn();
 const state = {
@@ -18,10 +19,13 @@ vi.mock("#/hooks/query/use-settings", () => ({
 }));
 
 vi.mock("#/hooks/mutation/use-save-settings", () => ({
-  useSaveSettings: () => ({
-    mutate: saveSettingsMock,
-    isPending: state.isSavingSettings,
-  }),
+  useSaveSettings: (...args: unknown[]) => {
+    useSaveSettingsMock(...args);
+    return {
+      mutate: saveSettingsMock,
+      isPending: state.isSavingSettings,
+    };
+  },
 }));
 
 vi.mock("#/contexts/active-backend-context", () => ({
@@ -44,9 +48,9 @@ vi.mock("#/services/telemetry", () => ({
 }));
 
 // Import after mocks so the module sees the stubbed dependencies.
-import { useSyncPostHogConsent } from "#/hooks/use-sync-posthog-consent";
+import { useSyncTelemetryConsent } from "#/hooks/use-sync-telemetry-consent";
 
-describe("useSyncPostHogConsent", () => {
+describe("useSyncTelemetryConsent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     state.backendId = "backend-1";
@@ -61,7 +65,7 @@ describe("useSyncPostHogConsent", () => {
       data: { user_consents_to_analytics: null },
     });
 
-    renderHook(() => useSyncPostHogConsent());
+    renderHook(() => useSyncTelemetryConsent());
 
     expect(setTelemetryConsentMock).toHaveBeenCalledWith("denied", {
       syncToCloud: false,
@@ -73,7 +77,7 @@ describe("useSyncPostHogConsent", () => {
       data: { user_consents_to_analytics: false },
     });
 
-    renderHook(() => useSyncPostHogConsent());
+    renderHook(() => useSyncTelemetryConsent());
 
     expect(setTelemetryConsentMock).toHaveBeenCalledWith("denied", {
       syncToCloud: false,
@@ -85,7 +89,7 @@ describe("useSyncPostHogConsent", () => {
       data: { user_consents_to_analytics: true },
     });
 
-    renderHook(() => useSyncPostHogConsent());
+    renderHook(() => useSyncTelemetryConsent());
 
     expect(setTelemetryConsentMock).toHaveBeenCalledWith("granted", {
       syncToCloud: false,
@@ -95,7 +99,7 @@ describe("useSyncPostHogConsent", () => {
   it("does nothing while settings are still loading (data === undefined)", () => {
     useSettingsMock.mockReturnValue({ data: undefined });
 
-    renderHook(() => useSyncPostHogConsent());
+    renderHook(() => useSyncTelemetryConsent());
 
     expect(setTelemetryConsentMock).not.toHaveBeenCalled();
   });
@@ -106,13 +110,14 @@ describe("useSyncPostHogConsent", () => {
       data: { user_consents_to_analytics: false },
     });
 
-    renderHook(() => useSyncPostHogConsent());
+    renderHook(() => useSyncTelemetryConsent());
 
     expect(saveSettingsMock).toHaveBeenCalledWith({
       user_consents_to_analytics: true,
     });
     expect(setTelemetryConsentMock).not.toHaveBeenCalled();
     expect(clearPendingCloudTelemetryConsentMock).not.toHaveBeenCalled();
+    expect(useSaveSettingsMock).toHaveBeenCalledWith("personal", { retry: 2 });
   });
 
   it("clears a pending browser choice only after the backend confirms it", () => {
@@ -121,7 +126,7 @@ describe("useSyncPostHogConsent", () => {
       data: { user_consents_to_analytics: true },
     });
 
-    renderHook(() => useSyncPostHogConsent());
+    renderHook(() => useSyncTelemetryConsent());
 
     expect(clearPendingCloudTelemetryConsentMock).toHaveBeenCalledWith(
       "granted",
@@ -137,19 +142,19 @@ describe("useSyncPostHogConsent", () => {
       data: { user_consents_to_analytics: true },
     });
 
-    renderHook(() => useSyncPostHogConsent());
+    renderHook(() => useSyncTelemetryConsent());
 
     expect(clearPendingCloudTelemetryConsentMock).not.toHaveBeenCalled();
     expect(saveSettingsMock).not.toHaveBeenCalled();
   });
 
-  it("does not retry a rejected backend write in a render loop", () => {
+  it("does not start another mutation while bounded retries run", () => {
     state.pendingConsent = "granted";
     useSettingsMock.mockReturnValue({
       data: { user_consents_to_analytics: false },
     });
 
-    const { rerender } = renderHook(() => useSyncPostHogConsent());
+    const { rerender } = renderHook(() => useSyncTelemetryConsent());
     state.isSavingSettings = true;
     rerender();
     state.isSavingSettings = false;
@@ -162,7 +167,7 @@ describe("useSyncPostHogConsent", () => {
     useSettingsMock.mockReturnValue({
       data: { user_consents_to_analytics: false },
     });
-    renderHook(() => useSyncPostHogConsent());
+    renderHook(() => useSyncTelemetryConsent());
     expect(setTelemetryConsentMock).toHaveBeenCalledWith("denied", {
       syncToCloud: false,
     });

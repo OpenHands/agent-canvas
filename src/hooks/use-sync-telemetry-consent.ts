@@ -26,11 +26,13 @@ import { useSettings } from "./query/use-settings";
  *   null  → opt out (consent not yet collected — safe default while loading
  *           or on first visit, prevents capturing before the user has decided)
  */
-export const useSyncPostHogConsent = () => {
+export const useSyncTelemetryConsent = () => {
   const { backend } = useActiveBackend();
   const { data: settings } = useSettings();
-  const { mutate: saveSettings, isPending: isSavingSettings } =
-    useSaveSettings();
+  const { mutate: saveSettings, isPending: isSavingSettings } = useSaveSettings(
+    "personal",
+    { retry: 2 },
+  );
   const pendingBrowserConsent = React.useSyncExternalStore(
     subscribeTelemetryConsent,
     getPendingCloudTelemetryConsent,

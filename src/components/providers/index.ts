@@ -9,4 +9,3 @@ export {
   AgentServerUIRoot,
   type AgentServerUIRootProps,
 } from "./agent-server-ui-root";
-export { PostHogWrapper } from "./posthog-wrapper";

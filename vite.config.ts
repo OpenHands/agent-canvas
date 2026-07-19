@@ -240,7 +240,6 @@ export default defineConfig(({ mode }) => {
         // Pre-bundle ALL dependencies to prevent runtime optimization and page reloads
         // These are discovered during initial app load:
         "posthog-js",
-        "posthog-js/react",
         "@tanstack/react-query",
         "react-hot-toast",
         "i18next",

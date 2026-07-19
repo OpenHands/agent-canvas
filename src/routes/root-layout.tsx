@@ -14,8 +14,8 @@ import { SidebarMobileNavProvider } from "#/components/features/sidebar/sidebar-
 import { SidebarMobileMenuBar } from "#/components/features/sidebar/sidebar-mobile-menu-bar";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useEnsureActiveProfile } from "#/hooks/use-ensure-active-profile";
-import { useSyncPostHogConsent } from "#/hooks/use-sync-posthog-consent";
-import { usePostHogIdentify } from "#/hooks/use-posthog-identify";
+import { useSyncTelemetryConsent } from "#/hooks/use-sync-telemetry-consent";
+import { useTelemetryIdentity } from "#/hooks/use-telemetry-identity";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useAppTitle } from "#/hooks/use-app-title";
 import { ReactRouterNavigationProvider } from "./react-router-navigation-provider";
@@ -75,8 +75,8 @@ export default function MainApp() {
   const { data: settings } = useSettings();
   const config = useConfig();
 
-  useSyncPostHogConsent();
-  usePostHogIdentify();
+  useSyncTelemetryConsent();
+  useTelemetryIdentity();
   // Local-mode policy: keep a profile active so a usable LLM is always selected.
   useEnsureActiveProfile();
 

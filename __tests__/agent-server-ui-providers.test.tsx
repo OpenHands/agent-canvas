@@ -24,10 +24,13 @@ import {
 } from "#/index";
 import i18n from "#/i18n";
 
-const postHogWrapperMock = vi.hoisted(() => vi.fn());
-vi.mock("#/components/providers/posthog-wrapper", () => ({
-  PostHogWrapper: (props: { children: React.ReactNode; config?: unknown }) => {
-    postHogWrapperMock(props);
+const telemetryProviderMock = vi.hoisted(() => vi.fn());
+vi.mock("#/components/providers/telemetry-provider", () => ({
+  TelemetryProvider: (props: {
+    children: React.ReactNode;
+    config?: unknown;
+  }) => {
+    telemetryProviderMock(props);
     return props.children;
   },
 }));
@@ -167,8 +170,8 @@ describe("AgentServerUIProviders", () => {
     expect(getI18n()).toBe(getDefaultI18n());
   });
 
-  it("passes disabled and runtime analytics configuration to PostHogWrapper", () => {
-    postHogWrapperMock.mockClear();
+  it("passes disabled and runtime analytics configuration to TelemetryProvider", () => {
+    telemetryProviderMock.mockClear();
 
     const noAnalyticsView = render(
       <AgentServerUIProviders>
@@ -177,12 +180,12 @@ describe("AgentServerUIProviders", () => {
     );
 
     expect(screen.getByTestId("child")).toHaveTextContent("child");
-    expect(postHogWrapperMock).toHaveBeenCalledWith(
+    expect(telemetryProviderMock).toHaveBeenCalledWith(
       expect.objectContaining({ config: false }),
     );
 
     noAnalyticsView.unmount();
-    postHogWrapperMock.mockClear();
+    telemetryProviderMock.mockClear();
 
     const analytics = {
       provider: "posthog" as const,
@@ -197,7 +200,7 @@ describe("AgentServerUIProviders", () => {
       </AgentServerUIProviders>,
     );
 
-    expect(postHogWrapperMock).toHaveBeenCalledWith(
+    expect(telemetryProviderMock).toHaveBeenCalledWith(
       expect.objectContaining({
         config: {
           apiKey: analytics.apiKey,

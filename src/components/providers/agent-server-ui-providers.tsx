@@ -15,7 +15,7 @@ import {
 } from "#/i18n";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import type { TelemetryConfig } from "#/services/telemetry";
-import { PostHogWrapper } from "./posthog-wrapper";
+import { TelemetryProvider } from "./telemetry-provider";
 import {
   AgentServerUIRoot,
   type AgentServerUIRootProps,
@@ -96,7 +96,7 @@ export function AgentServerUIProviders({
         }
       : false;
   const content = (
-    <PostHogWrapper config={posthogConfig}>{children}</PostHogWrapper>
+    <TelemetryProvider config={posthogConfig}>{children}</TelemetryProvider>
   );
 
   const wrappedContent = withStyleRoot ? (
