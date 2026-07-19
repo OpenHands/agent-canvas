@@ -208,6 +208,7 @@ export default function SkillsPluginsScreen() {
                         onOpen={() => setSelectedName(plugin.name)}
                         onInstall={() => handleInstall(plugin)}
                         onToggle={(enabled) => handleToggle(plugin, enabled)}
+                        onRefresh={() => handleRefresh(plugin)}
                       />
                     ))}
                   </div>

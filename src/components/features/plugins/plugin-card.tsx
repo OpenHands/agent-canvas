@@ -1,9 +1,11 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { RefreshCw } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import { CirclePlusCheckToggle } from "#/components/shared/buttons/circle-plus-check-toggle";
 import { BrandButton } from "#/components/features/settings/brand-button";
+import { StyledTooltip } from "#/components/shared/buttons/styled-tooltip";
 import {
   extensionModuleCardInteractiveClassName,
   extensionModuleCardPillClassName,
@@ -20,6 +22,7 @@ interface PluginCardProps {
   onOpen: () => void;
   onInstall: () => void;
   onToggle: (enabled: boolean) => void;
+  onRefresh?: () => void;
 }
 
 export function PluginCard({
@@ -29,6 +32,7 @@ export function PluginCard({
   onOpen,
   onInstall,
   onToggle,
+  onRefresh,
 }: PluginCardProps) {
   const { t } = useTranslation("openhands");
 
@@ -42,6 +46,11 @@ export function PluginCard({
   const handleInstall = (event?: React.MouseEvent<HTMLButtonElement>) => {
     event?.stopPropagation();
     onInstall();
+  };
+
+  const handleRefresh = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    onRefresh?.();
   };
 
   return (
@@ -77,13 +86,33 @@ export function PluginCard({
         </div>
 
         {plugin.installed ? (
-          <CirclePlusCheckToggle
-            testId={`plugin-toggle-${plugin.name}`}
-            isSelected={plugin.enabled}
-            isDisabled={isDisabled || isBusy}
-            onToggle={onToggle}
-            disableTooltipKey={I18nKey.COMMON$DISABLE}
-          />
+          <div className="flex items-center gap-2">
+            <StyledTooltip
+              content={t(I18nKey.SETTINGS$PLUGINS_REFRESH)}
+              placement="top"
+            >
+              <button
+                type="button"
+                data-testid={`plugin-refresh-${plugin.name}`}
+                disabled={isDisabled || isBusy}
+                onClick={handleRefresh}
+                className={cn(
+                  "inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full p-0 transition-colors",
+                  "border-0 bg-surface-raised text-white hover:bg-[var(--oh-interactive-hover)]",
+                  (isDisabled || isBusy) && "cursor-not-allowed opacity-50",
+                )}
+              >
+                <RefreshCw className={cn("size-3", isBusy && "animate-spin")} />
+              </button>
+            </StyledTooltip>
+            <CirclePlusCheckToggle
+              testId={`plugin-toggle-${plugin.name}`}
+              isSelected={plugin.enabled}
+              isDisabled={isDisabled || isBusy}
+              onToggle={onToggle}
+              disableTooltipKey={I18nKey.COMMON$DISABLE}
+            />
+          </div>
         ) : plugin.isLocal ? (
           <span
             data-testid={`plugin-local-badge-${plugin.name}`}

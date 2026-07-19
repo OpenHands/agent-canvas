@@ -280,4 +280,24 @@ describe("SkillsPluginsScreen", () => {
       screen.queryByTestId("plugin-detail-start-conversation-ambient-plugin"),
     ).not.toBeInTheDocument();
   });
+
+  it("refreshes/updates an installed plugin from the card-level update button without opening the detail modal", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(
+      PluginsManagementService,
+      "listInstalledPlugins",
+    ).mockResolvedValue([buildInstalledPlugin()]);
+    const refreshSpy = vi
+      .spyOn(PluginsManagementService, "refreshPlugin")
+      .mockResolvedValue({ message: "ok", plugin: buildInstalledPlugin() });
+
+    renderPluginsScreen();
+    const refreshButton = await screen.findByTestId("plugin-refresh-demo-plugin");
+    await user.click(refreshButton);
+
+    await waitFor(() =>
+      expect(refreshSpy).toHaveBeenCalledWith("demo-plugin"),
+    );
+    expect(screen.queryByTestId("plugin-detail-modal")).not.toBeInTheDocument();
+  });
 });
