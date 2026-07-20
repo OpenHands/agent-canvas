@@ -235,6 +235,7 @@ export function RecommendedAutomationsLauncher({
         <InstallServerModal
           key={installEntry.id}
           entry={installEntry}
+          existingServers={installedMcpConfig}
           onClose={cancelInstallFlow}
           onSuccess={handleInstallSuccess}
         />

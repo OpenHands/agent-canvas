@@ -9,20 +9,18 @@ import {
   MCPServerForm,
   type TestMessage,
 } from "#/components/features/settings/mcp-settings/mcp-server-form";
+import { seedMcpServerHealth } from "#/api/mcp-health/probe-mcp-server-health";
 import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
 import { useUpdateMcpServer } from "#/hooks/mutation/use-update-mcp-server";
 import { useDeleteMcpServer } from "#/hooks/mutation/use-delete-mcp-server";
 import { useTestMcpServer } from "#/hooks/mutation/use-test-mcp-server";
 import { useActiveBackend } from "#/contexts/active-backend-context";
-import {
-  ExtendedMCPTestFailure,
-  ExtendedMCPTestResponse,
-  MCPServerConfig,
-} from "#/types/mcp-server";
+import { ExtendedMCPTestResponse, MCPServerConfig } from "#/types/mcp-server";
 import {
   displayErrorToast,
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
+import { makeMcpTestErrorMessage } from "#/utils/mcp-test-error-message";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import { cn } from "#/utils/utils";
 import { modalTitleLgClassName } from "#/utils/modal-classes";
@@ -73,19 +71,6 @@ export function CustomServerEditor({
   const isDismissBlocked =
     isPending || isTesting || isOauthTesting || showDeleteConfirm;
 
-  const makeTestErrorMessage = (failure: ExtendedMCPTestFailure): string => {
-    switch (failure.error_kind) {
-      case "timeout":
-        return t(I18nKey.MCP$TEST_ERROR_TIMEOUT);
-      case "connection":
-        return t(I18nKey.MCP$TEST_ERROR_CONNECTION);
-      case "credentials":
-        return t(I18nKey.MCP$TEST_ERROR_CREDENTIALS, { error: failure.error });
-      default:
-        return t(I18nKey.MCP$TEST_ERROR_UNKNOWN, { error: failure.error });
-    }
-  };
-
   const testMessage: TestMessage | null = React.useMemo(() => {
     const result = oauthTestResult ?? testResult;
     if (!result) return null;
@@ -95,8 +80,27 @@ export function CustomServerEditor({
         text: t(I18nKey.MCP$TEST_SUCCESS, { count: result.tools.length }),
       };
     }
-    return { ok: false, text: makeTestErrorMessage(result) };
+    return {
+      ok: false,
+      text: makeMcpTestErrorMessage(t, result.error_kind, result.error),
+    };
   }, [oauthTestResult, testResult, t]);
+
+  // A save always follows a fresh successful probe of the exact config being
+  // saved, so publish that result to the card's health entry. On cloud
+  // backends the probe is synthetic — never present it as a health verdict.
+  const seedSavedServerHealth = (
+    serverToSave: MCPServerConfig,
+    result: ExtendedMCPTestResponse,
+  ) => {
+    if (isCloudBackend) return;
+    // When editing, the server's own entry must be overwritten, so only the
+    // OTHER servers guard against a same-key collision.
+    const otherServers = isEditing
+      ? existingServers.filter((existing) => existing.id !== server.id)
+      : existingServers;
+    seedMcpServerHealth(serverToSave, result, otherServers);
+  };
 
   // Shared error handler so both add and update surface backend errors
   // as a toast instead of failing silently — previously these calls
@@ -122,14 +126,18 @@ export function CustomServerEditor({
                 auth: { ...payload.auth!, state: result.oauth_state },
               }
             : payload;
+          const onSaved = () => {
+            seedSavedServerHealth(serverToSave, result);
+            onClose();
+          };
           if (isEditing) {
             updateMcpServer(
               { serverId: server.id, server: serverToSave },
-              { onSuccess: onClose, onError: handleError },
+              { onSuccess: onSaved, onError: handleError },
             );
           } else {
             addMcpServer(serverToSave, {
-              onSuccess: onClose,
+              onSuccess: onSaved,
               onError: handleError,
             });
           }
@@ -151,14 +159,18 @@ export function CustomServerEditor({
                 auth: { ...payload.auth, state: result.oauth_state },
               }
             : payload;
+        const onSaved = () => {
+          seedSavedServerHealth(serverToSave, result);
+          onClose();
+        };
         if (isEditing) {
           updateMcpServer(
             { serverId: server.id, server: serverToSave },
-            { onSuccess: onClose, onError: handleError },
+            { onSuccess: onSaved, onError: handleError },
           );
         } else {
           addMcpServer(serverToSave, {
-            onSuccess: onClose,
+            onSuccess: onSaved,
             onError: handleError,
           });
         }
