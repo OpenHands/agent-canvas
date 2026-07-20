@@ -50,4 +50,14 @@ describe("ContextMeter", () => {
 
     expect(screen.getByTestId("context-meter-bar").style.width).toBe("100%");
   });
+
+  it("shows an unknown-window state instead of 'x / 0' when the window is unreported", () => {
+    render(<ContextMeter perTurnToken={31778} contextWindow={0} />);
+
+    const meter = screen.getByTestId("context-meter");
+    expect(meter).toHaveTextContent("CONVERSATION$CONTEXT_WINDOW_UNKNOWN");
+    expect(meter).toHaveTextContent((31778).toLocaleString());
+    expect(meter).not.toHaveTextContent("/ 0");
+    expect(meter).not.toHaveTextContent("0.0%");
+  });
 });

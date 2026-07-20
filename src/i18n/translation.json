@@ -18546,6 +18546,23 @@
     "uk": "Вікно контексту",
     "ca": "Finestra de context"
   },
+  "CONVERSATION$CONTEXT_WINDOW_UNKNOWN": {
+    "en": "window size unknown",
+    "ja": "ウィンドウサイズ不明",
+    "zh-CN": "窗口大小未知",
+    "zh-TW": "視窗大小未知",
+    "ko-KR": "윈도우 크기 알 수 없음",
+    "de": "Fenstergröße unbekannt",
+    "no": "ukjent vindusstørrelse",
+    "it": "dimensione della finestra sconosciuta",
+    "pt": "tamanho da janela desconhecido",
+    "es": "tamaño de ventana desconocido",
+    "ar": "حجم النافذة غير معروف",
+    "fr": "taille de fenêtre inconnue",
+    "tr": "pencere boyutu bilinmiyor",
+    "uk": "розмір вікна невідомий",
+    "ca": "mida de finestra desconeguda"
+  },
   "CONVERSATION$USED": {
     "en": "used",
     "ja": "使用済み",

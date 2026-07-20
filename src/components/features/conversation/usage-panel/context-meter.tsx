@@ -33,6 +33,10 @@ export function ContextMeter({
 }: ContextMeterProps) {
   const { t } = useTranslation("openhands");
 
+  // Some models (e.g. via OpenRouter) report no context window size; show the
+  // raw token count without a misleading "x / 0" or "0.0% used" readout.
+  const isWindowUnknown = contextWindow <= 0;
+
   const usagePercentage = getContextFillPercent(perTurnToken, contextWindow);
   const progressWidth = Math.min(100, usagePercentage);
   const isWarning = usagePercentage > CONTEXT_FILL_WARNING_PERCENT;
@@ -54,7 +58,9 @@ export function ContextMeter({
                 : "text-[var(--oh-muted)]",
           )}
         >
-          {usagePercentage.toFixed(1)}% {t(I18nKey.CONVERSATION$USED)}
+          {isWindowUnknown
+            ? t(I18nKey.CONVERSATION$CONTEXT_WINDOW_UNKNOWN)
+            : `${usagePercentage.toFixed(1)}% ${t(I18nKey.CONVERSATION$USED)}`}
         </span>
       </div>
       <div className="w-full h-1.5 bg-tertiary rounded-full overflow-hidden">
@@ -74,7 +80,9 @@ export function ContextMeter({
       </div>
       <div className="flex justify-end">
         <span className="text-xs text-[var(--oh-muted)]">
-          {perTurnToken.toLocaleString()} / {contextWindow.toLocaleString()}
+          {isWindowUnknown
+            ? perTurnToken.toLocaleString()
+            : `${perTurnToken.toLocaleString()} / ${contextWindow.toLocaleString()}`}
         </span>
       </div>
     </div>
