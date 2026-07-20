@@ -76,10 +76,14 @@ const findTextSegmentsInOrder = (
 };
 
 // Content-bearing streaming deltas of the current turn (after the last user
-// message). Reasoning-only deltas are excluded: reasoning renders in its own
-// collapsed bubble and never overlaps the message text being reconciled.
+// message) that share the final event's sender. Reasoning-only deltas are
+// excluded: reasoning renders in its own collapsed bubble and never overlaps
+// the message text being reconciled. Sender scoping matters because the main
+// and planning sockets share this event store — without it, one agent's final
+// event would strip the other agent's still-live streamed deltas (#1656).
 const getCurrentTurnContentDeltas = (
   uiEvents: OpenHandsEvent[],
+  finalEvent: OpenHandsEvent,
 ): { event: StreamingDeltaEvent; index: number }[] => {
   const lastUserMessageIndex = findLastUserMessageIndex(uiEvents);
   return uiEvents
@@ -88,7 +92,8 @@ const getCurrentTurnContentDeltas = (
       (item): item is { event: StreamingDeltaEvent; index: number } =>
         item.index > lastUserMessageIndex &&
         isStreamingDeltaEvent(item.event) &&
-        (item.event.content?.length ?? 0) > 0,
+        (item.event.content?.length ?? 0) > 0 &&
+        isSameStreamingSender(finalEvent, item.event),
     );
 };
 
@@ -194,7 +199,10 @@ const finalizeStreamingDeltasInPlace = (
   finalEvent: OpenHandsEvent,
   uiEvents: OpenHandsEvent[],
 ): OpenHandsEvent[] | null => {
-  const contentStreamingDeltas = getCurrentTurnContentDeltas(uiEvents);
+  const contentStreamingDeltas = getCurrentTurnContentDeltas(
+    uiEvents,
+    finalEvent,
+  );
   if (contentStreamingDeltas.length === 0) {
     return null;
   }

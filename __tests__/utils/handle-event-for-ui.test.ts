@@ -593,6 +593,58 @@ describe("handleEventForUI", () => {
         { ...first, content: "planning continues", reasoning_content: null },
       ]);
     });
+
+    it("planning final preserves a still-live main-agent delta (#1656)", () => {
+      // Main and planning sockets share this event store. A planning-agent
+      // final must supersede only the planning stream; the main agent's live
+      // delta must survive.
+      const mainDelta = makeStreamingDelta("delta-main", "Main still typing");
+      const planningDelta = {
+        ...makeStreamingDelta("delta-planning", "Planning says hello"),
+        isFromPlanningAgent: true,
+      };
+      const planningFinal = {
+        ...mockAgentMessageEvent,
+        id: "planning-final",
+        isFromPlanningAgent: true,
+        llm_message: {
+          role: "assistant" as const,
+          content: [{ type: "text" as const, text: "Planning says hello" }],
+        },
+      };
+
+      const result = handleEventForUI(planningFinal, [
+        mockMessageEvent,
+        mainDelta,
+        planningDelta,
+      ]);
+
+      expect(result).toEqual([mockMessageEvent, mainDelta, planningFinal]);
+    });
+
+    it("main final preserves a still-live planning-agent delta (#1656)", () => {
+      const mainDelta = makeStreamingDelta("delta-main", "Main says hello");
+      const planningDelta = {
+        ...makeStreamingDelta("delta-planning", "Planning still typing"),
+        isFromPlanningAgent: true,
+      };
+      const mainFinal = {
+        ...mockAgentMessageEvent,
+        id: "main-final",
+        llm_message: {
+          role: "assistant" as const,
+          content: [{ type: "text" as const, text: "Main says hello" }],
+        },
+      };
+
+      const result = handleEventForUI(mainFinal, [
+        mockMessageEvent,
+        mainDelta,
+        planningDelta,
+      ]);
+
+      expect(result).toEqual([mockMessageEvent, planningDelta, mainFinal]);
+    });
   });
 
   it("should NOT add ThinkObservation even when ThinkAction is not found", () => {
