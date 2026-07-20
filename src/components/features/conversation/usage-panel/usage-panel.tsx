@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { ConversationTabEmptyState } from "#/components/features/conversation/conversation-tab-empty-state";
 import { useLiveConversationMetrics } from "#/hooks/use-live-conversation-metrics";
+import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { CostSection } from "../metrics-modal/cost-section";
 import { UsageSection } from "../metrics-modal/usage-section";
 import { CompactContextButton } from "./compact-context-button";
@@ -20,6 +21,10 @@ import { ProviderBalanceCard } from "./provider-balance-card";
 export function UsagePanel() {
   const { t } = useTranslation("openhands");
   const metrics = useLiveConversationMetrics();
+  const { data: conversation } = useActiveConversation();
+  // ACP conversations (e.g. Claude Code) draw on the CLI's own subscription
+  // plan; the dollar figure is an API-equivalent estimate, not a bill.
+  const isAcp = conversation?.agent_kind === "acp";
 
   const { usage } = metrics;
   const hasMetrics = metrics.cost !== null || usage !== null;
@@ -60,6 +65,11 @@ export function UsagePanel() {
             cost={metrics.cost}
             maxBudgetPerTask={metrics.max_budget_per_task}
           />
+          {isAcp && (
+            <span className="text-xs text-[var(--oh-muted)]">
+              {t(I18nKey.CONVERSATION$PLAN_USAGE_NOTE)}
+            </span>
+          )}
           {usage !== null && <UsageSection usage={usage} />}
         </div>
       </div>
