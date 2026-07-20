@@ -32078,6 +32078,23 @@
     "tr": "Eklenti güncellendi.",
     "uk": "Плагін оновлено."
   },
+  "SETTINGS$PLUGINS_SKILLS_IN_BUNDLE": {
+    "en": "Skills in this plugin bundle",
+    "ja": "このプラグインバンドルに含まれるスキル",
+    "zh-CN": "此插件包中的技能",
+    "zh-TW": "此外掛程式套件中的技能",
+    "ko-KR": "이 플러그인 번들에 포함된 스킬",
+    "no": "Ferdigheter i denne plugin-pakken",
+    "ar": "المهارات في حزمة الإضافة هذه",
+    "de": "Fähigkeiten in diesem Plugin-Paket",
+    "fr": "Compétences incluses dans ce plugin",
+    "it": "Competenze incluse in questo plugin",
+    "pt": "Habilidades incluídas neste plugin",
+    "es": "Habilidades incluidas en este complemento",
+    "ca": "Habilitats incloses en aquest connector",
+    "tr": "Bu eklenti paketindeki yetenekler",
+    "uk": "Навички в цьому пакеті плагіна"
+  },
   "SETTINGS$SKILLS_PAGE_DESCRIPTION": {
     "en": "Discover skills to add to your workspace. Open a card for prompts, curl, and install flows. Search from the sidebar to filter the list. Enable or disable default skills. Disabled skills will not be loaded into agent context.",
     "ja": "ワークスペースに追加するスキルを見つけましょう。カードを開いて、プロンプト、curl、インストール手順を確認できます。サイドバーから検索してリストを絞り込めます。デフォルトスキルの有効化・無効化が可能です。無効化されたスキルはエージェントコンテキストに読み込まれません。",
