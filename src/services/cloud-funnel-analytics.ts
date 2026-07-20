@@ -1,28 +1,19 @@
-import type { BackendKind } from "#/api/backend-registry/types";
-import {
-  AGENT_CANVAS_CLIENT_SOURCE,
-  AGENT_CANVAS_CLIENT_VERSION,
-} from "#/api/client-source";
+import { AGENT_CANVAS_CLIENT_SOURCE } from "#/api/client-source";
 import { isOpenHandsCloudHost } from "#/api/device-flow-client";
-import { isTelemetryEnabled, trackEvent } from "#/services/telemetry";
+import { trackEvent } from "#/services/telemetry";
 
 export type CloudConnectionSource =
   | "onboarding"
   | "add_backend_modal"
   | "manage_backends_modal";
 
-const commonProperties = {
-  client_source: AGENT_CANVAS_CLIENT_SOURCE,
-  client_version: AGENT_CANVAS_CLIENT_VERSION,
-};
+const CLOUD_CONVERSATION_READY_INSERT_ID_PREFIX = `${AGENT_CANVAS_CLIENT_SOURCE}:cloud_conversation_ready`;
 
 function trackCloudFunnelEvent(
   event: string,
   properties: Record<string, unknown>,
-): boolean {
-  if (!isTelemetryEnabled()) return false;
-  void trackEvent(event, { ...properties, ...commonProperties });
-  return true;
+): void {
+  void trackEvent(event, properties);
 }
 
 function hostClassification(host: string) {
@@ -36,8 +27,8 @@ function hostClassification(host: string) {
 export function trackCloudDeviceAuthorizationStarted(
   host: string,
   source?: CloudConnectionSource,
-): boolean {
-  return trackCloudFunnelEvent("cloud_device_authorization_started", {
+): void {
+  trackCloudFunnelEvent("cloud_device_authorization_started", {
     ...hostClassification(host),
     source,
   });
@@ -46,31 +37,9 @@ export function trackCloudDeviceAuthorizationStarted(
 export function trackCloudDeviceAuthorizationSucceeded(
   host: string,
   source?: CloudConnectionSource,
-): boolean {
-  return trackCloudFunnelEvent("cloud_device_authorization_succeeded", {
+): void {
+  trackCloudFunnelEvent("cloud_device_authorization_succeeded", {
     ...hostClassification(host),
-    source,
-  });
-}
-
-export function trackCanvasBackendAdded({
-  backendKind,
-  connectionMethod,
-  host,
-  hasApiKey,
-  source,
-}: {
-  backendKind: BackendKind;
-  connectionMethod: "manual" | "cloud_login";
-  host: string;
-  hasApiKey: boolean;
-  source?: CloudConnectionSource;
-}): boolean {
-  return trackCloudFunnelEvent("backend_added", {
-    backend_kind: backendKind,
-    connection_method: connectionMethod,
-    ...hostClassification(host),
-    has_api_key: hasApiKey,
     source,
   });
 }
@@ -78,8 +47,9 @@ export function trackCanvasBackendAdded({
 export function trackCloudConversationReady(
   taskId: string,
   conversationId: string,
-): boolean {
-  return trackCloudFunnelEvent("cloud_conversation_ready", {
+): void {
+  trackCloudFunnelEvent("cloud_conversation_ready", {
+    $insert_id: `${CLOUD_CONVERSATION_READY_INSERT_ID_PREFIX}:${taskId}`,
     task_id: taskId,
     conversation_id: conversationId,
   });

@@ -1,63 +1,47 @@
-import { waitFor } from "@testing-library/react";
-import { http, HttpResponse } from "msw";
-import { gunzipSync } from "node:zlib";
-import { afterEach, describe, expect, it } from "vitest";
-import { server } from "#/mocks/node";
+import { renderHook, waitFor } from "@testing-library/react";
+import posthog from "posthog-js";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearTelemetryData,
-  getPostHogInstance,
+  initializePostHogClient,
   setTelemetryConsent,
-  trackEvent,
+  trackInstall,
 } from "#/services/telemetry";
+import { useTracking } from "#/hooks/use-tracking";
+
+vi.mock("#/hooks/query/use-settings", () => ({
+  useSettings: () => ({ data: undefined }),
+}));
 
 describe("Canvas telemetry delivery", () => {
   afterEach(async () => {
     await clearTelemetryData();
   });
 
-  it("delivers a consented event through the real named PostHog client", async () => {
-    const requestBodies: string[] = [];
-    server.use(
-      http.post("https://z.openhands.dev/*", async ({ request }) => {
-        const body = Buffer.from(await request.arrayBuffer());
-        const compression = new URL(request.url).searchParams.get(
-          "compression",
-        );
-        requestBodies.push(
-          compression === "gzip-js"
-            ? gunzipSync(body).toString("utf8")
-            : body.toString("utf8"),
-        );
-        return HttpResponse.json(null, { status: 200 });
-      }),
-    );
+  it("keeps install and backend-transition events on one client identity", async () => {
+    const client = await initializePostHogClient();
+    expect(client).not.toBeNull();
+    expect(client).not.toBe(posthog);
+    const capture = vi.spyOn(client!, "capture");
+
+    await trackInstall();
+    expect(capture).toHaveBeenCalledWith("canvas_install", expect.any(Object));
+    const installDistinctId = client!.get_distinct_id();
 
     await setTelemetryConsent("granted");
-    const client = await getPostHogInstance();
-    expect(client).not.toBeNull();
+    const { result } = renderHook(() => useTracking());
 
-    // Reproduce the host-app lifecycle that previously broke Canvas events:
-    // its default client is initialized and opted out after Canvas opts in.
-    const { default: hostPosthog } = await import("posthog-js");
-    hostPosthog.init(client!.config.token, {
-      api_host: "https://z.openhands.dev",
-      advanced_disable_flags: true,
-      autocapture: false,
-      capture_pageview: false,
+    result.current.trackBackendAdded({
+      backendKind: "cloud",
+      connectionMethod: "cloud_login",
+      isOpenhandsCloud: true,
+      isCustomHost: false,
+      hasApiKey: true,
+      source: "onboarding",
     });
-    hostPosthog.opt_out_capturing();
-    expect(hostPosthog.has_opted_out_capturing()).toBe(true);
-    expect(client!.has_opted_out_capturing()).toBe(false);
-
-    // Send this assertion event immediately and without compression so the
-    // test validates the SDK's actual HTTP delivery rather than a capture mock.
-    client!.set_config({ request_batching: false, disable_compression: true });
-    await trackEvent("canvas_delivery_test", { source: "vitest" });
-
     await waitFor(() =>
-      expect(
-        requestBodies.some((body) => body.includes("canvas_delivery_test")),
-      ).toBe(true),
+      expect(capture).toHaveBeenCalledWith("backend_added", expect.any(Object)),
     );
+    expect(client!.get_distinct_id()).toBe(installDistinctId);
   });
 });

@@ -1,8 +1,9 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import { useNewConversationCommand } from "#/hooks/mutation/use-new-conversation-command";
+import * as telemetry from "#/services/telemetry";
 
 const mockNavigate = vi.fn();
 
@@ -37,15 +38,6 @@ vi.mock("#/utils/custom-toast-handlers", () => ({
   displaySuccessToast: vi.fn(),
   displayErrorToast: vi.fn(),
   TOAST_OPTIONS: { position: "top-right" },
-}));
-
-// /new fires conversation_created through the real useTracking hook. Mock the
-// lower-level deps (posthog + settings) rather than useTracking itself so the
-// emitted payload can be asserted.
-const { captureMock } = vi.hoisted(() => ({ captureMock: vi.fn() }));
-
-vi.mock("posthog-js/react", () => ({
-  usePostHog: () => ({ capture: captureMock }),
 }));
 
 vi.mock("#/hooks/query/use-settings", () => ({
@@ -100,12 +92,20 @@ function makeStartTask(overrides: Record<string, unknown> = {}) {
 
 describe("useNewConversationCommand", () => {
   let queryClient: QueryClient;
+  let captureMock: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    captureMock = vi
+      .spyOn(telemetry, "trackEvent")
+      .mockResolvedValue(undefined);
     queryClient = new QueryClient({
       defaultOptions: { mutations: { retry: false } },
     });
+  });
+
+  afterEach(() => {
+    captureMock.mockRestore();
   });
 
   const wrapper = ({ children }: { children: React.ReactNode }) => (

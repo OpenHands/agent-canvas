@@ -230,12 +230,9 @@ const THEME_STYLE_TAG_ID = "oh-color-theme-override";
  * Why doubled selectors + re-append on every call:
  *   "Later sheet wins the tie" cannot be relied on: in the built SPA
  *   (ssr:false, prerendered shell) React 19 re-creates the <head> elements it
- *   manages (<Meta/>/<Links/>) whenever the tree above the router remounts —
- *   e.g. PostHogWrapper swapping in <PostHogProvider> once the analytics key
- *   resolves, which only happens in builds with VITE_POSTHOG_CLIENT_KEY baked
- *   (the published npm package / tagged Docker images). That re-inserts the
- *   base stylesheet <link> AFTER this tag, which would let the base sheet's
- *   unlayered [data-agent-server-ui] variable rules (0,1,0) win every tie.
+ *   manages (<Meta/>/<Links/>) whenever the tree above the router remounts.
+ *   That can re-insert the base stylesheet <link> AFTER this tag, allowing its
+ *   unlayered [data-agent-server-ui] variable rules (0,1,0) to win every tie.
  *   Doubling the attribute selectors ([x][x], 0,2,0) beats them from any
  *   position in <head>; re-appending on each apply keeps document order
  *   favorable as well.

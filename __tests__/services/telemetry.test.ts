@@ -1,14 +1,23 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 
 // Mock posthog-js before importing telemetry service
+let identifiedUserId: string | undefined;
 const mockPosthog = {
   init: vi.fn(),
   capture: vi.fn(),
+  captureException: vi.fn(),
   opt_in_capturing: vi.fn(),
   opt_out_capturing: vi.fn(),
   has_opted_out_capturing: vi.fn(() => false),
-  reset: vi.fn(),
-  register: vi.fn(),
+  identify: vi.fn((userId: string) => {
+    identifiedUserId = userId;
+  }),
+  get_property: vi.fn((property: string) =>
+    property === "$user_id" ? identifiedUserId : undefined,
+  ),
+  reset: vi.fn(() => {
+    identifiedUserId = undefined;
+  }),
 };
 mockPosthog.init.mockReturnValue(mockPosthog);
 
@@ -17,11 +26,19 @@ vi.mock("posthog-js", () => ({
 }));
 
 import {
+  clearPendingCloudTelemetryConsent,
+  configureTelemetry,
   getTelemetryConsent,
+  getPendingCloudTelemetryConsent,
+  initializePostHogClient,
   setTelemetryConsent,
+  setTelemetryIdentity,
+  subscribeTelemetryConsent,
   isTelemetryEnabled,
   trackInstall,
+  trackSessionStart,
   trackEvent,
+  trackException,
   clearTelemetryData,
 } from "#/services/telemetry";
 
@@ -40,28 +57,112 @@ describe("Telemetry Service", () => {
     sessionStorage.clear();
     // Reset mock
     vi.clearAllMocks();
+    identifiedUserId = undefined;
+    mockPosthog.has_opted_out_capturing.mockReturnValue(false);
   });
 
   afterEach(() => {
+    configureTelemetry({});
     localStorage.clear();
     sessionStorage.clear();
   });
 
   describe("PostHog ownership", () => {
-    it("uses an isolated named client for Canvas consent and events", async () => {
+    it("retries one named Canvas client with runtime configuration", async () => {
+      configureTelemetry({
+        apiKey: "phc_embedded",
+        apiHost: "https://events.example.com",
+        uiHost: "https://posthog.example.com",
+      });
+      configureTelemetry({
+        apiKey: undefined,
+        apiHost: undefined,
+        uiHost: undefined,
+      });
+      mockPosthog.init.mockReturnValueOnce(null).mockReturnValue(mockPosthog);
       await setTelemetryConsent("granted");
+      await expect(initializePostHogClient()).resolves.toBe(mockPosthog);
 
+      expect(mockPosthog.init).toHaveBeenCalledTimes(2);
       expect(mockPosthog.init).toHaveBeenCalledWith(
-        expect.any(String),
+        "phc_embedded",
         expect.objectContaining({
-          api_host: expect.any(String),
-          ui_host: expect.any(String),
+          api_host: "https://events.example.com",
+          ui_host: "https://posthog.example.com",
           persistence_name: "agent-canvas",
           consent_persistence_name: "agent-canvas-consent",
         }),
         "agent-canvas",
       );
       expect(mockPosthog.opt_in_capturing).toHaveBeenCalled();
+      const config = mockPosthog.init.mock.calls[1][1];
+      expect(
+        config.before_send({
+          event: "test_event",
+          properties: { client_source: "incorrect", custom: "value" },
+        }),
+      ).toEqual({
+        event: "test_event",
+        properties: expect.objectContaining({
+          client_source: "agent_canvas",
+          client_version: expect.any(String),
+          package_name: "@openhands/agent-canvas",
+          package_version: expect.any(String),
+          custom: "value",
+        }),
+      });
+    });
+  });
+
+  describe("identity", () => {
+    it("identifies a consented Cloud user", async () => {
+      await setTelemetryConsent("granted");
+
+      await setTelemetryIdentity("user-a", { email: "a@example.com" });
+
+      expect(mockPosthog.identify).toHaveBeenCalledWith("user-a", {
+        email: "a@example.com",
+      });
+    });
+
+    it("resets before switching Cloud accounts and restores consent", async () => {
+      await setTelemetryConsent("granted");
+      await setTelemetryIdentity("user-a");
+      vi.clearAllMocks();
+
+      await setTelemetryIdentity("user-b");
+
+      expect(mockPosthog.reset).toHaveBeenCalledWith(false);
+      expect(mockPosthog.opt_in_capturing).toHaveBeenCalledOnce();
+      expect(mockPosthog.identify).toHaveBeenCalledWith("user-b", {});
+    });
+
+    it("clears identity on logout without changing the device", async () => {
+      await setTelemetryConsent("granted");
+      await setTelemetryIdentity("user-a");
+      vi.clearAllMocks();
+
+      await setTelemetryIdentity(null);
+
+      expect(mockPosthog.reset).toHaveBeenCalledWith(false);
+      expect(mockPosthog.opt_in_capturing).toHaveBeenCalledOnce();
+      expect(mockPosthog.identify).not.toHaveBeenCalled();
+    });
+
+    it("removes identity on denial and reapplies it after consent returns", async () => {
+      await setTelemetryConsent("granted");
+      await setTelemetryIdentity("user-a");
+      vi.clearAllMocks();
+
+      await setTelemetryConsent("denied");
+
+      expect(mockPosthog.reset).toHaveBeenCalledWith(false);
+      expect(mockPosthog.opt_out_capturing).toHaveBeenCalled();
+
+      vi.clearAllMocks();
+      await setTelemetryConsent("granted");
+
+      expect(mockPosthog.identify).toHaveBeenCalledWith("user-a", {});
     });
   });
 
@@ -94,6 +195,55 @@ describe("Telemetry Service", () => {
       expect(localStorage.getItem("openhands-telemetry-consent")).toBe(
         "denied",
       );
+    });
+
+    it("applies consent synchronously once the shared client is initialized", async () => {
+      await setTelemetryConsent("denied");
+      vi.clearAllMocks();
+
+      const update = setTelemetryConsent("granted");
+
+      expect(mockPosthog.opt_in_capturing).toHaveBeenCalledTimes(1);
+      await update;
+    });
+
+    it("marks an explicit pre-login choice for backend reconciliation", async () => {
+      const listener = vi.fn();
+      const unsubscribe = subscribeTelemetryConsent(listener);
+      await setTelemetryConsent("granted");
+
+      expect(getPendingCloudTelemetryConsent()).toBe("granted");
+      expect(listener).toHaveBeenCalledTimes(1);
+      unsubscribe();
+    });
+
+    it("applies capture consent before notifying identity reconcilers", async () => {
+      const listener = vi.fn(() => {
+        expect(getTelemetryConsent()).toBe("granted");
+        expect(mockPosthog.opt_in_capturing).toHaveBeenCalledTimes(1);
+      });
+      const unsubscribe = subscribeTelemetryConsent(listener);
+
+      await setTelemetryConsent("granted");
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      unsubscribe();
+    });
+
+    it("does not mark consent mirrored from backend settings as pending", async () => {
+      await setTelemetryConsent("granted", { syncToCloud: false });
+
+      expect(getPendingCloudTelemetryConsent()).toBeNull();
+    });
+
+    it("only clears the pending decision it expects", async () => {
+      await setTelemetryConsent("granted");
+
+      clearPendingCloudTelemetryConsent("denied");
+      expect(getPendingCloudTelemetryConsent()).toBe("granted");
+
+      clearPendingCloudTelemetryConsent("granted");
+      expect(getPendingCloudTelemetryConsent()).toBeNull();
     });
   });
 
@@ -186,6 +336,67 @@ describe("Telemetry Service", () => {
         button: "submit",
       });
     });
+
+    it("repairs a stale SDK opt-out before a consented custom event", async () => {
+      localStorage.setItem("openhands-telemetry-consent", "granted");
+      mockPosthog.has_opted_out_capturing.mockReturnValue(true);
+
+      await trackEvent("custom_action");
+
+      expect(mockPosthog.opt_in_capturing).toHaveBeenCalledTimes(1);
+      expect(mockPosthog.capture).toHaveBeenCalledWith("custom_action", {});
+    });
+
+    it("stops an initialized client when telemetry is disabled", async () => {
+      await setTelemetryConsent("granted");
+      vi.clearAllMocks();
+
+      configureTelemetry(false);
+      await trackEvent("custom_action");
+
+      expect(mockPosthog.opt_out_capturing).toHaveBeenCalledTimes(1);
+      expect(mockPosthog.capture).not.toHaveBeenCalled();
+      configureTelemetry({});
+    });
+
+    it("does not let a consent refresh override a hard disable", async () => {
+      await setTelemetryConsent("denied");
+      configureTelemetry(false);
+      vi.clearAllMocks();
+
+      await setTelemetryConsent("granted", { syncToCloud: false });
+
+      expect(mockPosthog.opt_in_capturing).not.toHaveBeenCalled();
+      configureTelemetry({});
+    });
+  });
+
+  describe("trackSessionStart", () => {
+    it("repairs a stale SDK opt-out before recording the session", async () => {
+      localStorage.setItem("openhands-telemetry-consent", "granted");
+      mockPosthog.has_opted_out_capturing.mockReturnValue(true);
+
+      await trackSessionStart();
+
+      expect(mockPosthog.opt_in_capturing).toHaveBeenCalledTimes(1);
+      expect(mockPosthog.capture).toHaveBeenCalledWith(
+        "canvas_new_session",
+        expect.any(Object),
+      );
+    });
+  });
+
+  describe("trackException", () => {
+    it("uses the consent-aware boundary", async () => {
+      await setTelemetryConsent("granted");
+      const error = new Error("failure");
+
+      await trackException(error, { error_source: "test" });
+
+      expect(mockPosthog.captureException).toHaveBeenCalledWith(error, {
+        error_source: "test",
+      });
+    });
   });
 
   describe("clearTelemetryData", () => {
@@ -196,7 +407,22 @@ describe("Telemetry Service", () => {
       await clearTelemetryData();
 
       expect(localStorage.getItem("openhands-telemetry-consent")).toBeNull();
+      expect(getPendingCloudTelemetryConsent()).toBeNull();
       expect(localStorage.getItem("openhands-telemetry-first-use")).toBeNull();
+      expect(mockPosthog.reset).toHaveBeenCalledWith(true);
+      expect(mockPosthog.opt_out_capturing).toHaveBeenCalled();
+    });
+
+    it("falls back to opting out if the SDK cannot reset", async () => {
+      await setTelemetryConsent("granted");
+      mockPosthog.reset.mockImplementationOnce(() => {
+        throw new Error("reset failed");
+      });
+      vi.clearAllMocks();
+
+      await expect(clearTelemetryData()).resolves.toBeUndefined();
+
+      expect(mockPosthog.opt_out_capturing).toHaveBeenCalledOnce();
     });
   });
 

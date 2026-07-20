@@ -1,23 +1,14 @@
-import type { PostHog } from "posthog-js";
+import { trackException } from "#/services/telemetry";
 
 interface ErrorDetails {
   message: string;
   source?: string;
   metadata?: Record<string, unknown>;
-  msgId?: string;
-  posthog?: PostHog;
 }
 
-export function trackError({
-  message,
-  source,
-  metadata = {},
-  posthog,
-}: ErrorDetails) {
-  if (!posthog) return;
-
+export function trackError({ message, source, metadata = {} }: ErrorDetails) {
   const error = new Error(message);
-  posthog.captureException(error, {
+  void trackException(error, {
     error_source: source || "unknown",
     ...metadata,
   });

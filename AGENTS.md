@@ -30,37 +30,31 @@ by a human, report the exact validator error rather than editing them yourself.
 
 ## Tracking / Analytics Architecture
 
-Two distinct PostHog systems exist. **Never mix them at a call site.**
+One Canvas-owned PostHog client owns telemetry and app analytics.
 
-### System 1 — `telemetry.ts` (Canvas-level, anonymous)
-- **Purpose**: anonymous npm-consumer telemetry and the consented OSS Cloud funnel
-- **Keys**: hardcoded staging/prod keys in `telemetry.ts`; routed through `https://z.openhands.dev`
-- **Isolation**: the named `agent-canvas` PostHog instance has its own persistence and consent namespaces; never replace it with the default singleton
-- **Consent**: `localStorage["openhands-telemetry-consent"]` via `useTelemetry` / `TelemetryConsentBanner`
-- **`canvas_install`** fires once, pre-consent, per installation
-- **Exports**: `trackEvent`, `useTelemetry`, `TelemetryConsentBanner`, etc. from `src/lib/index.ts` — these are the **public library API for npm consumers**
-- **Rule**: app routes/components use the typed functions in `cloud-funnel-analytics.ts`; do not call `trackEvent` directly
-
-### System 2 — `useTracking` hook (app-level, identified)
-- **Purpose**: product analytics for app behaviour events
-- **Key**: `VITE_POSTHOG_CLIENT_KEY` env var → `OptionService.getConfig()` → `PostHogWrapper` → `PostHogProvider`; routed to `https://us.i.posthog.com`
-- **Consent**: `user_consents_to_analytics` (backend setting) + `useSyncPostHogConsent` in `root-layout`; `AnalyticsConsentFormModal` also calls `setTelemetryConsent` to keep both systems in sync
-- **All events** are typed, named functions in `src/hooks/use-tracking.ts` — add a new function there for every new event; never call `posthog.capture()` raw from a component
-- **`commonProperties`** (`current_url`, `user_email`) are attached automatically by the hook
-- **Rule**: Do NOT use raw `usePostHog()` + `posthog.capture()` in components — always go through `useTracking`
+- `src/services/telemetry.ts` is the only module that accesses the named `agent-canvas` PostHog client. The name isolates Canvas identity, persistence, configuration, and consent from an embedding host's default singleton. React code declares identity through `setTelemetryIdentity()` and captures through the service; it never receives or resets the SDK client.
+- `TelemetryProvider` configures bootstrap/runtime options and eagerly initializes the service. It does not expose PostHog context or maintain a second client lifecycle.
+- Unconfigured source builds use the staging key and route through `https://z.openhands.dev`. Release workflows pass the public production key through `VITE_POSTHOG_API_KEY`. Precompiled npm consumers override `apiKey`, `apiHost`, and `uiHost` at runtime through `AgentServerUIProviders.analytics` or `configureTelemetry()`.
+- `setTelemetryConsent` is the only user-consent controller; `configureTelemetry(false)` is the embedding host's hard disable. An explicit first-run browser decision remains pending across local backends until `useSyncTelemetryConsent` persists it to Cloud; a stale/default backend value must not overwrite that newer choice during login or navigation. Once Cloud confirms the choice, backend `user_consents_to_analytics` changes are authoritative and mirrored to the client. No other hook or component should call `opt_in_capturing` / `opt_out_capturing` directly.
+- `subscribeTelemetryConsent` is the sole React-facing consent store. Hooks that render consent state must use `useSyncExternalStore`; do not mirror consent in component state or gate events outside `telemetry.ts`.
+- `canvas_install` fires once, pre-consent, with the client's anonymous distinct ID. After consent, Cloud `identify()` follows PostHog's normal anonymous-to-identified lifecycle, so install, Cloud-funnel, and app events remain queryable as one user journey. Account changes and logout reset identity inside `telemetry.ts`, which immediately restores the canonical consent state that the PostHog SDK reset clears.
+- `telemetry.ts` adds immutable `client_source`, `client_version`, `package_name`, and `package_version` properties in `before_send`, so reset cannot remove attribution and event producers cannot override it. Repeated business milestones use deterministic PostHog `$insert_id` values instead of process-local caches.
+- `trackEvent`, `useTelemetry`, and `TelemetryConsentBanner` remain the public library telemetry API for npm consumers. Non-React state machines use typed functions in `cloud-funnel-analytics.ts`; they do not call `trackEvent` directly.
+- React app events use typed functions in `src/hooks/use-tracking.ts`; components never call `posthog.capture()` raw. The hook attaches `current_url` and `user_email` automatically and captures through the telemetry service. It may read backend settings for event properties, but must never gate capture on a settings snapshot: `useSyncTelemetryConsent` has already mirrored the authoritative decision to the telemetry service, and settings can be stale during a backend transition.
+- A business milestone has one canonical event capture. Do not conditionally switch between telemetry and app clients or emit duplicate events.
 
 ### Cloud funnel observability
 - OAuth device authorization and Cloud conversation-start requests include the coarse `X-OpenHands-Client: agent_canvas` and `X-OpenHands-Client-Version` headers from `src/api/client-source.ts`. Never put device codes, API keys, conversation content, raw hosts, or other user data in these headers.
 - Production ingress must retain those two headers as structured Datadog facets before source-specific operational queries will work.
-- The consented OSS funnel uses typed `cloud_device_authorization_started`, `cloud_device_authorization_succeeded`, `backend_added`, and `cloud_conversation_ready` events from `cloud-funnel-analytics.ts`.
+- The consented OSS funnel uses typed `cloud_device_authorization_started`, `cloud_device_authorization_succeeded`, and `cloud_conversation_ready` events from `cloud-funnel-analytics.ts`; React emits the canonical `backend_added` event through `useTracking`.
 
 ### Adding a new event
 1. Add a typed function to `useTracking` in `src/hooks/use-tracking.ts`
 2. Add the function to the hook's `return` object
 3. Destructure and call it from the component: `const { trackFoo } = useTracking()`
 
-### Env var
-`VITE_POSTHOG_CLIENT_KEY` — see `.env.sample`. Without it, `PostHogProvider` never mounts and all `useTracking` calls are silently dropped (safe default for local dev).
+### Env vars
+`VITE_POSTHOG_API_KEY` is the sole build-time PostHog key. Unconfigured source builds use staging; official release workflows set production explicitly. Precompiled consumers use runtime configuration instead.
 
 ## Runtime Services in Dev Stacks
 
@@ -275,7 +269,6 @@ Ensure each test is meaningful, concise, and covers a unique aspect of user inte
 - `npm test` now runs `npm run make-i18n` first so clean environments generate `src/i18n/declaration.ts` before Vitest loads aliased imports.
 - `__tests__/vite-config.test.ts` should import `vite.config` directly under `// @vitest-environment node`; spawning plain `node -e 'import ./vite.config.ts'` is not portable across Node patch releases in CI.
 - `vitest.setup.ts` must guard DOM-specific globals (`HTMLCanvasElement`, `HTMLElement`, `window`) because some suites run in the Node environment instead of jsdom.
-- `__tests__/components/providers/posthog-wrapper.test.tsx` must wrap `PostHogWrapper` in a `QueryClientProvider`; the wrapper now reads its client from React Query context instead of importing the global singleton.
 - WebSocket hook regression note: `__tests__/hooks/use-websocket.test.ts`'s `onClose` callback assertion was flaky against the shared MSW websocket server in CI; keep that single test on a deterministic stubbed `WebSocket` close path instead of relying on MSW close timing.
 - Library i18n regression note: `__tests__/i18n/library-namespace.test.ts` imports `../../src/index`, which can take >5s under the full Vitest suite after `vi.resetModules()`. Keep an explicit per-test timeout (currently 15s) so the suite doesn't fail on slow workers.
 
@@ -499,7 +492,6 @@ When adding code that needs a new string, decide up front which rule it falls un
 
 - Agent-server recovery UX gotchas:
   - Keep `/settings/agent-server` in the intermediate-page bypass path (`use-is-on-intermediate-page`) so `useConfig()`-driven layout/sidebar queries do not block the recovery screen behind a global spinner.
-  - `PostHogWrapper` should treat config-fetch failures as silent/optional (no user-facing toast), otherwise onboarding/recovery screens show a duplicate incompatible-server toast on top of the friendly guidance.
   - Keep the settings route on the compact `AgentServerConnectionForm` variant with `showSectionHeader={false}` and no checklist; the blocked root onboarding should stay similarly minimal, with only the status card plus a single sentence that links to the repo setup instructions.
   - For local screenshot/GIF capture of SPA routes, serve `build/` with an SPA fallback (for example `sirv build --single`) and restart the static server after each rebuild so hashed asset URLs stay in sync.
 
@@ -650,7 +642,7 @@ When adding code that needs a new string, decide up front which rule it falls un
   - CI workflow: a `Read defaults from config/defaults.json` step uses `node -p` to extract values into `$GITHUB_OUTPUT`.
   - Dockerfile ARG defaults are kept as fallbacks for local `docker build` without the CI workflow; CI always passes `--build-arg` overrides from the JSON.
   - To bump a version, edit `config/defaults.json` only — the JS scripts, Docker build, and CI workflow all derive their values from it.
-- Docker all-in-one image: `.github/workflows/docker.yml` builds and publishes `ghcr.io/openhands/agent-canvas` — a combined image that bundles the agent-server (from `ghcr.io/openhands/agent-server`), the automation server (`openhands-automation` via pip), and the agent-canvas frontend (static build). The Dockerfile lives at `docker/Dockerfile`, the entrypoint at `docker/entrypoint.sh`. The workflow structure mirrors the SDK repo's `server.yml`: a `build-and-push-image` matrix job (2 × arch: amd64 on `ubuntu-24.04`, arm64 on `ubuntu-24.04-arm`) pushes arch-suffixed tags, then `merge-manifests` creates multi-arch manifests via `docker buildx imagetools create`, then `consolidate-build-info` aggregates artifacts, and `update-pr-description` updates the PR body (using `<!-- AGENT_CANVAS_DOCKER_START -->` / `<!-- AGENT_CANVAS_DOCKER_END -->` markers). The workflow triggers on push to main, `v*` tags (releases), PRs, and `workflow_dispatch`. On release tags it also pushes semver tags (e.g. `1.2.3`, `1.2`, `1`, `latest`). Fork PRs are skipped (no GHCR auth). On PRs that link an `OpenHands/software-agent-sdk` PR in the description, the Docker workflow uses that SDK PR's published branch image (`ghcr.io/openhands/agent-server:<branch-with-slashes-as-dashes>-python`) as the agent-server base image unless a `workflow_dispatch` input explicitly overrides it. The image exposes port 8000 as a unified entry point: `/api/automation/*` → automation (:18001), `/api/*` → agent-server (:18000), `/*` → static frontend. The Dockerfile accepts a `VITE_APP_ENV` build arg (default empty → staging PostHog key); the CI workflow passes `VITE_APP_ENV=production` only for tagged releases (`refs/tags/v*`), so PR and main-branch images use the staging key while release images use the production key, matching the `build:lib` npm path. The entrypoint auto-generates **both** the session API key and `OH_SECRET_KEY` (persisted to `~/.openhands/agent-canvas/session-api-key.txt` and `secret-key.txt` respectively) when none is provided, so the image runs secure by default. Users can override either via env var (`OH_SECRET_KEY`, `SESSION_API_KEY` / `OH_SESSION_API_KEYS_0`). `scripts/dev-safe.mjs` uses the same `secret-key.txt` file, so dev mode and Docker share the same key when both use the same `~/.openhands` directory.
+- Docker all-in-one image: `.github/workflows/docker.yml` builds and publishes `ghcr.io/openhands/agent-canvas` — a combined image that bundles the agent-server (from `ghcr.io/openhands/agent-server`), the automation server (`openhands-automation` via pip), and the agent-canvas frontend (static build). The Dockerfile lives at `docker/Dockerfile`, the entrypoint at `docker/entrypoint.sh`. The workflow structure mirrors the SDK repo's `server.yml`: a `build-and-push-image` matrix job (2 × arch: amd64 on `ubuntu-24.04`, arm64 on `ubuntu-24.04-arm`) pushes arch-suffixed tags, then `merge-manifests` creates multi-arch manifests via `docker buildx imagetools create`, then `consolidate-build-info` aggregates artifacts, and `update-pr-description` updates the PR body (using `<!-- AGENT_CANVAS_DOCKER_START -->` / `<!-- AGENT_CANVAS_DOCKER_END -->` markers). The workflow triggers on push to main, `v*` tags (releases), PRs, and `workflow_dispatch`. On release tags it also pushes semver tags (e.g. `1.2.3`, `1.2`, `1`, `latest`). Fork PRs are skipped (no GHCR auth). On PRs that link an `OpenHands/software-agent-sdk` PR in the description, the Docker workflow uses that SDK PR's published branch image (`ghcr.io/openhands/agent-server:<branch-with-slashes-as-dashes>-python`) as the agent-server base image unless a `workflow_dispatch` input explicitly overrides it. The image exposes port 8000 as a unified entry point: `/api/automation/*` → automation (:18001), `/api/*` → agent-server (:18000), `/*` → static frontend. The Dockerfile accepts the public `VITE_POSTHOG_API_KEY` build arg; CI passes staging for PR/main images and production for tagged releases. The npm release workflow passes the same production key to both the app and library builds. The entrypoint auto-generates **both** the session API key and `OH_SECRET_KEY` (persisted to `~/.openhands/agent-canvas/session-api-key.txt` and `secret-key.txt` respectively) when none is provided, so the image runs secure by default. Users can override either via env var (`OH_SECRET_KEY`, `SESSION_API_KEY` / `OH_SESSION_API_KEYS_0`). `scripts/dev-safe.mjs` uses the same `secret-key.txt` file, so dev mode and Docker share the same key when both use the same `~/.openhands` directory.
 
 - Spec files live under `specs/`. Spec IDs are stable — never renumber. Mark deprecated specs with ~~strikethrough~~. Tag implementation code and tests with `// @spec BM-002 — Short title` comments so specs are grep-able across the codebase (`grep -rn '@spec BM-' src/ __tests__/`). Place the comment on the line immediately above the relevant code block or test. When multiple tests cover the same spec, use `it.each` if the test structure is identical.
 
