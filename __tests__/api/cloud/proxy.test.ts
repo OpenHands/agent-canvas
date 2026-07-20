@@ -23,6 +23,15 @@ const cloudAcme: Backend = {
   kind: "cloud",
 };
 
+const cookieCloud: Backend = {
+  id: "cloud-cookie",
+  name: "Production - Cookie",
+  host: "https://app.all-hands.dev",
+  apiKey: "",
+  kind: "cloud",
+  authMode: "cookie",
+};
+
 const originalFetch = global.fetch;
 const fetchMock = vi.fn();
 
@@ -102,6 +111,44 @@ describe("callCloudProxy X-Org-Id injection", () => {
     expect(
       (init as { headers: Record<string, string> }).headers,
     ).not.toHaveProperty("X-Org-Id");
+  });
+});
+
+describe("callCloudProxy cookie auth", () => {
+  it("omits bearer auth for same-origin cookie-backed Cloud requests", async () => {
+    setRegisteredBackends([cookieCloud]);
+    setActiveSelection({ backendId: cookieCloud.id, orgId: null });
+
+    await callCloudProxy({
+      backend: cookieCloud,
+      method: "GET",
+      path: "/api/v1/users/me",
+    });
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe(`${cookieCloud.host}/api/v1/users/me`);
+    expect(init).toMatchObject({ method: "GET" });
+    expect(
+      (init as { headers: Record<string, string> }).headers,
+    ).not.toHaveProperty("Authorization");
+  });
+
+  it("omits bearer auth in runtime proxy envelope requests", async () => {
+    setRegisteredBackends([cookieCloud]);
+    setActiveSelection({ backendId: cookieCloud.id, orgId: null });
+
+    await callCloudProxy({
+      backend: cookieCloud,
+      method: "GET",
+      path: "/api/bash/bash_events/search",
+      hostOverride: "https://abc123.prod-runtime.all-hands.dev",
+    });
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    const envelope = JSON.parse((init as { body: string }).body);
+    expect(
+      (envelope as { headers: Record<string, string> }).headers,
+    ).not.toHaveProperty("Authorization");
   });
 });
 

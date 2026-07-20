@@ -1,43 +1,38 @@
+import {
+  pollForToken as sdkPollForToken,
+  startDeviceFlow as sdkStartDeviceFlow,
+} from "@openhands/typescript-client/client/device-flow-client";
+import type {
+  DeviceAuthorizationResponse,
+  DeviceTokenResponse,
+  PollDeviceTokenOptions,
+} from "@openhands/typescript-client/client/device-flow-client";
+import { AGENT_CANVAS_CLIENT_HEADERS } from "./client-source";
+
 export {
   DeviceFlowError,
-  pollForToken,
-  startDeviceFlow,
-} from "@openhands/typescript-client/clients";
-import { isOpenHandsCloudHost as sdkIsOpenHandsCloudHost } from "@openhands/typescript-client/clients";
+  isOpenHandsCloudHost,
+} from "@openhands/typescript-client/client/device-flow-client";
 
-const OPENHANDS_CLOUD_HOST_SUFFIXES = ["all-hands.dev", "openhands.dev"];
-
-function isAllowedCloudHostname(hostname: string): boolean {
-  return OPENHANDS_CLOUD_HOST_SUFFIXES.some(
-    (suffix) => hostname === suffix || hostname.endsWith(`.${suffix}`),
-  );
+export function startDeviceFlow(
+  host: string,
+): Promise<DeviceAuthorizationResponse> {
+  return sdkStartDeviceFlow(host, { headers: AGENT_CANVAS_CLIENT_HEADERS });
 }
 
-function fallbackIsOpenHandsCloudHost(host: string): boolean {
-  if (!host.trim()) return false;
-
-  try {
-    const normalizedHost = host.includes("://") ? host : `https://${host}`;
-    const { hostname } = new URL(normalizedHost);
-    return isAllowedCloudHostname(hostname.toLowerCase());
-  } catch {
-    return false;
-  }
+export function pollForToken(
+  host: string,
+  deviceCode: string,
+  options: PollDeviceTokenOptions,
+): Promise<DeviceTokenResponse> {
+  return sdkPollForToken(host, deviceCode, {
+    ...options,
+    headers: AGENT_CANVAS_CLIENT_HEADERS,
+  });
 }
 
-export function isOpenHandsCloudHost(host: string): boolean {
-  try {
-    if (typeof sdkIsOpenHandsCloudHost === "function") {
-      return sdkIsOpenHandsCloudHost(host);
-    }
-  } catch {
-    return fallbackIsOpenHandsCloudHost(host);
-  }
-
-  return fallbackIsOpenHandsCloudHost(host);
-}
 export type {
   DeviceAuthorizationResponse,
   DeviceTokenResponse,
   PollDeviceTokenOptions as PollOptions,
-} from "@openhands/typescript-client/clients";
+} from "@openhands/typescript-client/client/device-flow-client";

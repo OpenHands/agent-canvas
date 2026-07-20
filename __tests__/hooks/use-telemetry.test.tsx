@@ -1,21 +1,25 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 
-// Mock posthog-js before importing hook
+const canvasPosthog = vi.hoisted(() => ({
+  capture: vi.fn(),
+  opt_in_capturing: vi.fn(),
+  opt_out_capturing: vi.fn(),
+  has_opted_out_capturing: vi.fn(() => false),
+  reset: vi.fn(),
+  register: vi.fn(),
+}));
+
+// Mock posthog-js before importing hook. Canvas telemetry uses the instance
+// returned by named initialization rather than PostHog's default singleton.
 vi.mock("posthog-js", () => ({
   default: {
-    init: vi.fn(),
-    capture: vi.fn(),
-    opt_in_capturing: vi.fn(),
-    opt_out_capturing: vi.fn(),
-    has_opted_out_capturing: vi.fn(() => false),
-    reset: vi.fn(),
-    register: vi.fn(),
+    init: vi.fn(() => canvasPosthog),
   },
 }));
 
-import posthog from "posthog-js";
 import { useTelemetry } from "#/hooks/use-telemetry";
+import { setTelemetryConsent } from "#/services/telemetry";
 
 describe("useTelemetry", () => {
   beforeEach(() => {
@@ -62,7 +66,7 @@ describe("useTelemetry", () => {
 
     // trackInstall is called on mount - wait for the async effect
     await waitFor(() => {
-      expect(posthog.capture).toHaveBeenCalledWith(
+      expect(canvasPosthog.capture).toHaveBeenCalledWith(
         "canvas_install",
         expect.any(Object),
       );
@@ -74,7 +78,7 @@ describe("useTelemetry", () => {
 
     // Wait for initial trackInstall
     await waitFor(() => {
-      expect(posthog.capture).toHaveBeenCalledTimes(1);
+      expect(canvasPosthog.capture).toHaveBeenCalledTimes(1);
     });
 
     // Rerender multiple times
@@ -83,7 +87,7 @@ describe("useTelemetry", () => {
     rerender();
 
     // Should still only have been called once
-    expect(posthog.capture).toHaveBeenCalledTimes(1);
+    expect(canvasPosthog.capture).toHaveBeenCalledTimes(1);
   });
 
   it("grants consent and enables telemetry", async () => {
@@ -112,6 +116,18 @@ describe("useTelemetry", () => {
     expect(localStorage.getItem("openhands-telemetry-consent")).toBe("denied");
   });
 
+  it("reacts to consent changes outside the hook", async () => {
+    const { result } = renderHook(() => useTelemetry());
+
+    await act(() =>
+      setTelemetryConsent("granted", {
+        syncToCloud: false,
+      }),
+    );
+
+    expect(result.current.consent).toBe("granted");
+  });
+
   it("track function does nothing when consent is not granted", () => {
     localStorage.setItem("openhands-telemetry-first-use", "true"); // Skip install tracking
     vi.clearAllMocks();
@@ -123,7 +139,7 @@ describe("useTelemetry", () => {
     });
 
     // capture should not be called for custom events without consent
-    expect(posthog.capture).not.toHaveBeenCalledWith("test_event", {
+    expect(canvasPosthog.capture).not.toHaveBeenCalledWith("test_event", {
       foo: "bar",
     });
   });
@@ -152,8 +168,8 @@ describe("useTelemetry", () => {
 
     expect(result.current.consent).toBe("granted");
 
-    act(() => {
-      result.current.clearData();
+    await act(async () => {
+      await result.current.clearData();
     });
 
     expect(result.current.consent).toBe("pending");

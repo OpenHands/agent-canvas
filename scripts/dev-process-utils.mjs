@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import process from "node:process";
 
 /**
@@ -31,6 +32,40 @@ export function getProcessTreeSpawnOptions(options = {}) {
     ...options,
     detached: process.platform !== "win32",
   };
+}
+
+/**
+ * Resolve a service command to a directly spawnable target on Windows.
+ *
+ * Services spawn without a shell so argument values reach the child verbatim.
+ * Spawning `uvx` via cmd.exe instead makes it parse the args: a constraint like
+ * `agent-client-protocol<0.11` is read as `<` input redirection and the spawn
+ * dies with "The system cannot find the file specified." Resolving to an
+ * absolute path lets callers spawn it shell-free.
+ *
+ * Returns `command` unchanged off Windows, when already a path, or if the lookup
+ * fails.
+ */
+export function resolveWindowsCommand(
+  command,
+  platform = process.platform,
+  lookup = whereCommandLookup,
+) {
+  if (platform !== "win32") {
+    return command;
+  }
+  if (command.includes("/") || command.includes("\\")) {
+    return command;
+  }
+  return lookup(command) || command;
+}
+
+function whereCommandLookup(command) {
+  const result = spawnSync("where.exe", [command], { encoding: "utf8" });
+  if (result.status !== 0 || !result.stdout) {
+    return null;
+  }
+  return result.stdout.split(/\r?\n/).find(Boolean)?.trim() || null;
 }
 
 /**
