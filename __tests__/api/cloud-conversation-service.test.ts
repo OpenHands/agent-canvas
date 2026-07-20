@@ -8,8 +8,10 @@ import type { Backend } from "#/api/backend-registry/types";
 import { setStoredConversationMetadata } from "#/api/conversation-metadata-store";
 import {
   batchGetCloudConversations,
+  createCloudAppConversation,
   searchCloudConversations,
 } from "#/api/cloud/conversation-service.api";
+import { AGENT_CANVAS_CLIENT_HEADERS } from "#/api/client-source";
 
 const { mockCallCloudProxy } = vi.hoisted(() => ({
   mockCallCloudProxy: vi.fn(),
@@ -40,6 +42,26 @@ describe("cloud conversation-service overlay", () => {
     window.localStorage.clear();
     __resetActiveStoreForTests();
     mockCallCloudProxy.mockReset();
+  });
+
+  it("marks Cloud conversation starts as originating from Agent Canvas", async () => {
+    mockCallCloudProxy.mockResolvedValueOnce({ id: "start-task" });
+
+    await createCloudAppConversation({
+      initial_message: null,
+      selected_repository: null,
+      selected_branch: null,
+      git_provider: null,
+      plugins: null,
+      parent_conversation_id: null,
+    });
+
+    expect(mockCallCloudProxy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: "/api/v1/app-conversations",
+        headers: AGENT_CANVAS_CLIENT_HEADERS,
+      }),
+    );
   });
 
   it("overlays locally-stored repo selection onto batchGetCloudConversations results when the server returns nulls", async () => {

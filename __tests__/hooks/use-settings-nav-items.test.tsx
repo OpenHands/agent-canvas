@@ -38,7 +38,6 @@ vi.mock("#/hooks/use-active-agent-profile", () => ({
 const createConfig = (
   feature_flags: Partial<WebClientConfig["feature_flags"]> = {},
 ): WebClientConfig => ({
-  posthog_client_key: null,
   feature_flags: {
     hide_llm_settings: false,
     hide_users_page: true,

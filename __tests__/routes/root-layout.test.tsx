@@ -6,7 +6,6 @@ import MainApp from "#/routes/root-layout";
 
 const useConfigMock = vi.fn();
 const useSettingsMock = vi.fn();
-const migrateUserConsentMock = vi.fn();
 
 vi.mock("#/hooks/query/use-config", () => ({
   useConfig: () => useConfigMock(),
@@ -16,18 +15,12 @@ vi.mock("#/hooks/query/use-settings", () => ({
   useSettings: () => useSettingsMock(),
 }));
 
-vi.mock("#/hooks/use-migrate-user-consent", () => ({
-  useMigrateUserConsent: () => ({
-    migrateUserConsent: migrateUserConsentMock,
-  }),
+vi.mock("#/hooks/use-sync-telemetry-consent", () => ({
+  useSyncTelemetryConsent: () => {},
 }));
 
-vi.mock("#/hooks/use-sync-posthog-consent", () => ({
-  useSyncPostHogConsent: () => {},
-}));
-
-vi.mock("#/hooks/use-posthog-identify", () => ({
-  usePostHogIdentify: () => {},
+vi.mock("#/hooks/use-telemetry-identity", () => ({
+  useTelemetryIdentity: () => {},
 }));
 
 vi.mock("#/hooks/use-app-title", () => ({
@@ -134,7 +127,6 @@ describe("root layout", () => {
     expect(
       screen.queryByTestId("user-capture-consent-form"),
     ).not.toBeInTheDocument();
-    expect(migrateUserConsentMock).toHaveBeenCalled();
   });
 
   it("renders an identical root-layout className across routes so navigation never shifts the outer container", () => {

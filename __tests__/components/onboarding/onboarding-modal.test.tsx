@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { MockInstance } from "vitest";
 
 import {
   __resetActiveStoreForTests,
@@ -17,16 +18,11 @@ import { NavigationProvider } from "#/context/navigation-context";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import { SecretsService } from "#/api/secrets-service";
 import { DEFAULT_SETTINGS } from "#/services/settings";
+import * as telemetry from "#/services/telemetry";
 
 const llmSettingsScreenMock = vi.hoisted(() => vi.fn());
 const getServerInfoMock = vi.hoisted(() => vi.fn());
-const captureMock = vi.hoisted(() => vi.fn());
-
-// useTracking depends on PostHog's `usePostHog`. Mock that underlying service
-// (not useTracking itself) so the onboarding analytics events can be asserted.
-vi.mock("posthog-js/react", () => ({
-  usePostHog: () => ({ capture: captureMock }),
-}));
+let captureMock: MockInstance<typeof telemetry.trackEvent>;
 
 // Both the backend status badge in the embedded edit form and the
 // step-1 health probe ride on `useBackendsHealth`, which resolves
@@ -200,6 +196,7 @@ function renderModal(onClose = vi.fn()) {
 }
 
 beforeEach(() => {
+  captureMock = vi.spyOn(telemetry, "trackEvent").mockResolvedValue(undefined);
   window.localStorage.clear();
   window.sessionStorage.clear();
   vi.stubEnv("VITE_BACKEND_BASE_URL", "http://localhost:9000");
@@ -235,6 +232,7 @@ beforeEach(() => {
   vi.spyOn(SecretsService, "createSecret").mockResolvedValue();
 });
 afterEach(() => {
+  captureMock.mockRestore();
   window.localStorage.clear();
   window.sessionStorage.clear();
   vi.unstubAllEnvs();
