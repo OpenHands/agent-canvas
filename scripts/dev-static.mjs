@@ -54,6 +54,7 @@ import {
 import {
   getProcessTreeSpawnOptions,
   isProcessRunning,
+  resolveWindowsCommand,
   signalProcessTree,
 } from "./dev-process-utils.mjs";
 import {
@@ -215,13 +216,12 @@ let shuttingDown = false;
 
 function spawnService(name, command, args, options = {}) {
   const proc = spawn(
-    command,
+    resolveWindowsCommand(command),
     args,
     getProcessTreeSpawnOptions({
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, ...options.env },
       cwd: options.cwd,
-      shell: process.platform === "win32",
     }),
   );
 

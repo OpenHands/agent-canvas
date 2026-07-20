@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
 import {
   AgentServerUnavailableError,
@@ -72,7 +72,9 @@ describe("OptionService", () => {
 
     await expect(OptionService.getConfig()).rejects.toMatchObject({
       name: AgentServerUnavailableError.name,
-      message: expect.stringContaining("Could not connect to the configured agent server"),
+      message: expect.stringContaining(
+        "Could not connect to the configured agent server",
+      ),
       details: expect.stringContaining("Request failed"),
     });
   });
@@ -125,30 +127,5 @@ describe("OptionService", () => {
       "openhands",
     ]);
     expect(models.default_model).toBeTruthy();
-  });
-
-  describe("posthog_client_key", () => {
-    afterEach(() => {
-      vi.unstubAllEnvs();
-    });
-
-    it("returns the key from VITE_POSTHOG_CLIENT_KEY when set", async () => {
-      vi.stubEnv("VITE_POSTHOG_CLIENT_KEY", "phc_test_key_123");
-
-      const config = await OptionService.getConfig();
-
-      expect(config.posthog_client_key).toBe("phc_test_key_123");
-    });
-
-    it("returns null when VITE_POSTHOG_CLIENT_KEY is not set", async () => {
-      // Force the env var absent so the ?? null fallback applies. A developer's
-      // local .env may define VITE_POSTHOG_CLIENT_KEY, which vitest loads and
-      // would otherwise leak into this test; stubbing to undefined deletes it.
-      vi.stubEnv("VITE_POSTHOG_CLIENT_KEY", undefined);
-
-      const config = await OptionService.getConfig();
-
-      expect(config.posthog_client_key).toBeNull();
-    });
   });
 });
