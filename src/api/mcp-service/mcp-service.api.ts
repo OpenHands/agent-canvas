@@ -5,7 +5,10 @@ import {
   getActiveBackend,
   getRegisteredBackends,
 } from "../backend-registry/active-store";
-import { getCredentialValidationForServer } from "#/utils/mcp-credential-validation";
+import {
+  getCredentialValidationForServer,
+  type CredentialValidation,
+} from "#/utils/mcp-credential-validation";
 import type { MCPAuthCredential } from "#/types/mcp-auth";
 import type {
   ExtendedMCPTestResponse,
@@ -13,6 +16,7 @@ import type {
   MCPOAuthStatusResponse,
   MCPServerConfig,
 } from "#/types/mcp-server";
+import { redactMcpSecrets } from "#/utils/redact-mcp-secrets";
 import { substituteRedactedMcpCredentials } from "./mcp-redacted-credentials";
 
 const OAUTH_MCP_TEST_TIMEOUT_SECONDS = 120;
@@ -61,20 +65,79 @@ function getMcpTestTimeout(server: MCPServerConfig): number | undefined {
   return OAUTH_MCP_TEST_TIMEOUT_SECONDS;
 }
 
-async function buildMcpTestRequest(
-  server: MCPServerConfig,
-): Promise<ExtendedMCPTestRequest> {
+async function buildMcpTestRequest(server: MCPServerConfig): Promise<{
+  request: ExtendedMCPTestRequest;
+  substituted: MCPServerConfig;
+}> {
   const validation = getCredentialValidationForServer(server);
-  const serverSpec = toMcpServer(
-    await substituteRedactedMcpCredentials(server),
-  );
+  const substituted = await substituteRedactedMcpCredentials(server);
+  const serverSpec = toMcpServer(substituted);
   const timeout = getMcpTestTimeout(server);
   return {
-    server: serverSpec,
-    ...(server.name ? { name: server.name } : {}),
-    ...(timeout !== undefined ? { timeout } : {}),
-    ...(validation ? { tool_call: validation.toolCall } : {}),
+    request: {
+      server: serverSpec,
+      ...(server.name ? { name: server.name } : {}),
+      ...(timeout !== undefined ? { timeout } : {}),
+      ...(validation ? { tool_call: validation.toolCall } : {}),
+    },
+    substituted,
   };
+}
+
+function redactMcpTestResponse(
+  result: ExtendedMCPTestResponse,
+  redactionSources: (MCPServerConfig | undefined)[],
+): ExtendedMCPTestResponse {
+  if (!result.ok) {
+    return {
+      ...result,
+      error: redactMcpSecrets(result.error, ...redactionSources),
+    };
+  }
+  if (result.tool_result) {
+    return {
+      ...result,
+      tool_result: {
+        ...result.tool_result,
+        text: redactMcpSecrets(result.tool_result.text, ...redactionSources),
+      },
+    };
+  }
+  return result;
+}
+
+/**
+ * Display-boundary post-processing shared by the test and OAuth probes:
+ * scrub secrets from error/tool-result text, then let the catalog entry's
+ * credential validation turn a failed read-only tool call into a
+ * `credentials` failure. The interpretation only runs when the probe tool
+ * is actually advertised in `tools` — a server variant that doesn't expose
+ * the tool (e.g. a hosted alternative to the stdio server the spec was
+ * written for) must degrade to a connectivity-only success, not be
+ * misreported as bad credentials.
+ */
+function finalizeMcpTestResponse(
+  result: ExtendedMCPTestResponse,
+  validation: CredentialValidation | undefined,
+  redactionSources: (MCPServerConfig | undefined)[],
+): ExtendedMCPTestResponse {
+  const redacted = redactMcpTestResponse(result, redactionSources);
+  if (
+    redacted.ok &&
+    validation &&
+    redacted.tool_result &&
+    redacted.tools.includes(validation.toolCall.name)
+  ) {
+    const credentialError = validation.interpret(redacted.tool_result);
+    if (credentialError) {
+      return {
+        ok: false,
+        error: credentialError,
+        error_kind: "credentials",
+      };
+    }
+  }
+  return redacted;
 }
 
 function getMcpProbeOptions(): { host: string; apiKey?: string } {
@@ -153,21 +216,13 @@ class McpService {
     const { host, apiKey } = getAgentServerClientOptions();
     const client = new MCPClient({ host, ...(apiKey ? { apiKey } : {}) });
     try {
-      const request = await buildMcpTestRequest(server);
+      const { request, substituted } = await buildMcpTestRequest(server);
       const result = (await client.testServer(
         request as MCPTestRequest,
       )) as ExtendedMCPTestResponse;
-      if (result.ok && validation && result.tool_result) {
-        const credentialError = validation.interpret(result.tool_result);
-        if (credentialError) {
-          return {
-            ok: false,
-            error: credentialError,
-            error_kind: "credentials",
-          };
-        }
-      }
-      return result;
+      // Redact against both config forms: `server` may hold fresh plaintext
+      // input, `substituted` the stored (encrypted) round-trip values.
+      return finalizeMcpTestResponse(result, validation, [substituted, server]);
     } finally {
       client.close();
     }
@@ -212,17 +267,20 @@ class McpService {
   static async authorizeOAuth(
     server: MCPServerConfig,
   ): Promise<ExtendedMCPTestResponse> {
+    const validation = getCredentialValidationForServer(server);
+    const finalize = (result: ExtendedMCPTestResponse) =>
+      finalizeMcpTestResponse(result, validation, [server]);
     const popup = window.open("about:blank", "_blank");
     const client = createMcpProbeClient();
     try {
       const start = await McpService.startOAuthWithClient(client, server);
       if (!start.ok || !start.job_id || !start.authorization_url) {
         popup?.close();
-        return {
+        return finalize({
           ok: false,
           error: start.error || "Could not start OAuth authorization",
           error_kind: start.error_kind || "unknown",
-        };
+        });
       }
 
       let status = await McpService.getOAuthStatusWithClient(
@@ -232,7 +290,7 @@ class McpService {
       for (let attempt = 0; attempt < 20; attempt += 1) {
         if (status.status === "succeeded" || status.status === "failed") {
           popup?.close();
-          return oauthStatusToTestResponse(status);
+          return finalize(oauthStatusToTestResponse(status));
         }
         if (status.callback_ready) break;
         await sleep(250);
@@ -258,7 +316,7 @@ class McpService {
         );
         if (status.status === "succeeded" || status.status === "failed") {
           popup?.close();
-          return oauthStatusToTestResponse(status);
+          return finalize(oauthStatusToTestResponse(status));
         }
       }
 
@@ -276,7 +334,7 @@ class McpService {
     client: MCPClient,
     server: MCPServerConfig,
   ): Promise<MCPOAuthStartResponse> {
-    const request = await buildMcpTestRequest(server);
+    const { request } = await buildMcpTestRequest(server);
     return client.startOAuth(request as MCPTestRequest);
   }
 

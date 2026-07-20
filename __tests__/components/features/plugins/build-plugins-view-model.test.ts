@@ -104,4 +104,71 @@ describe("buildPluginsViewModel", () => {
     expect(matchesPluginStatus(local, "local")).toBe(true);
     expect(matchesPluginStatus(local, "available")).toBe(false);
   });
+
+  it("prefers the installed copy's contents over the catalog's", () => {
+    const result = buildPluginsViewModel(
+      [
+        {
+          ...catalogPlugin,
+          path: "/cache/plugins/demo-plugin",
+          skills: [{ name: "catalog-skill" }],
+          files: ["catalog.md"],
+        },
+      ],
+      [
+        {
+          ...installedPlugin,
+          skills: [{ name: "installed-skill" }],
+          files: ["installed.md"],
+        },
+      ],
+    );
+
+    expect(result[0]).toMatchObject({
+      path: installedPlugin.install_path,
+      skills: [{ name: "installed-skill" }],
+      files: ["installed.md"],
+    });
+  });
+
+  it("falls back to the catalog's contents when the installed entry has none", () => {
+    const result = buildPluginsViewModel(
+      [
+        {
+          ...catalogPlugin,
+          path: "/cache/plugins/demo-plugin",
+          skills: [{ name: "catalog-skill" }],
+          files: ["catalog.md"],
+        },
+      ],
+      [installedPlugin],
+    );
+
+    expect(result[0]).toMatchObject({
+      path: "/cache/plugins/demo-plugin",
+      skills: [{ name: "catalog-skill" }],
+      files: ["catalog.md"],
+    });
+  });
+
+  it("carries a local plugin's contents into its entry", () => {
+    const result = buildPluginsViewModel(
+      [],
+      [],
+      [
+        {
+          ...localPlugin,
+          path: "/home/.agents/plugins/ambient-plugin",
+          skills: [{ name: "ambient-skill" }],
+          files: ["SKILL.md"],
+        },
+      ],
+    );
+
+    expect(result[0]).toMatchObject({
+      path: "/home/.agents/plugins/ambient-plugin",
+      skills: [{ name: "ambient-skill" }],
+      files: ["SKILL.md"],
+    });
+  });
 });

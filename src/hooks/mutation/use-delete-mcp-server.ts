@@ -5,6 +5,8 @@ import { MCPConfig } from "#/types/settings";
 import { MCPServerConfig } from "#/types/mcp-server";
 import { parseMcpConfig, toSdkMcpConfig } from "#/utils/mcp-config";
 import { SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
+import { clearMcpServerHealth } from "#/api/mcp-health/mcp-health-store";
+import { getMcpServerHealthKey } from "#/utils/mcp-server-health-key";
 
 /**
  * Delete an installed MCP server.
@@ -77,7 +79,11 @@ export function useDeleteMcpServer() {
         agent_settings_diff: { mcp_config: toSdkMcpConfig(newConfig) },
       });
     },
-    onSuccess: () => {
+    onSuccess: (_data, target) => {
+      // Drop the deleted server's health entry so a later server that
+      // happens to produce the same key starts "unchecked" instead of
+      // inheriting this one's verdict.
+      clearMcpServerHealth(getMcpServerHealthKey(target));
       queryClient.invalidateQueries({
         queryKey: SETTINGS_QUERY_KEYS.personal(),
       });
