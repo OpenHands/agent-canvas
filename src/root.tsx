@@ -39,7 +39,6 @@ import {
   useBackendsHealth,
 } from "#/hooks/query/use-backends-health";
 import { TOAST_OPTIONS } from "#/utils/custom-toast-handlers";
-import { TelemetryConsentBanner } from "#/components/features/analytics/telemetry-consent-banner";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useConfig } from "#/hooks/query/use-config";
 import { QUERY_KEYS } from "#/hooks/query/query-keys";
@@ -103,7 +102,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <ColorThemeApplier />
           {children}
           <Toaster toastOptions={TOAST_OPTIONS} />
-          <TelemetryConsentBanner />
           <div id="modal-portal-exit" />
         </AgentServerUIRoot>
         <ScrollRestoration />

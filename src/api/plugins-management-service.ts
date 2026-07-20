@@ -1,11 +1,14 @@
 import { PluginsClient } from "@openhands/typescript-client/clients";
 import { getActiveBackend } from "./backend-registry/active-store";
 import { getAgentServerClientOptions } from "./agent-server-client-options";
+import type { PluginBundledSkill } from "./plugins-service";
 
 /**
  * An installed plugin, as returned by the agent-server management router
  * (`GET /api/plugins/installed`). Matches the typescript-client
- * `InstalledPluginInfo`.
+ * `InstalledPluginInfo`. The contents fields (`skills`, `files`, relative to
+ * `install_path`) are absent on older agent-servers and null when the
+ * installed plugin directory failed to load.
  */
 export interface InstalledPluginInfo {
   name: string;
@@ -17,6 +20,8 @@ export interface InstalledPluginInfo {
   repo_path?: string | null;
   installed_at: string;
   install_path: string;
+  skills?: PluginBundledSkill[] | null;
+  files?: string[] | null;
 }
 
 /** Coordinates for installing a plugin from a git source or local path. */

@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { PluginsClient } from "@openhands/typescript-client/clients";
+import {
+  FileClient,
+  PluginsClient,
+} from "@openhands/typescript-client/clients";
 import {
   setActiveSelection,
   setRegisteredBackends,
@@ -8,10 +11,12 @@ import PluginsService from "./plugins-service";
 
 vi.mock("@openhands/typescript-client/clients", () => ({
   PluginsClient: vi.fn(),
+  FileClient: vi.fn(),
 }));
 
 const getPluginsMarketplace = vi.fn();
 const getPlugins = vi.fn();
+const downloadFile = vi.fn();
 const close = vi.fn();
 
 function useBackend(kind: "local" | "cloud"): void {
@@ -105,5 +110,50 @@ describe("PluginsService.getLocalPlugins", () => {
 
     expect(result).toEqual([]);
     expect(PluginsClient).not.toHaveBeenCalled();
+  });
+});
+
+describe("PluginsService.getPluginFileContent", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(FileClient).mockImplementation(function MockFileClient() {
+      return { downloadFile, close } as unknown as FileClient;
+    } as unknown as typeof FileClient);
+  });
+
+  it("downloads the file under the plugin directory and decodes it as text", async () => {
+    useBackend("local");
+    downloadFile.mockResolvedValue(new TextEncoder().encode("# Hello").buffer);
+
+    const result = await PluginsService.getPluginFileContent(
+      "/plugins/demo",
+      "docs/README.md",
+    );
+
+    expect(result).toEqual({ kind: "text", text: "# Hello" });
+    expect(downloadFile).toHaveBeenCalledWith("/plugins/demo/docs/README.md");
+  });
+
+  it("flags content containing NUL bytes as binary", async () => {
+    useBackend("local");
+    downloadFile.mockResolvedValue(
+      new Uint8Array([0x89, 0x50, 0x00, 0x47]).buffer,
+    );
+
+    const result = await PluginsService.getPluginFileContent(
+      "/plugins/demo",
+      "logo.png",
+    );
+
+    expect(result).toEqual({ kind: "binary", text: null });
+  });
+
+  it("rejects on a cloud backend without calling the client", async () => {
+    useBackend("cloud");
+
+    await expect(
+      PluginsService.getPluginFileContent("/plugins/demo", "README.md"),
+    ).rejects.toThrow();
+    expect(FileClient).not.toHaveBeenCalled();
   });
 });

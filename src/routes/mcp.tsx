@@ -182,6 +182,7 @@ export default function MCPPage() {
         {installEntry && (
           <InstallServerModal
             entry={installEntry}
+            existingServers={allServers}
             onClose={() => setInstallEntry(null)}
           />
         )}

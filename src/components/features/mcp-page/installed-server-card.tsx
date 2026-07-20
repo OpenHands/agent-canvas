@@ -16,6 +16,7 @@ import {
   extensionModuleCardSurfaceClassName,
 } from "#/utils/extension-module-card-classes";
 import { getInstalledServerTitle } from "#/utils/mcp-installed-server-display";
+import { McpServerHealthSection } from "./mcp-server-health";
 
 interface InstalledServerCardProps {
   server: MCPServerConfig;
@@ -127,6 +128,12 @@ export function InstalledServerCard({
               {detailLine}
             </p>
           ) : null}
+
+          <McpServerHealthSection
+            server={server}
+            catalog={catalog}
+            onEdit={onEdit}
+          />
         </div>
       </div>
     </div>
