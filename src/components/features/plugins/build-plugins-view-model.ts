@@ -1,4 +1,8 @@
-import type { MarketplacePlugin, LocalPlugin } from "#/api/plugins-service";
+import type {
+  MarketplacePlugin,
+  LocalPlugin,
+  PluginBundledSkill,
+} from "#/api/plugins-service";
 import type { InstalledPluginInfo } from "#/api/plugins-management-service";
 
 export type PluginStatusFilter = "all" | "installed" | "available" | "local";
@@ -26,6 +30,15 @@ export interface PluginViewModel {
    * Read-only: it auto-loads into conversations and is not installed/managed.
    */
   isLocal: boolean;
+  /**
+   * Plugin contents (`skills` bundled in the plugin, `files` relative to
+   * `path`). The three fields travel as a unit from one server response so the
+   * file viewer never joins a base path with another copy's file list; null
+   * when the server has no local copy or predates the contents fields.
+   */
+  path: string | null;
+  skills: PluginBundledSkill[] | null;
+  files: string[] | null;
 }
 
 /**
@@ -54,11 +67,17 @@ export function buildPluginsViewModel(
       version: null,
       inCatalog: true,
       isLocal: false,
+      path: entry.path ?? null,
+      skills: entry.skills ?? null,
+      files: entry.files ?? null,
     });
   }
 
   for (const entry of installed ?? []) {
     const existing = byName.get(entry.name);
+    // Contents move as a unit: the installed copy is authoritative when it
+    // carries contents; otherwise (older agent-server) keep the catalog's.
+    const hasContents = entry.skills != null || entry.files != null;
     byName.set(entry.name, {
       name: entry.name,
       description: existing?.description ?? entry.description ?? null,
@@ -70,6 +89,9 @@ export function buildPluginsViewModel(
       version: entry.version ?? null,
       inCatalog: existing?.inCatalog ?? false,
       isLocal: false,
+      path: hasContents ? entry.install_path : (existing?.path ?? null),
+      skills: hasContents ? (entry.skills ?? null) : (existing?.skills ?? null),
+      files: hasContents ? (entry.files ?? null) : (existing?.files ?? null),
     });
   }
 
@@ -90,6 +112,9 @@ export function buildPluginsViewModel(
       version: entry.version || null,
       inCatalog: false,
       isLocal: true,
+      path: entry.path ?? null,
+      skills: entry.skills ?? null,
+      files: entry.files ?? null,
     });
   }
 
