@@ -84,6 +84,13 @@ export function PluginCard({
             onToggle={onToggle}
             disableTooltipKey={I18nKey.COMMON$DISABLE}
           />
+        ) : plugin.isLocal ? (
+          <span
+            data-testid={`plugin-local-badge-${plugin.name}`}
+            className={cn(extensionModuleCardPillClassName, "flex-shrink-0")}
+          >
+            {t(I18nKey.SETTINGS$PLUGINS_FILTER_LOCAL)}
+          </span>
         ) : (
           <BrandButton
             type="button"
@@ -111,7 +118,7 @@ export function PluginCard({
         </p>
       ) : null}
 
-      {plugin.installed && plugin.version ? (
+      {(plugin.installed || plugin.isLocal) && plugin.version ? (
         <span
           data-testid={`plugin-version-${plugin.name}`}
           className={cn(extensionModuleCardPillClassName, "self-start")}

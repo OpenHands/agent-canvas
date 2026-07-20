@@ -18,12 +18,12 @@ and needs a running container + real host credentials).
 ## Run it
 
 ```bash
-# 1. Agent-server container with the canvas_ui tool mounted (as the dev stack does).
-#    Minimum 1.25.0-python (software-agent-sdk#3510); override for a newer build.
+# 1. Agent-server container. v1.28.0 adds the client_tools API used by Canvas.
+#    The Python mount keeps pre-migration conversation state loadable.
 docker run -d --name oh-acp -p 8010:8000 \
   -v oh-acp-data:/workspace \
   -v "$(pwd)/tools:/canvas-tools:ro" -e OH_EXTRA_PYTHON_PATH=/canvas-tools \
-  ghcr.io/openhands/agent-server:1.25.0-python
+  ghcr.io/openhands/agent-server:1.28.0-python
 
 # 2. Run the e2e (all providers, or a subset).
 npx vite-node -c tests/e2e/live-acp/vite-node.config.mts \

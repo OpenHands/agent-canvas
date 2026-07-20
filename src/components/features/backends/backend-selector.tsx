@@ -209,10 +209,10 @@ export function BackendSelector({
   // per-org rows for it — the `(backendId, null)` row disappears, so
   // selecting that shape would drift from what the dropdown can render
   // (UI says "Local", APIs hit cloud). When we detect the drift, snap
-  // the selection onto the personal-workspace org (or, lacking a /me
-  // result, the first org). The selection is recorded locally only;
-  // the cloud request scope follows from the API key's bound org and the
-  // X-Org-Id header sent by `callCloudProxy`, so the cloud UI's
+  // the selection onto Cloud's current org first, then fall back to the
+  // personal workspace (or, lacking a /me result, the first org). The
+  // selection is recorded locally only; the cloud request scope follows
+  // from the X-Org-Id header sent by `callCloudProxy`, so the cloud UI's
   // org choice is never mutated as a side effect.
   React.useEffect(() => {
     if (noBackendSelected || active.backend.kind !== "cloud" || active.orgId)
@@ -221,11 +221,14 @@ export function BackendSelector({
     const entry = cloudOrgs[backend.id];
     if (!entry || entry.orgs.length === 0) return;
 
+    const currentOrg = entry.currentOrgId
+      ? entry.orgs.find((o) => o.id === entry.currentOrgId)
+      : undefined;
     const userId = currentUserIds[backend.id]?.userId ?? null;
     const personal = userId
       ? entry.orgs.find((o) => o.id === userId)
       : undefined;
-    const target = personal ?? entry.orgs[0];
+    const target = currentOrg ?? personal ?? entry.orgs[0];
     if (target) {
       setActive(backend.id, target.id);
     }

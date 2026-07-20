@@ -1,5 +1,5 @@
 /* eslint-disable react/jsx-props-no-spreading */
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -12,6 +12,7 @@ import { NavigationProvider } from "#/context/navigation-context";
 // Mocks must be declared before the SUT is imported.
 const useHasAttachedSourceMock = vi.fn();
 const useHasGitCommitsMock = vi.fn();
+const useUnifiedGitCommitsMock = vi.fn();
 const useWorkspaceFilesMock = vi.fn();
 const useWorkspaceFileContentMock = vi.fn();
 const refetchGitChangesMock = vi.fn();
@@ -23,6 +24,10 @@ vi.mock("#/hooks/use-has-attached-source", () => ({
 vi.mock("#/hooks/query/use-has-git-commits", () => ({
   useHasGitCommits: (opts?: { enabled?: boolean }) =>
     useHasGitCommitsMock(opts),
+}));
+
+vi.mock("#/hooks/query/use-unified-git-commits", () => ({
+  useUnifiedGitCommits: () => useUnifiedGitCommitsMock(),
 }));
 
 vi.mock("#/hooks/query/use-workspace-files", () => ({
@@ -43,6 +48,10 @@ vi.mock("#/hooks/query/use-unified-get-git-changes", () => ({
 
 vi.mock("#/routes/changes-tab", () => ({
   default: () => <div data-testid="changes-tab-content">Diff View</div>,
+}));
+
+vi.mock("#/routes/commits-tab", () => ({
+  default: () => <div data-testid="commits-tab-content">Commits View</div>,
 }));
 
 function renderTab(conversationId: string | null = null) {
@@ -82,6 +91,7 @@ describe("FilesTab", () => {
 
     useHasAttachedSourceMock.mockReset();
     useHasGitCommitsMock.mockReset();
+    useUnifiedGitCommitsMock.mockReset();
     useWorkspaceFilesMock.mockReset();
     useWorkspaceFileContentMock.mockReset();
     refetchGitChangesMock.mockReset();
@@ -90,6 +100,17 @@ describe("FilesTab", () => {
     useHasGitCommitsMock.mockReturnValue({
       hasCommits: true,
       isLoading: false,
+    });
+    // Default: the agent server supports the commits API (the third toggle
+    // segment is offered) but the conversation has no commits yet.
+    useUnifiedGitCommitsMock.mockReturnValue({
+      commits: [],
+      hasMore: false,
+      isUnsupported: false,
+      isLoading: false,
+      isFetching: false,
+      isSuccess: true,
+      isError: false,
     });
 
     useWorkspaceFilesMock.mockReturnValue({
@@ -587,6 +608,96 @@ describe("FilesTab", () => {
       });
       expect(useFilesTabStore.getState().selectedConversationId).toBe("conv-b");
       expect(useWorkspaceFileContentMock).not.toHaveBeenCalledWith("demo.html");
+    });
+  });
+
+  describe("commits view", () => {
+    it("offers the Commits toggle option when the server supports the commits API", () => {
+      // Arrange — beforeEach default: commits supported.
+      useHasAttachedSourceMock.mockReturnValue({
+        hasAttachedSource: true,
+        isLoading: false,
+      });
+
+      // Act
+      renderTab();
+
+      // Assert
+      expect(
+        screen.getByTestId("files-tab-diff-toggle-option-commits"),
+      ).toBeInTheDocument();
+    });
+
+    it("hides the Commits toggle option against an older agent server", () => {
+      // Arrange — the commits endpoint 404'd: server too old.
+      useHasAttachedSourceMock.mockReturnValue({
+        hasAttachedSource: true,
+        isLoading: false,
+      });
+      useUnifiedGitCommitsMock.mockReturnValue({
+        commits: [],
+        hasMore: false,
+        isUnsupported: true,
+        isLoading: false,
+        isFetching: false,
+        isSuccess: true,
+        isError: false,
+      });
+
+      // Act
+      renderTab();
+
+      // Assert
+      expect(
+        screen.queryByTestId("files-tab-diff-toggle-option-commits"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("renders the Commits option between Diff and Files", () => {
+      // Arrange — beforeEach default: commits supported.
+      useHasAttachedSourceMock.mockReturnValue({
+        hasAttachedSource: true,
+        isLoading: false,
+      });
+
+      // Act
+      renderTab();
+
+      // Assert — Commits sits beside Diff, ahead of Files: Diff → Commits → Files.
+      const toggle = screen.getByTestId("files-tab-diff-toggle");
+      const order = within(toggle)
+        .getAllByRole("radio")
+        .map((option) => option.getAttribute("data-testid"));
+      expect(order).toEqual([
+        "files-tab-diff-toggle-option-on",
+        "files-tab-diff-toggle-option-commits",
+        "files-tab-diff-toggle-option-off",
+      ]);
+    });
+
+    it("switches the panel to the commits view when the Commits option is selected", async () => {
+      // Arrange
+      const user = userEvent.setup();
+      useHasAttachedSourceMock.mockReturnValue({
+        hasAttachedSource: true,
+        isLoading: false,
+      });
+      renderTab();
+
+      // Act
+      await user.click(
+        screen.getByTestId("files-tab-diff-toggle-option-commits"),
+      );
+
+      // Assert — the commits view replaces the diff view; the file-browser
+      // controls (Rich/Plain) stay hidden.
+      expect(screen.getByTestId("commits-tab-content")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("changes-tab-content"),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("files-tab-content-mode-toggle"),
+      ).not.toBeInTheDocument();
     });
   });
 });

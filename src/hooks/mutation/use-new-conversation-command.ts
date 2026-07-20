@@ -10,12 +10,14 @@ import {
 } from "#/utils/custom-toast-handlers";
 import { useNavigation } from "#/context/navigation-context";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
+import { useTracking } from "#/hooks/use-tracking";
 
 export const useNewConversationCommand = () => {
   const queryClient = useQueryClient();
   const { navigate } = useNavigation();
   const { t } = useTranslation("openhands");
   const { data: conversation } = useActiveConversation();
+  const { trackConversationCreated } = useTracking();
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -55,6 +57,7 @@ export const useNewConversationCommand = () => {
       return {
         newConversationId,
         oldConversationId: conversation.id,
+        taskId: startTask.id,
       };
     },
     onMutate: () => {
@@ -64,6 +67,16 @@ export const useNewConversationCommand = () => {
       });
     },
     onSuccess: (data) => {
+      trackConversationCreated({
+        conversationId: data.newConversationId,
+        taskId: data.taskId,
+        hasRepository: false,
+        hasWorkspace: false,
+        hasInitialQuery: false,
+        hasParentConversation: false,
+        entryPoint: "new_command",
+      });
+
       toast.dismiss("clear-conversation");
       displaySuccessToast(t(I18nKey.CONVERSATION$CLEAR_SUCCESS));
       navigate(`/conversations/${data.newConversationId}`);

@@ -3,6 +3,7 @@ import { AUTOMATION_CATALOG } from "@openhands/extensions/automations";
 import { INTEGRATION_CATALOG } from "@openhands/extensions/integrations";
 import {
   getDefaultMcpTransport,
+  getInstallableMcpConnectionOption,
   getMcpMarketplaceCatalog,
 } from "#/utils/mcp-marketplace-utils";
 
@@ -37,16 +38,15 @@ describe("OpenHands extensions catalogs", () => {
     const catalog = getMcpMarketplaceCatalog(INTEGRATION_CATALOG);
     const linear = catalog.find((entry) => entry.id === "linear")!;
 
-    expect(getDefaultMcpTransport(linear)).toEqual({
+    const mcpOption = getInstallableMcpConnectionOption(linear)!;
+
+    expect(mcpOption.transport).toEqual({
       kind: "shttp",
       url: "https://mcp.linear.app/mcp",
       apiKeyOptional: true,
     });
     expect(linear.docsUrl).toBe("https://linear.app/docs/mcp");
-    const mcpOption = linear.connectionOptions.find(
-      (option) => option.transport?.kind === "shttp",
-    );
-    expect(mcpOption?.auth.strategy).toBe("bearer");
+    expect(mcpOption.auth.strategy).toBe("bearer");
     expect(
       linear.connectionOptions.some((option) => option.transport?.kind === "sse"),
     ).toBe(false);

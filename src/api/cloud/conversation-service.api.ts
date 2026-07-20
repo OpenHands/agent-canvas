@@ -7,6 +7,7 @@ import type {
   AppConversationStartRequest,
   AppConversationStartTask,
 } from "../conversation-service/agent-server-conversation-service.types";
+import { AGENT_CANVAS_CLIENT_HEADERS } from "../client-source";
 import { callCloudProxy } from "./proxy";
 
 /**
@@ -126,6 +127,7 @@ export async function createCloudAppConversation(
     method: "POST",
     path: "/api/v1/app-conversations",
     body: request as unknown as Record<string, unknown>,
+    headers: AGENT_CANVAS_CLIENT_HEADERS,
   });
   return data;
 }

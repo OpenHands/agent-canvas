@@ -292,6 +292,52 @@ describe("BackendSelector", () => {
     expect(screen.queryByText(/Beta Co/)).not.toBeInTheDocument();
   });
 
+  it("shows every organization as a separate row for cookie-auth cloud backends", async () => {
+    vi.mocked(getCloudOrganizations).mockResolvedValue({
+      items: [
+        { id: "org-personal", name: "Personal" },
+        { id: "org-acme", name: "Acme Inc" },
+      ],
+      currentOrgId: "org-acme",
+    });
+    vi.mocked(getCurrentCloudApiKey).mockResolvedValue({
+      orgId: "org-personal",
+      isLegacyKey: false,
+    });
+
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          ctx.addBackend({
+            name: "OpenHands Cloud",
+            host: "https://app.all-hands.dev",
+            apiKey: "",
+            kind: "cloud",
+            authMode: "cookie",
+          });
+        }}
+      >
+        <BackendSelector />
+      </TestSeed>,
+    );
+
+    await waitFor(() => {
+      const wrapper = screen.getByTestId("backend-selector");
+      const input = wrapper.querySelector("input") as HTMLInputElement;
+      expect(input.value).toBe("OpenHands Cloud – Acme Inc");
+    });
+
+    await openDropdown();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("OpenHands Cloud – Personal"),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText("OpenHands Cloud – Acme Inc")).toBeInTheDocument();
+    expect(getCurrentCloudApiKey).not.toHaveBeenCalled();
+  });
+
   it("labels an org as 'Personal Workspace' when /me reports user_id === org.id", async () => {
     const personalOrgId = "0b93b5f2-5396-49f2-8d98-61f906184270";
     vi.mocked(getCloudOrganizations).mockResolvedValue({
@@ -341,14 +387,14 @@ describe("BackendSelector", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("self-heals (cloud, null) → (cloud, personal-workspace org) locally once orgs + /me resolve", async () => {
+  it("self-heals (cloud, null) → Cloud's current org before personal workspace", async () => {
     const personalOrgId = "0b93b5f2-5396-49f2-8d98-61f906184270";
     vi.mocked(getCloudOrganizations).mockResolvedValue({
       items: [
         { id: personalOrgId, name: "Auto-generated personal" },
         { id: "org-2", name: "Acme Inc" },
       ],
-      currentOrgId: personalOrgId,
+      currentOrgId: "org-2",
     });
     vi.mocked(getCloudOrganizationMe).mockResolvedValue({
       orgId: personalOrgId,
@@ -370,15 +416,15 @@ describe("BackendSelector", () => {
       </TestSeed>,
     );
 
-    // After orgs + /me resolve, the selector snaps the active selection
-    // onto the personal-workspace org locally — without round-tripping
-    // /switch on the cloud backend (which would have mutated the cloud UI's
-    // user.current_org_id as a side effect).
+    // After orgs resolve, the selector snaps the active selection onto the
+    // Cloud API's current_org_id locally — without round-tripping /switch on
+    // the cloud backend (which would have mutated the cloud UI's current org
+    // as a side effect).
     await waitFor(() => {
       const stored = JSON.parse(
         window.localStorage.getItem("openhands-active-backend") ?? "null",
       );
-      expect(stored).toEqual({ backendId: cloudId, orgId: personalOrgId });
+      expect(stored).toEqual({ backendId: cloudId, orgId: "org-2" });
     });
   });
 

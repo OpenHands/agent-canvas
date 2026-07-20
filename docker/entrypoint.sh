@@ -16,6 +16,7 @@
 #   PORT                 – Unified entry point port (default: 8000)
 #   AGENT_SERVER_PORT    – Internal agent-server port (default: 18000)
 #   AUTOMATION_PORT      – Internal automation port (default: 18001)
+#   AGENT_CANVAS_BASE_PATH – Static frontend mount path (default: /canvas)
 #   PUBLIC_MODE_PORT     – If set, starts a second static server on this port
 #                          with --auth-required (no session key injected)
 #   OH_SECRET_KEY        – Secret key for settings encryption (auto-generated
@@ -55,6 +56,7 @@ fi
 PORT="${PORT:-${CONFIG_PROXY_PORT:-8000}}"
 AGENT_SERVER_PORT="${AGENT_SERVER_PORT:-${CONFIG_AGENT_SERVER_PORT:-18000}}"
 AUTOMATION_PORT="${AUTOMATION_PORT:-${CONFIG_AUTOMATION_PORT:-18001}}"
+AGENT_CANVAS_BASE_PATH="${AGENT_CANVAS_BASE_PATH:-${CONFIG_CANVAS_BASE_PATH:-/canvas}}"
 
 # Persistence paths — keep settings, conversations, bash history under a
 # single well-known directory that the VOLUME directive exposes.
@@ -111,6 +113,7 @@ fi
 export OPENHANDS_AUTOMATION_API_KEY="${OPENHANDS_AUTOMATION_API_KEY:-${EFFECTIVE_SESSION_KEY}}"
 export AUTOMATION_LOCAL_API_KEY="${AUTOMATION_LOCAL_API_KEY:-${EFFECTIVE_SESSION_KEY}}"
 export AUTOMATION_AGENT_SERVER_API_KEY="${AUTOMATION_AGENT_SERVER_API_KEY:-${EFFECTIVE_SESSION_KEY}}"
+export OPENHANDS_REMOTE_WS_READY_REQUIRED="${OPENHANDS_REMOTE_WS_READY_REQUIRED:-false}"
 
 # AGENT_SERVER_URL — needed by automation sandbox callbacks.
 export AGENT_SERVER_URL="${AGENT_SERVER_URL:-http://127.0.0.1:${AGENT_SERVER_PORT}}"
@@ -123,9 +126,8 @@ export AGENT_SERVER_URL="${AGENT_SERVER_URL:-http://127.0.0.1:${AGENT_SERVER_POR
 # for locally-generated session keys.
 export AUTOMATION_AGENT_SERVER_URL="${AUTOMATION_AGENT_SERVER_URL:-http://127.0.0.1:${AGENT_SERVER_PORT}}"
 
-# Make custom tools (e.g. canvas_ui_tool.py) importable by the agent-server
-# via tool_module_qualnames. Matches what scripts/dev-safe.mjs does with
-# OH_EXTRA_PYTHON_PATH: config.canvasToolsDir.
+# Keep the legacy canvas_ui_tool module importable when the agent-server restores
+# conversations whose persisted metadata still references its module qualname.
 export OH_EXTRA_PYTHON_PATH="${OH_EXTRA_PYTHON_PATH:-/opt/agent-canvas/tools}"
 
 # Track child PIDs so we can clean up on exit.
@@ -248,6 +250,7 @@ node /opt/agent-canvas/static-server.mjs \
   --port "$PORT" \
   --host :: \
   --dir /opt/agent-canvas/frontend \
+  --base-path "$AGENT_CANVAS_BASE_PATH" \
   --session-api-key "$EFFECTIVE_SESSION_KEY" \
   --runtime-services-info "$RUNTIME_SERVICES_INFO" \
   --route "/api/automation=http://127.0.0.1:${AUTOMATION_PORT}" \
@@ -274,6 +277,7 @@ if [ -n "${PUBLIC_MODE_PORT:-}" ]; then
     --port "$PUBLIC_MODE_PORT" \
     --host :: \
     --dir /opt/agent-canvas/frontend \
+    --base-path "$AGENT_CANVAS_BASE_PATH" \
     --auth-required \
     --runtime-services-info "$RUNTIME_SERVICES_INFO" \
     --route "/api/automation=http://127.0.0.1:${AUTOMATION_PORT}" \

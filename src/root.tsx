@@ -13,7 +13,7 @@ import {
 import "./tailwind.css";
 import "./index.css";
 import React from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "react-hot-toast";
 import {
   clearCachedAgentServerInfo,
@@ -21,22 +21,29 @@ import {
   isAgentServerAuthError,
 } from "#/api/agent-server-compatibility";
 import {
+  getLockedCloudAuthMode,
   getLockedCloudHost,
   isAuthRequiredAndMissing,
   isSameCloudHost,
 } from "#/api/agent-server-config";
+import {
+  authenticateWithMainAppCookie,
+  redirectToMainAppLogin,
+  shouldUseMainAppCookieAuth,
+} from "#/api/main-app-auth";
 import { getEffectiveLocalBackend } from "#/api/backend-registry/active-store";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import {
+  isCloudBackendApiKeyOrNetworkHealthError,
   isCloudBackendLoggedOutHealthError,
   useBackendsHealth,
 } from "#/hooks/query/use-backends-health";
 import { TOAST_OPTIONS } from "#/utils/custom-toast-handlers";
-import { TelemetryConsentBanner } from "#/components/features/analytics/telemetry-consent-banner";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useConfig } from "#/hooks/query/use-config";
 import { QUERY_KEYS } from "#/hooks/query/query-keys";
 import { AgentServerUIRoot } from "#/components/providers";
+import { buildAgentCanvasPath } from "#/utils/base-path";
 import { useOnboardingCompletion } from "#/components/features/onboarding/use-onboarding-completion";
 import { NavigationProvider } from "#/context/navigation-context";
 import {
@@ -73,6 +80,14 @@ const OnboardingModal = React.lazy(() =>
   })),
 );
 
+// Rendered for first-run in locked-to-Cloud mode; shows Cloud login directly
+// without the onboarding progress bars.
+const BackendFormModal = React.lazy(() =>
+  import("#/components/features/backends/backend-form-modal").then((m) => ({
+    default: m.BackendFormModal,
+  })),
+);
+
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -87,7 +102,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <ColorThemeApplier />
           {children}
           <Toaster toastOptions={TOAST_OPTIONS} />
-          <TelemetryConsentBanner />
           <div id="modal-portal-exit" />
         </AgentServerUIRoot>
         <ScrollRestoration />
@@ -159,6 +173,31 @@ function FirstRunOnboardingScreen({ onClose }: { onClose: () => void }) {
     [conversationId, location.pathname, navigate, routerNavigation.location],
   );
 
+  const lockedCloudHost = getLockedCloudHost();
+  const isLockedToCloud = lockedCloudHost !== null;
+
+  // In locked-to-Cloud mode, show the Add Backend modal directly with Cloud
+  // login, instead of the full onboarding flow with progress bars. This
+  // matches the UX expectation for canvas.openhands.dev where Cloud is the
+  // only backend option.
+  if (isLockedToCloud) {
+    return (
+      <main
+        data-testid="first-run-onboarding-screen"
+        className="min-h-screen bg-base"
+      >
+        <React.Suspense fallback={<AgentServerBootstrapLoading />}>
+          <BackendFormModal
+            mode="add"
+            onClose={onClose}
+            source="manage_backends_modal"
+            hideCloseButton
+          />
+        </React.Suspense>
+      </main>
+    );
+  }
+
   return (
     <main
       data-testid="first-run-onboarding-screen"
@@ -174,7 +213,11 @@ function FirstRunOnboardingScreen({ onClose }: { onClose: () => void }) {
 }
 
 export const links: LinksFunction = () => [
-  { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
+  {
+    rel: "icon",
+    type: "image/svg+xml",
+    href: buildAgentCanvasPath("/favicon.svg"),
+  },
 ];
 
 export const meta: MetaFunction = () => [
@@ -205,6 +248,7 @@ export default function App() {
   // onboarding instead of the Manage Backends recovery modal — the onboarding
   // flow owns the Cloud login that replaces the stale backend.
   const lockedCloudHost = getLockedCloudHost();
+  const lockedCloudAuthMode = getLockedCloudAuthMode();
   const isLockedToCloud = lockedCloudHost !== null;
   // True only when the active backend IS the configured locked Cloud host
   // (normalized comparison so trailing slash / case / protocol differences
@@ -234,27 +278,69 @@ export default function App() {
   // active suppresses reopen flicker. (The flag is only honored when the
   // active backend really is the locked Cloud host, so the stale-flag bypass
   // concerns above don't apply here.)
+  const shouldCheckMainAppAuth = shouldUseMainAppCookieAuth();
   const showFirstRunOnboarding = isLockedToCloud
-    ? !isActiveLockedCloudBackend || !onboardingCompleted
+    ? !shouldCheckMainAppAuth &&
+      (!isActiveLockedCloudBackend ||
+        (lockedCloudAuthMode !== "cookie" && !onboardingCompleted))
     : !onboardingCompleted;
+  const mainAppAuth = useQuery({
+    queryKey: QUERY_KEYS.MAIN_APP_COOKIE_AUTH,
+    queryFn: authenticateWithMainAppCookie,
+    enabled: shouldCheckMainAppAuth && !showFirstRunOnboarding,
+    retry: false,
+    staleTime: 1000 * 60 * 5,
+    meta: { disableToast: true },
+  });
+  const waitingForMainAppAuth =
+    shouldCheckMainAppAuth &&
+    !showFirstRunOnboarding &&
+    mainAppAuth.isPending &&
+    !mainAppAuth.isError;
+  const redirectingToMainAppLogin =
+    shouldCheckMainAppAuth && mainAppAuth.data === false;
+  const mainAppAuthAllowsBackendQueries =
+    !shouldCheckMainAppAuth || mainAppAuth.data === true || mainAppAuth.isError;
+
+  React.useEffect(() => {
+    if (redirectingToMainAppLogin) redirectToMainAppLogin();
+  }, [redirectingToMainAppLogin]);
 
   // Skip the /server_info probe entirely when we already know auth is
   // required and missing — it would just 401 and waste time. Also keep the
   // root bootstrap quiet while the first-run onboarding modal owns backend
   // collection; the onboarding steps issue their own backend-specific queries.
   const config = useConfig({
-    enabled: !authMissing && !showFirstRunOnboarding,
+    enabled:
+      !authMissing &&
+      !showFirstRunOnboarding &&
+      mainAppAuthAllowsBackendQueries,
   });
   const activeCloudHealth = useBackendsHealth(
-    active.backend.kind === "cloud" ? [active.backend] : [],
+    active.backend.kind === "cloud" && mainAppAuthAllowsBackendQueries
+      ? [active.backend]
+      : [],
   )[active.backend.id];
   const activeCloudLoggedOut =
     active.backend.kind === "cloud" &&
     activeCloudHealth?.isConnected === false &&
     isCloudBackendLoggedOutHealthError(activeCloudHealth.lastError);
+  // A cloud backend the health probe has given up on (disabled after repeated
+  // CORS/network failures) is unreachable from this origin — most commonly a
+  // self-hosted OHE that doesn't allow this frontend's origin. Route to the
+  // same recovery screen as a logged-out backend so the user sees the real
+  // connectivity error, not a misleading "LLM not configured" home page.
+  const activeCloudUnreachable =
+    active.backend.kind === "cloud" &&
+    activeCloudHealth?.disabled === true &&
+    isCloudBackendApiKeyOrNetworkHealthError(activeCloudHealth.lastError);
 
   if (showFirstRunOnboarding) {
     return <FirstRunOnboardingScreen onClose={markCompleted} />;
+  }
+
+  if (waitingForMainAppAuth || redirectingToMainAppLogin) {
+    return <AgentServerBootstrapLoading />;
   }
 
   // No key at all after onboarding was skipped/completed → auth screen.
@@ -271,7 +357,11 @@ export default function App() {
     return <AgentServerBootstrapLoading />;
   }
 
-  if (activeCloudLoggedOut || isAgentServerUnavailableError(config.error)) {
+  if (
+    activeCloudLoggedOut ||
+    activeCloudUnreachable ||
+    isAgentServerUnavailableError(config.error)
+  ) {
     return <MissingAgentServerScreen />;
   }
 

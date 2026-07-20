@@ -1,18 +1,7 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
-
-interface MCPServerConfig {
-  id: string;
-  type: "sse" | "stdio" | "shttp";
-  name?: string;
-  url?: string;
-  api_key?: string;
-  timeout?: number;
-  command?: string;
-  args?: string[];
-  env?: Record<string, string>;
-}
+import type { MCPServerConfig } from "#/types/mcp-server";
 
 export function MCPServerListItem({
   server,

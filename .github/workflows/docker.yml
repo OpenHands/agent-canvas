@@ -91,10 +91,12 @@ jobs:
           AGENT_SERVER_IMAGE_BASE=$(node -p "require('./config/defaults.json').images.agentServer")
           AUTOMATION_VERSION=$(node -p "require('./config/defaults.json').versions.automation")
           AGENT_CANVAS_VERSION=$(node -p "require('./package.json').version")
+          CANVAS_BASE_PATH=$(node -p "require('./config/defaults.json').paths.canvasBasePath")
           echo "agent_server_version=$AGENT_SERVER_VERSION" >> "$GITHUB_OUTPUT"
           echo "default_agent_server_image=${AGENT_SERVER_IMAGE_BASE}:${AGENT_SERVER_VERSION}-python" >> "$GITHUB_OUTPUT"
           echo "default_automation_version=$AUTOMATION_VERSION" >> "$GITHUB_OUTPUT"
           echo "agent_canvas_version=$AGENT_CANVAS_VERSION" >> "$GITHUB_OUTPUT"
+          echo "canvas_base_path=$CANVAS_BASE_PATH" >> "$GITHUB_OUTPUT"
 
       - name: Compute metadata and tags
         id: prep
@@ -173,11 +175,9 @@ jobs:
           # everything else (PR / main / local) uses staging. Both keys are
           # public, client-side keys — not secrets — so they live in repo vars.
           if [[ "$RELEVANT_REF" == refs/tags/v* ]]; then
-            echo "vite_app_env=production" >> "$GITHUB_OUTPUT"
-            echo "posthog_client_key=$POSTHOG_PROD_KEY" >> "$GITHUB_OUTPUT"
+            echo "posthog_api_key=$POSTHOG_PROD_KEY" >> "$GITHUB_OUTPUT"
           else
-            echo "vite_app_env=" >> "$GITHUB_OUTPUT"
-            echo "posthog_client_key=$POSTHOG_STAGING_KEY" >> "$GITHUB_OUTPUT"
+            echo "posthog_api_key=$POSTHOG_STAGING_KEY" >> "$GITHUB_OUTPUT"
           fi
 
           echo "=== Build outputs ==="
@@ -200,8 +200,8 @@ jobs:
             AGENT_CANVAS_VERSION=${{ steps.config.outputs.agent_canvas_version }}
             OPENHANDS_BUILD_GIT_SHA=${{ env.RELEVANT_SHA }}
             OPENHANDS_BUILD_GIT_REF=${{ env.RELEVANT_REF }}
-            VITE_APP_ENV=${{ steps.prep.outputs.vite_app_env }}
-            VITE_POSTHOG_CLIENT_KEY=${{ steps.prep.outputs.posthog_client_key }}
+            VITE_POSTHOG_API_KEY=${{ steps.prep.outputs.posthog_api_key }}
+            VITE_BASE_PATH=${{ steps.config.outputs.canvas_base_path }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: true
@@ -258,7 +258,6 @@ jobs:
       (github.event_name == 'pull_request' &&
        !github.event.pull_request.head.repo.fork)
     runs-on: ubuntu-24.04
-
     steps:
       - name: Download build info artifacts
         uses: actions/download-artifact@v8

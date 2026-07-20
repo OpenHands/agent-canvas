@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import AgentSettingsScreen from "#/routes/agent-settings";
+import { AgentSettingsScreen } from "#/routes/agent-settings";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import { SecretsService } from "#/api/secrets-service";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
@@ -387,7 +387,10 @@ describe("AgentSettingsScreen", () => {
       "agent-command-input",
     ) as HTMLTextAreaElement;
     await user.clear(commandInput);
-    await user.type(commandInput, "npx -y @zed-industries/codex-acp@0.16.0");
+    await user.type(
+      commandInput,
+      "npx -y @agentclientprotocol/codex-acp@1.1.2",
+    );
 
     // The model field now reflects the Codex default, not the stale Claude one.
     expect(screen.getByLabelText("SETTINGS$AGENT_MODEL")).toHaveValue(

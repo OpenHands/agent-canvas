@@ -4,6 +4,7 @@ import { BrandButton } from "#/components/features/settings/brand-button";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalBody } from "#/components/shared/modals/modal-body";
 import { useDeviceFlow, type DeviceFlowStatus } from "#/hooks/use-device-flow";
+import type { CloudConnectionSource } from "#/services/cloud-funnel-analytics";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 
@@ -35,6 +36,8 @@ interface DeviceFlowAuthProps {
   buttonVariant?: DeviceFlowButtonVariant;
   /** Whether in-progress auth content should render inline or in a modal. */
   statusDisplay?: DeviceFlowStatusDisplay;
+  /** Product surface that initiated this authorization attempt. */
+  analyticsSource?: CloudConnectionSource;
 }
 
 /**
@@ -68,6 +71,7 @@ export function DeviceFlowAuth({
   buttonClassName,
   buttonVariant = "primary",
   statusDisplay = "inline",
+  analyticsSource,
 }: DeviceFlowAuthProps) {
   const { t } = useTranslation("openhands");
   const deviceFlow = useDeviceFlow();
@@ -149,7 +153,7 @@ export function DeviceFlowAuth({
       console.warn("Popup blocked - user will need to use manual link");
     }
 
-    deviceFlow.start(fullHost);
+    deviceFlow.start(fullHost, analyticsSource);
   };
 
   const handleCancel = () => {

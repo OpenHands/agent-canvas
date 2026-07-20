@@ -1,14 +1,6 @@
 import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const captureMock = vi.fn();
-let posthogMock: { capture: typeof captureMock } | undefined = {
-  capture: captureMock,
-};
-
-vi.mock("posthog-js/react", () => ({
-  usePostHog: () => posthogMock,
-}));
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as telemetry from "#/services/telemetry";
 
 const useSettingsMock = vi.fn();
 vi.mock("#/hooks/query/use-settings", () => ({
@@ -23,9 +15,13 @@ const TEST_EMAIL = "user@example.com";
 let COMMON: { current_url: string; user_email: string };
 
 describe("useTracking", () => {
+  let captureMock: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
-    vi.clearAllMocks();
-    posthogMock = { capture: captureMock };
+    captureMock = vi
+      .spyOn(telemetry, "trackEvent")
+      .mockResolvedValue(undefined);
+    useSettingsMock.mockReset();
     useSettingsMock.mockReturnValue({
       data: { email: TEST_EMAIL, user_consents_to_analytics: true },
     });
@@ -33,6 +29,10 @@ describe("useTracking", () => {
       current_url: window.location.href,
       user_email: TEST_EMAIL,
     };
+  });
+
+  afterEach(() => {
+    captureMock.mockRestore();
   });
 
   const getTracking = () => renderHook(() => useTracking()).result.current;
@@ -49,13 +49,83 @@ describe("useTracking", () => {
   });
 
   describe("trackConversationCreated", () => {
-    it("captures conversation_created with has_repository flag", () => {
-      getTracking().trackConversationCreated({ hasRepository: true });
+    it("captures conversation_created with full metadata for a repository, task-start conversation", () => {
+      getTracking().trackConversationCreated({
+        conversationId: "task-abc123",
+        taskId: "abc123",
+        hasRepository: true,
+        gitProvider: "github",
+        hasWorkspace: false,
+        hasInitialQuery: true,
+        hasParentConversation: false,
+        entryPoint: "sidebar_cloud_menu",
+      });
 
       expect(captureMock).toHaveBeenCalledWith("conversation_created", {
+        conversation_id: "task-abc123",
+        task_id: "abc123",
+        // task-prefixed conversation_id => cloud sandbox still provisioning
+        is_start_task: true,
         has_repository: true,
+        git_provider: "github",
+        has_workspace: false,
+        workspace_mode: undefined,
+        has_initial_query: true,
+        agent_type: undefined,
+        has_parent_conversation: false,
+        entry_point: "sidebar_cloud_menu",
         ...COMMON,
       });
+    });
+
+    it("captures conversation_created for a local workspace start with no repository", () => {
+      getTracking().trackConversationCreated({
+        conversationId: "conv-1",
+        taskId: "conv-1",
+        hasRepository: false,
+        hasWorkspace: true,
+        workspaceMode: "local_repo",
+        hasInitialQuery: false,
+        hasParentConversation: false,
+        entryPoint: "sidebar_local_menu",
+      });
+
+      expect(captureMock).toHaveBeenCalledWith("conversation_created", {
+        conversation_id: "conv-1",
+        task_id: "conv-1",
+        // real conversation_id => ready immediately (local)
+        is_start_task: false,
+        has_repository: false,
+        git_provider: undefined,
+        has_workspace: true,
+        workspace_mode: "local_repo",
+        has_initial_query: false,
+        agent_type: undefined,
+        has_parent_conversation: false,
+        entry_point: "sidebar_local_menu",
+        ...COMMON,
+      });
+    });
+
+    it("captures agent_type and has_parent_conversation for a plan sub-conversation", () => {
+      getTracking().trackConversationCreated({
+        conversationId: "task-plan-1",
+        taskId: "plan-1",
+        hasRepository: false,
+        hasWorkspace: false,
+        hasInitialQuery: false,
+        agentType: "plan",
+        hasParentConversation: true,
+        entryPoint: "plan_sub_conversation",
+      });
+
+      expect(captureMock).toHaveBeenCalledWith(
+        "conversation_created",
+        expect.objectContaining({
+          agent_type: "plan",
+          has_parent_conversation: true,
+        }),
+      );
     });
   });
 
@@ -262,41 +332,55 @@ describe("useTracking", () => {
     });
   });
 
-  describe("consent gate", () => {
-    it("does not capture when posthog is not initialized", () => {
-      posthogMock = undefined;
-
-      getTracking().trackPushButtonClick();
-
-      expect(captureMock).not.toHaveBeenCalled();
-    });
-
-    it("does not capture when user_consents_to_analytics is false", () => {
+  describe("shared telemetry boundary", () => {
+    it("delegates consent enforcement when backend settings report false", () => {
       useSettingsMock.mockReturnValue({
         data: { email: TEST_EMAIL, user_consents_to_analytics: false },
       });
 
       getTracking().trackPushButtonClick();
 
-      expect(captureMock).not.toHaveBeenCalled();
+      expect(captureMock).toHaveBeenCalledWith(
+        "push_button_clicked",
+        expect.objectContaining(COMMON),
+      );
     });
 
-    it("does not capture when user_consents_to_analytics is null", () => {
+    it("delegates consent enforcement when backend settings report null", () => {
       useSettingsMock.mockReturnValue({
         data: { email: TEST_EMAIL, user_consents_to_analytics: null },
       });
 
       getTracking().trackPushButtonClick();
 
-      expect(captureMock).not.toHaveBeenCalled();
+      expect(captureMock).toHaveBeenCalledWith(
+        "push_button_clicked",
+        expect.objectContaining(COMMON),
+      );
     });
 
-    it("does not capture when settings are still loading", () => {
+    it("does not drop backend milestones while settings are loading", () => {
       useSettingsMock.mockReturnValue({ data: undefined });
 
-      getTracking().trackPushButtonClick();
+      getTracking().trackBackendAdded({
+        backendKind: "cloud",
+        connectionMethod: "cloud_login",
+        isOpenhandsCloud: true,
+        isCustomHost: false,
+        hasApiKey: true,
+        source: "onboarding",
+      });
 
-      expect(captureMock).not.toHaveBeenCalled();
+      expect(captureMock).toHaveBeenCalledWith(
+        "backend_added",
+        expect.objectContaining({
+          backend_kind: "cloud",
+          connection_method: "cloud_login",
+          is_openhands_cloud: true,
+          source: "onboarding",
+          user_email: null,
+        }),
+      );
     });
   });
 

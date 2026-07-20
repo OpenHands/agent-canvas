@@ -3,11 +3,13 @@ import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsSwitch } from "#/components/features/settings/settings-switch";
+import { SkillIconBadge } from "#/components/features/skills/skill-icon-badge";
 import { I18nKey } from "#/i18n/declaration";
 import { cn } from "#/utils/utils";
 import { modalTitleLgClassName } from "#/utils/modal-classes";
 import { extensionModuleCardPillClassName } from "#/utils/extension-module-card-classes";
 import type { PluginViewModel } from "./build-plugins-view-model";
+import { PluginFilesSection } from "./plugin-files-section";
 
 interface PluginDetailModalProps {
   plugin: PluginViewModel;
@@ -18,6 +20,7 @@ interface PluginDetailModalProps {
   onUninstall: () => void;
   onRefresh: () => void;
   onClose: () => void;
+  onStartConversation?: () => void;
 }
 
 export function PluginDetailModal({
@@ -29,6 +32,7 @@ export function PluginDetailModal({
   onUninstall,
   onRefresh,
   onClose,
+  onStartConversation,
 }: PluginDetailModalProps) {
   const { t } = useTranslation("openhands");
   const actionsDisabled = isDisabled || isBusy;
@@ -38,7 +42,7 @@ export function PluginDetailModal({
       <div
         data-testid="plugin-detail-modal"
         data-plugin-name={plugin.name}
-        className="relative flex w-[520px] max-w-[90vw] max-h-[85vh] flex-col rounded-xl border border-[var(--oh-border)] bg-base-secondary"
+        className="relative flex w-[640px] max-w-[90vw] max-h-[85vh] flex-col rounded-xl border border-[var(--oh-border)] bg-base-secondary"
       >
         <ModalCloseButton
           onClose={onClose}
@@ -62,6 +66,11 @@ export function PluginDetailModal({
           ) : null}
 
           <div className="flex flex-wrap gap-2">
+            {plugin.isLocal ? (
+              <span className={extensionModuleCardPillClassName}>
+                {t(I18nKey.SETTINGS$PLUGINS_FILTER_LOCAL)}
+              </span>
+            ) : null}
             {plugin.version ? (
               <span className={extensionModuleCardPillClassName}>
                 {t(I18nKey.SETTINGS$SKILLS_VERSION, {
@@ -96,6 +105,39 @@ export function PluginDetailModal({
               )}
             </SettingsSwitch>
           ) : null}
+
+          {plugin.skills?.length ? (
+            <section className="flex min-w-0 flex-col gap-2">
+              <h3 className="text-sm font-medium text-white">
+                {t(I18nKey.SETTINGS$PLUGINS_SKILLS_IN_BUNDLE)}
+              </h3>
+              <ul className="flex min-w-0 flex-col gap-2">
+                {plugin.skills.map((skill) => (
+                  <li
+                    key={skill.name}
+                    data-testid={`plugin-bundled-skill-${skill.name}`}
+                    className="flex items-start gap-3 rounded-lg border border-[var(--oh-border)] bg-[rgba(255,255,255,0.04)] px-3 py-2.5"
+                  >
+                    <SkillIconBadge skillName={skill.name} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-white">
+                        {skill.name}
+                      </p>
+                      {skill.description ? (
+                        <p className="mt-0.5 break-words text-xs leading-relaxed text-tertiary-light">
+                          {skill.description}
+                        </p>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {plugin.path && plugin.files?.length ? (
+            <PluginFilesSection basePath={plugin.path} files={plugin.files} />
+          ) : null}
         </div>
 
         <footer className="flex flex-shrink-0 flex-wrap justify-end gap-2 px-6 pb-6 pt-4">
@@ -120,10 +162,10 @@ export function PluginDetailModal({
                 {t(I18nKey.SETTINGS$PLUGINS_UNINSTALL)}
               </BrandButton>
             </>
-          ) : (
+          ) : plugin.isLocal ? null : (
             <BrandButton
               type="button"
-              variant="primary"
+              variant="secondary"
               testId={`plugin-detail-install-${plugin.name}`}
               isDisabled={actionsDisabled}
               onClick={onInstall}
@@ -135,6 +177,16 @@ export function PluginDetailModal({
               )}
             </BrandButton>
           )}
+          {plugin.source && onStartConversation ? (
+            <BrandButton
+              type="button"
+              variant="secondary"
+              testId={`plugin-detail-start-conversation-${plugin.name}`}
+              onClick={onStartConversation}
+            >
+              {t(I18nKey.COMMON$START_CONVERSATION)}
+            </BrandButton>
+          ) : null}
           <BrandButton
             type="button"
             variant="secondary"

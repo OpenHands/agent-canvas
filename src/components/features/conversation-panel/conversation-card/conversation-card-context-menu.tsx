@@ -185,7 +185,7 @@ export function ConversationCardContextMenu({
             >
               <ConversationNameContextMenuIconText
                 icon={<DownloadIcon width={16} height={16} />}
-                text={t(I18nKey.BUTTON$EXPORT_CONVERSATION)}
+                text={t(I18nKey.BUTTON$DOWNLOAD_CONVERSATION_DATA)}
               />
             </ContextMenuListItem>
           ),

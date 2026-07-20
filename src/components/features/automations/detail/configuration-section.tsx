@@ -29,7 +29,7 @@ function FilterExpression({ filter }: { filter: string }) {
 
   return (
     <div className="flex flex-col gap-1">
-      <span className="break-all">
+      <span className="font-mono break-all">
         {isLong && !expanded
           ? `${filter.slice(0, FILTER_TRUNCATE_LENGTH)}…`
           : filter}

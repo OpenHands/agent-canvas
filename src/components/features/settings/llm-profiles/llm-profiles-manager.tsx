@@ -11,7 +11,7 @@ import ProfilesService, {
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useActivateLlmProfile } from "#/hooks/mutation/use-activate-llm-profile";
 import { useSaveLlmProfile } from "#/hooks/mutation/use-save-llm-profile";
-import { useCanManageLlmProfiles } from "#/hooks/use-can-manage-llm-profiles";
+import { useCanManageOrgProfiles } from "#/hooks/use-can-manage-org-profiles";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -33,7 +33,7 @@ export function LlmProfilesManager({
   const saveProfile = useSaveLlmProfile();
   // Cloud members are view-only; only owners/admins (and all local users) may
   // add, edit, rename, duplicate, delete, or activate profiles.
-  const canManage = useCanManageLlmProfiles();
+  const canManage = useCanManageOrgProfiles();
   const [profileToRename, setProfileToRename] = useState<ProfileInfo | null>(
     null,
   );

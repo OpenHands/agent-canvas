@@ -337,11 +337,17 @@ async function retryOnTransient(
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const resp =
-        method === "GET" ? await request.get(url, options) :
-        method === "PATCH" ? await request.patch(url, options) :
-        method === "POST" ? await request.post(url, options) :
-        await request.delete(url, options);
-      if ((resp.status() === 502 || resp.status() === 503) && attempt < retries) {
+        method === "GET"
+          ? await request.get(url, options)
+          : method === "PATCH"
+            ? await request.patch(url, options)
+            : method === "POST"
+              ? await request.post(url, options)
+              : await request.delete(url, options);
+      if (
+        (resp.status() === 502 || resp.status() === 503) &&
+        attempt < retries
+      ) {
         await new Promise((r) => setTimeout(r, delayMs));
         continue;
       }
@@ -357,7 +363,12 @@ async function retryOnTransient(
       throw err;
     }
   }
-  throw (lastError ?? new Error(`retryOnTransient: exhausted ${retries} attempts for ${method} ${url}`));
+  throw (
+    lastError ??
+    new Error(
+      `retryOnTransient: exhausted ${retries} attempts for ${method} ${url}`,
+    )
+  );
 }
 
 /**
@@ -371,12 +382,17 @@ export async function ensureMockLLMProfileViaAPI(
   request: APIRequestContext,
   model = "openai/mock-test-model",
 ) {
-  const settingsResp = await retryOnTransient(request, "GET", `${BACKEND_URL}/api/settings`, {
-    headers: {
-      "X-Session-API-Key": SESSION_API_KEY,
-      "X-Expose-Secrets": "encrypted",
+  const settingsResp = await retryOnTransient(
+    request,
+    "GET",
+    `${BACKEND_URL}/api/settings`,
+    {
+      headers: {
+        "X-Session-API-Key": SESSION_API_KEY,
+        "X-Expose-Secrets": "encrypted",
+      },
     },
-  });
+  );
 
   if (settingsResp.ok()) {
     const settings = await settingsResp.json();
@@ -386,21 +402,26 @@ export async function ensureMockLLMProfileViaAPI(
     }
   }
 
-  const patchResp = await retryOnTransient(request, "PATCH", `${BACKEND_URL}/api/settings`, {
-    headers: {
-      "X-Session-API-Key": SESSION_API_KEY,
-      "Content-Type": "application/json",
-    },
-    data: {
-      agent_settings_diff: {
-        llm: {
-          model,
-          api_key: "mock-api-key-for-testing",
-          base_url: MOCK_LLM_AGENT_URL,
+  const patchResp = await retryOnTransient(
+    request,
+    "PATCH",
+    `${BACKEND_URL}/api/settings`,
+    {
+      headers: {
+        "X-Session-API-Key": SESSION_API_KEY,
+        "Content-Type": "application/json",
+      },
+      data: {
+        agent_settings_diff: {
+          llm: {
+            model,
+            api_key: "mock-api-key-for-testing",
+            base_url: MOCK_LLM_AGENT_URL,
+          },
         },
       },
     },
-  });
+  );
   expect(
     patchResp.ok(),
     `PATCH /api/settings failed: ${patchResp.status()}`,
@@ -433,19 +454,110 @@ export async function ensureMockLLMProfile(
   } = {},
 ) {
   await routeSessionApiKey(page);
+  try {
+    await ensureMockLLMAgentProfile(page.request, profileName);
+  } catch {
+    // The target LLM profile may not exist yet on clean state. In that case the
+    // default agent is already OpenHands, so the LLM settings route stays usable.
+  }
   await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
   await dismissAnalyticsModal(page);
   await waitForTestId(page, "add-llm-profile");
 
-  // If a profile with this name already exists, delete it first so we
-  // always start clean (other tests may have left stale config).
-  await deleteProfileIfExists(page, profileName);
-
-  // ── Create the profile ──────────────────────────────────────────────
-  await createProfileViaUI(page, { profileName, model, apiKey, baseUrl });
+  // ── Create the profile, or edit it in place if it already exists ────
+  // Edit rather than delete-and-recreate: once the active agent profile
+  // references this LLM profile (wired below via ensureMockLLMAgentProfile,
+  // #1571), the LLMProfile FK guard rejects deletion and the delete-confirm
+  // modal silently stays open, its backdrop blocking every later click.
+  // Editing in place never deletes the profile (id/name stay stable), so it
+  // sidesteps the FK guard while still converging onto the caller's
+  // requested model/apiKey/baseUrl every time — a prior test in the same run
+  // may have left a same-named profile configured for a *different* model
+  // (e.g. image-upload's vision-capable override), so skipping the write
+  // whenever the profile already exists silently keeps the wrong config.
+  const exists =
+    (await page
+      .getByTestId("profile-row")
+      .filter({ has: page.locator(`span[title="${profileName}"]`) })
+      .count()) > 0;
+  if (exists) {
+    await editProfileViaUI(page, { profileName, model, apiKey, baseUrl });
+  } else {
+    await createProfileViaUI(page, { profileName, model, apiKey, baseUrl });
+  }
 
   // ── Activate the profile ────────────────────────────────────────────
   await activateProfileViaUI(page, profileName);
+
+  // ── Point the active agent profile at this LLM profile ──────────────
+  // Conversations launch from the active AGENT profile (#1571), and the home
+  // composer's "LLM ready" gate follows that profile's `llm_profile_ref` — not
+  // the active LLM profile. The seeded "default" agent profile references a
+  // keyless LLM, so activating an LLM profile alone leaves the composer
+  // blocked. Mirror onboarding: wire the "default" agent profile to this key.
+  await ensureMockLLMAgentProfile(page.request, profileName);
+}
+
+/**
+ * Upsert + activate the well-known "default" agent profile so it references the
+ * given LLM profile — the same thing onboarding does for a real user (#1571).
+ *
+ * Reusing the "default" name upserts the seeded profile (its id is preserved on
+ * overwrite) rather than spawning a parallel one.
+ */
+export async function ensureMockLLMAgentProfile(
+  request: APIRequestContext,
+  llmProfileRef = "mock-llm",
+) {
+  const name = "default";
+  const headers = {
+    "X-Session-API-Key": SESSION_API_KEY,
+    "Content-Type": "application/json",
+  };
+
+  const saveResp = await retryOnTransient(
+    request,
+    "POST",
+    `${BACKEND_URL}/api/agent-profiles/${encodeURIComponent(name)}`,
+    {
+      headers,
+      // disabled_skills omitted: an OpenHands profile launches with all
+      // discovered skills by default (an empty deny-list) — software-agent-sdk#4017.
+      data: {
+        agent_kind: "openhands",
+        llm_profile_ref: llmProfileRef,
+      },
+    },
+  );
+  expect(
+    saveResp.ok(),
+    `save agent profile "${name}": ${saveResp.status()}`,
+  ).toBe(true);
+
+  // Activate needs the stable id; the save response only echoes the name.
+  const detailResp = await retryOnTransient(
+    request,
+    "GET",
+    `${BACKEND_URL}/api/agent-profiles/${encodeURIComponent(name)}`,
+    { headers },
+  );
+  expect(
+    detailResp.ok(),
+    `get agent profile "${name}": ${detailResp.status()}`,
+  ).toBe(true);
+  const id = (await detailResp.json())?.profile?.id as string | undefined;
+  expect(id, `agent profile "${name}" id`).toBeTruthy();
+
+  const activateResp = await retryOnTransient(
+    request,
+    "POST",
+    `${BACKEND_URL}/api/agent-profiles/${encodeURIComponent(id!)}/activate`,
+    { headers, data: {} },
+  );
+  expect(
+    activateResp.ok(),
+    `activate agent profile "${name}": ${activateResp.status()}`,
+  ).toBe(true);
 }
 
 /**
@@ -455,7 +567,12 @@ export async function ensureMockLLMProfile(
  * (the "add-llm-profile" button is visible).  Does NOT activate the
  * profile — call `activateProfileViaUI` separately if needed.
  */
-export async function createProfileViaUI(
+/**
+ * Fill the LLM profile editor's fields and save. Shared by the create flow
+ * ("Add LLM Profile") and the edit flow ("Edit" on an existing row) — both
+ * land on the same editor form/testids.
+ */
+async function fillLlmProfileEditorAndSave(
   page: Page,
   {
     profileName,
@@ -469,7 +586,6 @@ export async function createProfileViaUI(
     baseUrl?: string;
   },
 ) {
-  await page.getByTestId("add-llm-profile").click();
   await waitForTestId(page, "profile-editor-title");
 
   const nameInput = page.getByTestId("profile-name-input");
@@ -494,6 +610,47 @@ export async function createProfileViaUI(
 
   await page.getByTestId("save-profile-btn").click();
   await waitForTestId(page, "add-llm-profile");
+}
+
+/**
+ * Create a new LLM profile and activate it through the Settings UI.
+ * Assumes the page is already on /settings/llm with profiles loaded.
+ */
+export async function createProfileViaUI(
+  page: Page,
+  options: {
+    profileName: string;
+    model: string;
+    apiKey?: string;
+    baseUrl?: string;
+  },
+) {
+  await page.getByTestId("add-llm-profile").click();
+  await fillLlmProfileEditorAndSave(page, options);
+}
+
+/**
+ * Edit an existing LLM profile's config (model/apiKey/baseUrl) through the
+ * Settings UI. Assumes the page is already on /settings/llm with profiles
+ * loaded and a profile named `options.profileName` exists.
+ */
+export async function editProfileViaUI(
+  page: Page,
+  options: {
+    profileName: string;
+    model: string;
+    apiKey?: string;
+    baseUrl?: string;
+  },
+) {
+  const row = page
+    .getByTestId("profile-row")
+    .filter({ has: page.locator(`span[title="${options.profileName}"]`) })
+    .first();
+  await row.getByTestId("profile-menu-trigger").click();
+  await waitForTestId(page, "profile-actions-menu");
+  await page.getByTestId("profile-edit").click();
+  await fillLlmProfileEditorAndSave(page, options);
 }
 
 /**
@@ -527,49 +684,47 @@ export async function deleteProfileIfExists(page: Page, profileName: string) {
 /**
  * Activate a profile by name through the Settings UI.
  * Assumes the page is already on /settings/llm with profiles loaded.
- * Polls until the "Active" badge is visible on the target profile row.
+ * Retries the "Set active" gesture until the "Active" badge appears on the row.
  */
 export async function activateProfileViaUI(page: Page, profileName: string) {
-  const exactRow = (p: Page) =>
-    p
-      .getByTestId("profile-row")
-      .filter({ has: p.locator(`span[title="${profileName}"]`) })
-      .first();
+  const row = page
+    .getByTestId("profile-row")
+    .filter({ has: page.locator(`span[title="${profileName}"]`) })
+    .first();
 
-  const row = exactRow(page);
-  if ((await row.count()) > 0) {
-    await row.getByTestId("profile-menu-trigger").click();
-    await waitForTestId(page, "profile-actions-menu");
+  // `createProfileViaUI` only waits for the editor to close, not for the new
+  // row to render in the list, so wait for the row explicitly before acting
+  // on it. Skipping this is what let the old poll dead-end: if the row was not
+  // yet in the DOM, the activation gesture below was never attempted.
+  await expect(row).toBeVisible({ timeout: 15_000 });
+
+  const activeBadge = row.getByTestId("profile-active-badge");
+
+  // Retry the open-menu → "Set active" gesture until the badge shows. The badge
+  // updates reactively — `useActivateLlmProfile` invalidates the profiles query
+  // on success, which refetches `active_profile` and re-renders the row — so no
+  // page reload is needed and a dropped click self-heals on the next attempt.
+  //
+  // Every wait inside the block is capped well below the `.toPass` budget: the
+  // failure this heals is a menu that didn't open (dropped click / not-yet-
+  // loaded menu), and `waitForTestId`'s 30s default — plus `click`'s unbounded
+  // `actionTimeout` — would otherwise swallow the whole 30s window in a single
+  // tick, leaving no room to retry the very gesture that flaked.
+  await expect(async () => {
+    if (await activeBadge.isVisible()) return; // already active
+
+    // The menu trigger toggles, so reset any menu left open by a prior attempt
+    // before re-opening — otherwise a retry would close the menu it just opened.
+    await page.keyboard.press("Escape");
+    await row.getByTestId("profile-menu-trigger").click({ timeout: 5_000 });
+    await waitForTestId(page, "profile-actions-menu", 5_000);
     const setActive = page.getByTestId("profile-set-active");
     if (await setActive.isEnabled()) {
-      await setActive.click();
-    } else {
-      // Already active
-      await page.keyboard.press("Escape");
+      await setActive.click({ timeout: 5_000 });
     }
-  }
 
-  // Poll until the active badge appears on our profile
-  await expect
-    .poll(
-      async () => {
-        await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
-        await waitForTestId(page, "add-llm-profile");
-        const target = exactRow(page);
-        if ((await target.count()) === 0) return false;
-        return (await target.getByTestId("profile-active-badge").count()) > 0;
-      },
-      {
-        // Each poll iteration reloads /settings/llm and re-fetches settings,
-        // so a slow backend (activation PATCH + settings propagation) needs
-        // headroom beyond a couple of reloads. 30s keeps this robust under
-        // added proxy latency without masking a genuine activation failure.
-        message: `Profile "${profileName}" should have an "Active" badge`,
-        timeout: 30_000,
-        intervals: [1_000, 2_000, 3_000],
-      },
-    )
-    .toBe(true);
+    await expect(activeBadge).toBeVisible({ timeout: 5_000 });
+  }).toPass({ timeout: 30_000, intervals: [500, 1_000, 2_000] });
 }
 
 /**
@@ -595,21 +750,57 @@ export async function selectDropdownOption(
 }
 
 /**
- * Reset agent type back to OpenHands through the Settings → Agent UI.
+ * Open the Settings → Agent profiles editor for a named profile.
+ * Assumes the page can navigate freely (not already mid-flow elsewhere).
+ *
+ * Settings → Agent is now the Agent Profile library (#1571): the standalone
+ * `/settings/agent` form was retired in favor of `/settings/agents`, whose
+ * editor reuses the same embedded `agent-settings-screen` form. Locates the
+ * row by the profile-name span's `title` attribute (mirrors `exactRow` in
+ * `activateProfileViaUI` below) to avoid substring collisions between
+ * profile names.
+ */
+export async function openAgentProfileEditor(page: Page, profileName: string) {
+  await routeSessionApiKey(page);
+  await page.goto("/settings/agents", { waitUntil: "domcontentloaded" });
+  await dismissAnalyticsModal(page);
+
+  const row = page
+    .getByTestId("agent-profile-row")
+    .filter({ has: page.locator(`span[title="${profileName}"]`) })
+    .first();
+  await expect(row).toBeVisible({ timeout: 10_000 });
+  await row.getByTestId("agent-profile-menu-trigger").click();
+  await waitForTestId(page, "agent-profile-actions-menu");
+  await page.getByTestId("agent-profile-edit").click();
+  await waitForTestId(page, "agent-settings-screen");
+}
+
+/**
+ * Reset agent type back to OpenHands through the Settings → Agent profiles UI.
  * Used in afterAll cleanup to restore the default agent for subsequent tests.
  */
 export async function resetToOpenHandsAgentViaUI(page: Page) {
-  await routeSessionApiKey(page);
-  await page.goto("/settings/agent", { waitUntil: "domcontentloaded" });
-  await dismissAnalyticsModal(page);
-  await waitForTestId(page, "agent-settings-screen");
+  await openAgentProfileEditor(page, "default");
 
   await selectDropdownOption(page, /Agent/, /OpenHands/);
 
-  const saveBtn = page.getByTestId("agent-save-button");
+  // The LLM-profile selector only appears for openhands-kind profiles, and
+  // is required to save — pick one if the switch left it unset.
+  const llmSelector = page.getByRole("combobox", { name: /LLM/ });
+  if (await llmSelector.isVisible().catch(() => false)) {
+    const value = await llmSelector.inputValue().catch(() => "");
+    if (!value) {
+      await llmSelector.click();
+      await page.getByRole("option").first().click();
+    }
+  }
+
+  const saveBtn = page.getByTestId("save-agent-profile-btn");
   await expect(saveBtn).toBeEnabled({ timeout: 5_000 });
   await saveBtn.click();
-  await expect(saveBtn).toBeDisabled({ timeout: 10_000 });
+  // A successful save returns the editor to the profile list.
+  await waitForTestId(page, "add-agent-profile", 10_000);
 }
 
 /**
@@ -620,7 +811,12 @@ export async function registerTrajectory(
   request: APIRequestContext,
   name: string,
   turns: Array<
-    | { tool_call: { name: string; arguments: Record<string, unknown> | string } }
+    | {
+        tool_call: {
+          name: string;
+          arguments: Record<string, unknown> | string;
+        };
+      }
     | { text: string }
   >,
 ) {
@@ -631,7 +827,9 @@ export async function registerTrajectory(
       headers: { "Content-Type": "application/json" },
     },
   );
-  expect(resp.ok(), `Register trajectory "${name}": ${resp.status()}`).toBe(true);
+  expect(resp.ok(), `Register trajectory "${name}": ${resp.status()}`).toBe(
+    true,
+  );
 }
 
 /**
@@ -648,7 +846,9 @@ export async function activateTrajectory(
       headers: { "Content-Type": "application/json" },
     },
   );
-  expect(resp.ok(), `Activate trajectory "${name}": ${resp.status()}`).toBe(true);
+  expect(resp.ok(), `Activate trajectory "${name}": ${resp.status()}`).toBe(
+    true,
+  );
 }
 
 /**
@@ -771,9 +971,7 @@ export const MOCK_ACP_COMMAND_SCRIPT =
  * @deprecated Use `resetToOpenHandsAgentViaUI(page)` to exercise the UI path.
  * Kept only for callers that cannot open a page (should not exist in new tests).
  */
-export async function resetToOpenHandsAgent(
-  request: APIRequestContext,
-) {
+export async function resetToOpenHandsAgent(request: APIRequestContext) {
   const resp = await request.patch(`${BACKEND_URL}/api/settings`, {
     headers: {
       "X-Session-API-Key": SESSION_API_KEY,

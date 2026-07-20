@@ -221,13 +221,21 @@ const THEME_STYLE_TAG_ID = "oh-color-theme-override";
  *   PostCSS transforms :root / body to [data-agent-server-ui], so --cool-grey-*
  *   is set on EVERY element carrying that attribute. A body inline-style only
  *   overrides body itself — inner matching elements keep the stylesheet value.
- *   Injecting a stylesheet appended to <head> wins on equal specificity because
- *   later sheets take precedence in the cascade.
  *
  * Why heroui variables:
  *   HeroUI stores colors as HSL channels in --heroui-* vars on [data-theme=dark].
  *   They reference their own token system and are unaffected by --cool-grey-*
  *   changes, so we override them from the same injected sheet.
+ *
+ * Why doubled selectors + re-append on every call:
+ *   "Later sheet wins the tie" cannot be relied on: in the built SPA
+ *   (ssr:false, prerendered shell) React 19 re-creates the <head> elements it
+ *   manages (<Meta/>/<Links/>) whenever the tree above the router remounts.
+ *   That can re-insert the base stylesheet <link> AFTER this tag, allowing its
+ *   unlayered [data-agent-server-ui] variable rules (0,1,0) to win every tie.
+ *   Doubling the attribute selectors ([x][x], 0,2,0) beats them from any
+ *   position in <head>; re-appending on each apply keeps document order
+ *   favorable as well.
  */
 export function applyColorTheme(key: ColorThemeKey): void {
   if (typeof document === "undefined") return;
@@ -250,9 +258,11 @@ export function applyColorTheme(key: ColorThemeKey): void {
   //     portalled popover/listbox content inherits the overridden values.
   //   [data-theme=dark]      — covers the inner AgentServerUIRoot wrapper so
   //     components scoped inside the dark theme wrapper also pick them up.
+  // Both are doubled to out-specify the base sheet regardless of stylesheet
+  // order (see the doc comment above).
   const css = [
-    `[data-agent-server-ui] {\n${scaleDecls}\n${herouiDecls}\n${tokenDecls}\n}`,
-    `[data-theme=dark] {\n${herouiDecls}\n}`,
+    `[data-agent-server-ui][data-agent-server-ui] {\n${scaleDecls}\n${herouiDecls}\n${tokenDecls}\n}`,
+    `[data-theme=dark][data-theme=dark] {\n${herouiDecls}\n}`,
   ].join("\n");
 
   let styleEl = document.getElementById(
@@ -261,9 +271,11 @@ export function applyColorTheme(key: ColorThemeKey): void {
   if (!styleEl) {
     styleEl = document.createElement("style");
     styleEl.id = THEME_STYLE_TAG_ID;
-    document.head.appendChild(styleEl);
   }
   styleEl.textContent = css;
+  // Re-append even when the tag already exists (appendChild relocates a
+  // connected node) so the override also stays after any re-inserted <link>.
+  document.head.appendChild(styleEl);
 
   syncColorThemeTokensOnScopeRoots(tokens);
 }

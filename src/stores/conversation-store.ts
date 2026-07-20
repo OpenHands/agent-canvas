@@ -62,6 +62,7 @@ interface ConversationActions {
   removeImageLoading: (imageName: string) => void;
   clearAllLoading: () => void;
   setMessageToSend: (text: string) => void;
+  clearMessageToSend: () => void;
   restoreMessageToInputIfEmpty: (text: string) => void;
   clearMessageRestoreIfEmpty: () => void;
   setSubmittedMessage: (message: string | null) => void;
@@ -292,6 +293,11 @@ export const useConversationStore = create<ConversationStore>()(
           false,
           "setMessageToSend",
         ),
+
+      // One-shot consume: clear after the composer applies it, so a never-sent
+      // value can't replay into another conversation's composer on remount.
+      clearMessageToSend: () =>
+        set({ messageToSend: null }, false, "clearMessageToSend"),
 
       restoreMessageToInputIfEmpty: (text) =>
         set(

@@ -18,50 +18,200 @@
  * - VITE_POSTHOG_UI_HOST: PostHog UI host (defaults to https://us.posthog.com)
  *
  * IMPORTANT: By default, telemetry is sent to the OpenHands PostHog project.
- * Library consumers can override this by setting VITE_POSTHOG_API_KEY.
+ * Source builds can override this with VITE_POSTHOG_API_KEY. Precompiled
+ * library consumers can pass the same settings to configureTelemetry().
  *
  * Users can disable all telemetry (including install tracking) via:
  * - Setting VITE_DO_NOT_TRACK=1 environment variable
  * - Browser's Do Not Track setting
  */
 
-import type { PostHog } from "posthog-js";
+import type { BootstrapConfig, CaptureResult, PostHog } from "posthog-js";
+import { getLockedCloudAuthMode } from "#/api/agent-server-config";
 import packageJson from "../../package.json";
+import {
+  AGENT_CANVAS_CLIENT_SOURCE,
+  AGENT_CANVAS_CLIENT_VERSION,
+} from "#/api/client-source";
 
 const TELEMETRY_CONSENT_KEY = "openhands-telemetry-consent";
+const TELEMETRY_CONSENT_PENDING_CLOUD_SYNC_KEY =
+  "openhands-telemetry-consent-pending-cloud-sync";
+const TELEMETRY_CONSENT_CHANGE_EVENT = "openhands-telemetry-consent-change";
 const TELEMETRY_FIRST_USE_KEY = "openhands-telemetry-first-use";
 const TELEMETRY_SESSION_KEY = "openhands-telemetry-session";
+const POSTHOG_INSTANCE_NAME = "agent-canvas";
 
-// PostHog project keys — one per deployment environment, hardcoded so they
-// are baked into the static bundle at build time and cannot drift at runtime.
-// Replace POSTHOG_STAGING_KEY with a dedicated project key once provisioned.
-const POSTHOG_PROD_KEY = "phc_BgzfxKdgsYMLFTmJqt424ZoyVHvKFfrwttLimzdYTKFK";
+// Unconfigured source builds use staging. Production release workflows pass
+// VITE_POSTHOG_API_KEY explicitly for both the app and library artifacts.
 const POSTHOG_STAGING_KEY = "phc_kBtz5nKmxVRRQ7HtPwr2QX9eMC5j65zE86QKocVNwb4U";
-
-// Always use the staging key unless VITE_APP_ENV is explicitly set to
-// "production" at bundle time (hardcoded in build:lib and production CI).
-// Library consumers can always override with VITE_POSTHOG_API_KEY.
-const POSTHOG_API_KEY: string =
+const DEFAULT_POSTHOG_API_KEY: string =
   (import.meta.env.VITE_POSTHOG_API_KEY as string | undefined) ||
-  (import.meta.env.VITE_APP_ENV === "production"
-    ? POSTHOG_PROD_KEY
-    : POSTHOG_STAGING_KEY);
+  POSTHOG_STAGING_KEY;
 
 // Default to OpenHands' reverse proxy to bypass ad blockers.
 // The proxy at z.openhands.dev routes to PostHog's US region.
 // Library consumers can override this with their own proxy or direct PostHog URL.
-const POSTHOG_HOST =
+const DEFAULT_POSTHOG_HOST =
   import.meta.env.VITE_POSTHOG_HOST || "https://z.openhands.dev";
 
 // UI host is needed for PostHog features like toolbar to work correctly
 // when using a reverse proxy. Defaults to US region.
-const POSTHOG_UI_HOST =
+const DEFAULT_POSTHOG_UI_HOST =
   import.meta.env.VITE_POSTHOG_UI_HOST || "https://us.posthog.com";
 
-export type TelemetryConsent = "granted" | "denied" | "pending";
+export interface TelemetryConfig {
+  /** PostHog project key. Useful for precompiled library consumers. */
+  apiKey?: string;
+  /** Event ingestion host or reverse proxy. */
+  apiHost?: string;
+  /** PostHog UI host used by toolbar links and other UI features. */
+  uiHost?: string;
+}
 
-let isInitialized = false;
+export type TelemetryConfiguration = TelemetryConfig | false;
+
+export type TelemetryConsent = "granted" | "denied" | "pending";
+export type ResolvedTelemetryConsent = Exclude<TelemetryConsent, "pending">;
+
+export interface SetTelemetryConsentOptions {
+  /** Do not persist a value mirrored from backend settings back to Cloud. */
+  syncToCloud?: boolean;
+}
+
 let posthogInstance: PostHog | null = null;
+let initializationPromise: Promise<PostHog | null> | null = null;
+let pendingBootstrap: BootstrapConfig | undefined;
+let telemetryConfig: TelemetryConfig = {};
+let telemetryDisabled = false;
+
+interface TelemetryIdentity {
+  distinctId: string;
+  properties: Record<string, unknown>;
+}
+
+// undefined means that Cloud identity has not resolved yet; null means that it
+// resolved without a user. This distinction prevents startup from resetting a
+// persisted identity while the current account is still loading.
+let desiredTelemetryIdentity: TelemetryIdentity | null | undefined;
+let desiredIdentityRevision = 0;
+let appliedIdentityRevision = -1;
+
+const CANVAS_EVENT_PROPERTIES = Object.freeze({
+  client_source: AGENT_CANVAS_CLIENT_SOURCE,
+  client_version: AGENT_CANVAS_CLIENT_VERSION,
+  package_name: packageJson.name,
+  package_version: packageJson.version,
+});
+
+function addCanvasEventProperties(
+  event: CaptureResult | null,
+): CaptureResult | null {
+  if (!event) return null;
+
+  return {
+    ...event,
+    properties: {
+      ...event.properties,
+      ...CANVAS_EVENT_PROPERTIES,
+    },
+  };
+}
+
+function restorePostHogConsent(posthog: PostHog): void {
+  if (telemetryDisabled || getTelemetryConsent() !== "granted") {
+    posthog.opt_out_capturing();
+  } else {
+    posthog.opt_in_capturing();
+  }
+}
+
+function resetPostHogIdentity(posthog: PostHog, resetDeviceId = false): void {
+  posthog.reset(resetDeviceId);
+  appliedIdentityRevision = -1;
+  // PostHog reset clears its own consent persistence, so immediately restore
+  // the canonical Canvas decision kept in localStorage.
+  restorePostHogConsent(posthog);
+}
+
+function applyDesiredTelemetryIdentity(posthog: PostHog): void {
+  if (desiredTelemetryIdentity === undefined || !isTelemetryEnabled()) return;
+
+  const desiredId = desiredTelemetryIdentity?.distinctId;
+  const currentId = posthog.get_property("$user_id");
+  if (currentId != null && currentId !== desiredId) {
+    resetPostHogIdentity(posthog);
+  }
+
+  if (desiredTelemetryIdentity === null) {
+    appliedIdentityRevision = desiredIdentityRevision;
+    return;
+  }
+
+  if (
+    posthog.get_property("$user_id") !== desiredTelemetryIdentity.distinctId ||
+    appliedIdentityRevision !== desiredIdentityRevision
+  ) {
+    posthog.identify(
+      desiredTelemetryIdentity.distinctId,
+      desiredTelemetryIdentity.properties,
+    );
+    appliedIdentityRevision = desiredIdentityRevision;
+  }
+}
+
+function propertiesEqual(
+  left: Record<string, unknown>,
+  right: Record<string, unknown>,
+): boolean {
+  const keys = Object.keys(left);
+  return (
+    keys.length === Object.keys(right).length &&
+    keys.every((key) => left[key] === right[key])
+  );
+}
+
+/**
+ * Configure the single Canvas telemetry client before its first use.
+ * Passing false disables telemetry and install tracking for embedded hosts.
+ */
+export function configureTelemetry(config: TelemetryConfiguration): void {
+  if (config === false) {
+    if (telemetryDisabled) return;
+    telemetryDisabled = true;
+    posthogInstance?.opt_out_capturing();
+    notifyTelemetryConsentListeners();
+    return;
+  }
+
+  const wasDisabled = telemetryDisabled;
+  telemetryDisabled = false;
+
+  if (!posthogInstance && !initializationPromise) {
+    const definedConfig = Object.fromEntries(
+      Object.entries(config).filter(([, value]) => value !== undefined),
+    ) as TelemetryConfig;
+    telemetryConfig = { ...telemetryConfig, ...definedConfig };
+  }
+
+  if (wasDisabled) {
+    if (posthogInstance) {
+      restorePostHogConsent(posthogInstance);
+      applyDesiredTelemetryIdentity(posthogInstance);
+    }
+    notifyTelemetryConsentListeners();
+  }
+}
+
+function getResolvedTelemetryConfig(): Required<TelemetryConfig> | null {
+  if (telemetryDisabled) return null;
+
+  return {
+    apiKey: telemetryConfig.apiKey || DEFAULT_POSTHOG_API_KEY,
+    apiHost: telemetryConfig.apiHost || DEFAULT_POSTHOG_HOST,
+    uiHost: telemetryConfig.uiHost || DEFAULT_POSTHOG_UI_HOST,
+  };
+}
 
 /**
  * Check if we're in a browser environment
@@ -85,7 +235,6 @@ async function getPostHog(): Promise<PostHog | null> {
 
   try {
     const { default: posthog } = await import("posthog-js");
-    posthogInstance = posthog;
     return posthog;
   } catch {
     // Failed to load PostHog - telemetry will be disabled
@@ -98,6 +247,10 @@ async function getPostHog(): Promise<PostHog | null> {
  * Works in both Node.js and browser (Vite) environments.
  */
 function isDoNotTrackEnabled(): boolean {
+  if (telemetryDisabled) {
+    return true;
+  }
+
   // Check Vite environment variable (browser)
   if (
     typeof import.meta !== "undefined" &&
@@ -130,43 +283,80 @@ function isDoNotTrackEnabled(): boolean {
  * @param enableCapturing - If true, enable capturing immediately (for install tracking).
  *                          If false, start with capturing disabled (for consent-gated tracking).
  */
-async function initializePostHog(
+export function configurePostHogBootstrap(
+  bootstrap: BootstrapConfig | undefined,
+): void {
+  if (!posthogInstance) {
+    pendingBootstrap = bootstrap;
+  }
+}
+
+export async function initializePostHogClient(
   enableCapturing = false,
 ): Promise<PostHog | null> {
-  if (isInitialized) {
+  if (posthogInstance) {
     return posthogInstance;
   }
 
-  const posthog = await getPostHog();
-  if (!posthog) {
-    return null;
+  if (initializationPromise) {
+    return initializationPromise;
   }
 
-  posthog.init(POSTHOG_API_KEY, {
-    api_host: POSTHOG_HOST,
-    // UI host is required when using a reverse proxy so PostHog features work correctly
-    ui_host: POSTHOG_UI_HOST,
-    // Start with capturing disabled by default - we enable it explicitly when needed
-    opt_out_capturing_by_default: !enableCapturing,
-    // Don't auto-capture page views - we control when to track
-    capture_pageview: false,
-    // Don't auto-capture clicks etc.
-    autocapture: false,
-    // Use localStorage for persistence
-    persistence: "localStorage",
-    // Disable session recording
-    disable_session_recording: true,
-    // Set default properties for all events
-    loaded: (ph) => {
-      ph.register({
-        package_name: packageJson.name,
-        package_version: packageJson.version,
-      });
-    },
-  });
+  initializationPromise = (async () => {
+    const config = getResolvedTelemetryConfig();
+    if (!config) {
+      return null;
+    }
 
-  isInitialized = true;
-  return posthog;
+    const posthog = await getPostHog();
+    if (!posthog) {
+      return null;
+    }
+
+    // A named instance isolates Canvas configuration, consent, identity, and
+    // persistence from a host application's default PostHog singleton.
+    const initializedPostHog = posthog.init(
+      config.apiKey,
+      {
+        api_host: config.apiHost,
+        ui_host: config.uiHost,
+        opt_out_capturing_by_default: !enableCapturing,
+        capture_pageview: false,
+        autocapture: false,
+        persistence: "localStorage",
+        persistence_name: POSTHOG_INSTANCE_NAME,
+        consent_persistence_name: `${POSTHOG_INSTANCE_NAME}-consent`,
+        person_profiles: "identified_only",
+        disable_session_recording: true,
+        bootstrap: pendingBootstrap,
+        before_send: addCanvasEventProperties,
+      },
+      POSTHOG_INSTANCE_NAME,
+    );
+    if (!initializedPostHog) return null;
+
+    posthogInstance = initializedPostHog;
+    pendingBootstrap = undefined;
+
+    if (telemetryDisabled) {
+      posthogInstance.opt_out_capturing();
+    } else if (getTelemetryConsent() === "granted") {
+      posthogInstance.opt_in_capturing();
+      applyDesiredTelemetryIdentity(posthogInstance);
+    } else if (!enableCapturing) {
+      posthogInstance.opt_out_capturing();
+    }
+
+    return posthogInstance;
+  })();
+
+  try {
+    return await initializationPromise;
+  } finally {
+    if (!posthogInstance) {
+      initializationPromise = null;
+    }
+  }
 }
 
 /**
@@ -182,6 +372,10 @@ export function getTelemetryConsent(): TelemetryConsent {
     return "denied";
   }
 
+  if (getLockedCloudAuthMode() === "cookie") {
+    return "granted";
+  }
+
   try {
     const consent = localStorage.getItem(TELEMETRY_CONSENT_KEY);
     if (consent === "granted" || consent === "denied") {
@@ -195,10 +389,85 @@ export function getTelemetryConsent(): TelemetryConsent {
 }
 
 /**
+ * Return an explicit browser choice that still needs to survive a Cloud login.
+ * It remains pending across local backends so their settings cannot consume a
+ * decision that must still be applied after the user connects to Cloud.
+ */
+export function getPendingCloudTelemetryConsent(): ResolvedTelemetryConsent | null {
+  if (!isBrowser()) return null;
+
+  try {
+    const consent = localStorage.getItem(
+      TELEMETRY_CONSENT_PENDING_CLOUD_SYNC_KEY,
+    );
+    return consent === "granted" || consent === "denied" ? consent : null;
+  } catch {
+    return null;
+  }
+}
+
+export function subscribeTelemetryConsent(listener: () => void): () => void {
+  if (!isBrowser()) return () => {};
+  const handleStorage = (event: StorageEvent) => {
+    if (
+      event.key === TELEMETRY_CONSENT_KEY ||
+      event.key === TELEMETRY_CONSENT_PENDING_CLOUD_SYNC_KEY
+    ) {
+      listener();
+    }
+  };
+  window.addEventListener(TELEMETRY_CONSENT_CHANGE_EVENT, listener);
+  window.addEventListener("storage", handleStorage);
+
+  return () => {
+    window.removeEventListener(TELEMETRY_CONSENT_CHANGE_EVENT, listener);
+    window.removeEventListener("storage", handleStorage);
+  };
+}
+
+function notifyTelemetryConsentListeners(): void {
+  if (isBrowser())
+    window.dispatchEvent(new Event(TELEMETRY_CONSENT_CHANGE_EVENT));
+}
+
+function markTelemetryConsentForCloudSync(
+  consent: ResolvedTelemetryConsent,
+): void {
+  if (!isBrowser()) return;
+
+  try {
+    localStorage.setItem(TELEMETRY_CONSENT_PENDING_CLOUD_SYNC_KEY, consent);
+  } catch {
+    // Ignore storage errors; the in-browser consent decision still applies.
+  }
+}
+
+export function clearPendingCloudTelemetryConsent(
+  expected?: ResolvedTelemetryConsent,
+): void {
+  if (!isBrowser()) return;
+
+  try {
+    if (
+      expected !== undefined &&
+      localStorage.getItem(TELEMETRY_CONSENT_PENDING_CLOUD_SYNC_KEY) !==
+        expected
+    ) {
+      return;
+    }
+    localStorage.removeItem(TELEMETRY_CONSENT_PENDING_CLOUD_SYNC_KEY);
+    notifyTelemetryConsentListeners();
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
+/**
  * Set user's telemetry consent preference
  */
 export async function setTelemetryConsent(
-  consent: "granted" | "denied",
+  consent: ResolvedTelemetryConsent,
+  { syncToCloud = true }: SetTelemetryConsentOptions = {},
 ): Promise<void> {
   if (!isBrowser()) {
     return;
@@ -206,22 +475,66 @@ export async function setTelemetryConsent(
 
   try {
     localStorage.setItem(TELEMETRY_CONSENT_KEY, consent);
+    if (telemetryDisabled) return;
 
-    // Initialize PostHog if not already done
-    const posthog = await initializePostHog();
+    // Reuse an initialized client synchronously so a same-flush identify()
+    // cannot run before consent is applied. Only the cold path awaits import.
+    const posthog = posthogInstance ?? (await initializePostHogClient());
     if (!posthog) {
       return;
     }
 
     if (consent === "granted") {
-      // Enable capturing
       posthog.opt_in_capturing();
+      applyDesiredTelemetryIdentity(posthog);
     } else {
-      // Disable capturing and clear any queued events
-      posthog.opt_out_capturing();
+      if (posthog.get_property("$user_id") != null) {
+        resetPostHogIdentity(posthog);
+      } else {
+        posthog.opt_out_capturing();
+      }
     }
   } catch {
     // Ignore storage errors
+  } finally {
+    // Notify UI/backend/identity reconcilers only after the browser capture state
+    // reflects this decision. Otherwise a pre-login grant can trigger an
+    // identify while PostHog is still opted out and lose funnel continuity.
+    if (syncToCloud) {
+      markTelemetryConsentForCloudSync(consent);
+    }
+    notifyTelemetryConsentListeners();
+  }
+}
+
+/**
+ * Declare the current Cloud identity. The telemetry service applies it only
+ * after consent and owns all reset/account-switch semantics.
+ */
+export async function setTelemetryIdentity(
+  distinctId: string | null,
+  properties: Record<string, unknown> = {},
+): Promise<void> {
+  const nextIdentity = distinctId === null ? null : { distinctId, properties };
+  const unchanged =
+    desiredTelemetryIdentity === nextIdentity ||
+    (desiredTelemetryIdentity !== undefined &&
+      desiredTelemetryIdentity !== null &&
+      nextIdentity !== null &&
+      desiredTelemetryIdentity.distinctId === nextIdentity.distinctId &&
+      propertiesEqual(desiredTelemetryIdentity.properties, properties));
+  if (unchanged) return;
+
+  desiredTelemetryIdentity = nextIdentity;
+  desiredIdentityRevision += 1;
+  appliedIdentityRevision = -1;
+
+  if (!isTelemetryEnabled()) return;
+  const posthog = posthogInstance ?? (await initializePostHogClient());
+  if (posthog && isTelemetryEnabled()) {
+    // Read the desired identity after the await so a newer account always wins
+    // if identity changes while the SDK is loading.
+    applyDesiredTelemetryIdentity(posthog);
   }
 }
 
@@ -289,8 +602,8 @@ export async function trackInstall(): Promise<void> {
   }
 
   // Initialize PostHog with capturing enabled (for this one event)
-  const posthog = await initializePostHog(true);
-  if (!posthog) {
+  const posthog = await initializePostHogClient(true);
+  if (!posthog || isDoNotTrackEnabled()) {
     return;
   }
 
@@ -351,26 +664,40 @@ function markSessionSent(): void {
   }
 }
 
+/** Return the shared client only when a consented capture is safe to emit. */
+async function getPostHogForConsentedCapture(): Promise<PostHog | null> {
+  if (!isTelemetryEnabled()) return null;
+
+  const posthog = await initializePostHogClient();
+  if (!posthog || !isTelemetryEnabled()) return null;
+
+  // The browser preference is the canonical capture decision. PostHog may
+  // still carry an older opt-out marker while backend consent is loading or
+  // after a previous backend temporarily reported a stale value. Heal that
+  // drift at the event boundary so capture() cannot silently discard an event
+  // that the user has explicitly allowed.
+  if (posthog.has_opted_out_capturing?.()) {
+    posthog.opt_in_capturing();
+  }
+
+  applyDesiredTelemetryIdentity(posthog);
+
+  return posthog;
+}
+
 /**
  * Track a session start event.
  * Called each time a new browser session starts (respects consent).
  * Uses sessionStorage for deduplication - only sends once per browser session.
  */
 export async function trackSessionStart(): Promise<void> {
-  if (!isTelemetryEnabled()) {
-    return;
-  }
-
   // Already sent session event this browser session
   if (hasSessionSent()) {
     return;
   }
 
-  // Initialize PostHog if needed
-  const posthog = await initializePostHog();
-  if (!posthog) {
-    return;
-  }
+  const posthog = await getPostHogForConsentedCapture();
+  if (!posthog) return;
 
   posthog.capture("canvas_new_session", {
     is_first_use: !hasFirstUseSent(),
@@ -387,17 +714,21 @@ export async function trackEvent(
   eventName: string,
   properties: Record<string, unknown> = {},
 ): Promise<void> {
-  if (!isTelemetryEnabled()) {
-    return;
-  }
-
-  // Initialize PostHog if needed
-  const posthog = await initializePostHog();
-  if (!posthog) {
-    return;
-  }
+  const posthog = await getPostHogForConsentedCapture();
+  if (!posthog) return;
 
   posthog.capture(eventName, properties);
+}
+
+/** Track an exception through the same consent-aware client as custom events. */
+export async function trackException(
+  error: unknown,
+  properties: Record<string, unknown> = {},
+): Promise<void> {
+  const posthog = await getPostHogForConsentedCapture();
+  if (!posthog) return;
+
+  posthog.captureException(error, properties);
 }
 
 /**
@@ -411,25 +742,30 @@ export async function clearTelemetryData(): Promise<void> {
   try {
     localStorage.removeItem(TELEMETRY_CONSENT_KEY);
     localStorage.removeItem(TELEMETRY_FIRST_USE_KEY);
+  } catch {
+    // Continue clearing the in-memory and SDK identity if storage is blocked.
+  }
+  clearPendingCloudTelemetryConsent();
+  try {
     sessionStorage.removeItem(TELEMETRY_SESSION_KEY);
+  } catch {
+    // Continue clearing the in-memory and SDK identity if storage is blocked.
+  }
 
-    // Reset PostHog if initialized
-    if (isInitialized && posthogInstance) {
-      posthogInstance.reset();
+  desiredTelemetryIdentity = null;
+  desiredIdentityRevision += 1;
+  appliedIdentityRevision = -1;
+
+  try {
+    if (posthogInstance) {
+      resetPostHogIdentity(posthogInstance, true);
     }
   } catch {
-    // Ignore storage errors
+    // A reset failure must not leave capture enabled after a privacy clear.
+    try {
+      posthogInstance?.opt_out_capturing();
+    } catch {
+      // Telemetry failures must not break the application.
+    }
   }
-}
-
-/**
- * Get the PostHog instance for advanced usage (if needed).
- * Returns the instance if initialized, otherwise null.
- * Note: This is async because PostHog is lazily loaded.
- */
-export async function getPostHogInstance(): Promise<PostHog | null> {
-  if (!isInitialized) {
-    return null;
-  }
-  return posthogInstance;
 }

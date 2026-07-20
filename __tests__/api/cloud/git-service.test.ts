@@ -1,4 +1,3 @@
-import axios from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -7,8 +6,7 @@ import {
 } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
 import { getCloudRepositoryBranches } from "#/api/cloud/git-service.api";
-
-vi.mock("axios");
+import { getFetchCall, mockJsonResponse } from "./fetch-test-utils";
 
 const cloudBackend: Backend = {
   id: "prod",
@@ -18,28 +16,29 @@ const cloudBackend: Backend = {
   kind: "cloud",
 };
 
-const emptyBranchPage = {
-  data: { items: [], next_page_id: null },
-};
+const emptyBranchPage = { items: [], next_page_id: null };
+const originalFetch = global.fetch;
+const fetchMock = vi.fn();
 
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.request).mockReset();
+  fetchMock.mockReset();
+  fetchMock.mockResolvedValue(mockJsonResponse(emptyBranchPage));
+  global.fetch = fetchMock as typeof fetch;
 });
 
 afterEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
+  fetchMock.mockReset();
+  global.fetch = originalFetch;
 });
 
 describe("getCloudRepositoryBranches", () => {
   it("includes an empty query parameter when listing all branches so the upstream schema is satisfied", async () => {
-    // Arrange
-    vi.mocked(axios.request).mockResolvedValueOnce(emptyBranchPage);
-
     // Act
     await getCloudRepositoryBranches({
       provider: "github",
@@ -47,15 +46,15 @@ describe("getCloudRepositoryBranches", () => {
     });
 
     // Assert
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
-    const url = (config as { url: string }).url;
+    const [url, init] = getFetchCall(fetchMock);
+    expect(init).toMatchObject({
+      method: "GET",
+      headers: { Authorization: "Bearer bearer-token" },
+    });
     expect(url).toMatch(/[?&]query=(&|$)/);
   });
 
   it("forwards a non-empty query parameter when searching branches", async () => {
-    // Arrange
-    vi.mocked(axios.request).mockResolvedValueOnce(emptyBranchPage);
-
     // Act
     await getCloudRepositoryBranches({
       provider: "github",
@@ -64,8 +63,7 @@ describe("getCloudRepositoryBranches", () => {
     });
 
     // Assert
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
-    const url = (config as { url: string }).url;
+    const [url] = getFetchCall(fetchMock);
     expect(url).toContain("query=feature%2Flogin");
   });
 });

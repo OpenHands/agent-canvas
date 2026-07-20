@@ -26,6 +26,8 @@ interface UseAutoResizeOptions {
   onGripDragEnd?: () => void;
   onHeightChange?: (height: number) => void; // New callback for height changes
   value?: IMessageToSend;
+  /** Called once `value` has been applied to the element (one-shot consume). */
+  onValueApplied?: () => void;
 }
 
 interface UseAutoResizeReturn {
@@ -129,6 +131,7 @@ export const useAutoResize = (
     maxHeight = DEFAULT_MAX_HEIGHT,
     enableManualResize = false,
     value,
+    onValueApplied,
     onGripDragStart,
     onGripDragEnd,
     onHeightChange,
@@ -344,6 +347,7 @@ export const useAutoResize = (
       element.textContent = value.text;
       smartResize();
       focusContentEditableAtEnd(element);
+      onValueApplied?.(); // one-shot: let the caller clear the value
       return true;
     };
 
@@ -358,7 +362,7 @@ export const useAutoResize = (
         cancelAnimationFrame(rafId);
       }
     };
-  }, [value, smartResize]);
+  }, [value, smartResize, onValueApplied]);
 
   // Initialize auto-resize on mount
   useEffect(() => {

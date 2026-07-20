@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AutomationService from "#/api/automation-service/automation-service.api";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useTracking } from "#/hooks/use-tracking";
-import type { Automation } from "#/types/automation";
+import type { Automation, AutomationSpec } from "#/types/automation";
 import {
   AUTOMATION_DETAIL_QUERY_KEY,
   AUTOMATION_RUNS_QUERY_KEY,
@@ -45,6 +45,20 @@ export function useToggleAutomation() {
       if (!variables.enabled) {
         trackAutomationDeactivated({ backendKind: active.backend.kind });
       }
+    },
+  });
+}
+
+export function useImportAutomation() {
+  const queryClient = useQueryClient();
+  const active = useActiveBackend();
+  const { trackAutomationImported } = useTracking();
+  return useMutation({
+    mutationFn: (spec: AutomationSpec) =>
+      AutomationService.createAutomation({ ...spec, enabled: false }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: AUTOMATIONS_QUERY_KEY });
+      trackAutomationImported({ backendKind: active.backend.kind });
     },
   });
 }

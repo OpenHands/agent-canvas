@@ -1,4 +1,9 @@
 import {
+  CANVAS_UI_CLIENT_TOOL_NAME,
+  LEGACY_CANVAS_UI_TOOL_NAME,
+} from "#/constants/canvas-ui";
+
+import {
   OpenHandsEvent,
   ObservationEvent,
   BaseEvent,
@@ -167,17 +172,17 @@ export const isBrowserNavigateActionEvent = (
   isActionEvent(event) && event.action.kind === "BrowserNavigateAction";
 
 /**
- * Type guard for the canvas_ui custom tool's ActionEvent.
+ * Type guard for Canvas UI tool ActionEvents.
  *
- * The tool is injected via tool_module_qualnames (see canvas_ui_tool.py and
- * agent-server-adapter.ts). We discriminate on tool_name (which we control
- * via register_tool("canvas_ui", ...)). The predicate narrows the event so
- * the call site can read `event.action.command` etc. without further casts.
+ * Discriminating on tool_name supports legacy CanvasUIAction events and the
+ * SDK-generated action kind without leaking that generated name here.
  */
 export const isCanvasUIActionEvent = (
   event: OpenHandsEvent,
 ): event is ActionEvent<CanvasUIAction> =>
-  isActionEvent(event) && event.tool_name === "canvas_ui";
+  isActionEvent(event) &&
+  (event.tool_name === LEGACY_CANVAS_UI_TOOL_NAME ||
+    event.tool_name === CANVAS_UI_CLIENT_TOOL_NAME);
 
 /**
  * Type guard function to check if an event is a system prompt event

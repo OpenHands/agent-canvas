@@ -11,12 +11,15 @@ import {
 import { ModalCloseButton } from "#/components/shared/modals/modal-close-button";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsInput } from "#/components/features/settings/settings-input";
+import { SegmentedToggle } from "#/components/features/files-tab/segmented-toggle";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useNavigation } from "#/context/navigation-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { useTracking } from "#/hooks/use-tracking";
+import type { CloudConnectionSource } from "#/services/cloud-funnel-analytics";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { getLockedCloudHost } from "#/api/agent-server-config";
+import { isOpenHandsCloudHost } from "#/api/device-flow-client";
 import {
   assertAgentServerVersionIsSupported,
   getDisplayAgentServerVersion,
@@ -43,14 +46,22 @@ interface BackendFormModalProps {
   onClose: () => void;
   /** Analytics surface for the `backend_added` event (add mode only). */
   source?: BackendAddedSource;
+  /** Hide the close button and disable backdrop/escape dismissal. Used for locked Cloud first-run. */
+  hideCloseButton?: boolean;
 }
 
+/**
+ * Seed the default backend kind from the host. Uses proper hostname-suffix
+ * matching (via {@link isOpenHandsCloudHost}) rather than a substring test, so
+ * a look-alike host such as `all-hands-testing.dev` isn't misread as cloud.
+ *
+ * This is only a *default*: a self-hosted OpenHands Cloud/Enterprise instance
+ * on a truly custom domain is indistinguishable from a local agent-server by
+ * host alone, so the manual add form lets the user override the kind
+ * explicitly (see the Type selector in ManualConnectionColumn).
+ */
 function inferKindFromHost(host: string): BackendKind {
-  const trimmed = host.trim().toLowerCase();
-  if (trimmed.includes("all-hands.dev") || trimmed.includes("openhands.dev")) {
-    return "cloud";
-  }
-  return "local";
+  return isOpenHandsCloudHost(host) ? "cloud" : "local";
 }
 
 /**
@@ -130,7 +141,7 @@ const DEFAULT_OPENHANDS_CLOUD_HOST = "https://app.all-hands.dev";
 
 export type BackendConnectionMethod = "manual" | "cloud_login";
 
-export type BackendAddedSource = "add_backend_modal" | "manage_backends_modal";
+export type BackendAddedSource = CloudConnectionSource;
 
 function getConnectionTestFailedTitle(
   t: ReturnType<typeof useTranslation>["t"],
@@ -316,8 +327,15 @@ function useBackendForm({
     null,
   );
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [kindOverride, setKindOverride] = React.useState<BackendKind | null>(
+    null,
+  );
 
-  const kind = inferKindFromHost(host);
+  // Kind follows host inference until the user explicitly picks a type, then
+  // respects that choice. A custom-domain OHE can't be distinguished from a
+  // custom-domain local agent-server by host alone, so ManualConnectionColumn
+  // exposes `setKind` (a Type selector) to let the user declare it.
+  const kind = kindOverride ?? inferKindFromHost(host);
   const needsApiKey = requireApiKey || kind !== "local";
   const canSubmit =
     name.trim().length > 0 &&
@@ -385,6 +403,7 @@ function useBackendForm({
     setConnectionError,
     isSubmitting,
     kind,
+    setKind: setKindOverride,
     canSubmit,
     handleSubmit,
   };
@@ -682,6 +701,7 @@ interface BackendConnectionOptionsProps {
   manualSubmitLabel?: React.ReactNode;
   manualSubmittingLabel?: React.ReactNode;
   manualSubmitTestId?: string;
+  analyticsSource?: CloudConnectionSource;
 }
 
 /**
@@ -697,6 +717,7 @@ export function BackendConnectionOptions({
   manualSubmitLabel,
   manualSubmittingLabel,
   manualSubmitTestId,
+  analyticsSource,
 }: BackendConnectionOptionsProps) {
   const { t } = useTranslation("openhands");
   const lockedCloudHost = getLockedCloudHost();
@@ -712,6 +733,7 @@ export function BackendConnectionOptions({
             onConnected={onConnected}
             testIdRoot={testIdRoot}
             lockedHost={lockedCloudHost}
+            analyticsSource={analyticsSource}
           />
         </div>
       </div>
@@ -739,7 +761,11 @@ export function BackendConnectionOptions({
       </div>
 
       <div className="flex-1 min-w-0">
-        <CloudLoginColumn onConnected={onConnected} testIdRoot={testIdRoot} />
+        <CloudLoginColumn
+          onConnected={onConnected}
+          testIdRoot={testIdRoot}
+          analyticsSource={analyticsSource}
+        />
       </div>
     </div>
   );
@@ -786,6 +812,7 @@ function ManualConnectionColumn({
     setConnectionError,
     isSubmitting,
     kind,
+    setKind,
     canSubmit,
     handleSubmit,
   } = useBackendForm({
@@ -856,6 +883,20 @@ function ManualConnectionColumn({
         </p>
       </div>
 
+      <div className="flex flex-col items-start gap-2.5">
+        <span className="text-sm">{t(I18nKey.BACKEND$KIND_LABEL)}</span>
+        <SegmentedToggle<BackendKind>
+          value={kind}
+          options={[
+            { value: "local", label: t(I18nKey.BACKEND$KIND_LOCAL) },
+            { value: "cloud", label: t(I18nKey.BACKEND$KIND_CLOUD) },
+          ]}
+          onChange={(value) => setKind(value)}
+          ariaLabel={t(I18nKey.BACKEND$KIND_LABEL)}
+          testId={`${testIdRoot}-kind`}
+        />
+      </div>
+
       <SettingsInput
         testId={`${testIdRoot}-api-key`}
         name={`${testIdRoot}-api-key`}
@@ -901,6 +942,7 @@ interface CloudLoginColumnProps {
   ) => void;
   testIdRoot: string;
   lockedHost?: string;
+  analyticsSource?: CloudConnectionSource;
 }
 
 /**
@@ -912,6 +954,7 @@ function CloudLoginColumn({
   onConnected,
   testIdRoot,
   lockedHost,
+  analyticsSource,
 }: CloudLoginColumnProps) {
   const { t } = useTranslation("openhands");
 
@@ -934,7 +977,7 @@ function CloudLoginColumn({
   };
 
   return (
-    <div className="flex flex-1 min-w-0 flex-col items-center gap-3 pb-7">
+    <div className="flex flex-1 min-w-0 flex-col items-center gap-3 pb-8">
       <div className="flex flex-col items-center gap-1">
         <OpenHandsLogoWhite width={56} height={56} aria-hidden />
 
@@ -954,6 +997,7 @@ function CloudLoginColumn({
         host={effectiveHost}
         onSuccess={handleLoginSuccess}
         testIdRoot={testIdRoot}
+        analyticsSource={analyticsSource}
       />
 
       {lockedHost ? null : (
@@ -1019,7 +1063,7 @@ function AddBackendConnectionOptions({
     ) => {
       addBackend(payload);
       // Coarse, non-sensitive host classification — never emit the raw host.
-      const isOpenHandsCloud = payload.host === DEFAULT_OPENHANDS_CLOUD_HOST;
+      const isOpenHandsCloud = isOpenHandsCloudHost(payload.host);
       trackBackendAdded({
         backendKind: payload.kind,
         connectionMethod,
@@ -1034,7 +1078,12 @@ function AddBackendConnectionOptions({
     [addBackend, redirectAfterAdd, onClose, trackBackendAdded, source],
   );
 
-  return <BackendConnectionOptions onConnected={handleConnected} />;
+  return (
+    <BackendConnectionOptions
+      onConnected={handleConnected}
+      analyticsSource={source}
+    />
+  );
 }
 
 // ── Modal wrappers ──────────────────────────────────────────────────
@@ -1049,33 +1098,41 @@ export function BackendFormModal({
   backend,
   onClose,
   source = "add_backend_modal",
+  hideCloseButton = false,
 }: BackendFormModalProps) {
   const { t } = useTranslation("openhands");
 
   if (mode === "add") {
     return (
       <ModalBackdrop
-        onClose={onClose}
+        onClose={hideCloseButton ? undefined : onClose}
         closeOnEscape={false}
+        closeOnBackdropClick={!hideCloseButton}
         aria-label={t(I18nKey.BACKEND$ADD_TITLE)}
       >
         <div
-          data-testid="add-backend-modal"
+          data-testid={
+            hideCloseButton ? "onboarding-modal" : "add-backend-modal"
+          }
           className={cn(
             "relative rounded-xl border border-[var(--oh-border)] bg-base-secondary",
             modalWidthClassName("xl"),
             MODAL_MAX_WIDTH_VIEWPORT,
           )}
         >
-          <ModalCloseButton onClose={onClose} testId="add-backend-close" />
-          {/* Header */}
-          <div className="px-6 pt-6 pb-2 pr-12">
-            <h2 className={modalTitleLgClassName}>
-              {t(I18nKey.BACKEND$ADD_TITLE)}
-            </h2>
-          </div>
+          {hideCloseButton ? null : (
+            <ModalCloseButton onClose={onClose} testId="add-backend-close" />
+          )}
+          {/* Header - hide in locked Cloud first-run mode for cleaner UX */}
+          {hideCloseButton ? null : (
+            <div className="px-6 pt-6 pb-2 pr-12">
+              <h2 className={modalTitleLgClassName}>
+                {t(I18nKey.BACKEND$ADD_TITLE)}
+              </h2>
+            </div>
+          )}
 
-          <div className="px-6 pb-6 pt-2">
+          <div className={cn("px-6 pb-6", hideCloseButton ? "pt-6" : "pt-2")}>
             <AddBackendConnectionOptions onClose={onClose} source={source} />
           </div>
         </div>

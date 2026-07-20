@@ -54,6 +54,7 @@ import {
 import {
   getProcessTreeSpawnOptions,
   isProcessRunning,
+  resolveWindowsCommand,
   signalProcessTree,
 } from "./dev-process-utils.mjs";
 import {
@@ -215,13 +216,12 @@ let shuttingDown = false;
 
 function spawnService(name, command, args, options = {}) {
   const proc = spawn(
-    command,
+    resolveWindowsCommand(command),
     args,
     getProcessTreeSpawnOptions({
       stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, ...options.env },
       cwd: options.cwd,
-      shell: process.platform === "win32",
     }),
   );
 
@@ -386,6 +386,9 @@ function startStaticServer(config) {
       join(config.canvasPath, "build"),
       "--port",
       String(config.vitePort),
+      ...(process.env.VITE_BASE_PATH
+        ? ["--base-path", process.env.VITE_BASE_PATH]
+        : []),
       // Inject the API key so the pre-built frontend can authenticate
       // to the agent-server without a baked-in VITE_SESSION_API_KEY.
       ...(config.sessionApiKey

@@ -14,6 +14,7 @@ import { cn } from "#/utils/utils";
 export interface CustomChatInputProps {
   disabled?: boolean;
   isNewConversationPending?: boolean;
+  hasStartedConversation?: boolean;
   showButton?: boolean;
   onSubmit: (message: string) => void;
   onFocus?: () => void;
@@ -29,6 +30,7 @@ export interface CustomChatInputProps {
 export function CustomChatInput({
   disabled = false,
   isNewConversationPending = false,
+  hasStartedConversation,
   showButton = true,
   onSubmit,
   onFocus,
@@ -184,6 +186,7 @@ export function CustomChatInput({
           isDragOver={isDragOver}
           disabled={isDisabled}
           canSubmit={canSubmit}
+          hasStartedConversation={hasStartedConversation}
           isNewConversationPending={isNewConversationPending}
           showButton={showButton}
           buttonClassName={buttonClassName}

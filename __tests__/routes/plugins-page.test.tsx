@@ -16,6 +16,7 @@ import {
 import type { Backend } from "#/api/backend-registry/types";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
+import { buildPluginLaunchPath } from "#/utils/plugin-launch-url";
 
 const navigateMock = vi.fn();
 
@@ -93,6 +94,7 @@ describe("SkillsPluginsScreen", () => {
       MOCK_DEFAULT_USER_SETTINGS,
     );
     vi.spyOn(PluginsService, "getPluginsMarketplace").mockResolvedValue([]);
+    vi.spyOn(PluginsService, "getLocalPlugins").mockResolvedValue([]);
     vi.spyOn(
       PluginsManagementService,
       "listInstalledPlugins",
@@ -183,6 +185,43 @@ describe("SkillsPluginsScreen", () => {
     );
   });
 
+  it("shows the plugin's bundled skills and files in the detail modal", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(PluginsService, "getPluginsMarketplace").mockResolvedValue([
+      buildCatalogPlugin({
+        path: "/cache/plugins/demo-plugin",
+        skills: [{ name: "demo-plugin:review", description: "Review code" }],
+        files: ["README.md"],
+      }),
+    ]);
+
+    renderPluginsScreen();
+    await user.click(await screen.findByTestId("plugin-card-demo-plugin"));
+
+    expect(
+      await screen.findByTestId("plugin-bundled-skill-demo-plugin:review"),
+    ).toHaveTextContent("Review code");
+    expect(screen.getByTestId("file-tree-file-README.md")).toBeInTheDocument();
+  });
+
+  it("omits the contents sections when the plugin reports none", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(PluginsService, "getPluginsMarketplace").mockResolvedValue([
+      buildCatalogPlugin(),
+    ]);
+
+    renderPluginsScreen();
+    await user.click(await screen.findByTestId("plugin-card-demo-plugin"));
+
+    await screen.findByTestId("plugin-detail-modal");
+    expect(
+      screen.queryByText("SETTINGS$PLUGINS_SKILLS_IN_BUNDLE"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("plugin-files-section"),
+    ).not.toBeInTheDocument();
+  });
+
   it("filters the list by the search query", async () => {
     vi.spyOn(PluginsService, "getPluginsMarketplace").mockResolvedValue([
       buildCatalogPlugin({ name: "alpha-plugin" }),
@@ -208,6 +247,24 @@ describe("SkillsPluginsScreen", () => {
     expect(await screen.findByTestId("plugins-empty")).toBeInTheDocument();
   });
 
+  it("renders a local plugin as a read-only card without install or toggle controls", async () => {
+    vi.spyOn(PluginsService, "getLocalPlugins").mockResolvedValue([
+      { name: "ambient-plugin", version: "1.0.0", description: "Ambient" },
+    ]);
+
+    renderPluginsScreen();
+
+    expect(
+      await screen.findByTestId("plugin-local-badge-ambient-plugin"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("plugin-install-ambient-plugin"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("plugin-toggle-ambient-plugin"),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows the no-match state when the search excludes everything", async () => {
     vi.spyOn(PluginsService, "getPluginsMarketplace").mockResolvedValue([
       buildCatalogPlugin(),
@@ -221,5 +278,43 @@ describe("SkillsPluginsScreen", () => {
     });
 
     expect(screen.getByTestId("plugins-no-match")).toBeInTheDocument();
+  });
+
+  it("navigates to the launch flow with the plugin's coordinates when Start Conversation is clicked", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(PluginsService, "getPluginsMarketplace").mockResolvedValue([
+      buildCatalogPlugin(),
+    ]);
+
+    renderPluginsScreen();
+    await user.click(await screen.findByTestId("plugin-card-demo-plugin"));
+    await user.click(
+      await screen.findByTestId("plugin-detail-start-conversation-demo-plugin"),
+    );
+
+    expect(navigateMock).toHaveBeenCalledWith(
+      buildPluginLaunchPath([
+        {
+          source: "github:OpenHands/extensions",
+          ref: null,
+          repo_path: "plugins/demo-plugin",
+        },
+      ]),
+    );
+  });
+
+  it("omits the Start Conversation action for a local plugin without a source", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(PluginsService, "getLocalPlugins").mockResolvedValue([
+      { name: "ambient-plugin", version: "1.0.0", description: "Ambient" },
+    ]);
+
+    renderPluginsScreen();
+    await user.click(await screen.findByTestId("plugin-card-ambient-plugin"));
+    await screen.findByTestId("plugin-detail-modal");
+
+    expect(
+      screen.queryByTestId("plugin-detail-start-conversation-ambient-plugin"),
+    ).not.toBeInTheDocument();
   });
 });
