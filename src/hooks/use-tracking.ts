@@ -1,21 +1,19 @@
-import { usePostHog } from "posthog-js/react";
 import { useSettings } from "./query/use-settings";
 import { Provider } from "#/types/settings";
 import type { BackendKind } from "#/api/backend-registry/types";
 import type { WorkspaceMode } from "#/api/conversation-metadata-store";
 import type { CloudConnectionSource } from "#/services/cloud-funnel-analytics";
+import { trackEvent } from "#/services/telemetry";
 
 /**
  * Hook that provides tracking functions with automatic data collection
  * from available hooks (settings, etc.)
  *
- * All events require explicit user consent (user_consents_to_analytics === true).
- * Events are silently dropped when:
- *  - posthog is not initialized (VITE_POSTHOG_CLIENT_KEY not set)
- *  - user_consents_to_analytics is false or null (consent not yet collected)
+ * All events require explicit user consent. The shared PostHog client enforces
+ * the canonical consent configured by telemetry.ts; this hook must not gate on
+ * backend settings because they can be stale while a backend changes.
  */
 export const useTracking = () => {
-  const posthog = usePostHog();
   const { data: settings } = useSettings();
 
   // Common properties included in all tracking events
@@ -25,12 +23,12 @@ export const useTracking = () => {
   };
 
   /**
-   * Capture an event only when PostHog is available and the user has
-   * explicitly consented. null and false are both treated as "not consented".
+   * PostHog enforces the canonical consent state configured by telemetry.ts.
+   * Backend settings are not a capture gate because they can be stale while a
+   * backend is being added or switched.
    */
   const track = (event: string, properties: Record<string, unknown> = {}) => {
-    if (!posthog || settings?.user_consents_to_analytics !== true) return;
-    posthog.capture(event, { ...properties, ...commonProperties });
+    void trackEvent(event, { ...properties, ...commonProperties });
   };
 
   const trackLoginButtonClick = ({ provider }: { provider: Provider }) => {

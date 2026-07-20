@@ -17,7 +17,7 @@ import { AgentState } from "#/types/agent-state";
 import { EventHandler } from "../wrapper/event-handler";
 
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
-import { useTaskPolling } from "#/hooks/query/use-task-polling";
+import { useTaskPollingController } from "#/hooks/query/use-task-polling";
 
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useIsAuthed } from "#/hooks/query/use-is-authed";
@@ -34,7 +34,7 @@ function AppContent() {
   const { conversationId } = useConversationId();
   const panelViewMatch = useMatch("/conversations/:conversationId/panel");
 
-  const { isTask, taskStatus, taskDetail } = useTaskPolling();
+  const { isTask, taskStatus, taskDetail } = useTaskPollingController();
 
   // The conversationId in the URL belongs to whichever backend was
   // active when the route first mounted. If the user switches backends

@@ -1,7 +1,7 @@
 import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   NavigationProvider,
   type NavigationContextValue,
@@ -9,11 +9,7 @@ import {
 import { CreateInstructions } from "#/components/features/automations/create-instructions";
 import { I18nKey } from "#/i18n/declaration";
 import { useConversationStore } from "#/stores/conversation-store";
-
-const captureMock = vi.fn();
-vi.mock("posthog-js/react", () => ({
-  usePostHog: () => ({ capture: captureMock }),
-}));
+import * as telemetry from "#/services/telemetry";
 
 vi.mock("#/hooks/query/use-settings", () => ({
   useSettings: () => ({ data: { user_consents_to_analytics: true } }),
@@ -86,9 +82,17 @@ function renderCreateInstructions() {
 }
 
 describe("CreateInstructions", () => {
+  let captureMock: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
-    captureMock.mockClear();
+    captureMock = vi
+      .spyOn(telemetry, "trackEvent")
+      .mockResolvedValue(undefined);
     useConversationStore.setState({ messageToSend: null });
+  });
+
+  afterEach(() => {
+    captureMock.mockRestore();
   });
 
   it("captures automation_created with the active backend kind when Create Automation is clicked", async () => {

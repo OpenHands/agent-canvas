@@ -16,10 +16,7 @@ import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useNavigation } from "#/context/navigation-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { useTracking } from "#/hooks/use-tracking";
-import {
-  trackCanvasBackendAdded,
-  type CloudConnectionSource,
-} from "#/services/cloud-funnel-analytics";
+import type { CloudConnectionSource } from "#/services/cloud-funnel-analytics";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { getLockedCloudHost } from "#/api/agent-server-config";
 import { isOpenHandsCloudHost } from "#/api/device-flow-client";
@@ -1067,23 +1064,14 @@ function AddBackendConnectionOptions({
       addBackend(payload);
       // Coarse, non-sensitive host classification — never emit the raw host.
       const isOpenHandsCloud = isOpenHandsCloudHost(payload.host);
-      const trackedByCanvas = trackCanvasBackendAdded({
+      trackBackendAdded({
         backendKind: payload.kind,
         connectionMethod,
-        host: payload.host,
+        isOpenhandsCloud: isOpenHandsCloud,
+        isCustomHost: !isOpenHandsCloud,
         hasApiKey: Boolean(payload.apiKey),
         source,
       });
-      if (!trackedByCanvas) {
-        trackBackendAdded({
-          backendKind: payload.kind,
-          connectionMethod,
-          isOpenhandsCloud: isOpenHandsCloud,
-          isCustomHost: !isOpenHandsCloud,
-          hasApiKey: Boolean(payload.apiKey),
-          source,
-        });
-      }
       redirectAfterAdd();
       onClose();
     },

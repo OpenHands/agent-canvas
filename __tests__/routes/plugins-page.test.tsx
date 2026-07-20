@@ -185,6 +185,43 @@ describe("SkillsPluginsScreen", () => {
     );
   });
 
+  it("shows the plugin's bundled skills and files in the detail modal", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(PluginsService, "getPluginsMarketplace").mockResolvedValue([
+      buildCatalogPlugin({
+        path: "/cache/plugins/demo-plugin",
+        skills: [{ name: "demo-plugin:review", description: "Review code" }],
+        files: ["README.md"],
+      }),
+    ]);
+
+    renderPluginsScreen();
+    await user.click(await screen.findByTestId("plugin-card-demo-plugin"));
+
+    expect(
+      await screen.findByTestId("plugin-bundled-skill-demo-plugin:review"),
+    ).toHaveTextContent("Review code");
+    expect(screen.getByTestId("file-tree-file-README.md")).toBeInTheDocument();
+  });
+
+  it("omits the contents sections when the plugin reports none", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(PluginsService, "getPluginsMarketplace").mockResolvedValue([
+      buildCatalogPlugin(),
+    ]);
+
+    renderPluginsScreen();
+    await user.click(await screen.findByTestId("plugin-card-demo-plugin"));
+
+    await screen.findByTestId("plugin-detail-modal");
+    expect(
+      screen.queryByText("SETTINGS$PLUGINS_SKILLS_IN_BUNDLE"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("plugin-files-section"),
+    ).not.toBeInTheDocument();
+  });
+
   it("filters the list by the search query", async () => {
     vi.spyOn(PluginsService, "getPluginsMarketplace").mockResolvedValue([
       buildCatalogPlugin({ name: "alpha-plugin" }),

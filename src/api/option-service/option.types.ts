@@ -23,7 +23,6 @@ export interface WebClientFeatureFlags {
 }
 
 export interface WebClientConfig {
-  posthog_client_key: string | null;
   feature_flags: WebClientFeatureFlags;
   providers_configured: Provider[];
   maintenance_start_time: string | null;

@@ -19,6 +19,7 @@ vi.mock("posthog-js", () => ({
 }));
 
 import { useTelemetry } from "#/hooks/use-telemetry";
+import { setTelemetryConsent } from "#/services/telemetry";
 
 describe("useTelemetry", () => {
   beforeEach(() => {
@@ -115,6 +116,18 @@ describe("useTelemetry", () => {
     expect(localStorage.getItem("openhands-telemetry-consent")).toBe("denied");
   });
 
+  it("reacts to consent changes outside the hook", async () => {
+    const { result } = renderHook(() => useTelemetry());
+
+    await act(() =>
+      setTelemetryConsent("granted", {
+        syncToCloud: false,
+      }),
+    );
+
+    expect(result.current.consent).toBe("granted");
+  });
+
   it("track function does nothing when consent is not granted", () => {
     localStorage.setItem("openhands-telemetry-first-use", "true"); // Skip install tracking
     vi.clearAllMocks();
@@ -155,8 +168,8 @@ describe("useTelemetry", () => {
 
     expect(result.current.consent).toBe("granted");
 
-    act(() => {
-      result.current.clearData();
+    await act(async () => {
+      await result.current.clearData();
     });
 
     expect(result.current.consent).toBe("pending");

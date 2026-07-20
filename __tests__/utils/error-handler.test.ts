@@ -1,11 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import posthog from "posthog-js";
 import { trackError } from "#/utils/error-handler";
+import { trackException } from "#/services/telemetry";
 
-vi.mock("posthog-js", () => ({
-  default: {
-    captureException: vi.fn(),
-  },
+vi.mock("#/services/telemetry", () => ({
+  trackException: vi.fn(),
 }));
 
 describe("Error Handler", () => {
@@ -22,12 +20,11 @@ describe("Error Handler", () => {
       const error = {
         message: "Test error",
         source: "test",
-        posthog,
       };
 
       trackError(error);
 
-      expect(posthog.captureException).toHaveBeenCalledWith(
+      expect(trackException).toHaveBeenCalledWith(
         new Error("Test error"),
         {
           error_source: "test",
@@ -43,12 +40,11 @@ describe("Error Handler", () => {
           extra: "info",
           details: { foo: "bar" },
         },
-        posthog,
       };
 
       trackError(error);
 
-      expect(posthog.captureException).toHaveBeenCalledWith(
+      expect(trackException).toHaveBeenCalledWith(
         new Error("Test error"),
         {
           error_source: "test",

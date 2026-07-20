@@ -11,7 +11,6 @@ import React, {
 import { ConversationClient } from "@openhands/typescript-client/clients";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { usePostHog } from "posthog-js/react";
 import { useWebSocket, WebSocketHookOptions } from "#/hooks/use-websocket";
 import { SERVER_CONNECTION_ERROR_MESSAGE } from "#/constants/server-connection-error";
 import { useEventStore } from "#/stores/use-event-store";
@@ -138,7 +137,6 @@ export function ConversationWebSocketProvider({
   const hasConnectedRefMain = React.useRef(false);
   const hasConnectedRefPlanning = React.useRef(false);
 
-  const posthog = usePostHog();
   const queryClient = useQueryClient();
   const addEvent = useEventStore((state) => state.addEvent);
   const addEvents = useEventStore((state) => state.addEvents);
@@ -501,7 +499,6 @@ export function ConversationWebSocketProvider({
                 eventId: errorEvent.id,
                 errorCode: errorEvent.code,
               },
-              posthog,
             });
             setErrorMessage(errorEvent.detail, "conversation", errorEvent.code);
           } else {
@@ -519,7 +516,6 @@ export function ConversationWebSocketProvider({
                 toolName: event.tool_name,
                 toolCallId: event.tool_call_id,
               },
-              posthog,
             });
           }
 
@@ -659,7 +655,6 @@ export function ConversationWebSocketProvider({
       appendOutput,
       updateMetricsFromStats,
       handleNonErrorEvent,
-      posthog,
     ],
   );
 
@@ -703,7 +698,6 @@ export function ConversationWebSocketProvider({
                 eventId: errorEvent.id,
                 errorCode: errorEvent.code,
               },
-              posthog,
             });
             setErrorMessage(errorEvent.detail, "conversation", errorEvent.code);
           } else {
@@ -721,7 +715,6 @@ export function ConversationWebSocketProvider({
                 toolName: event.tool_name,
                 toolCallId: event.tool_call_id,
               },
-              posthog,
             });
           }
 
@@ -842,7 +835,6 @@ export function ConversationWebSocketProvider({
       setPlanContent,
       updateMetricsFromStats,
       handleNonErrorEvent,
-      posthog,
     ],
   );
 

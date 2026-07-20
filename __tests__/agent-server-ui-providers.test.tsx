@@ -9,12 +9,10 @@ vi.mock("react-i18next", async (importOriginal) =>
   importOriginal<typeof import("react-i18next")>(),
 );
 
-import OptionService from "#/api/option-service/option-service.api";
 import {
   AGENT_SERVER_UI_SCOPE_SELECTOR,
   AgentServerUIRoot,
   AgentServerUIProviders,
-  DEFAULT_AGENT_SERVER_ANALYTICS,
   OPENHANDS_I18N_NAMESPACE,
   getDefaultI18n,
   getDefaultQueryClient,
@@ -26,8 +24,15 @@ import {
 } from "#/index";
 import i18n from "#/i18n";
 
-vi.mock("posthog-js/react", () => ({
-  PostHogProvider: ({ children }: { children: React.ReactNode }) => children,
+const telemetryProviderMock = vi.hoisted(() => vi.fn());
+vi.mock("#/components/providers/telemetry-provider", () => ({
+  TelemetryProvider: (props: {
+    children: React.ReactNode;
+    config?: unknown;
+  }) => {
+    telemetryProviderMock(props);
+    return props.children;
+  },
 }));
 
 const BaseProbe = ({ translation }: { translation?: string }) => {
@@ -165,10 +170,8 @@ describe("AgentServerUIProviders", () => {
     expect(getI18n()).toBe(getDefaultI18n());
   });
 
-  it("only mounts PostHog analytics when the host app opts in", async () => {
-    const getConfigSpy = vi
-      .spyOn(OptionService, "getConfig")
-      .mockResolvedValue({ posthog_client_key: "phc_test_key" } as never);
+  it("passes disabled and runtime analytics configuration to TelemetryProvider", () => {
+    telemetryProviderMock.mockClear();
 
     const noAnalyticsView = render(
       <AgentServerUIProviders>
@@ -177,19 +180,35 @@ describe("AgentServerUIProviders", () => {
     );
 
     expect(screen.getByTestId("child")).toHaveTextContent("child");
-    expect(getConfigSpy).not.toHaveBeenCalled();
+    expect(telemetryProviderMock).toHaveBeenCalledWith(
+      expect.objectContaining({ config: false }),
+    );
 
     noAnalyticsView.unmount();
+    telemetryProviderMock.mockClear();
+
+    const analytics = {
+      provider: "posthog" as const,
+      apiKey: "phc_embedded",
+      apiHost: "https://events.example.com",
+      uiHost: "https://posthog.example.com",
+    };
 
     render(
-      <AgentServerUIProviders analytics={DEFAULT_AGENT_SERVER_ANALYTICS}>
+      <AgentServerUIProviders analytics={analytics}>
         <div data-testid="child-with-analytics">child</div>
       </AgentServerUIProviders>,
     );
 
-    await waitFor(() => {
-      expect(getConfigSpy).toHaveBeenCalledTimes(1);
-    });
+    expect(telemetryProviderMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: {
+          apiKey: analytics.apiKey,
+          apiHost: analytics.apiHost,
+          uiHost: analytics.uiHost,
+        },
+      }),
+    );
   });
 
   it("wraps children in a scoped, customizable style root by default", () => {

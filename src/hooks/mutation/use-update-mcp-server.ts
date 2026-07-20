@@ -11,7 +11,9 @@ import {
   toSdkMcpConfig,
 } from "#/utils/mcp-config";
 import { SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
+import { clearMcpServerHealth } from "#/api/mcp-health/mcp-health-store";
 import { substituteRedactedMcpCredentials } from "#/api/mcp-service/mcp-redacted-credentials";
+import { getMcpServerHealthKey } from "#/utils/mcp-server-health-key";
 
 export function useUpdateMcpServer() {
   const queryClient = useQueryClient();
@@ -50,7 +52,11 @@ export function useUpdateMcpServer() {
         agent_settings_diff: { mcp_config: toSdkMcpConfig(newConfig) },
       });
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      // The stored config changed, so any prior health verdict for it is
+      // stale. This hook-level reset runs before the caller's onSuccess,
+      // letting save flows re-seed from their fresh pre-save test result.
+      clearMcpServerHealth(getMcpServerHealthKey(variables.server));
       queryClient.invalidateQueries({
         queryKey: SETTINGS_QUERY_KEYS.personal(),
       });
