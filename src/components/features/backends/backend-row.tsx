@@ -131,6 +131,7 @@ export function BackendRow({
             buttonVariant="unstyled"
             buttonClassName={ROW_ACTION_BUTTON_CLASS}
             statusDisplay="modal"
+            analyticsSource="manage_backends_modal"
           />
         ) : null}
         {!lockedCloudHost && (

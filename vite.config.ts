@@ -240,7 +240,6 @@ export default defineConfig(({ mode }) => {
         // Pre-bundle ALL dependencies to prevent runtime optimization and page reloads
         // These are discovered during initial app load:
         "posthog-js",
-        "posthog-js/react",
         "@tanstack/react-query",
         "react-hot-toast",
         "i18next",
@@ -282,6 +281,7 @@ export default defineConfig(({ mode }) => {
         // OpenHands typescript client
         "@openhands/typescript-client",
         "@openhands/typescript-client/client/http-client",
+        "@openhands/typescript-client/client/device-flow-client",
         "@openhands/typescript-client/clients",
         "@openhands/typescript-client/events/remote-events-list",
         "@openhands/typescript-client/workspace/remote-workspace",

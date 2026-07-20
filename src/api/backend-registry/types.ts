@@ -1,4 +1,5 @@
 export type BackendKind = "local" | "cloud";
+export type BackendAuthMode = "api-key" | "cookie";
 
 export interface Backend {
   id: string;
@@ -6,6 +7,7 @@ export interface Backend {
   host: string;
   apiKey: string;
   kind: BackendKind;
+  authMode?: BackendAuthMode;
 }
 
 export interface BackendSelection {

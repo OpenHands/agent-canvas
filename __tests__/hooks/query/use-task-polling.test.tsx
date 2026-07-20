@@ -5,7 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
 import type { AppConversationStartTask } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { NavigationProvider } from "#/context/navigation-context";
-import { useTaskPolling } from "#/hooks/query/use-task-polling";
+import {
+  useTaskPolling,
+  useTaskPollingController,
+} from "#/hooks/query/use-task-polling";
+import { trackCloudConversationReady } from "#/services/cloud-funnel-analytics";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import {
   consumePendingTaskDraft,
@@ -23,6 +27,9 @@ vi.mock(
     },
   }),
 );
+vi.mock("#/services/cloud-funnel-analytics", () => ({
+  trackCloudConversationReady: vi.fn(),
+}));
 
 const readyTask: AppConversationStartTask = {
   id: "123",
@@ -81,7 +88,7 @@ describe("useTaskPolling", () => {
     );
     setPendingTaskDraft("123", "Create this automation draft");
 
-    const { result } = renderHook(() => useTaskPolling(), {
+    const { result } = renderHook(() => useTaskPollingController(), {
       wrapper: createWrapper(),
     });
 
@@ -119,7 +126,7 @@ describe("useTaskPolling", () => {
       },
     });
 
-    renderHook(() => useTaskPolling(), { wrapper: createWrapper() });
+    renderHook(() => useTaskPollingController(), { wrapper: createWrapper() });
 
     await waitFor(() => {
       expect(navigate).toHaveBeenCalledWith("/conversations/conversation-1", {
@@ -172,7 +179,7 @@ describe("useTaskPolling", () => {
       };
     };
 
-    renderHook(() => useTaskPolling(), {
+    renderHook(() => useTaskPollingController(), {
       wrapper: createWrapperForConversation("task-123"),
     });
 
@@ -182,7 +189,7 @@ describe("useTaskPolling", () => {
       });
     });
 
-    renderHook(() => useTaskPolling(), {
+    renderHook(() => useTaskPollingController(), {
       wrapper: createWrapperForConversation("conversation-1"),
     });
 
@@ -192,5 +199,30 @@ describe("useTaskPolling", () => {
       expect(pending[0].conversationId).toBe("conversation-1");
       expect(pending[0].text).toBe("hello from home");
     });
+  });
+
+  it("handles a ready task once when multiple components consume polling state", async () => {
+    vi.mocked(AgentServerConversationService.getStartTask).mockResolvedValue(
+      readyTask,
+    );
+
+    const { result } = renderHook(
+      () => {
+        const controller = useTaskPollingController();
+        useTaskPolling();
+        useTaskPolling();
+        return controller;
+      },
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => expect(result.current.taskStatus).toBe("READY"));
+    await waitFor(() => expect(navigate).toHaveBeenCalledTimes(1));
+
+    expect(trackCloudConversationReady).toHaveBeenCalledOnce();
+    expect(trackCloudConversationReady).toHaveBeenCalledWith(
+      "123",
+      "conversation-1",
+    );
   });
 });

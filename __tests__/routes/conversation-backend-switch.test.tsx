@@ -49,7 +49,11 @@ vi.mock("#/contexts/websocket-provider-wrapper", () => ({
   ),
 }));
 vi.mock("#/hooks/query/use-task-polling", () => ({
-  useTaskPolling: () => ({ isTask: false, taskStatus: null, taskDetail: null }),
+  useTaskPollingController: () => ({
+    isTask: false,
+    taskStatus: null,
+    taskDetail: null,
+  }),
 }));
 vi.mock("#/hooks/query/use-is-authed", () => ({
   useIsAuthed: () => ({ data: true }),

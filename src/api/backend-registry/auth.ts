@@ -7,6 +7,7 @@ import type { Backend } from "./types";
  * token in the `Authorization` header.
  */
 export function buildAuthHeaders(backend: Backend): Record<string, string> {
+  if (backend.kind === "cloud" && backend.authMode === "cookie") return {};
   if (!backend.apiKey) return {};
 
   if (backend.kind === "cloud") {

@@ -29,6 +29,7 @@ import type {
   AutomationsResponse,
   AutomationRunsResponse,
 } from "#/types/automation";
+import * as telemetry from "#/services/telemetry";
 
 vi.mock("#/api/automation-service/automation-service.api", () => ({
   default: {
@@ -42,10 +43,7 @@ vi.mock("#/api/automation-service/automation-service.api", () => ({
   },
 }));
 
-const captureMock = vi.fn();
-vi.mock("posthog-js/react", () => ({
-  usePostHog: () => ({ capture: captureMock }),
-}));
+let captureMock: ReturnType<typeof vi.spyOn>;
 
 vi.mock("#/hooks/query/use-settings", () => ({
   useSettings: () => ({ data: { user_consents_to_analytics: true } }),
@@ -108,6 +106,7 @@ function makeWrapper() {
 }
 
 beforeEach(() => {
+  captureMock = vi.spyOn(telemetry, "trackEvent").mockResolvedValue(undefined);
   window.localStorage.clear();
   __resetActiveStoreForTests();
   vi.mocked(AutomationService.getAutomations).mockReset();
@@ -123,7 +122,6 @@ beforeEach(() => {
   vi.mocked(AutomationService.deleteAutomation).mockResolvedValue(undefined);
   vi.mocked(AutomationService.updateAutomation).mockResolvedValue(automation);
   vi.mocked(AutomationService.toggleAutomation).mockResolvedValue(automation);
-  captureMock.mockClear();
 
   vi.mocked(AutomationService.getAutomations).mockResolvedValue(listResponse);
   vi.mocked(AutomationService.getAutomation).mockResolvedValue(automation);
@@ -132,6 +130,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  captureMock.mockRestore();
   window.localStorage.clear();
   __resetActiveStoreForTests();
 });

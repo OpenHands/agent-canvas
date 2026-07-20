@@ -59,12 +59,16 @@ const saveSettingsMutationFn = async (settings: SettingsUpdate) => {
   await SettingsService.saveSettings(settingsToSave);
 };
 
-export const useSaveSettings = (scope: SettingsScope = "personal") => {
+export const useSaveSettings = (
+  scope: SettingsScope = "personal",
+  { retry }: { retry?: number } = {},
+) => {
   const { trackMcpConfigUpdated } = useTracking();
   const queryClient = useQueryClient();
   const { data: currentSettings } = useSettings(scope);
 
   return useMutation({
+    ...(retry === undefined ? {} : { retry }),
     mutationFn: async (settings: SettingsUpdate) => {
       const nextMcpConfig = settings.mcp_config as MCPConfig | undefined;
       const currentMcpConfig = currentSettings?.mcp_config as
