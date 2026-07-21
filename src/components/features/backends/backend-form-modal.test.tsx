@@ -74,6 +74,7 @@ describe("BackendConnectionOptions — manual backend type", () => {
         apiKey: "oh-cloud-key",
       }),
       "manual",
+      { agentServerVersion: null },
     );
   });
 });

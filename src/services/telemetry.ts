@@ -33,6 +33,10 @@ import {
   AGENT_CANVAS_CLIENT_SOURCE,
   AGENT_CANVAS_CLIENT_VERSION,
 } from "#/api/client-source";
+import {
+  getBackendTelemetryProperties,
+  type BackendTelemetryContextInput,
+} from "#/services/telemetry-context";
 
 const TELEMETRY_CONSENT_KEY = "openhands-telemetry-consent";
 const TELEMETRY_CONSENT_PENDING_CLOUD_SYNC_KEY =
@@ -104,6 +108,14 @@ const CANVAS_EVENT_PROPERTIES = Object.freeze({
   package_version: packageJson.version,
 });
 
+let telemetryBackendContext = getBackendTelemetryProperties({});
+
+export function setTelemetryBackendContext(
+  context: BackendTelemetryContextInput,
+): void {
+  telemetryBackendContext = getBackendTelemetryProperties(context);
+}
+
 function addCanvasEventProperties(
   event: CaptureResult | null,
 ): CaptureResult | null {
@@ -112,6 +124,7 @@ function addCanvasEventProperties(
   return {
     ...event,
     properties: {
+      ...telemetryBackendContext,
       ...event.properties,
       ...CANVAS_EVENT_PROPERTIES,
     },
@@ -474,8 +487,11 @@ export async function setTelemetryConsent(
   }
 
   try {
+    const previousConsent = getTelemetryConsent();
+    const unchanged = previousConsent === consent;
     localStorage.setItem(TELEMETRY_CONSENT_KEY, consent);
     if (telemetryDisabled) return;
+    if (unchanged) return;
 
     // Reuse an initialized client synchronously so a same-flush identify()
     // cannot run before consent is applied. Only the cold path awaits import.
@@ -666,7 +682,7 @@ function markSessionSent(): void {
 
 /** Return the shared client only when a consented capture is safe to emit. */
 async function getPostHogForConsentedCapture(): Promise<PostHog | null> {
-  if (!isTelemetryEnabled()) return null;
+  if (!isTelemetryEnabled() || getTelemetryConsent() !== "granted") return null;
 
   const posthog = await initializePostHogClient();
   if (!posthog || !isTelemetryEnabled()) return null;
@@ -755,6 +771,7 @@ export async function clearTelemetryData(): Promise<void> {
   desiredTelemetryIdentity = null;
   desiredIdentityRevision += 1;
   appliedIdentityRevision = -1;
+  telemetryBackendContext = getBackendTelemetryProperties({});
 
   try {
     if (posthogInstance) {

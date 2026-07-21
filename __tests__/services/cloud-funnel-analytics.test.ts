@@ -33,8 +33,11 @@ describe("cloud funnel analytics", () => {
       1,
       "cloud_device_authorization_started",
       expect.objectContaining({
-        is_openhands_cloud: true,
-        is_custom_host: false,
+        backend_kind: "cloud",
+        connection_method: "cloud_login",
+        agent_server_version: "unknown",
+        automation_sdk_version: "unknown",
+        backend_version: "unknown",
         source: "onboarding",
       }),
     );
@@ -54,6 +57,10 @@ describe("cloud funnel analytics", () => {
       expect.objectContaining({
         task_id: "task-id",
         conversation_id: "conversation-id",
+        backend_kind: "cloud",
+        agent_server_version: "unknown",
+        automation_sdk_version: "unknown",
+        backend_version: "unknown",
       }),
     );
   });

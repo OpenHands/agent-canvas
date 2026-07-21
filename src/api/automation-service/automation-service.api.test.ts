@@ -72,6 +72,53 @@ const createdAutomation: Automation = {
   updated_at: "2026-07-10T00:00:00Z",
 };
 
+describe("AutomationService.getSdkVersion", () => {
+  beforeEach(() => {
+    setRegisteredBackends([localBackend]);
+    setActiveSelection({ backendId: localBackend.id });
+  });
+
+  afterEach(() => {
+    setActiveSelection(null);
+    setRegisteredBackends([]);
+    vi.clearAllMocks();
+  });
+
+  it("fetches the local automation SDK version from the automation sidecar", async () => {
+    localAxios.get.mockResolvedValueOnce({ data: { sdk_version: "1.36.1" } });
+
+    await expect(AutomationService.getSdkVersion()).resolves.toBe("1.36.1");
+
+    expect(localAxios.get).toHaveBeenCalledWith("/api/automation/sdk-version", {
+      timeout: 5000,
+    });
+  });
+
+  it("fetches the cloud automation SDK version through the cloud proxy", async () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id, orgId: "org-1" });
+    callCloudProxy.mockResolvedValueOnce({ sdk_version: "1.36.2" });
+
+    await expect(AutomationService.getSdkVersion()).resolves.toBe("1.36.2");
+
+    expect(callCloudProxy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        backend: cloudBackend,
+        method: "GET",
+        path: "/api/automation/sdk-version",
+        headers: { "X-Org-Id": "org-1" },
+        timeoutSeconds: 5,
+      }),
+    );
+  });
+
+  it("returns null when the SDK version endpoint is unavailable", async () => {
+    localAxios.get.mockRejectedValueOnce(new Error("not running"));
+
+    await expect(AutomationService.getSdkVersion()).resolves.toBeNull();
+  });
+});
+
 describe("AutomationService.createAutomation", () => {
   beforeEach(() => {
     setRegisteredBackends([localBackend]);
