@@ -7,12 +7,27 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    /* Agent Canvas design tokens. The splash renders before the frontend is
+       served, so it cannot import the app's CSS — these values mirror the
+       static baseline in src/tailwind.css / src/index.css. Keep in sync. */
+    :root {
+      --oh-background: #0b0e14; /* cool-grey-950 */
+      --oh-foreground: #eef2f7; /* cool-grey-100 */
+      --oh-muted: #a3b0c4; /* cool-grey-400 */
+      --oh-text-dim: #7e8a9e; /* cool-grey-500 */
+      --oh-text-subtle: #626d82; /* cool-grey-600 */
+    }
+
     html, body {
       width: 100%; height: 100%;
-      background: #0d0d1a;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      background: var(--oh-background);
+      font-family:
+        -apple-system, "SF Pro", BlinkMacSystemFont, "Segoe UI", "Roboto",
+        "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
         "Helvetica Neue", sans-serif;
-      color: #e2e8f0;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      color: var(--oh-foreground);
       user-select: none;
       -webkit-app-region: drag;
       overflow: hidden;
@@ -27,17 +42,13 @@
       gap: 0;
     }
 
+    /* Real app icon — squircle corners are baked into the PNG. Kept inert so
+       image dragging cannot hijack the -webkit-app-region window drag. */
     .logo {
       width: 72px;
       height: 72px;
       margin-bottom: 20px;
-      border-radius: 16px;
-      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 36px;
-      box-shadow: 0 8px 32px rgba(99, 102, 241, 0.4);
+      -webkit-user-drag: none;
     }
 
     h1 {
@@ -45,23 +56,22 @@
       font-weight: 600;
       letter-spacing: -0.3px;
       margin-bottom: 8px;
-      color: #f1f5f9;
+      color: var(--oh-foreground);
     }
 
     .tagline {
       font-size: 13px;
-      color: #64748b;
+      color: var(--oh-muted);
       margin-bottom: 36px;
     }
 
-    /* Spinner */
+    /* The app's canonical loading indicator: the 270° arc from
+       src/icons/loading-outer.svg with LoadingSpinner's animate-spin timing. */
     .spinner {
-      width: 28px;
-      height: 28px;
-      border: 2.5px solid #1e293b;
-      border-top-color: #6366f1;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
+      width: 25px;
+      height: 25px;
+      color: #fff;
+      animation: spin 1s linear infinite;
       margin-bottom: 14px;
     }
     @keyframes spin {
@@ -70,7 +80,7 @@
 
     .status {
       font-size: 12px;
-      color: #475569;
+      color: var(--oh-text-dim);
       letter-spacing: 0.3px;
       /* Long lines (e.g. uvx "Installing openhands-agent-server==1.24.0…")
          must not push the window or wrap awkwardly. */
@@ -84,7 +94,7 @@
     .hint {
       margin-top: 14px;
       font-size: 11px;
-      color: #334155;
+      color: var(--oh-text-subtle);
       letter-spacing: 0.2px;
       max-width: 340px;
       text-align: center;
@@ -106,10 +116,14 @@
 </head>
 <body>
   <div class="container">
-    <div class="logo">🎨</div>
+    <img class="logo" src="build-resources/icon.png" alt="" draggable="false" />
     <h1>Agent Canvas</h1>
     <p class="tagline">AI coding agent interface</p>
-    <div class="spinner"></div>
+    <svg class="spinner" viewBox="0 0 66 66" fill="none" aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg">
+      <path d="M63 33C63 16.4315 49.5685 3 33 3C16.4315 3 3 16.4315 3 33C3 49.5685 16.4315 63 33 63"
+        stroke="currentColor" stroke-width="6" stroke-linecap="round" />
+    </svg>
     <p id="status" class="status">Starting services<span class="dots"></span></p>
     <p class="hint">
       First launch downloads Python + the OpenHands agent server.<br />

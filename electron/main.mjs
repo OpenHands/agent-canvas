@@ -254,7 +254,8 @@ function createLoadingWindow() {
     frame: false,
     center: true,
     show: false,
-    backgroundColor: "#0d0d1a",
+    // Pre-paint window color; must match --oh-background in loading.html.
+    backgroundColor: "#0b0e14",
     icon: appIconPath,
     webPreferences: {
       nodeIntegration: false,
@@ -273,6 +274,9 @@ function createMainWindow() {
     minWidth: 800,
     minHeight: 600,
     show: false,
+    // App-shell background (--oh-background in src/index.css) — avoids white
+    // flashes during the show → maximize repaint after the splash closes.
+    backgroundColor: "#0b0e14",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
     icon: appIconPath,
     webPreferences: {
