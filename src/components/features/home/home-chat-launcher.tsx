@@ -25,6 +25,9 @@ import {
   TOAST_OPTIONS,
 } from "#/utils/custom-toast-handlers";
 import { getWorkspacesUnsupportedMessage } from "#/utils/workspaces-compatibility";
+import type { PluginSpec } from "#/api/conversation-service/agent-server-conversation-service.types";
+import { PluginPickerModal } from "#/components/features/plugins/plugin-picker-modal";
+import { PluginPickerTrigger } from "#/components/features/plugins/plugin-picker-trigger";
 import { HomeHeaderTitle } from "./home-header/home-header-title";
 import { OpenLauncherButton } from "./open-launcher-button";
 import { OpenWorkspaceDialog } from "./open-workspace-dialog";
@@ -46,8 +49,11 @@ export function HomeChatLauncher() {
   const [pendingProvider, setPendingProvider] = useState<Provider | null>(null);
   const [workspaceMode, setWorkspaceMode] =
     useState<WorkspaceMode>("local_repo");
+  const [selectedPlugins, setSelectedPlugins] = useState<PluginSpec[]>([]);
+  const [isPluginPickerOpen, setIsPluginPickerOpen] = useState(false);
 
-  const { mutate: createConversation, isPending } = useCreateConversation();
+  const { mutateAsync: createConversation, isPending } =
+    useCreateConversation();
   const isCreatingElsewhere = useIsCreatingConversation();
   const isCreating = isPending || isCreatingElsewhere;
   const { isConfigured: isLlmConfigured, isLoading: isLlmConfigLoading } =
@@ -90,6 +96,7 @@ export function HomeChatLauncher() {
     // query here would create a duplicate text-only initial_message.
     let variables: Parameters<typeof createConversation>[0] = {
       query: hasAttachments ? undefined : trimmed || undefined,
+      entryPoint: "home_chat_launcher",
     };
     if (isLocal && pendingWorkspace) {
       variables = {
@@ -108,6 +115,13 @@ export function HomeChatLauncher() {
       };
     }
 
+    // Explicitly-attached plugins are additive on top of any ambient set and
+    // are resolved from git at run time. Omitted entirely when none selected so
+    // nothing attaches unless the user picked it.
+    if (selectedPlugins.length > 0) {
+      variables = { ...variables, plugins: selectedPlugins };
+    }
+
     // Loading toast gives the user a clear signal that the request is in
     // flight; dismissed precisely once the mutation resolves.
     const toastId = toast.loading(
@@ -115,8 +129,9 @@ export function HomeChatLauncher() {
       TOAST_OPTIONS,
     );
 
-    createConversation(variables, {
-      onSuccess: async (data) => {
+    void (async () => {
+      try {
+        const data = await createConversation(variables);
         toast.dismiss(toastId);
         try {
           sessionStorage.removeItem(HOME_PROMPT_DRAFT_KEY);
@@ -186,12 +201,11 @@ export function HomeChatLauncher() {
         }
 
         navigate(`/conversations/${targetConversationId}`);
-      },
-      onError: (error) => {
+      } catch (error) {
         toast.dismiss(toastId);
         displayErrorToast(error instanceof Error ? error.message : null);
-      },
-    });
+      }
+    })();
   };
 
   // Without this wrapper a `/model NAME` typed here would become the first
@@ -217,7 +231,7 @@ export function HomeChatLauncher() {
         />
       </div>
 
-      <div className="flex justify-start">
+      <div className="flex items-center justify-start gap-2">
         {hasSelection ? (
           <HomeGitControlBarPreview
             workspace={pendingWorkspace}
@@ -237,6 +251,11 @@ export function HomeChatLauncher() {
             disabledTooltip={workspacesUnsupportedMessage}
           />
         )}
+        <PluginPickerTrigger
+          count={selectedPlugins.length}
+          onClick={() => setIsPluginPickerOpen(true)}
+          disabled={isCreating}
+        />
       </div>
 
       {isLocal ? (
@@ -262,6 +281,14 @@ export function HomeChatLauncher() {
             setPendingWorkspace(null);
             setWorkspaceMode("local_repo");
           }}
+        />
+      )}
+
+      {isPluginPickerOpen && (
+        <PluginPickerModal
+          selected={selectedPlugins}
+          onChange={setSelectedPlugins}
+          onClose={() => setIsPluginPickerOpen(false)}
         />
       )}
     </div>

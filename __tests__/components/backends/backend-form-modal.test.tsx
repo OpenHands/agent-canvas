@@ -69,6 +69,9 @@ beforeEach(() => {
 
 afterEach(() => {
   window.localStorage.clear();
+  vi.unstubAllEnvs();
+  delete (window as unknown as Record<string, unknown>)
+    .__AGENT_CANVAS_LOCK_TO_CLOUD__;
   __resetActiveStoreForTests();
 });
 
@@ -128,14 +131,12 @@ describe("BackendFormModal – edit mode (BackendForm entry point)", () => {
     renderWithProviders(
       <TestSeed
         onMount={(ctx) => {
-          backendId = ctx
-            .addBackend({
-              name: "Local Seed",
-              host: "http://localhost:9000",
-              apiKey: "sk-old",
-              kind: "local",
-            })
-            .id;
+          backendId = ctx.addBackend({
+            name: "Local Seed",
+            host: "http://localhost:9000",
+            apiKey: "sk-old",
+            kind: "local",
+          }).id;
         }}
       >
         <BackendFormModal
@@ -153,9 +154,7 @@ describe("BackendFormModal – edit mode (BackendForm entry point)", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("edit-backend-name")).toHaveValue(
-        "Local Seed",
-      );
+      expect(screen.getByTestId("edit-backend-name")).toHaveValue("Local Seed");
     });
 
     const user = userEvent.setup();
@@ -187,14 +186,12 @@ describe("BackendFormModal – edit mode (BackendForm entry point)", () => {
     renderWithProviders(
       <TestSeed
         onMount={(ctx) => {
-          backendId = ctx
-            .addBackend({
-              name: "Offline Server",
-              host: "http://localhost:9999",
-              apiKey: "sk-key",
-              kind: "local",
-            })
-            .id;
+          backendId = ctx.addBackend({
+            name: "Offline Server",
+            host: "http://localhost:9999",
+            apiKey: "sk-key",
+            kind: "local",
+          }).id;
         }}
       >
         <BackendFormModal
@@ -227,9 +224,9 @@ describe("BackendFormModal – edit mode (BackendForm entry point)", () => {
 
     await user.click(screen.getByTestId("edit-backend-submit"));
 
-    expect(
-      await screen.findByTestId("edit-backend-error"),
-    ).toHaveTextContent("Connection refused");
+    expect(await screen.findByTestId("edit-backend-error")).toHaveTextContent(
+      "Connection refused",
+    );
   });
 
   it("preserves cloud kind when editing a cloud backend", async () => {
@@ -238,14 +235,12 @@ describe("BackendFormModal – edit mode (BackendForm entry point)", () => {
     renderWithProviders(
       <TestSeed
         onMount={(ctx) => {
-          backendId = ctx
-            .addBackend({
-              name: "OpenHands Cloud",
-              host: "https://app.all-hands.dev",
-              apiKey: "sk-cloud",
-              kind: "cloud",
-            })
-            .id;
+          backendId = ctx.addBackend({
+            name: "OpenHands Cloud",
+            host: "https://app.all-hands.dev",
+            apiKey: "sk-cloud",
+            kind: "cloud",
+          }).id;
         }}
       >
         <BackendFormModal
@@ -289,5 +284,22 @@ describe("BackendFormModal – edit mode (BackendForm entry point)", () => {
       id: backendId,
       kind: "cloud",
     });
+  });
+
+  it("locks add mode to Cloud login when VITE_LOCK_TO_CLOUD is set", () => {
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://cloud.example.com");
+
+    renderWithProviders(<BackendFormModal mode="add" onClose={vi.fn()} />);
+
+    expect(screen.getByTestId("add-backend-cloud-title")).toBeVisible();
+    expect(screen.getByTestId("add-backend-login-button")).toBeVisible();
+    expect(screen.queryByTestId("add-backend-host")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("add-backend-api-key")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("add-backend-advanced-toggle"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("add-backend-cloud-host"),
+    ).not.toBeInTheDocument();
   });
 });

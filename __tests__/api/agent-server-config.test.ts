@@ -6,7 +6,11 @@ import {
   getAgentServerFormDefaults,
   getAgentServerSessionApiKey,
   getAgentServerWorkingDir,
+  getCookieAuthCloudHost,
+  getLockedCloudAuthMode,
+  getLockedCloudHost,
   isAuthRequired,
+  isSameCloudHost,
   isAuthRequiredAndMissing,
 } from "#/api/agent-server-config";
 
@@ -24,6 +28,8 @@ afterEach(() => {
   vi.unstubAllEnvs();
   delete (window as unknown as Record<string, unknown>)
     .__AGENT_CANVAS_SESSION_API_KEY__;
+  delete (window as unknown as Record<string, unknown>)
+    .__AGENT_CANVAS_LOCK_TO_CLOUD__;
   Object.defineProperty(window, "location", {
     configurable: true,
     value: ORIGINAL_LOCATION,
@@ -72,6 +78,102 @@ describe("agent server config", () => {
     expect(
       buildConversationWorkingDir("4a8dca37-3bf0-48de-a0af-949d711c3d48"),
     ).toBe("/srv/workspaces/4a8dca373bf048dea0af949d711c3d48");
+  });
+});
+
+function setInjectedCloudHost(value: unknown) {
+  (
+    window as unknown as Record<string, unknown>
+  ).__AGENT_CANVAS_LOCK_TO_CLOUD__ = value;
+}
+
+describe("getLockedCloudHost", () => {
+  it("returns null when no Cloud lock is configured", () => {
+    expect(getLockedCloudHost()).toBeNull();
+  });
+
+  it("uses VITE_LOCK_TO_CLOUD when it is provided", () => {
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://cloud.example.com/");
+    setInjectedCloudHost("https://runtime.example.com");
+
+    expect(getLockedCloudHost()).toBe("https://cloud.example.com");
+  });
+
+  it("falls back to the runtime-injected Cloud URL", () => {
+    setInjectedCloudHost("https://runtime.example.com/");
+
+    expect(getLockedCloudHost()).toBe("https://runtime.example.com");
+  });
+
+  it("adds https:// to hostnames without an explicit scheme", () => {
+    setInjectedCloudHost("cloud.example.com/");
+
+    expect(getLockedCloudHost()).toBe("https://cloud.example.com");
+  });
+
+  it("ignores blank and non-string runtime values", () => {
+    setInjectedCloudHost("   ");
+    expect(getLockedCloudHost()).toBeNull();
+
+    setInjectedCloudHost(12345);
+    expect(getLockedCloudHost()).toBeNull();
+  });
+});
+
+describe("isSameCloudHost", () => {
+  it.each([
+    ["https://staging.openhands.dev", "https://staging.all-hands.dev"],
+    [
+      "https://pr-254.staging.openhands.dev",
+      "https://pr-254.staging.all-hands.dev",
+    ],
+    ["https://openhands.dev", "https://app.all-hands.dev"],
+  ])("treats transition domains as equivalent (%s, %s)", (a, b) => {
+    expect(isSameCloudHost(a, b)).toBe(true);
+    expect(isSameCloudHost(b, a)).toBe(true);
+  });
+
+  it("does not treat different preview numbers as equivalent", () => {
+    expect(
+      isSameCloudHost(
+        "https://pr-254.staging.openhands.dev",
+        "https://pr-255.staging.all-hands.dev",
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("getLockedCloudAuthMode", () => {
+  it("uses cookie auth when the locked Cloud host matches the current origin", () => {
+    mockWindowLocation("https://app.all-hands.dev/canvas");
+    setInjectedCloudHost("https://app.all-hands.dev");
+
+    expect(getLockedCloudAuthMode()).toBe("cookie");
+  });
+
+  it("uses cookie auth for equivalent openhands.dev and all-hands.dev preview hosts", () => {
+    mockWindowLocation("https://pr-254.staging.openhands.dev/canvas");
+    setInjectedCloudHost("https://pr-254.staging.all-hands.dev");
+
+    expect(getLockedCloudAuthMode()).toBe("cookie");
+    expect(getCookieAuthCloudHost()).toBe(
+      "https://pr-254.staging.openhands.dev",
+    );
+  });
+
+  it("uses cookie auth when production moves from app.all-hands.dev to openhands.dev", () => {
+    mockWindowLocation("https://openhands.dev/canvas");
+    setInjectedCloudHost("https://app.all-hands.dev");
+
+    expect(getLockedCloudAuthMode()).toBe("cookie");
+    expect(getCookieAuthCloudHost()).toBe("https://openhands.dev");
+  });
+
+  it("uses API-key auth when the locked Cloud host is cross-origin", () => {
+    mockWindowLocation("https://canvas.example.dev/");
+    setInjectedCloudHost("https://app.all-hands.dev");
+
+    expect(getLockedCloudAuthMode()).toBe("api-key");
   });
 });
 

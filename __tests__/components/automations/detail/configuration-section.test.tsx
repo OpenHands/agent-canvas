@@ -114,4 +114,21 @@ describe("ConfigurationSection", () => {
     expect(screen.getByText(longFilter)).toBeInTheDocument();
     expect(screen.getByText("SETTINGS$SKILLS_SHOW_LESS")).toBeInTheDocument();
   });
+
+  it("does not render the filter field when the event trigger has no filter", () => {
+    const automation: Automation = {
+      ...eventAutomation,
+      trigger: {
+        type: "event",
+        source: "github",
+        on: "pull_request.opened",
+      },
+    };
+
+    render(<ConfigurationSection automation={automation} />);
+
+    expect(
+      screen.queryByText("AUTOMATIONS$DETAIL$EVENT_FILTER"),
+    ).not.toBeInTheDocument();
+  });
 });

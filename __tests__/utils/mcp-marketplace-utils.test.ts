@@ -6,7 +6,6 @@ import {
   getInstallableMcpConnectionOption,
   getMcpMarketplaceCatalog,
   installedServerMatchesQuery,
-  isMarketplaceEntryAvailable,
   marketplaceEntryMatchesQuery,
 } from "#/utils/mcp-marketplace-utils";
 import { INTEGRATION_CATALOG as MCP_MARKETPLACE } from "@openhands/extensions/integrations";
@@ -98,13 +97,12 @@ describe("getInstallableMcpConnectionOption", () => {
     expect(option?.transport.kind).toBe("stdio");
   });
 
-  it("returns undefined for an OAuth-only entry (no locally installable option)", () => {
+  it("returns undefined for provider OAuth entries without a local MCP auth contract", () => {
     const oauthOnlyEntry: Parameters<
       typeof getInstallableMcpConnectionOption
     >[0] = {
       ...slackEntry,
       id: "oauth-only",
-      defaultConnectionOptionId: "oauth",
       connectionOptions: [
         {
           id: "oauth",
@@ -120,29 +118,42 @@ describe("getInstallableMcpConnectionOption", () => {
     expect(option).toBeUndefined();
   });
 
+  it("returns MCP-server-managed OAuth options", () => {
+    const oauthOnlyEntry: Parameters<
+      typeof getInstallableMcpConnectionOption
+    >[0] = {
+      ...slackEntry,
+      id: "oauth-only",
+      connectionOptions: [
+        {
+          id: "oauth",
+          provider: "mcp",
+          auth: {
+            strategy: "oauth2",
+            oauth: { clientAuthentication: "none" },
+          },
+          transport: { kind: "shttp", url: "https://example.com/mcp" },
+        } as Parameters<
+          typeof getInstallableMcpConnectionOption
+        >[0]["connectionOptions"][number],
+      ],
+    };
+    const option = getInstallableMcpConnectionOption(oauthOnlyEntry);
+    expect(option).toBeDefined();
+    expect(option?.auth.strategy).toBe("oauth2");
+    expect(option?.transport.kind).toBe("shttp");
+  });
+
   it("returns undefined when the entry has no MCP connection options", () => {
     const noOptionsEntry: Parameters<
       typeof getInstallableMcpConnectionOption
     >[0] = {
       ...slackEntry,
       id: "no-mcp",
-      defaultConnectionOptionId: undefined,
       connectionOptions: [],
     };
     const option = getInstallableMcpConnectionOption(noOptionsEntry);
     expect(option).toBeUndefined();
-  });
-});
-
-describe("isMarketplaceEntryAvailable", () => {
-  it("treats unset availability as 'all'", () => {
-    expect(isMarketplaceEntryAvailable(slackEntry, "local")).toBe(true);
-    expect(isMarketplaceEntryAvailable(slackEntry, "cloud")).toBe(true);
-  });
-
-  it("hides local-only entries on cloud", () => {
-    expect(isMarketplaceEntryAvailable(filesystemEntry, "local")).toBe(true);
-    expect(isMarketplaceEntryAvailable(filesystemEntry, "cloud")).toBe(false);
   });
 });
 

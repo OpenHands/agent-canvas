@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { isAxiosError } from "axios";
 import { I18nKey } from "#/i18n/declaration";
 import type { Automation } from "#/types/automation";
 import { useUpdateAutomation } from "#/hooks/query/use-automations";
+import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { SettingsDropdownInput } from "#/components/features/settings/settings-dropdown-input";
 import { BrandButton } from "#/components/features/settings/brand-button";
@@ -11,6 +11,7 @@ import {
   displaySuccessToast,
   displayErrorToast,
 } from "#/utils/custom-toast-handlers";
+import { getApiErrorMessage } from "#/utils/api-error-message";
 import { modalTitleLgMediumClassName } from "#/utils/modal-classes";
 import {
   parseCronSchedule,
@@ -20,6 +21,11 @@ import {
   formatEventOn,
   type SchedulePresetKind,
 } from "#/utils/automation-schedule";
+import {
+  validateAutomationTimeout,
+  AUTOMATION_TIMEOUT_DEFAULT_SECONDS,
+  AUTOMATION_TIMEOUT_MAX_SECONDS,
+} from "#/utils/automation-timeout";
 import { cn } from "#/utils/utils";
 import {
   formControlMultilineFieldClassName,
@@ -35,6 +41,12 @@ interface EditAutomationModalProps {
 
 type FrequencyKey = SchedulePresetKind | "custom";
 
+// Sentinel key for the "Active profile" picker option. Real profile names must
+// start with an alphanumeric (backend MODEL_PROFILE_PATTERN), so this cannot
+// collide with a stored profile name. Maps to an empty `form.model` (= use the
+// active/default profile).
+const ACTIVE_PROFILE_KEY = "__active__";
+
 const WEEKDAY_KEYS: I18nKey[] = [
   I18nKey.AUTOMATIONS$WEEKDAY_SUN,
   I18nKey.AUTOMATIONS$WEEKDAY_MON,
@@ -48,23 +60,28 @@ const WEEKDAY_KEYS: I18nKey[] = [
 interface FormState {
   name: string;
   prompt: string;
+  model: string;
   frequency: FrequencyKey;
   weekday: number;
   timeOfDay: string;
   isCustomSchedule: boolean;
   rawSchedule: string;
+  timeout: string;
 }
 
 function buildInitialState(automation: Automation): FormState {
+  const timeout = automation.timeout != null ? String(automation.timeout) : "";
   if (automation.trigger.type === "event") {
     return {
       name: automation.name,
       prompt: automation.prompt ?? "",
+      model: automation.model ?? "",
       frequency: "custom",
       weekday: 1,
       timeOfDay: "",
       isCustomSchedule: true,
       rawSchedule: "",
+      timeout,
     };
   }
   const parsed = parseCronSchedule(automation.trigger.schedule);
@@ -72,6 +89,7 @@ function buildInitialState(automation: Automation): FormState {
     return {
       name: automation.name,
       prompt: automation.prompt ?? "",
+      model: automation.model ?? "",
       frequency: "custom",
       weekday: 1,
       timeOfDay:
@@ -80,16 +98,19 @@ function buildInitialState(automation: Automation): FormState {
           : "",
       isCustomSchedule: true,
       rawSchedule: parsed.raw,
+      timeout,
     };
   }
   return {
     name: automation.name,
     prompt: automation.prompt ?? "",
+    model: automation.model ?? "",
     frequency: parsed.kind,
     weekday: parsed.kind === "weekly" ? (parsed.weekday ?? 1) : 1,
     timeOfDay: formatTimeOfDay(parsed.hour, parsed.minute),
     isCustomSchedule: false,
     rawSchedule: automation.trigger.schedule ?? "",
+    timeout,
   };
 }
 
@@ -100,15 +121,23 @@ export function EditAutomationModal({
 }: EditAutomationModalProps) {
   const { t } = useTranslation("openhands");
   const updateMutation = useUpdateAutomation();
+  const { data: profilesData, isLoading: isLoadingProfiles } = useLlmProfiles();
+  const profiles = profilesData?.profiles ?? [];
+  const modelItems = [
+    { key: ACTIVE_PROFILE_KEY, label: t(I18nKey.COMMON$ACTIVE_PROFILE) },
+    ...profiles.map((p) => ({ key: p.name, label: p.name })),
+  ];
 
   const initial = useMemo(() => buildInitialState(automation), [automation]);
   const [form, setForm] = useState<FormState>(initial);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [timeoutError, setTimeoutError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setForm(initial);
       setNameError(null);
+      setTimeoutError(null);
     }
   }, [isOpen, initial]);
 
@@ -157,6 +186,13 @@ export function EditAutomationModal({
     }
     setNameError(null);
 
+    const timeoutResult = validateAutomationTimeout(form.timeout);
+    if ("errorKey" in timeoutResult) {
+      setTimeoutError(t(timeoutResult.errorKey));
+      return;
+    }
+    setTimeoutError(null);
+
     const body: Partial<Automation> = {};
 
     if (trimmedName !== automation.name) {
@@ -167,6 +203,16 @@ export function EditAutomationModal({
     const initialPrompt = automation.prompt ?? "";
     if (trimmedPrompt !== initialPrompt.trim()) {
       body.prompt = trimmedPrompt.length === 0 ? null : trimmedPrompt;
+    }
+
+    const selectedModel = form.model.trim();
+    const initialModel = automation.model ?? "";
+    if (selectedModel !== initialModel) {
+      body.model = selectedModel === "" ? null : selectedModel;
+    }
+
+    if ((timeoutResult.value ?? null) !== (automation.timeout ?? null)) {
+      body.timeout = timeoutResult.value;
     }
 
     if (!form.isCustomSchedule && form.frequency !== "custom") {
@@ -200,13 +246,9 @@ export function EditAutomationModal({
           onClose();
         },
         onError: (error) => {
-          const message = isAxiosError(error)
-            ? (error.response?.data as { message?: string } | undefined)
-                ?.message ||
-              error.message ||
-              t(I18nKey.AUTOMATIONS$EDIT_ERROR)
-            : (error as Error).message || t(I18nKey.AUTOMATIONS$EDIT_ERROR);
-          displayErrorToast(message);
+          displayErrorToast(
+            getApiErrorMessage(error, t(I18nKey.AUTOMATIONS$EDIT_ERROR)),
+          );
         },
       },
     );
@@ -238,6 +280,7 @@ export function EditAutomationModal({
 
         <form
           onSubmit={handleSubmit}
+          noValidate
           className="mt-4 flex flex-col gap-4"
           aria-label={t(I18nKey.AUTOMATIONS$EDIT_TITLE)}
         >
@@ -271,6 +314,47 @@ export function EditAutomationModal({
               {t(I18nKey.AUTOMATIONS$EDIT_PROMPT_HINT)}
             </span>
           </label>
+
+          {(isLoadingProfiles || profiles.length > 0) && (
+            <SettingsDropdownInput
+              testId="edit-automation-model"
+              name="model"
+              label={t(I18nKey.AUTOMATIONS$DETAIL$MODEL)}
+              items={modelItems}
+              selectedKey={form.model || ACTIVE_PROFILE_KEY}
+              isLoading={isLoadingProfiles}
+              placeholder={t(I18nKey.COMMON$ACTIVE_PROFILE)}
+              onSelectionChange={(key) =>
+                setForm((f) => ({
+                  ...f,
+                  model: key && key !== ACTIVE_PROFILE_KEY ? String(key) : "",
+                }))
+              }
+            />
+          )}
+
+          <div className="flex flex-col gap-2.5 w-full min-w-0">
+            <SettingsInput
+              testId="edit-automation-timeout"
+              name="timeout"
+              type="number"
+              label={t(I18nKey.AUTOMATIONS$TIMEOUT)}
+              value={form.timeout}
+              onChange={(value) => setForm((f) => ({ ...f, timeout: value }))}
+              error={timeoutError ?? undefined}
+              showOptionalTag
+              min={1}
+              max={AUTOMATION_TIMEOUT_MAX_SECONDS}
+              step={1}
+              placeholder={String(AUTOMATION_TIMEOUT_DEFAULT_SECONDS)}
+            />
+            <span
+              data-testid="edit-automation-timeout-hint"
+              className="text-xs text-muted"
+            >
+              {t(I18nKey.AUTOMATIONS$TIMEOUT_HINT)}
+            </span>
+          </div>
 
           {automation.trigger.type === "event" ? (
             <div className="flex flex-col gap-3 rounded-lg bg-[var(--oh-surface-raised)] p-3">

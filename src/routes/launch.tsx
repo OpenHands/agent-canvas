@@ -158,6 +158,7 @@ export default function LaunchRoute() {
       const result = await createConversation.mutateAsync({
         plugins,
         query: initialMessage,
+        entryPoint: "launch_deeplink",
       });
       navigate(`/conversations/${result.conversation_id}`);
     } catch {

@@ -38,7 +38,30 @@ const SLACK_AUTH_FAILURES = new Set([
   "token_expired",
 ]);
 
+/**
+ * Interpreter for hosted HTTP API servers (GitHub, Linear). The service only
+ * calls `interpret` when the probe tool was advertised by the server AND
+ * invoked, so `is_error` here means the read-only call itself failed — for a
+ * "who am I" / "list teams" probe that is an auth/permission failure.
+ */
+const interpretReadOnlyToolResult = (
+  toolResult: MCPTestToolResult,
+): string | null =>
+  toolResult.is_error ? toolResult.text || "tool call failed" : null;
+
 const VALIDATION_BY_ENTRY_ID: Record<string, CredentialValidation> = {
+  github: {
+    // Official GitHub MCP server (api.githubcopilot.com): read-only
+    // "get details of the authenticated user".
+    toolCall: { name: "get_me", arguments: {} },
+    interpret: interpretReadOnlyToolResult,
+  },
+  linear: {
+    // Linear hosted MCP (mcp.linear.app): read-only teams listing with no
+    // required arguments.
+    toolCall: { name: "list_teams", arguments: {} },
+    interpret: interpretReadOnlyToolResult,
+  },
   slack: {
     // Read-only: lists at most one channel. The Slack MCP server returns
     // the raw Slack API JSON ({ok: boolean, error?: string}) as text.

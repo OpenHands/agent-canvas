@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Navigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { AxiosError } from "axios";
 import { useSettings } from "#/hooks/query/use-settings";
@@ -7,6 +8,7 @@ import { useAgentSettingsSchema } from "#/hooks/query/use-agent-settings-schema"
 import { SettingsDropdownInput } from "#/components/features/settings/settings-dropdown-input";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { SettingsSwitch } from "#/components/features/settings/settings-switch";
+import { SchemaField } from "#/components/features/settings/sdk-settings/schema-field";
 import { AcpCredentialsSection } from "#/components/features/settings/acp-credentials-section";
 import { useAcpCredentialForm } from "#/hooks/use-acp-credential-form";
 import { BrandButton } from "#/components/features/settings/brand-button";
@@ -14,7 +16,11 @@ import { Typography } from "#/ui/typography";
 import { I18nKey } from "#/i18n/declaration";
 import { formControlSwitchDescriptionClassName } from "#/utils/form-control-classes";
 import { cn } from "#/utils/utils";
-import { SettingsFieldSchema } from "#/types/settings";
+import { SettingsFieldSchema, SettingsValue } from "#/types/settings";
+import {
+  coerceFieldValue,
+  normalizeFieldValue,
+} from "#/utils/sdk-settings-schema";
 import {
   displayErrorToast,
   displaySuccessToast,
@@ -39,6 +45,7 @@ export const handle = { hideTitle: true };
 type AgentType = "openhands" | "acp";
 
 const ENABLE_SUB_AGENTS_FIELD_KEY = "enable_sub_agents";
+const TOOL_CONCURRENCY_FIELD_KEY = "tool_concurrency_limit";
 const COMMAND_PLACEHOLDER_FALLBACK = "npx -y <package-name>";
 const ACP_CUSTOM_MODEL_KEY = "__custom_model__";
 
@@ -84,9 +91,153 @@ function isKnownAcpModel(
   );
 }
 
-function AgentSettingsScreen() {
+/**
+ * Variant-specific AgentProfile fields derived from the form state. The
+ * OpenHands branch omits `llm_profile_ref` — the profile editor supplies it.
+ */
+export type AgentProfileFieldsDraft =
+  | {
+      agent_kind: "openhands";
+      enable_sub_agents: boolean;
+      tool_concurrency_limit?: number;
+    }
+  | {
+      agent_kind: "acp";
+      acp_server: string;
+      acp_model: string | null;
+      acp_command: string | null;
+      acp_args: string[] | null;
+    };
+
+/** Live form state the pure {@link buildAgentProfileFields} builder reads. */
+export interface AgentProfileFieldsInput {
+  isAcp: boolean;
+  /** Detected ACP preset: a provider key or the ``custom`` sentinel. */
+  selectedPreset: string;
+  /** True when the command exactly matches the selected provider's default. */
+  isDefaultProviderCommand: boolean;
+  commandTokens: string[];
+  acpModel: string;
+  subAgentsEnabled: boolean;
+  toolConcurrencyField?: SettingsFieldSchema;
+  toolConcurrency: string | boolean;
+}
+
+/**
+ * Translate the live Agent-settings form state into the variant-specific
+ * AgentProfile fields. Pure (no React), so it can be unit-tested directly.
+ *
+ * ACP: a built-in provider on its default command stores **no** explicit
+ * command (``acp_command: null`` — the profile resolver falls back to the
+ * provider default); a customized or ``custom`` command is stored verbatim as a
+ * shell string. OpenHands: reuses the schema-driven ``tool_concurrency_limit``
+ * coercion, which **throws** on invalid input (callers catch at save time). A
+ * blank concurrency field always emits an explicit value (the schema default
+ * when the coercion is empty) rather than omitting the key — the profile
+ * editor's save is a whole-profile overwrite (``mergeAgentProfileSaveInput``
+ * spreads the stored profile under these fields), so omitting the key would
+ * let a stale stored value silently survive an edit meant to clear it back to
+ * the default (#1571 review). The backend field itself is a non-nullable
+ * ``int`` with ``ge=1``, so the default — not ``null`` — is the value that
+ * actually clears.
+ */
+export function buildAgentProfileFields(
+  input: AgentProfileFieldsInput,
+): AgentProfileFieldsDraft {
+  const {
+    isAcp,
+    selectedPreset,
+    isDefaultProviderCommand,
+    commandTokens,
+    acpModel,
+    subAgentsEnabled,
+    toolConcurrencyField,
+    toolConcurrency,
+  } = input;
+  if (isAcp) {
+    const isBuiltinDefault =
+      isDefaultProviderCommand && selectedPreset !== ACP_CUSTOM_PRESET_KEY;
+    return {
+      agent_kind: "acp",
+      acp_server: selectedPreset,
+      acp_model: acpModel.trim() || null,
+      acp_command: isBuiltinDefault
+        ? null
+        : formatCommand(commandTokens) || null,
+      acp_args: null,
+    };
+  }
+  const fields: Extract<AgentProfileFieldsDraft, { agent_kind: "openhands" }> =
+    {
+      agent_kind: "openhands",
+      enable_sub_agents: subAgentsEnabled,
+    };
+  if (toolConcurrencyField) {
+    // Reuse the schema-driven coercion/validation; throws on bad input.
+    const coerced = coerceFieldValue(toolConcurrencyField, toolConcurrency);
+    // A blank field coerces to `null`. Always emit an explicit value — never
+    // omit the key — so a deliberate clear on an edit-save actually resets the
+    // stored profile to the schema default, instead of the whole-profile merge
+    // silently carrying the old value forward.
+    const fallback =
+      typeof toolConcurrencyField.default === "number"
+        ? toolConcurrencyField.default
+        : 1;
+    fields.tool_concurrency_limit =
+      coerced != null ? Number(coerced) : fallback;
+  }
+  return fields;
+}
+
+/**
+ * Handle the embedded form exposes to its parent (the Agent-profile editor) so
+ * it can read the current state and persist it as an AgentProfile.
+ */
+export interface AgentSettingsSaveControl {
+  agentType: AgentType;
+  /** False when the current form can't be saved (e.g. an empty ACP command). */
+  isValid: boolean;
+  /**
+   * Build the variant-specific AgentProfile fields from the live form state.
+   * Throws a user-facing Error on invalid input (e.g. a bad concurrency value).
+   */
+  buildAgentProfileFields: () => AgentProfileFieldsDraft;
+  /** Shared ACP credential form (writes to global secrets). */
+  credentials: {
+    isDirty: boolean;
+    save: (opts?: { silent?: boolean }) => Promise<boolean>;
+    reset: () => void;
+  };
+}
+
+interface AgentSettingsScreenProps {
+  /**
+   * Embedded mode reuses this form as the Agent-profile editor: it hides the
+   * page header + the global Save button, seeds from `agentSettingsOverride`
+   * instead of the live global settings, and reports its state through
+   * `onSaveControlChange` so the parent can persist it as an AgentProfile.
+   */
+  embedded?: boolean;
+  /**
+   * When set (embedded mode), seed the form from this `agent_settings`-shaped
+   * object instead of the live global settings — lets the editor open on a
+   * stored profile's fields.
+   */
+  agentSettingsOverride?: Record<string, SettingsValue> | null;
+  onSaveControlChange?: (control: AgentSettingsSaveControl) => void;
+}
+
+export function AgentSettingsScreen({
+  embedded = false,
+  agentSettingsOverride = null,
+  onSaveControlChange,
+}: AgentSettingsScreenProps = {}) {
   const { t } = useTranslation("openhands");
   const { data: settings, isLoading } = useSettings();
+  // In embedded (profile-editor) mode the parent seeds the form from a stored
+  // profile via `agentSettingsOverride`; otherwise use the live global settings.
+  const agentSettingsSource: Record<string, SettingsValue> | null =
+    agentSettingsOverride ?? settings?.agent_settings ?? null;
   const { mutate: saveSettings, isPending: isSaving } = useSaveSettings();
   const { data: schema } = useAgentSettingsSchema(
     settings?.agent_settings_schema,
@@ -101,13 +252,28 @@ function AgentSettingsScreen() {
   const initialSubAgentsEnabled = React.useMemo(
     () =>
       getEnableSubAgentsValue(
-        settings?.agent_settings?.[ENABLE_SUB_AGENTS_FIELD_KEY],
+        agentSettingsSource?.[ENABLE_SUB_AGENTS_FIELD_KEY],
         subAgentsField,
       ),
-    [subAgentsField, settings?.agent_settings],
+    [subAgentsField, agentSettingsSource],
   );
   const [subAgentsEnabled, setSubAgentsEnabled] = useState(
     initialSubAgentsEnabled,
+  );
+
+  // --- Parallel tool calls (OpenHands path) ---
+  // Surfaced only when the backend schema exposes the field, so older
+  // agent-servers that predate ``tool_concurrency_limit`` hide it cleanly.
+  const toolConcurrencyField = fields?.find(
+    (field) => field.key === TOOL_CONCURRENCY_FIELD_KEY,
+  );
+  const initialToolConcurrency = React.useMemo(() => {
+    if (!toolConcurrencyField) return "";
+    const raw = agentSettingsSource?.[TOOL_CONCURRENCY_FIELD_KEY];
+    return normalizeFieldValue(toolConcurrencyField, raw);
+  }, [toolConcurrencyField, agentSettingsSource]);
+  const [toolConcurrency, setToolConcurrency] = useState<string | boolean>(
+    initialToolConcurrency,
   );
 
   // --- ACP path ---
@@ -135,27 +301,30 @@ function AgentSettingsScreen() {
   const loadedCommandTextRef = useRef<string>("");
 
   useEffect(() => {
-    if (!settings) return;
-    if (lastInitializedSettingsRef.current === settings) return;
+    // Seed from the profile override (embedded) or the live global settings.
+    const source = agentSettingsOverride ?? settings?.agent_settings ?? null;
+    if (!source && !settings) return;
+    const initIdentity = agentSettingsOverride ?? settings;
+    if (lastInitializedSettingsRef.current === initIdentity) return;
 
-    lastInitializedSettingsRef.current = settings;
-    const kind = settings.agent_settings?.agent_kind;
+    lastInitializedSettingsRef.current = initIdentity;
+    const kind = source?.agent_kind;
 
     if (kind === "acp") {
       setAgentType("acp");
 
-      const rawAcpServer = settings.agent_settings?.acp_server;
+      const rawAcpServer = source?.acp_server;
       const acpServer =
         typeof rawAcpServer === "string" ? rawAcpServer : undefined;
       const provider = getAcpProvider(acpServer);
-      const storedCommand = toStringArray(settings.agent_settings?.acp_command);
+      const storedCommand = toStringArray(source?.acp_command);
       const effectiveBaseCommand =
         storedCommand.length > 0
           ? storedCommand
           : (provider?.default_command ?? []);
       const tokens = [
         ...effectiveBaseCommand,
-        ...toStringArray(settings.agent_settings?.acp_args),
+        ...toStringArray(source?.acp_args),
       ];
       const renderedCommandText =
         tokens.length > 0 ? formatCommand(tokens) : "";
@@ -163,7 +332,7 @@ function AgentSettingsScreen() {
       loadedAcpServerRef.current = acpServer ?? null;
       loadedCommandTextRef.current = renderedCommandText;
 
-      const savedModel = settings.agent_settings?.acp_model;
+      const savedModel = source?.acp_model;
       const normalizedSavedModel =
         typeof savedModel === "string" ? savedModel.trim() : "";
       setAcpModel(
@@ -182,12 +351,62 @@ function AgentSettingsScreen() {
       setIsCustomAcpModel(false);
     }
     setIsDirty(false);
-  }, [settings]);
+  }, [settings, agentSettingsOverride]);
 
   // Sync the sub-agents toggle when settings reload
   useEffect(() => {
     setSubAgentsEnabled(initialSubAgentsEnabled);
   }, [initialSubAgentsEnabled]);
+
+  // Sync the parallel-tool-calls input when settings reload
+  useEffect(() => {
+    setToolConcurrency(initialToolConcurrency);
+  }, [initialToolConcurrency]);
+
+  // --- Embedded (Agent-profile editor) save control ---
+  // Ref-backed so the exposed builder/credential fns read the freshest state at
+  // call time without re-emitting the control on every keystroke (mirrors
+  // ``sdk-section-page``). The body is (re)assigned during render below.
+  const buildFieldsRef = useRef<() => AgentProfileFieldsDraft>(() => ({
+    agent_kind: "openhands",
+    enable_sub_agents: false,
+  }));
+  const stableBuildFields = useCallback(() => buildFieldsRef.current(), []);
+  const credFormRef = useRef(acpCredentialForm);
+  credFormRef.current = acpCredentialForm;
+  const stableCredSave = useCallback(
+    (opts?: { silent?: boolean }) => credFormRef.current.save(opts),
+    [],
+  );
+  const stableCredReset = useCallback(() => credFormRef.current.reset(), []);
+
+  // Validity/kind are computed here (before the loading early-return) so the
+  // emit effect can depend on them; the full ACP derivation lives after it.
+  const acpCommandEmpty =
+    agentType === "acp" && parseCommand(commandText).length === 0;
+  const embeddedCredentialsDirty = acpCredentialForm.isDirty;
+  useEffect(() => {
+    if (!embedded || !onSaveControlChange) return;
+    onSaveControlChange({
+      agentType,
+      isValid: !acpCommandEmpty,
+      buildAgentProfileFields: stableBuildFields,
+      credentials: {
+        isDirty: embeddedCredentialsDirty,
+        save: stableCredSave,
+        reset: stableCredReset,
+      },
+    });
+  }, [
+    embedded,
+    onSaveControlChange,
+    agentType,
+    acpCommandEmpty,
+    embeddedCredentialsDirty,
+    stableBuildFields,
+    stableCredSave,
+    stableCredReset,
+  ]);
 
   if (isLoading) return null;
 
@@ -210,9 +429,28 @@ function AgentSettingsScreen() {
     formatCommand(ACP_PROVIDERS[0]?.default_command ?? []) ||
     COMMAND_PLACEHOLDER_FALLBACK;
 
-  // Dirty tracking: for OpenHands path, also check sub-agents toggle
+  // Assign the embedded control's field builder from the live render state.
+  // The mapping itself lives in the pure `buildAgentProfileFields` (unit-
+  // tested); this closure just snapshots the current state. Throws only when
+  // called (at save time), never during render.
+  buildFieldsRef.current = (): AgentProfileFieldsDraft =>
+    buildAgentProfileFields({
+      isAcp,
+      selectedPreset,
+      isDefaultProviderCommand,
+      commandTokens,
+      acpModel,
+      subAgentsEnabled,
+      toolConcurrencyField,
+      toolConcurrency,
+    });
+
+  // Dirty tracking: for OpenHands path, also check sub-agents toggle and the
+  // parallel-tool-calls input.
   const isOpenHandsDirty =
-    !isAcp && subAgentsEnabled !== initialSubAgentsEnabled;
+    !isAcp &&
+    (subAgentsEnabled !== initialSubAgentsEnabled ||
+      toolConcurrency !== initialToolConcurrency);
   const settingsDirty = isDirty || isOpenHandsDirty;
   // The single Save covers both the agent spec and ACP credentials, so it is
   // active when either changed, and shows "Saving…" while either is in flight.
@@ -278,13 +516,34 @@ function AgentSettingsScreen() {
         },
       );
     } else {
-      // OpenHands path: save agent_kind + sub-agents toggle
+      // OpenHands path: save agent_kind + sub-agents toggle + parallel tool calls
+      const agentSettingsDiff: Record<string, SettingsValue> = {
+        agent_kind: "openhands",
+        enable_sub_agents: subAgentsEnabled,
+      };
+
+      if (toolConcurrencyField) {
+        let coerced: SettingsValue;
+        try {
+          // Reuse the schema-driven coercion + min/max validation rather than
+          // re-implementing it; throws a user-facing message on bad input.
+          coerced = coerceFieldValue(toolConcurrencyField, toolConcurrency);
+        } catch (error) {
+          displayErrorToast(
+            error instanceof Error ? error.message : t(I18nKey.ERROR$GENERIC),
+          );
+          return;
+        }
+        // ``tool_concurrency_limit`` is a non-nullable int (default 1); skip an
+        // empty input rather than sending ``null`` the backend would reject.
+        if (coerced != null) {
+          agentSettingsDiff[TOOL_CONCURRENCY_FIELD_KEY] = coerced;
+        }
+      }
+
       saveSettings(
         {
-          agent_settings_diff: {
-            agent_kind: "openhands",
-            enable_sub_agents: subAgentsEnabled,
-          },
+          agent_settings_diff: agentSettingsDiff,
         },
         {
           onError: (error) => {
@@ -317,14 +576,16 @@ function AgentSettingsScreen() {
       data-testid="agent-settings-screen"
       className="flex flex-col gap-6 pb-8 max-w-2xl"
     >
-      <div>
-        <Typography.H2 className="mb-2">
-          {t(I18nKey.SETTINGS$NAV_AGENT)}
-        </Typography.H2>
-        <Typography.Paragraph className="text-sm text-[#A3A3A3]">
-          {t(I18nKey.SETTINGS$AGENT_PAGE_DESCRIPTION)}
-        </Typography.Paragraph>
-      </div>
+      {!embedded && (
+        <div>
+          <Typography.H2 className="mb-2">
+            {t(I18nKey.SETTINGS$NAV_AGENT)}
+          </Typography.H2>
+          <Typography.Paragraph className="text-sm text-[#A3A3A3]">
+            {t(I18nKey.SETTINGS$AGENT_PAGE_DESCRIPTION)}
+          </Typography.Paragraph>
+        </div>
+      )}
 
       <SettingsDropdownInput
         testId="agent-type-selector"
@@ -379,6 +640,15 @@ function AgentSettingsScreen() {
           ) : null}
         </div>
       )}
+
+      {!isAcp && toolConcurrencyField ? (
+        <SchemaField
+          field={toolConcurrencyField}
+          value={toolConcurrency}
+          isDisabled={isSavingAny}
+          onChange={setToolConcurrency}
+        />
+      ) : null}
 
       {isAcp && (
         <>
@@ -522,21 +792,38 @@ function AgentSettingsScreen() {
         </>
       )}
 
-      <div>
-        <BrandButton
-          testId="agent-save-button"
-          type="button"
-          variant="primary"
-          isDisabled={isSavingAny || !isAnyDirty || isAcpInvalid}
-          onClick={handleSave}
-        >
-          {isSavingAny
-            ? t(I18nKey.SETTINGS$SAVING)
-            : t(I18nKey.SETTINGS$SAVE_CHANGES)}
-        </BrandButton>
-      </div>
+      {!embedded && (
+        <div>
+          <BrandButton
+            testId="agent-save-button"
+            type="button"
+            variant="primary"
+            isDisabled={isSavingAny || !isAnyDirty || isAcpInvalid}
+            onClick={handleSave}
+          >
+            {isSavingAny
+              ? t(I18nKey.SETTINGS$SAVING)
+              : t(I18nKey.SETTINGS$SAVE_CHANGES)}
+          </BrandButton>
+        </div>
+      )}
     </div>
   );
 }
 
-export default AgentSettingsScreen;
+/**
+ * Legacy `/settings/agent` route. Settings → Agent is now the Agent Profile
+ * library (`/settings/agents`), whose editor reuses the named
+ * `AgentSettingsScreen` export below; this global-agent-form route is retired
+ * and redirects there so old links/bookmarks keep working.
+ *
+ * Note: This is a route file; only the router should import the default export.
+ * React Router's Vite plugin wraps a route's default export with
+ * `withComponentProps`, which invokes it with route props and drops any props
+ * passed by a parent — so embedded consumers (the Agent-profile editor) MUST
+ * import the named `AgentSettingsScreen` export instead, or `embedded` /
+ * `onSaveControlChange` never arrive. Mirrors `LlmSettingsRoute`.
+ */
+export default function AgentSettingsRoute() {
+  return <Navigate to="/settings/agents" replace />;
+}

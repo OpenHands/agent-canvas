@@ -23,7 +23,9 @@ import {
 } from "#/utils/mcp-marketplace-utils";
 import { InstallServerModal } from "#/components/features/mcp-page/install-server-modal";
 import { useTracking } from "#/hooks/use-tracking";
+import { isResponderAutomation } from "#/utils/responder-deployment";
 import { RecommendedAutomationsSection } from "./recommended-automations-section";
+import { ResponderDeploymentModal } from "./responder-deployment-modal";
 
 interface RecommendedAutomationsLauncherProps {
   query?: string;
@@ -65,11 +67,13 @@ export function RecommendedAutomationsLauncher({
   );
   const [pendingAutomation, setPendingAutomation] =
     useState<RecommendedAutomation | null>(null);
+  const [deploymentChoiceAutomation, setDeploymentChoiceAutomation] =
+    useState<RecommendedAutomation | null>(null);
   const [installQueue, setInstallQueue] = useState<MarketplaceEntry[]>([]);
   const completedInstallRef = useRef(false);
   const launchInFlightRef = useRef(false);
 
-  const installedMcpServers = useMemo(
+  const installedMcpConfig = useMemo(
     () =>
       flattenMcpConfig(parseMcpConfig(settings?.agent_settings?.mcp_config)),
     [settings?.agent_settings?.mcp_config],
@@ -106,8 +110,8 @@ export function RecommendedAutomationsLauncher({
                 draftMessage: prompt,
               });
             }
-            onLaunched?.();
             navigate?.(`/conversations/${conversation.conversation_id}`);
+            onLaunched?.();
             window.setTimeout(() => setMessageToSend(prompt), 0);
           },
           onError: () => {
@@ -130,21 +134,12 @@ export function RecommendedAutomationsLauncher({
   const getMissingEntries = useCallback(
     (automation: RecommendedAutomation) =>
       getRequiredEntries(automation).filter(
-        (entry) => !findInstalledEntryMatch(entry, installedMcpServers),
+        (entry) => !findInstalledEntryMatch(entry, installedMcpConfig),
       ),
-    [installedMcpServers],
+    [installedMcpConfig],
   );
 
-  const handleSelectAutomation = (automation: RecommendedAutomation) => {
-    if (
-      launchInFlightRef.current ||
-      createConversation.isPending ||
-      isCreatingConversation ||
-      installQueue.length > 0
-    ) {
-      return;
-    }
-
+  const proceedWithLocalLaunch = (automation: RecommendedAutomation) => {
     const missingEntries = getMissingEntries(automation);
     if (missingEntries.length === 0) {
       launchAutomation(automation);
@@ -153,6 +148,44 @@ export function RecommendedAutomationsLauncher({
 
     setPendingAutomation(automation);
     setInstallQueue(missingEntries);
+  };
+
+  const handleSelectAutomation = (automation: RecommendedAutomation) => {
+    if (
+      launchInFlightRef.current ||
+      createConversation.isPending ||
+      isCreatingConversation ||
+      installQueue.length > 0 ||
+      deploymentChoiceAutomation !== null
+    ) {
+      return;
+    }
+
+    // GitHub/Slack responders poll continuously; let the user choose where the
+    // responder runs before committing to the local setup flow.
+    if (isResponderAutomation(automation)) {
+      setDeploymentChoiceAutomation(automation);
+      return;
+    }
+
+    proceedWithLocalLaunch(automation);
+  };
+
+  const handleDeploymentContinueLocal = () => {
+    const automation = deploymentChoiceAutomation;
+    setDeploymentChoiceAutomation(null);
+    if (automation) {
+      proceedWithLocalLaunch(automation);
+    }
+  };
+
+  const handleDeploymentOpenUrl = (url: string) => {
+    setDeploymentChoiceAutomation(null);
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const handleDeploymentClose = () => {
+    setDeploymentChoiceAutomation(null);
   };
 
   const cancelInstallFlow = () => {
@@ -192,7 +225,7 @@ export function RecommendedAutomationsLauncher({
     <>
       <RecommendedAutomationsSection
         backendKind={activeBackend.backend.kind}
-        installedServers={installedMcpServers}
+        installedServers={installedMcpConfig}
         query={query}
         onSelect={handleSelectAutomation}
         scrollableGrid={scrollableGrid}
@@ -202,10 +235,18 @@ export function RecommendedAutomationsLauncher({
         <InstallServerModal
           key={installEntry.id}
           entry={installEntry}
+          existingServers={installedMcpConfig}
           onClose={cancelInstallFlow}
           onSuccess={handleInstallSuccess}
         />
       )}
+
+      <ResponderDeploymentModal
+        isOpen={deploymentChoiceAutomation !== null}
+        onClose={handleDeploymentClose}
+        onContinueLocal={handleDeploymentContinueLocal}
+        onOpenUrl={handleDeploymentOpenUrl}
+      />
     </>
   );
 }

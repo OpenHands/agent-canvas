@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { AUTOMATION_CATALOG } from "@openhands/extensions/automations";
-import { INTEGRATION_LOGOS } from "@openhands/extensions/integrations/logos";
 import { INTEGRATION_CATALOG } from "@openhands/extensions/integrations";
 import {
   getDefaultMcpTransport,
+  getInstallableMcpConnectionOption,
   getMcpMarketplaceCatalog,
 } from "#/utils/mcp-marketplace-utils";
 
@@ -13,7 +13,7 @@ describe("OpenHands extensions catalogs", () => {
 
     const github = INTEGRATION_CATALOG.find((entry) => entry.id === "github");
     expect(getDefaultMcpTransport(github!)?.kind).toBe("shttp");
-    expect(INTEGRATION_LOGOS.github).toBeTruthy();
+    expect(github?.logoUrl).toBe("https://cdn.simpleicons.org/github/FFFFFF");
   });
 
   it("patches Slack to the maintained docs and npm package", () => {
@@ -34,41 +34,22 @@ describe("OpenHands extensions catalogs", () => {
     );
   });
 
-  it("patches Linear to the streamable HTTP /mcp endpoint with bearer auth", () => {
-    // Arrange: upstream still ships the removed /sse SSE transport; the
-    // marketplace catalog must serve the patched entry instead.
+  it("loads Linear streamable HTTP /mcp endpoint with bearer auth", () => {
     const catalog = getMcpMarketplaceCatalog(INTEGRATION_CATALOG);
-
-    // Act
     const linear = catalog.find((entry) => entry.id === "linear")!;
 
-    // Assert
-    expect(getDefaultMcpTransport(linear)).toEqual({
+    const mcpOption = getInstallableMcpConnectionOption(linear)!;
+
+    expect(mcpOption.transport).toEqual({
       kind: "shttp",
       url: "https://mcp.linear.app/mcp",
       apiKeyOptional: true,
     });
     expect(linear.docsUrl).toBe("https://linear.app/docs/mcp");
-    const mcpOption = linear.connectionOptions.find(
-      (option) => option.transport?.kind === "shttp",
-    );
-    expect(mcpOption?.auth.strategy).toBe("bearer");
-  });
-
-  it("does not mutate the imported catalog when patching Linear", () => {
-    // Arrange/Act: run the patch, then inspect the raw imported entry.
-    getMcpMarketplaceCatalog(INTEGRATION_CATALOG);
-    const raw = INTEGRATION_CATALOG.find((entry) => entry.id === "linear");
-
-    // Assert: the shared JSON module still carries the upstream values.
-    const rawOption = raw?.connectionOptions.find(
-      (option) => option.transport?.kind === "sse",
-    );
-    expect(rawOption?.transport).toEqual({
-      kind: "sse",
-      url: "https://mcp.linear.app/sse",
-      apiKeyOptional: true,
-    });
+    expect(mcpOption.auth.strategy).toBe("bearer");
+    expect(
+      linear.connectionOptions.some((option) => option.transport?.kind === "sse"),
+    ).toBe(false);
   });
 
   it("drops deprecated MCP entries that no longer have maintained replacements", () => {

@@ -8,6 +8,8 @@ import { SettingsScope } from "#/types/settings";
 export const QUERY_KEYS = {
   /** Web client configuration from the server */
   WEB_CLIENT_CONFIG: ["web-client-config"] as const,
+  /** Same-origin OpenHands app cookie authentication status */
+  MAIN_APP_COOKIE_AUTH: ["main-app-cookie-auth"] as const,
 } as const;
 
 export const SETTINGS_QUERY_KEYS = {
@@ -20,6 +22,21 @@ export const LLM_PROFILES_QUERY_KEYS = {
   all: ["llm-profiles"] as const,
 } as const;
 
+export const AGENT_PROFILES_QUERY_KEYS = {
+  all: ["agent-profiles"] as const,
+} as const;
+
+/**
+ * Shared retry policy for every `/api/agent-profiles` fetch (the launch path
+ * in `useCreateConversation`, `redirectIfAcpActive`'s route guard, and
+ * `useAgentProfiles`). An older backend without the surface fails every one
+ * of these on every call — `retry: false` degrades immediately instead of
+ * sitting through the default exponential backoff each time (#1571 review).
+ */
+export const AGENT_PROFILES_RETRY_OPTIONS = {
+  retry: false,
+} as const;
+
 export const LLM_SUBSCRIPTION_QUERY_KEYS = {
   all: ["llm-subscription"] as const,
   openaiStatus: ["llm-subscription", "openai", "status"] as const,
@@ -28,6 +45,15 @@ export const LLM_SUBSCRIPTION_QUERY_KEYS = {
 
 export const LOCAL_WORKSPACES_QUERY_KEYS = {
   all: ["local-workspaces"] as const,
+} as const;
+
+export const PLUGINS_QUERY_KEYS = {
+  /** Dynamic marketplace catalog (used by `use-plugins-marketplace`). */
+  marketplace: ["plugins-marketplace"] as const,
+  /** Installed plugins from the local agent-server. */
+  installed: ["plugins-installed"] as const,
+  /** Locally-discovered ambient plugins (used by `use-local-plugins`). */
+  local: ["plugins-local"] as const,
 } as const;
 
 /** Cache configuration shared across all config-related queries */

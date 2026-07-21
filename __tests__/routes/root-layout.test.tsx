@@ -6,7 +6,6 @@ import MainApp from "#/routes/root-layout";
 
 const useConfigMock = vi.fn();
 const useSettingsMock = vi.fn();
-const migrateUserConsentMock = vi.fn();
 
 vi.mock("#/hooks/query/use-config", () => ({
   useConfig: () => useConfigMock(),
@@ -16,18 +15,12 @@ vi.mock("#/hooks/query/use-settings", () => ({
   useSettings: () => useSettingsMock(),
 }));
 
-vi.mock("#/hooks/use-migrate-user-consent", () => ({
-  useMigrateUserConsent: () => ({
-    migrateUserConsent: migrateUserConsentMock,
-  }),
+vi.mock("#/hooks/use-sync-telemetry-consent", () => ({
+  useSyncTelemetryConsent: () => {},
 }));
 
-vi.mock("#/hooks/use-sync-posthog-consent", () => ({
-  useSyncPostHogConsent: () => {},
-}));
-
-vi.mock("#/hooks/use-posthog-identify", () => ({
-  usePostHogIdentify: () => {},
+vi.mock("#/hooks/use-telemetry-identity", () => ({
+  useTelemetryIdentity: () => {},
 }));
 
 vi.mock("#/hooks/use-app-title", () => ({
@@ -36,12 +29,6 @@ vi.mock("#/hooks/use-app-title", () => ({
 
 vi.mock("#/components/features/sidebar/sidebar", () => ({
   Sidebar: () => <div data-testid="sidebar" />,
-}));
-
-vi.mock("#/components/features/analytics/analytics-consent-form-modal", () => ({
-  AnalyticsConsentFormModal: () => (
-    <div data-testid="analytics-consent-modal" />
-  ),
 }));
 
 vi.mock("#/components/features/alerts/alert-banner", () => ({
@@ -119,7 +106,7 @@ describe("root layout", () => {
     expect(screen.getByTestId("loading-spinner")).toBeInTheDocument();
   });
 
-  it("renders the OSS layout and analytics modal when consent is missing", async () => {
+  it("does not render the analytics consent modal when analytics consent is missing", () => {
     useSettingsMock.mockReturnValue({
       data: {
         language: "en",
@@ -135,12 +122,11 @@ describe("root layout", () => {
 
     expect(screen.getByTestId("sidebar")).toBeInTheDocument();
     expect(screen.getByTestId("outlet-content")).toBeInTheDocument();
-    // The consent modal is loaded via React.lazy() to keep it out of the root
-    // layout's eager graph, so it resolves on the next microtask.
+    // The analytics consent popup was removed from onboarding: a missing
+    // (null) consent value must no longer surface the consent form.
     expect(
-      await screen.findByTestId("analytics-consent-modal"),
-    ).toBeInTheDocument();
-    expect(migrateUserConsentMock).toHaveBeenCalled();
+      screen.queryByTestId("user-capture-consent-form"),
+    ).not.toBeInTheDocument();
   });
 
   it("renders an identical root-layout className across routes so navigation never shifts the outer container", () => {

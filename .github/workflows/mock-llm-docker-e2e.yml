@@ -70,7 +70,7 @@ jobs:
           SHOULD_RUN=false
           while IFS= read -r file; do
             case "$file" in
-              src/*|public/*|scripts/*|bin/*|config/*|docker/*|tests/e2e/mock-llm/*|tests/e2e/support/*|package.json|package-lock.json|vite.config.ts|tsconfig.json|react-router.config.ts|playwright.mock-llm.config.ts|playwright.mock-llm-docker.config.ts|tailwind.config.js|hero.ts|.github/workflows/mock-llm-docker-e2e.yml)
+              src/*|public/*|scripts/*|bin/*|config/*|docker/*|tests/e2e/mock-llm/*|tests/e2e/support/*|package.json|package-lock.json|vite.config.ts|tsconfig.json|react-router.config.ts|playwright.mock-llm.config.ts|playwright.mock-llm-docker.config.ts|tailwind.config.js|hero.ts|.github/workflows/docker.yml|.github/workflows/mock-llm-docker-e2e.yml)
                 SHOULD_RUN=true
                 break
                 ;;
@@ -138,6 +138,39 @@ jobs:
         id: defaults
         run: |
           echo "agent_server_version=$(node -p "require('./config/defaults.json').versions.agentServer")" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve linked SDK PR
+        id: linked_sdk
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          BODY=$(gh api "/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" --jq '.body // ""')
+          SDK_PR=$(
+            printf '%s\n' "$BODY" \
+              | grep -Eo 'OpenHands/software-agent-sdk(/pull/|#)[0-9]+' \
+              | head -n1 \
+              | grep -Eo '[0-9]+$' \
+              || true
+          )
+          if [ -z "$SDK_PR" ]; then
+            echo "No linked software-agent-sdk PR found in PR description."
+            exit 0
+          fi
+
+          # The matched number may belong to an issue rather than a PR — GitHub's
+          # "#NNNN" shorthand and "/pull/NNNN" URL text look identical for both in
+          # a PR description, but the /pulls/{number} endpoint 404s for an issue
+          # number. Degrade gracefully to "no linked PR" (falls back to the
+          # released SDK version below) instead of failing the job.
+          SDK_PR_JSON=$(gh api "/repos/OpenHands/software-agent-sdk/pulls/${SDK_PR}" 2>/dev/null) || {
+            echo "software-agent-sdk#${SDK_PR} is not an open PR (may be an issue) — using the released SDK version."
+            exit 0
+          }
+          SDK_REF=$(jq -r '.head.ref' <<<"$SDK_PR_JSON")
+          SDK_SHA=$(jq -r '.head.sha' <<<"$SDK_PR_JSON")
+          echo "Using software-agent-sdk PR #${SDK_PR} branch: ${SDK_REF} (${SDK_SHA})"
+          echo "git_ref=${SDK_SHA}" >> "$GITHUB_OUTPUT"
 
       # ── Wait for Docker workflow (pull_request trigger only) ────────────
       # When triggered by pull_request, the Docker image may still be
@@ -256,9 +289,14 @@ jobs:
       - name: Install openhands-sdk (for mock LLM server)
         env:
           AGENT_SERVER_VERSION: ${{ steps.defaults.outputs.agent_server_version }}
+          SDK_GIT_REF: ${{ steps.linked_sdk.outputs.git_ref }}
         run: |
           uv venv .mock-llm-venv
-          uv pip install -p .mock-llm-venv "openhands-sdk==$AGENT_SERVER_VERSION"
+          if [ -n "$SDK_GIT_REF" ]; then
+            uv pip install -p .mock-llm-venv "git+https://github.com/OpenHands/software-agent-sdk@${SDK_GIT_REF}#subdirectory=openhands-sdk"
+          else
+            uv pip install -p .mock-llm-venv "openhands-sdk==$AGENT_SERVER_VERSION"
+          fi
 
       - name: Verify mock LLM server starts
         run: |
@@ -292,6 +330,7 @@ jobs:
           MOCK_LLM_PYTHON: .mock-llm-venv/bin/python3
           MOCK_LLM_DOCKER_IMAGE: ${{ steps.image.outputs.tag }}
           MOCK_LLM_DOCKER_GLOBAL_TIMEOUT_MS: 1200000
+          OH_AGENT_SERVER_GIT_REF: ${{ steps.linked_sdk.outputs.git_ref }}
         run: |
           set +e
           MARKER_DIR=".mock-llm-markers"
@@ -403,8 +442,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          gh pr comment "${{ steps.ctx.outputs.pr_number }}" \
-            --body-file "$MOCK_LLM_REPORT_PATH"
+          node tests/e2e/mock-llm/scripts/upsert-pr-comment.mjs \
+            --issue-number "${{ steps.ctx.outputs.pr_number }}" \
+            --body-file "$MOCK_LLM_REPORT_PATH" \
+            --marker "<!-- agent-canvas-mock-llm-docker-e2e-report -->" \
+            --legacy-title "Mock-LLM Docker E2E Test Results"
 
       - name: Fail job when tests fail
         if: always()

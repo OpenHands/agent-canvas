@@ -54,10 +54,18 @@ describe("ACP provider registry", () => {
   });
 
   it("does not suggest generic default model placeholders", () => {
+    // Model lists are SDK-owned (see ACP_PROVIDERS) — Canvas no longer hand-keeps
+    // them. The claude-code registry intentionally offers an id ``default``
+    // labeled "Default (recommended)", a legitimate, well-labeled choice. Guard
+    // against genuinely empty ids and bare placeholder labels, not the qualified
+    // "Default (recommended)" entry.
     for (const provider of ACP_PROVIDERS) {
       for (const model of provider.available_models ?? []) {
-        expect(model.id.toLowerCase()).not.toBe("default");
-        expect(model.label.toLowerCase()).not.toContain("default");
+        expect(model.id.trim(), provider.key).toBeTruthy();
+        expect(
+          model.label.trim().toLowerCase(),
+          `${provider.key}:${model.id}`,
+        ).not.toBe("default");
       }
     }
   });

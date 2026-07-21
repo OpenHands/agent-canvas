@@ -25,6 +25,14 @@ const LIB_EXTERNALS = [
 ];
 const APP_CHUNK_MAX_BYTES = 450 * 1024;
 
+const normalizeBasePath = (value?: string) => {
+  const raw = value?.trim();
+  if (!raw || raw === "/") return "/";
+
+  const withLeadingSlash = raw.startsWith("/") ? raw : `/${raw}`;
+  return `${withLeadingSlash.replace(/\/+$/, "")}/`;
+};
+
 // Absolute path to the bundled extensions skills directory in node_modules.
 // Injected as __EXTENSIONS_SKILLS_DIR__ so agent-server-adapter.ts can pass
 // real filesystem paths to the Python agent-server (which uses them to
@@ -41,6 +49,32 @@ const appBuildConfig = {
     output: {
       codeSplitting: {
         groups: [
+          {
+            // Keep the styling core (HeroUI + tailwind-variants + its
+            // tailwind-merge/clsx deps) in one un-size-split chunk. When the
+            // generic size-split vendor group slices these apart, a HeroUI
+            // component's top-level `tv()` recipe can evaluate before
+            // tailwind-variants' core is initialized, throwing
+            // "TypeError: s is not a function" at module load and blanking the
+            // whole app (root-layout module fails to load → reload loop).
+            name: "vendor-styling",
+            test: /node_modules[\\/](@heroui[\\/]|tailwind-variants[\\/]|tailwind-merge[\\/]|clsx[\\/])/,
+          },
+          {
+            // Keep the markdown / syntax-highlight ecosystem
+            // (react-syntax-highlighter + refractor/lowlight/highlight.js and
+            // the unified/hast/mdast/micromark/vfile module tree it pulls in)
+            // in one un-size-split chunk. Same failure mode as vendor-styling
+            // above: once the file-viewer (HighlightedSourceView) is imported
+            // from a second route, the generic size-split vendor group slices
+            // this tree across chunk boundaries, so a vfile/unified module's
+            // interop `require` shim can evaluate before the chunk that defines
+            // it, throwing "TypeError: i is not a function" at module load and
+            // blanking the whole app (the shared home/conversation/files-tab
+            // chunk fails to load → route-module reload loop).
+            name: "vendor-markdown",
+            test: /node_modules[\\/](react-syntax-highlighter[\\/]|refractor[\\/]|lowlight[\\/]|highlight\.js[\\/]|hastscript[\\/]|(hast|mdast|unist|micromark|remark|rehype)[^\\/]*[\\/]|unified[\\/]|vfile[^\\/]*[\\/]|property-information[\\/]|(comma|space)-separated-tokens[\\/]|character-entities[^\\/]*[\\/]|(parse|stringify)-entities[\\/]|decode-named-character-reference[\\/]|bail[\\/]|trough[\\/]|is-plain-obj[\\/]|zwitch[\\/]|longest-streak[\\/]|ccount[\\/]|escape-string-regexp[\\/]|markdown-table[\\/]|devlop[\\/])/,
+          },
           {
             name: "vendor",
             test: /node_modules[\\/]/,
@@ -60,6 +94,7 @@ export default defineConfig(({ mode }) => {
     VITE_USE_TLS = "false",
     VITE_FRONTEND_PORT = "3001",
     VITE_INSECURE_SKIP_VERIFY = "false",
+    VITE_BASE_PATH,
   } = loadEnv(mode, process.cwd());
 
   const isLibraryBuild = process.env.BUILD_LIB === "true";
@@ -71,8 +106,10 @@ export default defineConfig(({ mode }) => {
   const API_URL = `${PROTOCOL}://${VITE_BACKEND_HOST}/`;
   const WS_URL = `${WS_PROTOCOL}://${VITE_BACKEND_HOST}/`;
   const FE_PORT = Number.parseInt(VITE_FRONTEND_PORT, 10);
+  const base = normalizeBasePath(VITE_BASE_PATH);
 
   return {
+    base,
     define: {
       // Empty string for library builds so consumers aren't bound to this
       // machine's node_modules path; agent-server-adapter falls back to
@@ -218,7 +255,6 @@ export default defineConfig(({ mode }) => {
         // Pre-bundle ALL dependencies to prevent runtime optimization and page reloads
         // These are discovered during initial app load:
         "posthog-js",
-        "posthog-js/react",
         "@tanstack/react-query",
         "react-hot-toast",
         "i18next",
@@ -260,6 +296,7 @@ export default defineConfig(({ mode }) => {
         // OpenHands typescript client
         "@openhands/typescript-client",
         "@openhands/typescript-client/client/http-client",
+        "@openhands/typescript-client/client/device-flow-client",
         "@openhands/typescript-client/clients",
         "@openhands/typescript-client/events/remote-events-list",
         "@openhands/typescript-client/workspace/remote-workspace",

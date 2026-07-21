@@ -5,16 +5,21 @@ import { isNoBackend } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
 import {
   getAgentServerFormDefaults,
+  getLockedCloudHost,
   isAuthRequired,
+  isSameCloudHost,
 } from "#/api/agent-server-config";
 import { DEFAULT_LOCAL_BACKEND_NAME } from "#/api/backend-registry/default-backend";
 import {
   BackendConnectionOptions,
+  type BackendConnectionMethod,
   type BackendFormSubmitPayload,
 } from "#/components/features/backends/backend-form-modal";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
+import { useTracking } from "#/hooks/use-tracking";
+import { isOpenHandsCloudHost } from "#/api/device-flow-client";
 import { I18nKey } from "#/i18n/declaration";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { cn } from "#/utils/utils";
@@ -23,6 +28,15 @@ import { getBackendStatusLabel } from "#/components/features/backends/backend-st
 interface CheckBackendStepProps {
   onBack?: () => void;
   onNext: () => void;
+  /**
+   * Dismisses the entire onboarding modal. Called when Cloud login succeeds
+   * in locked-to-Cloud mode: there the Cloud login IS the onboarding
+   * completion, so the modal must disappear immediately rather than
+   * advancing to the next slide (which previously flickered — the next
+   * slide flashed before the root gate tore the modal down). Standard mode
+   * still walks the user through agent/LLM setup via `onNext`.
+   */
+  onClose?: () => void;
 }
 
 function ConnectionBanner({
@@ -100,13 +114,36 @@ function ConnectionBanner({
  * First onboarding step: add the initial backend when none is selected,
  * or edit/check the active backend with a contextual health banner.
  */
-export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
+export function CheckBackendStep({
+  onBack,
+  onNext,
+  onClose,
+}: CheckBackendStepProps) {
   const { t } = useTranslation("openhands");
-  const { active, addBackend, updateBackend } = useActiveBackendContext();
+  const { active, addBackend, setActive, updateBackend } =
+    useActiveBackendContext();
+  const { trackBackendAdded } = useTracking();
   const { backend } = active;
   const noBackendSelected = isNoBackend(backend);
+  const lockedCloudHost = getLockedCloudHost();
+
+  // In locked-Cloud mode, a reachable backend that is NOT the locked
+  // Cloud host (e.g. a stale Local backend from localStorage) must be
+  // forced through Cloud login replacement. Treat it as if no backend
+  // were selected for render purposes so the Cloud login UI shows and
+  // the connected-backend "Next" shortcut is suppressed. The real
+  // `noBackendSelected` still controls whether handleConnected calls
+  // `addBackend` or `updateBackend`, so the stale backend gets replaced.
+  const lockedCloudHostMismatch =
+    lockedCloudHost !== null &&
+    !noBackendSelected &&
+    !(
+      backend.kind === "cloud" && isSameCloudHost(backend.host, lockedCloudHost)
+    );
+  const treatAsNoBackend = noBackendSelected || lockedCloudHostMismatch;
+
   const defaults = React.useMemo(() => getAgentServerFormDefaults(), []);
-  const backendForForm = noBackendSelected
+  const backendForForm = treatAsNoBackend
     ? {
         id: "onboarding-local-backend-draft",
         name: DEFAULT_LOCAL_BACKEND_NAME,
@@ -118,10 +155,10 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
   const healthByBackendId = useBackendsHealth(
     noBackendSelected ? [] : [backend],
   );
-  const isConnected = noBackendSelected
+  const isConnected = treatAsNoBackend
     ? null
     : (healthByBackendId[backend.id]?.isConnected ?? null);
-  const lastError = noBackendSelected
+  const lastError = treatAsNoBackend
     ? null
     : (healthByBackendId[backend.id]?.lastError ?? null);
   const [configurationOpen, setConfigurationOpen] = React.useState(false);
@@ -135,27 +172,70 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
   const hideConfigurationFields = isConnected === true && !configurationOpen;
 
   const handleConnected = React.useCallback(
-    (payload: BackendFormSubmitPayload) => {
+    (
+      payload: BackendFormSubmitPayload,
+      connectionMethod: BackendConnectionMethod,
+    ) => {
       if (noBackendSelected) {
         addBackend(payload);
       } else {
+        // When the host changes (e.g. replacing a stale Cloud backend
+        // with the locked Cloud host), the persisted active org_id is
+        // keyed to the OLD host's org list and would be sent as an
+        // invalid X-Org-Id to the new host. Clear it so the new
+        // backend starts org-less; the user picks an org on the new
+        // host. (Local-only edits are no-ops here since active.orgId
+        // is already null for Local backends.)
+        const hostChanged = payload.host !== backend.host;
         updateBackend(backend.id, payload);
+        if (hostChanged && active.orgId !== null) {
+          setActive(backend.id, null);
+        }
       }
-      onNext();
+      const isOpenHandsCloud = isOpenHandsCloudHost(payload.host);
+      trackBackendAdded({
+        backendKind: payload.kind,
+        connectionMethod,
+        isOpenhandsCloud: isOpenHandsCloud,
+        isCustomHost: !isOpenHandsCloud,
+        hasApiKey: Boolean(payload.apiKey),
+        source: "onboarding",
+      });
+      // In locked-to-Cloud mode, Cloud login IS the onboarding
+      // completion: dismiss the modal immediately so the user never
+      // sees the next slide (Choose Agent) flash before the root gate
+      // tears the modal down — the flicker reported on PR #1389.
+      // Standard mode still walks the user through agent/LLM setup.
+      if (lockedCloudHost !== null && payload.kind === "cloud" && onClose) {
+        onClose();
+      } else {
+        onNext();
+      }
     },
-    [addBackend, backend.id, noBackendSelected, onNext, updateBackend],
+    [
+      active.orgId,
+      addBackend,
+      backend.host,
+      backend.id,
+      lockedCloudHost,
+      noBackendSelected,
+      onClose,
+      onNext,
+      setActive,
+      trackBackendAdded,
+      updateBackend,
+    ],
   );
 
   const actionRowClassName = cn(
     "sticky bottom-0 mt-2 flex items-center gap-2 bg-base-secondary pt-4 pb-7",
     onBack ? "justify-between" : "justify-end",
   );
-  const titleKey = noBackendSelected
-    ? I18nKey.BACKEND$ADD_TITLE
+  const titleKey = treatAsNoBackend
+    ? lockedCloudHost
+      ? I18nKey.ONBOARDING$LOGIN_TO_CLOUD_TITLE
+      : I18nKey.BACKEND$ADD_TITLE
     : I18nKey.ONBOARDING$BACKEND_TITLE;
-  const subtitleKey = noBackendSelected
-    ? I18nKey.ONBOARDING$ADD_BACKEND_SUBTITLE
-    : I18nKey.ONBOARDING$BACKEND_SUBTITLE;
 
   return (
     <div
@@ -164,10 +244,17 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
     >
       <header className="flex flex-col gap-2">
         <h2 className="text-2xl font-medium text-white">{t(titleKey)}</h2>
-        <p className="text-sm text-[var(--oh-muted)]">{t(subtitleKey)}</p>
+        {treatAsNoBackend ? null : (
+          <p
+            data-testid="onboarding-backend-subtitle"
+            className="text-sm text-[var(--oh-muted)]"
+          >
+            {t(I18nKey.ONBOARDING$BACKEND_SUBTITLE)}
+          </p>
+        )}
       </header>
 
-      {noBackendSelected ? null : (
+      {treatAsNoBackend ? null : (
         <ConnectionBanner
           backend={backendForForm}
           isConnected={isConnected}
@@ -208,6 +295,7 @@ export function CheckBackendStep({ onBack, onNext }: CheckBackendStepProps) {
             manualSubmitLabel={t(I18nKey.ONBOARDING$NEXT)}
             manualSubmittingLabel={t(I18nKey.SETTINGS$SAVING)}
             manualSubmitTestId="onboarding-backend-next"
+            analyticsSource="onboarding"
           />
         ) : null}
       </div>

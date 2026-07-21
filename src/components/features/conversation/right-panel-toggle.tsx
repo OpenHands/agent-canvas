@@ -54,6 +54,7 @@ export function RightPanelToggle({ className }: RightPanelToggleProps) {
 
     const newState = !isRightPanelShown;
     setHasRightPanelToggled(newState);
+    setIsRightPanelShown(newState);
 
     if (newState) {
       const { selectedTab } = useConversationStore.getState();

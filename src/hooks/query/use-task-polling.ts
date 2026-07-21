@@ -1,6 +1,12 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
+import type { AppConversationStartTask } from "#/api/conversation-service/agent-server-conversation-service.types";
+import {
+  getStoredConversationMetadata,
+  setStoredConversationMetadata,
+  toPluginCoordinates,
+} from "#/api/conversation-metadata-store";
 import { useNavigation } from "#/context/navigation-context";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import {
@@ -8,6 +14,7 @@ import {
   setConversationState,
 } from "#/utils/conversation-local-storage";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { trackCloudConversationReady } from "#/services/cloud-funnel-analytics";
 import { flushPendingTaskAttachments } from "#/utils/flush-pending-task-attachments";
 import {
   clearPendingTaskMessageLink,
@@ -16,26 +23,44 @@ import {
   schedulePendingTaskMessageReassign,
 } from "#/utils/pending-task-message-link";
 
+const storeTaskPlugins = (
+  task: AppConversationStartTask,
+  conversationId: string,
+) => {
+  const plugins = task.request.plugins?.map(toPluginCoordinates);
+  if (!plugins?.length) return;
+
+  const metadata = getStoredConversationMetadata(conversationId);
+  setStoredConversationMetadata(conversationId, {
+    ...metadata,
+    selected_repository:
+      metadata?.selected_repository ?? task.request.selected_repository ?? null,
+    selected_branch:
+      metadata?.selected_branch ?? task.request.selected_branch ?? null,
+    git_provider: metadata?.git_provider ?? task.request.git_provider ?? null,
+    plugins,
+  });
+};
+
 /**
- * Hook that polls V1 conversation start tasks and navigates when ready.
+ * Read the shared polling state for a V1 conversation start task.
  *
  * This hook:
  * - Detects if the conversationId URL param is a task ID (format: "task-{uuid}")
  * - Polls the V1 start task API every 3 seconds until status is READY or ERROR
- * - Automatically navigates to the conversation URL when the task becomes READY
  * - Exposes task status and details for UI components to show loading states and errors
  *
  * URL patterns:
  * - /conversations/task-{uuid} → Polls start task, then navigates to /conversations/{conversation-id}
  * - /conversations/{uuid or hex} → No polling (handled by useActiveConversation)
  *
- * Note: This hook does NOT fetch conversation data. It only handles task polling and navigation.
+ * The conversation route mounts useTaskPollingController once to own READY
+ * side effects; other components can consume this hook without repeating them.
  */
 export const useTaskPolling = () => {
   // Optional: the chat input shell renders on the home page too; polling
   // simply no-ops when there's no conversation id yet.
   const { conversationId } = useOptionalConversationId();
-  const { navigate } = useNavigation();
 
   // Check if this is a task ID (format: "task-{uuid}")
   const isTask = !!conversationId && conversationId.startsWith("task-");
@@ -64,6 +89,30 @@ export const useTaskPolling = () => {
     retry: false,
   });
 
+  return {
+    isTask,
+    taskId,
+    conversationId: isTask ? null : (conversationId ?? null),
+    task: taskQuery.data,
+    taskStatus: taskQuery.data?.status,
+    taskDetail: taskQuery.data?.detail,
+    taskError: taskQuery.error,
+    isLoadingTask: taskQuery.isLoading,
+    // Repository information from task request
+    repositoryInfo: {
+      selectedRepository: taskQuery.data?.request?.selected_repository,
+      selectedBranch: taskQuery.data?.request?.selected_branch,
+      gitProvider: taskQuery.data?.request?.git_provider,
+    },
+  };
+};
+
+/** Own the task lifecycle side effects once at the conversation route. */
+export const useTaskPollingController = () => {
+  const polling = useTaskPolling();
+  const { task, taskId } = polling;
+  const { conversationId } = useOptionalConversationId();
+  const { navigate } = useNavigation();
   const handledReadyTaskIdRef = useRef<string | null>(null);
 
   // Reassign optimistic pending messages before paint on the real conversation
@@ -91,57 +140,37 @@ export const useTaskPolling = () => {
 
   // Navigate to conversation ID when task is ready
   useEffect(() => {
-    const task = taskQuery.data;
+    const appConversationId = task?.app_conversation_id;
     if (
       !taskId ||
       task?.status !== "READY" ||
-      !task.app_conversation_id ||
+      !appConversationId ||
       handledReadyTaskIdRef.current === taskId
     ) {
       return;
     }
 
     handledReadyTaskIdRef.current = taskId;
+    trackCloudConversationReady(taskId, appConversationId);
+    storeTaskPlugins(task, appConversationId);
 
     void (async () => {
-      await flushPendingTaskAttachments(taskId, task.app_conversation_id!);
+      await flushPendingTaskAttachments(taskId, appConversationId);
 
       const taskConversationId = `task-${taskId}`;
-      linkPendingTaskMessages(task.app_conversation_id!, taskConversationId);
-      schedulePendingTaskMessageReassign(
-        taskConversationId,
-        task.app_conversation_id!,
-      );
+      linkPendingTaskMessages(appConversationId, taskConversationId);
+      schedulePendingTaskMessageReassign(taskConversationId, appConversationId);
 
       const pendingDraft = consumePendingTaskDraft(taskId);
       if (pendingDraft) {
-        setConversationState(task.app_conversation_id!, {
+        setConversationState(appConversationId, {
           draftMessage: pendingDraft,
         });
       }
 
-      navigate(`/conversations/${task.app_conversation_id}`, { replace: true });
+      navigate(`/conversations/${appConversationId}`, { replace: true });
     })();
-  }, [taskQuery.data, navigate, taskId]);
+  }, [task, taskId, navigate]);
 
-  useEffect(() => {
-    handledReadyTaskIdRef.current = null;
-  }, [taskId]);
-
-  return {
-    isTask,
-    taskId,
-    conversationId: isTask ? null : (conversationId ?? null),
-    task: taskQuery.data,
-    taskStatus: taskQuery.data?.status,
-    taskDetail: taskQuery.data?.detail,
-    taskError: taskQuery.error,
-    isLoadingTask: taskQuery.isLoading,
-    // Repository information from task request
-    repositoryInfo: {
-      selectedRepository: taskQuery.data?.request?.selected_repository,
-      selectedBranch: taskQuery.data?.request?.selected_branch,
-      gitProvider: taskQuery.data?.request?.git_provider,
-    },
-  };
+  return polling;
 };

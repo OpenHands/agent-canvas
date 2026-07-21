@@ -73,10 +73,10 @@ export function SidebarNavLink({
       data-testid={testId}
       tabIndex={disabled ? -1 : 0}
       aria-label={collapsed ? label : undefined}
-      // Announce the disabled state to assistive tech. The visual disable
-      // (opacity + pointer-events) plus tabIndex=-1 + preventDefault gives
-      // sighted/keyboard users the right behaviour already; this closes
-      // the screen-reader gap so the link doesn't sound "actionable."
+      // Announce the disabled state to assistive tech. The visual disabled
+      // styling plus tabIndex=-1 + preventDefault gives sighted/keyboard users
+      // the right behaviour already; this closes the screen-reader gap so the
+      // link doesn't sound "actionable."
       aria-disabled={disabled || undefined}
       onClick={(e) => {
         if (disabled) {
@@ -89,7 +89,9 @@ export function SidebarNavLink({
           (active
             ? SIDEBAR_ROW_INTERACTIVE_CLASS.active
             : SIDEBAR_ROW_INTERACTIVE_CLASS.idle),
-        disabled && "pointer-events-none opacity-50",
+        disabled && "opacity-50",
+        // HeroUI Tooltip is pointer-driven, so keep hover events for explanations.
+        disabled && !disabledReason && "pointer-events-none",
       )}
     >
       {icon ? (

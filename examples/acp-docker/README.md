@@ -12,26 +12,39 @@ for the full walkthrough; this is the quick start.
 
 ```bash
 cd examples/acp-docker
-cp .env.example .env          # optional — only if baking creds into the container
 docker compose up
 ```
 
-This starts `ghcr.io/openhands/agent-server:1.25.0-python` on
+This starts `ghcr.io/openhands/agent-server:latest-python` on
 `http://localhost:8010` with a persistent `acp-data` volume. The image
 pre-installs the ACP CLI wrappers and the SDK rewrites `npx -y <pkg>` to those
 pinned binaries in-pod, so Canvas can keep sending the default `npx` command
 unchanged.
 
-> **Minimum version:** `1.25.0-python`. Canvas delivers every ACP credential as
-> a loopback `LookupSecret`; only software-agent-sdk#3510 (first released in
-> v1.25.0) resolves it off the event loop. An older image deadlocks the first
-> ACP turn with `Failed to start ACP server: timed out`.
+For a **reproducible, pinned** image, generate `.env` from the repo's single
+source of truth (`config/defaults.json`) first — it pins `AGENT_SERVER_IMAGE`
+to the exact `versions.agentServer` release, so two people get the same build:
 
-To pin a newer release or a post-#3510 main build:
+```bash
+npm run example:acp-docker:env   # from the repo root; writes examples/acp-docker/.env
+cd examples/acp-docker && docker compose up
+```
+
+> **Version compatibility.** The common paths keep Canvas and agent-server in
+> sync: zero-config Compose uses `latest-python`, while the pinned path reads
+> `versions.agentServer` from the same `config/defaults.json` used by the Canvas
+> launchers. If you carry an old hand-written `.env` with `AGENT_SERVER_IMAGE`,
+> rerun `npm run example:acp-docker:env` or remove that override so the example
+> does not stay pinned below `compatibility.minimumAgentServer`.
+
+To pin a newer release or a current main build by hand instead:
 
 ```bash
 AGENT_SERVER_IMAGE=ghcr.io/openhands/agent-server:$(gh api repos/OpenHands/software-agent-sdk/commits/main --jq '.sha[0:7]')-python docker compose up
 ```
+
+To bake credentials into the container instead of entering them in Canvas, copy
+the env template first: `cp .env.example .env` (optional — see [§3](#3-onboard-with-credentials)).
 
 ## 2. Point Canvas at it
 

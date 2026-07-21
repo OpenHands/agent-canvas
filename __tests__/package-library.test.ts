@@ -16,7 +16,15 @@ const packageJson = JSON.parse(
   devDependencies?: Record<string, string>;
 };
 
+const EXACT_SEMVER_PATTERN =
+  /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+
 describe("package library metadata", () => {
+  const ALLOWED_STACK_PIN_DEPS = new Set([
+    "@openhands/extensions",
+    "@openhands/typescript-client",
+  ]);
+
   it("publishes the agent-canvas package entrypoints", () => {
     expect(packageJson.name).toBe("@openhands/agent-canvas");
     expect(packageJson.main).toBe("./dist/index.cjs");
@@ -61,11 +69,6 @@ describe("package library metadata", () => {
   it("does not use git dependencies except approved stack pins", () => {
     const GIT_DEP_PATTERN =
       /^(git[+:]|github:|bitbucket:|gitlab:|[a-zA-Z0-9_-]+\/)/;
-    const ALLOWED_GIT_DEPS = new Set([
-      "@openhands/extensions",
-      "@openhands/typescript-client",
-    ]);
-
     const allDeps = {
       ...packageJson.dependencies,
       ...packageJson.devDependencies,
@@ -74,17 +77,37 @@ describe("package library metadata", () => {
     const violations = Object.entries(allDeps)
       .filter(
         ([name, version]) =>
-          GIT_DEP_PATTERN.test(version) && !ALLOWED_GIT_DEPS.has(name),
+          GIT_DEP_PATTERN.test(version) && !ALLOWED_STACK_PIN_DEPS.has(name),
       )
       .map(([name, version]) => `${name}: ${version}`);
 
     expect(violations).toEqual([]);
   });
 
+  it("pins direct dependency versions exactly", () => {
+    const allDepsBySection = {
+      dependencies: packageJson.dependencies,
+      devDependencies: packageJson.devDependencies,
+    };
+
+    const violations = Object.entries(allDepsBySection).flatMap(
+      ([section, dependencies]) =>
+        Object.entries(dependencies ?? {})
+          .filter(
+            ([name, version]) =>
+              !EXACT_SEMVER_PATTERN.test(version) &&
+              !ALLOWED_STACK_PIN_DEPS.has(name),
+          )
+          .map(([name, version]) => `${section}.${name}: ${version}`),
+    );
+
+    expect(violations).toEqual([]);
+  });
+
   it("ships runtime logger dependencies for the published CLI", () => {
     expect(packageJson.dependencies).toMatchObject({
-      winston: "^3.19.0",
-      "winston-daily-rotate-file": "^5.0.0",
+      winston: "3.19.0",
+      "winston-daily-rotate-file": "5.0.0",
     });
     expect(packageJson.devDependencies?.winston).toBeUndefined();
     expect(

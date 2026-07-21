@@ -148,6 +148,7 @@ class EventService {
         };
       } catch (err) {
         if (!hasFilterParams) throw err;
+        if (options.strictPagination) throw err;
 
         // Server doesn't support timestamp filters yet — stop pagination
         // by returning an empty page so the UI doesn't retry indefinitely.

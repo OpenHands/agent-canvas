@@ -13,6 +13,13 @@ vi.mock("#/hooks/query/use-settings", () => ({
 }));
 
 import { useUpdateMcpServer } from "#/hooks/mutation/use-update-mcp-server";
+import {
+  __resetMcpHealthStoreForTests,
+  getMcpHealthSnapshot,
+  setMcpServerHealth,
+} from "#/api/mcp-health/mcp-health-store";
+import type { MCPServerConfig } from "#/types/mcp-server";
+import { getMcpServerHealthKey } from "#/utils/mcp-server-health-key";
 
 const createWrapper = () => {
   const queryClient = new QueryClient({
@@ -36,17 +43,15 @@ describe("useUpdateMcpServer - stdio credential preservation", () => {
 
   it("saves the encrypted stdio env, not the redacted placeholder, when a stdio server is renamed", async () => {
     // The redacted settings the editor reads from still carry the original name
-    // ("old-name") and redacted env. The user renames to "new-name" and leaves
-    // the secret env value as "<redacted>".
+    // ("old_name") and redacted env. The user renames to "new_name" and leaves
+    // the secret env value as the redaction placeholder.
     useSettingsMock.mockReturnValue({
       data: {
         agent_settings: {
           mcp_config: {
-            mcpServers: {
-              "old-name": {
-                command: "npx",
-                env: { API_KEY: REDACTED_MCP_SECRET_VALUE },
-              },
+            old_name: {
+              command: "npx",
+              env: { API_KEY: REDACTED_MCP_SECRET_VALUE },
             },
           },
         },
@@ -56,11 +61,9 @@ describe("useUpdateMcpServer - stdio credential preservation", () => {
     vi.spyOn(SettingsService, "fetchSettingsFromApi").mockResolvedValue({
       agent_settings: {
         mcp_config: {
-          mcpServers: {
-            "old-name": {
-              command: "npx",
-              env: { API_KEY: "gAAAAA-encrypted-api-key" },
-            },
+          old_name: {
+            command: "npx",
+            env: { API_KEY: "gAAAAA-encrypted-api-key" },
           },
         },
       },
@@ -75,7 +78,7 @@ describe("useUpdateMcpServer - stdio credential preservation", () => {
       server: {
         id: "stdio-0",
         type: "stdio",
-        name: "new-name",
+        name: "new_name",
         command: "npx",
         env: { API_KEY: REDACTED_MCP_SECRET_VALUE },
       },
@@ -88,16 +91,56 @@ describe("useUpdateMcpServer - stdio credential preservation", () => {
       .agent_settings_diff as Record<string, unknown> | undefined;
     const savedSdkConfig = savedDiff?.mcp_config;
     expect(savedSdkConfig).toMatchObject({
-      mcpServers: {
-        "new-name": {
-          command: "npx",
-          env: { API_KEY: "gAAAAA-encrypted-api-key" },
-        },
+      new_name: {
+        command: "npx",
+        env: { API_KEY: "gAAAAA-encrypted-api-key" },
       },
     });
     // The literal placeholder must never round-trip into the saved config.
     expect(JSON.stringify(savedSdkConfig)).not.toContain(
       REDACTED_MCP_SECRET_VALUE,
+    );
+  });
+});
+
+describe("useUpdateMcpServer - health reset", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    __resetMcpHealthStoreForTests();
+    vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
+  });
+
+  it("clears the server's stored health verdict when its config is saved", async () => {
+    // A verdict from before the edit describes a different credential/config
+    // and must not survive the save as a stale (possibly false) healthy.
+    const server: MCPServerConfig = {
+      id: "shttp-0",
+      type: "shttp",
+      name: "custom",
+      url: "https://mcp.example.com/mcp",
+    };
+    useSettingsMock.mockReturnValue({
+      data: {
+        agent_settings: {
+          mcp_config: { custom: { url: server.url, transport: "http" } },
+        },
+      },
+    });
+    const key = getMcpServerHealthKey(server);
+    setMcpServerHealth(key, {
+      status: "healthy",
+      verification: "verified",
+      toolCount: 1,
+      checkedAt: 1,
+    });
+
+    const { result } = renderHook(() => useUpdateMcpServer(), {
+      wrapper: createWrapper(),
+    });
+    await result.current.mutateAsync({ serverId: server.id, server });
+
+    await waitFor(() =>
+      expect(getMcpHealthSnapshot()[key]).toBeUndefined(),
     );
   });
 });

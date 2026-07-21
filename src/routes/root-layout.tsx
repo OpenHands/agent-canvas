@@ -13,30 +13,26 @@ import { Sidebar } from "#/components/features/sidebar/sidebar";
 import { SidebarMobileNavProvider } from "#/components/features/sidebar/sidebar-mobile-nav-context";
 import { SidebarMobileMenuBar } from "#/components/features/sidebar/sidebar-mobile-menu-bar";
 import { useSettings } from "#/hooks/query/use-settings";
-import { useMigrateUserConsent } from "#/hooks/use-migrate-user-consent";
 import { useEnsureActiveProfile } from "#/hooks/use-ensure-active-profile";
-import { useSyncPostHogConsent } from "#/hooks/use-sync-posthog-consent";
-import { usePostHogIdentify } from "#/hooks/use-posthog-identify";
+import { useSyncTelemetryConsent } from "#/hooks/use-sync-telemetry-consent";
+import { useTelemetryIdentity } from "#/hooks/use-telemetry-identity";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useAppTitle } from "#/hooks/use-app-title";
 import { ReactRouterNavigationProvider } from "./react-router-navigation-provider";
 import { OnboardingHost } from "#/components/features/onboarding";
 import { isOnboardingPreviewActive } from "#/components/features/onboarding/onboarding-preview";
 
-// Lazy-load components that are only rendered conditionally — keeps them out
-// of the root layout's eager dev/prod graph (and out of every page's first
-// paint) until the relevant condition triggers.
 const EnvironmentSwitchOverlay = React.lazy(
   () => import("#/components/features/backends/environment-switch-overlay"),
-);
-const AnalyticsConsentFormModal = React.lazy(() =>
-  import("#/components/features/analytics/analytics-consent-form-modal").then(
-    (m) => ({ default: m.AnalyticsConsentFormModal }),
-  ),
 );
 const AlertBanner = React.lazy(() =>
   import("#/components/features/alerts/alert-banner").then((m) => ({
     default: m.AlertBanner,
+  })),
+);
+const CommandMenu = React.lazy(() =>
+  import("#/components/features/command-menu/command-menu").then((m) => ({
+    default: m.CommandMenu,
   })),
 );
 
@@ -77,13 +73,10 @@ export default function MainApp() {
   const location = useLocation();
   const appTitle = useAppTitle();
   const { data: settings } = useSettings();
-  const { migrateUserConsent } = useMigrateUserConsent();
   const config = useConfig();
 
-  const [consentFormIsOpen, setConsentFormIsOpen] = React.useState(false);
-
-  useSyncPostHogConsent();
-  usePostHogIdentify();
+  useSyncTelemetryConsent();
+  useTelemetryIdentity();
   // Local-mode policy: keep a profile active so a usable LLM is always selected.
   useEnsureActiveProfile();
 
@@ -92,18 +85,6 @@ export default function MainApp() {
       i18n.changeLanguage(settings.language);
     }
   }, [settings?.language]);
-
-  React.useEffect(() => {
-    setConsentFormIsOpen(settings?.user_consents_to_analytics === null);
-  }, [settings?.user_consents_to_analytics]);
-
-  React.useEffect(() => {
-    migrateUserConsent({
-      handleAnalyticsWasPresentInLocalStorage: () => {
-        setConsentFormIsOpen(false);
-      },
-    });
-  }, [migrateUserConsent]);
 
   if (config.isLoading) {
     return (
@@ -153,19 +134,10 @@ export default function MainApp() {
               <Outlet />
             </div>
           </div>
-
-          {consentFormIsOpen && (
-            <React.Suspense fallback={null}>
-              <AnalyticsConsentFormModal
-                onClose={() => {
-                  setConsentFormIsOpen(false);
-                }}
-              />
-            </React.Suspense>
-          )}
         </div>
         <React.Suspense fallback={null}>
           <EnvironmentSwitchOverlay />
+          <CommandMenu />
         </React.Suspense>
         {showOnboardingPreview ? <OnboardingHost /> : null}
       </SidebarMobileNavProvider>

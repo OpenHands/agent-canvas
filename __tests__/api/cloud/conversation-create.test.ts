@@ -1,4 +1,3 @@
-import axios from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -7,8 +6,11 @@ import {
 } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
-
-vi.mock("axios");
+import {
+  getFetchCall,
+  getJsonBody,
+  mockJsonResponse,
+} from "./fetch-test-utils";
 
 const cloudBackend: Backend = {
   id: "prod",
@@ -18,23 +20,29 @@ const cloudBackend: Backend = {
   kind: "cloud",
 };
 
+const originalFetch = global.fetch;
+const fetchMock = vi.fn();
+
 beforeEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
   setRegisteredBackends([cloudBackend]);
   setActiveSelection({ backendId: cloudBackend.id });
-  vi.mocked(axios.request).mockReset();
+  fetchMock.mockReset();
+  global.fetch = fetchMock as typeof fetch;
 });
 
 afterEach(() => {
   window.localStorage.clear();
   __resetActiveStoreForTests();
+  fetchMock.mockReset();
+  global.fetch = originalFetch;
 });
 
 describe("AgentServerConversationService cloud branch", () => {
   it("createConversation POSTs the cloud payload directly and returns a WORKING task", async () => {
-    vi.mocked(axios.request).mockResolvedValue({
-      data: {
+    fetchMock.mockResolvedValue(
+      mockJsonResponse({
         id: "task-123",
         created_by_user_id: null,
         status: "WORKING",
@@ -44,8 +52,8 @@ describe("AgentServerConversationService cloud branch", () => {
         request: {},
         created_at: "2026-05-06T00:00:00Z",
         updated_at: "2026-05-06T00:00:00Z",
-      },
-    });
+      }),
+    );
 
     const result = await AgentServerConversationService.createConversation(
       "fix the bug",
@@ -59,15 +67,14 @@ describe("AgentServerConversationService cloud branch", () => {
       },
     );
 
-    expect(axios.request).toHaveBeenCalledOnce();
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
-
-    expect(config).toMatchObject({
-      url: `${cloudBackend.host}/api/v1/app-conversations`,
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const [url, init] = getFetchCall(fetchMock);
+    expect(url).toBe(`${cloudBackend.host}/api/v1/app-conversations`);
+    expect(init).toMatchObject({
       method: "POST",
       headers: { Authorization: "Bearer bearer-token" },
     });
-    const requestBody = (config as { data: Record<string, unknown> }).data;
+    const requestBody = getJsonBody(init);
 
     // cloud payload shape — flat fields, NO encrypted-settings round-trip.
     expect(requestBody.selected_repository).toBe("user/repo");
@@ -89,8 +96,8 @@ describe("AgentServerConversationService cloud branch", () => {
   });
 
   it("getStartTask polls /api/v1/app-conversations/start-tasks?ids= directly", async () => {
-    vi.mocked(axios.request).mockResolvedValue({
-      data: [
+    fetchMock.mockResolvedValue(
+      mockJsonResponse([
         {
           id: "task-123",
           created_by_user_id: null,
@@ -102,15 +109,17 @@ describe("AgentServerConversationService cloud branch", () => {
           created_at: "2026-05-06T00:00:00Z",
           updated_at: "2026-05-06T00:00:00Z",
         },
-      ],
-    });
+      ]),
+    );
 
     const result =
       await AgentServerConversationService.getStartTask("task-123");
 
-    const [config] = vi.mocked(axios.request).mock.calls[0]!;
-    expect(config).toMatchObject({
-      url: `${cloudBackend.host}/api/v1/app-conversations/start-tasks?ids=task-123`,
+    const [url, init] = getFetchCall(fetchMock);
+    expect(url).toBe(
+      `${cloudBackend.host}/api/v1/app-conversations/start-tasks?ids=task-123`,
+    );
+    expect(init).toMatchObject({
       method: "GET",
       headers: { Authorization: "Bearer bearer-token" },
     });

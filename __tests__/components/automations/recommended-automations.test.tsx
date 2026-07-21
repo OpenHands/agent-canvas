@@ -103,11 +103,9 @@ function settingsWithMcpConfig(mcp_config: unknown) {
 
 function settingsWithGithubMcp() {
   return settingsWithMcpConfig({
-    mcpServers: {
-      github: {
-        url: GITHUB_HOSTED_MCP_URL,
-        auth: "github-token",
-      },
+    github: {
+      url: GITHUB_HOSTED_MCP_URL,
+      auth: { strategy: "bearer", value: "github-token" },
     },
   });
 }
@@ -120,7 +118,7 @@ describe("recommended automations", () => {
     setRegisteredBackends([localBackend]);
     setActiveSelection({ backendId: localBackend.id });
     mockUseSettings.mockReturnValue({
-      data: settingsWithMcpConfig({ mcpServers: {} }),
+      data: settingsWithMcpConfig({}),
     });
     // Pre-flight connectivity test must pass so save mutations are reached.
     vi.spyOn(McpService, "testServer").mockResolvedValue({
@@ -157,6 +155,7 @@ describe("recommended automations", () => {
       "slack-channel-monitor",
       "slack-standup-digest",
       "linear-triage-assistant",
+      "jira-issue-to-pr",
       "research-brief-writer",
       "incident-retrospective-drafter",
     ]);
@@ -182,7 +181,7 @@ describe("recommended automations", () => {
     expect(betaHeading).toHaveTextContent(
       I18nKey.RECOMMENDED_AUTOMATIONS$BETA_LABEL,
     );
-    expect(within(betaHeading).getByText("4")).toBeInTheDocument();
+    expect(within(betaHeading).getByText("5")).toBeInTheDocument();
 
     const betaSection = screen.getByTestId(
       "recommended-automations-beta-section",
@@ -367,6 +366,7 @@ describe("recommended automations", () => {
     fireEvent.click(
       screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
     );
+    fireEvent.click(screen.getByTestId("responder-deployment-continue-local"));
 
     const modal = await screen.findByTestId("mcp-install-modal");
     expect(modal).toHaveAttribute("data-marketplace-id", "github");
@@ -393,6 +393,7 @@ describe("recommended automations", () => {
     fireEvent.click(
       screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
     );
+    fireEvent.click(screen.getByTestId("responder-deployment-continue-local"));
 
     expect(mockCreateConversationMutate).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("mcp-install-modal")).not.toBeInTheDocument();
@@ -404,18 +405,21 @@ describe("recommended automations", () => {
     expect(draft).toBeTruthy();
   });
 
-  it("ignores repeated card clicks while a recommendation launch is in flight", () => {
+  it("ignores repeated launches once a responder deployment choice is in flight", () => {
     mockUseSettings.mockReturnValue({
       data: settingsWithGithubMcp(),
     });
 
     renderLauncher();
 
-    const card = screen.getByTestId(
-      "recommended-automation-card-github-pr-reviewer",
+    fireEvent.click(
+      screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
     );
-    fireEvent.click(card);
-    fireEvent.click(card);
+    fireEvent.click(screen.getByTestId("responder-deployment-continue-local"));
+    // The launch is now in flight; re-selecting the card must not launch again.
+    fireEvent.click(
+      screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
+    );
 
     expect(mockCreateConversationMutate).toHaveBeenCalledTimes(1);
   });
@@ -441,6 +445,7 @@ describe("recommended automations", () => {
     fireEvent.click(
       screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
     );
+    fireEvent.click(screen.getByTestId("responder-deployment-continue-local"));
     await screen.findByTestId("mcp-install-modal");
 
     fireEvent.change(screen.getByTestId("mcp-install-field-api_key"), {
@@ -452,6 +457,40 @@ describe("recommended automations", () => {
     await waitFor(() =>
       expect(mockCreateConversationMutate).toHaveBeenCalledTimes(1),
     );
+  });
+
+  it("opens the OpenHands Cloud integrations page without launching when the cloud option is chosen", () => {
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+
+    renderLauncher();
+
+    fireEvent.click(
+      screen.getByTestId("recommended-automation-card-github-pr-reviewer"),
+    );
+    fireEvent.click(
+      screen.getByTestId("responder-deployment-open-openhands-cloud"),
+    );
+
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://app.all-hands.dev/settings/integrations",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    expect(mockCreateConversationMutate).not.toHaveBeenCalled();
+
+    openSpy.mockRestore();
+  });
+
+  it("does not show the deployment choice modal for non-responder automations", () => {
+    renderLauncher();
+
+    fireEvent.click(
+      screen.getByTestId("recommended-automation-card-linear-triage-assistant"),
+    );
+
+    expect(
+      screen.queryByTestId("responder-deployment-modal"),
+    ).not.toBeInTheDocument();
   });
 });
 

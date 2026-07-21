@@ -1,8 +1,16 @@
+import { useQuery } from "@tanstack/react-query";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useConfig } from "#/hooks/query/use-config";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
 import { useActiveBackend } from "#/contexts/active-backend-context";
+import { useActiveAgentProfile } from "#/hooks/use-active-agent-profile";
 import { isSettingsPageHidden } from "#/utils/settings-utils";
+import ProfilesService from "#/api/profiles-service/profiles-service.api";
+import {
+  CONFIG_CACHE_OPTIONS,
+  LLM_PROFILES_QUERY_KEYS,
+} from "#/hooks/query/query-keys";
+import { isSubscriptionLlmConfig } from "#/constants/llm-subscription";
 
 interface LlmConfiguredResult {
   /**
@@ -44,26 +52,85 @@ export function useLlmConfigured(): LlmConfiguredResult {
     isLoading: profilesLoading,
     isError: profilesError,
   } = useLlmProfiles();
-  const { backend } = useActiveBackend();
+  const { backend, orgId } = useActiveBackend();
   const isLocal = backend.kind === "local";
 
-  const isAcpAgent = settings?.agent_settings?.agent_kind === "acp";
+  // The active AgentProfile is the current agent — an ACP profile owns its LLM
+  // via the subprocess and never needs an API key. Fall back to the global
+  // agent settings only while the profile list loads.
+  const {
+    activeProfile: activeAgentProfile,
+    isLoading: activeAgentProfileLoading,
+  } = useActiveAgentProfile();
+  const activeAgentKind = activeAgentProfile?.agent_kind;
+  const isAcpAgent =
+    (activeAgentKind ?? settings?.agent_settings?.agent_kind) === "acp";
   const hasApiKey = settings?.llm_api_key_set === true;
-  const activeProfile = profilesData?.profiles.find(
-    (profile) => profile.name === profilesData.active_profile,
-  );
+  // The LLM that will actually power the next conversation is the profile the
+  // active AGENT profile references (`llm_profile_ref`) — conversations launch
+  // from the agent profile, not the standalone "active LLM profile".
+  const referencedLlmProfileName =
+    activeAgentProfile?.agent_kind === "openhands"
+      ? activeAgentProfile.llm_profile_ref
+      : undefined;
+  const referencedProfile = referencedLlmProfileName
+    ? profilesData?.profiles.find(
+        (profile) => profile.name === referencedLlmProfileName,
+      )
+    : undefined;
+  // Fall back to the active LLM profile when the ref is absent (list loading,
+  // or an agent profile without a ref) OR stale (names a profile that no longer
+  // exists). This mirrors the launch-time fallback in `useCreateConversation`,
+  // which drops a stale-ref profile launch to an `agent_settings` launch on the
+  // active LLM. Without this fallback the two contradict each other: launch
+  // succeeds via the fallback, but this hook reports `isConfigured: false` and
+  // spuriously disables the composer + shows the banner — even inside a running
+  // conversation (VascoSch92 review, #1571).
+  const activeProfile =
+    referencedProfile ??
+    profilesData?.profiles.find(
+      (profile) => profile.name === profilesData?.active_profile,
+    );
   const hasActiveProfileApiKey = activeProfile?.api_key_set === true;
+  const shouldLoadActiveProfileDetail =
+    isLocal && !!activeProfile && !hasActiveProfileApiKey;
+  const {
+    data: activeProfileDetail,
+    isLoading: activeProfileDetailLoading,
+    isError: activeProfileDetailError,
+  } = useQuery({
+    queryKey: [
+      ...LLM_PROFILES_QUERY_KEYS.all,
+      backend.id,
+      orgId,
+      "detail",
+      activeProfile?.name,
+    ],
+    queryFn: () => ProfilesService.getProfile(activeProfile!.name),
+    ...CONFIG_CACHE_OPTIONS,
+    enabled: shouldLoadActiveProfileDetail,
+    meta: { disableToast: true },
+  });
+  const hasActiveProfileSubscription =
+    shouldLoadActiveProfileDetail &&
+    isSubscriptionLlmConfig(
+      activeProfileDetail?.config as Record<string, unknown> | undefined,
+    );
   const llmSettingsHidden = isSettingsPageHidden(
     "/settings/llm",
     config?.feature_flags,
   );
 
   // In local mode, profiles are the source of truth: a usable LLM must be
-  // backed by an active profile that still exists and has a key. The raw
-  // settings key can be a stale copy left behind by a deleted profile
+  // backed by an active profile that still exists and is authenticated. API-key
+  // profiles use the list endpoint's api_key_set flag; subscription profiles
+  // intentionally have no key, so we inspect the active profile detail config.
+  // The raw settings key can be a stale copy left behind by a deleted profile
   // (settings are not cleared on delete), so we don't count it here. Cloud
   // backends don't use profiles and keep the settings-key signal.
-  const hasUsableLlm = isLocal ? hasActiveProfileApiKey : hasApiKey;
+  const hasUsableActiveProfile =
+    hasActiveProfileApiKey || hasActiveProfileSubscription;
+  const hasUsableLlm = isLocal ? hasUsableActiveProfile : hasApiKey;
 
   // Treat a fetch failure as indeterminate (same as loading) only when it
   // leaves us with no data to decide from — otherwise a transient network
@@ -74,12 +141,25 @@ export function useLlmConfigured(): LlmConfiguredResult {
   // state the banner exists to catch — so we keep deciding from that data.
   const settingsIndeterminate = settingsLoading || (settingsError && !settings);
   const configIndeterminate = configLoading || (configError && !config);
+  // The active agent profile decides `isAcpAgent` and which LLM profile the
+  // next conversation runs; on a cold cache it's still loading, so decide
+  // nothing yet — otherwise an ACP agent (which needs no key) briefly reads as
+  // an unconfigured OpenHands agent and flashes the "LLM not set up" banner.
+  const agentProfileIndeterminate = activeAgentProfileLoading;
   const profilesIndeterminate =
     profilesLoading || (profilesError && !profilesData);
+  const activeProfileDetailIndeterminate =
+    shouldLoadActiveProfileDetail &&
+    (activeProfileDetailLoading ||
+      (activeProfileDetailError && !activeProfileDetail));
 
   return {
     isConfigured: isAcpAgent || llmSettingsHidden || hasUsableLlm,
     isLoading:
-      settingsIndeterminate || configIndeterminate || profilesIndeterminate,
+      settingsIndeterminate ||
+      configIndeterminate ||
+      profilesIndeterminate ||
+      agentProfileIndeterminate ||
+      activeProfileDetailIndeterminate,
   };
 }

@@ -9,13 +9,13 @@
  *
  * Verifies:
  *   1. The MCP page renders with the GitHub marketplace card visible
- *   2. Clicking the card opens the install modal with the hosted endpoint
+ *   2. Clicking the add control opens the install modal with the hosted endpoint
  *   3. Filling in the PAT and submitting succeeds (with mocked test endpoint)
  *   4. After install the GitHub server appears in the installed list
  *   5. The installed server can be deleted via the UI
  */
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import {
   BACKEND_URL,
   SESSION_API_KEY,
@@ -31,13 +31,24 @@ const GITHUB_HOSTED_MCP_URL = "https://api.githubcopilot.com/mcp/";
 
 test.describe.configure({ mode: "serial" });
 
+async function openGitHubInstallModal(page: Page) {
+  const modal = page.getByTestId("mcp-install-modal");
+
+  await expect(async () => {
+    await page.getByTestId("mcp-marketplace-toggle-github").click();
+    await expect(modal).toBeVisible({ timeout: 1_500 });
+  }).toPass({ timeout: 10_000 });
+
+  return modal;
+}
+
 test.describe("MCP GitHub server install flow", () => {
   test.beforeEach(async ({ page }) => {
     await seedLocalStorage(page);
   });
 
   test.afterEach(async ({ request }) => {
-    // Clear any MCP config so subsequent tests start clean
+    // Clear any MCP servers so subsequent tests start clean
     await request
       .patch(`${BACKEND_URL}/api/settings`, {
         headers: {
@@ -69,7 +80,7 @@ test.describe("MCP GitHub server install flow", () => {
     await expect(githubCard).toContainText("GitHub");
   });
 
-  test("step 2: clicking GitHub card opens the install modal with correct fields", async ({
+  test("step 2: clicking GitHub add control opens the install modal with correct fields", async ({
     page,
   }) => {
     await routeSessionApiKey(page);
@@ -77,12 +88,7 @@ test.describe("MCP GitHub server install flow", () => {
     await dismissAnalyticsModal(page);
     await waitForTestId(page, "mcp-marketplace-grid");
 
-    // Click the GitHub marketplace card
-    await page.getByTestId("mcp-marketplace-card-github").click();
-
-    // The install modal should appear
-    const modal = page.getByTestId("mcp-install-modal");
-    await expect(modal).toBeVisible({ timeout: 5_000 });
+    const modal = await openGitHubInstallModal(page);
 
     // Verify the modal is for the GitHub entry
     await expect(modal).toHaveAttribute("data-marketplace-id", "github");
@@ -107,12 +113,19 @@ test.describe("MCP GitHub server install flow", () => {
     await routeSessionApiKey(page);
 
     // Intercept the MCP test endpoint to return success; the test environment
-    // should not contact GitHub's hosted MCP endpoint.
+    // should not contact GitHub's hosted MCP endpoint. Mirror the real
+    // agent-server success shape: `tools` (a required field) lists the
+    // advertised tools including the `get_me` credential probe, and
+    // `tool_result` carries that read-only probe's passing outcome.
     await page.route("**/api/mcp/test", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ ok: true }),
+        body: JSON.stringify({
+          ok: true,
+          tools: ["get_me", "list_issues"],
+          tool_result: { is_error: false, text: '{"login":"octocat"}' },
+        }),
       });
     });
 
@@ -120,10 +133,7 @@ test.describe("MCP GitHub server install flow", () => {
     await dismissAnalyticsModal(page);
     await waitForTestId(page, "mcp-marketplace-grid");
 
-    // Click the GitHub card to open the install modal
-    await page.getByTestId("mcp-marketplace-card-github").click();
-    const modal = page.getByTestId("mcp-install-modal");
-    await expect(modal).toBeVisible({ timeout: 5_000 });
+    const modal = await openGitHubInstallModal(page);
 
     // Fill in the PAT — SettingsInput puts data-testid on the <input> directly
     const patInput = page.getByTestId("mcp-install-field-api_key");
@@ -157,13 +167,9 @@ test.describe("MCP GitHub server install flow", () => {
     // mcp_server_refs — not the auto-generated "shttp" fallback. The settings
     // API redacts persisted secrets, so the raw PAT must not be readable after
     // installation.
-    const mcpServers = mcpConfig?.mcpServers ?? mcpConfig?.shttp_servers;
-    expect(mcpServers).toBeTruthy();
-    expect(mcpServers?.github).toMatchObject({
+    expect(mcpConfig?.github).toMatchObject({
       url: GITHUB_HOSTED_MCP_URL,
-      headers: {
-        Authorization: "<redacted>",
-      },
+      auth: { strategy: "api_key", value: "**********" },
     });
   });
 
@@ -179,13 +185,9 @@ test.describe("MCP GitHub server install flow", () => {
         data: {
           agent_settings_diff: {
             mcp_config: {
-              mcpServers: {
-                github: {
-                  url: GITHUB_HOSTED_MCP_URL,
-                  headers: {
-                    Authorization: `Bearer ${FAKE_PAT}`,
-                  },
-                },
+              github: {
+                url: GITHUB_HOSTED_MCP_URL,
+                auth: { strategy: "api_key", value: FAKE_PAT },
               },
             },
           },
@@ -205,13 +207,11 @@ test.describe("MCP GitHub server install flow", () => {
     const serverItem = installedList.getByTestId("mcp-server-item").first();
     await expect(serverItem).toBeVisible();
 
-    // The installed card has a CirclePlusCheckToggle — clicking it while
-    // isSelected=true triggers onDelete. Find and click the toggle button
-    // inside the server card (it shows a checkmark icon).
-    const toggleButton = serverItem.locator(
-      '[data-testid^="mcp-installed-toggle-"]',
-    );
-    await toggleButton.click();
+    await serverItem.click();
+    await expect(page.getByTestId("mcp-custom-editor")).toBeVisible({
+      timeout: 5_000,
+    });
+    await page.getByTestId("mcp-custom-editor-delete").click();
 
     // A confirmation modal should appear — click confirm
     const confirmButton = page.getByTestId("confirm-button");
@@ -230,8 +230,7 @@ test.describe("MCP GitHub server install flow", () => {
     expect(settingsResp.ok()).toBe(true);
     const settings = await settingsResp.json();
     const mcpConfig = settings?.agent_settings?.mcp_config;
-    const mcpServers = mcpConfig?.mcpServers;
-    const githubStillPresent = mcpServers?.github != null;
+    const githubStillPresent = mcpConfig?.github != null;
     expect(githubStillPresent).toBe(false);
   });
 });

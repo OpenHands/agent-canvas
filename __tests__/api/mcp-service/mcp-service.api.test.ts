@@ -5,6 +5,7 @@ import SettingsService, {
 } from "#/api/settings-service/settings-service.api";
 import * as activeStore from "#/api/backend-registry/active-store";
 import type { MCPServerConfig } from "#/types/mcp-server";
+import { REDACTED_MCP_SECRET_VALUE } from "#/utils/mcp-config";
 
 // vi.mock factories are hoisted before imports, so spy functions must be
 // created with vi.hoisted() to be in scope inside the factory.
@@ -117,7 +118,7 @@ describe("McpService.testServer", () => {
     // Exact match also guards that non-catalog servers get no `tool_call`.
     expect(mockTestServer).toHaveBeenCalledWith({
       server: {
-        type: "stdio",
+        transport: "stdio",
         command: "npx",
         args: ["-y", "@my/mcp-server"],
         env: { API_KEY: "secret" },
@@ -217,18 +218,115 @@ describe("McpService.testServer", () => {
     expect(result).toEqual({ ok: true, tools: ["a", "b"] });
   });
 
+  it("skips credential interpretation when the probe tool is not advertised", async () => {
+    // A server variant that doesn't expose the probe tool (e.g. Slack's
+    // hosted MCP) returns a deterministic "not advertised" tool error; that
+    // proves nothing about credentials and must not block the install.
+    const response = {
+      ok: true,
+      tools: ["conversations_history"],
+      tool_result: {
+        is_error: true,
+        text: "Tool 'slack_list_channels' not advertised by server",
+      },
+    };
+    mockTestServer.mockResolvedValue(response);
+
+    const result = await McpService.testServer(SLACK_SERVER);
+
+    expect(result).toEqual(response);
+  });
+
+  // -------------------------------------------------------------------------
+  // Read-only credential probes for the hosted GitHub and Linear servers
+  // -------------------------------------------------------------------------
+
+  const GITHUB_SERVER: MCPServerConfig = {
+    id: "shttp-0",
+    type: "shttp",
+    name: "github",
+    url: "https://api.githubcopilot.com/mcp/",
+    auth: { strategy: "api_key", value: "github_pat_LIVETOKENVALUE" },
+  };
+
+  const LINEAR_SERVER: MCPServerConfig = {
+    id: "shttp-1",
+    type: "shttp",
+    name: "linear",
+    url: "https://mcp.linear.app/mcp",
+    auth: { strategy: "bearer", value: "lin_api_LIVETOKEN" },
+  };
+
+  it("attaches the read-only GitHub probe (get_me) to matching servers", async () => {
+    mockTestServer.mockResolvedValue({ ok: true, tools: [] });
+
+    await McpService.testServer(GITHUB_SERVER);
+
+    expect(mockTestServer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tool_call: { name: "get_me", arguments: {} },
+      }),
+    );
+  });
+
+  it("attaches the read-only Linear probe (list_teams) to matching servers", async () => {
+    mockTestServer.mockResolvedValue({ ok: true, tools: [] });
+
+    await McpService.testServer(LINEAR_SERVER);
+
+    expect(mockTestServer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tool_call: { name: "list_teams", arguments: {} },
+      }),
+    );
+  });
+
+  it("maps an errored GitHub probe call to a redacted credentials failure", async () => {
+    mockTestServer.mockResolvedValue({
+      ok: true,
+      tools: ["get_me"],
+      tool_result: {
+        is_error: true,
+        text: "401 for token github_pat_LIVETOKENVALUE",
+      },
+    });
+
+    const result = await McpService.testServer(GITHUB_SERVER);
+
+    // Interpretation runs on already-redacted text, so the surfaced
+    // credentials error never contains the configured secret.
+    expect(result).toEqual({
+      ok: false,
+      error: `401 for token ${REDACTED_MCP_SECRET_VALUE}`,
+      error_kind: "credentials",
+    });
+  });
+
+  it("redacts configured secrets from failure error text", async () => {
+    mockTestServer.mockResolvedValue({
+      ok: false,
+      error: "handshake rejected Bearer github_pat_LIVETOKENVALUE",
+      error_kind: "connection",
+    });
+
+    const result = await McpService.testServer(GITHUB_SERVER);
+
+    expect(result).toMatchObject({ ok: false, error_kind: "connection" });
+    expect(JSON.stringify(result)).not.toContain("github_pat_LIVETOKENVALUE");
+  });
+
   // -------------------------------------------------------------------------
   // Redacted-secret round-trip for the edit flow
   //
   // The MCP page reads settings with redacted secrets, so unchanged env
-  // values arrive as the literal "<redacted>" placeholder. The service swaps
+  // values arrive as the literal redaction placeholder. The service swaps
   // them for the stored values in encrypted form (decrypted server-side) so
   // the test exercises the real credentials.
   // -------------------------------------------------------------------------
 
   const REDACTED_SLACK_SERVER: MCPServerConfig = {
     ...SLACK_SERVER,
-    env: { SLACK_TEAM_ID: "T01", SLACK_BOT_TOKEN: "<redacted>" },
+    env: { SLACK_TEAM_ID: "T01", SLACK_BOT_TOKEN: REDACTED_MCP_SECRET_VALUE },
   };
 
   it("substitutes redacted env values with encrypted stored values", async () => {
@@ -236,9 +334,7 @@ describe("McpService.testServer", () => {
     vi.spyOn(SettingsService, "fetchSettingsFromApi").mockResolvedValue({
       agent_settings: {
         mcp_config: {
-          mcpServers: {
-            slack: { env: { SLACK_BOT_TOKEN: "gAAAAA-encrypted-token" } },
-          },
+          slack: { env: { SLACK_BOT_TOKEN: "gAAAAA-encrypted-token" } },
         },
       },
     } as unknown as SettingsApiResponse);
@@ -274,7 +370,10 @@ describe("McpService.testServer", () => {
     expect(mockTestServer).toHaveBeenCalledWith(
       expect.objectContaining({
         server: expect.objectContaining({
-          env: { SLACK_TEAM_ID: "T01", SLACK_BOT_TOKEN: "<redacted>" },
+          env: {
+            SLACK_TEAM_ID: "T01",
+            SLACK_BOT_TOKEN: REDACTED_MCP_SECRET_VALUE,
+          },
         }),
       }),
     );

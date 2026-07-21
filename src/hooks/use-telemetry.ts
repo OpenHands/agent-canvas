@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import {
   getTelemetryConsent,
   setTelemetryConsent,
@@ -6,6 +6,7 @@ import {
   trackSessionStart,
   trackEvent,
   clearTelemetryData,
+  subscribeTelemetryConsent,
   type TelemetryConsent,
 } from "#/services/telemetry";
 
@@ -17,13 +18,13 @@ export interface UseTelemetryReturn {
   /** Whether consent prompt should be shown */
   showConsentPrompt: boolean;
   /** Grant consent and enable telemetry */
-  grantConsent: () => void;
+  grantConsent: () => Promise<void>;
   /** Deny consent and disable telemetry */
-  denyConsent: () => void;
+  denyConsent: () => Promise<void>;
   /** Track a custom event (only if consent granted) */
   track: (eventName: string, properties?: Record<string, unknown>) => void;
   /** Clear all telemetry data */
-  clearData: () => void;
+  clearData: () => Promise<void>;
 }
 
 /**
@@ -58,8 +59,10 @@ export interface UseTelemetryReturn {
  * ```
  */
 export function useTelemetry(): UseTelemetryReturn {
-  const [consent, setConsentState] = useState<TelemetryConsent>(() =>
-    getTelemetryConsent(),
+  const consent = useSyncExternalStore<TelemetryConsent>(
+    subscribeTelemetryConsent,
+    getTelemetryConsent,
+    () => "pending",
   );
 
   // Track install immediately on first mount (regardless of consent)
@@ -75,42 +78,29 @@ export function useTelemetry(): UseTelemetryReturn {
   useEffect(() => {
     if (!hasTrackedInstall.current) {
       hasTrackedInstall.current = true;
-      trackInstall();
+      void trackInstall();
     }
   }, []);
 
   // Track session start when consent is granted
   useEffect(() => {
     if (consent === "granted") {
-      trackSessionStart();
+      void trackSessionStart();
     }
   }, [consent]);
 
-  const grantConsent = useCallback(async () => {
-    // Must await to ensure PostHog is initialized and opt_in_capturing() is called
-    // before the useEffect triggers tracking calls
-    await setTelemetryConsent("granted");
-    setConsentState("granted");
-  }, []);
+  const grantConsent = useCallback(() => setTelemetryConsent("granted"), []);
 
-  const denyConsent = useCallback(async () => {
-    await setTelemetryConsent("denied");
-    setConsentState("denied");
-  }, []);
+  const denyConsent = useCallback(() => setTelemetryConsent("denied"), []);
 
   const track = useCallback(
     (eventName: string, properties?: Record<string, unknown>) => {
-      if (consent === "granted") {
-        trackEvent(eventName, properties);
-      }
+      void trackEvent(eventName, properties);
     },
-    [consent],
+    [],
   );
 
-  const clearData = useCallback(() => {
-    clearTelemetryData();
-    setConsentState("pending");
-  }, []);
+  const clearData = useCallback(() => clearTelemetryData(), []);
 
   return {
     consent,

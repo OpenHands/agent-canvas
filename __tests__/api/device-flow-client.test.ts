@@ -5,6 +5,7 @@ import {
   isOpenHandsCloudHost,
   DeviceFlowError,
 } from "../../src/api/device-flow-client";
+import { AGENT_CANVAS_CLIENT_HEADERS } from "../../src/api/client-source";
 
 const TEST_HOST_URL = "https://app.all-hands.dev";
 
@@ -80,15 +81,15 @@ describe("device-flow-client", () => {
 
       expect(result).toEqual(mockResponse);
       // Should call the cloud endpoint directly.
-      expect(fetch).toHaveBeenCalledWith(
-        `${TEST_HOST_URL}/oauth/device/authorize`,
-        expect.objectContaining({
-          method: "POST",
-          headers: expect.objectContaining({
-            "Content-Type": "application/json",
-          }),
-        }),
-      );
+      const fetchCall = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(fetchCall[0]).toBe(`${TEST_HOST_URL}/oauth/device/authorize`);
+      expect(fetchCall[1]).toEqual(expect.objectContaining({ method: "POST" }));
+
+      const headers = new Headers(fetchCall[1].headers);
+      expect(headers.get("Content-Type")).toBe("application/json");
+      for (const [name, value] of Object.entries(AGENT_CANVAS_CLIENT_HEADERS)) {
+        expect(headers.get(name)).toBe(value);
+      }
     });
 
     it("normalizes host URL by removing trailing slashes", async () => {
@@ -176,15 +177,17 @@ describe("device-flow-client", () => {
 
       expect(result).toEqual(mockTokenResponse);
       // Should call the cloud endpoint directly.
-      expect(fetch).toHaveBeenCalledWith(
-        `${TEST_HOST_URL}/oauth/device/token`,
-        expect.objectContaining({
-          method: "POST",
-          headers: expect.objectContaining({
-            "Content-Type": "application/x-www-form-urlencoded",
-          }),
-        }),
+      const fetchCall = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(fetchCall[0]).toBe(`${TEST_HOST_URL}/oauth/device/token`);
+      expect(fetchCall[1]).toEqual(expect.objectContaining({ method: "POST" }));
+
+      const headers = new Headers(fetchCall[1].headers);
+      expect(headers.get("Content-Type")).toBe(
+        "application/x-www-form-urlencoded",
       );
+      for (const [name, value] of Object.entries(AGENT_CANVAS_CLIENT_HEADERS)) {
+        expect(headers.get(name)).toBe(value);
+      }
     });
 
     it("polls until authorization is complete", async () => {
@@ -296,6 +299,18 @@ describe("device-flow-client", () => {
       ).rejects.toThrow(/denied/i);
     });
 
+    it("reports a non-JSON error response instead of retrying it as a network error", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 502,
+        json: () => Promise.reject(new SyntaxError("invalid JSON")),
+      });
+
+      await expect(
+        pollForToken(TEST_HOST_URL, "device123", { interval: 1 }),
+      ).rejects.toThrow(/Unexpected response from server: 502/);
+    });
+
     it("respects abort signal", async () => {
       vi.useRealTimers(); // Use real timers for this test
       const controller = new AbortController();
@@ -319,6 +334,28 @@ describe("device-flow-client", () => {
           signal: controller.signal,
         }),
       ).rejects.toThrow(/cancelled/i);
+    });
+
+    it("reports cancellation when aborted between polling attempts", async () => {
+      const controller = new AbortController();
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: () => Promise.resolve({ error: "authorization_pending" }),
+      });
+
+      const pollPromise = pollForToken(TEST_HOST_URL, "device123", {
+        interval: 5,
+        signal: controller.signal,
+      });
+      const rejection = expect(pollPromise).rejects.toMatchObject({
+        code: "cancelled",
+      });
+
+      await vi.advanceTimersByTimeAsync(0);
+      controller.abort();
+
+      await rejection;
     });
 
     it("times out after specified duration", async () => {

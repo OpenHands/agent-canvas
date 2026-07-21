@@ -16,12 +16,6 @@ vi.mock("#/hooks/query/use-is-authed", () => ({
   useIsAuthed: () => useIsAuthedMock(),
 }));
 
-vi.mock("posthog-js/react", () => ({
-  usePostHog: () => ({
-    capture: vi.fn(),
-  }),
-}));
-
 const RouterStub = createRoutesStub([
   {
     Component: DeviceVerify,
@@ -226,30 +220,6 @@ describe("DeviceVerify", () => {
           screen.getByRole("button", { name: "DEVICE$AUTHORIZE" }),
         ).toBeInTheDocument();
       });
-    });
-
-    it("keeps the device verification view OSS-only without login CTA chrome", async () => {
-      useIsAuthedMock.mockReturnValue({
-        data: true,
-        isLoading: false,
-      });
-
-      render(
-        <RouterStub initialEntries={["/device-verify?user_code=ABC-123"]} />,
-        {
-          wrapper: createWrapper(),
-        },
-      );
-
-      await waitFor(() => {
-        expect(
-          screen.getByText("DEVICE$AUTHORIZATION_REQUEST"),
-        ).toBeInTheDocument();
-      });
-
-      expect(screen.queryByTestId("login-cta")).not.toBeInTheDocument();
-      expect(document.querySelector(".max-w-md")).toBeInTheDocument();
-      expect(document.querySelector(".max-w-4xl")).not.toBeInTheDocument();
     });
 
     it("should call window.close when cancel button is clicked", async () => {

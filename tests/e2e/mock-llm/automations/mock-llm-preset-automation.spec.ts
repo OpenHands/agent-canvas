@@ -10,8 +10,9 @@
  *
  * Two tests:
  *   1. **Card flow**: configure a dummy Slack MCP server so the automation
- *      card is launchable, click the card, verify it sends the correct
- *      slash command and triggers skill activation.
+ *      card is launchable, click the card, choose "Poll locally" in the
+ *      responder-deployment modal, then verify it sends the correct slash
+ *      command and triggers skill activation.
  *   2. **Direct slash command**: send the slash command from the home page
  *      (no MCP needed), verify skill activation + agent reply.
  */
@@ -125,7 +126,7 @@ test.describe("preset automation → slash command conversation", () => {
       }
     }
     await resetMockLLM(request).catch(() => {});
-    // Clear any MCP config so subsequent tests start clean
+    // Clear any MCP servers so subsequent tests start clean
     await request
       .patch(`${BACKEND_URL}/api/settings`, {
         headers: {
@@ -163,14 +164,12 @@ test.describe("preset automation → slash command conversation", () => {
         data: {
           agent_settings_diff: {
             mcp_config: {
-              mcpServers: {
-                slack: {
-                  command: "echo",
-                  args: ["dummy-slack-mcp"],
-                  env: {
-                    SLACK_BOT_TOKEN: "xoxb-test-token",
-                    SLACK_TEAM_ID: "T0000000000",
-                  },
+              slack: {
+                command: "echo",
+                args: ["dummy-slack-mcp"],
+                env: {
+                  SLACK_BOT_TOKEN: "xoxb-test-token",
+                  SLACK_TEAM_ID: "T0000000000",
                 },
               },
             },
@@ -192,6 +191,15 @@ test.describe("preset automation → slash command conversation", () => {
       );
       await expect(card).toBeVisible({ timeout: 10_000 });
       await card.click();
+    });
+
+    // Slack/GitHub responders now prompt for a deployment target first.
+    // Choose "Poll locally on your laptop" to resume the existing local
+    // setup + launch flow this test exercises.
+    await test.step("choose local deployment", async () => {
+      const modal = page.getByTestId("responder-deployment-modal");
+      await expect(modal).toBeVisible({ timeout: 10_000 });
+      await page.getByTestId("responder-deployment-continue-local").click();
     });
 
     // Should navigate to a new conversation
@@ -241,9 +249,9 @@ test.describe("preset automation → slash command conversation", () => {
   }) => {
     await ensureMockLLMProfile(page);
 
-    // Explicitly clear the MCP config left by test 1.
-    // Setting mcp_config to null removes it entirely (an empty {} or
-    // { mcpServers: {} } is treated as a no-op partial merge).
+    // Explicitly clear the MCP servers left by test 1.
+    // Setting mcp_config to null removes it entirely (an empty {} is treated
+    // as a no-op partial merge).
     const clearResp = await request.patch(`${BACKEND_URL}/api/settings`, {
       headers: {
         "X-Session-API-Key": SESSION_API_KEY,
@@ -260,11 +268,10 @@ test.describe("preset automation → slash command conversation", () => {
       headers: { "X-Session-API-Key": SESSION_API_KEY },
     });
     const settings = await settingsResp.json();
-    const mcpConfig = settings?.agent_settings?.mcp_config;
-    const servers = mcpConfig?.mcpServers ?? {};
+    const servers = settings?.agent_settings?.mcp_config ?? {};
     expect(
       Object.keys(servers).length,
-      `MCP servers should be empty, got: ${JSON.stringify(mcpConfig).slice(0, 200)}`,
+      `MCP servers should be empty, got: ${JSON.stringify(servers).slice(0, 200)}`,
     ).toBe(0);
 
     await setupTrajectory(request);

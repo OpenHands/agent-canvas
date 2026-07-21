@@ -5,6 +5,12 @@ import { AxiosError } from "axios";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import McpService from "#/api/mcp-service/mcp-service.api";
+import {
+  __resetMcpHealthStoreForTests,
+  getMcpHealthSnapshot,
+  setMcpServerHealth,
+} from "#/api/mcp-health/mcp-health-store";
+import { getMcpServerHealthKey } from "#/utils/mcp-server-health-key";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import { CustomServerEditor } from "#/components/features/mcp-page/custom-server-editor";
@@ -21,17 +27,26 @@ const EDIT_STDIO_SERVER: MCPServerConfig = {
   args: ["run", "-i", "--rm", "ghcr.io/github/github-mcp-server"],
 };
 
+const EDIT_OAUTH_SERVER: MCPServerConfig = {
+  id: "shttp-0",
+  type: "shttp",
+  name: "superhuman_mail",
+  url: "https://mcp.mail.superhuman.com/mcp",
+  auth: {
+    strategy: "oauth2",
+    authentication: { type: "oauth", client_auth_method: "none" },
+  },
+};
+
 function buildSettingsWithMcp(overrides: Partial<Settings> = {}): Settings {
   return {
     ...MOCK_DEFAULT_USER_SETTINGS,
     agent_settings: {
       ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
       mcp_config: {
-        mcpServers: {
-          github: {
-            command: "docker",
-            args: ["run", "-i", "--rm", "ghcr.io/github/github-mcp-server"],
-          },
+        github: {
+          command: "docker",
+          args: ["run", "-i", "--rm", "ghcr.io/github/github-mcp-server"],
         },
       },
     },
@@ -65,6 +80,22 @@ function EditEditorOnceSettingsLoaded({ onClose }: { onClose: () => void }) {
     <CustomServerEditor
       server={EDIT_STDIO_SERVER}
       existingServers={[EDIT_STDIO_SERVER]}
+      onClose={onClose}
+    />
+  );
+}
+
+function EditOAuthEditorOnceSettingsLoaded({
+  onClose,
+}: {
+  onClose: () => void;
+}) {
+  const { data } = useSettings();
+  if (!data) return null;
+  return (
+    <CustomServerEditor
+      server={EDIT_OAUTH_SERVER}
+      existingServers={[EDIT_OAUTH_SERVER]}
       onClose={onClose}
     />
   );
@@ -208,5 +239,88 @@ describe("CustomServerEditor", () => {
         "MCP$TEST_ERROR_CREDENTIALS",
       ),
     );
+  });
+
+  it("reseeds the edited server's health from the fresh pre-save test", async () => {
+    // Arrange: the installed card shows a failure; the user re-saves the
+    // server (e.g. after fixing the credential) and the pre-save test now
+    // passes. The card must flip to healthy without a page reload — the
+    // server's own prior entry is overwritten, not duplicate-guarded.
+    __resetMcpHealthStoreForTests();
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettingsWithMcp(),
+    );
+    vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
+    const key = getMcpServerHealthKey(EDIT_STDIO_SERVER);
+    setMcpServerHealth(key, {
+      status: "failed",
+      kind: "credentials",
+      error: "invalid_auth",
+      checkedAt: 1,
+    });
+
+    const onClose = vi.fn();
+    renderWith(<EditEditorOnceSettingsLoaded onClose={onClose} />);
+    await screen.findByTestId("mcp-custom-editor");
+
+    // Act: save without structural changes (test passes via the beforeEach
+    // McpService.testServer mock).
+    fireEvent.click(screen.getByTestId("submit-button"));
+
+    // Assert: the same health key now carries the fresh healthy verdict.
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(getMcpHealthSnapshot()[key]).toMatchObject({ status: "healthy" });
+  });
+
+  it("persists OAuth state returned by the connection test when editing", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      buildSettingsWithMcp({
+        agent_settings: {
+          ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+          mcp_config: {
+            superhuman_mail: {
+              url: "https://mcp.mail.superhuman.com/mcp",
+              transport: "http",
+              auth: {
+                strategy: "oauth2",
+                authentication: { type: "oauth", client_auth_method: "none" },
+              },
+            },
+          },
+        },
+      }),
+    );
+    vi.spyOn(McpService, "authorizeOAuth").mockResolvedValue({
+      ok: true,
+      tools: [],
+      oauth_state: {
+        tokens: { access_token: "gAAAAencrypted-access-token" },
+        token_expires_at: 12345,
+      },
+    });
+    const saveSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    renderWith(<EditOAuthEditorOnceSettingsLoaded onClose={vi.fn()} />);
+    await screen.findByTestId("mcp-custom-editor");
+    fireEvent.click(screen.getByTestId("submit-button"));
+
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    const sent = (saveSpy.mock.calls[0][0] as Record<string, unknown>)
+      .agent_settings_diff as {
+      mcp_config: Record<string, unknown>;
+    };
+    expect(sent.mcp_config).toMatchObject({
+      superhuman_mail: {
+        auth: {
+          strategy: "oauth2",
+          state: {
+            tokens: { access_token: "gAAAAencrypted-access-token" },
+            token_expires_at: 12345,
+          },
+        },
+      },
+    });
   });
 });

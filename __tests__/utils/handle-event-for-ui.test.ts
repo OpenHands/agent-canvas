@@ -310,7 +310,7 @@ describe("handleEventForUI", () => {
       ]);
     });
 
-    it("finalizes streamed deltas in place when finish arrives", () => {
+    it("keeps the canonical finish event after streamed content", () => {
       const first = makeStreamingDelta("delta-1", "I'll start ");
       const second = makeStreamingDelta("delta-2", "working on that.");
       const streamedDelta = handleEventForUI(
@@ -321,16 +321,11 @@ describe("handleEventForUI", () => {
 
       const result = handleEventForUI(mockFinishActionEvent, uiEvents);
 
-      expect(result).toEqual([
-        mockMessageEvent,
-        {
-          ...streamedDelta,
-          content: "I'll start working on that. Done.",
-        },
-      ]);
+      expect(result).toEqual([mockMessageEvent, mockFinishActionEvent]);
+      expect(result.at(-1)).toBe(mockFinishActionEvent);
     });
 
-    it("finalizes streamed deltas in place when an agent message arrives", () => {
+    it("keeps the canonical agent message after streamed content", () => {
       const first = makeStreamingDelta("delta-1", "I'll start ");
       const second = makeStreamingDelta("delta-2", "working on that.");
       const streamedDelta = handleEventForUI(
@@ -341,16 +336,11 @@ describe("handleEventForUI", () => {
 
       const result = handleEventForUI(mockAgentMessageEvent, uiEvents);
 
-      expect(result).toEqual([
-        mockMessageEvent,
-        {
-          ...streamedDelta,
-          content: "I'll start working on that. Done.",
-        },
-      ]);
+      expect(result).toEqual([mockMessageEvent, mockAgentMessageEvent]);
+      expect(result.at(-1)).toBe(mockAgentMessageEvent);
     });
 
-    it("keeps streamed deltas in their original locations when the final message aggregates them", () => {
+    it("replaces aggregated streamed content with the canonical final message", () => {
       const first = makeStreamingDelta(
         "delta-1",
         "I'll start working on that.",
@@ -379,13 +369,12 @@ describe("handleEventForUI", () => {
 
       expect(result).toEqual([
         mockMessageEvent,
-        first,
         mockObservationEvent,
-        second,
+        aggregateAgentMessage,
       ]);
     });
 
-    it("appends unstreamed suffix to the last content-bearing delta", () => {
+    it("uses canonical final content while retaining reasoning-only deltas", () => {
       const contentDelta = makeStreamingDelta(
         "delta-content",
         "I'll start working on that.",
@@ -420,16 +409,28 @@ describe("handleEventForUI", () => {
 
       expect(result).toEqual([
         mockMessageEvent,
-        {
-          ...contentDelta,
-          content: "I'll start working on that. Done.",
-        },
         mockObservationEvent,
         reasoningDelta,
+        finalMessage,
       ]);
     });
 
-    it("appends a distinct final message that does not match streamed text", () => {
+    it("keeps the canonical final message after leading streamed whitespace", () => {
+      const streamedDelta = makeStreamingDelta(
+        "delta-1",
+        "\nI'll start working on that. Done.",
+      );
+
+      const result = handleEventForUI(mockAgentMessageEvent, [
+        mockMessageEvent,
+        streamedDelta,
+      ]);
+
+      expect(result).toEqual([mockMessageEvent, mockAgentMessageEvent]);
+      expect(result.at(-1)).toBe(mockAgentMessageEvent);
+    });
+
+    it("replaces unmatched streamed text with the canonical final message", () => {
       const streamedDelta = makeStreamingDelta(
         "delta-1",
         "I'll start working on that.",
@@ -447,7 +448,58 @@ describe("handleEventForUI", () => {
         streamedDelta,
       ]);
 
-      expect(result).toEqual([mockMessageEvent, streamedDelta, finalMessage]);
+      expect(result).toEqual([mockMessageEvent, finalMessage]);
+    });
+
+    it("preserves streamed reasoning when the final message replaces unmatched text", () => {
+      const streamedDelta: StreamingDeltaEvent = {
+        ...makeStreamingDelta("delta-1", "Stale partial text"),
+        reasoning_content: "Reasoning available only in the stream",
+      };
+      const finalMessage: MessageEvent = {
+        ...mockAgentMessageEvent,
+        llm_message: {
+          role: "assistant",
+          content: [{ type: "text", text: "Canonical final text" }],
+        },
+      };
+
+      const result = handleEventForUI(finalMessage, [
+        mockMessageEvent,
+        streamedDelta,
+      ]);
+
+      expect(result).toEqual([
+        mockMessageEvent,
+        { ...streamedDelta, content: null },
+        finalMessage,
+      ]);
+    });
+
+    it("drops streamed reasoning when the final message renders it inline", () => {
+      const streamedDelta: StreamingDeltaEvent = {
+        ...makeStreamingDelta("delta-1", "Canonical final text"),
+        reasoning_content: "Reasoning rendered by the final message",
+      };
+      const finalMessage: MessageEvent = {
+        ...mockAgentMessageEvent,
+        llm_message: {
+          role: "assistant",
+          content: [
+            {
+              type: "text",
+              text: "<think>Reasoning rendered by the final message</think>Canonical final text",
+            },
+          ],
+        },
+      };
+
+      const result = handleEventForUI(finalMessage, [
+        mockMessageEvent,
+        streamedDelta,
+      ]);
+
+      expect(result).toEqual([mockMessageEvent, finalMessage]);
     });
 
     it("keeps deltas from older turns when a later turn finishes", () => {
@@ -480,7 +532,6 @@ describe("handleEventForUI", () => {
         oldUserMessage,
         oldDelta,
         nextUserMessage,
-        currentDelta,
         mockFinishActionEvent,
       ]);
     });
@@ -507,6 +558,93 @@ describe("handleEventForUI", () => {
         mockAgentMessageEvent,
       ]);
     });
+
+    it("does not merge deltas from different senders into one bubble (#1656)", () => {
+      // A planning-agent delta must not concatenate onto a main-agent delta;
+      // they stay separate bubbles.
+      const mainDelta = makeStreamingDelta("delta-main", "Main agent says ");
+      const planningDelta = {
+        ...makeStreamingDelta("delta-planning", "planning agent says"),
+        isFromPlanningAgent: true,
+      };
+
+      const result = handleEventForUI(planningDelta, [
+        mockMessageEvent,
+        mainDelta,
+      ]);
+
+      expect(result).toEqual([mockMessageEvent, mainDelta, planningDelta]);
+    });
+
+    it("still merges consecutive deltas from the same sender", () => {
+      const first = {
+        ...makeStreamingDelta("delta-1", "planning "),
+        isFromPlanningAgent: true,
+      };
+      const second = {
+        ...makeStreamingDelta("delta-2", "continues"),
+        isFromPlanningAgent: true,
+      };
+
+      const result = handleEventForUI(second, [mockMessageEvent, first]);
+
+      expect(result).toEqual([
+        mockMessageEvent,
+        { ...first, content: "planning continues", reasoning_content: null },
+      ]);
+    });
+
+    it("planning final preserves a still-live main-agent delta (#1656)", () => {
+      // Main and planning sockets share this event store. A planning-agent
+      // final must supersede only the planning stream; the main agent's live
+      // delta must survive.
+      const mainDelta = makeStreamingDelta("delta-main", "Main still typing");
+      const planningDelta = {
+        ...makeStreamingDelta("delta-planning", "Planning says hello"),
+        isFromPlanningAgent: true,
+      };
+      const planningFinal = {
+        ...mockAgentMessageEvent,
+        id: "planning-final",
+        isFromPlanningAgent: true,
+        llm_message: {
+          role: "assistant" as const,
+          content: [{ type: "text" as const, text: "Planning says hello" }],
+        },
+      };
+
+      const result = handleEventForUI(planningFinal, [
+        mockMessageEvent,
+        mainDelta,
+        planningDelta,
+      ]);
+
+      expect(result).toEqual([mockMessageEvent, mainDelta, planningFinal]);
+    });
+
+    it("main final preserves a still-live planning-agent delta (#1656)", () => {
+      const mainDelta = makeStreamingDelta("delta-main", "Main says hello");
+      const planningDelta = {
+        ...makeStreamingDelta("delta-planning", "Planning still typing"),
+        isFromPlanningAgent: true,
+      };
+      const mainFinal = {
+        ...mockAgentMessageEvent,
+        id: "main-final",
+        llm_message: {
+          role: "assistant" as const,
+          content: [{ type: "text" as const, text: "Main says hello" }],
+        },
+      };
+
+      const result = handleEventForUI(mainFinal, [
+        mockMessageEvent,
+        mainDelta,
+        planningDelta,
+      ]);
+
+      expect(result).toEqual([mockMessageEvent, planningDelta, mainFinal]);
+    });
   });
 
   it("should NOT add ThinkObservation even when ThinkAction is not found", () => {
@@ -529,5 +667,187 @@ describe("handleEventForUI", () => {
     // ThinkObservation should never be added to uiEvents
     expect(result).toEqual([mockMessageEvent]);
     expect(result).not.toBe(initialUiEvents);
+  });
+
+  // Regression for issue #1534: with stream=true an agent step streams its
+  // pre-tool-call text as a StreamingDeltaEvent, then the step arrives as an
+  // intermediate ActionEvent whose `thought` is that same text. The chat hoists
+  // the action's thought into its own message, so the leftover streaming delta
+  // must not also render the text or it appears twice.
+  describe("intermediate action / streamed thought reconciliation (#1534)", () => {
+    const makeThoughtAction = (id: string, thought: string): ActionEvent => ({
+      ...mockActionEvent,
+      id,
+      tool_call_id: `call_${id}`,
+      thought: [{ type: "text", text: thought }],
+    });
+
+    it("clears the streamed content from the delta, keeping its reasoning", () => {
+      const thought = "Let me gather accurate information.";
+      const delta: StreamingDeltaEvent = {
+        ...makeStreamingDelta("delta-1", thought),
+        reasoning_content: "pondering the request",
+      };
+      const action = makeThoughtAction("intermediate-1", thought);
+
+      const result = handleEventForUI(action, [mockMessageEvent, delta]);
+
+      expect(result).toEqual([
+        mockMessageEvent,
+        { ...delta, content: null },
+        action,
+      ]);
+    });
+
+    it("drops the delta entirely when it has no reasoning left to render", () => {
+      const thought = "Let me gather accurate information.";
+      const delta = makeStreamingDelta("delta-1", thought);
+      const action = makeThoughtAction("intermediate-1", thought);
+
+      const result = handleEventForUI(action, [mockMessageEvent, delta]);
+
+      expect(result).toEqual([mockMessageEvent, action]);
+    });
+
+    it("reconciles across multiple streamed segments in order", () => {
+      const first = makeStreamingDelta("delta-1", "Let me gather ");
+      const merged = handleEventForUI(
+        makeStreamingDelta("delta-2", "accurate information."),
+        handleEventForUI(first, [mockMessageEvent]),
+      );
+      const action = makeThoughtAction(
+        "intermediate-1",
+        "Let me gather accurate information.",
+      );
+
+      const result = handleEventForUI(action, merged);
+
+      // The merged content delta is fully streamed and has no reasoning, so it
+      // is dropped and only the action remains.
+      expect(result).toEqual([mockMessageEvent, action]);
+    });
+
+    it("leaves the delta untouched when streamed text does not match the thought", () => {
+      const delta = makeStreamingDelta(
+        "delta-1",
+        "some unrelated streamed text",
+      );
+      const action = makeThoughtAction(
+        "intermediate-1",
+        "An unrelated thought.",
+      );
+
+      const result = handleEventForUI(action, [mockMessageEvent, delta]);
+
+      expect(result).toEqual([mockMessageEvent, delta, action]);
+    });
+
+    it("does not reconcile a ThinkAction (its thought renders separately)", () => {
+      const thought = "A reasoning step.";
+      const delta = makeStreamingDelta("delta-1", thought);
+      const thinkAction: ActionEvent = {
+        ...mockActionEvent,
+        id: "think-1",
+        tool_name: "think",
+        tool_call_id: "call_think_1",
+        thought: [{ type: "text", text: thought }],
+        action: { kind: "ThinkAction", thought },
+      };
+
+      const result = handleEventForUI(thinkAction, [mockMessageEvent, delta]);
+
+      expect(result).toEqual([mockMessageEvent, delta, thinkAction]);
+    });
+
+    it("only reconciles the current turn's delta (after the last user message)", () => {
+      const thought = "Let me gather accurate information.";
+      const earlierTurnDelta = makeStreamingDelta("delta-old", thought);
+      const laterUserMessage: MessageEvent = {
+        ...mockMessageEvent,
+        id: "user-2",
+      };
+      const action = makeThoughtAction("intermediate-1", thought);
+
+      const result = handleEventForUI(action, [
+        mockMessageEvent,
+        earlierTurnDelta,
+        laterUserMessage,
+      ]);
+
+      // The delta belongs to a turn before the latest user message, so it is
+      // left intact and the action is appended normally.
+      expect(result).toEqual([
+        mockMessageEvent,
+        earlierTurnDelta,
+        laterUserMessage,
+        action,
+      ]);
+    });
+
+    it("reconciles even when the thought is whitespace-trimmed vs the stream", () => {
+      // The SDK strips assistant text, so the action's thought can lack the
+      // trailing newline the model streamed before the tool call.
+      const delta = makeStreamingDelta(
+        "delta-1",
+        "Let me gather information.\n",
+      );
+      const action = makeThoughtAction(
+        "intermediate-1",
+        "Let me gather information.",
+      );
+
+      const result = handleEventForUI(action, [mockMessageEvent, delta]);
+
+      // Match succeeds despite the trailing newline, so the delta is dropped.
+      expect(result).toEqual([mockMessageEvent, action]);
+    });
+
+    it("only folds in the current step's trailing delta, not an earlier step's", () => {
+      // An earlier step's delta still carrying content sits before this step's
+      // observation; it must NOT be joined into the match.
+      const earlierDelta = makeStreamingDelta(
+        "delta-early",
+        "Earlier step text.",
+      );
+      const currentDelta = makeStreamingDelta(
+        "delta-current",
+        "Current step text.",
+      );
+      const action = makeThoughtAction("intermediate-2", "Current step text.");
+
+      const result = handleEventForUI(action, [
+        mockMessageEvent,
+        earlierDelta,
+        mockObservationEvent,
+        currentDelta,
+      ]);
+
+      // Only the trailing (current) delta is reconciled and dropped; the
+      // earlier delta is untouched.
+      expect(result).toEqual([
+        mockMessageEvent,
+        earlierDelta,
+        mockObservationEvent,
+        action,
+      ]);
+    });
+
+    it("drops the delta instead of keeping its reasoning when the action carries reasoning", () => {
+      const thought = "Let me gather accurate information.";
+      const delta: StreamingDeltaEvent = {
+        ...makeStreamingDelta("delta-1", thought),
+        reasoning_content: "streamed reasoning",
+      };
+      const action: ActionEvent = {
+        ...makeThoughtAction("intermediate-1", thought),
+        reasoning_content: "finalized reasoning",
+      };
+
+      const result = handleEventForUI(action, [mockMessageEvent, delta]);
+
+      // The action renders the Thinking section itself, so the delta is fully
+      // redundant and dropped — no leftover reasoning-only delta.
+      expect(result).toEqual([mockMessageEvent, action]);
+    });
   });
 });

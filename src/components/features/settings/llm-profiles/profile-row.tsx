@@ -14,6 +14,8 @@ import {
 interface ProfileRowProps {
   profile: ProfileInfo;
   isActive: boolean;
+  /** When false, the row is read-only and the actions menu is hidden. */
+  canManage: boolean;
   onActivate: (name: string) => void;
   onEdit: (profile: ProfileInfo) => void;
   onRename: (profile: ProfileInfo) => void;
@@ -25,6 +27,7 @@ interface ProfileRowProps {
 export function ProfileRow({
   profile,
   isActive,
+  canManage,
   onActivate,
   onEdit,
   onRename,
@@ -61,32 +64,37 @@ export function ProfileRow({
             className="shrink-0 whitespace-nowrap px-2.5 py-1 text-xs"
             data-testid="profile-active-badge"
           >
-            {t(I18nKey.SETTINGS$PROFILE_ACTIVE)}
+            {/* "Default" (not "Active"): the active LLM profile no longer drives
+                conversations — the active AGENT profile does — it's just the
+                default `llm_profile_ref` seeded into new agent profiles. */}
+            {t(I18nKey.SETTINGS$PROFILE_DEFAULT)}
           </BrandBadge>
         )}
       </div>
-      <div className="relative shrink-0">
-        <EllipsisButton
-          ref={triggerRef}
-          onClick={() => setMenuOpen((open) => !open)}
-          ariaLabel={t(I18nKey.SETTINGS$PROFILE_MENU)}
-          testId="profile-menu-trigger"
-          className={settingsListIconActionButtonClassName}
-        />
-        {menuOpen && (
-          <ProfileActionsMenu
-            anchorRef={triggerRef}
-            onEdit={() => onEdit(profile)}
-            onRename={() => onRename(profile)}
-            onDuplicate={() => onDuplicate(profile)}
-            onSetActive={() => onActivate(profile.name)}
-            onDelete={() => onDelete(profile)}
-            isActive={isActive}
-            isActivating={isActivating}
-            onClose={() => setMenuOpen(false)}
+      {canManage && (
+        <div className="relative shrink-0">
+          <EllipsisButton
+            ref={triggerRef}
+            onClick={() => setMenuOpen((open) => !open)}
+            ariaLabel={t(I18nKey.SETTINGS$PROFILE_MENU)}
+            testId="profile-menu-trigger"
+            className={settingsListIconActionButtonClassName}
           />
-        )}
-      </div>
+          {menuOpen && (
+            <ProfileActionsMenu
+              anchorRef={triggerRef}
+              onEdit={() => onEdit(profile)}
+              onRename={() => onRename(profile)}
+              onDuplicate={() => onDuplicate(profile)}
+              onSetActive={() => onActivate(profile.name)}
+              onDelete={() => onDelete(profile)}
+              isActive={isActive}
+              isActivating={isActivating}
+              onClose={() => setMenuOpen(false)}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

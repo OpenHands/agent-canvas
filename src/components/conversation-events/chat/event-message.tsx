@@ -17,12 +17,15 @@ import {
   isHookExecutionEvent,
   isACPToolCallEvent,
   isStreamingDeltaEvent,
+  isConversationStateUpdateEvent,
+  isGoalConversationStateUpdateEvent,
 } from "#/types/agent-server/type-guards";
 import { useConfig } from "#/hooks/query/use-config";
 import { useConversationStore } from "#/stores/conversation-store";
 import { useAgentState } from "#/hooks/use-agent-state";
 import { AgentState } from "#/types/agent-state";
 import { ChatMessage } from "#/components/features/chat/chat-message";
+import { GoalStatusContent } from "#/components/features/chat/goal-status-content";
 import { PlanPreview } from "../../features/chat/plan-preview";
 import { ErrorEventMessage } from "./event-message-components/error-event-message";
 import { UserAssistantEventMessage } from "./event-message-components/user-assistant-event-message";
@@ -33,7 +36,7 @@ import { CollapsibleThinking } from "./event-message-components/collapsible-thin
 import { HookExecutionEventMessage } from "./event-message-components/hook-execution-event-message";
 import { createSkillReadyEvent } from "./event-content-helpers/create-skill-ready-event";
 import { shouldShowPlanPreview } from "./hooks/use-plan-preview-events";
-import { getReasoningContent } from "./event-thought-helpers";
+import { getReasoningContent, splitInlineThink } from "./event-thought-helpers";
 
 interface EventMessageProps {
   event: OpenHandsEvent & { isFromPlanningAgent?: boolean };
@@ -159,6 +162,16 @@ export function EventMessage({
     isFromPlanningAgent,
   };
 
+  // Finished `/goal` loop: render the terminal status inline so it settles into
+  // the conversation. should-render-event.ts only lets the terminal goal event
+  // through; the active loop is shown by the separate bottom GoalStatusBanner.
+  if (
+    isConversationStateUpdateEvent(event) &&
+    isGoalConversationStateUpdateEvent(event)
+  ) {
+    return <GoalStatusContent status={event.value} />;
+  }
+
   // Agent error events
   if (isAgentErrorEvent(event)) {
     return <ErrorEventMessage event={event} {...commonProps} />;
@@ -179,15 +192,21 @@ export function EventMessage({
   }
 
   if (isStreamingDeltaEvent(event)) {
-    const content = event.content ?? "";
-    const reasoningContent = event.reasoning_content ?? "";
+    // Route an inline <think> block to the thinking section, not the bubble.
+    const { reasoning: inlineThink, message } = splitInlineThink(
+      event.content ?? "",
+      { streaming: true },
+    );
+    const reasoningContent = [event.reasoning_content ?? "", inlineThink]
+      .filter(Boolean)
+      .join("\n\n");
     return (
       <>
         {reasoningContent && <CollapsibleThinking content={reasoningContent} />}
-        {content && (
+        {message && (
           <ChatMessage
             type="agent"
-            message={content}
+            message={message}
             isFromPlanningAgent={isFromPlanningAgent}
           />
         )}

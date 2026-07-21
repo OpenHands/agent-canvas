@@ -43,7 +43,7 @@ export function NewConversation() {
         type="button"
         onClick={() =>
           createConversation(
-            {},
+            { entryPoint: "home_start_from_scratch" },
             {
               onSuccess: (data) =>
                 navigate(`/conversations/${data.conversation_id}`),

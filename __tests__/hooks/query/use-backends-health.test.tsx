@@ -24,6 +24,7 @@ import {
 const getSettingsMock = vi.fn();
 const getServerInfoMock = vi.fn();
 const getCurrentCloudApiKeyMock = vi.fn();
+const getCloudOrganizationsMock = vi.fn();
 
 vi.mock("@openhands/typescript-client/clients", () => ({
   ServerClient: vi.fn(function ServerClientMock() {
@@ -35,6 +36,8 @@ vi.mock("@openhands/typescript-client/clients", () => ({
 }));
 
 vi.mock("#/api/cloud/organization-service.api", () => ({
+  getCloudOrganizations: (...args: unknown[]) =>
+    getCloudOrganizationsMock(...args),
   getCurrentCloudApiKey: (...args: unknown[]) =>
     getCurrentCloudApiKeyMock(...args),
 }));
@@ -67,6 +70,7 @@ beforeEach(() => {
   getServerInfoMock.mockReset();
   getServerInfoMock.mockResolvedValue({ version: "1.28.0" });
   getCurrentCloudApiKeyMock.mockReset();
+  getCloudOrganizationsMock.mockReset();
   vi.mocked(ServerClient).mockClear();
   vi.mocked(SettingsClient).mockClear();
   window.localStorage.clear();
@@ -103,12 +107,15 @@ describe("useBackendsHealth", () => {
       wrapper,
     });
 
-    await waitFor(() =>
-      expect(result.current[localBackend.id]).toMatchObject({
-        isConnected: false,
-        lastError:
-          "Agent Canvas requires agent-server 1.28.0 or newer; this backend is running 1.27.1. Please upgrade the agent-server backend.",
-      }),
+    await waitFor(
+      () =>
+        expect(result.current[localBackend.id]).toMatchObject({
+          isConnected: false,
+          lastError:
+            "Agent Canvas requires agent-server 1.28.0 or newer; this backend is running 1.27.1. Please upgrade the agent-server backend.",
+        }),
+      // Failing probes now retry a couple of times before settling.
+      { timeout: 3000 },
     );
   });
 
@@ -119,9 +126,31 @@ describe("useBackendsHealth", () => {
       wrapper,
     });
 
-    await waitFor(() =>
-      expect(result.current[localBackend.id].isConnected).toBe(false),
+    await waitFor(
+      () => expect(result.current[localBackend.id].isConnected).toBe(false),
+      { timeout: 3000 },
     );
+  });
+
+  it("recovers when a transient first probe fails, then succeeds on retry", async () => {
+    // The first probe attempt rejects (agent-server still warming up right
+    // after navigation); the quick-retry inside the query function re-probes
+    // and succeeds, so the backend reports connected without waiting for the
+    // 10s poll — and because the probe ultimately succeeded, zero failures are
+    // recorded toward the disabled cap.
+    getSettingsMock.mockRejectedValueOnce(new Error("ECONNREFUSED"));
+    getSettingsMock.mockResolvedValue({});
+
+    const { result } = renderHook(() => useBackendsHealth([localBackend]), {
+      wrapper,
+    });
+
+    await waitFor(
+      () => expect(result.current[localBackend.id].isConnected).toBe(true),
+      { timeout: 3000 },
+    );
+    expect(result.current[localBackend.id].consecutiveFailures).toBe(0);
+    expect(getSettingsMock).toHaveBeenCalledTimes(2);
   });
 
   it("reports invalid API key when the authenticated local probe returns 401", async () => {
@@ -143,6 +172,8 @@ describe("useBackendsHealth", () => {
       }),
     );
     expect(getServerInfoMock).not.toHaveBeenCalled();
+    // A definitive auth rejection is not retried — it won't self-heal.
+    expect(getSettingsMock).toHaveBeenCalledTimes(1);
   });
 
   it("probes cloud backends via getCurrentCloudApiKey", async () => {
@@ -162,6 +193,26 @@ describe("useBackendsHealth", () => {
     expect(getSettingsMock).not.toHaveBeenCalled();
   });
 
+  it("probes cookie-auth cloud backends via organizations without an API key", async () => {
+    const cookieBackend: Backend = {
+      ...cloudBackend,
+      id: "cloud-cookie",
+      apiKey: "",
+      authMode: "cookie",
+    };
+    getCloudOrganizationsMock.mockResolvedValue({ items: [], currentOrgId: null });
+
+    const { result } = renderHook(() => useBackendsHealth([cookieBackend]), {
+      wrapper,
+    });
+
+    await waitFor(() =>
+      expect(result.current[cookieBackend.id].isConnected).toBe(true),
+    );
+    expect(getCloudOrganizationsMock).toHaveBeenCalledWith(cookieBackend);
+    expect(getCurrentCloudApiKeyMock).not.toHaveBeenCalled();
+  });
+
   it("reports disconnected when the cloud probe throws", async () => {
     getCurrentCloudApiKeyMock.mockRejectedValue(new Error("Network Error"));
 
@@ -169,8 +220,9 @@ describe("useBackendsHealth", () => {
       wrapper,
     });
 
-    await waitFor(() =>
-      expect(result.current[cloudBackend.id].isConnected).toBe(false),
+    await waitFor(
+      () => expect(result.current[cloudBackend.id].isConnected).toBe(false),
+      { timeout: 3000 },
     );
   });
 
@@ -227,13 +279,16 @@ describe("useBackendsHealth", () => {
     // Assert — one failed probe surfaces the new metadata fields on
     // the hook's return value and persists them to localStorage; the
     // disabled flag stays false because we're below the cap.
-    await waitFor(() =>
-      expect(result.current[localBackend.id]).toMatchObject({
-        isConnected: false,
-        consecutiveFailures: 1,
-        lastError: "ECONNREFUSED",
-        disabled: false,
-      }),
+    await waitFor(
+      () =>
+        expect(result.current[localBackend.id]).toMatchObject({
+          isConnected: false,
+          consecutiveFailures: 1,
+          lastError: "ECONNREFUSED",
+          disabled: false,
+        }),
+      // Retries settle before a single failure is recorded.
+      { timeout: 3000 },
     );
     const persisted = JSON.parse(
       window.localStorage.getItem(BACKEND_HEALTH_STORAGE_KEY) ?? "{}",

@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { MockInstance } from "vitest";
 import { __resetActiveStoreForTests } from "#/api/backend-registry/active-store";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
 import {
@@ -10,6 +11,7 @@ import {
   type NavigationContextValue,
 } from "#/context/navigation-context";
 import { AddBackendModal } from "#/components/features/backends/add-backend-modal";
+import * as telemetry from "#/services/telemetry";
 
 const getServerInfoMock = vi.hoisted(() => vi.fn());
 
@@ -18,6 +20,14 @@ vi.mock("@openhands/typescript-client/clients", () => ({
     return {
       getServerInfo: getServerInfoMock,
     };
+  }),
+}));
+
+let captureMock: MockInstance<typeof telemetry.trackEvent>;
+
+vi.mock("#/hooks/query/use-settings", () => ({
+  useSettings: () => ({
+    data: { user_consents_to_analytics: true, email: "user@example.com" },
   }),
 }));
 
@@ -42,6 +52,7 @@ function renderWithProviders(
 }
 
 beforeEach(() => {
+  captureMock = vi.spyOn(telemetry, "trackEvent").mockResolvedValue(undefined);
   window.localStorage.clear();
   getServerInfoMock.mockReset();
   getServerInfoMock.mockResolvedValue({ version: "1.28.0" });
@@ -49,6 +60,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  captureMock.mockRestore();
   window.localStorage.clear();
   __resetActiveStoreForTests();
 });
@@ -313,5 +325,41 @@ describe("AddBackendModal – redirect after adding a backend", () => {
 
     // Assert
     expect(navigate).not.toHaveBeenCalled();
+  });
+});
+
+describe("AddBackendModal – analytics", () => {
+  it("captures backend_added once with manual connection metadata", async () => {
+    // Arrange
+    renderWithProviders(<AddBackendModal onClose={vi.fn()} />);
+    const user = userEvent.setup();
+
+    // Act — connect a local backend through the manual form
+    await user.type(screen.getByTestId("add-backend-name"), "Local Extra");
+    await user.type(
+      screen.getByTestId("add-backend-host"),
+      "http://localhost:8000",
+    );
+    await user.type(screen.getByTestId("add-backend-api-key"), "sk-local");
+    await user.click(screen.getByTestId("add-backend-submit"));
+
+    // Assert — emitted exactly once with coarse, non-sensitive properties
+    await waitFor(() =>
+      expect(captureMock).toHaveBeenCalledWith(
+        "backend_added",
+        expect.objectContaining({
+          backend_kind: "local",
+          connection_method: "manual",
+          is_openhands_cloud: false,
+          is_custom_host: true,
+          has_api_key: true,
+          source: "add_backend_modal",
+        }),
+      ),
+    );
+    const backendAddedCalls = captureMock.mock.calls.filter(
+      ([event]) => event === "backend_added",
+    );
+    expect(backendAddedCalls).toHaveLength(1);
   });
 });

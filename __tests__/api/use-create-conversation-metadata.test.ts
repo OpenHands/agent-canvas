@@ -16,6 +16,7 @@ const {
   mockGetSettings,
   mockGetSettingsForConversation,
   mockUseLlmProfiles,
+  mockListInstalledPlugins,
 } = vi.hoisted(() => ({
   mockHttpPost: vi.fn(),
   mockConversationClient: vi.fn(),
@@ -23,6 +24,7 @@ const {
   mockGetSettings: vi.fn(),
   mockGetSettingsForConversation: vi.fn(),
   mockUseLlmProfiles: vi.fn(),
+  mockListInstalledPlugins: vi.fn(),
 }));
 
 vi.mock("@openhands/typescript-client/clients", async () => {
@@ -54,6 +56,7 @@ vi.mock("#/api/agent-server-config", () => ({
   ),
   shouldLoadPublicSkills: vi.fn(() => true),
   syncBakedSessionApiKey: vi.fn(),
+  getLockedCloudHost: vi.fn(() => null),
 }));
 
 vi.mock("#/api/settings-service/settings-service.api", () => ({
@@ -71,6 +74,12 @@ vi.mock("#/hooks/query/use-llm-profiles", () => ({
   useLlmProfiles: () => mockUseLlmProfiles(),
 }));
 
+vi.mock("#/api/plugins-management-service", () => ({
+  default: {
+    listInstalledPlugins: mockListInstalledPlugins,
+  },
+}));
+
 const wrapper = ({ children }: { children: React.ReactNode }) => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -85,6 +94,10 @@ describe("useCreateConversation persists selected repository metadata", () => {
     // Default: no active profile, so metadata is written only for repo/
     // workspace attachments (as before). Individual tests override this.
     mockUseLlmProfiles.mockReturnValue({ data: { active_profile: null } });
+    mockListInstalledPlugins.mockReset();
+    // Default: no installed plugins, so the existing repo/workspace/profile
+    // assertions are unaffected. Plugin-specific tests override this.
+    mockListInstalledPlugins.mockResolvedValue([]);
     mockHttpPost.mockReset();
     mockGetSettings.mockReset();
     mockGetSettingsForConversation.mockReset();
@@ -194,6 +207,85 @@ describe("useCreateConversation persists selected repository metadata", () => {
       selected_workspace: null,
       workspace_mode: null,
       active_profile: "team-default",
+      plugins: null,
     });
+  });
+
+  it("records the enabled installed plugins (excluding disabled ones) so the in-conversation plugins view can show them", async () => {
+    // Arrange: one enabled and one disabled plugin are installed locally.
+    mockListInstalledPlugins.mockResolvedValue([
+      {
+        name: "city-weather",
+        version: "1.0.0",
+        description: null,
+        enabled: true,
+        source: "github:acme/city-weather",
+        resolved_ref: "abc123",
+        repo_path: null,
+        installed_at: "2026-05-05T00:00:00Z",
+        install_path: "/plugins/city-weather",
+      },
+      {
+        name: "stocks",
+        version: "1.0.0",
+        description: null,
+        enabled: false,
+        source: "github:acme/stocks",
+        resolved_ref: null,
+        repo_path: null,
+        installed_at: "2026-05-05T00:00:00Z",
+        install_path: "/plugins/stocks",
+      },
+    ]);
+
+    const { result } = renderHook(() => useCreateConversation(), { wrapper });
+
+    result.current.mutate({ query: "what's the weather?" });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // Only the enabled plugin is snapshotted, mapped to coordinates
+    // (resolved_ref -> ref) and keeping its name for display.
+    expect(getStoredConversationMetadata("conv-new")?.plugins).toEqual([
+      {
+        source: "github:acme/city-weather",
+        ref: "abc123",
+        repo_path: null,
+        name: "city-weather",
+      },
+    ]);
+  });
+
+  it("does not duplicate a plugin that is both explicitly attached and enabled-installed", async () => {
+    // Arrange: the same plugin is passed explicitly and is enabled-installed.
+    mockListInstalledPlugins.mockResolvedValue([
+      {
+        name: "city-weather",
+        version: "1.0.0",
+        description: null,
+        enabled: true,
+        source: "github:acme/city-weather",
+        resolved_ref: "main",
+        repo_path: null,
+        installed_at: "2026-05-05T00:00:00Z",
+        install_path: "/plugins/city-weather",
+      },
+    ]);
+
+    const { result } = renderHook(() => useCreateConversation(), { wrapper });
+
+    result.current.mutate({
+      query: "what's the weather?",
+      plugins: [
+        { source: "github:acme/city-weather", ref: "main", repo_path: null },
+      ],
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    // The plugin is recorded exactly once.
+    expect(getStoredConversationMetadata("conv-new")?.plugins).toEqual([
+      { source: "github:acme/city-weather", ref: "main", repo_path: null },
+    ]);
   });
 });

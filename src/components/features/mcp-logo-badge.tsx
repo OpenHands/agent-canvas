@@ -1,14 +1,12 @@
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode, SVGProps } from "react";
+import { Bot } from "lucide-react";
 import type { IntegrationCatalogEntry } from "@openhands/extensions/integrations";
-import {
-  INTEGRATION_FALLBACK_LOGO,
-  INTEGRATION_LOGOS,
-} from "@openhands/extensions/integrations/logos";
+import SlackIcon from "#/icons/slack.svg?react";
 import { cn } from "#/utils/utils";
 
 type McpLogoEntry = Pick<
   IntegrationCatalogEntry,
-  "id" | "name" | "iconBg" | "iconColor"
+  "id" | "name" | "iconBg" | "iconColor" | "logoUrl"
 >;
 
 export type { McpLogoEntry };
@@ -27,6 +25,16 @@ const sizeClassNames = {
   md: "h-10 w-10 rounded-lg [&>svg]:h-5 [&>svg]:w-5",
 };
 
+// Catalog entries whose remote logoUrl is unreliable (e.g. Slack's was removed
+// from cdn.simpleicons.org and now 404s) render a bundled mark instead, keyed
+// by IntegrationCatalogEntry.id.
+const LOCAL_LOGO_ICONS: Record<
+  string,
+  ComponentType<SVGProps<SVGSVGElement>>
+> = {
+  slack: SlackIcon,
+};
+
 export function McpLogoBadge({
   entry,
   size = "md",
@@ -34,6 +42,7 @@ export function McpLogoBadge({
   fallback,
   testId,
 }: McpLogoBadgeProps) {
+  const LocalLogoIcon = entry ? LOCAL_LOGO_ICONS[entry.id] : undefined;
   return (
     <span
       aria-hidden="true"
@@ -50,9 +59,21 @@ export function McpLogoBadge({
         color: entry?.iconColor ?? "#FFFFFF",
       }}
     >
-      {entry
-        ? (INTEGRATION_LOGOS[entry.id] ?? fallback ?? INTEGRATION_FALLBACK_LOGO)
-        : (fallback ?? INTEGRATION_FALLBACK_LOGO)}
+      {LocalLogoIcon ? (
+        <LocalLogoIcon />
+      ) : entry?.logoUrl ? (
+        <img
+          src={entry.logoUrl}
+          alt={`${entry.name} logo`}
+          className="h-full w-full object-contain p-[22%]"
+          onError={(e) => {
+            const image = e.currentTarget;
+            image.style.display = "none";
+          }}
+        />
+      ) : (
+        (fallback ?? <Bot className="h-5 w-5" strokeWidth={2.25} />)
+      )}
     </span>
   );
 }

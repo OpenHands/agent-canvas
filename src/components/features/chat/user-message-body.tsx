@@ -4,7 +4,8 @@ import { cn } from "#/utils/utils";
 import { I18nKey } from "#/i18n/declaration";
 import { MarkdownRenderer } from "../markdown/markdown-renderer";
 
-const USER_MESSAGE_MAX_LINES = 3;
+const USER_MESSAGE_MAX_LINES = 5;
+const USER_MESSAGE_LENGTH_THRESHOLD = 360;
 export const USER_MESSAGE_LINE_HEIGHT_PX = 24;
 
 export const chatBubbleMarkdownComponents = {
@@ -28,11 +29,14 @@ export function UserMessageBody({
   const contentRef = React.useRef<HTMLDivElement>(null);
   const [isTruncatable, setIsTruncatable] = React.useState(false);
 
+  React.useEffect(() => {
+    onTruncatableChange(isTruncatable);
+  }, [isTruncatable, onTruncatableChange]);
+
   React.useLayoutEffect(() => {
     const content = contentRef.current;
     if (!content || isExpanded) {
       setIsTruncatable(false);
-      onTruncatableChange(false);
       return undefined;
     }
 
@@ -50,14 +54,9 @@ export function UserMessageBody({
       const truncatable =
         content.scrollHeight > maxHeight + 1 ||
         newlineCount >= USER_MESSAGE_MAX_LINES ||
-        message.trim().length > 220;
+        message.trim().length > USER_MESSAGE_LENGTH_THRESHOLD;
 
-      setIsTruncatable((previous) => {
-        if (previous !== truncatable) {
-          onTruncatableChange(truncatable);
-        }
-        return truncatable;
-      });
+      setIsTruncatable(truncatable);
     };
 
     measure();
@@ -66,7 +65,7 @@ export function UserMessageBody({
     observer.observe(content);
 
     return () => observer.disconnect();
-  }, [message, isExpanded, onTruncatableChange]);
+  }, [message, isExpanded]);
 
   const isCollapsed = isTruncatable && !isExpanded;
 
@@ -76,12 +75,13 @@ export function UserMessageBody({
         ref={contentRef}
         className={cn(
           "text-sm leading-6 whitespace-normal [word-break:break-word]",
-          isCollapsed && "line-clamp-3",
+          isCollapsed && "line-clamp-5",
         )}
       >
         <MarkdownRenderer
           includeStandard
           includeHeadings
+          allowHtml={false}
           components={chatBubbleMarkdownComponents}
         >
           {message}

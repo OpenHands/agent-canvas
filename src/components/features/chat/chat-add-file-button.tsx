@@ -10,6 +10,7 @@ import { useConversationNameContextMenu } from "#/hooks/use-conversation-name-co
 import { ToolsContextMenu } from "#/components/features/controls/tools-context-menu";
 import { SystemMessageModal } from "#/components/features/conversation-panel/system-message-modal";
 import { SkillsModal } from "#/components/features/conversation-panel/skills-modal";
+import { PluginsModal } from "#/components/features/conversation-panel/plugins-modal";
 import { HooksModal } from "#/components/features/conversation-panel/hooks-modal";
 
 export interface ChatAddFileButtonProps {
@@ -29,16 +30,20 @@ export function ChatAddFileButton({
   const {
     handleShowAgentTools,
     handleShowSkills,
+    handleShowPlugins,
     handleShowHooks,
     systemModalVisible,
     setSystemModalVisible,
     skillsModalVisible,
     setSkillsModalVisible,
+    pluginsModalVisible,
+    setPluginsModalVisible,
     hooksModalVisible,
     setHooksModalVisible,
     systemMessage,
     shouldShowAgentTools,
     shouldShowHooks,
+    shouldShowPlugins,
   } = useConversationNameContextMenu({
     conversationId: conversationId ?? undefined,
     executionStatus: conversation?.execution_status,
@@ -81,10 +86,12 @@ export function ChatAddFileButton({
         <ToolsContextMenu
           onClose={() => setMenuOpen(false)}
           onShowSkills={handleShowSkills}
+          onShowPlugins={handleShowPlugins}
           onShowHooks={handleShowHooks}
           onShowAgentTools={handleShowAgentTools}
           shouldShowAgentTools={shouldShowAgentTools}
           shouldShowHooks={shouldShowHooks}
+          shouldShowPlugins={shouldShowPlugins}
           footerAction={{
             testId: "add-files-and-images-button",
             icon: (
@@ -107,6 +114,9 @@ export function ChatAddFileButton({
       />
       {skillsModalVisible && (
         <SkillsModal onClose={() => setSkillsModalVisible(false)} />
+      )}
+      {pluginsModalVisible && (
+        <PluginsModal onClose={() => setPluginsModalVisible(false)} />
       )}
       {hooksModalVisible && (
         <HooksModal onClose={() => setHooksModalVisible(false)} />

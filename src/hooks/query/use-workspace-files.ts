@@ -1,11 +1,19 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import AgentServerRuntimeService from "#/api/runtime-service/agent-server-runtime-service";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
+import { useUnifiedGetGitChanges } from "#/hooks/query/use-unified-get-git-changes";
 
 // Cap the number of files we render so a giant repo doesn't freeze the UI.
 const MAX_FILES = 2000;
+
+export interface WorkspaceFilesResult {
+  data: string[] | undefined;
+  isLoading: boolean;
+}
 
 // Directory names that we never want to descend into when listing files.
 const EXCLUDED_DIRS = [
@@ -39,11 +47,16 @@ function normalizePath(path: string): string {
 }
 
 /**
- * Lists every regular file beneath the active conversation's working
- * directory, excluding common heavy/build directories. Returns paths relative
- * to the working dir (e.g. `src/index.html`).
+ * Local-backend listing: enumerate every regular file beneath the active
+ * conversation's working directory via `find` over the agent-server's
+ * `/api/bash/execute_bash_command`, excluding common heavy/build directories.
+ * Returns paths relative to the working dir (e.g. `src/index.html`).
+ *
+ * Local only: the cloud API exposes no bash-exec / file-listing endpoint,
+ * and the old cross-origin `/api/cloud-proxy` hop these calls relied on was
+ * removed from the agent-server. See `useWorkspaceFiles` for the cloud path.
  */
-export function useWorkspaceFiles() {
+function useLocalWorkspaceFiles(enabled: boolean): WorkspaceFilesResult {
   const { data: conversation } = useActiveConversation();
   const runtimeIsReady = useRuntimeIsReady();
 
@@ -52,7 +65,7 @@ export function useWorkspaceFiles() {
   const sessionApiKey = conversation?.session_api_key;
   const workingDir = conversation?.workspace?.working_dir?.trim();
 
-  return useQuery<string[]>({
+  const query = useQuery<string[]>({
     queryKey: [
       "workspace-files",
       conversationId,
@@ -84,10 +97,58 @@ export function useWorkspaceFiles() {
       // Defensive: keep results unique and bounded.
       return Array.from(new Set(lines)).slice(0, MAX_FILES);
     },
-    enabled: runtimeIsReady && !!conversationId && !!workingDir,
+    enabled: enabled && runtimeIsReady && !!conversationId && !!workingDir,
     retry: false,
     staleTime: 1000 * 30,
     gcTime: 1000 * 60 * 5,
     meta: { disableToast: true },
   });
+
+  return { data: query.data, isLoading: query.isLoading };
+}
+
+/**
+ * Cloud-backend listing: derive the file list from the conversation's git
+ * changes — the same data source the diff view uses (and the only
+ * runtime-workspace transport the cloud API proxies, alongside git diff and
+ * single-file read). `git status` reports created/modified/untracked files,
+ * which covers the common Agent Canvas case (a fresh or agent-authored
+ * workspace). It intentionally does NOT enumerate unchanged tracked files —
+ * the cloud API has no full-workspace listing endpoint — so a conversation
+ * attached to a large existing repo shows changed files rather than the whole
+ * tree. Deleted files are dropped since they can't be opened.
+ */
+function useCloudWorkspaceFiles(enabled: boolean): WorkspaceFilesResult {
+  const gitChanges = useUnifiedGetGitChanges();
+
+  const data = useMemo(() => {
+    if (!enabled) return undefined;
+    const paths = gitChanges.data
+      .filter((change) => change.status !== "D")
+      .map((change) => change.path);
+    return Array.from(new Set(paths)).slice(0, MAX_FILES);
+  }, [enabled, gitChanges.data]);
+
+  return {
+    data: enabled ? data : undefined,
+    isLoading: enabled ? gitChanges.isLoading : false,
+  };
+}
+
+/**
+ * Lists the files shown in the Files tab for the active conversation.
+ *
+ * Local backends enumerate the full workspace tree via bash `find`. Cloud
+ * backends derive the list from git changes (see `useCloudWorkspaceFiles`
+ * for the rationale and its limitation), because the cloud API exposes no
+ * bash-exec or file-listing endpoint.
+ */
+export function useWorkspaceFiles(): WorkspaceFilesResult {
+  const { backend } = useActiveBackend();
+  const isCloud = backend.kind === "cloud";
+
+  const local = useLocalWorkspaceFiles(!isCloud);
+  const cloud = useCloudWorkspaceFiles(isCloud);
+
+  return isCloud ? cloud : local;
 }

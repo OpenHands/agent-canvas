@@ -50,7 +50,6 @@ const DEFAULT_MODEL =
 export const createMockWebClientConfig = (
   overrides: Partial<WebClientConfig> = {},
 ): WebClientConfig => ({
-  posthog_client_key: "test-posthog-key",
   feature_flags: {
     hide_llm_settings: false,
     hide_users_page: false,
@@ -83,6 +82,21 @@ const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
           section_label: "General",
           value_type: "boolean",
           default: false,
+          choices: [],
+          depends_on: [],
+          prominence: "major",
+          secret: false,
+          required: false,
+        },
+        {
+          key: "tool_concurrency_limit",
+          label: "Parallel tool calls",
+          description:
+            "Maximum number of tool calls to execute concurrently per agent step. 1 = sequential (default).",
+          section: "general",
+          section_label: "General",
+          value_type: "integer",
+          default: 1,
           choices: [],
           depends_on: [],
           prominence: "major",
@@ -425,6 +439,7 @@ export const MOCK_DEFAULT_USER_SETTINGS: Settings = {
       condenser_max_size: null,
     },
     enable_sub_agents: false,
+    tool_concurrency_limit: 1,
   },
   conversation_settings_schema: MOCK_CONVERSATION_SETTINGS_SCHEMA,
   conversation_settings: {
@@ -603,7 +618,7 @@ const MOCK_VERIFIED_MODELS_BY_PROVIDER = MOCK_MODELS.reduce<
   return acc;
 }, {});
 
-const MOCK_AGENT_SERVER_VERSION = "1.28.1";
+const MOCK_AGENT_SERVER_VERSION = "1.29.3";
 
 // --- Handlers for options/config/settings ---
 // Uses wildcard "*" prefix to match both relative paths and absolute URLs
@@ -889,7 +904,6 @@ export const SETTINGS_HANDLERS = [
 
   http.get("*/api/v1/web-client/config", () => {
     const config: WebClientConfig = {
-      posthog_client_key: "fake-posthog-client-key",
       feature_flags: {
         hide_llm_settings: false,
         hide_users_page: false,

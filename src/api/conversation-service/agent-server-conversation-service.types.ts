@@ -20,6 +20,9 @@ export interface PluginSpec {
   ref?: string | null; // Optional branch, tag, or commit
   repo_path?: string | null; // Subdirectory path within the git repository
   parameters?: Record<string, unknown> | null; // User-provided configuration values
+  // Client-side display label (e.g. an installed plugin's `name`). Not a
+  // coordinate and not required by the agent-server; used only for rendering.
+  name?: string | null;
 }
 
 // V1 Metrics Types
@@ -79,6 +82,11 @@ export interface AppConversationStartRequest {
   agent_type?: "default" | "plan";
   sandbox_id?: string | null;
   plugins?: PluginSpec[] | null; // Plugins to load when starting the conversation
+  // One-off launch from a saved AgentProfile, resolved server-side (#3727).
+  // Accepted by the cloud app-server (OpenHands #15060) on
+  // POST /api/v1/app-conversations; the local path uses the encrypted
+  // agent_settings builder instead, which threads its own agentProfileId.
+  agent_profile_id?: string | null;
 }
 
 export type AppConversationStartTaskStatus =
@@ -118,6 +126,11 @@ export interface ConversationWorkspace {
   working_dir: string | null;
 }
 
+export interface LaunchedAgentProfile {
+  agent_profile_id: string;
+  revision: number;
+}
+
 export interface AppConversation {
   id: string;
   created_by_user_id: string | null;
@@ -136,6 +149,7 @@ export interface AppConversation {
    * carry the ACP subprocess model for display).
    */
   agent_kind?: "openhands" | "acp" | null;
+  launched_agent_profile?: LaunchedAgentProfile | null;
   /**
    * For ACP conversations, the registry key of the ACP CLI server the
    * conversation was launched against (e.g. ``"claude-code"``, ``"codex"``,

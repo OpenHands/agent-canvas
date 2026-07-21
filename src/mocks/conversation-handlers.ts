@@ -6,9 +6,15 @@ import {
   type OpenHandsEvent,
 } from "#/types/agent-server/core";
 import { GetMicroagentsResponse } from "#/api/open-hands.types";
+import {
+  TABLE_DEMO_CONVERSATION_ID,
+  TABLE_DEMO_EVENTS,
+} from "#/fixtures/table-demo-conversation";
 
 /** Map from conversation id → events returned by GET /events/search */
-const CONVERSATION_EVENTS: Record<string, unknown[]> = {};
+const CONVERSATION_EVENTS: Record<string, unknown[]> = {
+  [TABLE_DEMO_CONVERSATION_ID]: TABLE_DEMO_EVENTS,
+};
 
 const now = Date.now();
 const PAGINATION_LOCAL_CONVERSATION_ID = "pagination-local";
@@ -80,6 +86,14 @@ const conversations: MockConversation[] = [
     title: "Local pagination fixture",
     created_at: new Date(now - 6 * 24 * 60 * 60 * 1000).toISOString(),
     updated_at: new Date(now - 6 * 24 * 60 * 60 * 1000).toISOString(),
+    execution_status: "idle",
+    workspace: { working_dir: "/workspace/project" },
+  },
+  {
+    id: TABLE_DEMO_CONVERSATION_ID,
+    title: "Wide table demo",
+    created_at: new Date(now - 1 * 24 * 60 * 60 * 1000).toISOString(),
+    updated_at: new Date(now - 1 * 24 * 60 * 60 * 1000).toISOString(),
     execution_status: "idle",
     workspace: { working_dir: "/workspace/project" },
   },
@@ -298,13 +312,24 @@ export const CONVERSATION_HANDLERS = [
     "*/api/conversations/:conversationId/events/search",
     async ({ params, request }) => {
       const conversationId = params.conversationId as string;
+      const searchParams = new URL(request.url).searchParams;
       const paginationPage = await maybeReturnPaginationEvents(
         conversationId,
-        new URL(request.url).searchParams,
+        searchParams,
       );
       if (paginationPage) return HttpResponse.json(paginationPage);
-      const items = CONVERSATION_EVENTS[conversationId] ?? [];
-      return HttpResponse.json({ items, next_page_id: null });
+
+      const staticEvents = CONVERSATION_EVENTS[conversationId];
+      if (staticEvents) {
+        return HttpResponse.json(
+          searchPaginationEvents(
+            staticEvents as OpenHandsEvent[],
+            searchParams,
+          ),
+        );
+      }
+
+      return HttpResponse.json({ items: [], next_page_id: null });
     },
   ),
 

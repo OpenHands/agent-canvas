@@ -4,7 +4,6 @@ import {
   ProfilesClient,
   SettingsClient,
 } from "@openhands/typescript-client/clients";
-import axios from "axios";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import {
   __resetActiveStoreForTests,
@@ -13,8 +12,11 @@ import {
 } from "#/api/backend-registry/active-store";
 import type { Backend } from "#/api/backend-registry/types";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
-
-vi.mock("axios");
+import {
+  getFetchCall,
+  getJsonBody,
+  mockJsonResponse,
+} from "./cloud/fetch-test-utils";
 
 const {
   mockHttpGet,
@@ -43,6 +45,9 @@ const {
   mockGetProfile: vi.fn(),
   mockActivateProfile: vi.fn(),
 }));
+
+const originalFetch = global.fetch;
+const fetchMock = vi.fn();
 
 vi.mock("@openhands/typescript-client/clients", async () => {
   const actual = await vi.importActual<
@@ -82,6 +87,7 @@ vi.mock("#/api/agent-server-config", () => ({
   getAgentServerHeaders: vi.fn(() => ({ "X-Session-API-Key": "test-api-key" })),
   shouldLoadPublicSkills: vi.fn(() => true),
   syncBakedSessionApiKey: vi.fn(),
+  getLockedCloudHost: vi.fn(() => null),
 }));
 
 vi.mock("#/api/settings-service/settings-service.api", () => ({
@@ -101,6 +107,8 @@ describe("AgentServerConversationService", () => {
     mockActivateProfile.mockReset();
     mockSwitchProfile.mockReset();
     mockSwitchLLM.mockReset();
+    fetchMock.mockReset();
+    global.fetch = originalFetch;
     vi.mocked(ConversationClient).mockClear();
     vi.mocked(FileClient).mockClear();
     vi.mocked(ProfilesClient).mockClear();
@@ -260,6 +268,9 @@ describe("AgentServerConversationService", () => {
         host: "http://localhost:54928",
         apiKey: "test-api-key",
         workingDir: "/workspace/project/agent-canvas",
+        // See CREATE_CONVERSATION_TIMEOUT_MS in the service module: first
+        // conversation on a cold agent-server boot exceeds the 60s default.
+        timeout: 5 * 60 * 1000,
       });
       expect(mockHttpPost).toHaveBeenCalledTimes(2);
       const [firstCall, secondCall] = mockHttpPost.mock.calls;
@@ -418,6 +429,8 @@ describe("AgentServerConversationService", () => {
     afterEach(() => {
       window.localStorage.clear();
       __resetActiveStoreForTests();
+      fetchMock.mockReset();
+      global.fetch = originalFetch;
     });
 
     it("hits the local /api/file/download-trajectory endpoint with responseType blob when active backend is local", async () => {
@@ -556,6 +569,32 @@ describe("AgentServerConversationService", () => {
       expect(result.items[0]?.sandbox_status).toBe("PAUSED");
     });
 
+    it("preserves the launched Agent Profile through the wire normalizer", async () => {
+      mockHttpGet.mockResolvedValue({
+        data: [
+          {
+            id: "conv-profile",
+            created_at: "2024-01-01",
+            updated_at: "2024-01-01",
+            launched_agent_profile: {
+              agent_profile_id: "profile-1",
+              revision: 3,
+            },
+          },
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-profile",
+        ]);
+
+      expect(conversation?.launched_agent_profile).toEqual({
+        agent_profile_id: "profile-1",
+        revision: 3,
+      });
+    });
+
     it("passes sandbox_status null through when field is absent", async () => {
       mockHttpGet.mockResolvedValue({
         data: [
@@ -651,6 +690,38 @@ describe("AgentServerConversationService", () => {
       // ``current_model_name`` wins the precedence chain in the adapter.
       expect(conversation?.agent_kind).toBe("acp");
       expect(conversation?.llm_model).toBe("Claude Opus 4.7");
+    });
+
+    it("sources acp_server from the agent when the acpserver tag is absent", async () => {
+      // Profile launches don't stamp the ``acpserver`` tag client-side, so the
+      // provider identity must survive from ``agent.acp_server`` (SDK #3692)
+      // through ``normalizeAgent``. Without it the chip degrades to a generic
+      // "ACP" and the in-conversation model picker shows no options (#1571).
+      mockHttpGet.mockResolvedValue({
+        data: [
+          {
+            id: "conv-acp-server-from-agent",
+            created_at: "2024-01-01",
+            updated_at: "2024-01-01",
+            agent: {
+              kind: "ACPAgent",
+              acp_server: "claude-code",
+              acp_model: "claude-sonnet-4-5",
+              llm: { model: "acp-managed" },
+            },
+            // No ``acpserver`` tag — mirrors an agent_profile_id launch.
+            tags: {},
+          },
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-acp-server-from-agent",
+        ]);
+
+      expect(conversation?.agent_kind).toBe("acp");
+      expect(conversation?.acp_server).toBe("claude-code");
     });
 
     it("falls back to acp_model when SDK runtime fields are absent on the wire", async () => {
@@ -774,6 +845,8 @@ describe("AgentServerConversationService", () => {
         expect.objectContaining({
           model: "openhands/claude-haiku-4-5",
           api_key: "encrypted-key",
+          // Streaming must stay enabled after a mid-conversation switch.
+          stream: true,
           usage_id: expect.stringMatching(/^profile:haiku:/),
         }),
       );
@@ -815,7 +888,7 @@ describe("AgentServerConversationService", () => {
       expect(mockSwitchLLM).not.toHaveBeenCalled();
     });
 
-    it("rejects profile switching on cloud backends before any network call", async () => {
+    it("routes a cloud conversation switch through the app-server switch_profile endpoint", async () => {
       const cloudBackend: Backend = {
         id: "prod",
         name: "Production",
@@ -825,15 +898,23 @@ describe("AgentServerConversationService", () => {
       };
       setRegisteredBackends([cloudBackend]);
       setActiveSelection({ backendId: cloudBackend.id });
+      fetchMock.mockResolvedValueOnce(mockJsonResponse({ success: true }));
+      global.fetch = fetchMock as typeof fetch;
 
-      await expect(
-        AgentServerConversationService.switchProfile("conv-1", "haiku"),
-      ).rejects.toThrow(
-        "LLM profile switching is only supported for local agent-server backends.",
+      await AgentServerConversationService.switchProfile("conv-1", "haiku");
+
+      const [url, init] = getFetchCall(fetchMock);
+      expect(url).toBe(
+        "https://app.all-hands.dev/api/v1/app-conversations/conv-1/switch_profile",
       );
-      expect(mockActivateProfile).not.toHaveBeenCalled();
+      expect(init).toMatchObject({
+        method: "POST",
+        headers: { Authorization: "Bearer bearer-token" },
+      });
+      expect(getJsonBody(init)).toEqual({ profile_name: "haiku" });
+      // Cloud resolves the swap server-side: no client-side encrypted profile
+      // fetch and no direct switch_llm call.
       expect(mockGetProfile).not.toHaveBeenCalled();
-      expect(mockSwitchProfile).not.toHaveBeenCalled();
       expect(mockSwitchLLM).not.toHaveBeenCalled();
     });
   });
@@ -852,18 +933,21 @@ describe("AgentServerConversationService", () => {
       __resetActiveStoreForTests();
       setRegisteredBackends([cloudBackend]);
       setActiveSelection({ backendId: cloudBackend.id });
-      vi.mocked(axios.request).mockReset();
+      fetchMock.mockReset();
+      global.fetch = fetchMock as typeof fetch;
     });
 
     afterEach(() => {
       window.localStorage.clear();
       __resetActiveStoreForTests();
+      fetchMock.mockReset();
+      global.fetch = originalFetch;
     });
 
     it("forwards parent_conversation_id, agent_type, and sandbox_id to the cloud createConversation payload", async () => {
       // Arrange
-      vi.mocked(axios.request).mockResolvedValue({
-        data: {
+      fetchMock.mockResolvedValueOnce(
+        mockJsonResponse({
           id: "task-1",
           status: "WORKING",
           app_conversation_id: null,
@@ -871,8 +955,8 @@ describe("AgentServerConversationService", () => {
           request: {},
           created_at: "2024-01-01",
           updated_at: "2024-01-01",
-        },
-      });
+        }),
+      );
 
       // Act
       await AgentServerConversationService.createConversation(
@@ -888,13 +972,13 @@ describe("AgentServerConversationService", () => {
       );
 
       // Assert
-      const [config] = vi.mocked(axios.request).mock.calls[0]!;
-      expect(config).toMatchObject({
-        url: `${cloudBackend.host}/api/v1/app-conversations`,
+      const [url, init] = getFetchCall(fetchMock);
+      expect(url).toBe(`${cloudBackend.host}/api/v1/app-conversations`);
+      expect(init).toMatchObject({
         method: "POST",
         headers: { Authorization: "Bearer bearer-token" },
       });
-      expect((config as { data: Record<string, unknown> }).data).toMatchObject({
+      expect(getJsonBody(init)).toMatchObject({
         parent_conversation_id: "parent-conv-1",
         agent_type: "plan",
         sandbox_id: "sandbox-9",
@@ -903,7 +987,12 @@ describe("AgentServerConversationService", () => {
 
     it("routes readConversationFile to the cloud file endpoint with the file_path query param", async () => {
       // Arrange
-      vi.mocked(axios.request).mockResolvedValue({ data: "# PLAN content" });
+      fetchMock.mockResolvedValueOnce(
+        new Response("# PLAN content", {
+          status: 200,
+          headers: { "content-type": "text/plain" },
+        }),
+      );
 
       // Act
       const content =
@@ -913,12 +1002,12 @@ describe("AgentServerConversationService", () => {
 
       // Assert
       expect(content).toBe("# PLAN content");
-      const [config] = vi.mocked(axios.request).mock.calls[0]!;
-      expect(config).toMatchObject({
+      const [url, init] = getFetchCall(fetchMock);
+      expect(init).toMatchObject({
         method: "GET",
         headers: { Authorization: "Bearer bearer-token" },
       });
-      expect((config as { url: string }).url).toBe(
+      expect(url).toBe(
         `${cloudBackend.host}/api/v1/app-conversations/conv-cloud-1/file?file_path=%2Fworkspace%2Fproject%2F.agents_tmp%2FPLAN.md`,
       );
     });

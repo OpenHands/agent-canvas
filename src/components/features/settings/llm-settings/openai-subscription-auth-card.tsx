@@ -201,8 +201,13 @@ export function OpenAISubscriptionAuthCard({
           className="flex flex-col gap-2 rounded-lg border border-[var(--oh-border-subtle)] p-3 text-sm"
         >
           <span>{t(I18nKey.SETTINGS$SUBSCRIPTION_DEVICE_INSTRUCTIONS)}</span>
-          <div className="flex items-center gap-2 rounded-lg bg-[var(--oh-surface-deep)] px-3 py-2 font-mono text-base text-[var(--oh-foreground)]">
-            <span className="flex-1 select-all">{challenge.userCode}</span>
+          <div className="flex items-center gap-2 rounded-lg bg-[var(--oh-surface-deep)] px-3 py-2 font-mono text-base font-semibold text-white">
+            <span
+              data-testid="subscription-user-code"
+              className="flex-1 select-all tracking-[0.08em]"
+            >
+              {challenge.userCode}
+            </span>
             <CopyToClipboardButton
               isHidden={false}
               isDisabled={false}

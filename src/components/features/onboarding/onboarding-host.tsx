@@ -1,4 +1,3 @@
-import React from "react";
 import { useLocation } from "react-router";
 import { OnboardingModal } from "./onboarding-modal";
 import {
@@ -13,6 +12,10 @@ import { useOnboardingCompletion } from "./use-onboarding-completion";
  * isn't set yet). Closing or completing the flow marks it done so the
  * modal won't re-appear on subsequent visits.
  *
+ * Backend readiness is intentionally not treated as onboarding completion:
+ * a fresh browser/origin should see onboarding once even when it connects
+ * to an existing backend that already has an LLM configured.
+ *
  * With `?previewOnboardingStep=<0-3>` the modal opens on that slide for
  * design review without persisting completion (works on any route when
  * mounted from the root layout).
@@ -23,7 +26,9 @@ export function OnboardingHost() {
   const isPreview = isOnboardingPreviewActive(location.search);
   const { isCompleted, markCompleted } = useOnboardingCompletion();
 
-  if (!isPreview && isCompleted) return null;
+  if (!isPreview) {
+    if (isCompleted) return null;
+  }
 
   const handleClose = () => {
     if (isPreview) return;

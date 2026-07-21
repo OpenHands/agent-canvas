@@ -38,6 +38,7 @@ import {
   deleteConversation,
   resetMockLLM,
   setChatInput,
+  ensureMockLLMAgentProfile,
 } from "../utils/mock-llm-helpers";
 
 const PROFILE_NAME = "mock-llm-e2e";
@@ -235,6 +236,13 @@ test.describe("mock-LLM agent-server conversation", () => {
         `Expected settings llm.base_url="${MOCK_LLM_AGENT_URL}" but got "${llmBaseUrl}"`,
       ).toBe(MOCK_LLM_AGENT_URL);
     });
+
+    // Point the active agent profile at this LLM profile so the home composer
+    // is unblocked in step 3. Conversations launch from the active AGENT
+    // profile (#1571), whose `llm_profile_ref` — not the active LLM profile —
+    // gates the composer; onboarding does this for real users, but this spec
+    // seeds `openhands-onboarded` and configures the LLM directly.
+    await ensureMockLLMAgentProfile(request, PROFILE_NAME);
   });
 
   // ── Step 3: Start a conversation and verify the mock agent responds ─

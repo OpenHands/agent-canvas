@@ -1,7 +1,7 @@
 import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   NavigationProvider,
   type NavigationContextValue,
@@ -9,6 +9,11 @@ import {
 import { CreateInstructions } from "#/components/features/automations/create-instructions";
 import { I18nKey } from "#/i18n/declaration";
 import { useConversationStore } from "#/stores/conversation-store";
+import * as telemetry from "#/services/telemetry";
+
+vi.mock("#/hooks/query/use-settings", () => ({
+  useSettings: () => ({ data: { user_consents_to_analytics: true } }),
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -77,8 +82,29 @@ function renderCreateInstructions() {
 }
 
 describe("CreateInstructions", () => {
+  let captureMock: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
+    captureMock = vi
+      .spyOn(telemetry, "trackEvent")
+      .mockResolvedValue(undefined);
     useConversationStore.setState({ messageToSend: null });
+  });
+
+  afterEach(() => {
+    captureMock.mockRestore();
+  });
+
+  it("captures automation_created with the active backend kind when Create Automation is clicked", async () => {
+    const user = userEvent.setup();
+    renderCreateInstructions();
+
+    await user.click(screen.getByTestId("automations-create-automation"));
+
+    expect(captureMock).toHaveBeenCalledWith(
+      "automation_created",
+      expect.objectContaining({ backend_kind: "local" }),
+    );
   });
 
   it("navigates to conversations with a prefilled prompt when Create Automation is clicked", async () => {

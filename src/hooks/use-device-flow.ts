@@ -5,6 +5,11 @@ import {
   DeviceFlowError,
   type DeviceAuthorizationResponse,
 } from "#/api/device-flow-client";
+import {
+  trackCloudDeviceAuthorizationStarted,
+  trackCloudDeviceAuthorizationSucceeded,
+  type CloudConnectionSource,
+} from "#/services/cloud-funnel-analytics";
 
 export type DeviceFlowStatus =
   | "idle"
@@ -29,12 +34,17 @@ export interface DeviceFlowState {
 
 export interface UseDeviceFlowReturn extends DeviceFlowState {
   /** Start the device flow authentication */
-  start: (host: string) => void;
+  start: StartDeviceFlow;
   /** Cancel an in-progress flow */
   cancel: () => void;
   /** Reset state back to idle */
   reset: () => void;
 }
+
+type StartDeviceFlow = (
+  host: string,
+  analyticsSource?: CloudConnectionSource,
+) => void;
 
 const initialState: DeviceFlowState = {
   status: "idle",
@@ -70,7 +80,7 @@ export function useDeviceFlow(): UseDeviceFlowReturn {
   const [state, setState] = React.useState<DeviceFlowState>(initialState);
   const abortControllerRef = React.useRef<AbortController | null>(null);
 
-  const start = React.useCallback((host: string) => {
+  const start: StartDeviceFlow = React.useCallback((host, analyticsSource) => {
     // Cancel any existing flow
     abortControllerRef.current?.abort();
     const abortController = new AbortController();
@@ -106,6 +116,8 @@ export function useDeviceFlow(): UseDeviceFlowReturn {
 
       if (abortController.signal.aborted) return;
 
+      trackCloudDeviceAuthorizationStarted(host, analyticsSource);
+
       setState({
         ...initialState,
         status: "awaiting_authorization",
@@ -124,6 +136,8 @@ export function useDeviceFlow(): UseDeviceFlowReturn {
         );
 
         if (abortController.signal.aborted) return;
+
+        trackCloudDeviceAuthorizationSucceeded(host, analyticsSource);
 
         setState({
           ...initialState,

@@ -1,8 +1,13 @@
 import { MCPServerConfig } from "#/types/mcp-server";
 import type {
+  MCPAuthenticationConfig,
+  MCPOAuthClientAuthMethod,
+} from "#/types/mcp-auth";
+import type {
   IntegrationAuthConfig,
   IntegrationCatalogEntry as MarketplaceEntry,
   IntegrationConnectionOption,
+  IntegrationOAuthConfig,
   IntegrationTransport,
 } from "@openhands/extensions/integrations";
 
@@ -34,33 +39,34 @@ export function getMcpConnectionOptions(
 export function getDefaultMcpConnectionOption(
   entry: MarketplaceEntry,
 ): McpMarketplaceConnectionOption | undefined {
-  const options = getMcpConnectionOptions(entry);
-  return (
-    options.find((option) => option.id === entry.defaultConnectionOptionId) ??
-    options[0]
-  );
+  return getMcpConnectionOptions(entry)[0];
 }
 
 function isLocallyInstallableMcpOption(
   option: McpMarketplaceConnectionOption,
 ): boolean {
-  // The local install modal writes static MCP server config. OAuth options
-  // describe hosted redirect flows, so prefer an API/stdio fallback when one
-  // exists and leave OAuth as the default connection for hosted integrations.
-  return option.auth.strategy !== "oauth2";
+  if (option.auth.strategy !== "oauth2") return true;
+
+  const oauth = option.auth.oauth;
+  if (!oauth) return false;
+
+  // Local agent-server installs only support OAuth flows initiated by the MCP
+  // server itself through fastmcp. Catalog entries that specify provider OAuth
+  // endpoints still need the hosted integration-auth flow and should not be
+  // exposed as locally installable static MCP configs.
+  return (
+    !oauth.authorizationUrl &&
+    !oauth.tokenUrl &&
+    !oauth.registrationUrl &&
+    !oauth.additionalAuthorizationParams &&
+    !oauth.additionalTokenParams
+  );
 }
 
 export function getInstallableMcpConnectionOption(
   entry: MarketplaceEntry,
 ): McpMarketplaceConnectionOption | undefined {
-  const options = getMcpConnectionOptions(entry);
-  const defaultOption = options.find(
-    (option) => option.id === entry.defaultConnectionOptionId,
-  );
-  if (defaultOption && isLocallyInstallableMcpOption(defaultOption)) {
-    return defaultOption;
-  }
-  return options.find(isLocallyInstallableMcpOption);
+  return getMcpConnectionOptions(entry).find(isLocallyInstallableMcpOption);
 }
 
 export function getDefaultMcpTransport(
@@ -69,56 +75,42 @@ export function getDefaultMcpTransport(
   return getDefaultMcpConnectionOption(entry)?.transport;
 }
 
-const LINEAR_DEPRECATED_SSE_URL = "https://mcp.linear.app/sse";
-const LINEAR_SHTTP_URL = "https://mcp.linear.app/mcp";
-const LINEAR_DOCS_URL = "https://linear.app/docs/mcp";
+function toMcpOAuthClientAuthMethod(
+  value: IntegrationOAuthConfig["clientAuthentication"] | undefined,
+): MCPOAuthClientAuthMethod | undefined {
+  switch (value) {
+    case "none":
+      return "none";
+    case "body":
+      return "client_secret_post";
+    case "basic":
+      return "client_secret_basic";
+    default:
+      return undefined;
+  }
+}
 
-/**
- * Upstream @openhands/extensions still ships Linear's deprecated SSE
- * transport (removed upstream on 2026-04-08; the /sse endpoint now
- * rejects every call). Rewrite the entry to streamable HTTP at the
- * /mcp replacement endpoint until the pinned dependency catches up.
- *
- * The /mcp endpoint authenticates via OAuth 2.1 or a Linear API key
- * sent as "Authorization: Bearer <token>". This client has no
- * interactive OAuth flow for MCP installs, so switch the auth
- * strategy from "none" to "bearer" — the install modal then offers
- * an (optional) API key field and the agent server forwards it as a
- * Bearer header.
- *
- * Patches immutably — the imported catalog JSON is shared module
- * state and must not be mutated.
- */
-function patchLinearEntry(entry: MarketplaceEntry): MarketplaceEntry {
-  if (entry.id !== "linear") return entry;
-  return {
-    ...entry,
-    docsUrl: LINEAR_DOCS_URL,
-    installHint:
-      "Authenticate with a Linear API key (Linear → Settings → Security & access) — sent as a Bearer token. Optional when the endpoint accepts your OAuth session.",
-    connectionOptions: entry.connectionOptions.map((option) =>
-      option.transport?.kind === "sse" &&
-      urlsMatch(option.transport.url, LINEAR_DEPRECATED_SSE_URL)
-        ? {
-            ...option,
-            auth: { ...option.auth, strategy: "bearer" as const },
-            transport: {
-              kind: "shttp" as const,
-              url: LINEAR_SHTTP_URL,
-              apiKeyOptional: option.transport.apiKeyOptional,
-            },
-          }
-        : option,
-    ),
-  };
+export function getMcpOAuthAuthenticationConfig(
+  option: McpMarketplaceConnectionOption,
+): MCPAuthenticationConfig | undefined {
+  if (option.auth.strategy !== "oauth2") return undefined;
+  const authentication: MCPAuthenticationConfig = { type: "oauth" };
+  const clientAuthMethod = toMcpOAuthClientAuthMethod(
+    option.auth.oauth?.clientAuthentication,
+  );
+  if (clientAuthMethod) {
+    authentication.client_auth_method = clientAuthMethod;
+  }
+  if (option.auth.oauth?.scopes?.length) {
+    authentication.scopes = option.auth.oauth.scopes;
+  }
+  return Object.keys(authentication).length > 1 ? authentication : undefined;
 }
 
 export function getMcpMarketplaceCatalog(
   catalog: MarketplaceEntry[],
 ): MarketplaceEntry[] {
-  return catalog
-    .map(patchLinearEntry)
-    .filter((entry) => !!getDefaultMcpConnectionOption(entry));
+  return catalog.filter((entry) => !!getDefaultMcpConnectionOption(entry));
 }
 
 const tryUrl = (raw: string): URL | null => {
@@ -201,15 +193,6 @@ function transportMatchesServer(
 
   // stdio: match on the registered server name.
   return server.type === "stdio" && server.name === transport.serverName;
-}
-
-export function isMarketplaceEntryAvailable(
-  entry: MarketplaceEntry,
-  backendKind: "local" | "cloud",
-): boolean {
-  if (!entry.runtimeAvailability || entry.runtimeAvailability === "all")
-    return true;
-  return entry.runtimeAvailability === backendKind;
 }
 
 function normalize(query: string): string {

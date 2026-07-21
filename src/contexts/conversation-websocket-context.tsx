@@ -11,7 +11,6 @@ import React, {
 import { ConversationClient } from "@openhands/typescript-client/clients";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { usePostHog } from "posthog-js/react";
 import { useWebSocket, WebSocketHookOptions } from "#/hooks/use-websocket";
 import { SERVER_CONNECTION_ERROR_MESSAGE } from "#/constants/server-connection-error";
 import { useEventStore } from "#/stores/use-event-store";
@@ -20,6 +19,7 @@ import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-
 import { useConversationStateStore } from "#/stores/conversation-state-store";
 import { useCommandStore } from "#/stores/command-store";
 import { useBrowserStore } from "#/stores/browser-store";
+import { useGoalStore } from "#/stores/goal-store";
 import {
   isAgentServerEvent,
   isAgentErrorEvent,
@@ -29,6 +29,7 @@ import {
   isFullStateConversationStateUpdateEvent,
   isAgentStatusConversationStateUpdateEvent,
   isStatsConversationStateUpdateEvent,
+  isGoalConversationStateUpdateEvent,
   isExecuteBashActionEvent,
   isExecuteBashObservationEvent,
   isDisplayableErrorEvent,
@@ -136,7 +137,6 @@ export function ConversationWebSocketProvider({
   const hasConnectedRefMain = React.useRef(false);
   const hasConnectedRefPlanning = React.useRef(false);
 
-  const posthog = usePostHog();
   const queryClient = useQueryClient();
   const addEvent = useEventStore((state) => state.addEvent);
   const addEvents = useEventStore((state) => state.addEvents);
@@ -225,9 +225,14 @@ export function ConversationWebSocketProvider({
   const {
     data: preloadedHistory,
     isPending: isPreloadingHistory,
+    isFetching: isFetchingHistory,
     isError: isPreloadHistoryError,
   } = useConversationHistory(conversationId);
 
+  // Skeleton only on the genuine first load (no cached data yet). On return the
+  // cached page is present, so `isPending` is false and we render the
+  // last-known discussion immediately while the tail refetch runs in the
+  // background — see the socket gate below, which waits on `isFetching`.
   const isLoadingHistoryMain = !!conversationId && isPreloadingHistory;
 
   // Clear the (global, not conversation-scoped) event store when the active
@@ -298,35 +303,42 @@ export function ConversationWebSocketProvider({
    * (we hold the WS connection open until then to avoid an `all` resend).
    */
   const initialAfterTimestamp = useMemo<string | null>(() => {
-    if (isPreloadingHistory) return null;
+    // Wait for the history query to settle — including the refetch fired when
+    // returning to a conversation — so we anchor `since` to the freshest event
+    // we have rather than a stale cached tail.
+    if (isFetchingHistory) return null;
     const events = preloadedHistory?.events ?? [];
     const latest = events[events.length - 1];
     if (!latest || !("timestamp" in latest) || !latest.timestamp) return null;
     return latest.timestamp;
-  }, [preloadedHistory, isPreloadingHistory]);
+  }, [preloadedHistory, isFetchingHistory]);
 
   // Build WebSocket URL from props.
   //
-  // We deliberately wait for the initial REST history fetch to settle before
-  // opening the socket so the WS subscription can use `resend_mode='since'`
-  // with a meaningful `after_timestamp`. Without this gate, the WS would open
-  // immediately and either replay the entire conversation (when falling back
-  // to `resend_mode='all'`) or miss events that arrived between REST and WS.
+  // We deliberately wait for the history fetch to settle before opening the
+  // socket so the WS subscription can use `resend_mode='since'` with a
+  // meaningful `after_timestamp`. This gate is on `isFetching`, not just the
+  // first-load `isPending`, so the refetch fired when returning to a
+  // conversation also completes first: the socket bakes `after_timestamp` into
+  // its URL at connect time and will NOT re-subscribe when the value changes
+  // later (see use-websocket — options live in a ref, reconnect keys on the URL
+  // only). Connecting mid-fetch would therefore pin `since` to the stale cached
+  // tail and replay the entire backlog over the socket. Without any gate the WS
+  // would instead fall back to `resend_mode='all'`. If the REST query errored we
+  // fall through and connect with `resend_mode='all'` so the user still sees
+  // live events.
   const wsUrl = useMemo(() => {
     if (!conversationId || !conversationUrl) {
       return null;
     }
-    // Don't connect while we're still fetching the initial history. If the
-    // REST query errored we fall through and connect with `resend_mode='all'`
-    // so the user still sees live events.
-    if (isPreloadingHistory && !isPreloadHistoryError) {
+    if (isFetchingHistory && !isPreloadHistoryError) {
       return null;
     }
     return buildWebSocketUrl(conversationId, conversationUrl);
   }, [
     conversationId,
     conversationUrl,
-    isPreloadingHistory,
+    isFetchingHistory,
     isPreloadHistoryError,
   ]);
 
@@ -465,14 +477,19 @@ export function ConversationWebSocketProvider({
 
         // Use type guard to validate v1 event structure
         if (isAgentServerEvent(event)) {
+          // A reconnect replays the backlog from a stale anchor. The store
+          // dedups by id, but the side-effects below aren't idempotent, so skip
+          // them for replayed events (#1656).
           const isDuplicateEvent = useEventStore
             .getState()
             .eventIds.has(event.id);
-          const switchLLMObservation =
-            !isDuplicateEvent && isSwitchLLMObservationEvent(event)
-              ? event
-              : null;
+          const switchLLMObservation = isSwitchLLMObservationEvent(event)
+            ? event
+            : null;
           addEvent(event);
+          if (isDuplicateEvent) {
+            return;
+          }
 
           // Handle displayable error events - show error banner
           // AgentErrorEvent errors are displayed inline in the chat, not as banners
@@ -487,7 +504,6 @@ export function ConversationWebSocketProvider({
                 eventId: errorEvent.id,
                 errorCode: errorEvent.code,
               },
-              posthog,
             });
             setErrorMessage(errorEvent.detail, "conversation", errorEvent.code);
           } else {
@@ -505,7 +521,6 @@ export function ConversationWebSocketProvider({
                 toolName: event.tool_name,
                 toolCallId: event.tool_call_id,
               },
-              posthog,
             });
           }
 
@@ -547,6 +562,12 @@ export function ConversationWebSocketProvider({
             }
             if (isStatsConversationStateUpdateEvent(event)) {
               updateMetricsFromStats(event);
+            }
+            // Mirror goal status into the store. Intentionally duplicated across
+            // the main and planning WebSocket handlers (like the execution_status
+            // and stats branches above), not a merge artifact.
+            if (isGoalConversationStateUpdateEvent(event) && conversationId) {
+              useGoalStore.getState().setStatus(conversationId, event.value);
             }
           }
 
@@ -601,6 +622,9 @@ export function ConversationWebSocketProvider({
               git_provider: prevMetadata?.git_provider ?? null,
               selected_workspace: prevMetadata?.selected_workspace ?? null,
               active_profile: switchLLMObservation.observation.profile_name,
+              // Full-object replace: carry the plugins snapshot forward so the
+              // in-conversation plugins view survives a profile switch.
+              plugins: prevMetadata?.plugins ?? null,
             });
 
             if (switchLLMObservation.observation.active_model) {
@@ -614,10 +638,9 @@ export function ConversationWebSocketProvider({
             invalidateConversationQueries(queryClient, conversationId);
           }
 
-          // Handle canvas_ui custom-tool ActionEvents - drive the frontend
-          // (navigate to a file, switch tabs, show a preview). The tool
-          // executes server-side as a no-op; the actual UI change happens
-          // here on the client.
+          // Handle canvas_ui ActionEvents from both the legacy Python tool and
+          // the client-defined JSON tool. The server acknowledges immediately;
+          // the actual UI change happens here on the client.
           if (isCanvasUIActionEvent(event)) {
             handleCanvasUIAction(event.action, conversationId ?? null);
           }
@@ -637,7 +660,6 @@ export function ConversationWebSocketProvider({
       appendOutput,
       updateMetricsFromStats,
       handleNonErrorEvent,
-      posthog,
     ],
   );
 
@@ -661,12 +683,20 @@ export function ConversationWebSocketProvider({
 
         // Use type guard to validate v1 event structure
         if (isAgentServerEvent(event)) {
+          // Skip non-idempotent side-effects for replayed events, as in the
+          // main handler (#1656).
+          const isDuplicateEvent = useEventStore
+            .getState()
+            .eventIds.has(event.id);
           // Mark this event as coming from the planning agent
           const eventWithPlanningFlag = {
             ...event,
             isFromPlanningAgent: true,
           };
           addEvent(eventWithPlanningFlag);
+          if (isDuplicateEvent) {
+            return;
+          }
 
           // Handle displayable error events - show error banner
           // AgentErrorEvent errors are displayed inline in the chat, not as banners
@@ -681,7 +711,6 @@ export function ConversationWebSocketProvider({
                 eventId: errorEvent.id,
                 errorCode: errorEvent.code,
               },
-              posthog,
             });
             setErrorMessage(errorEvent.detail, "conversation", errorEvent.code);
           } else {
@@ -699,7 +728,6 @@ export function ConversationWebSocketProvider({
                 toolName: event.tool_name,
                 toolCallId: event.tool_call_id,
               },
-              posthog,
             });
           }
 
@@ -740,6 +768,12 @@ export function ConversationWebSocketProvider({
             }
             if (isStatsConversationStateUpdateEvent(event)) {
               updateMetricsFromStats(event);
+            }
+            // Mirror goal status into the store. Intentionally duplicated across
+            // the main and planning WebSocket handlers (like the execution_status
+            // and stats branches above), not a merge artifact.
+            if (isGoalConversationStateUpdateEvent(event) && conversationId) {
+              useGoalStore.getState().setStatus(conversationId, event.value);
             }
           }
 
@@ -814,7 +848,6 @@ export function ConversationWebSocketProvider({
       setPlanContent,
       updateMetricsFromStats,
       handleNonErrorEvent,
-      posthog,
     ],
   );
 

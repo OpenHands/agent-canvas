@@ -6,8 +6,10 @@ import { isAcpAuthErrorCode } from "#/utils/acp-error-codes";
 import { convertImageToBase64 } from "#/utils/convert-image-to-base-64";
 import { createChatMessage } from "#/services/chat-service";
 import { BtwMessages } from "./btw-messages";
+import { GoalStatusBanner } from "./goal-status-banner";
 import { ModelMessages } from "./model-messages";
 import { useModelStore } from "#/stores/model-store";
+import { useGoalStore } from "#/stores/goal-store";
 import { InteractiveChatBox } from "./interactive-chat-box";
 import { AgentState } from "#/types/agent-state";
 import { useFilteredEvents } from "#/hooks/use-filtered-events";
@@ -30,6 +32,7 @@ import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { SERVER_CONNECTION_ERROR_MESSAGE } from "#/constants/server-connection-error";
 import { ErrorMessageBanner } from "./error-message-banner";
+import { SkillInstallRestartBanner } from "./skill-install-restart-banner";
 import { LlmNotConfiguredBanner } from "#/components/features/home/llm-not-configured-banner";
 import { useLlmConfigured } from "#/hooks/use-llm-configured";
 import { Messages } from "#/components/conversation-events/chat/messages";
@@ -47,6 +50,7 @@ import { useNewConversationCommand } from "#/hooks/mutation/use-new-conversation
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { I18nKey } from "#/i18n/declaration";
+import { hasConversationStarted } from "./components/resolve-picker-kind";
 
 function getEntryPoint(
   hasRepository: boolean | null,
@@ -149,6 +153,18 @@ export function ChatInterface() {
 
   const { selectedRepository, replayJson } = useInitialQueryStore();
   const { conversationId } = useOptionalConversationId();
+
+  // The live goal banner renders in the scroll stream but advances via store
+  // updates (in-progress goal events are filtered out of `renderableEvents`),
+  // so the bottom-following effect would not react to it. This key changes as
+  // an active loop appears and advances each round; feeding it into that effect
+  // keeps the banner in view when the user is pinned to the bottom.
+  const activeGoalScrollKey = useGoalStore((s) => {
+    const goal = conversationId
+      ? s.statusByConversation[conversationId]
+      : undefined;
+    return goal?.active ? `${goal.iteration}:${goal.status}` : null;
+  });
   const { mutateAsync: uploadFiles } = useUnifiedUploadFiles();
 
   // Lazy "scroll up to load older events" backfill. Initial REST fetch only
@@ -236,6 +252,19 @@ export function ChatInterface() {
     [pendingMessages, conversationId],
   );
 
+  const hasModelEntries = useModelStore((s) =>
+    conversationId
+      ? (s.entriesByConversation[conversationId]?.length ?? 0) > 0
+      : false,
+  );
+  const hasStartedConversation = hasConversationStarted({
+    isLoadingHistory: conversationWebSocket?.isLoadingHistory === true,
+    hasUserEvents: userEventsExist,
+    hasPendingUserMessages,
+    hasSubstantiveAgentActions,
+    hasModelEntries,
+  });
+
   // Show V1 messages immediately if events exist in store (e.g., remount),
   // if the user already has a locally-tracked pending bubble (home-page cloud
   // submit while history/WS catch up), or once loading completes. This
@@ -252,17 +281,6 @@ export function ChatInterface() {
   // If events exist (e.g., remount after data was already fetched), skip skeleton.
   const isHistoryLoading = !showConversationMessages;
   const isChatLoading = isHistoryLoading && !isTask;
-
-  // The empty-state ChatSuggestions overlay is absolutely positioned with
-  // `pointer-events-auto`, so it would block clicks on any /model entry
-  // rendered behind it. Once the user has run /model, the conversation is
-  // no longer logically empty — hide suggestions so the profile list is
-  // interactive.
-  const hasModelEntries = useModelStore((s) =>
-    conversationId
-      ? (s.entriesByConversation[conversationId]?.length ?? 0) > 0
-      : false,
-  );
 
   const handleSendMessage = async (
     content: string,
@@ -390,7 +408,12 @@ export function ChatInterface() {
     }
     // Note: We intentionally exclude autoScroll from deps because we only want
     // to scroll when message content changes, not when autoScroll state changes.
-  }, [renderableEvents.length, hasPendingUserMessages, scrollDomToBottom]);
+  }, [
+    renderableEvents.length,
+    hasPendingUserMessages,
+    activeGoalScrollKey,
+    scrollDomToBottom,
+  ]);
 
   // Auto-load older events when the chat content doesn't overflow the
   // scroll area (no scrollbar to drag, no wheel events past 0). We
@@ -534,9 +557,14 @@ export function ChatInterface() {
             double-renders alongside the real event list.
           */}
           <PendingUserMessages />
+
+          {/* Goal-loop status sits at the end of the message flow — above the
+              composer and its typing indicator — so progress stays in view. */}
+          <GoalStatusBanner conversationId={conversationId} />
         </div>
 
         <div className="flex shrink-0 flex-col gap-[6px] pb-4">
+          <SkillInstallRestartBanner conversationId={conversationId} />
           <BtwMessages conversationId={conversationId} />
           {errorMessage && (
             <ErrorMessageBanner
@@ -550,7 +578,7 @@ export function ChatInterface() {
               }
               onReauth={
                 isAcpAuthErrorCode(errorCode)
-                  ? () => navigate("/settings/agent")
+                  ? () => navigate("/settings/agents")
                   : undefined
               }
             />
@@ -607,6 +635,7 @@ export function ChatInterface() {
               <InteractiveChatBox
                 onSubmit={handleSendMessage}
                 disabled={isNewConversationPending || llmBlocked}
+                hasStartedConversation={hasStartedConversation}
               />
             </div>
           )}

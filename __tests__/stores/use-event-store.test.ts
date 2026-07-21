@@ -200,6 +200,23 @@ describe("useEventStore", () => {
     expect(result.current.eventIds.has("delta-2")).toBe(true);
   });
 
+  it("should not compact streaming deltas from different senders (#1656)", () => {
+    const { result } = renderHook(() => useEventStore());
+    const mainDelta = makeStreamingDeltaEvent("delta-1", "main ");
+    const planningDelta = {
+      ...makeStreamingDeltaEvent("delta-2", "planning"),
+      isFromPlanningAgent: true,
+    };
+
+    // A planning-agent delta after a main-agent delta must not concatenate.
+    act(() => {
+      result.current.addEvent(mainDelta);
+      result.current.addEvent(planningDelta);
+    });
+
+    expect(result.current.events).toEqual([mainDelta, planningDelta]);
+  });
+
   it("should apply action-to-observation UI replacement during bulk add", () => {
     const { result } = renderHook(() => useEventStore());
 

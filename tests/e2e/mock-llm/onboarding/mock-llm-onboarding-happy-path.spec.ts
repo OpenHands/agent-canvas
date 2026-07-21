@@ -37,10 +37,8 @@ import {
   waitForOnboardingStep,
   waitForOnboardingBackendConnected,
   clickOnboardingStepButton,
-  ONBOARDING_BACKEND_STEP,
-  ONBOARDING_AGENT_STEP,
-  ONBOARDING_LLM_STEP,
-  ONBOARDING_HELLO_STEP,
+  getOnboardingStepLayout,
+  type OnboardingStepLayout,
 } from "../../support/onboarding-helpers";
 
 const MOCK_MODEL = "openai/mock-onboarding-model";
@@ -94,31 +92,32 @@ test.describe("onboarding happy path", () => {
       beforeGoto: () => routeSessionApiKey(page),
     });
 
-    // ── Step 0: Choose Agent ────────────────────────────────────────
+    let layout!: OnboardingStepLayout;
 
-    await test.step("step 0: choose agent — advance past it", async () => {
-      await waitForOnboardingStep(page, ONBOARDING_BACKEND_STEP);
+    // ── Backend / agent setup ────────────────────────────────────────
 
+    await test.step("backend setup if needed, then choose agent", async () => {
+      layout = await getOnboardingStepLayout(page);
       // Verify the skip button is visible on non-final steps
       await expect(
         page.getByTestId("onboarding-skip"),
-        "Skip button should be visible on step 0",
+        "Skip button should be visible before the final step",
       ).toBeVisible({ timeout: 5_000 });
 
-      // Advance — the helper clicks any button's onNext, which
-      // increments the step regardless of which slide owns the button.
-      await clickOnboardingStepButton(page, "onboarding-backend-next");
-    });
-
-    // ── Step 1: Check Backend ───────────────────────────────────────
-
-    await test.step("step 1: check backend — wait for connected, advance", async () => {
-      await waitForOnboardingStep(page, ONBOARDING_AGENT_STEP);
-      await waitForOnboardingBackendConnected(page);
+      if (layout.hasBackendStep) {
+        await waitForOnboardingBackendConnected(page);
+        await clickOnboardingStepButton(page, "onboarding-backend-next");
+        await waitForOnboardingStep(page, layout.agentStep);
+      } else {
+        await expect(
+          page.getByTestId("onboarding-step-choose-agent"),
+          "healthy configured backends should start at agent selection",
+        ).toBeVisible({ timeout: 10_000 });
+      }
 
       await expect(
         page.getByTestId("onboarding-skip"),
-        "Skip button should be visible on step 1",
+        "Skip button should be visible on agent selection",
       ).toBeVisible();
 
       await clickOnboardingStepButton(page, "onboarding-agent-next");
@@ -127,7 +126,7 @@ test.describe("onboarding happy path", () => {
     // ── Step 2: Setup LLM ───────────────────────────────────────────
 
     await test.step("step 2: setup LLM — fill mock LLM details, advance", async () => {
-      await waitForOnboardingStep(page, ONBOARDING_LLM_STEP);
+      await waitForOnboardingStep(page, layout.llmStep);
 
       await expect(
         page.getByTestId("onboarding-step-setup-llm"),
@@ -170,7 +169,7 @@ test.describe("onboarding happy path", () => {
     // ── Step 3: Say Hello ───────────────────────────────────────────
 
     await test.step("step 3: say hello — verify skip hidden, launch conversation", async () => {
-      await waitForOnboardingStep(page, ONBOARDING_HELLO_STEP);
+      await waitForOnboardingStep(page, layout.helloStep);
 
       await expect(
         page.getByTestId("onboarding-step-say-hello"),

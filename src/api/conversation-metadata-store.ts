@@ -1,4 +1,5 @@
 import { Provider } from "#/types/settings";
+import type { PluginSpec } from "#/api/conversation-service/agent-server-conversation-service.types";
 
 const STORAGE_KEY = "openhands-agent-server-conversation-metadata";
 
@@ -34,7 +35,15 @@ export interface ConversationMetadata {
    * is ambiguous (issue #1082).
    */
   active_profile?: string | null;
+  /** Store plugin coordinates only; parameters may contain secrets. */
+  plugins?: PluginSpec[] | null;
 }
+
+export const toPluginCoordinates = (plugin: PluginSpec): PluginSpec => ({
+  source: plugin.source,
+  ref: plugin.ref ?? null,
+  repo_path: plugin.repo_path ?? null,
+});
 
 type StoredMetadata = Record<string, ConversationMetadata>;
 

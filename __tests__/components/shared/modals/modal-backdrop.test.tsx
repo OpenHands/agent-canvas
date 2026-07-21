@@ -82,4 +82,32 @@ describe("ModalBackdrop", () => {
 
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it("stacks above the default modal layer when elevated", () => {
+    // Arrange: a default backdrop (the layer the onboarding modal uses) and an
+    // elevated backdrop (the layer the telemetry consent banner opts into).
+    render(
+      <>
+        <ModalBackdrop aria-label="default-modal">
+          <p>default modal</p>
+        </ModalBackdrop>
+        <ModalBackdrop elevated aria-label="elevated-modal">
+          <p>elevated modal</p>
+        </ModalBackdrop>
+      </>,
+    );
+
+    // Act: read the numeric stacking layer each modal renders on. jsdom cannot
+    // compute paint order, so compare the z-index the overlay carries.
+    const layerOf = (name: string) =>
+      Number(
+        screen
+          .getByRole("dialog", { name })
+          .className.match(/z-\[?(\d+)\]?/)?.[1] ?? 0,
+      );
+
+    // Assert: the elevated modal paints above the default one regardless of
+    // mount order, so the consent banner is never covered by the onboarding modal.
+    expect(layerOf("elevated-modal")).toBeGreaterThan(layerOf("default-modal"));
+  });
 });

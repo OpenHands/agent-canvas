@@ -1,9 +1,22 @@
 export const DEFAULT_WORKING_DIR = "workspace/project";
 
+export type LockedCloudAuthMode = "api-key" | "cookie";
+
 export interface AgentServerFormDefaults {
   baseUrl: string;
   sessionApiKey: string;
 }
+
+// Window-global key the static server injects `--lock-to-cloud` into; kept
+// module-private because only `getLockedCloudHost()` reads it. The static
+// server (`scripts/static-server.mjs`) and its tests reference the literal
+// string directly, not this constant.
+const LOCK_TO_CLOUD_WINDOW_KEY = "__AGENT_CANVAS_LOCK_TO_CLOUD__";
+const LEGACY_CLOUD_DOMAIN = "all-hands.dev";
+const CURRENT_CLOUD_DOMAIN = "openhands.dev";
+const LEGACY_PRODUCTION_APP_HOST = `app.${LEGACY_CLOUD_DOMAIN}`;
+const CURRENT_PRODUCTION_APP_HOST = CURRENT_CLOUD_DOMAIN;
+const PRODUCTION_APP_HOST_ALIAS = `app.${CURRENT_CLOUD_DOMAIN}`;
 
 function trimToNull(value?: string | null): string | null {
   return value?.trim() || null;
@@ -24,6 +37,62 @@ function normalizeBaseUrl(value?: string | null): string | null {
   }
 
   return `http://${trimmed}`;
+}
+
+function normalizeCloudHost(value?: string | null): string | null {
+  if (!value) return null;
+
+  const trimmed = value.trim().replace(/\/+$/, "");
+  if (!trimmed) return null;
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  return `https://${trimmed}`;
+}
+
+function canonicalizeCloudHostname(hostname: string): string {
+  const lower = hostname.toLowerCase();
+  if (
+    lower === LEGACY_PRODUCTION_APP_HOST ||
+    lower === PRODUCTION_APP_HOST_ALIAS
+  ) {
+    return CURRENT_PRODUCTION_APP_HOST;
+  }
+
+  if (lower === LEGACY_CLOUD_DOMAIN) return CURRENT_CLOUD_DOMAIN;
+  if (lower.endsWith(`.${LEGACY_CLOUD_DOMAIN}`)) {
+    return `${lower.slice(0, -LEGACY_CLOUD_DOMAIN.length)}${CURRENT_CLOUD_DOMAIN}`;
+  }
+
+  return lower;
+}
+
+function getCloudHostComparisonKey(value?: string | null): string | null {
+  const normalized = normalizeCloudHost(value);
+  if (!normalized) return null;
+
+  try {
+    const url = new URL(normalized);
+    const port = url.port ? `:${url.port}` : "";
+    return `${url.protocol}//${canonicalizeCloudHostname(url.hostname)}${port}`;
+  } catch {
+    return normalized.toLowerCase();
+  }
+}
+
+export function getCookieAuthCloudHost(): string | null {
+  const lockedHost = getLockedCloudHost();
+  if (
+    !lockedHost ||
+    typeof window === "undefined" ||
+    !isSameCloudHost(window.location.origin, lockedHost)
+  ) {
+    return null;
+  }
+
+  return window.location.origin;
 }
 
 function getConfiguredBaseUrl(): string | null {
@@ -67,6 +136,46 @@ export function getAgentServerFormDefaults(): AgentServerFormDefaults {
     baseUrl: getAgentServerBaseUrl() ?? "",
     sessionApiKey: getAgentServerSessionApiKey() ?? "",
   };
+}
+
+export function getLockedCloudHost(): string | null {
+  const envHost = normalizeCloudHost(import.meta.env.VITE_LOCK_TO_CLOUD);
+  if (envHost) return envHost;
+
+  if (typeof window !== "undefined") {
+    const injected = (window as unknown as Record<string, unknown>)[
+      LOCK_TO_CLOUD_WINDOW_KEY
+    ];
+    if (typeof injected === "string") {
+      return normalizeCloudHost(injected);
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Compare a backend host against the locked Cloud host, normalizing
+ * trailing slashes, protocol, and case so that e.g.
+ * `https://app.all-hands.dev/` matches `https://app.all-hands.dev`.
+ *
+ * Used by the locked-to-Cloud gates (`root.tsx`,
+ * `onboarding-modal.tsx`) to decide whether the active backend is the
+ * configured locked Cloud host — a Cloud backend on a *different* host
+ * (or a stale Local backend) must not be treated as the locked backend.
+ */
+export function isSameCloudHost(
+  host: string | null | undefined,
+  lockedHost: string | null | undefined,
+): boolean {
+  const a = getCloudHostComparisonKey(host);
+  const b = getCloudHostComparisonKey(lockedHost);
+  if (!a || !b) return false;
+  return a === b;
+}
+
+export function getLockedCloudAuthMode(): LockedCloudAuthMode {
+  return getCookieAuthCloudHost() ? "cookie" : "api-key";
 }
 
 export function getAgentServerBaseUrl(): string | null {
