@@ -32,6 +32,7 @@ import {
   resetToOpenHandsAgentViaUI,
   resetMockLLM,
   ensureMockLLMProfile,
+  ensureMockLLMAgentProfile,
   openAgentProfileEditor,
   selectDropdownOption,
   setChatInput,
@@ -75,6 +76,7 @@ test.describe("mock-LLM ACP agent conversation", () => {
     const page = await browser.newPage();
     try {
       await seedLocalStorage(page);
+      await ensureMockLLMAgentProfile(page.request);
       await resetToOpenHandsAgentViaUI(page);
       await ensureMockLLMProfile(page);
     } catch {
@@ -107,11 +109,7 @@ test.describe("mock-LLM ACP agent conversation", () => {
     // ── Switch agent type from OpenHands → ACP ──
 
     await test.step("select ACP agent type", async () => {
-      await selectDropdownOption(
-        page,
-        /Agent/,
-        /ACP/,
-      );
+      await selectDropdownOption(page, /Agent/, /ACP/);
     });
 
     // ── After selecting ACP, the preset dropdown + command fields appear ──
@@ -121,11 +119,7 @@ test.describe("mock-LLM ACP agent conversation", () => {
       await waitForTestId(page, "agent-preset-selector");
 
       // Select "Custom" preset so we can enter our own command
-      await selectDropdownOption(
-        page,
-        /Preset/,
-        /Custom/,
-      );
+      await selectDropdownOption(page, /Preset/, /Custom/);
 
       // Fill in the ACP command pointing to our mock server
       const commandInput = page.getByTestId("agent-command-input");

@@ -55,6 +55,8 @@ describe("Telemetry Service", () => {
     // Clear localStorage before each test
     localStorage.clear();
     sessionStorage.clear();
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_LOCK_TO_CLOUD__;
     // Reset mock
     vi.clearAllMocks();
     identifiedUserId = undefined;
@@ -65,6 +67,8 @@ describe("Telemetry Service", () => {
     configureTelemetry({});
     localStorage.clear();
     sessionStorage.clear();
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_LOCK_TO_CLOUD__;
   });
 
   describe("PostHog ownership", () => {
@@ -179,6 +183,15 @@ describe("Telemetry Service", () => {
     it("returns 'denied' when consent is denied", () => {
       localStorage.setItem("openhands-telemetry-consent", "denied");
       expect(getTelemetryConsent()).toBe("denied");
+    });
+
+    it("treats same-origin locked Cloud cookie auth as granted", () => {
+      localStorage.setItem("openhands-telemetry-consent", "denied");
+      (
+        window as unknown as Record<string, unknown>
+      ).__AGENT_CANVAS_LOCK_TO_CLOUD__ = window.location.origin;
+
+      expect(getTelemetryConsent()).toBe("granted");
     });
   });
 

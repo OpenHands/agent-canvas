@@ -42,6 +42,7 @@ import {
   createProfileViaUI,
   deleteProfileIfExists,
   activateProfileViaUI,
+  ensureMockLLMAgentProfile,
 } from "../utils/mock-llm-helpers";
 
 const MOCK_MODEL = "openai/mock-test-model";
@@ -88,6 +89,7 @@ test.describe("active profile deletion + reconciliation", () => {
     try {
       await seedLocalStorage(page);
       await routeSessionApiKey(page);
+      await ensureMockLLMAgentProfile(page.request);
       await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
       await dismissAnalyticsModal(page);
       await waitForTestId(page, "add-llm-profile");
@@ -105,6 +107,7 @@ test.describe("active profile deletion + reconciliation", () => {
   }) => {
     // ── Setup: create two profiles via the UI, activate one ──
     await routeSessionApiKey(page);
+    await ensureMockLLMAgentProfile(page.request);
     await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
     await waitForTestId(page, "add-llm-profile");
@@ -260,6 +263,7 @@ test.describe("same-model profile identity", () => {
     try {
       await seedLocalStorage(page);
       await routeSessionApiKey(page);
+      await ensureMockLLMAgentProfile(page.request);
       await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
       await dismissAnalyticsModal(page);
       await waitForTestId(page, "add-llm-profile");
@@ -286,6 +290,7 @@ test.describe("same-model profile identity", () => {
     // ── Setup: create both profiles with the same model via the UI,
     //    then activate BETA through the profile menu ──
     await routeSessionApiKey(page);
+    await ensureMockLLMAgentProfile(page.request);
     await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
     await waitForTestId(page, "add-llm-profile");
@@ -384,6 +389,7 @@ test.describe("OpenHands provider hidden base_url preservation", () => {
     try {
       await seedLocalStorage(page);
       await routeSessionApiKey(page);
+      await ensureMockLLMAgentProfile(page.request);
       await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
       await dismissAnalyticsModal(page);
       await waitForTestId(page, "add-llm-profile");
@@ -403,6 +409,7 @@ test.describe("OpenHands provider hidden base_url preservation", () => {
     // Advanced view. The value becomes hidden after switching to Basic, but it
     // is still part of the profile unless the model changes. ──
     await routeSessionApiKey(page);
+    await ensureMockLLMAgentProfile(page.request);
     await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
     await dismissAnalyticsModal(page);
     await waitForTestId(page, "add-llm-profile");

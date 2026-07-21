@@ -59,6 +59,7 @@ describe("RightPanelToggle", () => {
 
     const storeState = useConversationStore.getState();
     expect(storeState.hasRightPanelToggled).toBe(false);
+    expect(storeState.isRightPanelShown).toBe(false);
 
     const raw = localStorage.getItem(`conversation-state-${CONVERSATION_ID}`);
     if (raw !== null) {
@@ -81,6 +82,7 @@ describe("RightPanelToggle", () => {
 
     const storeState = useConversationStore.getState();
     expect(storeState.hasRightPanelToggled).toBe(true);
+    expect(storeState.isRightPanelShown).toBe(true);
 
     const raw = localStorage.getItem(`conversation-state-${CONVERSATION_ID}`);
     if (raw !== null) {

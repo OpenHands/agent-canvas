@@ -70,6 +70,10 @@ import type {
 } from "./agent-server-conversation-service.types";
 
 const DEFAULT_CONVERSATION_TIMESTAMP = "1970-01-01T00:00:00.000Z";
+// Creating the first conversation right after a cold agent-server boot (fresh
+// machine or the packaged desktop app, where uvx may still be warming caches)
+// can exceed the client's 60s default timeout.
+const CREATE_CONVERSATION_TIMEOUT_MS = 5 * 60 * 1000;
 const INVALID_CONVERSATION_RESPONSE_MESSAGE =
   "Unable to load conversations because the selected agent server returned " +
   "data this UI does not understand. Check the backend URL/session key and " +
@@ -434,7 +438,7 @@ class AgentServerConversationService {
     });
 
     const data = await new ConversationClient(
-      getAgentServerClientOptions(),
+      getAgentServerClientOptions({ timeout: CREATE_CONVERSATION_TIMEOUT_MS }),
     ).createConversation<DirectConversationInfo>(payload);
     const localBackend = getEffectiveLocalBackend();
     if (!localBackend) throw new NoBackendAvailableError();
