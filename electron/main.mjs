@@ -29,7 +29,9 @@
 import {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
+  ipcMain,
   nativeImage,
   nativeTheme,
   shell,
@@ -244,12 +246,35 @@ async function waitForAgentServer(
 let loadingWin = null;
 let mainWin = null;
 
+// Collapsed splash size — loading.html's .container height must match. The
+// expanded height reveals the startup-log console below it ("Show details").
+const LOADING_WIN_WIDTH = 460;
+const LOADING_WIN_HEIGHT = 360;
+const LOADING_WIN_EXPANDED_HEIGHT = 560;
+
+/**
+ * Grow or shrink the loading window to reveal/hide the startup-log console.
+ * Keeps the top edge fixed so the splash content doesn't jump. Invoked from
+ * the renderer ("Show details" toggle) and from showStartupFailure().
+ */
+function setLoadingWindowExpanded(expanded) {
+  if (!loadingWin || loadingWin.isDestroyed()) return;
+  const bounds = loadingWin.getBounds();
+  const height = expanded ? LOADING_WIN_EXPANDED_HEIGHT : LOADING_WIN_HEIGHT;
+  if (bounds.height === height) return;
+  // macOS ignores programmatic resizes of resizable:false windows on some
+  // Electron versions — lift the flag around the change.
+  loadingWin.setResizable(true);
+  loadingWin.setBounds({ ...bounds, height }, true);
+  loadingWin.setResizable(false);
+}
+
 function createLoadingWindow() {
   loadingWin = new BrowserWindow({
-    width: 460,
+    width: LOADING_WIN_WIDTH,
     // Tall enough to fit the streaming status line + the "first launch can
     // take a few minutes" hint without scrollbars.
-    height: 360,
+    height: LOADING_WIN_HEIGHT,
     resizable: false,
     frame: false,
     center: true,
@@ -260,7 +285,25 @@ function createLoadingWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      // Bridges the startup-log console over IPC (see preload.cjs).
+      preload: join(__dirname, "preload.cjs"),
     },
+  });
+
+  // The renderer can only receive IPC once the page has loaded — replay the
+  // lines buffered until now, then stream live batches (see appendBootLog).
+  loadingWin.webContents.on("did-finish-load", () => {
+    if (!loadingWin || loadingWin.isDestroyed()) return;
+    clearTimeout(bootLogFlushTimer);
+    bootLogFlushTimer = null;
+    bootLogPending = [];
+    if (bootLog.length) {
+      loadingWin.webContents.send("boot-log:batch", bootLog.slice());
+    }
+    bootLogReady = true;
+    if (fatalSummary) {
+      loadingWin.webContents.send("boot-log:fatal", fatalSummary);
+    }
   });
 
   loadingWin.loadFile(join(__dirname, "loading.html"));
@@ -341,6 +384,116 @@ function createMainWindow() {
   });
 }
 
+// ── Startup log buffer ────────────────────────────────────────────────────────
+//
+// Every service log line (all services, all levels, sanitized) is kept in a
+// bounded buffer and streamed to the loading window's console in batches over
+// IPC (see preload.cjs + loading.html). The buffer is the single source of
+// truth: it is replayed once the page loads (lines emitted earlier would
+// otherwise be lost) and it backs the "Copy logs" action. In a packaged app
+// this console is the only log surface — stdout/stderr go to /dev/null when
+// launched from Finder, and the winston file logger is a no-op there (see
+// AGENTS.md on the node_modules strip).
+
+const BOOT_LOG_MAX_LINES = 2000;
+const BOOT_LOG_FLUSH_MS = 200;
+
+const bootLog = []; // {name, line, level}[] — level: stdout|stderr|info|warn|error
+let bootLogPending = [];
+let bootLogFlushTimer = null;
+let bootLogReady = false; // true once loading.html has loaded and can receive
+let fatalSummary = null;
+
+// SGR color codes AND cursor-control CSI sequences (uv/uvicorn can emit
+// either when they mis-detect a TTY).
+const ANSI_CSI_RE = /\x1b\[[0-9;?]*[ -/]*[@-~]/g;
+
+/**
+ * Strip ANSI escapes and reduce carriage-return progress redraws (e.g. uv
+ * download bars arrive as one chunk of "\r"-separated frames) to the final
+ * frame — what a real terminal would have settled on.
+ */
+function sanitizeLogLine(line) {
+  const frames = String(line ?? "")
+    .replace(ANSI_CSI_RE, "")
+    .split("\r")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return frames.length ? frames[frames.length - 1] : "";
+}
+
+function appendBootLog(name, line, level) {
+  const entry = { name, line, level };
+  bootLog.push(entry);
+  if (bootLog.length > BOOT_LOG_MAX_LINES) {
+    bootLog.splice(0, bootLog.length - BOOT_LOG_MAX_LINES);
+  }
+  bootLogPending.push(entry);
+  if (!bootLogFlushTimer) {
+    bootLogFlushTimer = setTimeout(flushBootLog, BOOT_LOG_FLUSH_MS);
+  }
+}
+
+function flushBootLog() {
+  clearTimeout(bootLogFlushTimer);
+  bootLogFlushTimer = null;
+  if (!bootLogPending.length) return;
+  const batch = bootLogPending;
+  bootLogPending = [];
+  // Not ready / window gone: drop the batch — the entries stay in bootLog,
+  // which did-finish-load replays wholesale.
+  if (bootLogReady && loadingWin && !loadingWin.isDestroyed()) {
+    loadingWin.webContents.send("boot-log:batch", batch);
+  }
+}
+
+/**
+ * Switch the splash into its failure state: expand the console and show the
+ * error summary with Copy logs / Quit actions, keeping the window open so the
+ * user can actually read why startup failed. Returns false when the loading
+ * window is gone (caller falls back to a native dialog).
+ */
+function showStartupFailure(summary) {
+  if (!loadingWin || loadingWin.isDestroyed()) return false;
+  fatalSummary = summary;
+  setLoadingWindowExpanded(true);
+  if (bootLogReady) {
+    flushBootLog();
+    loadingWin.webContents.send("boot-log:fatal", summary);
+  }
+  // If the page hasn't loaded yet, did-finish-load replays the buffer and
+  // then delivers fatalSummary.
+  return true;
+}
+
+// IPC surface for the loading window (see preload.cjs). Guarded to that
+// window's webContents so the main app window can never reach these.
+function isLoadingWinEvent(event) {
+  return (
+    loadingWin !== null &&
+    !loadingWin.isDestroyed() &&
+    event.sender === loadingWin.webContents
+  );
+}
+
+ipcMain.handle("boot-log:set-expanded", (event, expanded) => {
+  if (!isLoadingWinEvent(event)) return;
+  setLoadingWindowExpanded(Boolean(expanded));
+});
+
+ipcMain.handle("boot-log:copy", (event) => {
+  if (!isLoadingWinEvent(event)) return 0;
+  clipboard.writeText(bootLog.map((e) => `[${e.name}] ${e.line}`).join("\n"));
+  return bootLog.length;
+});
+
+// The frameless splash has no close control; the failure state shows a Quit
+// button instead.
+ipcMain.handle("boot-log:quit", (event) => {
+  if (!isLoadingWinEvent(event)) return;
+  app.quit();
+});
+
 // ── Backend stack ─────────────────────────────────────────────────────────────
 
 /**
@@ -371,6 +524,15 @@ function setLoadingStatus(line) {
 }
 
 /**
+ * Phase marker: headline + a line in the startup-log console, so the log
+ * records which stage a failed boot died in.
+ */
+function setBootPhase(message) {
+  appendBootLog("desktop", message, "info");
+  setLoadingStatus(message);
+}
+
+/**
  * Last few `level: "error"` service log lines (spawn failures, non-zero
  * exits). Appended to the startup-failure dialog: a packaged app launched
  * from Finder has stdout/stderr wired to /dev/null, so without this a
@@ -386,21 +548,23 @@ const recentServiceErrors = [];
  * is downloading Python + agent-server.
  */
 function handleServiceLog(name, line, level) {
-  // Skip empty / noisy progress chatter that overwrites itself rapidly.
-  // We're mainly interested in agent-server (= uvx output during install).
   if (!line) return;
+  const clean = sanitizeLogLine(line);
+  if (!clean) return;
+  // Full-fidelity stream: every service and level goes to the console buffer.
+  // The one-line headline below stays filtered to the interesting services.
+  appendBootLog(name, clean, level);
   if (name === "agent-server" || name === "automation") {
-    setLoadingStatus(`${name}: ${line}`);
+    setLoadingStatus(`${name}: ${clean}`);
   }
-  // Mirror anything to a `[desktop]` log line in addition to the colored
-  // dev-stack output so the desktop log file is grep-friendly.
+  // Mirror errors to a `[desktop]` terminal line so dev runs stay grep-friendly.
   if (level === "error") {
-    console.error(`[desktop] [${name}] ${line}`);
-    // Errors from ANY service (including ingress/static, which the splash
+    console.error(`[desktop] [${name}] ${clean}`);
+    // Errors from ANY service (including ingress/static, which the headline
     // filter above skips) are worth showing — a dead ingress is exactly the
     // case where the user would otherwise stare at a silent 120 s timeout.
-    setLoadingStatus(`${name}: ${line}`);
-    recentServiceErrors.push(`${name}: ${line}`);
+    setLoadingStatus(`${name}: ${clean}`);
+    recentServiceErrors.push(`${name}: ${clean}`);
     if (recentServiceErrors.length > 5) recentServiceErrors.shift();
   }
 }
@@ -474,11 +638,11 @@ app.whenReady().then(async () => {
   createLoadingWindow();
 
   try {
-    setLoadingStatus("Starting backend services…");
+    setBootPhase("Starting backend services…");
     await startStack();
 
     // Stage 1: ingress proxy is bound (anything < 500 on /).
-    setLoadingStatus("Waiting for proxy…");
+    setBootPhase("Waiting for proxy…");
     await waitForUrl("http://localhost:8000");
 
     // Stage 2: the agent-server behind the proxy is actually serving
@@ -486,20 +650,28 @@ app.whenReady().then(async () => {
     // re-probe end-to-end here so that if the user closes the splash race
     // window between processes binding, we still open the main window with
     // a live backend. Cheap (a single 200 response) when everything is up.
-    setLoadingStatus("Connecting to agent server…");
+    setBootPhase("Connecting to agent server…");
     await waitForAgentServer("http://localhost:8000/server_info", 60_000);
 
-    setLoadingStatus("Ready.");
+    setBootPhase("Ready.");
     createMainWindow();
   } catch (err) {
+    const summary =
+      err.message +
+      " Ensure ports 8000, 18000, and 18001 are free, then try again.";
+    // Record the failure in the terminal and the startup-log buffer so it
+    // shows (and copies) as the final console line.
+    console.error("[desktop] Startup failed:", err);
+    appendBootLog("desktop", summary, "error");
+    // Keep the splash open in its failure state so the full startup log can
+    // be read and copied; the app quits via the splash's Quit button (or
+    // Cmd+Q / closing the window).
+    if (showStartupFailure(summary)) return;
+    // Loading window already gone — fall back to the old dialog-and-quit.
     const errorTail = recentServiceErrors.length
       ? `\n\nRecent service errors:\n${recentServiceErrors.join("\n")}`
       : "";
-    const msg =
-      err.message +
-      "\n\nEnsure ports 8000, 18000, and 18001 are free, then try again." +
-      errorTail;
-    dialog.showErrorBox("Agent Canvas failed to start", msg);
+    dialog.showErrorBox("Agent Canvas failed to start", summary + errorTail);
     app.quit();
   }
 });
