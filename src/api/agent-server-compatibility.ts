@@ -23,6 +23,7 @@ export const AGENT_SERVER_UNKNOWN_VERSION_ERROR_CODE =
   "AGENT_SERVER_UNKNOWN_VERSION";
 
 export interface AgentServerInfo extends BaseServerInfo {
+  sdk_version?: string;
   usable_tools?: string[] | null;
 }
 
@@ -158,10 +159,23 @@ export function isSdkHttpStatusError(error: unknown, status: number): boolean {
   );
 }
 
-function getRawAgentServerVersion(serverInfo: AgentServerInfo): string | null {
-  if (typeof serverInfo.version !== "string") return null;
-  const trimmed = serverInfo.version.trim();
+function normalizeAgentServerInfoVersion(version: unknown): string | null {
+  if (typeof version !== "string") return null;
+  const trimmed = version.trim();
   return trimmed || null;
+}
+
+function getRawAgentServerSdkVersion(
+  serverInfo: AgentServerInfo,
+): string | null {
+  return normalizeAgentServerInfoVersion(serverInfo.sdk_version);
+}
+
+function getRawAgentServerVersion(serverInfo: AgentServerInfo): string | null {
+  return (
+    normalizeAgentServerInfoVersion(serverInfo.version) ??
+    getRawAgentServerSdkVersion(serverInfo)
+  );
 }
 
 function getComparableAgentServerVersion(
@@ -182,6 +196,34 @@ export function getDisplayAgentServerVersion(
     return null;
   }
   return version;
+}
+
+export function getDisplayAgentServerSdkVersion(
+  serverInfo: AgentServerInfo,
+): string | null {
+  const version =
+    getRawAgentServerSdkVersion(serverInfo) ??
+    getComparableAgentServerVersion(serverInfo);
+  if (!version || version.toLowerCase() === UNKNOWN_AGENT_SERVER_VERSION) {
+    return null;
+  }
+  return version;
+}
+
+export function getCachedAgentServerSdkVersion(
+  host?: string | null,
+): string | null {
+  if (!cachedAgentServerInfo) return null;
+  if (host && getEffectiveLocalBackend()?.host !== host) return null;
+  return getDisplayAgentServerSdkVersion(cachedAgentServerInfo);
+}
+
+export function getCachedAgentServerVersion(
+  host?: string | null,
+): string | null {
+  if (!cachedAgentServerInfo) return null;
+  if (host && getEffectiveLocalBackend()?.host !== host) return null;
+  return getDisplayAgentServerVersion(cachedAgentServerInfo);
 }
 
 function compareAgentServerVersions(actual: string, required: string) {

@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as telemetry from "#/services/telemetry";
 
@@ -7,21 +7,42 @@ vi.mock("#/hooks/query/use-settings", () => ({
   useSettings: () => useSettingsMock(),
 }));
 
+const compatibilityMocks = vi.hoisted(() => ({
+  getCachedAgentServerVersion: vi.fn(),
+}));
+vi.mock("#/api/agent-server-compatibility", () => ({
+  getCachedAgentServerVersion: compatibilityMocks.getCachedAgentServerVersion,
+}));
+
+const automationServiceMocks = vi.hoisted(() => ({
+  getSdkVersion: vi.fn(),
+}));
+vi.mock("#/api/automation-service/automation-service.api", () => ({
+  default: automationServiceMocks,
+}));
+
 import { useTracking } from "#/hooks/use-tracking";
 
 const TEST_EMAIL = "user@example.com";
 // Resolved at test-run time so it matches whatever URL jsdom is configured
 // with in the current environment (varies between local and CI).
-let COMMON: { current_url: string; user_email: string };
+let COMMON: Record<string, unknown>;
 
 describe("useTracking", () => {
   let captureMock: ReturnType<typeof vi.spyOn>;
+  let setBackendContextMock: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     captureMock = vi
       .spyOn(telemetry, "trackEvent")
       .mockResolvedValue(undefined);
+    setBackendContextMock = vi.spyOn(telemetry, "setTelemetryBackendContext");
     useSettingsMock.mockReset();
+    automationServiceMocks.getSdkVersion.mockReset();
+    automationServiceMocks.getSdkVersion.mockResolvedValue(null);
+    compatibilityMocks.getCachedAgentServerVersion.mockReset();
+    compatibilityMocks.getCachedAgentServerVersion.mockReturnValue(null);
+
     useSettingsMock.mockReturnValue({
       data: { email: TEST_EMAIL, user_consents_to_analytics: true },
     });
@@ -33,6 +54,7 @@ describe("useTracking", () => {
 
   afterEach(() => {
     captureMock.mockRestore();
+    setBackendContextMock.mockRestore();
   });
 
   const getTracking = () => renderHook(() => useTracking()).result.current;
@@ -124,6 +146,72 @@ describe("useTracking", () => {
         expect.objectContaining({
           agent_type: "plan",
           has_parent_conversation: true,
+        }),
+      );
+    });
+
+    it("declares backend versions to the telemetry service when known", async () => {
+      automationServiceMocks.getSdkVersion.mockResolvedValue("1.36.3");
+      compatibilityMocks.getCachedAgentServerVersion.mockReturnValue("1.36.2");
+
+      const { result } = renderHook(() => useTracking());
+      await waitFor(() =>
+        expect(setBackendContextMock).toHaveBeenCalledWith(
+          expect.objectContaining({ automationSdkVersion: "1.36.3" }),
+        ),
+      );
+      setBackendContextMock.mockClear();
+
+      result.current.trackConversationCreated({
+        conversationId: "conv-versioned",
+        taskId: "conv-versioned",
+        hasRepository: false,
+        hasWorkspace: false,
+        hasInitialQuery: true,
+        hasParentConversation: false,
+        entryPoint: "home",
+      });
+
+      expect(setBackendContextMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          backendKind: "local",
+          agentServerVersion: "1.36.2",
+          automationSdkVersion: "1.36.3",
+        }),
+      );
+      expect(captureMock).toHaveBeenCalledWith(
+        "conversation_created",
+        expect.not.objectContaining({
+          agent_server_version: "1.36.2",
+          automation_sdk_version: "1.36.3",
+          backend_version: "1.36.2",
+        }),
+      );
+      expect(
+        compatibilityMocks.getCachedAgentServerVersion,
+      ).toHaveBeenCalledWith(expect.any(String));
+    });
+
+    it("uses the latest cached agent-server version when an event fires", () => {
+      compatibilityMocks.getCachedAgentServerVersion.mockReturnValue(null);
+      const tracking = getTracking();
+      setBackendContextMock.mockClear();
+      compatibilityMocks.getCachedAgentServerVersion.mockReturnValue("1.36.1");
+
+      tracking.trackConversationCreated({
+        conversationId: "conv-cache-late",
+        taskId: "conv-cache-late",
+        hasRepository: false,
+        hasWorkspace: false,
+        hasInitialQuery: true,
+        hasParentConversation: false,
+        entryPoint: "home",
+      });
+
+      expect(setBackendContextMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          backendKind: "local",
+          agentServerVersion: "1.36.1",
         }),
       );
     });
@@ -314,20 +402,20 @@ describe("useTracking", () => {
       getTracking().trackBackendAdded({
         backendKind: "cloud",
         connectionMethod: "cloud_login",
-        isOpenhandsCloud: true,
-        isCustomHost: false,
         hasApiKey: true,
         source: "add_backend_modal",
+        agentServerVersion: "1.36.1",
       });
 
       expect(captureMock).toHaveBeenCalledWith("backend_added", {
+        ...COMMON,
         backend_kind: "cloud",
         connection_method: "cloud_login",
-        is_openhands_cloud: true,
-        is_custom_host: false,
         has_api_key: true,
         source: "add_backend_modal",
-        ...COMMON,
+        agent_server_version: "1.36.1",
+        automation_sdk_version: "unknown",
+        backend_version: "1.36.1",
       });
     });
   });
@@ -365,8 +453,6 @@ describe("useTracking", () => {
       getTracking().trackBackendAdded({
         backendKind: "cloud",
         connectionMethod: "cloud_login",
-        isOpenhandsCloud: true,
-        isCustomHost: false,
         hasApiKey: true,
         source: "onboarding",
       });
@@ -376,7 +462,6 @@ describe("useTracking", () => {
         expect.objectContaining({
           backend_kind: "cloud",
           connection_method: "cloud_login",
-          is_openhands_cloud: true,
           source: "onboarding",
           user_email: null,
         }),

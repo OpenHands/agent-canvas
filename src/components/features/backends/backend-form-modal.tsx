@@ -39,6 +39,10 @@ import { DeviceFlowAuth } from "./device-flow-auth";
 
 export type BackendFormMode = "add" | "edit";
 
+interface BackendConnectionTestMetadata {
+  agentServerVersion: string | null;
+}
+
 interface BackendFormModalProps {
   mode: BackendFormMode;
   /** Required when `mode === "edit"`. */
@@ -164,9 +168,9 @@ function getConnectionTestFailedMessage(title: string, error: unknown): string {
 
 async function testBackendConnection(
   backend: Pick<Backend, "host" | "apiKey" | "kind">,
-): Promise<void> {
+): Promise<BackendConnectionTestMetadata> {
   // Cloud backends authenticate via OAuth; preflight GET is not applicable.
-  if (backend.kind !== "local") return;
+  if (backend.kind !== "local") return { agentServerVersion: null };
 
   const serverInfo = await new ServerClient(
     getAgentServerClientOptions({
@@ -176,6 +180,7 @@ async function testBackendConnection(
     }),
   ).getServerInfo();
   assertAgentServerVersionIsSupported(serverInfo);
+  return { agentServerVersion: getDisplayAgentServerVersion(serverInfo) };
 }
 
 /**
@@ -289,9 +294,11 @@ interface UseBackendFormOptions {
    * wrapped version (e.g. with extra logging or different timeout).
    * Should throw on failure.
    */
-  onTestConnection: (payload: BackendFormSubmitPayload) => Promise<void>;
+  onTestConnection: (
+    payload: BackendFormSubmitPayload,
+  ) => Promise<BackendConnectionTestMetadata>;
   /** Called after a successful connection test and persistence. */
-  onSuccess: () => void;
+  onSuccess: (metadata: BackendConnectionTestMetadata) => void;
   /** Require a non-empty API key even when the host looks local. */
   requireApiKey?: boolean;
   /**
@@ -363,8 +370,8 @@ function useBackendForm({
         if (onSubmitOverride) {
           await onSubmitOverride(payload);
         } else {
-          await onTestConnection(payload);
-          onSuccess();
+          const metadata = await onTestConnection(payload);
+          onSuccess(metadata);
         }
       } catch (error) {
         setConnectionError(
@@ -692,6 +699,7 @@ interface BackendConnectionOptionsProps {
   onConnected: (
     payload: BackendFormSubmitPayload,
     connectionMethod: BackendConnectionMethod,
+    metadata?: BackendConnectionTestMetadata,
   ) => void;
   testIdRoot?: string;
   initialManualBackend?: Partial<
@@ -775,6 +783,7 @@ interface ManualConnectionColumnProps {
   onConnected: (
     payload: BackendFormSubmitPayload,
     connectionMethod: BackendConnectionMethod,
+    metadata?: BackendConnectionTestMetadata,
   ) => void;
   testIdRoot: string;
   initialBackend?: Partial<
@@ -820,7 +829,7 @@ function ManualConnectionColumn({
     initialHost: initialBackend?.host ?? "",
     initialApiKey: initialBackend?.apiKey ?? "",
     onTestConnection: testBackendConnection,
-    onSuccess: () => {
+    onSuccess: (metadata) => {
       onConnected(
         {
           name: name.trim(),
@@ -829,6 +838,7 @@ function ManualConnectionColumn({
           kind,
         },
         "manual",
+        metadata,
       );
     },
     requireApiKey,
@@ -939,6 +949,7 @@ interface CloudLoginColumnProps {
   onConnected: (
     payload: BackendFormSubmitPayload,
     connectionMethod: BackendConnectionMethod,
+    metadata?: BackendConnectionTestMetadata,
   ) => void;
   testIdRoot: string;
   lockedHost?: string;
@@ -1060,17 +1071,15 @@ function AddBackendConnectionOptions({
     (
       payload: BackendFormSubmitPayload,
       connectionMethod: BackendConnectionMethod,
+      metadata?: BackendConnectionTestMetadata,
     ) => {
       addBackend(payload);
-      // Coarse, non-sensitive host classification — never emit the raw host.
-      const isOpenHandsCloud = isOpenHandsCloudHost(payload.host);
       trackBackendAdded({
         backendKind: payload.kind,
         connectionMethod,
-        isOpenhandsCloud: isOpenHandsCloud,
-        isCustomHost: !isOpenHandsCloud,
         hasApiKey: Boolean(payload.apiKey),
         source,
+        agentServerVersion: metadata?.agentServerVersion,
       });
       redirectAfterAdd();
       onClose();
