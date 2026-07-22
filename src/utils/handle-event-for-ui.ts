@@ -120,8 +120,18 @@ const getTrailingDeltas = (
 const getTrailingContentDeltas = (uiEvents: OpenHandsEvent[]) =>
   getTrailingDeltas(uiEvents, (event) => (event.content?.length ?? 0) > 0);
 
-const getTrailingReasoningDeltas = (uiEvents: OpenHandsEvent[]) =>
-  getTrailingDeltas(uiEvents, (event) => Boolean(event.reasoning_content));
+// Sender-scoped: the main and planning sockets share this event store, so a
+// main-agent action must not strip the planning agent's live reasoning (#1656).
+const getTrailingReasoningDeltas = (
+  uiEvents: OpenHandsEvent[],
+  finalEvent: OpenHandsEvent,
+) =>
+  getTrailingDeltas(
+    uiEvents,
+    (event) =>
+      Boolean(event.reasoning_content) &&
+      isSameStreamingSender(finalEvent, event),
+  );
 
 // Strip the streamed content deltas, keeping a delta only when it carries
 // reasoning the replacement itself won't render (many models stream reasoning
@@ -281,7 +291,7 @@ const supersedeStreamedReasoningWithAction = (
     return null;
   }
 
-  const reasoningDeltas = getTrailingReasoningDeltas(uiEvents);
+  const reasoningDeltas = getTrailingReasoningDeltas(uiEvents, action);
   if (reasoningDeltas.length === 0) {
     return null;
   }

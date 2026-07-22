@@ -945,5 +945,45 @@ describe("handleEventForUI", () => {
         action,
       ]);
     });
+
+    it("preserves a still-live planning-agent delta (#1656)", () => {
+      // Main and planning sockets share this event store. A main-agent action
+      // supersedes only the main agent's streamed reasoning; the planning
+      // agent's live reasoning must survive.
+      const planningDelta = {
+        ...makeStreamingDelta("delta-planning", null),
+        reasoning_content: "Planning agent is still reasoning",
+        isFromPlanningAgent: true,
+      };
+      const mainDelta: StreamingDeltaEvent = {
+        ...makeStreamingDelta("delta-main", null),
+        reasoning_content: REASONING,
+      };
+      const action = makeReasoningAction([]);
+
+      const result = handleEventForUI(action, [
+        mockMessageEvent,
+        planningDelta,
+        mainDelta,
+      ]);
+
+      expect(result).toEqual([mockMessageEvent, planningDelta, action]);
+    });
+
+    it("leaves the planning agent's reasoning alone when only it streamed (#1656)", () => {
+      const planningDelta = {
+        ...makeStreamingDelta("delta-planning", null),
+        reasoning_content: "Planning agent is still reasoning",
+        isFromPlanningAgent: true,
+      };
+      const action = makeReasoningAction([]);
+
+      const result = handleEventForUI(action, [
+        mockMessageEvent,
+        planningDelta,
+      ]);
+
+      expect(result).toEqual([mockMessageEvent, planningDelta, action]);
+    });
   });
 });
