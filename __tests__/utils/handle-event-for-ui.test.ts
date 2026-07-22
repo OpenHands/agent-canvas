@@ -850,4 +850,100 @@ describe("handleEventForUI", () => {
       expect(result).toEqual([mockMessageEvent, action]);
     });
   });
+
+  describe("intermediate action / streamed reasoning reconciliation", () => {
+    const REASONING = "Let me read the full PRD to understand all of it.";
+
+    const makeReasoningAction = (thought: string[]): ActionEvent => ({
+      ...mockActionEvent,
+      id: "intermediate-1",
+      tool_call_id: "call_intermediate_1",
+      thought: thought.map((text) => ({ type: "text", text })),
+      reasoning_content: REASONING,
+    });
+
+    it("drops a reasoning-only delta when the action has no thought", () => {
+      const delta: StreamingDeltaEvent = {
+        ...makeStreamingDelta("delta-1", null),
+        reasoning_content: REASONING,
+      };
+      const action = makeReasoningAction([]);
+
+      const result = handleEventForUI(action, [mockMessageEvent, delta]);
+
+      expect(result).toEqual([mockMessageEvent, action]);
+    });
+
+    it("drops a reasoning-only delta when the thought does not match it", () => {
+      const delta: StreamingDeltaEvent = {
+        ...makeStreamingDelta("delta-1", null),
+        reasoning_content: REASONING,
+      };
+      const action = makeReasoningAction(["Reading the PRD now."]);
+
+      const result = handleEventForUI(action, [mockMessageEvent, delta]);
+
+      expect(result).toEqual([mockMessageEvent, action]);
+    });
+
+    it("keeps unmatched streamed text while clearing the duplicated reasoning", () => {
+      const delta: StreamingDeltaEvent = {
+        ...makeStreamingDelta("delta-1", "some unrelated streamed text"),
+        reasoning_content: REASONING,
+      };
+      const action = makeReasoningAction(["An unrelated thought."]);
+
+      const result = handleEventForUI(action, [mockMessageEvent, delta]);
+
+      expect(result).toEqual([
+        mockMessageEvent,
+        { ...delta, reasoning_content: null },
+        action,
+      ]);
+    });
+
+    it("leaves the delta untouched when the action carries no reasoning", () => {
+      const delta: StreamingDeltaEvent = {
+        ...makeStreamingDelta("delta-1", null),
+        reasoning_content: REASONING,
+      };
+      const action: ActionEvent = {
+        ...mockActionEvent,
+        id: "intermediate-1",
+        tool_call_id: "call_intermediate_1",
+        thought: [],
+      };
+
+      const result = handleEventForUI(action, [mockMessageEvent, delta]);
+
+      // The delta is the sole reasoning carrier, so it must survive.
+      expect(result).toEqual([mockMessageEvent, delta, action]);
+    });
+
+    it("only reconciles the current step's trailing delta run", () => {
+      const earlierDelta: StreamingDeltaEvent = {
+        ...makeStreamingDelta("delta-earlier", null),
+        reasoning_content: "an earlier step's reasoning",
+      };
+      const delta: StreamingDeltaEvent = {
+        ...makeStreamingDelta("delta-1", null),
+        reasoning_content: REASONING,
+      };
+      const action = makeReasoningAction([]);
+
+      const result = handleEventForUI(action, [
+        mockMessageEvent,
+        earlierDelta,
+        mockObservationEvent,
+        delta,
+      ]);
+
+      expect(result).toEqual([
+        mockMessageEvent,
+        earlierDelta,
+        mockObservationEvent,
+        action,
+      ]);
+    });
+  });
 });
