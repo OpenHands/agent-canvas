@@ -226,7 +226,7 @@ export function getCachedAgentServerVersion(
   return getDisplayAgentServerVersion(cachedAgentServerInfo);
 }
 
-function compareAgentServerVersions(actual: string, required: string) {
+export function compareAgentServerVersions(actual: string, required: string) {
   const parsedActual = parseAgentServerVersion(actual);
   const parsedRequired = parseAgentServerVersion(required);
 
