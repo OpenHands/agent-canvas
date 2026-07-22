@@ -100,8 +100,9 @@ const getCurrentTurnContentDeltas = (
 // The current step's streaming delta(s): the trailing run at the end of
 // `uiEvents`. Earlier steps' deltas are separated by their observations, so
 // this never folds an earlier step's delta into the current one.
-const getTrailingContentDeltas = (
+const getTrailingDeltas = (
   uiEvents: OpenHandsEvent[],
+  selects: (event: StreamingDeltaEvent) => boolean,
 ): { event: StreamingDeltaEvent; index: number }[] => {
   const deltas: { event: StreamingDeltaEvent; index: number }[] = [];
   for (let index = uiEvents.length - 1; index >= 0; index -= 1) {
@@ -109,12 +110,28 @@ const getTrailingContentDeltas = (
     if (!isStreamingDeltaEvent(event)) {
       break;
     }
-    if ((event.content?.length ?? 0) > 0) {
+    if (selects(event)) {
       deltas.unshift({ event, index });
     }
   }
   return deltas;
 };
+
+const getTrailingContentDeltas = (uiEvents: OpenHandsEvent[]) =>
+  getTrailingDeltas(uiEvents, (event) => (event.content?.length ?? 0) > 0);
+
+// Sender-scoped: the main and planning sockets share this event store, so a
+// main-agent action must not strip the planning agent's live reasoning (#1656).
+const getTrailingReasoningDeltas = (
+  uiEvents: OpenHandsEvent[],
+  finalEvent: OpenHandsEvent,
+) =>
+  getTrailingDeltas(
+    uiEvents,
+    (event) =>
+      Boolean(event.reasoning_content) &&
+      isSameStreamingSender(finalEvent, event),
+  );
 
 // Strip the streamed content deltas, keeping a delta only when it carries
 // reasoning the replacement itself won't render (many models stream reasoning
@@ -262,6 +279,39 @@ const supersedeStreamedThoughtWithAction = (
   );
 };
 
+// Drop the current step's streamed reasoning when the action renders that
+// reasoning itself, so "Thinking" renders once. Unlike
+// `supersedeStreamedThoughtWithAction` this does not require the streamed text
+// to match the thought, which models streaming reasoning-only deltas never do.
+const supersedeStreamedReasoningWithAction = (
+  action: ActionEvent,
+  uiEvents: OpenHandsEvent[],
+): OpenHandsEvent[] | null => {
+  if (getReasoningContent(action).trim().length === 0) {
+    return null;
+  }
+
+  const reasoningDeltas = getTrailingReasoningDeltas(uiEvents, action);
+  if (reasoningDeltas.length === 0) {
+    return null;
+  }
+
+  const indexesToStrip = new Set(reasoningDeltas.map(({ index }) => index));
+  const nextUiEvents: OpenHandsEvent[] = [];
+  uiEvents.forEach((event, index) => {
+    if (!indexesToStrip.has(index) || !isStreamingDeltaEvent(event)) {
+      nextUiEvents.push(event);
+      return;
+    }
+
+    // Keep the delta only for streamed text the action itself lacks.
+    if (event.content) {
+      nextUiEvents.push({ ...event, reasoning_content: null });
+    }
+  });
+  return nextUiEvents;
+};
+
 /**
  * Handles adding an event to the UI events array
  * Replaces actions with observations when they arrive (so UI shows observation instead of action)
@@ -321,10 +371,9 @@ export const handleEventForUI = (
     event.action.kind !== "FinishAction" &&
     event.action.kind !== "ThinkAction"
   ) {
-    const reconciledUiEvents = supersedeStreamedThoughtWithAction(
-      event,
-      newUiEvents,
-    );
+    const reconciledUiEvents =
+      supersedeStreamedThoughtWithAction(event, newUiEvents) ??
+      supersedeStreamedReasoningWithAction(event, newUiEvents);
     if (reconciledUiEvents) {
       reconciledUiEvents.push(event);
       return reconciledUiEvents;
