@@ -37,11 +37,16 @@ export function AgentCanvasVersionTile({
       >
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold leading-5 text-white">
-            {t(I18nKey.SETTINGS$VERSION_PRODUCT_NAME)}
+            {updateAvailable
+              ? t(I18nKey.SETTINGS$VERSION_TILE_NEW_VERSION)
+              : t(I18nKey.SETTINGS$VERSION_PRODUCT_NAME)}
           </span>
           <span className="block truncate text-xs leading-5 text-[var(--oh-muted)]">
             {t(I18nKey.SETTINGS$VERSION_TILE_VERSION, {
-              version: installedVersion,
+              version:
+                updateAvailable && latestVersion
+                  ? latestVersion
+                  : installedVersion,
             })}
           </span>
         </span>
