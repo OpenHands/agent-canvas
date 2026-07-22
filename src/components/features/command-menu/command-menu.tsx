@@ -358,7 +358,7 @@ export function CommandMenu() {
                     className="py-1"
                     data-testid="command-menu-conversations-section"
                   >
-                    <div className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--oh-text-dim)]">
+                    <div className="px-3 pb-1 pt-2 text-[11px] font-medium text-[var(--oh-text-dim)]">
                       {t(COMMAND_MENU_GROUP_LABELS.conversations)}
                     </div>
                     {isFetchingConversations &&
@@ -452,7 +452,7 @@ export function CommandMenu() {
                                 {formatTimeDelta(timestamp)}
                               </time>
                             ) : null}
-                            <span className="hidden shrink-0 rounded-md border border-[var(--oh-border)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--oh-text-dim)] sm:inline-flex">
+                            <span className="hidden shrink-0 rounded-md border border-[var(--oh-border)] px-2 py-1 text-[10px] font-medium text-[var(--oh-text-dim)] sm:inline-flex">
                               {t(I18nKey.COMMAND_MENU$OPEN_CONVERSATION_HINT)}
                             </span>
                           </button>
@@ -473,7 +473,7 @@ export function CommandMenu() {
 
               return (
                 <section key={groupId} className="py-1">
-                  <div className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--oh-text-dim)]">
+                  <div className="px-3 pb-1 pt-2 text-[11px] font-medium text-[var(--oh-text-dim)]">
                     {t(COMMAND_MENU_GROUP_LABELS[groupId])}
                   </div>
                   <div className="space-y-1">
@@ -527,7 +527,7 @@ export function CommandMenu() {
                               {t(item.descriptionKey)}
                             </span>
                           </span>
-                          <span className="hidden shrink-0 rounded-md border border-[var(--oh-border)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--oh-text-dim)] sm:inline-flex">
+                          <span className="hidden shrink-0 rounded-md border border-[var(--oh-border)] px-2 py-1 text-[10px] font-medium text-[var(--oh-text-dim)] sm:inline-flex">
                             {to
                               ? t(I18nKey.COMMAND_MENU$GO_HINT)
                               : t(I18nKey.COMMAND_MENU$RUN_HINT)}
