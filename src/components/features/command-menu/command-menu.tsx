@@ -424,7 +424,7 @@ export function CommandMenu() {
                               className={cn(
                                 "flex size-9 shrink-0 items-center justify-center rounded-lg border transition-colors duration-150",
                                 isActive
-                                  ? "border-[var(--oh-accent)] bg-[var(--oh-accent)]/15 text-white"
+                                  ? "border-white/25 bg-white/10 text-white"
                                   : "border-[var(--oh-border)] bg-black/15 text-[var(--oh-text-dim)] group-hover:text-white",
                               )}
                               aria-hidden="true"
@@ -512,7 +512,7 @@ export function CommandMenu() {
                             className={cn(
                               "flex size-9 shrink-0 items-center justify-center rounded-lg border transition-colors duration-150",
                               isActive
-                                ? "border-[var(--oh-accent)] bg-[var(--oh-accent)]/15 text-white"
+                                ? "border-white/25 bg-white/10 text-white"
                                 : "border-[var(--oh-border)] bg-black/15 text-[var(--oh-text-dim)] group-hover:text-white",
                             )}
                             aria-hidden="true"
