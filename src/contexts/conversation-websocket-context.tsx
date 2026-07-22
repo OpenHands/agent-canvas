@@ -477,14 +477,19 @@ export function ConversationWebSocketProvider({
 
         // Use type guard to validate v1 event structure
         if (isAgentServerEvent(event)) {
+          // A reconnect replays the backlog from a stale anchor. The store
+          // dedups by id, but the side-effects below aren't idempotent, so skip
+          // them for replayed events (#1656).
           const isDuplicateEvent = useEventStore
             .getState()
             .eventIds.has(event.id);
-          const switchLLMObservation =
-            !isDuplicateEvent && isSwitchLLMObservationEvent(event)
-              ? event
-              : null;
+          const switchLLMObservation = isSwitchLLMObservationEvent(event)
+            ? event
+            : null;
           addEvent(event);
+          if (isDuplicateEvent) {
+            return;
+          }
 
           // Handle displayable error events - show error banner
           // AgentErrorEvent errors are displayed inline in the chat, not as banners
@@ -678,12 +683,20 @@ export function ConversationWebSocketProvider({
 
         // Use type guard to validate v1 event structure
         if (isAgentServerEvent(event)) {
+          // Skip non-idempotent side-effects for replayed events, as in the
+          // main handler (#1656).
+          const isDuplicateEvent = useEventStore
+            .getState()
+            .eventIds.has(event.id);
           // Mark this event as coming from the planning agent
           const eventWithPlanningFlag = {
             ...event,
             isFromPlanningAgent: true,
           };
           addEvent(eventWithPlanningFlag);
+          if (isDuplicateEvent) {
+            return;
+          }
 
           // Handle displayable error events - show error banner
           // AgentErrorEvent errors are displayed inline in the chat, not as banners

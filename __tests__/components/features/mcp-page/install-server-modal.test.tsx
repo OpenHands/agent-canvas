@@ -174,6 +174,7 @@ describe("InstallServerModal", () => {
       id: "synthetic-required",
       name: "Synthetic",
       description: "Synthetic catalog entry used in tests.",
+      docsUrl: "https://example.com/docs",
       iconBg: "#000000",
       connectionOptions: [
         {
@@ -215,6 +216,7 @@ describe("InstallServerModal", () => {
       id: "synthetic-optional",
       name: "Synthetic Optional",
       description: "Synthetic entry that allows empty api_key.",
+      docsUrl: "https://example.com/docs",
       iconBg: "#000000",
       connectionOptions: [
         {
@@ -253,6 +255,7 @@ describe("InstallServerModal", () => {
       id: "synthetic-oauth",
       name: "Synthetic OAuth",
       description: "Synthetic OAuth entry.",
+      docsUrl: "https://example.com/docs",
       iconBg: "#000000",
       connectionOptions: [
         {
@@ -552,6 +555,7 @@ describe("InstallServerModal", () => {
       id: "synthetic-test-fail",
       name: "Failing Server",
       description: "Always fails the connection test.",
+      docsUrl: "https://example.com/docs",
       iconBg: "#000000",
       connectionOptions: [
         {
@@ -633,6 +637,7 @@ describe("InstallServerModal", () => {
       id: "synthetic-test-pass",
       name: "Passing Server",
       description: "Always passes the connection test.",
+      docsUrl: "https://example.com/docs",
       iconBg: "#000000",
       connectionOptions: [
         {
@@ -672,6 +677,7 @@ describe("InstallServerModal", () => {
       id: "synthetic-pending",
       name: "Pending Server",
       description: "Connection test never resolves.",
+      docsUrl: "https://example.com/docs",
       iconBg: "#000000",
       connectionOptions: [
         {

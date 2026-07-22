@@ -155,7 +155,7 @@ describe("issue #1534 — streamed intermediate message duplication", () => {
     expect(countOccurrences(container.textContent ?? "", THOUGHT)).toBe(1);
   });
 
-  it("still renders a final agent message exactly once (unchanged)", () => {
+  it("renders the canonical final message and its metadata exactly once", () => {
     const finalMessage: MessageEvent = {
       id: "agent-msg-1",
       timestamp: "2026-06-12T12:00:02Z",
@@ -166,9 +166,49 @@ describe("issue #1534 — streamed intermediate message duplication", () => {
       },
       activated_microagents: [],
       extended_content: [],
+      critic_result: {
+        score: 0.72,
+        message: null,
+        metadata: null,
+      },
     };
     const allEvents = [userMessage, streamingDelta, finalMessage];
     const uiEvents = reduce(allEvents);
+
+    expect(uiEvents.at(-1)).toBe(finalMessage);
+
+    const { container } = renderWithProviders(
+      <Messages messages={uiEvents} allEvents={allEvents} />,
+    );
+
+    expect(countOccurrences(container.textContent ?? "", THOUGHT)).toBe(1);
+    expect(screen.getByLabelText("Score: 72.0%")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("collapsible-thinking-toggle"));
+    expect(
+      screen.getByTestId("collapsible-thinking-content"),
+    ).toHaveTextContent("Considering the request before acting.");
+  });
+
+  it("renders once when streamed text has leading whitespace", () => {
+    const leadingWhitespaceDelta: StreamingDeltaEvent = {
+      ...streamingDelta,
+      content: `\n${THOUGHT}`,
+    };
+    const finalMessage: MessageEvent = {
+      id: "agent-msg-leading-whitespace",
+      timestamp: "2026-06-12T12:00:02Z",
+      source: "agent",
+      llm_message: {
+        role: "assistant",
+        content: [{ type: "text", text: THOUGHT }],
+      },
+      activated_microagents: [],
+      extended_content: [],
+    };
+    const allEvents = [userMessage, leadingWhitespaceDelta, finalMessage];
+    const uiEvents = reduce(allEvents);
+
+    expect(uiEvents.at(-1)).toBe(finalMessage);
 
     const { container } = renderWithProviders(
       <Messages messages={uiEvents} allEvents={allEvents} />,

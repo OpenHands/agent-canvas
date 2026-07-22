@@ -6,6 +6,8 @@ import { ConversationWebSocketProvider } from "#/contexts/conversation-websocket
 import { useEventStore } from "#/stores/use-event-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { useBrowserStore } from "#/stores/browser-store";
+import { useCommandStore } from "#/stores/command-store";
+import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useUserConversation } from "#/hooks/query/use-user-conversation";
 import EventService from "#/api/event-service/event-service.api";
 import {
@@ -87,6 +89,8 @@ describe("ConversationWebSocketProvider — conversation-scoped event store", ()
     });
     useOptimisticUserMessageStore.setState({ pendingMessages: [] });
     useBrowserStore.getState().reset();
+    useCommandStore.setState({ commands: [] });
+    useErrorMessageStore.getState().removeErrorMessage();
 
     vi.mocked(useUserConversation).mockReturnValue({
       data: { conversation_url: "http://localhost/api", session_api_key: null },
@@ -189,6 +193,134 @@ describe("ConversationWebSocketProvider — conversation-scoped event store", ()
     expect(getStoredConversationMetadata("conv-switch")?.plugins).toEqual([
       { source: "github:acme/city-weather", ref: null, repo_path: null },
     ]);
+  });
+
+  // On reconnect the backlog is replayed; non-idempotent side-effects must not
+  // fire again for events already processed (#1656).
+  describe("reconnect replay does not re-run non-idempotent side-effects", () => {
+    const makeBashAction = (id: string, command: string) => ({
+      id,
+      timestamp: new Date().toISOString(),
+      source: "agent",
+      thought: [],
+      thinking_blocks: [],
+      action: {
+        kind: "ExecuteBashAction",
+        command,
+        is_input: false,
+        timeout: null,
+        reset: false,
+      },
+      tool_name: "execute_bash",
+      tool_call_id: `call-${id}`,
+      tool_call: {
+        id: `call-${id}`,
+        type: "function",
+        function: {
+          name: "execute_bash",
+          arguments: JSON.stringify({ command }),
+        },
+      },
+      llm_response_id: `resp-${id}`,
+      security_risk: "UNKNOWN",
+    });
+
+    const makeBashObservation = (
+      id: string,
+      actionId: string,
+      text: string,
+    ) => ({
+      id,
+      timestamp: new Date().toISOString(),
+      source: "environment",
+      action_id: actionId,
+      tool_name: "execute_bash",
+      tool_call_id: `call-${actionId}`,
+      observation: {
+        kind: "ExecuteBashObservation",
+        content: [{ type: "text", text }],
+        command: "run",
+        exit_code: 0,
+        error: false,
+        timeout: false,
+        metadata: {
+          exit_code: 0,
+          pid: 1,
+          username: "u",
+          hostname: "h",
+          working_dir: "/",
+          py_interpreter_path: null,
+          prefix: "",
+          suffix: "",
+        },
+      },
+    });
+
+    const makeConversationError = (id: string, detail: string) => ({
+      id,
+      timestamp: new Date().toISOString(),
+      source: "environment",
+      kind: "ConversationErrorEvent",
+      detail,
+      code: "SomeError",
+    });
+
+    const renderCaptured = async () => {
+      render(
+        <QueryClientProvider client={queryClient}>
+          <ConversationWebSocketProvider
+            conversationId="conv-reconnect"
+            conversationUrl="http://localhost/api"
+          >
+            <div />
+          </ConversationWebSocketProvider>
+        </QueryClientProvider>,
+      );
+      await waitFor(() => expect(wsCapture.mainOnMessage).not.toBeNull());
+    };
+
+    const deliver = (event: unknown) =>
+      act(() => {
+        wsCapture.mainOnMessage!({ data: JSON.stringify(event) });
+      });
+
+    it("does not re-append terminal input/output for replayed bash events", async () => {
+      await renderCaptured();
+
+      const action = makeBashAction("bash-action-1", "echo hi");
+      const observation = makeBashObservation(
+        "bash-obs-1",
+        "bash-action-1",
+        "hi\n",
+      );
+
+      // First delivery, then a reconnect replay of the same two events.
+      deliver(action);
+      deliver(observation);
+      deliver(action);
+      deliver(observation);
+
+      expect(useCommandStore.getState().commands).toEqual([
+        { content: "echo hi", type: "input" },
+        { content: "hi\n", type: "output" },
+      ]);
+    });
+
+    it("does not re-raise a dismissed error banner when the error event is replayed", async () => {
+      await renderCaptured();
+
+      const errorEvent = makeConversationError("conv-error-1", "Boom");
+
+      // Show the banner, dismiss it, then replay the error on reconnect.
+      deliver(errorEvent);
+      expect(useErrorMessageStore.getState().errorMessage).toBe("Boom");
+      act(() => useErrorMessageStore.getState().removeErrorMessage());
+      expect(useErrorMessageStore.getState().errorMessage).toBeNull();
+
+      // It must stay dismissed.
+      deliver(errorEvent);
+      expect(useErrorMessageStore.getState().errorMessage).toBeNull();
+    });
   });
 
   it("clears the previous conversation's events when switching conversations", async () => {

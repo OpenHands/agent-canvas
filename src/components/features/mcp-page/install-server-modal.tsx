@@ -206,6 +206,7 @@ export function InstallServerModal({
       key: secretName,
       label: option.auth.credentialLabel ?? secretName,
       type: "password",
+      required: true,
     };
     return saveFieldsAsSecrets(
       [field],
