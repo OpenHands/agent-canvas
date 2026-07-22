@@ -7,13 +7,13 @@ import {
 } from "react";
 import { FileUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { isAxiosError } from "axios";
 import { I18nKey } from "#/i18n/declaration";
 import {
   displaySuccessToast,
   displaySuccessToastWithLink,
   displayErrorToast,
 } from "#/utils/custom-toast-handlers";
+import { getApiErrorMessage } from "#/utils/api-error-message";
 import {
   useAutomations,
   useToggleAutomation,
@@ -134,13 +134,9 @@ export default function AutomationsList() {
         displaySuccessToast(t(I18nKey.AUTOMATIONS$RUN_NOW_SUCCESS));
       },
       onError: (error) => {
-        const message = isAxiosError(error)
-          ? (error.response?.data as { message?: string } | undefined)
-              ?.message ||
-            error.message ||
-            t(I18nKey.AUTOMATIONS$RUN_NOW_ERROR)
-          : (error as Error).message || t(I18nKey.AUTOMATIONS$RUN_NOW_ERROR);
-        displayErrorToast(message);
+        displayErrorToast(
+          getApiErrorMessage(error, t(I18nKey.AUTOMATIONS$RUN_NOW_ERROR)),
+        );
       },
     });
   };
@@ -205,16 +201,9 @@ export default function AutomationsList() {
           );
         },
         onError: (error) => {
-          const detail = isAxiosError(error)
-            ? (error.response?.data as { detail?: unknown } | undefined)?.detail
-            : undefined;
-          const message =
-            typeof detail === "string"
-              ? detail
-              : isAxiosError(error)
-                ? error.message
-                : t(I18nKey.ERROR$GENERIC);
-          displayErrorToast(message);
+          displayErrorToast(
+            getApiErrorMessage(error, t(I18nKey.ERROR$GENERIC)),
+          );
         },
       },
     );

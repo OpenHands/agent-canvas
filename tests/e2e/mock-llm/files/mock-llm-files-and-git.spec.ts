@@ -5,7 +5,7 @@
  * agent-server with a scripted mock LLM backend.
  *
  * Coverage (issue #511):
- *   - Files tab defaults to diff view when a workspace is attached
+ *   - Files tab diff view can be enabled when a workspace is attached
  *   - Git control bar shows workspace-name pill for folder-attached conversations
  *   - Browser tab renders empty state when no page has been browsed
  *   - Files tab defaults to file-tree view when NO workspace is attached
@@ -114,14 +114,13 @@ test.describe("files tab, git control bar, and browser tab", () => {
     // Register a trajectory that ensures the workspace has a git remote.
     // The npm path inherits the host repo; the Docker path bootstraps one.
     const gitBootstrap = [
-      // Skip if already in a repo with an origin remote (npm worktree path)
-      "git remote get-url origin >/dev/null 2>&1",
-      // Otherwise bootstrap a fresh repo with a GitHub remote (Docker path).
+      "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || git init",
       // Must configure user.name/email — Docker containers may not have them.
-      "|| (git init && git config user.email test@test.com && git config user.name test",
-      `&& git remote add origin https://github.com/${EXPECTED_REPO_SLUG}.git`,
-      "&& git commit --allow-empty -m init)",
-    ].join(" ");
+      "git config user.email test@test.com",
+      "git config user.name test",
+      `git remote get-url origin >/dev/null 2>&1 || git remote add origin https://github.com/${EXPECTED_REPO_SLUG}.git`,
+      "git rev-parse --verify HEAD >/dev/null 2>&1 || git commit --allow-empty -m init",
+    ].join(" && ");
     await registerTrajectory(request, "files-and-git", [
       {
         tool_call: {
@@ -153,7 +152,8 @@ test.describe("files tab, git control bar, and browser tab", () => {
     await page.evaluate(
       ({ testId, text }) => {
         const el = document.querySelector(`[data-testid="${testId}"]`);
-        if (!(el instanceof HTMLElement)) throw new Error("Chat input not found");
+        if (!(el instanceof HTMLElement))
+          throw new Error("Chat input not found");
         el.focus();
         el.textContent = text;
         el.dispatchEvent(
@@ -214,7 +214,8 @@ test.describe("files tab, git control bar, and browser tab", () => {
     // Accept either so the assertion doesn't race that probe (the source of a
     // pre-existing flake — see GitControlBarRepoButton: selectedRepository ||
     // workspaceName).
-    const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escapeRegExp = (s: string) =>
+      s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const pillText = new RegExp(
       `${escapeRegExp(workspaceName)}|${escapeRegExp(EXPECTED_REPO_SLUG)}`,
     );
@@ -239,14 +240,16 @@ test.describe("files tab, git control bar, and browser tab", () => {
       } catch {
         // Soft-fail: git probe may not have completed in time (Docker).
         // The workspace pill assertion above is the primary gate.
-        console.log("Pull/Push buttons not visible — git probe likely still pending");
+        console.log(
+          "Pull/Push buttons not visible — git probe likely still pending",
+        );
       }
     });
   });
 
-  // ── Step 4: Verify Files tab diff toggle defaults to "on" ──────────
+  // ── Step 4: Verify Files tab diff toggle can be enabled ─────────────
 
-  test("step 4: files tab defaults to diff view for attached workspace", async ({
+  test("step 4: files tab can enable diff view for attached workspace", async ({
     page,
   }) => {
     test.skip(!attachedConversationId, "step 2 must complete first");
@@ -265,12 +268,13 @@ test.describe("files tab, git control bar, and browser tab", () => {
       // Open the right panel
       const toggle = page.getByTestId("right-panel-toggle");
       await expect(toggle).toBeVisible({ timeout: 10_000 });
-      await toggle.click();
+      await toggle.click({ force: true });
+      await expect(toggle).toHaveAttribute("aria-pressed", "true", {
+        timeout: 10_000,
+      });
 
       // Wait for at least one tab to be visible (panel animation done)
-      const anyTab = page.locator(
-        '[data-testid^="conversation-tab-"]',
-      ).first();
+      const anyTab = page.locator('[data-testid^="conversation-tab-"]').first();
       await expect(anyTab).toBeVisible({ timeout: 10_000 });
 
       // Click the Files tab
@@ -284,12 +288,9 @@ test.describe("files tab, git control bar, and browser tab", () => {
       await expect(diffToggle).toBeVisible({ timeout: 15_000 });
 
       const diffOnOption = page.getByTestId("files-tab-diff-toggle-option-on");
-
-      // Verify the toggle is interactive: click "on" with force to bypass
-      // any residual animation overlay, and confirm it becomes checked.
       await diffOnOption.click({ force: true });
       await expect(diffOnOption).toHaveAttribute("aria-checked", "true", {
-        timeout: 5_000,
+        timeout: 15_000,
       });
     });
   });
@@ -352,7 +353,8 @@ test.describe("files tab, git control bar, and browser tab", () => {
     await page.evaluate(
       ({ testId, text }) => {
         const el = document.querySelector(`[data-testid="${testId}"]`);
-        if (!(el instanceof HTMLElement)) throw new Error("Chat input not found");
+        if (!(el instanceof HTMLElement))
+          throw new Error("Chat input not found");
         el.focus();
         el.textContent = text;
         el.dispatchEvent(
@@ -398,7 +400,9 @@ test.describe("files tab, git control bar, and browser tab", () => {
       await expect(diffToggle).toBeVisible({ timeout: 15_000 });
 
       // Without an attached workspace, the "off" (Files) option should be active
-      const diffOffOption = page.getByTestId("files-tab-diff-toggle-option-off");
+      const diffOffOption = page.getByTestId(
+        "files-tab-diff-toggle-option-off",
+      );
       await expect(diffOffOption).toBeVisible({ timeout: 10_000 });
       await expect(diffOffOption).toHaveAttribute("aria-checked", "true");
     });

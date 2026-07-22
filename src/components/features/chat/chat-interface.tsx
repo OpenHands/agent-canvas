@@ -32,6 +32,7 @@ import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { SERVER_CONNECTION_ERROR_MESSAGE } from "#/constants/server-connection-error";
 import { ErrorMessageBanner } from "./error-message-banner";
+import { SkillInstallRestartBanner } from "./skill-install-restart-banner";
 import { LlmNotConfiguredBanner } from "#/components/features/home/llm-not-configured-banner";
 import { useLlmConfigured } from "#/hooks/use-llm-configured";
 import { Messages } from "#/components/conversation-events/chat/messages";
@@ -563,6 +564,7 @@ export function ChatInterface() {
         </div>
 
         <div className="flex shrink-0 flex-col gap-[6px] pb-4">
+          <SkillInstallRestartBanner conversationId={conversationId} />
           <BtwMessages conversationId={conversationId} />
           {errorMessage && (
             <ErrorMessageBanner

@@ -6,8 +6,11 @@ import {
   getAgentServerFormDefaults,
   getAgentServerSessionApiKey,
   getAgentServerWorkingDir,
+  getCookieAuthCloudHost,
+  getLockedCloudAuthMode,
   getLockedCloudHost,
   isAuthRequired,
+  isSameCloudHost,
   isAuthRequiredAndMissing,
 } from "#/api/agent-server-config";
 
@@ -78,13 +81,13 @@ describe("agent server config", () => {
   });
 });
 
-describe("getLockedCloudHost", () => {
-  function setInjectedCloudHost(value: unknown) {
-    (
-      window as unknown as Record<string, unknown>
-    ).__AGENT_CANVAS_LOCK_TO_CLOUD__ = value;
-  }
+function setInjectedCloudHost(value: unknown) {
+  (
+    window as unknown as Record<string, unknown>
+  ).__AGENT_CANVAS_LOCK_TO_CLOUD__ = value;
+}
 
+describe("getLockedCloudHost", () => {
   it("returns null when no Cloud lock is configured", () => {
     expect(getLockedCloudHost()).toBeNull();
   });
@@ -114,6 +117,63 @@ describe("getLockedCloudHost", () => {
 
     setInjectedCloudHost(12345);
     expect(getLockedCloudHost()).toBeNull();
+  });
+});
+
+describe("isSameCloudHost", () => {
+  it.each([
+    ["https://staging.openhands.dev", "https://staging.all-hands.dev"],
+    [
+      "https://pr-254.staging.openhands.dev",
+      "https://pr-254.staging.all-hands.dev",
+    ],
+    ["https://openhands.dev", "https://app.all-hands.dev"],
+  ])("treats transition domains as equivalent (%s, %s)", (a, b) => {
+    expect(isSameCloudHost(a, b)).toBe(true);
+    expect(isSameCloudHost(b, a)).toBe(true);
+  });
+
+  it("does not treat different preview numbers as equivalent", () => {
+    expect(
+      isSameCloudHost(
+        "https://pr-254.staging.openhands.dev",
+        "https://pr-255.staging.all-hands.dev",
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("getLockedCloudAuthMode", () => {
+  it("uses cookie auth when the locked Cloud host matches the current origin", () => {
+    mockWindowLocation("https://app.all-hands.dev/canvas");
+    setInjectedCloudHost("https://app.all-hands.dev");
+
+    expect(getLockedCloudAuthMode()).toBe("cookie");
+  });
+
+  it("uses cookie auth for equivalent openhands.dev and all-hands.dev preview hosts", () => {
+    mockWindowLocation("https://pr-254.staging.openhands.dev/canvas");
+    setInjectedCloudHost("https://pr-254.staging.all-hands.dev");
+
+    expect(getLockedCloudAuthMode()).toBe("cookie");
+    expect(getCookieAuthCloudHost()).toBe(
+      "https://pr-254.staging.openhands.dev",
+    );
+  });
+
+  it("uses cookie auth when production moves from app.all-hands.dev to openhands.dev", () => {
+    mockWindowLocation("https://openhands.dev/canvas");
+    setInjectedCloudHost("https://app.all-hands.dev");
+
+    expect(getLockedCloudAuthMode()).toBe("cookie");
+    expect(getCookieAuthCloudHost()).toBe("https://openhands.dev");
+  });
+
+  it("uses API-key auth when the locked Cloud host is cross-origin", () => {
+    mockWindowLocation("https://canvas.example.dev/");
+    setInjectedCloudHost("https://app.all-hands.dev");
+
+    expect(getLockedCloudAuthMode()).toBe("api-key");
   });
 });
 

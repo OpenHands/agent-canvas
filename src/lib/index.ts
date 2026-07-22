@@ -9,6 +9,7 @@ export {
   AgentServerUIRoot,
   DEFAULT_AGENT_SERVER_ANALYTICS,
   type AgentServerUIAnalyticsConfig,
+  type AgentServerUIPostHogAnalyticsConfig,
   type AgentServerUIProvidersProps,
   type AgentServerUIRootProps,
 } from "../components/providers";
@@ -40,9 +41,9 @@ export {
 } from "../styles/agent-server-ui-style-scope";
 
 // Telemetry exports
-export { TelemetryConsentBanner } from "../components/features/analytics/telemetry-consent-banner";
 export { useTelemetry, type UseTelemetryReturn } from "../hooks/use-telemetry";
 export {
+  configureTelemetry,
   getTelemetryConsent,
   setTelemetryConsent,
   isTelemetryEnabled,
@@ -50,6 +51,7 @@ export {
   trackSessionStart,
   trackEvent,
   clearTelemetryData,
-  getPostHogInstance,
+  type TelemetryConfig,
+  type TelemetryConfiguration,
   type TelemetryConsent,
 } from "../services/telemetry";

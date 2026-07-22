@@ -1,5 +1,7 @@
 export const DEFAULT_WORKING_DIR = "workspace/project";
 
+export type LockedCloudAuthMode = "api-key" | "cookie";
+
 export interface AgentServerFormDefaults {
   baseUrl: string;
   sessionApiKey: string;
@@ -10,6 +12,11 @@ export interface AgentServerFormDefaults {
 // server (`scripts/static-server.mjs`) and its tests reference the literal
 // string directly, not this constant.
 const LOCK_TO_CLOUD_WINDOW_KEY = "__AGENT_CANVAS_LOCK_TO_CLOUD__";
+const LEGACY_CLOUD_DOMAIN = "all-hands.dev";
+const CURRENT_CLOUD_DOMAIN = "openhands.dev";
+const LEGACY_PRODUCTION_APP_HOST = `app.${LEGACY_CLOUD_DOMAIN}`;
+const CURRENT_PRODUCTION_APP_HOST = CURRENT_CLOUD_DOMAIN;
+const PRODUCTION_APP_HOST_ALIAS = `app.${CURRENT_CLOUD_DOMAIN}`;
 
 function trimToNull(value?: string | null): string | null {
   return value?.trim() || null;
@@ -43,6 +50,49 @@ function normalizeCloudHost(value?: string | null): string | null {
   }
 
   return `https://${trimmed}`;
+}
+
+function canonicalizeCloudHostname(hostname: string): string {
+  const lower = hostname.toLowerCase();
+  if (
+    lower === LEGACY_PRODUCTION_APP_HOST ||
+    lower === PRODUCTION_APP_HOST_ALIAS
+  ) {
+    return CURRENT_PRODUCTION_APP_HOST;
+  }
+
+  if (lower === LEGACY_CLOUD_DOMAIN) return CURRENT_CLOUD_DOMAIN;
+  if (lower.endsWith(`.${LEGACY_CLOUD_DOMAIN}`)) {
+    return `${lower.slice(0, -LEGACY_CLOUD_DOMAIN.length)}${CURRENT_CLOUD_DOMAIN}`;
+  }
+
+  return lower;
+}
+
+function getCloudHostComparisonKey(value?: string | null): string | null {
+  const normalized = normalizeCloudHost(value);
+  if (!normalized) return null;
+
+  try {
+    const url = new URL(normalized);
+    const port = url.port ? `:${url.port}` : "";
+    return `${url.protocol}//${canonicalizeCloudHostname(url.hostname)}${port}`;
+  } catch {
+    return normalized.toLowerCase();
+  }
+}
+
+export function getCookieAuthCloudHost(): string | null {
+  const lockedHost = getLockedCloudHost();
+  if (
+    !lockedHost ||
+    typeof window === "undefined" ||
+    !isSameCloudHost(window.location.origin, lockedHost)
+  ) {
+    return null;
+  }
+
+  return window.location.origin;
 }
 
 function getConfiguredBaseUrl(): string | null {
@@ -118,10 +168,14 @@ export function isSameCloudHost(
   host: string | null | undefined,
   lockedHost: string | null | undefined,
 ): boolean {
-  const a = normalizeCloudHost(host);
-  const b = normalizeCloudHost(lockedHost);
+  const a = getCloudHostComparisonKey(host);
+  const b = getCloudHostComparisonKey(lockedHost);
   if (!a || !b) return false;
-  return a.toLowerCase() === b.toLowerCase();
+  return a === b;
+}
+
+export function getLockedCloudAuthMode(): LockedCloudAuthMode {
+  return getCookieAuthCloudHost() ? "cookie" : "api-key";
 }
 
 export function getAgentServerBaseUrl(): string | null {

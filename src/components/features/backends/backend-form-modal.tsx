@@ -16,6 +16,7 @@ import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useNavigation } from "#/context/navigation-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { useTracking } from "#/hooks/use-tracking";
+import type { CloudConnectionSource } from "#/services/cloud-funnel-analytics";
 import { getAgentServerClientOptions } from "#/api/agent-server-client-options";
 import { getLockedCloudHost } from "#/api/agent-server-config";
 import { isOpenHandsCloudHost } from "#/api/device-flow-client";
@@ -37,6 +38,10 @@ import { BackendStatusDot } from "./backend-status-dot";
 import { DeviceFlowAuth } from "./device-flow-auth";
 
 export type BackendFormMode = "add" | "edit";
+
+interface BackendConnectionTestMetadata {
+  agentServerVersion: string | null;
+}
 
 interface BackendFormModalProps {
   mode: BackendFormMode;
@@ -140,7 +145,7 @@ const DEFAULT_OPENHANDS_CLOUD_HOST = "https://app.all-hands.dev";
 
 export type BackendConnectionMethod = "manual" | "cloud_login";
 
-export type BackendAddedSource = "add_backend_modal" | "manage_backends_modal";
+export type BackendAddedSource = CloudConnectionSource;
 
 function getConnectionTestFailedTitle(
   t: ReturnType<typeof useTranslation>["t"],
@@ -163,9 +168,9 @@ function getConnectionTestFailedMessage(title: string, error: unknown): string {
 
 async function testBackendConnection(
   backend: Pick<Backend, "host" | "apiKey" | "kind">,
-): Promise<void> {
+): Promise<BackendConnectionTestMetadata> {
   // Cloud backends authenticate via OAuth; preflight GET is not applicable.
-  if (backend.kind !== "local") return;
+  if (backend.kind !== "local") return { agentServerVersion: null };
 
   const serverInfo = await new ServerClient(
     getAgentServerClientOptions({
@@ -175,6 +180,7 @@ async function testBackendConnection(
     }),
   ).getServerInfo();
   assertAgentServerVersionIsSupported(serverInfo);
+  return { agentServerVersion: getDisplayAgentServerVersion(serverInfo) };
 }
 
 /**
@@ -288,9 +294,11 @@ interface UseBackendFormOptions {
    * wrapped version (e.g. with extra logging or different timeout).
    * Should throw on failure.
    */
-  onTestConnection: (payload: BackendFormSubmitPayload) => Promise<void>;
+  onTestConnection: (
+    payload: BackendFormSubmitPayload,
+  ) => Promise<BackendConnectionTestMetadata>;
   /** Called after a successful connection test and persistence. */
-  onSuccess: () => void;
+  onSuccess: (metadata: BackendConnectionTestMetadata) => void;
   /** Require a non-empty API key even when the host looks local. */
   requireApiKey?: boolean;
   /**
@@ -362,8 +370,8 @@ function useBackendForm({
         if (onSubmitOverride) {
           await onSubmitOverride(payload);
         } else {
-          await onTestConnection(payload);
-          onSuccess();
+          const metadata = await onTestConnection(payload);
+          onSuccess(metadata);
         }
       } catch (error) {
         setConnectionError(
@@ -691,6 +699,7 @@ interface BackendConnectionOptionsProps {
   onConnected: (
     payload: BackendFormSubmitPayload,
     connectionMethod: BackendConnectionMethod,
+    metadata?: BackendConnectionTestMetadata,
   ) => void;
   testIdRoot?: string;
   initialManualBackend?: Partial<
@@ -700,6 +709,7 @@ interface BackendConnectionOptionsProps {
   manualSubmitLabel?: React.ReactNode;
   manualSubmittingLabel?: React.ReactNode;
   manualSubmitTestId?: string;
+  analyticsSource?: CloudConnectionSource;
 }
 
 /**
@@ -715,6 +725,7 @@ export function BackendConnectionOptions({
   manualSubmitLabel,
   manualSubmittingLabel,
   manualSubmitTestId,
+  analyticsSource,
 }: BackendConnectionOptionsProps) {
   const { t } = useTranslation("openhands");
   const lockedCloudHost = getLockedCloudHost();
@@ -730,6 +741,7 @@ export function BackendConnectionOptions({
             onConnected={onConnected}
             testIdRoot={testIdRoot}
             lockedHost={lockedCloudHost}
+            analyticsSource={analyticsSource}
           />
         </div>
       </div>
@@ -757,7 +769,11 @@ export function BackendConnectionOptions({
       </div>
 
       <div className="flex-1 min-w-0">
-        <CloudLoginColumn onConnected={onConnected} testIdRoot={testIdRoot} />
+        <CloudLoginColumn
+          onConnected={onConnected}
+          testIdRoot={testIdRoot}
+          analyticsSource={analyticsSource}
+        />
       </div>
     </div>
   );
@@ -767,6 +783,7 @@ interface ManualConnectionColumnProps {
   onConnected: (
     payload: BackendFormSubmitPayload,
     connectionMethod: BackendConnectionMethod,
+    metadata?: BackendConnectionTestMetadata,
   ) => void;
   testIdRoot: string;
   initialBackend?: Partial<
@@ -812,7 +829,7 @@ function ManualConnectionColumn({
     initialHost: initialBackend?.host ?? "",
     initialApiKey: initialBackend?.apiKey ?? "",
     onTestConnection: testBackendConnection,
-    onSuccess: () => {
+    onSuccess: (metadata) => {
       onConnected(
         {
           name: name.trim(),
@@ -821,6 +838,7 @@ function ManualConnectionColumn({
           kind,
         },
         "manual",
+        metadata,
       );
     },
     requireApiKey,
@@ -931,9 +949,11 @@ interface CloudLoginColumnProps {
   onConnected: (
     payload: BackendFormSubmitPayload,
     connectionMethod: BackendConnectionMethod,
+    metadata?: BackendConnectionTestMetadata,
   ) => void;
   testIdRoot: string;
   lockedHost?: string;
+  analyticsSource?: CloudConnectionSource;
 }
 
 /**
@@ -945,6 +965,7 @@ function CloudLoginColumn({
   onConnected,
   testIdRoot,
   lockedHost,
+  analyticsSource,
 }: CloudLoginColumnProps) {
   const { t } = useTranslation("openhands");
 
@@ -987,6 +1008,7 @@ function CloudLoginColumn({
         host={effectiveHost}
         onSuccess={handleLoginSuccess}
         testIdRoot={testIdRoot}
+        analyticsSource={analyticsSource}
       />
 
       {lockedHost ? null : (
@@ -1049,17 +1071,15 @@ function AddBackendConnectionOptions({
     (
       payload: BackendFormSubmitPayload,
       connectionMethod: BackendConnectionMethod,
+      metadata?: BackendConnectionTestMetadata,
     ) => {
       addBackend(payload);
-      // Coarse, non-sensitive host classification — never emit the raw host.
-      const isOpenHandsCloud = payload.host === DEFAULT_OPENHANDS_CLOUD_HOST;
       trackBackendAdded({
         backendKind: payload.kind,
         connectionMethod,
-        isOpenhandsCloud: isOpenHandsCloud,
-        isCustomHost: !isOpenHandsCloud,
         hasApiKey: Boolean(payload.apiKey),
         source,
+        agentServerVersion: metadata?.agentServerVersion,
       });
       redirectAfterAdd();
       onClose();
@@ -1067,7 +1087,12 @@ function AddBackendConnectionOptions({
     [addBackend, redirectAfterAdd, onClose, trackBackendAdded, source],
   );
 
-  return <BackendConnectionOptions onConnected={handleConnected} />;
+  return (
+    <BackendConnectionOptions
+      onConnected={handleConnected}
+      analyticsSource={source}
+    />
+  );
 }
 
 // ── Modal wrappers ──────────────────────────────────────────────────

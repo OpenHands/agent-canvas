@@ -11,7 +11,6 @@ import React, {
 import { ConversationClient } from "@openhands/typescript-client/clients";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { usePostHog } from "posthog-js/react";
 import { useWebSocket, WebSocketHookOptions } from "#/hooks/use-websocket";
 import { SERVER_CONNECTION_ERROR_MESSAGE } from "#/constants/server-connection-error";
 import { useEventStore } from "#/stores/use-event-store";
@@ -138,7 +137,6 @@ export function ConversationWebSocketProvider({
   const hasConnectedRefMain = React.useRef(false);
   const hasConnectedRefPlanning = React.useRef(false);
 
-  const posthog = usePostHog();
   const queryClient = useQueryClient();
   const addEvent = useEventStore((state) => state.addEvent);
   const addEvents = useEventStore((state) => state.addEvents);
@@ -479,14 +477,19 @@ export function ConversationWebSocketProvider({
 
         // Use type guard to validate v1 event structure
         if (isAgentServerEvent(event)) {
+          // A reconnect replays the backlog from a stale anchor. The store
+          // dedups by id, but the side-effects below aren't idempotent, so skip
+          // them for replayed events (#1656).
           const isDuplicateEvent = useEventStore
             .getState()
             .eventIds.has(event.id);
-          const switchLLMObservation =
-            !isDuplicateEvent && isSwitchLLMObservationEvent(event)
-              ? event
-              : null;
+          const switchLLMObservation = isSwitchLLMObservationEvent(event)
+            ? event
+            : null;
           addEvent(event);
+          if (isDuplicateEvent) {
+            return;
+          }
 
           // Handle displayable error events - show error banner
           // AgentErrorEvent errors are displayed inline in the chat, not as banners
@@ -501,7 +504,6 @@ export function ConversationWebSocketProvider({
                 eventId: errorEvent.id,
                 errorCode: errorEvent.code,
               },
-              posthog,
             });
             setErrorMessage(errorEvent.detail, "conversation", errorEvent.code);
           } else {
@@ -519,7 +521,6 @@ export function ConversationWebSocketProvider({
                 toolName: event.tool_name,
                 toolCallId: event.tool_call_id,
               },
-              posthog,
             });
           }
 
@@ -659,7 +660,6 @@ export function ConversationWebSocketProvider({
       appendOutput,
       updateMetricsFromStats,
       handleNonErrorEvent,
-      posthog,
     ],
   );
 
@@ -683,12 +683,20 @@ export function ConversationWebSocketProvider({
 
         // Use type guard to validate v1 event structure
         if (isAgentServerEvent(event)) {
+          // Skip non-idempotent side-effects for replayed events, as in the
+          // main handler (#1656).
+          const isDuplicateEvent = useEventStore
+            .getState()
+            .eventIds.has(event.id);
           // Mark this event as coming from the planning agent
           const eventWithPlanningFlag = {
             ...event,
             isFromPlanningAgent: true,
           };
           addEvent(eventWithPlanningFlag);
+          if (isDuplicateEvent) {
+            return;
+          }
 
           // Handle displayable error events - show error banner
           // AgentErrorEvent errors are displayed inline in the chat, not as banners
@@ -703,7 +711,6 @@ export function ConversationWebSocketProvider({
                 eventId: errorEvent.id,
                 errorCode: errorEvent.code,
               },
-              posthog,
             });
             setErrorMessage(errorEvent.detail, "conversation", errorEvent.code);
           } else {
@@ -721,7 +728,6 @@ export function ConversationWebSocketProvider({
                 toolName: event.tool_name,
                 toolCallId: event.tool_call_id,
               },
-              posthog,
             });
           }
 
@@ -842,7 +848,6 @@ export function ConversationWebSocketProvider({
       setPlanContent,
       updateMetricsFromStats,
       handleNonErrorEvent,
-      posthog,
     ],
   );
 

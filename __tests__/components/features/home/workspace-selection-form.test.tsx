@@ -213,6 +213,48 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     expect(await within(menu).findByText("repo1")).toBeInTheDocument();
   });
 
+  it("renders parent-derived workspaces from all paginated folders", async () => {
+    const workspaceParent = {
+      id: "/Users/me/dev",
+      name: "dev",
+      path: "/Users/me/dev",
+    };
+    mockSearchSubdirectories.mockImplementation(
+      async (path: string, options?: { pageId?: string | null }) => {
+        if (path === workspaceParent.path && !options?.pageId) {
+          return {
+            items: [{ name: "alpha", path: "/Users/me/dev/alpha" }],
+            next_page_id: "page-2",
+          };
+        }
+        if (path === workspaceParent.path && options?.pageId === "page-2") {
+          return {
+            items: [{ name: "paper", path: "/Users/me/dev/paper" }],
+            next_page_id: null,
+          };
+        }
+        return { items: [], next_page_id: null };
+      },
+    );
+    renderForm({ workspaceParents: [workspaceParent] });
+    const user = userEvent.setup();
+
+    const menu = await openWorkspaceDropdown(user);
+
+    expect(await within(menu).findByText("alpha")).toBeInTheDocument();
+    expect(await within(menu).findByText("paper")).toBeInTheDocument();
+    expect(mockSearchSubdirectories).toHaveBeenCalledWith(
+      workspaceParent.path,
+      undefined,
+    );
+    expect(mockSearchSubdirectories).toHaveBeenCalledWith(
+      workspaceParent.path,
+      {
+        pageId: "page-2",
+      },
+    );
+  });
+
   it("restores the selected workspace after unmounting and remounting", async () => {
     const workspace = {
       id: "/Users/me/dev/repo1",
@@ -334,6 +376,52 @@ describe("WorkspaceSelectionForm (server-backed workspaces)", () => {
     expect(addSpy).toHaveBeenCalledWith([
       { id: "/Users/me/dev", name: "dev", path: "/Users/me/dev" },
     ]);
+  });
+
+  it("shows all paginated folders in the Add Workspace browser", async () => {
+    mockSearchSubdirectories.mockImplementation(
+      async (path: string, options?: { pageId?: string | null }) => {
+        if (path === "/Users/me" && !options?.pageId) {
+          return {
+            items: [{ name: "alpha", path: "/Users/me/alpha" }],
+            next_page_id: "page-2",
+          };
+        }
+        if (path === "/Users/me" && options?.pageId === "page-2") {
+          return {
+            items: [
+              { name: "paper", path: "/Users/me/paper" },
+              { name: "zeta", path: "/Users/me/zeta" },
+            ],
+            next_page_id: null,
+          };
+        }
+        return { items: [], next_page_id: null };
+      },
+    );
+    renderForm();
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByTestId("workspace-dropdown"));
+    await user.click(await screen.findByTestId("add-workspaces-button"));
+    await screen.findByTestId("folder-browser-modal");
+
+    expect(
+      await screen.findByTestId("folder-browser-entry-alpha"),
+    ).toBeVisible();
+    expect(
+      await screen.findByTestId("folder-browser-entry-paper"),
+    ).toBeVisible();
+    expect(
+      await screen.findByTestId("folder-browser-entry-zeta"),
+    ).toBeVisible();
+    expect(mockSearchSubdirectories).toHaveBeenCalledWith(
+      "/Users/me",
+      undefined,
+    );
+    expect(mockSearchSubdirectories).toHaveBeenCalledWith("/Users/me", {
+      pageId: "page-2",
+    });
   });
 
   it("handles Windows paths when browsing and adding a workspace", async () => {

@@ -7,7 +7,7 @@ import type { Backend } from "#/api/backend-registry/types";
 import type { Automation, AutomationSpec } from "#/types/automation";
 import AutomationService from "./automation-service.api";
 
-const { localAxios, axiosRequest } = vi.hoisted(() => ({
+const { localAxios, callCloudProxy } = vi.hoisted(() => ({
   localAxios: {
     interceptors: { request: { use: vi.fn() } },
     get: vi.fn(),
@@ -15,15 +15,18 @@ const { localAxios, axiosRequest } = vi.hoisted(() => ({
     patch: vi.fn(),
     delete: vi.fn(),
   },
-  axiosRequest: vi.fn(),
+  callCloudProxy: vi.fn(),
 }));
 
 vi.mock("axios", () => ({
   default: {
     create: () => localAxios,
-    request: axiosRequest,
     post: vi.fn(),
   },
+}));
+
+vi.mock("#/api/cloud/proxy", () => ({
+  callCloudProxy,
 }));
 
 const localBackend: Backend = {
@@ -68,6 +71,53 @@ const createdAutomation: Automation = {
   created_at: "2026-07-10T00:00:00Z",
   updated_at: "2026-07-10T00:00:00Z",
 };
+
+describe("AutomationService.getSdkVersion", () => {
+  beforeEach(() => {
+    setRegisteredBackends([localBackend]);
+    setActiveSelection({ backendId: localBackend.id });
+  });
+
+  afterEach(() => {
+    setActiveSelection(null);
+    setRegisteredBackends([]);
+    vi.clearAllMocks();
+  });
+
+  it("fetches the local automation SDK version from the automation sidecar", async () => {
+    localAxios.get.mockResolvedValueOnce({ data: { sdk_version: "1.36.1" } });
+
+    await expect(AutomationService.getSdkVersion()).resolves.toBe("1.36.1");
+
+    expect(localAxios.get).toHaveBeenCalledWith("/api/automation/sdk-version", {
+      timeout: 5000,
+    });
+  });
+
+  it("fetches the cloud automation SDK version through the cloud proxy", async () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id, orgId: "org-1" });
+    callCloudProxy.mockResolvedValueOnce({ sdk_version: "1.36.2" });
+
+    await expect(AutomationService.getSdkVersion()).resolves.toBe("1.36.2");
+
+    expect(callCloudProxy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        backend: cloudBackend,
+        method: "GET",
+        path: "/api/automation/sdk-version",
+        headers: { "X-Org-Id": "org-1" },
+        timeoutSeconds: 5,
+      }),
+    );
+  });
+
+  it("returns null when the SDK version endpoint is unavailable", async () => {
+    localAxios.get.mockRejectedValueOnce(new Error("not running"));
+
+    await expect(AutomationService.getSdkVersion()).resolves.toBeNull();
+  });
+});
 
 describe("AutomationService.createAutomation", () => {
   beforeEach(() => {
@@ -169,32 +219,30 @@ describe("AutomationService.createAutomation", () => {
   it("uses the selected cloud backend and organization for both requests", async () => {
     setRegisteredBackends([cloudBackend]);
     setActiveSelection({ backendId: cloudBackend.id, orgId: "org-1" });
-    axiosRequest
-      .mockResolvedValueOnce({ data: createdAutomation })
-      .mockResolvedValueOnce({
-        data: { ...createdAutomation, enabled: false },
-      });
+    callCloudProxy
+      .mockResolvedValueOnce(createdAutomation)
+      .mockResolvedValueOnce({ ...createdAutomation, enabled: false });
 
     const created = await AutomationService.createAutomation(spec);
 
-    expect(axiosRequest).toHaveBeenNthCalledWith(
+    expect(callCloudProxy).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        url: `${cloudBackend.host}/api/automation/v1/preset/plugin`,
+        backend: cloudBackend,
         method: "POST",
-        headers: expect.objectContaining({
-          Authorization: `Bearer ${cloudBackend.apiKey}`,
-          "X-Org-Id": "org-1",
-        }),
+        path: "/api/automation/v1/preset/plugin",
+        body: expect.objectContaining({ name: spec.name }),
+        headers: { "X-Org-Id": "org-1" },
       }),
     );
-    expect(axiosRequest).toHaveBeenNthCalledWith(
+    expect(callCloudProxy).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        url: `${cloudBackend.host}/api/automation/v1/created-automation`,
+        backend: cloudBackend,
         method: "PATCH",
-        data: expect.objectContaining({ enabled: false }),
-        headers: expect.objectContaining({ "X-Org-Id": "org-1" }),
+        path: "/api/automation/v1/created-automation",
+        body: expect.objectContaining({ enabled: false }),
+        headers: { "X-Org-Id": "org-1" },
       }),
     );
     expect(created.enabled).toBe(false);

@@ -1,14 +1,6 @@
 import { getAcpProvider as getClientAcpProvider } from "@openhands/typescript-client";
 import { I18nKey } from "#/i18n/declaration";
 
-/** Upstream registry fields not yet on the pinned client's exported type. */
-type ClientAcpProviderRegistry = NonNullable<
-  ReturnType<typeof getClientAcpProvider>
-> & {
-  available_models?: Array<{ id: string; label: string }>;
-  default_model?: string;
-};
-
 export type ACPProviderIcon =
   | "claude-code"
   | "codex"
@@ -95,7 +87,7 @@ export interface ACPProviderConfig {
    * ACP server — the codex CLI has no ``acp`` subcommand and exits with
    * ``Error: stdin is not a terminal`` when spawned without a TTY, which
    * silently deadlocks the agent-server's ACP handshake. Use
-   * ``@zed-industries/codex-acp`` (the Zed-shipped wrapper) instead.
+   * ``@agentclientprotocol/codex-acp`` (the codex ACP wrapper) instead.
    */
   default_command: string[];
   /**
@@ -159,7 +151,7 @@ const ACP_PROVIDER_UI: Record<
 export const ACP_PROVIDERS: ACPProviderConfig[] = Object.entries(
   ACP_PROVIDER_UI,
 ).map(([key, ui]) => {
-  const info = getClientAcpProvider(key) as ClientAcpProviderRegistry | null;
+  const info = getClientAcpProvider(key);
   return {
     key,
     display_name: info?.display_name ?? key,

@@ -16,12 +16,6 @@ vi.mock("#/hooks/query/use-is-authed", () => ({
   useIsAuthed: () => useIsAuthedMock(),
 }));
 
-vi.mock("posthog-js/react", () => ({
-  usePostHog: () => ({
-    capture: vi.fn(),
-  }),
-}));
-
 const RouterStub = createRoutesStub([
   {
     Component: DeviceVerify,

@@ -12,7 +12,7 @@ updates:
     versioning-strategy: increase
     open-pull-requests-limit: 10
     commit-message:
-      prefix: deps
+      prefix: chore
       include: scope
     labels:
       - dependencies

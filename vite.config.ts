@@ -61,6 +61,21 @@ const appBuildConfig = {
             test: /node_modules[\\/](@heroui[\\/]|tailwind-variants[\\/]|tailwind-merge[\\/]|clsx[\\/])/,
           },
           {
+            // Keep the markdown / syntax-highlight ecosystem
+            // (react-syntax-highlighter + refractor/lowlight/highlight.js and
+            // the unified/hast/mdast/micromark/vfile module tree it pulls in)
+            // in one un-size-split chunk. Same failure mode as vendor-styling
+            // above: once the file-viewer (HighlightedSourceView) is imported
+            // from a second route, the generic size-split vendor group slices
+            // this tree across chunk boundaries, so a vfile/unified module's
+            // interop `require` shim can evaluate before the chunk that defines
+            // it, throwing "TypeError: i is not a function" at module load and
+            // blanking the whole app (the shared home/conversation/files-tab
+            // chunk fails to load → route-module reload loop).
+            name: "vendor-markdown",
+            test: /node_modules[\\/](react-syntax-highlighter[\\/]|refractor[\\/]|lowlight[\\/]|highlight\.js[\\/]|hastscript[\\/]|(hast|mdast|unist|micromark|remark|rehype)[^\\/]*[\\/]|unified[\\/]|vfile[^\\/]*[\\/]|property-information[\\/]|(comma|space)-separated-tokens[\\/]|character-entities[^\\/]*[\\/]|(parse|stringify)-entities[\\/]|decode-named-character-reference[\\/]|bail[\\/]|trough[\\/]|is-plain-obj[\\/]|zwitch[\\/]|longest-streak[\\/]|ccount[\\/]|escape-string-regexp[\\/]|markdown-table[\\/]|devlop[\\/])/,
+          },
+          {
             name: "vendor",
             test: /node_modules[\\/]/,
             maxSize: APP_CHUNK_MAX_BYTES,
@@ -240,7 +255,6 @@ export default defineConfig(({ mode }) => {
         // Pre-bundle ALL dependencies to prevent runtime optimization and page reloads
         // These are discovered during initial app load:
         "posthog-js",
-        "posthog-js/react",
         "@tanstack/react-query",
         "react-hot-toast",
         "i18next",
@@ -282,6 +296,7 @@ export default defineConfig(({ mode }) => {
         // OpenHands typescript client
         "@openhands/typescript-client",
         "@openhands/typescript-client/client/http-client",
+        "@openhands/typescript-client/client/device-flow-client",
         "@openhands/typescript-client/clients",
         "@openhands/typescript-client/events/remote-events-list",
         "@openhands/typescript-client/workspace/remote-workspace",

@@ -1,5 +1,5 @@
-import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import { isAxiosError } from "axios";
+import { RemoteWorkspace } from "@openhands/typescript-client/workspace/remote-workspace";
 import { mapAnyGitStatusToClientStatus } from "#/utils/git-status-mapper";
 import { buildHttpBaseUrl } from "#/utils/websocket-url";
 import type {
@@ -97,8 +97,9 @@ async function getFromRuntime<T>(
 /**
  * The commit endpoints are newer than some deployed agent servers. A 404
  * (route absent) means "server too old" — callers hide the commits section
- * instead of surfacing an error. Local calls throw the SDK's `HttpError`;
- * cloud-proxy calls throw an `AxiosError`.
+ * instead of surfacing an error. Local calls and cloud-proxy calls (via the
+ * shared TypeScript client) both throw the SDK's `HttpError`; the axios
+ * check is kept as a safety net for axios-shaped errors.
  */
 function isEndpointMissingError(error: unknown): boolean {
   return (
