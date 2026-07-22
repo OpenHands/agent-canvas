@@ -31,7 +31,11 @@ export const COMMAND_MENU_ROUTE = {
   secretsSettings: "/settings/secrets",
 } as const;
 
-export type CommandMenuGroupId = "navigation" | "settings" | "actions";
+export type CommandMenuGroupId =
+  | "conversations"
+  | "navigation"
+  | "settings"
+  | "actions";
 export type CommandMenuItemId =
   | "new-chat"
   | "customize"
@@ -58,6 +62,7 @@ export interface CommandMenuItemDefinition {
 }
 
 export const COMMAND_MENU_GROUP_LABELS: Record<CommandMenuGroupId, I18nKey> = {
+  conversations: I18nKey.COMMAND_MENU$GROUP_CONVERSATIONS,
   navigation: I18nKey.COMMAND_MENU$GROUP_NAVIGATION,
   settings: I18nKey.COMMAND_MENU$GROUP_SETTINGS,
   actions: I18nKey.COMMAND_MENU$GROUP_ACTIONS,
@@ -68,6 +73,10 @@ export const COMMAND_MENU_GROUP_ORDER: CommandMenuGroupId[] = [
   "settings",
   "actions",
 ];
+
+/** When conversation matches are present, show them above static commands. */
+export const COMMAND_MENU_GROUP_ORDER_WITH_CONVERSATIONS: CommandMenuGroupId[] =
+  ["conversations", ...COMMAND_MENU_GROUP_ORDER];
 
 export const createCommandMenuItems = ({
   toggleSidebar,

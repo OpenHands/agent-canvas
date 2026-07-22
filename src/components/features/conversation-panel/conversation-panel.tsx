@@ -34,12 +34,6 @@ import { ConversationPanelNewThreadPicker } from "./conversation-panel-new-threa
 import { ConversationGroupFolderList } from "./conversation-group-folder-list";
 import { ConversationPanelPinnedSection } from "./conversation-panel-pinned-section";
 import { ConversationPanelSearchButton } from "./conversation-panel-search-toggle";
-import { ConversationPanelSearchModal } from "./conversation-panel-search-modal";
-import { CONVERSATION_PANEL_SEARCH_HOTKEY } from "./conversation-panel-search-constants";
-import {
-  isTypingTarget,
-  matchesPrimaryModifierShortcut,
-} from "#/utils/keyboard-shortcut";
 import {
   applyGroupFolderOrder,
   filterOutPinnedConversations,
@@ -160,7 +154,6 @@ export function ConversationPanel({
     (state) => state.setGroupFolderOrder,
   );
   const [filterMenuOpen, setFilterMenuOpen] = React.useState(false);
-  const [isSearchModalOpen, setIsSearchModalOpen] = React.useState(false);
   const [isListScrolled, setIsListScrolled] = React.useState(false);
   const filterMenuRef = useClickOutsideElement<HTMLDivElement>(() => {
     setFilterMenuOpen(false);
@@ -313,51 +306,6 @@ export function ConversationPanel({
       : recentScoped;
     return sortConversationsByField(visible, conversationSort);
   }, [recentScoped, olderScoped, showOlderConversations, conversationSort]);
-
-  const handleSearchToggle = React.useCallback(() => {
-    setIsSearchModalOpen((prev) => !prev);
-  }, []);
-
-  const handleSearchOpen = React.useCallback(() => {
-    setIsSearchModalOpen(true);
-  }, []);
-
-  const handleSearchModalClose = React.useCallback(() => {
-    setIsSearchModalOpen(false);
-  }, []);
-
-  const handleSearchResultSelect = React.useCallback(
-    (conversationId: string) => {
-      navigate(`/conversations/${conversationId}`);
-      onClose?.();
-    },
-    [navigate, onClose],
-  );
-
-  React.useEffect(() => {
-    if (compact) {
-      return undefined;
-    }
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (
-        !matchesPrimaryModifierShortcut(event, CONVERSATION_PANEL_SEARCH_HOTKEY)
-      ) {
-        return;
-      }
-
-      if (isTypingTarget(event.target)) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-      handleSearchOpen();
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [compact, handleSearchOpen]);
 
   const groupLabels = React.useMemo(
     () => ({
@@ -797,10 +745,7 @@ export function ConversationPanel({
               {t(I18nKey.SIDEBAR$CONVERSATIONS)}
             </span>
             <div className="ml-auto flex shrink-0 items-center gap-0.5">
-              <ConversationPanelSearchButton
-                isOpen={isSearchModalOpen}
-                onToggle={handleSearchToggle}
-              />
+              <ConversationPanelSearchButton />
               <ConversationPanelFilterMenu
                 filterMenuOpen={filterMenuOpen}
                 setFilterMenuOpen={setFilterMenuOpen}
@@ -992,14 +937,6 @@ export function ConversationPanel({
           }}
           onClose={() => setConfirmExitConversationModalVisible(false)}
           onCancel={() => setConfirmExitConversationModalVisible(false)}
-        />
-      )}
-
-      {!compact && (
-        <ConversationPanelSearchModal
-          isOpen={isSearchModalOpen}
-          onClose={handleSearchModalClose}
-          onSelectConversation={handleSearchResultSelect}
         />
       )}
     </div>

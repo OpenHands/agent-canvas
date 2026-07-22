@@ -34882,5 +34882,39 @@
     "de": "Kein API-Schlüssel erforderlich. Der Server übernimmt den OAuth-Fluss automatisch.",
     "uk": "Ключ API не потрібен. Сервер автоматично обробляє процес OAuth.",
     "ca": "No cal cap clau d'API. El servidor gestiona el flux d'OAuth automàticament."
+  },
+  "COMMAND_MENU$GROUP_CONVERSATIONS": {
+    "en": "Conversations",
+    "ja": "会話",
+    "zh-CN": "对话",
+    "zh-TW": "對話",
+    "ko-KR": "대화",
+    "no": "Samtaler",
+    "ar": "المحادثات",
+    "de": "Unterhaltungen",
+    "fr": "Conversations",
+    "it": "Conversazioni",
+    "pt": "Conversas",
+    "es": "Conversaciones",
+    "ca": "Converses",
+    "tr": "Sohbetler",
+    "uk": "Розмови"
+  },
+  "COMMAND_MENU$OPEN_CONVERSATION_HINT": {
+    "en": "Open",
+    "ja": "開く",
+    "zh-CN": "打开",
+    "zh-TW": "開啟",
+    "ko-KR": "열기",
+    "no": "Åpne",
+    "ar": "فتح",
+    "de": "Öffnen",
+    "fr": "Ouvrir",
+    "it": "Apri",
+    "pt": "Abrir",
+    "es": "Abrir",
+    "ca": "Obre",
+    "tr": "Aç",
+    "uk": "Відкрити"
   }
 }

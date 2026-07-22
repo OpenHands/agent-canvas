@@ -16,11 +16,12 @@ import userEvent from "@testing-library/user-event";
 import { createRoutesStub } from "react-router";
 import React from "react";
 import { renderWithProviders } from "test-utils";
+import { CommandMenu } from "#/components/features/command-menu/command-menu";
 import { ConversationPanel } from "#/components/features/conversation-panel/conversation-panel";
 import { useConversationPanelPreferencesStore } from "#/stores/conversation-panel-preferences-store";
+import { useCommandMenuStore } from "#/stores/command-menu-store";
 import { usePinnedConversationsStore } from "#/stores/pinned-conversations-store";
 import AgentServerConversationService from "#/api/conversation-service/agent-server-conversation-service.api";
-import * as searchMatchingConversationsModule from "#/api/conversation-service/search-matching-conversations";
 import { AppConversation } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { ExecutionStatus } from "#/types/agent-server/core";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
@@ -1903,123 +1904,25 @@ describe("ConversationPanel", () => {
   });
 
   describe("conversation search", () => {
-    it("opens a search modal with most recent section when toggled", async () => {
+    it("opens the command menu from the sidebar search toggle", async () => {
       const user = userEvent.setup();
-      renderConversationPanel();
+      useCommandMenuStore.setState({ isOpen: false });
+
+      renderWithProviders(
+        <>
+          <RouterStub />
+          <CommandMenu />
+        </>,
+      );
 
       await screen.findAllByTestId("conversation-card");
 
-      expect(
-        screen.queryByTestId("conversation-panel-search-modal"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByTestId("command-menu")).not.toBeInTheDocument();
 
       await user.click(screen.getByTestId("conversation-panel-search-toggle"));
 
-      expect(
-        screen.getByTestId("conversation-panel-search-modal"),
-      ).toBeInTheDocument();
-      expect(
-        within(screen.getByTestId("conversation-panel-search-modal")).getByTestId(
-          "conversation-panel-search-section-label",
-        ),
-      ).toHaveTextContent("COMMON$MOST_RECENT");
-    });
-
-    it("filters conversations via server-backed search in the modal", async () => {
-      const user = userEvent.setup();
-      const searchableConversations = [
-        createMockConversation({
-          id: "1",
-          title: "Can you review the project?",
-        }),
-        createMockConversation({
-          id: "2",
-          title: "Enable Figma design export",
-        }),
-        createMockConversation({
-          id: "99",
-          title: "Hidden figma conversation on another page",
-        }),
-      ];
-
-      vi.spyOn(
-        searchMatchingConversationsModule,
-        "searchMatchingConversations",
-      ).mockImplementation(async (query) => {
-        const trimmed = query.trim().toLowerCase();
-        if (!trimmed) {
-          return searchableConversations.slice(0, 2);
-        }
-        return searchableConversations.filter((conversation) =>
-          conversation.title?.toLowerCase().includes(trimmed),
-        );
-      });
-
-      renderConversationPanel();
-      await screen.findAllByTestId("conversation-card");
-
-      await user.click(screen.getByTestId("conversation-panel-search-toggle"));
-      await user.type(
-        screen.getByTestId("conversation-panel-search-input"),
-        "figma",
-      );
-
-      const modal = screen.getByTestId("conversation-panel-search-modal");
-      await waitFor(
-        () => {
-          const ids = within(modal)
-            .getAllByTestId("conversation-panel-search-result")
-            .map((node) => node.getAttribute("data-conversation-id"));
-          expect(ids).toContain("99");
-        },
-        { timeout: 2000 },
-      );
-    });
-
-    it("shows a no-results message in the modal when server search finds nothing", async () => {
-      const user = userEvent.setup();
-      vi.spyOn(
-        searchMatchingConversationsModule,
-        "searchMatchingConversations",
-      ).mockResolvedValue([]);
-      renderConversationPanel();
-      await screen.findAllByTestId("conversation-card");
-
-      await user.click(screen.getByTestId("conversation-panel-search-toggle"));
-      await user.type(
-        screen.getByTestId("conversation-panel-search-input"),
-        "zzzz-not-found",
-      );
-
-      const modal = screen.getByTestId("conversation-panel-search-modal");
-      await waitFor(() => {
-        expect(
-          within(modal).getByTestId("conversation-panel-search-no-results"),
-        ).toBeInTheDocument();
-      });
-      expect(
-        within(modal).queryAllByTestId("conversation-panel-search-result"),
-      ).toHaveLength(0);
-    });
-
-    it("opens the search modal with the primary modifier shortcut", async () => {
-      vi.stubGlobal("navigator", { platform: "MacIntel" });
-      renderConversationPanel();
-      await screen.findAllByTestId("conversation-card");
-
-      expect(
-        screen.queryByTestId("conversation-panel-search-modal"),
-      ).not.toBeInTheDocument();
-
-      fireEvent.keyDown(document, {
-        key: "k",
-        metaKey: true,
-        ctrlKey: false,
-      });
-
-      expect(
-        screen.getByTestId("conversation-panel-search-modal"),
-      ).toBeInTheDocument();
+      expect(await screen.findByTestId("command-menu")).toBeInTheDocument();
+      expect(useCommandMenuStore.getState().isOpen).toBe(true);
     });
   });
 });
