@@ -13,8 +13,10 @@ import type {
   MarketplaceField,
 } from "@openhands/extensions/integrations";
 import { McpLogoBadge } from "#/components/features/mcp-logo-badge";
-import { ExtendedMCPTestFailure, MCPServerConfig } from "#/types/mcp-server";
+import { MCPServerConfig } from "#/types/mcp-server";
 import type { MCPAuthCredential } from "#/types/mcp-auth";
+import { seedMcpServerHealth } from "#/api/mcp-health/probe-mcp-server-health";
+import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useAddMcpServer } from "#/hooks/mutation/use-add-mcp-server";
 import { useTestMcpServer } from "#/hooks/mutation/use-test-mcp-server";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
@@ -25,6 +27,7 @@ import {
 } from "#/utils/mcp-marketplace-utils";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import { useSaveFieldsAsSecrets } from "#/hooks/mutation/use-save-fields-as-secrets";
+import { makeMcpTestErrorMessage } from "#/utils/mcp-test-error-message";
 import { modalTitleLgClassName } from "#/utils/modal-classes";
 import McpService from "#/api/mcp-service/mcp-service.api";
 import { toMcpServerName } from "#/utils/mcp-server-name";
@@ -64,6 +67,8 @@ function renderHelperText(text: string): React.ReactNode {
 
 interface InstallServerModalProps {
   entry: MarketplaceEntry;
+  /** Servers installed before this modal opened — guards health seeding. */
+  existingServers: MCPServerConfig[];
   onClose: () => void;
   onSuccess?: (entry: MarketplaceEntry) => void;
 }
@@ -144,6 +149,7 @@ function makeInitialState(entry: MarketplaceEntry): FieldState {
 // button, which opens `CustomServerEditor` instead.
 export function InstallServerModal({
   entry,
+  existingServers,
   onClose,
   onSuccess,
 }: InstallServerModalProps) {
@@ -151,6 +157,10 @@ export function InstallServerModal({
   const { mutate: addMcpServer, isPending: isAdding } = useAddMcpServer();
   const { mutate: testMcpServer, isPending: isTesting } = useTestMcpServer();
   const saveFieldsAsSecrets = useSaveFieldsAsSecrets();
+  // Cloud backends get a synthetic test success (no local test endpoint);
+  // never seed card health from it.
+  const { backend } = useActiveBackend();
+  const isCloudBackend = backend.kind === "cloud";
 
   const [state, setState] = React.useState<FieldState>(() =>
     makeInitialState(entry),
@@ -196,6 +206,7 @@ export function InstallServerModal({
       key: secretName,
       label: option.auth.credentialLabel ?? secretName,
       type: "password",
+      required: true,
     };
     return saveFieldsAsSecrets(
       [field],
@@ -225,26 +236,15 @@ export function InstallServerModal({
     return Promise.resolve();
   };
 
-  const makeTestErrorMessage = (failure: ExtendedMCPTestFailure): string => {
-    switch (failure.error_kind) {
-      case "timeout":
-        return t(I18nKey.MCP$TEST_ERROR_TIMEOUT);
-      case "connection":
-        return t(I18nKey.MCP$TEST_ERROR_CONNECTION);
-      case "credentials":
-        return t(I18nKey.MCP$TEST_ERROR_CREDENTIALS, { error: failure.error });
-      default:
-        return t(I18nKey.MCP$TEST_ERROR_UNKNOWN, { error: failure.error });
-    }
-  };
-
   const submitServer = (payload: MCPServerConfig) => {
     if (payload.auth?.strategy === "oauth2") {
       setIsAuthorizingOAuth(true);
       void McpService.authorizeOAuth(payload)
         .then((result) => {
           if (!result.ok) {
-            setGlobalError(makeTestErrorMessage(result));
+            setGlobalError(
+              makeMcpTestErrorMessage(t, result.error_kind, result.error),
+            );
             return;
           }
           const serverToSave = result.oauth_state
@@ -255,6 +255,9 @@ export function InstallServerModal({
             : payload;
           addMcpServer(serverToSave, {
             onSuccess: () => {
+              if (!isCloudBackend) {
+                seedMcpServerHealth(serverToSave, result, existingServers);
+              }
               displaySuccessToast(t(I18nKey.MCP$INSTALL_SUCCESS));
               setIsFinalizingInstall(true);
               void (async () => {
@@ -282,7 +285,9 @@ export function InstallServerModal({
     testMcpServer(payload, {
       onSuccess: (result) => {
         if (!result.ok) {
-          setGlobalError(makeTestErrorMessage(result));
+          setGlobalError(
+            makeMcpTestErrorMessage(t, result.error_kind, result.error),
+          );
           // Modal stays open — do NOT call onClose.
           return;
         }
@@ -295,6 +300,9 @@ export function InstallServerModal({
             : payload;
         addMcpServer(serverToSave, {
           onSuccess: () => {
+            if (!isCloudBackend) {
+              seedMcpServerHealth(serverToSave, result, existingServers);
+            }
             displaySuccessToast(t(I18nKey.MCP$INSTALL_SUCCESS));
             setIsFinalizingInstall(true);
             void (async () => {

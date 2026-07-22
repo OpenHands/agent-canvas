@@ -69,7 +69,6 @@ function buildSettings(overrides: Partial<Settings> = {}): Settings {
 
 function buildConfig(): WebClientConfig {
   return {
-    posthog_client_key: null,
     feature_flags: { hide_llm_settings: false, hide_users_page: true },
     providers_configured: [],
     maintenance_start_time: null,

@@ -268,6 +268,9 @@ describe("AgentServerConversationService", () => {
         host: "http://localhost:54928",
         apiKey: "test-api-key",
         workingDir: "/workspace/project/agent-canvas",
+        // See CREATE_CONVERSATION_TIMEOUT_MS in the service module: first
+        // conversation on a cold agent-server boot exceeds the 60s default.
+        timeout: 5 * 60 * 1000,
       });
       expect(mockHttpPost).toHaveBeenCalledTimes(2);
       const [firstCall, secondCall] = mockHttpPost.mock.calls;

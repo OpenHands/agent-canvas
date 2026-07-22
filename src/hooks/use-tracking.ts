@@ -1,22 +1,70 @@
-import { usePostHog } from "posthog-js/react";
+import React from "react";
 import { useSettings } from "./query/use-settings";
 import { Provider } from "#/types/settings";
 import type { BackendKind } from "#/api/backend-registry/types";
 import type { WorkspaceMode } from "#/api/conversation-metadata-store";
 import type { CloudConnectionSource } from "#/services/cloud-funnel-analytics";
+import { getCachedAgentServerVersion } from "#/api/agent-server-compatibility";
+import { useActiveBackend } from "#/contexts/active-backend-context";
+import AutomationService from "#/api/automation-service/automation-service.api";
+import { getBackendTelemetryProperties } from "#/services/telemetry-context";
+import { setTelemetryBackendContext, trackEvent } from "#/services/telemetry";
 
 /**
  * Hook that provides tracking functions with automatic data collection
  * from available hooks (settings, etc.)
  *
- * All events require explicit user consent (user_consents_to_analytics === true).
- * Events are silently dropped when:
- *  - posthog is not initialized (VITE_POSTHOG_CLIENT_KEY not set)
- *  - user_consents_to_analytics is false or null (consent not yet collected)
+ * All events require explicit user consent. The shared PostHog client enforces
+ * the canonical consent configured by telemetry.ts; this hook must not gate on
+ * backend settings because they can be stale while a backend changes.
  */
 export const useTracking = () => {
-  const posthog = usePostHog();
   const { data: settings } = useSettings();
+  const activeBackend = useActiveBackend();
+  const { backend } = activeBackend;
+  const [automationSdkVersion, setAutomationSdkVersion] = React.useState<
+    string | null
+  >(null);
+
+  React.useEffect(() => {
+    if (typeof AutomationService.getSdkVersion !== "function") {
+      setAutomationSdkVersion(null);
+      return undefined;
+    }
+
+    let isMounted = true;
+    setAutomationSdkVersion(null);
+    void AutomationService.getSdkVersion().then((version) => {
+      if (isMounted) {
+        setAutomationSdkVersion(version);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [
+    activeBackend.orgId,
+    backend.apiKey,
+    backend.host,
+    backend.id,
+    backend.kind,
+  ]);
+
+  const getBackendTelemetryContext = React.useCallback(
+    () => ({
+      backendKind: backend.kind,
+      agentServerVersion:
+        backend.kind === "local"
+          ? getCachedAgentServerVersion(backend.host)
+          : null,
+      automationSdkVersion: automationSdkVersion ?? null,
+    }),
+    [automationSdkVersion, backend.host, backend.kind],
+  );
+
+  React.useEffect(() => {
+    setTelemetryBackendContext(getBackendTelemetryContext());
+  }, [getBackendTelemetryContext]);
 
   // Common properties included in all tracking events
   const commonProperties = {
@@ -25,12 +73,13 @@ export const useTracking = () => {
   };
 
   /**
-   * Capture an event only when PostHog is available and the user has
-   * explicitly consented. null and false are both treated as "not consented".
+   * PostHog enforces the canonical consent state configured by telemetry.ts.
+   * Backend settings are not a capture gate because they can be stale while a
+   * backend is being added or switched.
    */
   const track = (event: string, properties: Record<string, unknown> = {}) => {
-    if (!posthog || settings?.user_consents_to_analytics !== true) return;
-    posthog.capture(event, { ...properties, ...commonProperties });
+    setTelemetryBackendContext(getBackendTelemetryContext());
+    void trackEvent(event, { ...commonProperties, ...properties });
   };
 
   const trackLoginButtonClick = ({ provider }: { provider: Provider }) => {
@@ -242,23 +291,25 @@ export const useTracking = () => {
   const trackBackendAdded = ({
     backendKind,
     connectionMethod,
-    isOpenhandsCloud,
-    isCustomHost,
     hasApiKey,
     source,
+    agentServerVersion,
+    backendVersion,
   }: {
     backendKind: BackendKind;
     connectionMethod: "manual" | "cloud_login";
-    isOpenhandsCloud: boolean;
-    isCustomHost: boolean;
     hasApiKey: boolean;
     source?: CloudConnectionSource;
+    agentServerVersion?: string | null;
+    backendVersion?: string | null;
   }) => {
     track("backend_added", {
-      backend_kind: backendKind,
-      connection_method: connectionMethod,
-      is_openhands_cloud: isOpenhandsCloud,
-      is_custom_host: isCustomHost,
+      ...getBackendTelemetryProperties({
+        backendKind,
+        agentServerVersion,
+        backendVersion,
+        connectionMethod,
+      }),
       has_api_key: hasApiKey,
       source,
     });

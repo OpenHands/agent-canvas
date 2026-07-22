@@ -18,7 +18,7 @@ import {
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
-import { trackCanvasBackendAdded } from "#/services/cloud-funnel-analytics";
+import { useTracking } from "#/hooks/use-tracking";
 import { I18nKey } from "#/i18n/declaration";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { cn } from "#/utils/utils";
@@ -121,6 +121,7 @@ export function CheckBackendStep({
   const { t } = useTranslation("openhands");
   const { active, addBackend, setActive, updateBackend } =
     useActiveBackendContext();
+  const { trackBackendAdded } = useTracking();
   const { backend } = active;
   const noBackendSelected = isNoBackend(backend);
   const lockedCloudHost = getLockedCloudHost();
@@ -190,10 +191,9 @@ export function CheckBackendStep({
           setActive(backend.id, null);
         }
       }
-      trackCanvasBackendAdded({
+      trackBackendAdded({
         backendKind: payload.kind,
         connectionMethod,
-        host: payload.host,
         hasApiKey: Boolean(payload.apiKey),
         source: "onboarding",
       });
@@ -218,6 +218,7 @@ export function CheckBackendStep({
       onClose,
       onNext,
       setActive,
+      trackBackendAdded,
       updateBackend,
     ],
   );

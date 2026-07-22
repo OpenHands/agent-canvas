@@ -22,6 +22,8 @@ import {
   buildViteBackendEnv,
   getFrontendBackend,
   getLocalServiceRoutes,
+  setServiceLogListener,
+  spawnService,
   DEFAULT_AUTOMATION_REPO,
   DEFAULT_AUTOMATION_PACKAGE,
   DEFAULT_AUTOMATION_VERSION,
@@ -495,6 +497,95 @@ describe("default constants", () => {
 
   it("has expected default automation port", () => {
     expect(DEFAULT_AUTOMATION_PORT).toBe(18001);
+  });
+});
+
+describe("setServiceLogListener", () => {
+  afterEach(() => {
+    // Always clear the listener so it doesn't leak between tests.
+    setServiceLogListener(null);
+  });
+
+  it("forwards stdout, stderr, and exit lines to the listener", async () => {
+    const captured: Array<{ name: string; line: string; level: string }> = [];
+    setServiceLogListener((name: string, line: string, level: string) => {
+      captured.push({ name, line, level });
+    });
+
+    // Spawn a tiny inline script that writes to stdout, stderr, and exits
+    // non-zero so we exercise all three log paths. `process.execPath` is
+    // the same Node binary running the test so this is portable.
+    const proc = spawnService(
+      "log-listener-test",
+      process.execPath,
+      [
+        "-e",
+        // Use double-quoted JS to avoid shell quoting differences.
+        'process.stdout.write("hello-stdout\\n"); process.stderr.write("hello-stderr\\n"); process.exit(2);',
+      ],
+      {},
+    );
+
+    await once(proc, "exit");
+    // Give the stdout/stderr 'data' handlers and the exit handler a tick to
+    // run after the process has actually exited.
+    await delay(50);
+
+    const lines = captured.map((c) => `${c.level}:${c.line}`);
+    expect(lines).toContain("stdout:hello-stdout");
+    expect(lines).toContain("stderr:hello-stderr");
+    expect(lines).toContain("error:exited with code 2");
+
+    // Every captured line must be tagged with our service name.
+    expect(captured.every((c) => c.name === "log-listener-test")).toBe(true);
+  });
+
+  it("is a no-op once the listener is cleared", async () => {
+    const captured: string[] = [];
+    setServiceLogListener((_n: string, line: string) => captured.push(line));
+    setServiceLogListener(null);
+
+    const proc = spawnService(
+      "log-listener-clear-test",
+      process.execPath,
+      ["-e", 'process.stdout.write("should-not-be-seen\\n");'],
+      {},
+    );
+
+    await once(proc, "exit");
+    await delay(50);
+
+    expect(captured).toHaveLength(0);
+  });
+
+  it("ignores non-function values without throwing", () => {
+    // Passing anything that isn't a function (undefined, null, a string) must
+    // be safe — main() relies on this so it can always call
+    // setServiceLogListener(onServiceLog) regardless of whether the embedder
+    // supplied a callback.
+    expect(() => setServiceLogListener(undefined)).not.toThrow();
+    expect(() => setServiceLogListener(null)).not.toThrow();
+    expect(() => setServiceLogListener("not a function")).not.toThrow();
+  });
+
+  it("swallows errors thrown by the listener so a buggy embedder cannot kill the dev stack", async () => {
+    // A listener that throws on every call must not propagate; the stdout
+    // handler in spawnService is fire-and-forget. We can't easily observe
+    // an unhandled rejection from within Vitest, but if we can run a process
+    // to completion without the test failing, the catch is doing its job.
+    setServiceLogListener(() => {
+      throw new Error("buggy listener");
+    });
+
+    const proc = spawnService(
+      "log-listener-throws-test",
+      process.execPath,
+      ["-e", 'process.stdout.write("line\\n"); process.exit(0);'],
+      {},
+    );
+
+    const [code] = await once(proc, "exit");
+    expect(code).toBe(0);
   });
 });
 

@@ -69,7 +69,6 @@ describe("settings route", () => {
 
   it("redirects hidden OSS settings pages to the first available route", async () => {
     vi.spyOn(OptionService, "getConfig").mockResolvedValue({
-      posthog_client_key: null,
       feature_flags: {
         hide_llm_settings: true,
         hide_users_page: true,
@@ -94,7 +93,6 @@ describe("settings route", () => {
 
   it("does not redirect unrelated removed nested paths through the settings loader", async () => {
     vi.spyOn(OptionService, "getConfig").mockResolvedValue({
-      posthog_client_key: null,
       feature_flags: {
         hide_llm_settings: false,
         hide_users_page: true,
@@ -146,7 +144,6 @@ describe("settings route", () => {
 
   it("redirects to /settings/agents when ACP is active and the path is disabled-by-ACP", async () => {
     vi.spyOn(OptionService, "getConfig").mockResolvedValue({
-      posthog_client_key: null,
       feature_flags: {
         hide_llm_settings: false,
         hide_users_page: true,
@@ -179,7 +176,6 @@ describe("settings route", () => {
 
   it("does not redirect when the active agent is OpenHands", async () => {
     vi.spyOn(OptionService, "getConfig").mockResolvedValue({
-      posthog_client_key: null,
       feature_flags: {
         hide_llm_settings: false,
         hide_users_page: true,

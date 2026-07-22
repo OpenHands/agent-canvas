@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { OpenHandsEvent } from "#/types/agent-server/core";
 import {
   handleEventForUI,
+  isSameStreamingSender,
   mergeStreamingDeltaEvent,
 } from "#/utils/handle-event-for-ui";
 import { isStreamingDeltaEvent } from "#/types/agent-server/type-guards";
@@ -105,7 +106,8 @@ const appendEvent = (state: EventState, event: OHEvent): EventState => {
   const shouldMergeStreamingDelta =
     lastEvent &&
     isStreamingDeltaEvent(event) &&
-    isStreamingDeltaEvent(lastEvent);
+    isStreamingDeltaEvent(lastEvent) &&
+    isSameStreamingSender(event, lastEvent);
   const events = [...state.events];
   if (shouldMergeStreamingDelta) {
     events[lastEventIndex] = mergeStreamingDeltaEvent(event, lastEvent);
@@ -173,7 +175,8 @@ export const useEventStore = create<EventState>()((set) => ({
           if (
             lastEvent &&
             isStreamingDeltaEvent(event) &&
-            isStreamingDeltaEvent(lastEvent)
+            isStreamingDeltaEvent(lastEvent) &&
+            isSameStreamingSender(event, lastEvent)
           ) {
             events[lastEventIndex] = mergeStreamingDeltaEvent(event, lastEvent);
           } else {

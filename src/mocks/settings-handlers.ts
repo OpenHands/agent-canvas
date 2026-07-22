@@ -50,7 +50,6 @@ const DEFAULT_MODEL =
 export const createMockWebClientConfig = (
   overrides: Partial<WebClientConfig> = {},
 ): WebClientConfig => ({
-  posthog_client_key: "test-posthog-key",
   feature_flags: {
     hide_llm_settings: false,
     hide_users_page: false,
@@ -905,7 +904,6 @@ export const SETTINGS_HANDLERS = [
 
   http.get("*/api/v1/web-client/config", () => {
     const config: WebClientConfig = {
-      posthog_client_key: "fake-posthog-client-key",
       feature_flags: {
         hide_llm_settings: false,
         hide_users_page: false,
