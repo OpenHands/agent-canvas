@@ -605,7 +605,7 @@ When adding code that needs a new string, decide up front which rule it falls un
 
 - Spec files live under `specs/`. Spec IDs are stable — never renumber. Mark deprecated specs with ~~strikethrough~~. Tag implementation code and tests with `// @spec BM-002 — Short title` comments so specs are grep-able across the codebase (`grep -rn '@spec BM-' src/ __tests__/`). Place the comment on the line immediately above the relevant code block or test. When multiple tests cover the same spec, use `it.each` if the test structure is identical.
 
-- Release automation is trunk-based through release-please. Follow `.agents/skills/release.md` for the current process rather than duplicating release workflow details here.
+- Release automation is trunk-based through release-please. Follow `.agents/skills/release.md` for the current process.
 
 - Electron desktop app (`npm run desktop` for dev / `npm run build:desktop` for the binary) starts the same stack as `dev-with-automation.mjs` but inside an Electron BrowserWindow. Two gotchas live here:
 
