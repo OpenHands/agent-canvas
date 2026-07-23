@@ -222,6 +222,7 @@ describe("useSettingsNavItems", () => {
     const condenser = result.current.find(
       (r) => r.type === "item" && r.item.to === "/settings/condenser",
     );
+    expect(condenser?.type).toBe("item");
     if (condenser?.type === "item") {
       expect(condenser.disabledAgentName).toBe("ACP Agent");
     }
