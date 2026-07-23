@@ -154,13 +154,6 @@ export type Settings = {
   enable_default_condenser: boolean;
   condenser_max_size: number | null;
   enable_sound_notifications: boolean;
-  /**
-   * Opt-in persistent agent memory (SDK `AgentContext.load_memory`): new
-   * conversations load `.openhands/memory/MEMORY.md` indexes into the system
-   * prompt and the agent maintains them. Persisted as an app preference under
-   * `misc_settings.app_preferences`.
-   */
-  enable_persistent_memory: boolean;
   enable_proactive_conversation_starters: boolean;
   enable_solvability_analysis: boolean;
   user_consents_to_analytics: boolean | null;

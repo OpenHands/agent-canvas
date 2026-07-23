@@ -474,9 +474,18 @@ describe("buildStartConversationRequest", () => {
     });
   });
 
-  it("sets agent_context.load_memory when the persistent-memory preference is enabled", () => {
+  it("passes a stored agent_context.load_memory through to the start payload", () => {
+    // The persistent-memory toggle persists into
+    // ``agent_settings.agent_context.load_memory``; buildAgentContext spreads
+    // the stored context, so the flag needs no dedicated adapter wiring.
     const payload = buildStartConversationRequest({
-      settings: { ...DEFAULT_SETTINGS, enable_persistent_memory: true },
+      settings: {
+        ...DEFAULT_SETTINGS,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          agent_context: { load_memory: true },
+        },
+      },
     }) as {
       agent_settings: { agent_context: Record<string, unknown> };
     };
@@ -484,16 +493,16 @@ describe("buildStartConversationRequest", () => {
     expect(payload.agent_settings.agent_context.load_memory).toBe(true);
   });
 
-  it("sets agent_context.load_memory for ACP agents when the preference is enabled", () => {
+  it("passes a stored agent_context.load_memory through for ACP agents", () => {
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
-        enable_persistent_memory: true,
         agent_settings: {
           ...DEFAULT_SETTINGS.agent_settings,
           agent_kind: "acp",
           acp_server: "claude-code",
           acp_command: ["npx", "-y", "@agentclientprotocol/claude-agent-acp"],
+          agent_context: { load_memory: true },
         },
       },
     }) as {

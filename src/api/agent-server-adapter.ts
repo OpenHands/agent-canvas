@@ -630,10 +630,7 @@ function buildBundledSkills(): BundledSkill[] {
   });
 }
 
-function buildAgentContext(
-  agentSettings: SettingsRecord,
-  options: { loadMemory?: boolean } = {},
-): SettingsRecord {
+function buildAgentContext(agentSettings: SettingsRecord): SettingsRecord {
   const runtimeServicesSuffix = buildRuntimeServicesSystemSuffix();
   const existingContext = toRecord(agentSettings.agent_context);
 
@@ -659,10 +656,6 @@ function buildAgentContext(
     load_public_skills: false,
     load_user_skills: true,
     load_project_skills: true,
-    // Opt-in persistent memory (SDK AgentContext.load_memory). Emitted only
-    // when the app preference is on so un-opted payloads stay byte-identical;
-    // servers predating the SDK field silently ignore the key.
-    ...(options.loadMemory ? { load_memory: true } : {}),
     ...(runtimeServicesSuffix
       ? { system_message_suffix: runtimeServicesSuffix }
       : {}),
@@ -702,9 +695,7 @@ function buildConfiguredAcpAgentSettings(
   const agentSettings = toRecord(settings.agent_settings);
   const payload: AgentSettingsPayload = {
     agent_kind: "acp",
-    agent_context: buildAgentContext(agentSettings, {
-      loadMemory: settings.enable_persistent_memory === true,
-    }),
+    agent_context: buildAgentContext(agentSettings),
   };
 
   // TODO(#1019): set ``acp_isolate_data_dir: true`` here for a containerized
@@ -815,9 +806,7 @@ function buildConfiguredOpenHandsAgentSettings(
   return {
     ...agentSettings,
     llm,
-    agent_context: buildAgentContext(agentSettings, {
-      loadMemory: settings.enable_persistent_memory === true,
-    }),
+    agent_context: buildAgentContext(agentSettings),
     tools: getAgentTools(agentSettings),
   };
 }
@@ -951,8 +940,9 @@ export function buildStartConversationRequest(
     //
     // Enrichment boundary: on the profile path the server rebuilds the agent
     // purely from the stored profile fields, so the client-owned enrichments
-    // this adapter folds into ``agent_settings`` do NOT apply (including
-    // ``agent_context.load_memory`` from the persistent-memory preference).
+    // this adapter folds into ``agent_settings`` do NOT apply — nor does the
+    // stored ``agent_settings.agent_context`` (profiles have no
+    // ``agent_context`` field, so ``load_memory`` is inline-launch only).
     // The exec toolset
     // (terminal/file_editor/task_tracker) and public-skill loading are the
     // server/SDK's responsibility to restore on the profile path — tracked in

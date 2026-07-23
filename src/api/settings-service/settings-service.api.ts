@@ -25,7 +25,6 @@ export const APP_PREFERENCE_FIELDS = [
   "language",
   "user_consents_to_analytics",
   "enable_sound_notifications",
-  "enable_persistent_memory",
   "git_user_name",
   "git_user_email",
   "disabled_skills",

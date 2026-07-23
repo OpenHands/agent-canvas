@@ -60,44 +60,6 @@ describe("AppSettingsScreen", () => {
     expect(screen.getByTestId("git-user-email-input")).toHaveValue(
       "octocat@example.com",
     );
-    // Persistent memory is opt-in and defaults to off.
-    expect(
-      screen.getByTestId("enable-persistent-memory-switch"),
-    ).not.toBeChecked();
-  });
-
-  it("renders the persistent-memory switch on when the preference is set", async () => {
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
-      buildSettings({ enable_persistent_memory: true }),
-    );
-
-    renderAppSettingsScreen();
-
-    expect(
-      await screen.findByTestId("enable-persistent-memory-switch"),
-    ).toBeChecked();
-  });
-
-  it("saves the persistent-memory preference when toggled", async () => {
-    const saveSettingsSpy = vi
-      .spyOn(SettingsService, "saveSettings")
-      .mockResolvedValue(true);
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
-
-    renderAppSettingsScreen();
-
-    const user = userEvent.setup();
-    const memorySwitch = await screen.findByTestId(
-      "enable-persistent-memory-switch",
-    );
-    await user.click(memorySwitch.closest("label")!);
-    await user.click(screen.getByTestId("submit-button"));
-
-    await waitFor(() => {
-      expect(saveSettingsSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ enable_persistent_memory: true }),
-      );
-    });
   });
 
   it("saves updated git author details in OSS mode", async () => {

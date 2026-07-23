@@ -1,4 +1,4 @@
-import { AppWindow, Shield } from "lucide-react";
+import { AppWindow, Brain, Shield } from "lucide-react";
 import KeyIcon from "#/icons/key.svg?react";
 import MemoryIcon from "#/icons/memory_icon.svg?react";
 import CircuitIcon from "#/icons/u-circuit.svg?react";
@@ -43,6 +43,15 @@ export const OSS_NAV_ITEMS: SettingsNavItem[] = [
     text: "SETTINGS$NAV_CONDENSER",
     subtitle: "SETTINGS$PAGE_CONDENSER_SUBLINE",
     disabledByAcp: true,
+  },
+  {
+    // Persistent agent memory (SDK ``agent_context.load_memory``). Not
+    // ``disabledByAcp``: the stored flag rides the shared agent_settings
+    // record into ACP conversations too.
+    icon: <Brain className="size-4" strokeWidth={2} aria-hidden />,
+    to: "/settings/memory",
+    text: "SETTINGS$NAV_MEMORY",
+    subtitle: "SETTINGS$PAGE_MEMORY_SUBLINE",
   },
   {
     icon: <Shield className="size-4" strokeWidth={2} aria-hidden />,

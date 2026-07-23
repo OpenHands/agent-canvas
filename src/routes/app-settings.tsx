@@ -32,10 +32,6 @@ export function AppSettingsScreen() {
     soundNotificationsSwitchHasChanged,
     setSoundNotificationsSwitchHasChanged,
   ] = React.useState(false);
-  const [
-    persistentMemorySwitchHasChanged,
-    setPersistentMemorySwitchHasChanged,
-  ] = React.useState(false);
   const [gitUserNameHasChanged, setGitUserNameHasChanged] =
     React.useState(false);
   const [gitUserEmailHasChanged, setGitUserEmailHasChanged] =
@@ -52,8 +48,6 @@ export function AppSettingsScreen() {
       formData.get("enable-analytics-switch")?.toString() === "on";
     const enableSoundNotifications =
       formData.get("enable-sound-notifications-switch")?.toString() === "on";
-    const enablePersistentMemory =
-      formData.get("enable-persistent-memory-switch")?.toString() === "on";
 
     const gitUserName =
       formData.get("git-user-name-input")?.toString() ||
@@ -67,7 +61,6 @@ export function AppSettingsScreen() {
         language,
         user_consents_to_analytics: enableAnalytics,
         enable_sound_notifications: enableSoundNotifications,
-        enable_persistent_memory: enablePersistentMemory,
         git_user_name: gitUserName,
         git_user_email: gitUserEmail,
       },
@@ -84,7 +77,6 @@ export function AppSettingsScreen() {
           setLanguageInputHasChanged(false);
           setAnalyticsSwitchHasChanged(false);
           setSoundNotificationsSwitchHasChanged(false);
-          setPersistentMemorySwitchHasChanged(false);
           setGitUserNameHasChanged(false);
           setGitUserEmailHasChanged(false);
         },
@@ -116,11 +108,6 @@ export function AppSettingsScreen() {
     );
   };
 
-  const checkIfPersistentMemorySwitchHasChanged = (checked: boolean) => {
-    const currentPersistentMemory = !!settings?.enable_persistent_memory;
-    setPersistentMemorySwitchHasChanged(checked !== currentPersistentMemory);
-  };
-
   const checkIfGitUserNameHasChanged = (value: string) => {
     const currentValue = settings?.git_user_name;
     setGitUserNameHasChanged(value !== currentValue);
@@ -135,7 +122,6 @@ export function AppSettingsScreen() {
     !languageInputHasChanged &&
     !analyticsSwitchHasChanged &&
     !soundNotificationsSwitchHasChanged &&
-    !persistentMemorySwitchHasChanged &&
     !gitUserNameHasChanged &&
     !gitUserEmailHasChanged;
 
@@ -175,21 +161,6 @@ export function AppSettingsScreen() {
           >
             {t(I18nKey.SETTINGS$SOUND_NOTIFICATIONS)}
           </SettingsSwitch>
-
-          <div className="flex flex-col gap-1">
-            <SettingsSwitch
-              testId="enable-persistent-memory-switch"
-              name="enable-persistent-memory-switch"
-              defaultIsToggled={!!settings.enable_persistent_memory}
-              onToggle={checkIfPersistentMemorySwitchHasChanged}
-              isBeta
-            >
-              {t(I18nKey.SETTINGS$PERSISTENT_MEMORY)}
-            </SettingsSwitch>
-            <p className="pl-12 text-xs leading-5 text-tertiary-light">
-              {t(I18nKey.SETTINGS$PERSISTENT_MEMORY_DESCRIPTION)}
-            </p>
-          </div>
 
           <div className="border-t border-[var(--oh-border)] pt-6 mt-2">
             <h3 className="text-lg font-medium mb-2">
