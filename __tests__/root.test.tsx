@@ -11,6 +11,8 @@ import { ONBOARDING_COMPLETED_STORAGE_KEY } from "#/components/features/onboardi
 
 const TRANSLATIONS: Record<string, string> = {
   BACKEND$MANAGE_TITLE: "Manage backends",
+  BACKEND$RECONNECT_CLOUD_TITLE: "Reconnect to Cloud",
+  BACKEND$RECONNECT_CLOUD: "Reconnect to Cloud",
   BACKEND$MANAGE_EMPTY: "No backends yet.",
   BACKEND$ADD: "+ Add Backend",
   BACKEND$LOG_BACK_IN: "Log back in",
@@ -557,6 +559,49 @@ describe("App root agent-server availability guard", () => {
     expect(
       screen.getByRole("button", { name: "Log back in" }),
     ).toBeInTheDocument();
+    expect(screen.queryByTestId("app-outlet")).not.toBeInTheDocument();
+  });
+
+  it("shows locked Cloud reconnect recovery without add-backend controls", async () => {
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
+    const cloudBackend = {
+      id: "cloud-expired",
+      name: "OpenHands Cloud",
+      host: "https://app.all-hands.dev",
+      apiKey: "expired-token",
+      kind: "cloud",
+    };
+    window.localStorage.setItem(
+      "openhands-backends",
+      JSON.stringify([cloudBackend]),
+    );
+    window.localStorage.setItem(
+      "openhands-active-backend",
+      JSON.stringify({ backendId: cloudBackend.id, orgId: null }),
+    );
+    window.sessionStorage.setItem(
+      "openhands-active-backend",
+      JSON.stringify({ backendId: cloudBackend.id, orgId: null }),
+    );
+    window.localStorage.setItem(ONBOARDING_COMPLETED_STORAGE_KEY, "1");
+    __resetActiveStoreForTests();
+    server.use(
+      http.get("https://app.all-hands.dev/api/keys/current", () =>
+        HttpResponse.json({ detail: "NoCredentialsError" }, { status: 401 }),
+      ),
+    );
+
+    renderApp(["/"]);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Reconnect to Cloud" }),
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("manage-backends-add")).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("manage-backends-reconnect-cloud-login-button"),
+    ).toHaveTextContent("Reconnect to Cloud");
     expect(screen.queryByTestId("app-outlet")).not.toBeInTheDocument();
   });
 

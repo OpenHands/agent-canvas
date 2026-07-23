@@ -616,6 +616,20 @@ describe("BackendSelector", () => {
     });
   });
 
+  it("hides add-backend footer action when locked to Cloud", async () => {
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
+
+    renderWithProviders(<BackendSelector />);
+
+    await openDropdown();
+    expect(
+      screen.queryByTestId("add-backend-menu-item"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("manage-backends-menu-item")).toHaveTextContent(
+      "BACKEND$RECONNECT_CLOUD",
+    );
+  });
+
   it("includes the seeded default Local backend in the manage backends modal as a removable entry", async () => {
     renderWithProviders(<BackendSelector />);
 

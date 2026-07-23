@@ -91,29 +91,39 @@ export class SecretsService {
   }
 
   /**
-   * Update a secret's value and/or description.
-   * Uses the same upsert endpoint as createSecret since agent-server
-   * doesn't have a separate update endpoint.
+   * Update a secret's name and/or description while preserving its value.
+   * The agent-server only exposes an upsert endpoint, so we fetch the
+   * existing value and re-upsert it under the updated name/description.
    *
-   * @param name - Secret name (used as identifier)
-   * @param value - New secret value
+   * @param secretToEdit - Existing secret name
+   * @param name - New (or same) secret name
    * @param description - Optional new description
    * @throws Error if the API call fails after retries
    */
   static async updateSecret(
+    secretToEdit: string,
     name: string,
-    value: string,
     description?: string,
   ): Promise<void> {
     if (getActiveBackend().backend.kind === "cloud") {
-      // The cloud PUT endpoint renames + redescribes only (no value field),
-      // matching what `useUpdateSecret` actually sends:
-      // (secretToEdit=name, newName=value, description).
-      await withRetry(() => updateCloudSecret(name, value, description));
+      await withRetry(() => updateCloudSecret(secretToEdit, name, description));
       return;
     }
-    // Agent-server uses upsert, so update is the same as create
-    await this.createSecret(name, value, description);
+
+    const client = new SettingsClient(getAgentServerClientOptions());
+    const value = await withRetry(() => client.getSecret(secretToEdit));
+
+    await withRetry(() =>
+      client.upsertSecret({
+        name,
+        value,
+        description,
+      }),
+    );
+
+    if (name !== secretToEdit) {
+      await this.deleteSecret(secretToEdit);
+    }
   }
 
   /**
