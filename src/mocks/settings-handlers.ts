@@ -362,7 +362,7 @@ const MOCK_AGENT_SETTINGS_SCHEMA: NonNullable<
           default: false,
           choices: [],
           depends_on: [],
-          prominence: "critical",
+          prominence: "major",
           secret: false,
           required: false,
         },

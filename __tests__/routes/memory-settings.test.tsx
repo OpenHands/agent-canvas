@@ -93,6 +93,24 @@ describe("MemorySettingsScreen", () => {
     );
   });
 
+  it("shows the toggle without a dead Basic tab (major-only section)", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
+
+    renderMemorySettingsScreen();
+
+    await screen.findByTestId("memory-settings-screen");
+
+    // The section's only field is major-prominence: the page floors its
+    // initial view at "advanced" and hides the view toggle entirely (a
+    // Basic tab would render an empty page).
+    expect(
+      screen.getByTestId("sdk-settings-agent_context.load_memory"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("sdk-section-basic-toggle"),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows the schema-unavailable state when the server does not expose the section", async () => {
     const schemaWithoutMemory = structuredClone(
       MOCK_DEFAULT_USER_SETTINGS.agent_settings_schema!,
