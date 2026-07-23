@@ -54,7 +54,7 @@ const POSTHOG_INSTANCE_NAME = "agent-canvas";
 // VITE_POSTHOG_API_KEY explicitly for both the app and library artifacts.
 const DEFAULT_POSTHOG_API_KEY: string =
   (import.meta.env.VITE_POSTHOG_API_KEY as string | undefined) ||
-  defaults.telemetry.posthogStagingKey;
+  defaults.telemetry.posthogApiKey;
 
 // Default to OpenHands' reverse proxy to bypass ad blockers.
 // The proxy at z.openhands.dev routes to PostHog's US region.

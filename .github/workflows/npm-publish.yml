@@ -72,6 +72,21 @@ jobs:
           VITE_POSTHOG_API_KEY: ${{ vars.POSTHOG_PROD_KEY }}
         run: npm run build:lib
 
+      - name: Bake package telemetry defaults
+        env:
+          # The CLI launcher runs after install, so it cannot read the build-time
+          # Vite env baked into the browser bundle. Store the public production
+          # key in the packaged defaults used by bin/agent-canvas.mjs.
+          POSTHOG_API_KEY: ${{ vars.POSTHOG_PROD_KEY }}
+        run: |
+          node -e '
+            const fs = require("fs");
+            const path = "config/defaults.json";
+            const defaults = JSON.parse(fs.readFileSync(path, "utf8"));
+            defaults.telemetry.posthogApiKey = process.env.POSTHOG_API_KEY;
+            fs.writeFileSync(path, `${JSON.stringify(defaults, null, 2)}\n`);
+          '
+
       - name: Verify package contents
         run: npm pack --dry-run
 
