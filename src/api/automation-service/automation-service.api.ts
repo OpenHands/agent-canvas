@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getTelemetryDistinctId } from "#/services/telemetry";
 import type {
   Automation,
   AutomationRun,
@@ -14,6 +15,10 @@ import {
 } from "../backend-registry/active-store";
 import { NoBackendAvailableError } from "../agent-server-client-options";
 import { callCloudProxy } from "../cloud/proxy";
+import {
+  AGENT_CANVAS_CLIENT_HEADERS,
+  OPENHANDS_TELEMETRY_DISTINCT_ID_HEADER,
+} from "../client-source";
 
 const AUTOMATION_BASE_PATH = "/api/automation";
 
@@ -35,7 +40,25 @@ type AutomationSdkVersionResponse =
 // header for consistency.
 const localAutomationAxios = axios.create();
 
-localAutomationAxios.interceptors.request.use((config) => {
+async function buildAutomationRequestHeaders(
+  extraHeaders: Record<string, string> = {},
+): Promise<Record<string, string>> {
+  const telemetryDistinctId = await getTelemetryDistinctId();
+  return {
+    ...AGENT_CANVAS_CLIENT_HEADERS,
+    ...(telemetryDistinctId
+      ? { [OPENHANDS_TELEMETRY_DISTINCT_ID_HEADER]: telemetryDistinctId }
+      : {}),
+    ...extraHeaders,
+  };
+}
+
+localAutomationAxios.interceptors.request.use(async (config) => {
+  const requestHeaders = await buildAutomationRequestHeaders();
+  Object.entries(requestHeaders).forEach(([name, value]) => {
+    config.headers.set(name, value);
+  });
+
   // Import uses an explicit baseURL/header pair so its POST, PATCH, and
   // cleanup stay pinned to the backend selected when the mutation started.
   if (config.baseURL) return config;
@@ -151,16 +174,20 @@ function buildCreateAutomationRequest(spec: AutomationSpec) {
   };
 }
 
-function buildPinnedLocalConfig(backend: Backend) {
+async function buildPinnedLocalConfig(backend: Backend) {
   const apiKey = backend.apiKey.trim();
   return {
     baseURL: backend.host,
-    ...(apiKey && { headers: { "X-Session-API-Key": apiKey } }),
+    headers: await buildAutomationRequestHeaders(
+      apiKey ? { "X-Session-API-Key": apiKey } : {},
+    ),
   };
 }
 
-function buildPinnedCloudHeaders(active: ResolvedActiveBackend) {
-  return active.orgId ? { "X-Org-Id": active.orgId } : undefined;
+async function buildPinnedCloudHeaders(active: ResolvedActiveBackend) {
+  return buildAutomationRequestHeaders(
+    active.orgId ? { "X-Org-Id": active.orgId } : {},
+  );
 }
 
 class AutomationService {
@@ -175,7 +202,7 @@ class AutomationService {
           backend: active.backend,
           method: "GET",
           path,
-          headers: buildPinnedCloudHeaders(active),
+          headers: await buildPinnedCloudHeaders(active),
           timeoutSeconds: 5,
         });
       } else {
@@ -203,6 +230,7 @@ class AutomationService {
         backend: active,
         method: "GET",
         path: `${AUTOMATION_BASE_PATH}/v1?${buildPaginationQuery(limit, offset)}`,
+        headers: await buildAutomationRequestHeaders(),
       });
     }
 
@@ -229,6 +257,7 @@ class AutomationService {
         backend: active,
         method: "GET",
         path,
+        headers: await buildAutomationRequestHeaders(),
       });
     }
 
@@ -247,13 +276,13 @@ class AutomationService {
         method: "POST",
         path,
         body,
-        headers: buildPinnedCloudHeaders(active),
+        headers: await buildPinnedCloudHeaders(active),
       });
     } else {
       const { data } = await localAutomationAxios.post<Automation>(
         path,
         body,
-        buildPinnedLocalConfig(active.backend),
+        await buildPinnedLocalConfig(active.backend),
       );
       created = data;
     }
@@ -271,14 +300,14 @@ class AutomationService {
           method: "PATCH",
           path: updatePath,
           body: updateBody,
-          headers: buildPinnedCloudHeaders(active),
+          headers: await buildPinnedCloudHeaders(active),
         });
       }
 
       const { data } = await localAutomationAxios.patch<Automation>(
         updatePath,
         updateBody,
-        buildPinnedLocalConfig(active.backend),
+        await buildPinnedLocalConfig(active.backend),
       );
       return data;
     } catch (updateError) {
@@ -288,12 +317,12 @@ class AutomationService {
             backend: active.backend,
             method: "DELETE",
             path: updatePath,
-            headers: buildPinnedCloudHeaders(active),
+            headers: await buildPinnedCloudHeaders(active),
           });
         } else {
           await localAutomationAxios.delete(
             updatePath,
-            buildPinnedLocalConfig(active.backend),
+            await buildPinnedLocalConfig(active.backend),
           );
         }
       } catch (cleanupError) {
@@ -319,6 +348,7 @@ class AutomationService {
         method: "PATCH",
         path,
         body: body as Record<string, unknown>,
+        headers: await buildAutomationRequestHeaders(),
       });
     }
 
@@ -335,6 +365,7 @@ class AutomationService {
         backend: active,
         method: "DELETE",
         path,
+        headers: await buildAutomationRequestHeaders(),
       });
       return;
     }
@@ -351,6 +382,7 @@ class AutomationService {
         backend: active,
         method: "POST",
         path,
+        headers: await buildAutomationRequestHeaders(),
       });
     }
 
@@ -371,6 +403,7 @@ class AutomationService {
         backend: active,
         method: "GET",
         path: `${basePath}?${buildPaginationQuery(limit, offset)}`,
+        headers: await buildAutomationRequestHeaders(),
       });
     }
 
@@ -407,6 +440,7 @@ class AutomationService {
         method: "GET",
         path,
         responseType: "blob",
+        headers: await buildAutomationRequestHeaders(),
       });
     } else {
       const { data } = await localAutomationAxios.get<Blob>(path, {
@@ -435,6 +469,7 @@ class AutomationService {
           path,
           // Fail fast, matching the local branch's 5s timeout below.
           timeoutSeconds: 5,
+          headers: await buildAutomationRequestHeaders(),
         });
         return response;
       }

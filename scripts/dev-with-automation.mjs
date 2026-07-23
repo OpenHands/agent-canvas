@@ -884,6 +884,21 @@ function startAutomationBackend(config) {
           join(config.stateDir, "workspaces"),
         // Session API key for self-hosted auth — shared with agent-server via X-Session-API-Key header
         AUTOMATION_LOCAL_API_KEY: config.sessionApiKey,
+        ...(process.env.AUTOMATION_POSTHOG_API_KEY ||
+        process.env.VITE_POSTHOG_API_KEY
+          ? {
+              AUTOMATION_POSTHOG_API_KEY:
+                process.env.AUTOMATION_POSTHOG_API_KEY ||
+                process.env.VITE_POSTHOG_API_KEY,
+            }
+          : {}),
+        ...(process.env.AUTOMATION_POSTHOG_HOST || process.env.VITE_POSTHOG_HOST
+          ? {
+              AUTOMATION_POSTHOG_HOST:
+                process.env.AUTOMATION_POSTHOG_HOST ||
+                process.env.VITE_POSTHOG_HOST,
+            }
+          : {}),
         // KV store secret — required for automations to use the built-in
         // key-value store for state persistence between runs. Used for JWT
         // signing and value encryption.

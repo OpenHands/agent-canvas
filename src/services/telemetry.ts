@@ -723,6 +723,12 @@ export async function trackSessionStart(): Promise<void> {
   markSessionSent();
 }
 
+/** Return the active PostHog distinct ID when consent allows capture. */
+export async function getTelemetryDistinctId(): Promise<string | null> {
+  const posthog = await getPostHogForConsentedCapture();
+  return posthog?.get_distinct_id?.() ?? null;
+}
+
 /**
  * Track a custom event (respects consent).
  */
