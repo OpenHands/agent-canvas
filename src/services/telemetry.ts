@@ -729,6 +729,16 @@ export async function getTelemetryDistinctId(): Promise<string | null> {
   return posthog?.get_distinct_id?.() ?? null;
 }
 
+/** Return the PostHog distinct ID for local consent sync without emitting capture. */
+export async function getTelemetryDistinctIdForConsentSync(): Promise<
+  string | null
+> {
+  if (!isBrowser() || telemetryDisabled || isDoNotTrackEnabled()) return null;
+
+  const posthog = await initializePostHogClient();
+  return posthog?.get_distinct_id?.() ?? null;
+}
+
 /**
  * Track a custom event (respects consent).
  */
