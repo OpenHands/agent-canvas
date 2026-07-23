@@ -23,7 +23,6 @@ vi.mock("#/api/automation-service/automation-service.api", () => ({
 
 import { useTracking } from "#/hooks/use-tracking";
 
-const TEST_EMAIL = "user@example.com";
 // Resolved at test-run time so it matches whatever URL jsdom is configured
 // with in the current environment (varies between local and CI).
 let COMMON: Record<string, unknown>;
@@ -44,11 +43,10 @@ describe("useTracking", () => {
     compatibilityMocks.getCachedAgentServerVersion.mockReturnValue(null);
 
     useSettingsMock.mockReturnValue({
-      data: { email: TEST_EMAIL, user_consents_to_analytics: true },
+      data: { email: "user@example.com", user_consents_to_analytics: true },
     });
     COMMON = {
       current_url: window.location.href,
-      user_email: TEST_EMAIL,
     };
   });
 
@@ -423,7 +421,7 @@ describe("useTracking", () => {
   describe("shared telemetry boundary", () => {
     it("delegates consent enforcement when backend settings report false", () => {
       useSettingsMock.mockReturnValue({
-        data: { email: TEST_EMAIL, user_consents_to_analytics: false },
+        data: { email: "user@example.com", user_consents_to_analytics: false },
       });
 
       getTracking().trackPushButtonClick();
@@ -436,7 +434,7 @@ describe("useTracking", () => {
 
     it("delegates consent enforcement when backend settings report null", () => {
       useSettingsMock.mockReturnValue({
-        data: { email: TEST_EMAIL, user_consents_to_analytics: null },
+        data: { email: "user@example.com", user_consents_to_analytics: null },
       });
 
       getTracking().trackPushButtonClick();
@@ -463,44 +461,7 @@ describe("useTracking", () => {
           backend_kind: "cloud",
           connection_method: "cloud_login",
           source: "onboarding",
-          user_email: null,
         }),
-      );
-    });
-  });
-
-  describe("commonProperties", () => {
-    it("uses git_user_email as fallback when email is absent", () => {
-      useSettingsMock.mockReturnValue({
-        data: {
-          email: null,
-          git_user_email: "git@example.com",
-          user_consents_to_analytics: true,
-        },
-      });
-
-      getTracking().trackPushButtonClick();
-
-      expect(captureMock).toHaveBeenCalledWith(
-        "push_button_clicked",
-        expect.objectContaining({ user_email: "git@example.com" }),
-      );
-    });
-
-    it("sends null user_email when no email fields are present", () => {
-      useSettingsMock.mockReturnValue({
-        data: {
-          email: null,
-          git_user_email: null,
-          user_consents_to_analytics: true,
-        },
-      });
-
-      getTracking().trackPushButtonClick();
-
-      expect(captureMock).toHaveBeenCalledWith(
-        "push_button_clicked",
-        expect.objectContaining({ user_email: null }),
       );
     });
   });

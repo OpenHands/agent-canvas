@@ -1,5 +1,4 @@
 import React from "react";
-import { useSettings } from "./query/use-settings";
 import { Provider } from "#/types/settings";
 import type { BackendKind } from "#/api/backend-registry/types";
 import type { WorkspaceMode } from "#/api/conversation-metadata-store";
@@ -19,7 +18,6 @@ import { setTelemetryBackendContext, trackEvent } from "#/services/telemetry";
  * backend settings because they can be stale while a backend changes.
  */
 export const useTracking = () => {
-  const { data: settings } = useSettings();
   const activeBackend = useActiveBackend();
   const { backend } = activeBackend;
   const [automationSdkVersion, setAutomationSdkVersion] = React.useState<
@@ -69,7 +67,6 @@ export const useTracking = () => {
   // Common properties included in all tracking events
   const commonProperties = {
     current_url: window.location.href,
-    user_email: settings?.email || settings?.git_user_email || null,
   };
 
   /**

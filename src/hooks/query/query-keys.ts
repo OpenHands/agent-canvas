@@ -56,6 +56,11 @@ export const PLUGINS_QUERY_KEYS = {
   local: ["plugins-local"] as const,
 } as const;
 
+export const APP_UPDATE_QUERY_KEYS = {
+  /** Latest published @openhands/agent-canvas version (npm `latest` dist-tag). */
+  latestVersion: ["agent-canvas-latest-version"] as const,
+} as const;
+
 /** Cache configuration shared across all config-related queries */
 export const CONFIG_CACHE_OPTIONS = {
   staleTime: 1000 * 60 * 5, // 5 minutes

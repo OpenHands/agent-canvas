@@ -555,6 +555,138 @@ describe("ManageBackendsModal", () => {
       expect.anything(),
     );
   });
+  it("uses Cloud reconnect recovery controls when locked to Cloud", async () => {
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
+    const user = userEvent.setup();
+    vi.spyOn(window, "open").mockReturnValue({
+      closed: false,
+      close: vi.fn(),
+      location: { href: "" },
+    } as unknown as Window);
+
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          ctx.addBackend({
+            name: "OpenHands Cloud",
+            host: "https://app.all-hands.dev",
+            apiKey: "expired-token",
+            kind: "cloud",
+          });
+        }}
+      >
+        <ManageBackendsModal onClose={vi.fn()} recoveryMode />
+      </TestSeed>,
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "BACKEND$RECONNECT_CLOUD_TITLE",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("manage-backends-add")).not.toBeInTheDocument();
+
+    const reconnectButton = await screen.findByTestId(
+      "manage-backends-reconnect-cloud-login-button",
+    );
+    expect(reconnectButton).toHaveTextContent("BACKEND$RECONNECT_CLOUD");
+
+    await user.click(reconnectButton);
+    expect(deviceFlowMocks.startDeviceFlow).toHaveBeenCalledWith(
+      "https://app.all-hands.dev",
+    );
+  });
+
+  it("updates the locked Cloud backend token when reconnect succeeds", async () => {
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
+    deviceFlowMocks.pollForToken.mockResolvedValue({
+      access_token: "fresh-cloud-token",
+      token_type: "Bearer",
+    });
+    const user = userEvent.setup();
+    vi.spyOn(window, "open").mockReturnValue({
+      closed: false,
+      close: vi.fn(),
+      location: { href: "" },
+    } as unknown as Window);
+
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          ctx.addBackend({
+            name: "OpenHands Cloud",
+            host: "https://app.all-hands.dev",
+            apiKey: "expired-token",
+            kind: "cloud",
+          });
+        }}
+      >
+        <ManageBackendsModal onClose={vi.fn()} recoveryMode />
+      </TestSeed>,
+    );
+
+    await user.click(
+      await screen.findByTestId(
+        "manage-backends-reconnect-cloud-login-button",
+      ),
+    );
+
+    await waitFor(() => {
+      const stored = JSON.parse(
+        window.localStorage.getItem("openhands-backends") ?? "[]",
+      );
+      expect(stored).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: "OpenHands Cloud",
+            apiKey: "fresh-cloud-token",
+          }),
+        ]),
+      );
+    });
+    expect(
+      screen.queryByTestId("manage-backends-reconnect-cloud-auth-modal"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps locked Cloud recovery open when reconnect authorization fails", async () => {
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
+    deviceFlowMocks.pollForToken.mockRejectedValue(
+      new Error("Authorization request was denied."),
+    );
+    const user = userEvent.setup();
+    vi.spyOn(window, "open").mockReturnValue({
+      closed: false,
+      close: vi.fn(),
+      location: { href: "" },
+    } as unknown as Window);
+
+    renderWithProviders(
+      <TestSeed
+        onMount={(ctx) => {
+          ctx.addBackend({
+            name: "OpenHands Cloud",
+            host: "https://app.all-hands.dev",
+            apiKey: "expired-token",
+            kind: "cloud",
+          });
+        }}
+      >
+        <ManageBackendsModal onClose={vi.fn()} recoveryMode />
+      </TestSeed>,
+    );
+
+    await user.click(
+      await screen.findByTestId(
+        "manage-backends-reconnect-cloud-login-button",
+      ),
+    );
+
+    expect(
+      await screen.findByTestId("manage-backends-reconnect-cloud-auth-error"),
+    ).toHaveTextContent("Authorization request was denied.");
+    expect(screen.getByTestId("manage-backends-modal")).toBeInTheDocument();
+  });
 });
 
 function renderInQueryClient(ui: React.ReactElement) {

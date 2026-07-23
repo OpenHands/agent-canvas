@@ -217,3 +217,69 @@ describe("issue #1534 — streamed intermediate message duplication", () => {
     expect(countOccurrences(container.textContent ?? "", THOUGHT)).toBe(1);
   });
 });
+
+// A model that streams its reasoning but whose action `thought` does not repeat
+// that text used to render the delta's reasoning and the action's own reasoning
+// as two identical "Thinking" bubbles.
+describe("duplicate Thinking blocks", () => {
+  const REASONING =
+    "Let me read the full PRD to understand all the requirements. " +
+    "I need to see sections that were clipped.";
+
+  const reasoningOnlyDelta: StreamingDeltaEvent = {
+    id: "delta-reasoning-only",
+    kind: "StreamingDeltaEvent",
+    timestamp: "2026-06-12T12:00:01Z",
+    source: "agent",
+    content: null,
+    reasoning_content: REASONING,
+  };
+
+  const reasoningAction: ActionEvent = {
+    ...action,
+    thought: [],
+    reasoning_content: REASONING,
+  };
+
+  it("renders the reasoning in a single Thinking section", () => {
+    const allEvents = [
+      userMessage,
+      reasoningOnlyDelta,
+      reasoningAction,
+      observation,
+    ];
+    const uiEvents = reduce(allEvents);
+
+    const { container } = renderWithProviders(
+      <Messages messages={uiEvents} allEvents={allEvents} />,
+    );
+
+    expect(screen.getAllByTestId("collapsible-thinking")).toHaveLength(1);
+
+    fireEvent.click(screen.getByTestId("collapsible-thinking-toggle"));
+    expect(
+      screen.getByTestId("collapsible-thinking-content"),
+    ).toHaveTextContent(REASONING);
+    expect(countOccurrences(container.textContent ?? "", REASONING)).toBe(1);
+  });
+
+  it("keeps the streamed reasoning when the action carries none", () => {
+    const plainAction: ActionEvent = { ...action, thought: [] };
+    const allEvents = [
+      userMessage,
+      reasoningOnlyDelta,
+      plainAction,
+      observation,
+    ];
+    const uiEvents = reduce(allEvents);
+
+    renderWithProviders(<Messages messages={uiEvents} allEvents={allEvents} />);
+
+    // The delta is the sole reasoning carrier, so its Thinking must survive.
+    expect(screen.getAllByTestId("collapsible-thinking")).toHaveLength(1);
+    fireEvent.click(screen.getByTestId("collapsible-thinking-toggle"));
+    expect(
+      screen.getByTestId("collapsible-thinking-content"),
+    ).toHaveTextContent(REASONING);
+  });
+});

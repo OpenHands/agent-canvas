@@ -16,10 +16,10 @@ vi.mock("#/hooks/query/use-cloud-current-user-id", () => ({
   useCloudCurrentUserId: () => useCloudCurrentUserIdMock(),
 }));
 
-const setTelemetryIdentityMock = vi.fn();
+const setTelemetryCloudContextMock = vi.fn();
 vi.mock("#/services/telemetry", () => ({
-  setTelemetryIdentity: (...args: unknown[]) =>
-    setTelemetryIdentityMock(...args),
+  setTelemetryCloudContext: (...args: unknown[]) =>
+    setTelemetryCloudContextMock(...args),
 }));
 
 import { useTelemetryIdentity } from "#/hooks/use-telemetry-identity";
@@ -40,10 +40,11 @@ describe("useTelemetryIdentity", () => {
     });
   });
 
-  it("declares the current Cloud identity", () => {
+  it("declares the current Cloud user context", () => {
     renderHook(() => useTelemetryIdentity());
 
-    expect(setTelemetryIdentityMock).toHaveBeenCalledWith("user-123", {
+    expect(setTelemetryCloudContextMock).toHaveBeenCalledWith({
+      userId: "user-123",
       email: "user@example.com",
     });
   });
@@ -53,23 +54,27 @@ describe("useTelemetryIdentity", () => {
       data: { email: "", git_user_email: "git@example.com" },
     });
     const { rerender } = renderHook(() => useTelemetryIdentity());
-    expect(setTelemetryIdentityMock).toHaveBeenLastCalledWith("user-123", {
+    expect(setTelemetryCloudContextMock).toHaveBeenLastCalledWith({
+      userId: "user-123",
       email: "git@example.com",
     });
 
     useSettingsMock.mockReturnValue({ data: {} });
     rerender();
-    expect(setTelemetryIdentityMock).toHaveBeenLastCalledWith("user-123", {});
+    expect(setTelemetryCloudContextMock).toHaveBeenLastCalledWith({
+      userId: "user-123",
+      email: undefined,
+    });
   });
 
-  it("waits until the Cloud identity query settles", () => {
+  it("preserves Cloud user context while the identity query loads", () => {
     useCloudCurrentUserIdMock.mockReturnValue({
       [BACKEND_ID]: { userId: null, isLoading: true },
     });
 
     renderHook(() => useTelemetryIdentity());
 
-    expect(setTelemetryIdentityMock).not.toHaveBeenCalled();
+    expect(setTelemetryCloudContextMock).not.toHaveBeenCalled();
   });
 
   it("declares logout only after the Cloud identity query settles", () => {
@@ -79,15 +84,15 @@ describe("useTelemetryIdentity", () => {
 
     renderHook(() => useTelemetryIdentity());
 
-    expect(setTelemetryIdentityMock).toHaveBeenCalledWith(null);
+    expect(setTelemetryCloudContextMock).toHaveBeenCalledWith(null);
   });
 
-  it("preserves Cloud identity while a local backend is active", () => {
+  it("clears Cloud user context while a local backend is active", () => {
     useActiveBackendMock.mockReturnValue({ backend: localBackend });
 
     renderHook(() => useTelemetryIdentity());
 
-    expect(setTelemetryIdentityMock).not.toHaveBeenCalled();
+    expect(setTelemetryCloudContextMock).toHaveBeenCalledWith(null);
   });
 
   it("declares a changed Cloud account", () => {
@@ -98,7 +103,8 @@ describe("useTelemetryIdentity", () => {
 
     rerender();
 
-    expect(setTelemetryIdentityMock).toHaveBeenLastCalledWith("user-456", {
+    expect(setTelemetryCloudContextMock).toHaveBeenLastCalledWith({
+      userId: "user-456",
       email: "user@example.com",
     });
   });
