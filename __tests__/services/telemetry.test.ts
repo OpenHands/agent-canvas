@@ -159,6 +159,7 @@ describe("Telemetry Service", () => {
       setTelemetryCloudContext({
         userId: "user-a",
         email: "a@example.com",
+        orgId: "org-a",
       });
 
       expect(mockPosthog.identify).not.toHaveBeenCalled();
@@ -173,6 +174,7 @@ describe("Telemetry Service", () => {
         properties: expect.objectContaining({
           cloud_user_id: "user-a",
           cloud_user_email: "a@example.com",
+          cloud_org_id: "org-a",
         }),
       });
     });
@@ -180,7 +182,11 @@ describe("Telemetry Service", () => {
     it("clears Cloud user context for local events", async () => {
       await setTelemetryConsent("granted");
 
-      setTelemetryCloudContext({ userId: "user-a", email: "a@example.com" });
+      setTelemetryCloudContext({
+        userId: "user-a",
+        email: "a@example.com",
+        orgId: "org-a",
+      });
       setTelemetryCloudContext(null);
 
       expect(latestPostHogConfig).toBeDefined();
@@ -194,6 +200,7 @@ describe("Telemetry Service", () => {
         properties: expect.objectContaining({
           cloud_user_id: null,
           cloud_user_email: null,
+          cloud_org_id: null,
         }),
       });
     });

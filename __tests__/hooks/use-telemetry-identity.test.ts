@@ -31,7 +31,10 @@ const localBackend = { kind: "local" as const, id: "local-1" };
 describe("useTelemetryIdentity", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useActiveBackendMock.mockReturnValue({ backend: cloudBackend });
+    useActiveBackendMock.mockReturnValue({
+      backend: cloudBackend,
+      orgId: "org-123",
+    });
     useSettingsMock.mockReturnValue({
       data: { email: "user@example.com", git_user_email: "git@example.com" },
     });
@@ -46,6 +49,7 @@ describe("useTelemetryIdentity", () => {
     expect(setTelemetryCloudContextMock).toHaveBeenCalledWith({
       userId: "user-123",
       email: "user@example.com",
+      orgId: "org-123",
     });
   });
 
@@ -57,6 +61,7 @@ describe("useTelemetryIdentity", () => {
     expect(setTelemetryCloudContextMock).toHaveBeenLastCalledWith({
       userId: "user-123",
       email: "git@example.com",
+      orgId: "org-123",
     });
 
     useSettingsMock.mockReturnValue({ data: {} });
@@ -64,6 +69,7 @@ describe("useTelemetryIdentity", () => {
     expect(setTelemetryCloudContextMock).toHaveBeenLastCalledWith({
       userId: "user-123",
       email: undefined,
+      orgId: "org-123",
     });
   });
 
@@ -88,7 +94,7 @@ describe("useTelemetryIdentity", () => {
   });
 
   it("clears Cloud user context while a local backend is active", () => {
-    useActiveBackendMock.mockReturnValue({ backend: localBackend });
+    useActiveBackendMock.mockReturnValue({ backend: localBackend, orgId: null });
 
     renderHook(() => useTelemetryIdentity());
 
@@ -106,6 +112,7 @@ describe("useTelemetryIdentity", () => {
     expect(setTelemetryCloudContextMock).toHaveBeenLastCalledWith({
       userId: "user-456",
       email: "user@example.com",
+      orgId: "org-123",
     });
   });
 });

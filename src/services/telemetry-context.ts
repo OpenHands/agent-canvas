@@ -7,6 +7,7 @@ export type BackendConnectionMethod = "manual" | "cloud_login";
 export interface CloudTelemetryContextInput {
   userId?: string | null;
   email?: string | null;
+  orgId?: string | null;
 }
 
 export interface BackendTelemetryContextInput {
@@ -60,5 +61,6 @@ export function getCloudTelemetryProperties(
   return {
     cloud_user_id: normalizeOptionalProperty(context?.userId),
     cloud_user_email: normalizeOptionalProperty(context?.email),
+    cloud_org_id: normalizeOptionalProperty(context?.orgId),
   };
 }
