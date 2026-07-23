@@ -2,9 +2,9 @@ import React from "react";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useCloudCurrentUserId } from "#/hooks/query/use-cloud-current-user-id";
 import { useSettings } from "#/hooks/query/use-settings";
-import { setTelemetryIdentity } from "#/services/telemetry";
+import { setTelemetryCloudContext } from "#/services/telemetry";
 
-/** Keep the telemetry service aligned with the resolved Cloud account. */
+/** Keep Cloud user event context aligned with the active backend. */
 export const useTelemetryIdentity = () => {
   const { backend } = useActiveBackend();
   const { data: settings } = useSettings();
@@ -15,15 +15,18 @@ export const useTelemetryIdentity = () => {
   const email = settings?.email || settings?.git_user_email || undefined;
 
   React.useEffect(() => {
-    // A local backend says nothing about Cloud login state. Preserve the last
-    // Cloud identity until a Cloud query explicitly resolves it.
-    if (backend.kind !== "cloud" || isIdentityLoading) return;
-
-    if (!userId) {
-      void setTelemetryIdentity(null);
+    if (backend.kind !== "cloud") {
+      setTelemetryCloudContext(null);
       return;
     }
 
-    void setTelemetryIdentity(userId, email ? { email } : {});
+    if (isIdentityLoading) return;
+
+    if (!userId) {
+      setTelemetryCloudContext(null);
+      return;
+    }
+
+    setTelemetryCloudContext({ userId, email });
   }, [backend.kind, email, isIdentityLoading, userId]);
 };
