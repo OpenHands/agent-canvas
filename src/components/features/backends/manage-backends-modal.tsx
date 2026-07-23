@@ -2,6 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { Plus } from "lucide-react";
 
+import { getLockedCloudHost } from "#/api/agent-server-config";
 import { type Backend } from "#/api/backend-registry/types";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { ConfirmationModal } from "#/components/shared/modals/confirmation-modal";
@@ -20,6 +21,7 @@ import { cn } from "#/utils/utils";
 import { modalTitleLgClassName } from "#/utils/modal-classes";
 import { BackendFormModal } from "./backend-form-modal";
 import { BackendRow } from "./backend-row";
+import { DeviceFlowAuth } from "./device-flow-auth";
 
 interface ManageBackendsModalProps {
   onClose: () => void;
@@ -71,6 +73,15 @@ export function ManageBackendsModal({
   const cloudOrgs = useAllCloudOrganizations();
   const currentUserIds = useCloudCurrentUserId();
   const personalWorkspaceLabel = t(I18nKey.BACKEND$PERSONAL_WORKSPACE);
+  const lockedCloudHost = getLockedCloudHost();
+  const isLockedToCloud = lockedCloudHost !== null;
+  const lockedCloudBackend =
+    isLockedToCloud && active.backend.kind === "cloud" ? active.backend : null;
+  const lockedCloudReconnectHost =
+    lockedCloudHost ?? lockedCloudBackend?.host ?? "";
+  const modalTitle = isLockedToCloud
+    ? t(I18nKey.BACKEND$RECONNECT_CLOUD_TITLE)
+    : t(I18nKey.BACKEND$MANAGE_TITLE);
   const [pendingRemoval, setPendingRemoval] =
     React.useState<PendingRemoval | null>(null);
   const [editingBackend, setEditingBackend] = React.useState<Backend | null>(
@@ -101,13 +112,21 @@ export function ManageBackendsModal({
     [updateBackend],
   );
 
+  const handleLockedCloudReconnect = React.useCallback(
+    (apiKey: string) => {
+      if (!lockedCloudBackend) return;
+      updateBackend(lockedCloudBackend.id, { apiKey });
+    },
+    [lockedCloudBackend, updateBackend],
+  );
+
   return (
     <>
       <ModalBackdrop
         onClose={recoveryMode ? undefined : onClose}
         closeOnEscape={!recoveryMode}
         closeOnBackdropClick={!recoveryMode}
-        aria-label={t(I18nKey.BACKEND$MANAGE_TITLE)}
+        aria-label={modalTitle}
       >
         <div
           data-testid="manage-backends-modal"
@@ -125,9 +144,7 @@ export function ManageBackendsModal({
             />
           )}
           <div className={cn("p-5", !recoveryMode && "pr-12")}>
-            <h2 className={modalTitleLgClassName}>
-              {t(I18nKey.BACKEND$MANAGE_TITLE)}
-            </h2>
+            <h2 className={modalTitleLgClassName}>{modalTitle}</h2>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col px-5">
@@ -169,15 +186,29 @@ export function ManageBackendsModal({
           </div>
 
           <div className="flex justify-end gap-2 p-5">
-            <BrandButton
-              type="button"
-              variant={recoveryMode ? "primary" : "secondary"}
-              onClick={() => setShowAddForm(true)}
-              testId="manage-backends-add"
-              startContent={<Plus width={14} height={14} />}
-            >
-              {t(I18nKey.BACKEND$ADD)}
-            </BrandButton>
+            {isLockedToCloud ? (
+              lockedCloudBackend ? (
+                <DeviceFlowAuth
+                  host={lockedCloudReconnectHost}
+                  onSuccess={handleLockedCloudReconnect}
+                  testIdRoot="manage-backends-reconnect-cloud"
+                  idleButtonLabel={t(I18nKey.BACKEND$RECONNECT_CLOUD)}
+                  className="w-full sm:w-auto"
+                  buttonClassName="sm:w-auto"
+                  statusDisplay="modal"
+                />
+              ) : null
+            ) : (
+              <BrandButton
+                type="button"
+                variant={recoveryMode ? "primary" : "secondary"}
+                onClick={() => setShowAddForm(true)}
+                testId="manage-backends-add"
+                startContent={<Plus width={14} height={14} />}
+              >
+                {t(I18nKey.BACKEND$ADD)}
+              </BrandButton>
+            )}
             {recoveryMode ? null : (
               <BrandButton
                 type="button"

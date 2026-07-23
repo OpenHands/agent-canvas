@@ -1,5 +1,5 @@
 import { AGENT_CANVAS_CLIENT_SOURCE } from "#/api/client-source";
-import { isOpenHandsCloudHost } from "#/api/device-flow-client";
+import { getBackendTelemetryProperties } from "#/services/telemetry-context";
 import { trackEvent } from "#/services/telemetry";
 
 export type CloudConnectionSource =
@@ -16,30 +16,35 @@ function trackCloudFunnelEvent(
   void trackEvent(event, properties);
 }
 
-function hostClassification(host: string) {
-  const isOpenhandsCloud = isOpenHandsCloudHost(host);
-  return {
-    is_openhands_cloud: isOpenhandsCloud,
-    is_custom_host: !isOpenhandsCloud,
-  };
+function cloudLoginBackendContext() {
+  return getBackendTelemetryProperties({
+    backendKind: "cloud",
+    connectionMethod: "cloud_login",
+  });
+}
+
+function cloudConversationBackendContext() {
+  return getBackendTelemetryProperties({
+    backendKind: "cloud",
+  });
 }
 
 export function trackCloudDeviceAuthorizationStarted(
-  host: string,
+  _host: string,
   source?: CloudConnectionSource,
 ): void {
   trackCloudFunnelEvent("cloud_device_authorization_started", {
-    ...hostClassification(host),
+    ...cloudLoginBackendContext(),
     source,
   });
 }
 
 export function trackCloudDeviceAuthorizationSucceeded(
-  host: string,
+  _host: string,
   source?: CloudConnectionSource,
 ): void {
   trackCloudFunnelEvent("cloud_device_authorization_succeeded", {
-    ...hostClassification(host),
+    ...cloudLoginBackendContext(),
     source,
   });
 }
@@ -49,6 +54,7 @@ export function trackCloudConversationReady(
   conversationId: string,
 ): void {
   trackCloudFunnelEvent("cloud_conversation_ready", {
+    ...cloudConversationBackendContext(),
     $insert_id: `${CLOUD_CONVERSATION_READY_INSERT_ID_PREFIX}:${taskId}`,
     task_id: taskId,
     conversation_id: conversationId,

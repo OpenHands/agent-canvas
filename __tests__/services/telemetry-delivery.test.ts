@@ -34,8 +34,6 @@ describe("Canvas telemetry delivery", () => {
     result.current.trackBackendAdded({
       backendKind: "cloud",
       connectionMethod: "cloud_login",
-      isOpenhandsCloud: true,
-      isCustomHost: false,
       hasApiKey: true,
       source: "onboarding",
     });

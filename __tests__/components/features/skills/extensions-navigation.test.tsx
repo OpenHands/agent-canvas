@@ -1,12 +1,26 @@
 import type { ReactNode } from "react";
 import { render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { MemoryRouter } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ActiveBackendProvider } from "#/contexts/active-backend-context";
+import {
+  __resetActiveStoreForTests,
+  setActiveSelection,
+  setRegisteredBackends,
+} from "#/api/backend-registry/active-store";
+import type { Backend } from "#/api/backend-registry/types";
 import { useSidebarStore } from "#/stores/sidebar-store";
 
 import { ExtensionsNavigation } from "#/components/features/skills/extensions-navigation";
+
+const cloudBackend: Backend = {
+  id: "cloud-1",
+  name: "OpenHands Cloud",
+  host: "https://app.all-hands.dev",
+  apiKey: "token",
+  kind: "cloud",
+};
 
 function renderExtensionsNavigation(ui: ReactNode) {
   return render(
@@ -23,6 +37,16 @@ function renderExtensionsNavigation(ui: ReactNode) {
 }
 
 describe("ExtensionsNavigation", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    __resetActiveStoreForTests();
+  });
+
+  afterEach(() => {
+    window.localStorage.clear();
+    __resetActiveStoreForTests();
+  });
+
   it("renders the MCP item as a clickable link for non-ACP agents", () => {
     renderExtensionsNavigation(<ExtensionsNavigation />);
 
@@ -66,6 +90,52 @@ describe("ExtensionsNavigation", () => {
     expect(
       within(pluginsItem).queryByText("NAV$COMING_SOON"),
     ).not.toBeInTheDocument();
+  });
+
+  describe("cloud backend", () => {
+    it("renders the Skills item as an external link to {cloudHost}/settings/skills with the renamed label", () => {
+      setRegisteredBackends([cloudBackend]);
+      setActiveSelection({ backendId: cloudBackend.id });
+
+      renderExtensionsNavigation(<ExtensionsNavigation />);
+
+      const nav = screen.getByTestId("extensions-navbar-desktop");
+      const skillsItem = within(nav).getByTestId("sidebar-extensions-/skills");
+      expect(skillsItem.tagName).toBe("A");
+      expect(skillsItem).toHaveAttribute(
+        "href",
+        "https://app.all-hands.dev/settings/skills",
+      );
+      expect(skillsItem).toHaveAttribute("target", "_blank");
+      expect(skillsItem).toHaveAttribute("rel", "noopener noreferrer");
+      expect(skillsItem).toHaveTextContent(
+        "SIDEBAR$SKILLS_AND_PLUGINS_CLOUD_LINK",
+      );
+    });
+
+    it("hides the Plugins item", () => {
+      setRegisteredBackends([cloudBackend]);
+      setActiveSelection({ backendId: cloudBackend.id });
+
+      renderExtensionsNavigation(<ExtensionsNavigation />);
+
+      const nav = screen.getByTestId("extensions-navbar-desktop");
+      expect(
+        within(nav).queryByTestId("sidebar-extensions-/plugins"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("leaves the MCP Servers item as an in-app link", () => {
+      setRegisteredBackends([cloudBackend]);
+      setActiveSelection({ backendId: cloudBackend.id });
+
+      renderExtensionsNavigation(<ExtensionsNavigation />);
+
+      const nav = screen.getByTestId("extensions-navbar-desktop");
+      const mcpItem = within(nav).getByTestId("sidebar-extensions-/mcp");
+      expect(mcpItem).not.toHaveAttribute("target");
+      expect(mcpItem).toHaveAttribute("href", "/mcp");
+    });
   });
 
   // Regression: the nav used to suppress itself at iPad-portrait widths

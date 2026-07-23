@@ -22,6 +22,13 @@ export interface AutomationHealthResponse {
   message?: string;
 }
 
+type AutomationSdkVersionResponse =
+  | string
+  | {
+      sdk_version?: unknown;
+      version?: unknown;
+    };
+
 // Local automation calls go to the automation sidecar that
 // `scripts/dev-with-automation.mjs` mounts behind the local agent-server.
 // Both backends use the same session API key and the same `X-Session-API-Key`
@@ -52,6 +59,24 @@ localAutomationAxios.interceptors.request.use((config) => {
   }
   return config;
 });
+
+function normalizeAutomationSdkVersion(version: unknown): string | null {
+  if (typeof version !== "string") return null;
+  const trimmed = version.trim();
+  return trimmed || null;
+}
+
+function getAutomationSdkVersionFromResponse(
+  response: AutomationSdkVersionResponse,
+): string | null {
+  if (typeof response === "string") {
+    return normalizeAutomationSdkVersion(response);
+  }
+  return (
+    normalizeAutomationSdkVersion(response.sdk_version) ??
+    normalizeAutomationSdkVersion(response.version)
+  );
+}
 
 function buildPaginationQuery(limit: number, offset: number): string {
   const params = new URLSearchParams();
@@ -139,6 +164,34 @@ function buildPinnedCloudHeaders(active: ResolvedActiveBackend) {
 }
 
 class AutomationService {
+  static async getSdkVersion(): Promise<string | null> {
+    const active = getActiveBackend();
+    const path = `${AUTOMATION_BASE_PATH}/sdk-version`;
+
+    try {
+      let response: AutomationSdkVersionResponse;
+      if (active.backend.kind === "cloud") {
+        response = await callCloudProxy<AutomationSdkVersionResponse>({
+          backend: active.backend,
+          method: "GET",
+          path,
+          headers: buildPinnedCloudHeaders(active),
+          timeoutSeconds: 5,
+        });
+      } else {
+        const { data } =
+          await localAutomationAxios.get<AutomationSdkVersionResponse>(path, {
+            timeout: 5000,
+          });
+        response = data;
+      }
+
+      return getAutomationSdkVersionFromResponse(response);
+    } catch {
+      return null;
+    }
+  }
+
   static async listAutomations(
     params: { limit?: number; offset?: number } = {},
   ): Promise<AutomationsResponse> {

@@ -350,8 +350,6 @@ describe("AddBackendModal – analytics", () => {
         expect.objectContaining({
           backend_kind: "local",
           connection_method: "manual",
-          is_openhands_cloud: false,
-          is_custom_host: true,
           has_api_key: true,
           source: "add_backend_modal",
         }),

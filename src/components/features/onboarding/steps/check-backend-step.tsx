@@ -19,7 +19,6 @@ import { BrandButton } from "#/components/features/settings/brand-button";
 import { useActiveBackendContext } from "#/contexts/active-backend-context";
 import { useBackendsHealth } from "#/hooks/query/use-backends-health";
 import { useTracking } from "#/hooks/use-tracking";
-import { isOpenHandsCloudHost } from "#/api/device-flow-client";
 import { I18nKey } from "#/i18n/declaration";
 import ChevronDownSmallIcon from "#/icons/chevron-down-small.svg?react";
 import { cn } from "#/utils/utils";
@@ -192,12 +191,9 @@ export function CheckBackendStep({
           setActive(backend.id, null);
         }
       }
-      const isOpenHandsCloud = isOpenHandsCloudHost(payload.host);
       trackBackendAdded({
         backendKind: payload.kind,
         connectionMethod,
-        isOpenhandsCloud: isOpenHandsCloud,
-        isCustomHost: !isOpenHandsCloud,
         hasApiKey: Boolean(payload.apiKey),
         source: "onboarding",
       });
