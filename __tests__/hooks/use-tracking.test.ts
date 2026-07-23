@@ -38,9 +38,7 @@ describe("useTracking", () => {
     setBackendContextMock = vi.spyOn(telemetry, "setTelemetryBackendContext");
     useSettingsMock.mockReset();
     automationSdkVersionHookMock.useAutomationSdkVersion.mockReset();
-    automationSdkVersionHookMock.useAutomationSdkVersion.mockReturnValue({
-      data: null,
-    });
+    automationSdkVersionHookMock.useAutomationSdkVersion.mockReturnValue(null);
     compatibilityMocks.getCachedAgentServerVersion.mockReset();
     compatibilityMocks.getCachedAgentServerVersion.mockReturnValue(null);
 
@@ -151,9 +149,9 @@ describe("useTracking", () => {
     });
 
     it("declares backend versions to the telemetry service when known", async () => {
-      automationSdkVersionHookMock.useAutomationSdkVersion.mockReturnValue({
-        data: "1.36.3",
-      });
+      automationSdkVersionHookMock.useAutomationSdkVersion.mockReturnValue(
+        "1.36.3",
+      );
       compatibilityMocks.getCachedAgentServerVersion.mockReturnValue("1.36.2");
 
       const { result } = renderHook(() => useTracking());

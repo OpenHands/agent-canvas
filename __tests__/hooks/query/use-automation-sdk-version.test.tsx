@@ -1,10 +1,11 @@
-import React from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AutomationService from "#/api/automation-service/automation-service.api";
 import type { ResolvedActiveBackend } from "#/api/backend-registry/types";
-import { useAutomationSdkVersion } from "#/hooks/query/use-automation-sdk-version";
+import {
+  __resetAutomationSdkVersionCacheForTests,
+  useAutomationSdkVersion,
+} from "#/hooks/query/use-automation-sdk-version";
 
 vi.mock("#/api/automation-service/automation-service.api", () => ({
   default: {
@@ -29,21 +30,10 @@ vi.mock("#/contexts/active-backend-context", () => ({
   useActiveBackend: () => activeBackendMock.active,
 }));
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-
-  return function Wrapper({ children }: { children: React.ReactNode }) {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-}
-
 describe("useAutomationSdkVersion", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    __resetAutomationSdkVersionCacheForTests();
     activeBackendMock.active = {
       backend: {
         id: "local-1",
@@ -59,33 +49,27 @@ describe("useAutomationSdkVersion", () => {
   it("shares one SDK version request across multiple hook consumers", async () => {
     vi.mocked(AutomationService.getSdkVersion).mockResolvedValue("1.36.3");
 
-    const { result } = renderHook(
-      () => ({
-        first: useAutomationSdkVersion(),
-        second: useAutomationSdkVersion(),
-      }),
-      { wrapper: createWrapper() },
-    );
+    const { result } = renderHook(() => ({
+      first: useAutomationSdkVersion(),
+      second: useAutomationSdkVersion(),
+    }));
 
-    await waitFor(() => expect(result.current.first.isSuccess).toBe(true));
+    await waitFor(() => expect(result.current.first).toBe("1.36.3"));
 
-    expect(result.current.first.data).toBe("1.36.3");
-    expect(result.current.second.data).toBe("1.36.3");
+    expect(result.current.second).toBe("1.36.3");
     expect(AutomationService.getSdkVersion).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the SDK version fresh indefinitely while cached", async () => {
+  it("keeps the SDK version cached across hook remounts", async () => {
     vi.mocked(AutomationService.getSdkVersion).mockResolvedValue("1.36.3");
-    const wrapper = createWrapper();
 
-    const first = renderHook(() => useAutomationSdkVersion(), { wrapper });
-    await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
+    const first = renderHook(() => useAutomationSdkVersion());
+    await waitFor(() => expect(first.result.current).toBe("1.36.3"));
     first.unmount();
 
-    const second = renderHook(() => useAutomationSdkVersion(), { wrapper });
-    await waitFor(() => expect(second.result.current.isSuccess).toBe(true));
+    const second = renderHook(() => useAutomationSdkVersion());
+    expect(second.result.current).toBe("1.36.3");
 
-    expect(second.result.current.data).toBe("1.36.3");
     expect(AutomationService.getSdkVersion).toHaveBeenCalledTimes(1);
   });
 
@@ -94,10 +78,8 @@ describe("useAutomationSdkVersion", () => {
       .mockResolvedValueOnce("1.36.3")
       .mockResolvedValueOnce("1.37.0");
 
-    const { result, rerender } = renderHook(() => useAutomationSdkVersion(), {
-      wrapper: createWrapper(),
-    });
-    await waitFor(() => expect(result.current.data).toBe("1.36.3"));
+    const { result, rerender } = renderHook(() => useAutomationSdkVersion());
+    await waitFor(() => expect(result.current).toBe("1.36.3"));
 
     activeBackendMock.active = {
       backend: {
@@ -111,7 +93,7 @@ describe("useAutomationSdkVersion", () => {
     };
     rerender();
 
-    await waitFor(() => expect(result.current.data).toBe("1.37.0"));
+    await waitFor(() => expect(result.current).toBe("1.37.0"));
     expect(AutomationService.getSdkVersion).toHaveBeenCalledTimes(2);
   });
 
@@ -127,11 +109,9 @@ describe("useAutomationSdkVersion", () => {
       orgId: null,
     };
 
-    const { result } = renderHook(() => useAutomationSdkVersion(), {
-      wrapper: createWrapper(),
-    });
+    const { result } = renderHook(() => useAutomationSdkVersion());
 
-    expect(result.current.fetchStatus).toBe("idle");
+    expect(result.current).toBeNull();
     expect(AutomationService.getSdkVersion).not.toHaveBeenCalled();
   });
 });

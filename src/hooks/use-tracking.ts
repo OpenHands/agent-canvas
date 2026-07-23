@@ -19,7 +19,7 @@ import { setTelemetryBackendContext, trackEvent } from "#/services/telemetry";
  */
 export const useTracking = () => {
   const { backend } = useActiveBackend();
-  const { data: automationSdkVersion = null } = useAutomationSdkVersion();
+  const automationSdkVersion = useAutomationSdkVersion();
 
   const getBackendTelemetryContext = React.useCallback(
     () => ({
