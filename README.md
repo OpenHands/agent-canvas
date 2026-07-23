@@ -117,16 +117,9 @@ npm install
 npm run dev
 ```
 
-### Option 4: Windows Desktop App (Native Installer)
-
-> [!WARNING]
-> This runs the agent-server directly on the machine you're installing on — the agent will have full access to your filesystem!
-
-Download `Agent-Canvas-Setup-<version>.exe` from the [latest release](https://github.com/OpenHands/agent-canvas/releases/latest) and run it — no Node.js, Docker, or uv required; everything is bundled. See [README.windows.md](./README.windows.md#option-4-windows-desktop-app-native-installer) for the SmartScreen note, first-launch behavior, and how to build the installer from source.
-
 ---
 
-Access the UI at [http://localhost:8000](http://localhost:8000) for the npm/source launchers, or [http://localhost:8000/canvas](http://localhost:8000/canvas) for the Docker image. The Windows desktop app opens its own window automatically. You can add additional backends directly from the UI.
+Access the UI at [http://localhost:8000](http://localhost:8000) for the npm/source launchers, or [http://localhost:8000/canvas](http://localhost:8000/canvas) for the Docker image. You can add additional backends directly from the UI.
 
 # Architecture
 
