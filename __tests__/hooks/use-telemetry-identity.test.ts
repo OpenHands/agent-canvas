@@ -49,14 +49,14 @@ describe("useTelemetryIdentity", () => {
     });
   });
 
-  it("uses only the Cloud account email for Cloud context", () => {
+  it("falls back to the git email and omits an absent email", () => {
     useSettingsMock.mockReturnValue({
       data: { email: "", git_user_email: "git@example.com" },
     });
     const { rerender } = renderHook(() => useTelemetryIdentity());
     expect(setTelemetryCloudContextMock).toHaveBeenLastCalledWith({
       userId: "user-123",
-      email: undefined,
+      email: "git@example.com",
     });
 
     useSettingsMock.mockReturnValue({ data: {} });

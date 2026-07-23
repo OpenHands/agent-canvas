@@ -12,7 +12,7 @@ export const useTelemetryIdentity = () => {
   const identity = backend.kind === "cloud" ? userIds[backend.id] : undefined;
   const isIdentityLoading = identity?.isLoading ?? true;
   const userId = identity?.userId ?? null;
-  const email = settings?.email || undefined;
+  const email = settings?.email || settings?.git_user_email || undefined;
 
   React.useEffect(() => {
     if (backend.kind !== "cloud") {
