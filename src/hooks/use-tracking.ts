@@ -5,7 +5,7 @@ import type { WorkspaceMode } from "#/api/conversation-metadata-store";
 import type { CloudConnectionSource } from "#/services/cloud-funnel-analytics";
 import { getCachedAgentServerVersion } from "#/api/agent-server-compatibility";
 import { useActiveBackend } from "#/contexts/active-backend-context";
-import AutomationService from "#/api/automation-service/automation-service.api";
+import { useAutomationSdkVersion } from "#/hooks/query/use-automation-sdk-version";
 import { getBackendTelemetryProperties } from "#/services/telemetry-context";
 import { setTelemetryBackendContext, trackEvent } from "#/services/telemetry";
 
@@ -18,35 +18,8 @@ import { setTelemetryBackendContext, trackEvent } from "#/services/telemetry";
  * backend settings because they can be stale while a backend changes.
  */
 export const useTracking = () => {
-  const activeBackend = useActiveBackend();
-  const { backend } = activeBackend;
-  const [automationSdkVersion, setAutomationSdkVersion] = React.useState<
-    string | null
-  >(null);
-
-  React.useEffect(() => {
-    if (typeof AutomationService.getSdkVersion !== "function") {
-      setAutomationSdkVersion(null);
-      return undefined;
-    }
-
-    let isMounted = true;
-    setAutomationSdkVersion(null);
-    void AutomationService.getSdkVersion().then((version) => {
-      if (isMounted) {
-        setAutomationSdkVersion(version);
-      }
-    });
-    return () => {
-      isMounted = false;
-    };
-  }, [
-    activeBackend.orgId,
-    backend.apiKey,
-    backend.host,
-    backend.id,
-    backend.kind,
-  ]);
+  const { backend } = useActiveBackend();
+  const { data: automationSdkVersion = null } = useAutomationSdkVersion();
 
   const getBackendTelemetryContext = React.useCallback(
     () => ({
