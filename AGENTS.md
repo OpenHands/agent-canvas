@@ -15,7 +15,7 @@
   - `VITE_BASE_PATH` for serving the SPA under a subpath such as `/canvas`; pair it with `scripts/static-server.mjs --base-path` at runtime.
 - Public skills are loaded from the `@openhands/extensions` npm package at build time via `SKILLS_CATALOG` (exported from `@openhands/extensions/skills`). The frontend's `SkillsService` maps catalog entries to `SkillInfo` objects and merges them with user/project skills fetched from the agent-server (with `load_public: false`). The agent-server no longer clones the extensions repo or uses `EXTENSIONS_REF` for public skills.
 - Default working-dir fallback is now the relative path `workspace/project` (exported as `DEFAULT_WORKING_DIR` from `src/api/agent-server-config.ts`); git-path heuristics and the default PLAN preview path should reuse that constant instead of hardcoding `/workspace/project`.
-- The UI keeps most OpenHands routes/layout intact, but original hosted-only routes must not be restored blindly. Current Cloud behavior is implemented explicitly through the backend registry, Cloud service layer, and device authorization flow.
+- Current Cloud behavior is implemented explicitly through the backend registry, Cloud service layer, and device authorization flow.
 - Primary verification commands: `npm run lint`, `npm test`, `npm run build`, and `npm run build:lib`.
 - GitHub automation now includes `.github/workflows/ci.yml` for `npm ci`, `npm test`, and `npm run build`, plus `.github/dependabot.yml` with weekly npm/github-actions updates gated by a 7-day cooldown.
 
