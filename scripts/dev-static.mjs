@@ -60,6 +60,7 @@ import {
 import {
   buildAgentServerAutomationEnv,
   buildAutomationCommand,
+  buildAutomationTelemetryEnv,
   buildConfig,
 } from "./dev-with-automation.mjs";
 
@@ -323,7 +324,7 @@ function startAgentServer(config) {
   );
 }
 
-function buildAutomationBackendEnv(config) {
+function buildAutomationBackendEnv(config, env = process.env) {
   // Both backends share the same session API key value.
   return {
     AUTOMATION_AGENT_SERVER_URL: `http://localhost:${config.agentServerPort}`,
@@ -332,21 +333,7 @@ function buildAutomationBackendEnv(config) {
     AUTOMATION_BASE_URL: `http://localhost:${config.ingressPort}`,
     AUTOMATION_WORKSPACE_BASE: join(config.stateDir, "workspaces"),
     AUTOMATION_LOCAL_API_KEY: config.sessionApiKey,
-    ...(process.env.AUTOMATION_POSTHOG_API_KEY ||
-    process.env.VITE_POSTHOG_API_KEY
-      ? {
-          AUTOMATION_POSTHOG_API_KEY:
-            process.env.AUTOMATION_POSTHOG_API_KEY ||
-            process.env.VITE_POSTHOG_API_KEY,
-        }
-      : {}),
-    ...(process.env.AUTOMATION_POSTHOG_HOST || process.env.VITE_POSTHOG_HOST
-      ? {
-          AUTOMATION_POSTHOG_HOST:
-            process.env.AUTOMATION_POSTHOG_HOST ||
-            process.env.VITE_POSTHOG_HOST,
-        }
-      : {}),
+    ...buildAutomationTelemetryEnv(env),
     AUTOMATION_CORS_ORIGINS: `http://localhost:${config.ingressPort},http://127.0.0.1:${config.ingressPort},http://localhost:3001,http://127.0.0.1:3001`,
     FILE_STORE: "local",
     LOCAL_STORAGE_PATH: join(config.stateDir, "storage"),

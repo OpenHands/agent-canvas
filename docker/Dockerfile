@@ -61,6 +61,8 @@ RUN node -e " \
     'CONFIG_BASH_EVENTS=' + c.paths.bashEvents, \
     'CONFIG_AUTOMATION_DB=' + c.paths.automationDb, \
     'CONFIG_CANVAS_BASE_PATH=' + c.paths.canvasBasePath, \
+    'CONFIG_POSTHOG_API_KEY=' + c.telemetry.posthogStagingKey, \
+    'CONFIG_POSTHOG_HOST=' + c.telemetry.posthogHost, \
   ]; \
   require('fs').writeFileSync('/tmp/defaults.env', lines.join('\n') + '\n'); \
 "

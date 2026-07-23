@@ -33,5 +33,9 @@
     "automation": "openhands-automation",
     "tools": "openhands-tools",
     "workspace": "openhands-workspace"
+  },
+  "telemetry": {
+    "posthogStagingKey": "phc_kBtz5nKmxVRRQ7HtPwr2QX9eMC5j65zE86QKocVNwb4U",
+    "posthogHost": "https://us.i.posthog.com"
   }
 }
