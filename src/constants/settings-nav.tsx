@@ -16,8 +16,7 @@ export interface SettingsNavItem {
   // nothing useful to configure. Drives both the navigation disable in
   // ``use-settings-nav-items.ts`` and the loader redirect in
   // ``routes/settings.tsx`` from a single source. Never set it on a page
-  // that manages a profile *library* — those are not the active agent
-  // (#1913).
+  // that manages a profile *library* — those are not the active agent.
   disabledByAcp?: boolean;
 }
 
@@ -35,7 +34,7 @@ export const OSS_NAV_ITEMS: SettingsNavItem[] = [
   {
     // Not ``disabledByAcp``: this page manages the LLM *profile library*, and
     // an OpenHands agent profile can't be created without one. Gating it left
-    // ACP-onboarded users with no way to define an OpenHands agent (#1913).
+    // ACP-onboarded users with no way to define an OpenHands agent.
     icon: <CircuitIcon width={16} height={16} />,
     to: "/settings/llm",
     text: "SETTINGS$NAV_LLM",

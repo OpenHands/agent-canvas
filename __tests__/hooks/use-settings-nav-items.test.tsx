@@ -192,7 +192,7 @@ describe("useSettingsNavItems", () => {
     }
 
     // The LLM profile library stays reachable — an OpenHands agent profile
-    // can't be created without one (#1913).
+    // can't be created without one.
     const llm = byPath.get("/settings/llm");
     expect(llm?.type).toBe("item");
     if (llm?.type === "item") {

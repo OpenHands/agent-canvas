@@ -176,7 +176,7 @@ describe("settings route", () => {
   it("keeps /settings/llm reachable while ACP is active", async () => {
     // The LLM page is the profile library, not the active agent's LLM.
     // Gating it left ACP-onboarded users unable to create the LLM profile an
-    // OpenHands agent profile requires (#1913).
+    // OpenHands agent profile requires.
     vi.spyOn(OptionService, "getConfig").mockResolvedValue({
       feature_flags: {
         hide_llm_settings: false,
