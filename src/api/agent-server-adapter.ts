@@ -875,6 +875,7 @@ type StartConversationPayload = Record<string, unknown> & {
   max_iterations: number;
   stuck_detection: true;
   autotitle: true;
+  title_llm_profile?: string;
   worktree: boolean;
   secrets_encrypted?: true;
   conversation_id?: string;
@@ -900,6 +901,7 @@ export interface StartConversationOptions {
   // server-side) instead of an inline ``agent_settings`` dump (#3727).
   agentProfileId?: string;
   agentProfileKind?: AgentKind;
+  titleLlmProfile?: string;
 }
 
 export function buildStartConversationRequest(
@@ -962,6 +964,9 @@ export function buildStartConversationRequest(
         : 500,
     stuck_detection: true,
     autotitle: true,
+    ...(options.titleLlmProfile
+      ? { title_llm_profile: options.titleLlmProfile }
+      : {}),
     worktree: options.worktree ?? true,
   };
 
@@ -1083,6 +1088,7 @@ export async function buildStartConversationRequestWithEncryptedSettings(options
   worktree?: boolean;
   agentProfileId?: string;
   agentProfileKind?: AgentKind;
+  titleLlmProfile?: string;
 }): Promise<Record<string, unknown>> {
   const { SecretsService } = await import("./secrets-service");
 

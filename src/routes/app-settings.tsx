@@ -17,12 +17,19 @@ import {
 } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
 import { AppSettingsInputsSkeleton } from "#/components/features/settings/app-settings/app-settings-inputs-skeleton";
+import { SettingsDropdownInput } from "#/components/features/settings/settings-dropdown-input";
+import { NavigationLink } from "#/components/shared/navigation-link";
+import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
+
+const AUTOMATIC_TITLE_LLM_PROFILE_KEY = "__automatic__";
 
 export function AppSettingsScreen() {
   const { t } = useTranslation("openhands");
 
   const { mutate: saveSettings, isPending } = useSaveSettings();
   const { data: settings, isLoading } = useSettings();
+  const { data: llmProfiles, isLoading: areLlmProfilesLoading } =
+    useLlmProfiles();
 
   const [languageInputHasChanged, setLanguageInputHasChanged] =
     React.useState(false);
@@ -36,6 +43,39 @@ export function AppSettingsScreen() {
     React.useState(false);
   const [gitUserEmailHasChanged, setGitUserEmailHasChanged] =
     React.useState(false);
+  const [titleLlmProfileInput, setTitleLlmProfileInput] = React.useState<
+    string | null | undefined
+  >(undefined);
+
+  const storedTitleLlmProfile = React.useMemo(() => {
+    const preference = settings?.title_llm_profile ?? null;
+    if (!preference || !llmProfiles) return preference;
+    return llmProfiles.profiles.some((profile) => profile.name === preference)
+      ? preference
+      : null;
+  }, [llmProfiles, settings?.title_llm_profile]);
+  const selectedTitleLlmProfile =
+    titleLlmProfileInput === undefined
+      ? storedTitleLlmProfile
+      : titleLlmProfileInput;
+  const titleLlmProfileItems = React.useMemo(
+    () => [
+      {
+        key: AUTOMATIC_TITLE_LLM_PROFILE_KEY,
+        label: t(I18nKey.SETTINGS$TITLE_GENERATION_AUTOMATIC),
+      },
+      ...(llmProfiles?.profiles.map((profile) => ({
+        key: profile.name,
+        label: profile.model
+          ? t(I18nKey.SETTINGS$TITLE_GENERATION_PROFILE_OPTION, {
+              name: profile.name,
+              model: profile.model,
+            })
+          : profile.name,
+      })) ?? []),
+    ],
+    [llmProfiles?.profiles, t],
+  );
 
   const formAction = (formData: FormData) => {
     const languageLabel = formData.get("language-input")?.toString();
@@ -63,6 +103,7 @@ export function AppSettingsScreen() {
         enable_sound_notifications: enableSoundNotifications,
         git_user_name: gitUserName,
         git_user_email: gitUserEmail,
+        title_llm_profile: selectedTitleLlmProfile,
       },
       {
         onSuccess: () => {
@@ -79,6 +120,7 @@ export function AppSettingsScreen() {
           setSoundNotificationsSwitchHasChanged(false);
           setGitUserNameHasChanged(false);
           setGitUserEmailHasChanged(false);
+          setTitleLlmProfileInput(undefined);
         },
       },
     );
@@ -122,10 +164,12 @@ export function AppSettingsScreen() {
     !languageInputHasChanged &&
     !analyticsSwitchHasChanged &&
     !soundNotificationsSwitchHasChanged &&
+    selectedTitleLlmProfile === storedTitleLlmProfile &&
     !gitUserNameHasChanged &&
     !gitUserEmailHasChanged;
 
-  const shouldBeLoading = !settings || isLoading || isPending;
+  const shouldBeLoading =
+    !settings || isLoading || areLlmProfilesLoading || isPending;
 
   return (
     <form
@@ -161,6 +205,38 @@ export function AppSettingsScreen() {
           >
             {t(I18nKey.SETTINGS$SOUND_NOTIFICATIONS)}
           </SettingsSwitch>
+
+          <div className="border-t border-[var(--oh-border)] pt-6 mt-2">
+            <h3 className="text-lg font-medium mb-2">
+              {t(I18nKey.SETTINGS$CONVERSATION_TITLES)}
+            </h3>
+            <p className="mb-4 text-sm leading-5 text-tertiary-light">
+              {t(I18nKey.SETTINGS$TITLE_GENERATION_DESCRIPTION)}
+            </p>
+            <SettingsDropdownInput
+              testId="title-llm-profile-input"
+              name="title-llm-profile-input"
+              label={t(I18nKey.SETTINGS$TITLE_GENERATION_MODEL)}
+              items={titleLlmProfileItems}
+              selectedKey={
+                selectedTitleLlmProfile ?? AUTOMATIC_TITLE_LLM_PROFILE_KEY
+              }
+              onSelectionChange={(key) => {
+                const value = key?.toString();
+                setTitleLlmProfileInput(
+                  !value || value === AUTOMATIC_TITLE_LLM_PROFILE_KEY
+                    ? null
+                    : value,
+                );
+              }}
+            />
+            <NavigationLink
+              to="/settings/llm"
+              className="mt-3 inline-block text-sm text-primary hover:underline"
+            >
+              {t(I18nKey.SETTINGS$MANAGE_LLM_PROFILES)}
+            </NavigationLink>
+          </div>
 
           <div className="border-t border-[var(--oh-border)] pt-6 mt-2">
             <h3 className="text-lg font-medium mb-2">

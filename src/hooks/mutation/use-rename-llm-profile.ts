@@ -5,6 +5,7 @@ import {
   LLM_PROFILES_QUERY_KEYS,
   SETTINGS_QUERY_KEYS,
 } from "#/hooks/query/query-keys";
+import { getActiveBackend } from "#/api/backend-registry/active-store";
 
 interface RenameLlmProfileVariables {
   name: string;
@@ -17,7 +18,15 @@ export function useRenameLlmProfile() {
   return useMutation({
     mutationFn: ({ name, newName }: RenameLlmProfileVariables) =>
       ProfilesService.renameProfile(name, newName),
-    onSuccess: async () => {
+    onSuccess: async (_response, { name, newName }) => {
+      if (getActiveBackend().backend.kind === "local") {
+        const settings = await SettingsService.getSettings();
+        if (settings?.title_llm_profile === name) {
+          await SettingsService.saveSettings({
+            title_llm_profile: newName,
+          });
+        }
+      }
       // Invalidate SettingsService internal cache to ensure fresh settings
       // (backend references in agent_settings may change when renaming active profile)
       SettingsService.invalidateCache();

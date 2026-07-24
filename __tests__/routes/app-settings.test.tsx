@@ -6,6 +6,7 @@ import AppSettingsScreen from "#/routes/app-settings";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import { MOCK_DEFAULT_USER_SETTINGS } from "#/mocks/handlers";
 import { Settings } from "#/types/settings";
+import ProfilesService from "#/api/profiles-service/profiles-service.api";
 
 function buildSettings(overrides: Partial<Settings> = {}): Settings {
   return {
@@ -26,9 +27,11 @@ function renderAppSettingsScreen() {
   return render(<AppSettingsScreen />, {
     wrapper: ({ children }) => (
       <QueryClientProvider
-        client={new QueryClient({
-          defaultOptions: { queries: { retry: false } },
-        })}
+        client={
+          new QueryClient({
+            defaultOptions: { queries: { retry: false } },
+          })
+        }
       >
         {children}
       </QueryClientProvider>
@@ -60,6 +63,14 @@ describe("AppSettingsScreen", () => {
     expect(screen.getByTestId("git-user-email-input")).toHaveValue(
       "octocat@example.com",
     );
+    expect(
+      screen.getByText("SETTINGS$CONVERSATION_TITLES"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", {
+        name: "SETTINGS$TITLE_GENERATION_MODEL",
+      }),
+    ).toHaveValue("SETTINGS$TITLE_GENERATION_AUTOMATIC");
   });
 
   it("saves updated git author details in OSS mode", async () => {
@@ -88,6 +99,44 @@ describe("AppSettingsScreen", () => {
         expect.objectContaining({
           git_user_name: "monalisa",
           git_user_email: "octocat@example.com",
+        }),
+      );
+    });
+  });
+
+  it("saves a dedicated title generation profile", async () => {
+    vi.spyOn(ProfilesService, "listProfiles").mockResolvedValue({
+      profiles: [
+        {
+          name: "Titles",
+          model: "anthropic/claude-haiku-3-5",
+          base_url: null,
+          api_key_set: true,
+        },
+      ],
+      active_profile: null,
+    });
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
+    const saveSettingsSpy = vi
+      .spyOn(SettingsService, "saveSettings")
+      .mockResolvedValue(true);
+
+    renderAppSettingsScreen();
+
+    const user = userEvent.setup();
+    const input = await screen.findByRole("combobox", {
+      name: "SETTINGS$TITLE_GENERATION_MODEL",
+    });
+    await user.click(input);
+    await user.click(
+      await screen.findByText("SETTINGS$TITLE_GENERATION_PROFILE_OPTION"),
+    );
+    await user.click(screen.getByTestId("submit-button"));
+
+    await waitFor(() => {
+      expect(saveSettingsSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title_llm_profile: "Titles",
         }),
       );
     });

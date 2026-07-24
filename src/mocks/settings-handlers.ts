@@ -954,6 +954,7 @@ export const SETTINGS_HANDLERS = [
       enable_sound_notifications: null,
       git_user_name: null,
       git_user_email: null,
+      title_llm_profile: null,
       disabled_skills: [],
     };
 
