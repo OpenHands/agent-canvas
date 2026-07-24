@@ -9,16 +9,35 @@ const base: ResolvePickerKindInput = {
   hasConversation: false,
   isCloud: false,
   isAcp: false,
-  profilesAvailable: true,
 };
 
 describe("resolvePickerKind", () => {
+  // The pill is always an LLM selector (OSS-5735) — agent-profile switching
+  // lives in the "+" tools menu, so no input combination yields a profile
+  // picker here.
   describe("home (no active conversation)", () => {
-    it("shows the agent-profile picker when profiles are available", () => {
-      expect(resolvePickerKind({ ...base, hasConversation: false })).toBe(
-        "agent-profile",
-      );
-      // isCloud / isAcp don't matter once profiles exist.
+    it("shows the LLM-profile picker on local", () => {
+      expect(
+        resolvePickerKind({ ...base, hasConversation: false, isCloud: false }),
+      ).toBe("llm-profile");
+    });
+
+    it("shows the model picker on cloud", () => {
+      // Cloud has no home LLM-profile activate path.
+      expect(
+        resolvePickerKind({ ...base, hasConversation: false, isCloud: true }),
+      ).toBe("model");
+    });
+
+    it("shows the constrained model picker when the active agent is ACP, regardless of backend", () => {
+      expect(
+        resolvePickerKind({
+          ...base,
+          hasConversation: false,
+          isCloud: false,
+          isAcp: true,
+        }),
+      ).toBe("model");
       expect(
         resolvePickerKind({
           ...base,
@@ -26,55 +45,18 @@ describe("resolvePickerKind", () => {
           isCloud: true,
           isAcp: true,
         }),
-      ).toBe("agent-profile");
-    });
-
-    it("falls back to the LLM-profile picker on local when no profiles exist", () => {
-      expect(
-        resolvePickerKind({
-          ...base,
-          hasConversation: false,
-          isCloud: false,
-          profilesAvailable: false,
-        }),
-      ).toBe("llm-profile");
-    });
-
-    it("falls back to the model picker on cloud when no profiles exist", () => {
-      // Cloud has no home LLM-profile activate path.
-      expect(
-        resolvePickerKind({
-          ...base,
-          hasConversation: false,
-          isCloud: true,
-          profilesAvailable: false,
-        }),
       ).toBe("model");
     });
   });
 
   describe("inside a conversation", () => {
-    it("shows the agent-profile picker for an unstarted conversation when profiles exist", () => {
+    it("uses the pre-run fallback for an unstarted conversation", () => {
       expect(
         resolvePickerKind({
           ...base,
           hasConversation: true,
           hasStartedConversation: false,
           isCloud: false,
-          isAcp: false,
-          profilesAvailable: true,
-        }),
-      ).toBe("agent-profile");
-    });
-
-    it("uses the pre-run fallback for an unstarted conversation when profiles are unavailable", () => {
-      expect(
-        resolvePickerKind({
-          ...base,
-          hasConversation: true,
-          hasStartedConversation: false,
-          isCloud: false,
-          profilesAvailable: false,
         }),
       ).toBe("llm-profile");
       expect(
@@ -83,7 +65,18 @@ describe("resolvePickerKind", () => {
           hasConversation: true,
           hasStartedConversation: false,
           isCloud: true,
-          profilesAvailable: false,
+        }),
+      ).toBe("model");
+    });
+
+    it("shows the model picker for an unstarted ACP conversation", () => {
+      expect(
+        resolvePickerKind({
+          ...base,
+          hasConversation: true,
+          hasStartedConversation: false,
+          isCloud: false,
+          isAcp: true,
         }),
       ).toBe("model");
     });
@@ -129,19 +122,6 @@ describe("resolvePickerKind", () => {
           hasStartedConversation: true,
           isCloud: true,
           isAcp: false,
-        }),
-      ).toBe("llm-profile");
-    });
-
-    it("ignores profilesAvailable once a conversation is active", () => {
-      expect(
-        resolvePickerKind({
-          ...base,
-          hasConversation: true,
-          hasStartedConversation: true,
-          isCloud: false,
-          isAcp: false,
-          profilesAvailable: false,
         }),
       ).toBe("llm-profile");
     });

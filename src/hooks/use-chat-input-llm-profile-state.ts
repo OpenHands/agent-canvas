@@ -17,17 +17,18 @@ export interface ChatInputLlmProfileState {
   isLoading: boolean;
   isSwitching: boolean;
   /**
-   * Live-switch the running conversation's LLM profile via `/switch_profile`.
-   * This surface is only mounted inside a conversation, so a switch always
-   * targets that conversation (no home-page activate path here).
+   * Switch the LLM profile: live via `/switch_profile` when inside a
+   * conversation, or activate it globally when on the home page (no
+   * conversation) — see {@link useSwitchLlmProfile}.
    */
   selectProfile: (profileName: string) => void;
 }
 
 /**
- * Backs the in-conversation OpenHands LLM-profile switcher (the ACP analog is
- * {@link useChatInputModelState}). Resolves which profile the conversation is
- * running and live-swaps it, mirroring the former SwitchProfileButton's
+ * Backs the OpenHands LLM-profile switcher pill, both on the home page (where
+ * a pick activates the profile globally so the next conversation launches
+ * with it) and inside a conversation (live swap). The ACP analog is
+ * {@link useChatInputModelState}. Mirrors the former SwitchProfileButton's
  * resolution priority so a switch is reflected instantly.
  */
 export function useChatInputLlmProfileState(): ChatInputLlmProfileState {
