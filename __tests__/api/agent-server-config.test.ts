@@ -12,6 +12,7 @@ import {
   isAuthRequired,
   isSameCloudHost,
   isAuthRequiredAndMissing,
+  isOnboardingDisabled,
 } from "#/api/agent-server-config";
 
 const ORIGINAL_LOCATION = window.location;
@@ -244,6 +245,39 @@ describe("isAuthRequiredAndMissing", () => {
     vi.stubEnv("VITE_AUTH_REQUIRED", "false");
 
     expect(isAuthRequiredAndMissing()).toBe(false);
+  });
+});
+
+describe("isOnboardingDisabled", () => {
+  afterEach(() => {
+    delete (window as unknown as Record<string, unknown>)
+      .__AGENT_CANVAS_DISABLE_ONBOARDING__;
+  });
+
+  it("returns false when neither env var nor window flag is set", () => {
+    expect(isOnboardingDisabled()).toBe(false);
+  });
+
+  it("returns true when VITE_DISABLE_ONBOARDING is 'true'", () => {
+    vi.stubEnv("VITE_DISABLE_ONBOARDING", "true");
+
+    expect(isOnboardingDisabled()).toBe(true);
+  });
+
+  it("returns true when window.__AGENT_CANVAS_DISABLE_ONBOARDING__ is set", () => {
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_DISABLE_ONBOARDING__ = true;
+
+    expect(isOnboardingDisabled()).toBe(true);
+  });
+
+  it("returns false when window flag is a non-true value", () => {
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_DISABLE_ONBOARDING__ = "true";
+
+    expect(isOnboardingDisabled()).toBe(false);
   });
 });
 

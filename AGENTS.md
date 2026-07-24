@@ -13,6 +13,7 @@
   - `VITE_WORKING_DIR` for the default workspace path sent when starting conversations.
   - `VITE_ENABLE_BROWSER_TOOLS=false` to omit `BrowserToolSet` from new conversation payloads.
   - `VITE_BASE_PATH` for serving the SPA under a subpath such as `/canvas`; pair it with `scripts/static-server.mjs --base-path` at runtime.
+  - `VITE_DISABLE_ONBOARDING=true` to skip the first-run onboarding wizard (users land directly on the home screen; Cloud login is never suppressed); pair it with `scripts/static-server.mjs --disable-onboarding` or env `AGENT_CANVAS_DISABLE_ONBOARDING=true` at runtime for prebuilt bundles.
 - Public skills are loaded from the `@openhands/extensions` npm package at build time via `SKILLS_CATALOG` (exported from `@openhands/extensions/skills`). The frontend's `SkillsService` maps catalog entries to `SkillInfo` objects and merges them with user/project skills fetched from the agent-server (with `load_public: false`). The agent-server no longer clones the extensions repo or uses `EXTENSIONS_REF` for public skills.
 - Default working-dir fallback is now the relative path `workspace/project` (exported as `DEFAULT_WORKING_DIR` from `src/api/agent-server-config.ts`); git-path heuristics and the default PLAN preview path should reuse that constant instead of hardcoding `/workspace/project`.
 - Current Cloud behavior is implemented explicitly through the backend registry, Cloud service layer, and device authorization flow.

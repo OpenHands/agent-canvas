@@ -243,4 +243,28 @@ describe("OnboardingHost", () => {
       window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
     ).toBeNull();
   });
+
+  it("does not mount the modal for a fresh Cloud user when onboarding is disabled for the deployment", () => {
+    vi.stubEnv("VITE_DISABLE_ONBOARDING", "true");
+    seedCloudBackend();
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
+      ...DEFAULT_SETTINGS,
+      llm_api_key_set: true,
+      agent_settings: {
+        ...DEFAULT_SETTINGS.agent_settings,
+        llm: { model: "openhands/minimax-m2.7", api_key: "stored" },
+      },
+    });
+
+    renderHost();
+
+    expect(
+      screen.queryByTestId("onboarding-modal-stub"),
+    ).not.toBeInTheDocument();
+    // Suppression comes from the deployment flag, not a fake completion
+    // marker — nothing is written to localStorage.
+    expect(
+      window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
+    ).toBeNull();
+  });
 });

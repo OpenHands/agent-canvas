@@ -86,6 +86,7 @@ export function parseArgs(argv = process.argv.slice(2)) {
     authRequired: false,
     runtimeServicesInfo: null,
     lockToCloud: null,
+    disableOnboarding: false,
     basePath: "/",
   };
 
@@ -127,6 +128,9 @@ export function parseArgs(argv = process.argv.slice(2)) {
         break;
       case "--lock-to-cloud":
         config.lockToCloud = argv[++i] || null;
+        break;
+      case "--disable-onboarding":
+        config.disableOnboarding = true;
         break;
       case "--base-path":
         config.basePath = normalizeBasePath(argv[++i]);
@@ -206,6 +210,10 @@ OPTIONS:
   --lock-to-cloud <cloud-url>  Lock backend setup to a single OpenHands Cloud
                                URL. Hides manual/local backend setup and the
                                custom Cloud URL field in the pre-built frontend.
+  --disable-onboarding         Inject a flag into index.html so the pre-built
+                               frontend skips the first-run onboarding wizard.
+                               Also enabled by env
+                               AGENT_CANVAS_DISABLE_ONBOARDING=true.
   --base-path <path>           Mount the SPA under <path> (default: /).
                                For example, --base-path /canvas serves
                                index.html and assets under /canvas.
@@ -263,6 +271,11 @@ ROUTING:
  *   `agent-server-config.ts` so pre-built frontend bundles can hide manual
  *   backend setup and the custom Cloud URL field at runtime.
  *
+ * - `disableOnboarding`: sets `window.__AGENT_CANVAS_DISABLE_ONBOARDING__ =
+ *   true` so the pre-built frontend skips the first-run onboarding wizard
+ *   (read by `isOnboardingDisabled()` in `agent-server-config.ts`) without
+ *   VITE_DISABLE_ONBOARDING baked in.
+ *
  * - `basePath`: the path prefix the SPA is mounted under, exposed as
  *   `window.__AGENT_CANVAS_BASE_PATH__` so runtime static assets like locale
  *   files can resolve through the same subpath as the built bundle.
@@ -272,6 +285,7 @@ function makeConfigInjectionScript(
   authRequired,
   runtimeServicesInfo,
   lockToCloud,
+  disableOnboarding,
   basePath,
 ) {
   const parts = [];
@@ -316,6 +330,10 @@ function makeConfigInjectionScript(
     );
   }
 
+  if (disableOnboarding) {
+    parts.push(`window.__AGENT_CANVAS_DISABLE_ONBOARDING__=true;`);
+  }
+
   if (basePath && basePath !== "/") {
     parts.push(
       `window.__AGENT_CANVAS_BASE_PATH__=${JSON.stringify(basePath)};`,
@@ -340,6 +358,7 @@ async function serveInjectedIndexHtml(
     authRequired,
     runtimeServicesInfo,
     lockToCloud,
+    disableOnboarding,
     basePath,
   } = {},
 ) {
@@ -355,6 +374,7 @@ async function serveInjectedIndexHtml(
     authRequired,
     runtimeServicesInfo,
     lockToCloud,
+    disableOnboarding,
     basePath,
   );
   // Inject right before </head> so the key is available before any app code runs.
@@ -404,6 +424,7 @@ function needsRuntimeInjection(injectionOpts) {
     injectionOpts.authRequired ||
     injectionOpts.runtimeServicesInfo ||
     injectionOpts.lockToCloud ||
+    injectionOpts.disableOnboarding ||
     (injectionOpts.basePath && injectionOpts.basePath !== "/"),
   );
 }
@@ -547,6 +568,7 @@ export function startStaticServer(config) {
     authRequired: config.authRequired || false,
     runtimeServicesInfo: config.runtimeServicesInfo || null,
     lockToCloud: config.lockToCloud || null,
+    disableOnboarding: config.disableOnboarding || false,
     basePath: normalizeBasePath(config.basePath),
   };
   const basePath = injectionOpts.basePath;
@@ -611,6 +633,9 @@ export function startStaticServer(config) {
       if (config.lockToCloud) {
         console.log(`  Backend setup locked to Cloud: ${config.lockToCloud}`);
       }
+      if (config.disableOnboarding) {
+        console.log("  First-run onboarding: disabled");
+      }
       console.log("  * (default) -> static files + SPA fallback");
       console.log("");
       resolveListen(server);
@@ -628,6 +653,12 @@ const isMainModule =
 if (isMainModule) {
   try {
     const config = parseArgs();
+    // Env fallback so deployments that can only set container env vars
+    // (e.g. the Helm chart's generic `env:` passthrough) can enable the
+    // flag without changing the CLI invocation. Env can only turn it ON.
+    if (process.env.AGENT_CANVAS_DISABLE_ONBOARDING === "true") {
+      config.disableOnboarding = true;
+    }
     await startStaticServer(config);
   } catch (err) {
     console.error(err instanceof Error ? err.message : err);

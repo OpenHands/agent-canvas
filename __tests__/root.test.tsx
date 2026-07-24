@@ -192,6 +192,23 @@ describe("App root agent-server availability guard", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("skips first-run onboarding for a fresh install when onboarding is disabled for the deployment", async () => {
+    vi.stubEnv("VITE_DISABLE_ONBOARDING", "true");
+    server.use(
+      http.get("*/server_info", () =>
+        HttpResponse.json({ uptime: 0, idle_time: 0, version: "1.28.1" }),
+      ),
+    );
+
+    renderApp(["/"]);
+
+    expect(await screen.findByTestId("app-outlet")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("first-run-onboarding-screen"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("onboarding-modal")).not.toBeInTheDocument();
+  });
+
   it("shows first-run onboarding before the recovery modal when locked to Cloud with no backend", async () => {
     vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
     vi.stubEnv("VITE_SESSION_API_KEY", "");

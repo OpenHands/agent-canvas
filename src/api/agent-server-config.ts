@@ -224,3 +224,20 @@ export function isAuthRequiredAndMissing(): boolean {
   if (!isAuthRequired()) return false;
   return !getAgentServerSessionApiKey();
 }
+
+/**
+ * True when first-run onboarding should be suppressed for this deployment
+ * (users land directly on the home screen with default settings). Sourced
+ * from build-time `VITE_DISABLE_ONBOARDING=true` or the runtime
+ * `window.__AGENT_CANVAS_DISABLE_ONBOARDING__` global injected by
+ * `scripts/static-server.mjs --disable-onboarding`. Cloud login is not
+ * onboarding and is never suppressed by this flag.
+ */
+export function isOnboardingDisabled(): boolean {
+  return (
+    import.meta.env.VITE_DISABLE_ONBOARDING === "true" ||
+    (typeof window !== "undefined" &&
+      (window as unknown as Record<string, unknown>)
+        .__AGENT_CANVAS_DISABLE_ONBOARDING__ === true)
+  );
+}

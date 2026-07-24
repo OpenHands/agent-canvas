@@ -85,6 +85,16 @@ describe("static-server.mjs", () => {
       expect(config.lockToCloud).toBeNull();
     });
 
+    it("defaults disableOnboarding to false", () => {
+      const config = parseArgs([]);
+      expect(config.disableOnboarding).toBe(false);
+    });
+
+    it("parses --disable-onboarding", () => {
+      const config = parseArgs(["--disable-onboarding"]);
+      expect(config.disableOnboarding).toBe(true);
+    });
+
     it("defaults basePath to root", () => {
       const config = parseArgs([]);
       expect(config.basePath).toBe("/");
@@ -237,6 +247,40 @@ describe("static-server.mjs", () => {
 
       expect(response.status).toBe(200);
       expect(body).toContain("__AGENT_CANVAS_LOCK_TO_CLOUD__");
+    });
+  });
+
+  describe("disable-onboarding injection", () => {
+    // Covers the SaaS / prebuilt-bundle path: the published build has no
+    // VITE_DISABLE_ONBOARDING baked in, so the wizard is suppressed through
+    // this injected window global (see `isOnboardingDisabled()` in
+    // src/api/agent-server-config.ts).
+    it("exposes the flag on window.__AGENT_CANVAS_DISABLE_ONBOARDING__", async () => {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(
+        path.join(buildDir, "index.html"),
+        "<html><head></head><body>app</body></html>",
+      );
+
+      const origin = await startServer(buildDir, { disableOnboarding: true });
+      const body = await (await fetch(`${origin}/`)).text();
+
+      expect(body).toContain("window.__AGENT_CANVAS_DISABLE_ONBOARDING__=true");
+    });
+
+    it("does not inject the flag by default", async () => {
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(
+        path.join(buildDir, "index.html"),
+        "<html><head></head><body>app</body></html>",
+      );
+
+      const origin = await startServer(buildDir);
+      const body = await (await fetch(`${origin}/`)).text();
+
+      expect(body).not.toContain("__AGENT_CANVAS_DISABLE_ONBOARDING__");
     });
   });
 
