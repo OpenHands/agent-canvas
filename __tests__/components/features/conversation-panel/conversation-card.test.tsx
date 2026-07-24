@@ -13,6 +13,7 @@ import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "test-utils";
 import { formatTimeDelta } from "#/utils/format-time-delta";
 import { ConversationCard } from "#/components/features/conversation-panel/conversation-card/conversation-card";
+import { MAX_VISIBLE_TAG_CHIPS } from "#/components/features/conversation-panel/conversation-card/conversation-card-footer";
 import { clickOnEditButton } from "./utils";
 import { ConversationCardActions } from "#/components/features/conversation-panel/conversation-card/conversation-card-actions";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
@@ -640,6 +641,57 @@ describe("ConversationCard", () => {
 
       expect(
         screen.queryByTestId("conversation-card-tag-chip"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("caps visible chips at the display budget with a +N overflow chip", () => {
+      // Tags are API-controlled with no useful size bound, so the card must
+      // not grow with the tag count: first MAX_VISIBLE_TAG_CHIPS sorted keys
+      // render as chips, the rest fold into "+N" with a tooltip listing them.
+      renderWithProviders(
+        <ConversationCard
+          title="Conversation 1"
+          selectedRepository={null}
+          lastUpdatedAt="2021-10-01T12:00:00Z"
+          showTags
+          tags={{
+            env: "prod",
+            origin: "slack",
+            owner: "alice",
+            repo: "goodday",
+            team: "infra",
+          }}
+        />,
+      );
+
+      const chips = screen.getAllByTestId("conversation-card-tag-chip");
+      expect(chips).toHaveLength(MAX_VISIBLE_TAG_CHIPS);
+      expect(chips[0]).toHaveTextContent("env: prod");
+      expect(chips[1]).toHaveTextContent("origin: slack");
+      expect(chips[2]).toHaveTextContent("owner: alice");
+
+      const overflow = screen.getByTestId("conversation-card-tag-overflow");
+      expect(overflow).toHaveTextContent("+2");
+      // The hidden remainder stays reachable via the overflow tooltip.
+      expect(overflow).toHaveAttribute("title", "repo: goodday\nteam: infra");
+    });
+
+    it("renders no overflow chip when tags fit the display budget", () => {
+      renderWithProviders(
+        <ConversationCard
+          title="Conversation 1"
+          selectedRepository={null}
+          lastUpdatedAt="2021-10-01T12:00:00Z"
+          showTags
+          tags={{ env: "prod", origin: "slack", owner: "alice" }}
+        />,
+      );
+
+      expect(
+        screen.getAllByTestId("conversation-card-tag-chip"),
+      ).toHaveLength(3);
+      expect(
+        screen.queryByTestId("conversation-card-tag-overflow"),
       ).not.toBeInTheDocument();
     });
 

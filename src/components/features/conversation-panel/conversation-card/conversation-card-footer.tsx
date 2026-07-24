@@ -19,6 +19,13 @@ import { getDisplayConversationTags } from "#/api/agent-server-adapter";
 import { ConversationRepoLink } from "./conversation-repo-link";
 import { NoRepository } from "./no-repository";
 
+/**
+ * Display budget for the tag-chip row. Tags are server-/API-controlled, so a
+ * conversation can carry arbitrarily many; the card shows at most this many
+ * chips (sorted by key) and folds the rest into a "+N" overflow chip.
+ */
+export const MAX_VISIBLE_TAG_CHIPS = 3;
+
 interface ConversationCardFooterProps {
   selectedRepository: RepositorySelection | null;
   lastUpdatedAt: string;
@@ -123,6 +130,12 @@ export function ConversationCardFooter({
     executionStatus !== undefined ? "pl-[26px]" : undefined;
 
   const displayTags = showTags ? getDisplayConversationTags(tags) : [];
+  // Tags are API-controlled with no server-side count bound, so the card
+  // renders a fixed display budget: the first chips in sorted-key order plus
+  // a "+N" affordance whose tooltip reveals the remainder. The full map stays
+  // on ``AppConversation.tags`` for non-display consumers.
+  const visibleTags = displayTags.slice(0, MAX_VISIBLE_TAG_CHIPS);
+  const overflowTags = displayTags.slice(MAX_VISIBLE_TAG_CHIPS);
 
   return (
     <div
@@ -150,7 +163,7 @@ export function ConversationCardFooter({
             metadataIndentClass,
           )}
         >
-          {displayTags.map(([key, value]) => (
+          {visibleTags.map(([key, value]) => (
             <span
               key={key}
               data-testid="conversation-card-tag-chip"
@@ -160,6 +173,17 @@ export function ConversationCardFooter({
               <span className="truncate">{`${key}: ${value}`}</span>
             </span>
           ))}
+          {overflowTags.length > 0 ? (
+            <span
+              data-testid="conversation-card-tag-overflow"
+              title={overflowTags
+                .map(([key, value]) => `${key}: ${value}`)
+                .join("\n")}
+              className="inline-flex items-center rounded-sm bg-[var(--oh-surface-raised)] px-1 py-px text-[10px] leading-4 text-[var(--oh-muted)]"
+            >
+              {`+${overflowTags.length}`}
+            </span>
+          ) : null}
         </div>
       ) : null}
       <div
