@@ -588,6 +588,78 @@ describe("ConversationCard", () => {
     });
   });
 
+  describe("Tag chips", () => {
+    // Tag chips surface the agent-server's server-side conversation tags
+    // (e.g. ``origin=slack`` stamped by an automation) and are gated by the
+    // conversation panel's "Tags" toggle (``showTags``).
+    it("renders non-reserved tags as key: value chips when showTags is on", () => {
+      renderWithProviders(
+        <ConversationCard
+          title="Conversation 1"
+          selectedRepository={null}
+          lastUpdatedAt="2021-10-01T12:00:00Z"
+          showTags
+          tags={{ origin: "slack", owner: "alice" }}
+        />,
+      );
+
+      const chips = screen.getAllByTestId("conversation-card-tag-chip");
+      // Chips are sorted by key ("origin" < "owner") for a stable order.
+      expect(chips).toHaveLength(2);
+      expect(chips[0]).toHaveTextContent("origin: slack");
+      expect(chips[1]).toHaveTextContent("owner: alice");
+    });
+
+    it("filters reserved tag keys out of the chip row", () => {
+      // ``acpserver`` is Canvas-internal routing state already surfaced via
+      // the agent chip — it must not double-render as a generic tag chip.
+      renderWithProviders(
+        <ConversationCard
+          title="Conversation 1"
+          selectedRepository={null}
+          lastUpdatedAt="2021-10-01T12:00:00Z"
+          showTags
+          tags={{ acpserver: "claude-code", origin: "review" }}
+        />,
+      );
+
+      const chips = screen.getAllByTestId("conversation-card-tag-chip");
+      expect(chips).toHaveLength(1);
+      expect(chips[0]).toHaveTextContent("origin: review");
+    });
+
+    it("hides the chips when showTags is omitted", () => {
+      renderWithProviders(
+        <ConversationCard
+          title="Conversation 1"
+          selectedRepository={null}
+          lastUpdatedAt="2021-10-01T12:00:00Z"
+          tags={{ origin: "slack" }}
+        />,
+      );
+
+      expect(
+        screen.queryByTestId("conversation-card-tag-chip"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("renders no chip row when every tag is reserved", () => {
+      renderWithProviders(
+        <ConversationCard
+          title="Conversation 1"
+          selectedRepository={null}
+          lastUpdatedAt="2021-10-01T12:00:00Z"
+          showTags
+          tags={{ acpserver: "claude-code" }}
+        />,
+      );
+
+      expect(
+        screen.queryByTestId("conversation-card-tag-chip"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   describe("Agent chip", () => {
     // The agent chip is gated by the conversation panel's "Agent / model"
     // toggle (``showLlmProfiles``) — one control for both ACP and OpenHands

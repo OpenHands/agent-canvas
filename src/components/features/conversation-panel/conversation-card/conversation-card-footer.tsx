@@ -15,6 +15,7 @@ import {
   AgentBrandIcon,
   type AgentBrandIconKind,
 } from "#/components/shared/agent-brand-icon";
+import { getDisplayConversationTags } from "#/api/agent-server-adapter";
 import { ConversationRepoLink } from "./conversation-repo-link";
 import { NoRepository } from "./no-repository";
 
@@ -48,6 +49,17 @@ interface ConversationCardFooterProps {
    * useful chip.
    */
   acpServer?: string | null;
+  /**
+   * Server-side conversation tags (``AppConversation.tags``). Non-reserved
+   * entries render as ``key: value`` chips so API-/automation-born
+   * conversations can surface attribution (e.g. ``origin: slack``).
+   */
+  tags?: Record<string, string> | null;
+  /**
+   * Whether to render the tag-chip row. Wired to the conversation panel's
+   * "Tags" toggle.
+   */
+  showTags?: boolean;
 }
 
 export function ConversationCardFooter({
@@ -62,6 +74,8 @@ export function ConversationCardFooter({
   showAgentChip = false,
   agentKind = null,
   acpServer = null,
+  tags = null,
+  showTags = false,
 }: ConversationCardFooterProps) {
   const { t } = useTranslation("openhands");
 
@@ -108,6 +122,8 @@ export function ConversationCardFooter({
   const metadataIndentClass =
     executionStatus !== undefined ? "pl-[26px]" : undefined;
 
+  const displayTags = showTags ? getDisplayConversationTags(tags) : [];
+
   return (
     <div
       className={cn(
@@ -125,6 +141,25 @@ export function ConversationCardFooter({
             <AgentBrandIcon kind={chip.kind} />
             <span className="truncate">{chip.text}</span>
           </span>
+        </div>
+      ) : null}
+      {displayTags.length > 0 ? (
+        <div
+          className={cn(
+            "flex flex-row flex-wrap items-center gap-1 min-w-0",
+            metadataIndentClass,
+          )}
+        >
+          {displayTags.map(([key, value]) => (
+            <span
+              key={key}
+              data-testid="conversation-card-tag-chip"
+              title={`${key}: ${value}`}
+              className="inline-flex max-w-full min-w-0 items-center rounded-sm bg-[var(--oh-surface-raised)] px-1 py-px text-[10px] leading-4 text-[var(--oh-muted)]"
+            >
+              <span className="truncate">{`${key}: ${value}`}</span>
+            </span>
+          ))}
         </div>
       ) : null}
       <div
