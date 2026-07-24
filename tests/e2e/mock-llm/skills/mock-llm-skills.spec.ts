@@ -150,15 +150,13 @@ test.describe("skill loading: project, user, and deletion", () => {
     await ensureMockLLMProfile(page);
 
     // Create a git repo with the skill committed
-    const { agentDir } = await test.step(
-      "create git repo with project skill",
-      () => {
+    const { agentDir } =
+      await test.step("create git repo with project skill", () => {
         return createProjectSkillRepo(
           PROJECT_SKILL_NAME,
           PROJECT_SKILL_TRIGGER,
         );
-      },
-    );
+      });
     projectSkillAgentDir = agentDir;
 
     // Register the workspace on the server using the agent-side path
@@ -261,8 +259,8 @@ test.describe("skill loading: project, user, and deletion", () => {
     await activateTrajectory(request, "user-skill");
 
     await routeSessionApiKey(page);
-    await page.goto("/", { waitUntil: "domcontentloaded" });
-    await dismissAnalyticsModal(page);
+    await page.getByTestId("sidebar-conversations-link").click();
+    await waitForPath(page, /^\/conversations\/?$/);
 
     await test.step("send message with user skill trigger", async () => {
       await setChatInput(
@@ -334,20 +332,14 @@ test.describe("skill loading: project, user, and deletion", () => {
     await activateTrajectory(request, "deleted-skill");
 
     await routeSessionApiKey(page);
-    await page.goto("/", { waitUntil: "domcontentloaded" });
-    await dismissAnalyticsModal(page);
+    await page.getByTestId("sidebar-conversations-link").click();
+    await waitForPath(page, /^\/conversations\/?$/);
 
-    await test.step(
-      "send message with deleted skill trigger keyword",
-      async () => {
-        await setChatInput(
-          page,
-          `Help me with ${USER_SKILL_TRIGGER} please`,
-        );
-        await page.getByTestId("submit-button").click();
-        await waitForPath(page, /\/conversations\/.+/, 30_000);
-      },
-    );
+    await test.step("send message with deleted skill trigger keyword", async () => {
+      await setChatInput(page, `Help me with ${USER_SKILL_TRIGGER} please`);
+      await page.getByTestId("submit-button").click();
+      await waitForPath(page, /\/conversations\/.+/, 30_000);
+    });
 
     const conversationId = getConversationIdFromURL(page);
     conversationIds.add(conversationId);
