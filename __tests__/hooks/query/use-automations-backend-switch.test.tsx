@@ -307,7 +307,7 @@ describe("automation mutation hooks — analytics tracking", () => {
     });
   });
 
-  it("captures automation_deactivated when an automation is disabled", async () => {
+  it("captures automation_disable_button when an automation is disabled", async () => {
     const { result } = renderHook(() => useToggleAutomation(), {
       wrapper: makeWrapper(),
     });
@@ -318,13 +318,13 @@ describe("automation mutation hooks — analytics tracking", () => {
 
     await waitFor(() => {
       expect(captureMock).toHaveBeenCalledWith(
-        "automation_deactivated",
+        "automation_disable_button",
         expect.objectContaining({ backend_kind: "local" }),
       );
     });
   });
 
-  it("does not capture automation_deactivated when an automation is enabled", async () => {
+  it("does not capture automation_disable_button when an automation is enabled", async () => {
     const { result } = renderHook(() => useToggleAutomation(), {
       wrapper: makeWrapper(),
     });
@@ -334,7 +334,7 @@ describe("automation mutation hooks — analytics tracking", () => {
     });
 
     expect(captureMock).not.toHaveBeenCalledWith(
-      "automation_deactivated",
+      "automation_disable_button",
       expect.anything(),
     );
   });
