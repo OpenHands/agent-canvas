@@ -132,13 +132,13 @@ describe("useSettingsNavItems", () => {
     });
 
     const { result } = renderHook(() => useSettingsNavItems());
-    const llm = result.current.find(
-      (r) => r.type === "item" && r.item.to === "/settings/llm",
+    const condenser = result.current.find(
+      (r) => r.type === "item" && r.item.to === "/settings/condenser",
     );
-    expect(llm?.type).toBe("item");
-    if (llm?.type === "item") {
-      expect(llm.disabled).toBe(true);
-      expect(llm.disabledAgentName).toBe("MyClaude");
+    expect(condenser?.type).toBe("item");
+    if (condenser?.type === "item") {
+      expect(condenser.disabled).toBe(true);
+      expect(condenser.disabledAgentName).toBe("MyClaude");
     }
   });
 
@@ -171,7 +171,7 @@ describe("useSettingsNavItems", () => {
     expect(paths).not.toContain("/settings/mcp");
   });
 
-  it("disables LLM + Condenser when the active agent_kind is acp", () => {
+  it("disables Condenser but keeps LLM Profiles reachable when the active agent_kind is acp", () => {
     useConfigMock.mockReturnValue({ data: createConfig() });
     useSettingsMock.mockReturnValue({ data: acpClaudeCodeSettings });
 
@@ -184,17 +184,19 @@ describe("useSettingsNavItems", () => {
         ),
     );
 
-    const llm = byPath.get("/settings/llm");
-    expect(llm?.type).toBe("item");
-    if (llm?.type === "item") {
-      expect(llm.disabled).toBe(true);
-      expect(llm.disabledAgentName).toBe("Claude Code");
-    }
-
     const condenser = byPath.get("/settings/condenser");
     expect(condenser?.type).toBe("item");
     if (condenser?.type === "item") {
       expect(condenser.disabled).toBe(true);
+      expect(condenser.disabledAgentName).toBe("Claude Code");
+    }
+
+    // The LLM profile library stays reachable — an OpenHands agent profile
+    // can't be created without one.
+    const llm = byPath.get("/settings/llm");
+    expect(llm?.type).toBe("item");
+    if (llm?.type === "item") {
+      expect(llm.disabled).toBeUndefined();
     }
 
     // Items without `disabledByAcp` stay enabled.
@@ -217,11 +219,12 @@ describe("useSettingsNavItems", () => {
     });
 
     const { result } = renderHook(() => useSettingsNavItems());
-    const llm = result.current.find(
-      (r) => r.type === "item" && r.item.to === "/settings/llm",
+    const condenser = result.current.find(
+      (r) => r.type === "item" && r.item.to === "/settings/condenser",
     );
-    if (llm?.type === "item") {
-      expect(llm.disabledAgentName).toBe("ACP Agent");
+    expect(condenser?.type).toBe("item");
+    if (condenser?.type === "item") {
+      expect(condenser.disabledAgentName).toBe("ACP Agent");
     }
   });
 

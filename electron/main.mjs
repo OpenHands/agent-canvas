@@ -693,6 +693,12 @@ app.whenReady().then(async () => {
 //     → before-quit fires (first time)  → we preventDefault + send SIGTERM
 //     → SIGTERM handler kills all children, calls process.exit(0)
 //     → before-quit fires again (cleanupStarted=true) → we return, Electron exits
+//
+// Windows has no real POSIX signals: process.kill(pid, "SIGTERM") would
+// terminate this process WITHOUT running the "SIGTERM" listener, skipping
+// cleanup and orphaning the children on ports 8000/18000/18001 (the next
+// launch then fails at startup). process.emit("SIGTERM") runs the same
+// registered handler in-process instead.
 
 let cleanupStarted = false;
 
@@ -703,7 +709,14 @@ app.on("before-quit", (event) => {
   event.preventDefault();
 
   console.log("[desktop] Stopping backend services…");
-  process.kill(process.pid, "SIGTERM");
+  if (process.platform === "win32") {
+    // Run the cleanup handler in-process (see header note). emit() returns
+    // false when no listener is registered — the stack never started, so
+    // there is nothing to clean up and we can exit immediately.
+    if (!process.emit("SIGTERM")) app.exit(0);
+  } else {
+    process.kill(process.pid, "SIGTERM");
+  }
 
   // Safety net: if the SIGTERM handler doesn't finish within 6 s, force-quit.
   const t = setTimeout(() => {

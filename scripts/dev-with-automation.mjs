@@ -60,7 +60,6 @@ import {
   buildNpmScriptCommand,
   buildRuntimeServicesInfo,
   formatMissingUvxGuidance,
-  getOrCreatePersistedApiKey,
   validateFrontendDependencies,
   validateLocalAgentServerPath,
 } from "./dev-safe.mjs";
@@ -87,6 +86,8 @@ const DEFAULT_AUTOMATION_VERSION = SHARED_DEFAULTS.versions.automation;
 const DEFAULT_AUTOMATION_SDK_VERSION = SHARED_DEFAULTS.versions.agentServer;
 const DEFAULT_BACKEND_PORT = SHARED_DEFAULTS.ports.agentServer;
 const DEFAULT_AUTOMATION_PORT = SHARED_DEFAULTS.ports.automation;
+const DEFAULT_POSTHOG_API_KEY = SHARED_DEFAULTS.telemetry.posthogApiKey;
+const DEFAULT_POSTHOG_HOST = SHARED_DEFAULTS.telemetry.posthogHost;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Terminal Styling
@@ -623,7 +624,7 @@ function spawnService(name, command, args, options = {}) {
     emitServiceLog(name, `failed to start: ${error.message}`, "error");
   });
 
-  proc.on("exit", (code, signal) => {
+  proc.on("exit", (code, _signal) => {
     if (code !== 0 && code !== null && !shuttingDown) {
       logService(name, `Exited with code ${code}`, c.red);
       emitServiceLog(name, `exited with code ${code}`, "error");
@@ -750,6 +751,24 @@ function buildAgentServerAutomationEnv(config) {
     // exposing it here keeps that path working even before/without
     // secret-registry env expansion.
     OPENHANDS_AUTOMATION_API_KEY: config.sessionApiKey,
+  };
+}
+
+function buildAutomationTelemetryEnv(env = process.env) {
+  const telemetryDisabled = env.VITE_DO_NOT_TRACK === "1";
+  const apiKey =
+    env.AUTOMATION_POSTHOG_API_KEY ||
+    env.VITE_POSTHOG_API_KEY ||
+    (telemetryDisabled ? "" : DEFAULT_POSTHOG_API_KEY);
+
+  if (!apiKey) return {};
+
+  return {
+    AUTOMATION_POSTHOG_API_KEY: apiKey,
+    AUTOMATION_POSTHOG_HOST:
+      env.AUTOMATION_POSTHOG_HOST ||
+      env.VITE_POSTHOG_HOST ||
+      DEFAULT_POSTHOG_HOST,
   };
 }
 
@@ -884,6 +903,7 @@ function startAutomationBackend(config) {
           join(config.stateDir, "workspaces"),
         // Session API key for self-hosted auth — shared with agent-server via X-Session-API-Key header
         AUTOMATION_LOCAL_API_KEY: config.sessionApiKey,
+        ...buildAutomationTelemetryEnv(),
         // KV store secret — required for automations to use the built-in
         // key-value store for state persistence between runs. Used for JWT
         // signing and value encryption.
@@ -1132,7 +1152,8 @@ function printBanner(config) {
 
   // padEnd counts invisible ANSI escape bytes as visible characters, so we
   // compute the visible length separately and pad with spaces accordingly.
-  const ansiRe = /\x1b\[[0-9;]*m/g;
+  const ansiEscape = String.fromCharCode(27);
+  const ansiRe = new RegExp(`${ansiEscape}\\[[0-9;]*m`, "g");
   const ansiPadEnd = (str, targetVisible) => {
     const visible = str.replace(ansiRe, "").length;
     return str + " ".repeat(Math.max(0, targetVisible - visible));
@@ -1474,6 +1495,7 @@ function startStaticFrontend(config, staticDir) {
 export {
   buildAgentServerAutomationEnv,
   buildAutomationCommand,
+  buildAutomationTelemetryEnv,
   buildConfig,
   buildRouteArgs,
   buildViteBackendEnv,
