@@ -10,6 +10,7 @@ import SparkleIcon from "#/icons/sparkle.svg?react";
 import BellIcon from "#/icons/bell.svg?react";
 import GlobeIcon from "#/icons/globe.svg?react";
 import CodeTagIcon from "#/icons/code-tag.svg?react";
+import ClockIcon from "#/icons/clock.svg?react";
 import LinkExternalIcon from "#/icons/link-external.svg?react";
 import { formatEventOn } from "#/utils/automation-schedule";
 import { SectionCard } from "./section-card";
@@ -134,6 +135,15 @@ export function ConfigurationSection({
         >
           {automation.model ?? t(I18nKey.COMMON$ACTIVE_PROFILE)}
         </ConfigField>
+
+        {automation.timeout != null && (
+          <ConfigField
+            icon={<ClockIcon className="size-3.5" />}
+            label={t(I18nKey.AUTOMATIONS$TIMEOUT)}
+          >
+            {automation.timeout}
+          </ConfigField>
+        )}
 
         {automation.notification && (
           <ConfigField

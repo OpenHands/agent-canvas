@@ -21,6 +21,7 @@ vi.mock("react-i18next", () => ({
       const translations: Record<string, string> = {
         [I18nKey.AUTOMATIONS$CREATE_AUTOMATION_BUTTON]: "Create Automation",
         [I18nKey.AUTOMATIONS$CREATE_AUTOMATION_PROMPT]: "Create an automation",
+        [I18nKey.AUTOMATIONS$TIMEOUT]: "Timeout (seconds)",
         [I18nKey.AUTOMATIONS$CREATE_INSTRUCTIONS_GUIDANCE]:
           "Include what the automation should do, when it should run, and where to send the results.",
       };
@@ -119,5 +120,46 @@ describe("CreateInstructions", () => {
     await waitFor(() => {
       expect(setMessageToSend).toHaveBeenCalledWith("Create an automation");
     });
+  });
+
+  it("adds a selected timeout to the automation creation prompt", async () => {
+    const user = userEvent.setup();
+    const setMessageToSend = vi.fn();
+    useConversationStore.setState({ setMessageToSend });
+    const { navigate } = renderCreateInstructions();
+
+    const timeoutInput = screen.getByTestId(
+      "create-automation-timeout",
+    ) as HTMLInputElement;
+    expect(timeoutInput.value).toBe("");
+    expect(timeoutInput).toHaveAttribute("min", "1");
+    expect(timeoutInput).toHaveAttribute("max", "1800");
+    expect(timeoutInput).toHaveAttribute("placeholder", "600");
+
+    await user.type(timeoutInput, "1200");
+    await user.click(screen.getByTestId("automations-create-automation"));
+
+    expect(navigate).toHaveBeenCalledWith("/conversations");
+    await waitFor(() => {
+      expect(setMessageToSend).toHaveBeenCalledWith(
+        "Create an automation\n\nTimeout (seconds): 1200",
+      );
+    });
+  });
+
+  it("blocks creation when the selected timeout exceeds the maximum", async () => {
+    const user = userEvent.setup();
+    const setMessageToSend = vi.fn();
+    useConversationStore.setState({ setMessageToSend });
+    const { navigate } = renderCreateInstructions();
+
+    await user.type(screen.getByTestId("create-automation-timeout"), "1801");
+    await user.click(screen.getByTestId("automations-create-automation"));
+
+    expect(
+      screen.getByTestId("create-automation-timeout-error"),
+    ).toBeInTheDocument();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(setMessageToSend).not.toHaveBeenCalled();
   });
 });

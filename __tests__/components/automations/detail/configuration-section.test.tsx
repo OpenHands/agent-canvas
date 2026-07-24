@@ -64,6 +64,17 @@ describe("ConfigurationSection", () => {
     expect(screen.getByText("acme/app")).toBeInTheDocument();
   });
 
+  it("renders the configured run timeout", () => {
+    render(
+      <ConfigurationSection
+        automation={{ ...cronAutomation, timeout: 1200 }}
+      />,
+    );
+
+    expect(screen.getByText("AUTOMATIONS$TIMEOUT")).toBeInTheDocument();
+    expect(screen.getByText("1200")).toBeInTheDocument();
+  });
+
   it("renders event trigger with source, event type, and filter", () => {
     render(<ConfigurationSection automation={eventAutomation} />);
 

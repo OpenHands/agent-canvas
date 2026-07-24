@@ -5,9 +5,15 @@ import ChevronDownIcon from "#/icons/chevron-down.svg?react";
 import MessageSquareShareIcon from "#/icons/message-square-share.svg?react";
 import { cn } from "#/utils/utils";
 import { BrandButton } from "#/components/features/settings/brand-button";
+import { SettingsInput } from "#/components/features/settings/settings-input";
 import { useLaunchSkillInChat } from "#/hooks/use-launch-skill-in-chat";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useTracking } from "#/hooks/use-tracking";
+import {
+  AUTOMATION_TIMEOUT_DEFAULT_SECONDS,
+  AUTOMATION_TIMEOUT_MAX_SECONDS,
+  validateAutomationTimeout,
+} from "#/utils/automation-timeout";
 
 const DOCS_URL =
   "https://docs.openhands.dev/openhands/usage/automations/overview";
@@ -56,10 +62,25 @@ export function CreateInstructionsContent({
   const launchInChat = useLaunchSkillInChat();
   const active = useActiveBackend();
   const { trackAutomationCreated } = useTracking();
+  const [timeout, setTimeout] = useState("");
+  const [timeoutError, setTimeoutError] = useState<string | null>(null);
 
   const handleCreateAutomation = () => {
+    const timeoutResult = validateAutomationTimeout(timeout);
+    if ("errorKey" in timeoutResult) {
+      setTimeoutError(t(timeoutResult.errorKey));
+      return;
+    }
+
+    setTimeoutError(null);
+    const basePrompt = t(I18nKey.AUTOMATIONS$CREATE_AUTOMATION_PROMPT);
+    const prompt =
+      timeoutResult.value === null
+        ? basePrompt
+        : `${basePrompt}\n\n${t(I18nKey.AUTOMATIONS$TIMEOUT)}: ${timeoutResult.value}`;
+
     trackAutomationCreated({ backendKind: active.backend.kind });
-    launchInChat(t(I18nKey.AUTOMATIONS$CREATE_AUTOMATION_PROMPT), onLaunch);
+    launchInChat(prompt, onLaunch);
   };
 
   return (
@@ -72,6 +93,29 @@ export function CreateInstructionsContent({
         />{" "}
         {t(I18nKey.AUTOMATIONS$CREATE_INSTRUCTIONS_GUIDANCE)}
       </p>
+
+      <div className="flex flex-col gap-2.5">
+        <SettingsInput
+          testId="create-automation-timeout"
+          name="timeout"
+          type="number"
+          label={t(I18nKey.AUTOMATIONS$TIMEOUT)}
+          value={timeout}
+          onChange={(value) => {
+            setTimeout(value);
+            setTimeoutError(null);
+          }}
+          error={timeoutError ?? undefined}
+          showOptionalTag
+          min={1}
+          max={AUTOMATION_TIMEOUT_MAX_SECONDS}
+          step={1}
+          placeholder={String(AUTOMATION_TIMEOUT_DEFAULT_SECONDS)}
+        />
+        <span className="text-xs text-muted">
+          {t(I18nKey.AUTOMATIONS$TIMEOUT_HINT)}
+        </span>
+      </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <a
