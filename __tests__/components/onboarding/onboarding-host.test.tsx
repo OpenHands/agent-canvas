@@ -88,6 +88,8 @@ afterEach(() => {
   window.localStorage.clear();
   vi.unstubAllEnvs();
   __resetActiveStoreForTests();
+  delete (window as unknown as Record<string, unknown>)
+    .__AGENT_CANVAS_DISABLE_ONBOARDING__;
 });
 
 describe("OnboardingHost", () => {
@@ -245,7 +247,13 @@ describe("OnboardingHost", () => {
   });
 
   it("does not mount the modal for a fresh Cloud user when onboarding is disabled for the deployment", () => {
-    vi.stubEnv("VITE_DISABLE_ONBOARDING", "true");
+    // Runtime half of the flag — the injected window global is the path SaaS
+    // actually uses (the prebuilt bundle has no VITE_DISABLE_ONBOARDING baked
+    // in). The build-time half is covered through the root gate in
+    // __tests__/root.test.tsx.
+    (
+      window as unknown as Record<string, unknown>
+    ).__AGENT_CANVAS_DISABLE_ONBOARDING__ = true;
     seedCloudBackend();
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
       ...DEFAULT_SETTINGS,

@@ -1,4 +1,5 @@
 import { useLocation } from "react-router";
+import { isOnboardingDisabled } from "#/api/agent-server-config";
 import { OnboardingModal } from "./onboarding-modal";
 import {
   isOnboardingPreviewActive,
@@ -27,7 +28,9 @@ export function OnboardingHost() {
   const { isCompleted, markCompleted } = useOnboardingCompletion();
 
   if (!isPreview) {
-    if (isCompleted) return null;
+    // Deployment-level suppression (VITE_DISABLE_ONBOARDING or the injected
+    // window global) closes the gate without faking the completion marker.
+    if (isCompleted || isOnboardingDisabled()) return null;
   }
 
   const handleClose = () => {

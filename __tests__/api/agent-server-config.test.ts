@@ -31,6 +31,8 @@ afterEach(() => {
     .__AGENT_CANVAS_SESSION_API_KEY__;
   delete (window as unknown as Record<string, unknown>)
     .__AGENT_CANVAS_LOCK_TO_CLOUD__;
+  delete (window as unknown as Record<string, unknown>)
+    .__AGENT_CANVAS_DISABLE_ONBOARDING__;
   Object.defineProperty(window, "location", {
     configurable: true,
     value: ORIGINAL_LOCATION,
@@ -249,11 +251,6 @@ describe("isAuthRequiredAndMissing", () => {
 });
 
 describe("isOnboardingDisabled", () => {
-  afterEach(() => {
-    delete (window as unknown as Record<string, unknown>)
-      .__AGENT_CANVAS_DISABLE_ONBOARDING__;
-  });
-
   it("returns false when neither env var nor window flag is set", () => {
     expect(isOnboardingDisabled()).toBe(false);
   });

@@ -2,7 +2,7 @@ import type { Server } from "node:http";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { parseArgs, startStaticServer } from "../../scripts/static-server.mjs";
 
@@ -11,6 +11,8 @@ describe("static-server.mjs", () => {
   const tempDirs: string[] = [];
 
   afterEach(async () => {
+    vi.unstubAllEnvs();
+
     await Promise.all(
       servers.splice(0).map(
         (server) =>
@@ -281,6 +283,23 @@ describe("static-server.mjs", () => {
       const body = await (await fetch(`${origin}/`)).text();
 
       expect(body).not.toContain("__AGENT_CANVAS_DISABLE_ONBOARDING__");
+    });
+
+    it("honors the AGENT_CANVAS_DISABLE_ONBOARDING env fallback", async () => {
+      // The SaaS Helm chart execs static-server.mjs directly and can only
+      // set container env vars (generic `env:` passthrough), not CLI flags.
+      vi.stubEnv("AGENT_CANVAS_DISABLE_ONBOARDING", "true");
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(
+        path.join(buildDir, "index.html"),
+        "<html><head></head><body>app</body></html>",
+      );
+
+      const origin = await startServer(buildDir);
+      const body = await (await fetch(`${origin}/`)).text();
+
+      expect(body).toContain("window.__AGENT_CANVAS_DISABLE_ONBOARDING__=true");
     });
   });
 

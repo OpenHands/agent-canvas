@@ -24,6 +24,7 @@ import {
   getLockedCloudAuthMode,
   getLockedCloudHost,
   isAuthRequiredAndMissing,
+  isOnboardingDisabled,
   isSameCloudHost,
 } from "#/api/agent-server-config";
 import {
@@ -259,8 +260,13 @@ export default function App() {
     isLockedToCloud &&
     active.backend.kind === "cloud" &&
     isSameCloudHost(active.backend.host, lockedCloudHost);
-  const { isCompleted: onboardingCompleted, markCompleted } =
+  const { isCompleted: onboardingMarkedCompleted, markCompleted } =
     useOnboardingCompletion();
+  // Deployment-level suppression (VITE_DISABLE_ONBOARDING or the injected
+  // window global) reads as "completed" so the first-run gate below stays
+  // closed without faking the localStorage marker.
+  const onboardingCompleted =
+    onboardingMarkedCompleted || isOnboardingDisabled();
 
   // In locked-to-Cloud mode the `openhands-onboarded` localStorage flag is
   // not trustworthy: it may have been set during a previous non-locked

@@ -231,7 +231,10 @@ export function isAuthRequiredAndMissing(): boolean {
  * from build-time `VITE_DISABLE_ONBOARDING=true` or the runtime
  * `window.__AGENT_CANVAS_DISABLE_ONBOARDING__` global injected by
  * `scripts/static-server.mjs --disable-onboarding`. Cloud login is not
- * onboarding and is never suppressed by this flag.
+ * onboarding: on a fresh browser in locked-to-Cloud mode the first-run flow
+ * (which owns the Cloud login) still shows, because the locked-mode gate in
+ * `root.tsx` ignores the completion flag until the locked Cloud backend is
+ * active.
  */
 export function isOnboardingDisabled(): boolean {
   return (

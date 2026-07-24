@@ -563,12 +563,19 @@ export function startStaticServer(config) {
   const route = createRouter(config.routes);
   const proxy = createProxyHandlers({ label: `static:${config.port}` });
   const dirAbs = resolve(config.dir);
+  // Env fallback so deployments that can only set container env vars (e.g.
+  // the SaaS Helm chart execs this script directly and only has a generic
+  // `env:` passthrough) can enable the flag without changing the CLI
+  // invocation. Env can only turn the flag ON.
+  const disableOnboarding =
+    config.disableOnboarding ||
+    process.env.AGENT_CANVAS_DISABLE_ONBOARDING === "true";
   const injectionOpts = {
     sessionApiKey: config.sessionApiKey || null,
     authRequired: config.authRequired || false,
     runtimeServicesInfo: config.runtimeServicesInfo || null,
     lockToCloud: config.lockToCloud || null,
-    disableOnboarding: config.disableOnboarding || false,
+    disableOnboarding,
     basePath: normalizeBasePath(config.basePath),
   };
   const basePath = injectionOpts.basePath;
@@ -633,7 +640,7 @@ export function startStaticServer(config) {
       if (config.lockToCloud) {
         console.log(`  Backend setup locked to Cloud: ${config.lockToCloud}`);
       }
-      if (config.disableOnboarding) {
+      if (disableOnboarding) {
         console.log("  First-run onboarding: disabled");
       }
       console.log("  * (default) -> static files + SPA fallback");
@@ -653,12 +660,6 @@ const isMainModule =
 if (isMainModule) {
   try {
     const config = parseArgs();
-    // Env fallback so deployments that can only set container env vars
-    // (e.g. the Helm chart's generic `env:` passthrough) can enable the
-    // flag without changing the CLI invocation. Env can only turn it ON.
-    if (process.env.AGENT_CANVAS_DISABLE_ONBOARDING === "true") {
-      config.disableOnboarding = true;
-    }
     await startStaticServer(config);
   } catch (err) {
     console.error(err instanceof Error ? err.message : err);

@@ -1,7 +1,5 @@
 import React from "react";
 
-import { isOnboardingDisabled } from "#/api/agent-server-config";
-
 /**
  * localStorage key persisting whether the welcome onboarding flow has
  * been completed (or skipped). Once present, the modal won't auto-show
@@ -51,11 +49,5 @@ export function useOnboardingCompletion() {
     setIsCompleted(true);
   }, []);
 
-  // A deployment-level disable flag reports "completed" so both wizard
-  // gates (root.tsx, onboarding-host.tsx) stay closed; the
-  // ?previewOnboardingStep harness bypasses isCompleted and keeps working.
-  return {
-    isCompleted: isOnboardingDisabled() || isCompleted,
-    markCompleted,
-  } as const;
+  return { isCompleted, markCompleted } as const;
 }

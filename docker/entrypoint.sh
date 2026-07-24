@@ -17,6 +17,10 @@
 #   AGENT_SERVER_PORT    – Internal agent-server port (default: 18000)
 #   AUTOMATION_PORT      – Internal automation port (default: 18001)
 #   AGENT_CANVAS_BASE_PATH – Static frontend mount path (default: /canvas)
+#   AGENT_CANVAS_DISABLE_ONBOARDING – "true" skips the first-run onboarding
+#                          wizard (read from the environment by
+#                          static-server.mjs; deployment-wide, so the optional
+#                          public-mode server below inherits it too)
 #   PUBLIC_MODE_PORT     – If set, starts a second static server on this port
 #                          with --auth-required (no session key injected)
 #   OH_SECRET_KEY        – Secret key for settings encryption (auto-generated
