@@ -287,6 +287,12 @@ const config = {
   // Or use the dedicated script:
   //   npm run build:desktop:universal
   //
+  // CAUTION: the bundled uv/node extraResources are downloaded for the
+  // BUILD HOST's architecture only (scripts/download-uv.mjs and
+  // download-node.mjs have no arch override), so a "universal" build still
+  // ships single-arch runtimes and breaks on the other architecture. Don't
+  // distribute universal DMGs until the download scripts support multi-arch.
+  //
   mac: {
     category: "public.app-category.developer-tools",
     target: [
@@ -309,6 +315,10 @@ const config = {
       { x: 410, y: 220, type: "link", path: "/Applications" },
     ],
     window: { width: 540, height: 380 },
+    // Default is "Agent Canvas-<version>-<arch>.dmg"; GitHub release assets
+    // mangle spaces, so keep the asset name literal (matches the nsis
+    // convention). ${version}/${arch}/${ext} are electron-builder macros.
+    artifactName: "Agent-Canvas-${version}-${arch}.${ext}",
   },
 
   // ── Windows ────────────────────────────────────────────────────────────────
