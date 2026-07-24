@@ -1,4 +1,9 @@
 import { useLocation } from "react-router";
+import { getLockedCloudHost, isSameCloudHost } from "#/api/agent-server-config";
+import { useActiveBackend } from "#/contexts/active-backend-context";
+import { useSettings } from "#/hooks/query/use-settings";
+import { isSubscriptionLlmConfig } from "#/constants/llm-subscription";
+import type { Settings } from "#/types/settings";
 import { OnboardingModal } from "./onboarding-modal";
 import {
   isOnboardingPreviewActive,
@@ -6,15 +11,27 @@ import {
 } from "./onboarding-preview";
 import { useOnboardingCompletion } from "./use-onboarding-completion";
 
+function hasUsableCloudLlm(settings: Settings | undefined): boolean {
+  const llm = settings?.agent_settings?.llm as
+    | Record<string, unknown>
+    | undefined;
+  const hasModel =
+    typeof llm?.model === "string" && llm.model.trim().length > 0;
+  const hasAuth =
+    settings?.llm_api_key_set === true || isSubscriptionLlmConfig(llm);
+  return hasModel && hasAuth;
+}
+
 /**
  * Mounts the onboarding modal automatically the first time the user
  * lands on a host route (i.e. when the localStorage onboarding flag
  * isn't set yet). Closing or completing the flow marks it done so the
  * modal won't re-appear on subsequent visits.
  *
- * Backend readiness is intentionally not treated as onboarding completion:
- * a fresh browser/origin should see onboarding once even when it connects
- * to an existing backend that already has an LLM configured.
+ * A deployment locked to an already-authenticated Cloud backend may provide
+ * everything onboarding would collect. Once that backend reports a usable LLM,
+ * suppress the redundant modal without writing a fake completion marker.
+ * Other Cloud hosts and all Local backends remain browser-onboarding-driven.
  *
  * With `?previewOnboardingStep=<0-3>` the modal opens on that slide for
  * design review without persisting completion (works on any route when
@@ -25,9 +42,20 @@ export function OnboardingHost() {
   const previewStep = readOnboardingPreviewStep(location.search);
   const isPreview = isOnboardingPreviewActive(location.search);
   const { isCompleted, markCompleted } = useOnboardingCompletion();
+  const { backend } = useActiveBackend();
+  const settings = useSettings();
+  const lockedCloudHost = getLockedCloudHost();
+  const isActiveLockedCloudBackend =
+    backend.kind === "cloud" &&
+    lockedCloudHost !== null &&
+    isSameCloudHost(backend.host, lockedCloudHost);
 
   if (!isPreview) {
     if (isCompleted) return null;
+    if (isActiveLockedCloudBackend && settings.isLoading) return null;
+    if (isActiveLockedCloudBackend && hasUsableCloudLlm(settings.data)) {
+      return null;
+    }
   }
 
   const handleClose = () => {
