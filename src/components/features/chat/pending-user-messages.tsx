@@ -15,12 +15,19 @@ import { ChatMessage } from "./chat-message";
  * but not yet echoed back through the WebSocket. Each message shows a faded
  * "sending" treatment until the server echoes a real `UserMessageEvent`
  * (which removes it via `consumeMatchingPendingMessage`). If the API rejects the
- * send, the message switches to an "error" state with a retry button.
+ * send, the message switches to an "error" state with retry and dismiss
+ * buttons.
  *
  * The queue is global but each entry is tagged with the conversation id it
  * was enqueued from; this component filters to only entries belonging to the
  * active conversation, so switching conversations never carries pending
  * bubbles over.
+ *
+ * Because the queue renders after the real event list, a failed entry would
+ * otherwise stay pinned in the most-recent position for the rest of the
+ * conversation — so error-state bubbles also expose a dismiss button that
+ * drops the entry (restoring its text to the input when the input is empty,
+ * same as stopping a send).
  */
 export function PendingUserMessages() {
   const { t } = useTranslation("openhands");
@@ -84,7 +91,9 @@ export function PendingUserMessages() {
     [send, markPendingMessageError, markPendingMessageSending, t],
   );
 
-  const handleStop = React.useCallback(
+  // Shared by "stop" (while sending) and "dismiss" (after failure): both drop
+  // the entry from the queue and restore its text to the input if it's empty.
+  const handleDiscard = React.useCallback(
     (id: string, text: string) => {
       restoreMessageToInputIfEmpty(text);
       removePendingMessage(id);
@@ -111,7 +120,12 @@ export function PendingUserMessages() {
           }
           onStop={
             message.status === "sending"
-              ? () => handleStop(message.id, message.text)
+              ? () => handleDiscard(message.id, message.text)
+              : undefined
+          }
+          onDismiss={
+            message.status === "error"
+              ? () => handleDiscard(message.id, message.text)
               : undefined
           }
         >
