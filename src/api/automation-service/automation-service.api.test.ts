@@ -7,7 +7,13 @@ import type { Backend } from "#/api/backend-registry/types";
 import type { Automation, AutomationSpec } from "#/types/automation";
 import AutomationService from "./automation-service.api";
 
-const { localAxios, callCloudProxy } = vi.hoisted(() => ({
+const {
+  localAxios,
+  callCloudProxy,
+  getTelemetryConsent,
+  getTelemetryDistinctId,
+  getTelemetryDistinctIdForConsentSync,
+} = vi.hoisted(() => ({
   localAxios: {
     interceptors: { request: { use: vi.fn() } },
     get: vi.fn(),
@@ -16,6 +22,9 @@ const { localAxios, callCloudProxy } = vi.hoisted(() => ({
     delete: vi.fn(),
   },
   callCloudProxy: vi.fn(),
+  getTelemetryConsent: vi.fn(),
+  getTelemetryDistinctId: vi.fn(),
+  getTelemetryDistinctIdForConsentSync: vi.fn(),
 }));
 
 vi.mock("axios", () => ({
@@ -27,6 +36,12 @@ vi.mock("axios", () => ({
 
 vi.mock("#/api/cloud/proxy", () => ({
   callCloudProxy,
+}));
+
+vi.mock("#/services/telemetry", () => ({
+  getTelemetryConsent,
+  getTelemetryDistinctId,
+  getTelemetryDistinctIdForConsentSync,
 }));
 
 const localBackend: Backend = {
@@ -106,7 +121,7 @@ describe("AutomationService.getSdkVersion", () => {
         backend: cloudBackend,
         method: "GET",
         path: "/api/automation/sdk-version",
-        headers: { "X-Org-Id": "org-1" },
+        headers: expect.objectContaining({ "X-Org-Id": "org-1" }),
         timeoutSeconds: 5,
       }),
     );
@@ -116,6 +131,59 @@ describe("AutomationService.getSdkVersion", () => {
     localAxios.get.mockRejectedValueOnce(new Error("not running"));
 
     await expect(AutomationService.getSdkVersion()).resolves.toBeNull();
+  });
+});
+
+describe("AutomationService.syncTelemetryConsent", () => {
+  beforeEach(() => {
+    setRegisteredBackends([localBackend]);
+    setActiveSelection({ backendId: localBackend.id });
+    getTelemetryConsent.mockReturnValue("pending");
+    getTelemetryDistinctIdForConsentSync.mockResolvedValue("ph-fe-sync");
+    localAxios.post.mockResolvedValue({ data: { consent_granted: true } });
+  });
+
+  afterEach(() => {
+    setActiveSelection(null);
+    setRegisteredBackends([]);
+    vi.clearAllMocks();
+  });
+
+  it("posts local telemetry consent with the frontend PostHog distinct ID", async () => {
+    await AutomationService.syncTelemetryConsent("granted");
+
+    expect(localAxios.post).toHaveBeenCalledWith(
+      "/api/automation/v1/telemetry/consent",
+      {
+        consent_granted: true,
+        frontend_distinct_id: "ph-fe-sync",
+      },
+      { timeout: 5000 },
+    );
+  });
+
+  it("uses the current telemetry consent when no explicit value is supplied", async () => {
+    getTelemetryConsent.mockReturnValue("denied");
+
+    await AutomationService.syncTelemetryConsent();
+
+    expect(localAxios.post).toHaveBeenCalledWith(
+      "/api/automation/v1/telemetry/consent",
+      {
+        consent_granted: false,
+        frontend_distinct_id: "ph-fe-sync",
+      },
+      { timeout: 5000 },
+    );
+  });
+
+  it("skips cloud backends because cloud consent is handled by auth", async () => {
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id, orgId: "org-1" });
+
+    await AutomationService.syncTelemetryConsent("granted");
+
+    expect(localAxios.post).not.toHaveBeenCalled();
   });
 });
 
@@ -162,7 +230,9 @@ describe("AutomationService.createAutomation", () => {
       },
       {
         baseURL: localBackend.host,
-        headers: { "X-Session-API-Key": localBackend.apiKey },
+        headers: expect.objectContaining({
+          "X-Session-API-Key": localBackend.apiKey,
+        }),
       },
     );
     expect(localAxios.patch).toHaveBeenCalledWith(
@@ -177,7 +247,9 @@ describe("AutomationService.createAutomation", () => {
       },
       {
         baseURL: localBackend.host,
-        headers: { "X-Session-API-Key": localBackend.apiKey },
+        headers: expect.objectContaining({
+          "X-Session-API-Key": localBackend.apiKey,
+        }),
       },
     );
     expect(created.enabled).toBe(false);
@@ -232,7 +304,7 @@ describe("AutomationService.createAutomation", () => {
         method: "POST",
         path: "/api/automation/v1/preset/plugin",
         body: expect.objectContaining({ name: spec.name }),
-        headers: { "X-Org-Id": "org-1" },
+        headers: expect.objectContaining({ "X-Org-Id": "org-1" }),
       }),
     );
     expect(callCloudProxy).toHaveBeenNthCalledWith(
@@ -242,7 +314,7 @@ describe("AutomationService.createAutomation", () => {
         method: "PATCH",
         path: "/api/automation/v1/created-automation",
         body: expect.objectContaining({ enabled: false }),
-        headers: { "X-Org-Id": "org-1" },
+        headers: expect.objectContaining({ "X-Org-Id": "org-1" }),
       }),
     );
     expect(created.enabled).toBe(false);
@@ -260,7 +332,9 @@ describe("AutomationService.createAutomation", () => {
       "/api/automation/v1/created-automation",
       {
         baseURL: localBackend.host,
-        headers: { "X-Session-API-Key": localBackend.apiKey },
+        headers: expect.objectContaining({
+          "X-Session-API-Key": localBackend.apiKey,
+        }),
       },
     );
   });

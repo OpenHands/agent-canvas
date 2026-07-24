@@ -73,9 +73,15 @@ async function resolveVersion() {
   }
 
   console.log("[download-uv] Fetching latest uv version from GitHub API...");
+  const headers = { "User-Agent": "agent-canvas-build" };
+  // Unauthenticated api.github.com calls are rate-limited per IP (60/hour) —
+  // shared CI runner IPs exhaust that fast. CI passes GITHUB_TOKEN.
+  if (process.env.GITHUB_TOKEN) {
+    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  }
   const data = await fetchJson(
     "https://api.github.com/repos/astral-sh/uv/releases/latest",
-    { "User-Agent": "agent-canvas-build" }
+    headers
   );
   const version = data.tag_name?.replace(/^v/, "");
   if (!version) throw new Error("Could not parse uv version from GitHub API");

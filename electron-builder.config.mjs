@@ -70,6 +70,15 @@ const RUNTIME_PACKAGES = ["sirv", "httpxy"];
 
 const repoRoot = dirname(fileURLToPath(import.meta.url));
 
+// Root package.json is the single source of truth for the app version
+// (release-please bumps it). electron/package.json is a minimal manifest
+// stub pinned at 1.0.0 — `extraMetadata` below overrides its version at
+// pack time so artifact names and app.getVersion() carry the released
+// version instead.
+const rootPackageJson = JSON.parse(
+  readFileSync(join(repoRoot, "package.json"), "utf8"),
+);
+
 /**
  * Strip the auto-bundled node_modules from the packaged app, then restore
  * the small runtime closure of RUNTIME_PACKAGES.
@@ -203,6 +212,10 @@ const config = {
   productName: "Agent Canvas",
   copyright: "Copyright © 2025 All Hands AI",
 
+  // Stamp the packaged app with the released version (see rootPackageJson
+  // note above).
+  extraMetadata: { version: rootPackageJson.version },
+
   // Treat electron/ as the app root. electron/package.json provides the
   // Electron entry point without touching the npm-published root package.json.
   // `buildResources` points at electron/build-resources so electron-builder
@@ -274,6 +287,12 @@ const config = {
   // Or use the dedicated script:
   //   npm run build:desktop:universal
   //
+  // CAUTION: the bundled uv/node extraResources are downloaded for the
+  // BUILD HOST's architecture only (scripts/download-uv.mjs and
+  // download-node.mjs have no arch override), so a "universal" build still
+  // ships single-arch runtimes and breaks on the other architecture. Don't
+  // distribute universal DMGs until the download scripts support multi-arch.
+  //
   mac: {
     category: "public.app-category.developer-tools",
     target: [
@@ -296,6 +315,10 @@ const config = {
       { x: 410, y: 220, type: "link", path: "/Applications" },
     ],
     window: { width: 540, height: 380 },
+    // Default is "Agent Canvas-<version>-<arch>.dmg"; GitHub release assets
+    // mangle spaces, so keep the asset name literal (matches the nsis
+    // convention). ${version}/${arch}/${ext} are electron-builder macros.
+    artifactName: "Agent-Canvas-${version}-${arch}.${ext}",
   },
 
   // ── Windows ────────────────────────────────────────────────────────────────
