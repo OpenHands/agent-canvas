@@ -22,7 +22,12 @@
  * appears in the conversation events API.
  */
 
-import { test, expect, type APIRequestContext } from "@playwright/test";
+import {
+  test,
+  expect,
+  type APIRequestContext,
+  type Page,
+} from "@playwright/test";
 import {
   BACKEND_URL,
   SESSION_API_KEY,
@@ -82,6 +87,15 @@ async function removeWorkspaceFromServer(
     headers: { "X-Session-API-Key": SESSION_API_KEY },
     params: { path },
   });
+}
+
+async function navigateToNewChat(page: Page): Promise<void> {
+  await expect(async () => {
+    await page
+      .getByTestId("sidebar-conversations-link")
+      .click({ timeout: 5_000 });
+    await expect(page).toHaveURL(/\/conversations\/?$/, { timeout: 5_000 });
+  }).toPass({ timeout: 30_000, intervals: [500, 1_000, 2_000] });
 }
 
 // ── Shared constants ─────────────────────────────────────────────────
@@ -259,8 +273,7 @@ test.describe("skill loading: project, user, and deletion", () => {
     await activateTrajectory(request, "user-skill");
 
     await routeSessionApiKey(page);
-    await page.getByTestId("sidebar-conversations-link").click();
-    await waitForPath(page, /^\/conversations\/?$/);
+    await navigateToNewChat(page);
 
     await test.step("send message with user skill trigger", async () => {
       await setChatInput(
@@ -332,8 +345,7 @@ test.describe("skill loading: project, user, and deletion", () => {
     await activateTrajectory(request, "deleted-skill");
 
     await routeSessionApiKey(page);
-    await page.getByTestId("sidebar-conversations-link").click();
-    await waitForPath(page, /^\/conversations\/?$/);
+    await navigateToNewChat(page);
 
     await test.step("send message with deleted skill trigger keyword", async () => {
       await setChatInput(page, `Help me with ${USER_SKILL_TRIGGER} please`);
