@@ -138,19 +138,15 @@ function extract(archivePath, targetDir, ext) {
   // Both tar.gz and zip are handled by the system 'tar' command:
   //   macOS/Linux: GNU/BSD tar natively supports .tar.gz
   //   Windows 10+: built-in bsdtar supports both .tar.gz and .zip
-  // --strip-components=1 removes the top-level archive directory so
-  // uv/uvx end up directly in targetDir.
-  execFileSync(
-    "tar",
-    [
-      "-xf",
-      archivePath,
-      "-C",
-      targetDir,
-      "--strip-components=1",
-    ],
-    { stdio: "inherit" }
-  );
+  // The tar.gz archives wrap uv/uvx in a top-level `uv-<target>/` directory,
+  // which --strip-components=1 removes. uv's Windows .zip is flat (uv.exe /
+  // uvx.exe at the archive root) — stripping there would skip every entry
+  // and extract nothing.
+  const args = ["-xf", archivePath, "-C", targetDir];
+  if (ext === "tar.gz") {
+    args.push("--strip-components=1");
+  }
+  execFileSync("tar", args, { stdio: "inherit" });
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
