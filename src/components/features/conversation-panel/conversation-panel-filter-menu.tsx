@@ -13,6 +13,7 @@ import {
   MessageCircle,
   MousePointerClick,
   Star,
+  Tag,
   Trash2,
 } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
@@ -52,6 +53,8 @@ export interface ConversationPanelFilterMenuProps {
   toggleShowRepoBranchMetadata: () => void;
   showLlmProfiles: boolean;
   toggleShowLlmProfiles: () => void;
+  showTagsMetadata: boolean;
+  toggleShowTagsMetadata: () => void;
   showHoverMetadata: boolean;
   toggleShowHoverMetadata: () => void;
   totalConversationsCount: number;
@@ -75,6 +78,8 @@ export function ConversationPanelFilterMenu({
   toggleShowRepoBranchMetadata,
   showLlmProfiles,
   toggleShowLlmProfiles,
+  showTagsMetadata,
+  toggleShowTagsMetadata,
   showHoverMetadata,
   toggleShowHoverMetadata,
   totalConversationsCount,
@@ -263,6 +268,16 @@ export function ConversationPanelFilterMenu({
             testId="toggle-repo-branch-metadata"
             onClick={() => {
               toggleShowRepoBranchMetadata();
+              setFilterMenuOpen(false);
+            }}
+          />
+          <MenuRow
+            icon={Tag}
+            label={t(I18nKey.CONVERSATION_PANEL$TAGS)}
+            selected={showTagsMetadata}
+            testId="toggle-tags-metadata"
+            onClick={() => {
+              toggleShowTagsMetadata();
               setFilterMenuOpen(false);
             }}
           />

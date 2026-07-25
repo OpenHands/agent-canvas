@@ -26,6 +26,8 @@ interface CompactConversationRowProps {
   showLlmProfiles?: boolean;
   agentKind?: "openhands" | "acp" | null;
   acpServer?: string | null;
+  tags?: Record<string, string> | null;
+  showTags?: boolean;
 }
 
 /**
@@ -49,6 +51,8 @@ export function CompactConversationRow({
   showLlmProfiles = false,
   agentKind = null,
   acpServer = null,
+  tags = null,
+  showTags = false,
 }: CompactConversationRowProps) {
   const { t } = useTranslation("openhands");
   const disableAnimation = import.meta.env.MODE === "test";
@@ -76,6 +80,8 @@ export function CompactConversationRow({
         showAgentChip={showLlmProfiles}
         agentKind={agentKind}
         acpServer={acpServer}
+        tags={tags}
+        showTags={showTags}
       />
     </div>
   );

@@ -17713,6 +17713,23 @@
     "tr": "Depo ve dal",
     "uk": "Репозиторій і гілка"
   },
+  "CONVERSATION_PANEL$TAGS": {
+    "en": "Tags",
+    "ja": "タグ",
+    "zh-CN": "标签",
+    "zh-TW": "標籤",
+    "ko-KR": "태그",
+    "no": "Etiketter",
+    "ar": "الوسوم",
+    "de": "Tags",
+    "fr": "Étiquettes",
+    "it": "Tag",
+    "pt": "Etiquetas",
+    "es": "Etiquetas",
+    "ca": "Etiquetes",
+    "tr": "Etiketler",
+    "uk": "Теги"
+  },
   "CONVERSATION_PANEL$HOVER_METADATA": {
     "en": "Hover metadata",
     "ja": "ホバーメタデータ",
