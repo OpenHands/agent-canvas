@@ -202,12 +202,12 @@ export const useTracking = () => {
     track("conversation_exported", { format });
   };
 
-  const trackAutomationCreated = ({
+  const trackAutomationCreatedButton = ({
     backendKind,
   }: {
     backendKind: BackendKind;
   }) => {
-    track("automation_created", { backend_kind: backendKind });
+    track("automation_created_button", { backend_kind: backendKind });
   };
 
   const trackAutomationExecuted = ({
@@ -226,12 +226,12 @@ export const useTracking = () => {
     track("automation_deleted", { backend_kind: backendKind });
   };
 
-  const trackAutomationDeactivated = ({
+  const trackAutomationDisableButton = ({
     backendKind,
   }: {
     backendKind: BackendKind;
   }) => {
-    track("automation_deactivated", { backend_kind: backendKind });
+    track("automation_disable_button", { backend_kind: backendKind });
   };
 
   const trackAutomationEdited = ({
@@ -346,10 +346,10 @@ export const useTracking = () => {
     trackMcpConfigUpdated,
     trackDownloadTrajectoryButtonClicked,
     trackConversationExported,
-    trackAutomationCreated,
+    trackAutomationCreatedButton,
     trackAutomationExecuted,
     trackAutomationDeleted,
-    trackAutomationDeactivated,
+    trackAutomationDisableButton,
     trackAutomationEdited,
     trackAutomationExported,
     trackAutomationImported,

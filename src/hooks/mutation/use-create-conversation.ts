@@ -105,11 +105,6 @@ export const useCreateConversation = () => {
         agentProfiles = await queryClient.ensureQueryData({
           queryKey: [...AGENT_PROFILES_QUERY_KEYS.all, backend.id, orgId],
           queryFn: AgentProfilesService.listProfiles,
-          // Shared with useAgentProfiles and redirectIfAcpActive so the retry
-          // policy for this surface can't drift between call sites (#1571
-          // review): a backend without it fails every one of these on every
-          // call, so degrade to the fallback immediately rather than sitting
-          // through the default exponential-backoff retries each time.
           ...AGENT_PROFILES_RETRY_OPTIONS,
         });
       } catch {
