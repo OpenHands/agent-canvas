@@ -122,6 +122,12 @@ export function ConversationPanel({
   const toggleShowLlmProfiles = useConversationPanelPreferencesStore(
     (state) => state.toggleShowLlmProfiles,
   );
+  const showTagsMetadata = useConversationPanelPreferencesStore(
+    (state) => state.showTagsMetadata,
+  );
+  const toggleShowTagsMetadata = useConversationPanelPreferencesStore(
+    (state) => state.toggleShowTagsMetadata,
+  );
   const showHoverMetadata = useConversationPanelPreferencesStore(
     (state) => state.showHoverMetadata,
   );
@@ -598,6 +604,8 @@ export function ConversationPanel({
             showLlmProfiles={showLlmProfiles}
             agentKind={conversation.agent_kind}
             acpServer={conversation.acp_server}
+            tags={conversation.tags}
+            showTags={showTagsMetadata}
           />
         );
       }
@@ -676,6 +684,8 @@ export function ConversationPanel({
               showLlmProfiles={showLlmProfiles}
               agentKind={conversation.agent_kind}
               acpServer={conversation.acp_server}
+              tags={conversation.tags}
+              showTags={showTagsMetadata}
               isPinned={isPinned}
               onTogglePin={() => togglePin(activeBackend.id, conversation.id)}
               alwaysShowPinIcon={isPinned && !options?.inPinnedSection}
@@ -696,6 +706,7 @@ export function ConversationPanel({
       pinnedIds,
       showRepoBranchMetadata,
       showLlmProfiles,
+      showTagsMetadata,
       showHoverMetadata,
       togglePin,
     ],
@@ -764,6 +775,8 @@ export function ConversationPanel({
                 toggleShowRepoBranchMetadata={toggleShowRepoBranchMetadata}
                 showLlmProfiles={showLlmProfiles}
                 toggleShowLlmProfiles={toggleShowLlmProfiles}
+                showTagsMetadata={showTagsMetadata}
+                toggleShowTagsMetadata={toggleShowTagsMetadata}
                 showHoverMetadata={showHoverMetadata}
                 toggleShowHoverMetadata={toggleShowHoverMetadata}
                 totalConversationsCount={conversations.length}
