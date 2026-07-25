@@ -1,5 +1,4 @@
 import { useLocation } from "react-router";
-import { getLockedCloudHost, isSameCloudHost } from "#/api/agent-server-config";
 import { useActiveBackend } from "#/contexts/active-backend-context";
 import { useSettings } from "#/hooks/query/use-settings";
 import { isSubscriptionLlmConfig } from "#/constants/llm-subscription";
@@ -28,10 +27,10 @@ function hasUsableCloudLlm(settings: Settings | undefined): boolean {
  * isn't set yet). Closing or completing the flow marks it done so the
  * modal won't re-appear on subsequent visits.
  *
- * A deployment locked to an already-authenticated Cloud backend may provide
- * everything onboarding would collect. Once that backend reports a usable LLM,
- * suppress the redundant modal without writing a fake completion marker.
- * Other Cloud hosts and all Local backends remain browser-onboarding-driven.
+ * An already-authenticated Cloud backend may provide everything onboarding
+ * would collect. Once the active Cloud backend reports a usable LLM, suppress
+ * the redundant modal without writing a fake completion marker. Local backends
+ * remain browser-onboarding-driven.
  *
  * With `?previewOnboardingStep=<0-3>` the modal opens on that slide for
  * design review without persisting completion (works on any route when
@@ -44,16 +43,12 @@ export function OnboardingHost() {
   const { isCompleted, markCompleted } = useOnboardingCompletion();
   const { backend } = useActiveBackend();
   const settings = useSettings();
-  const lockedCloudHost = getLockedCloudHost();
-  const isActiveLockedCloudBackend =
-    backend.kind === "cloud" &&
-    lockedCloudHost !== null &&
-    isSameCloudHost(backend.host, lockedCloudHost);
+  const isCloudBackend = backend.kind === "cloud";
 
   if (!isPreview) {
     if (isCompleted) return null;
-    if (isActiveLockedCloudBackend && settings.isLoading) return null;
-    if (isActiveLockedCloudBackend && hasUsableCloudLlm(settings.data)) {
+    if (isCloudBackend && settings.isLoading) return null;
+    if (isCloudBackend && hasUsableCloudLlm(settings.data)) {
       return null;
     }
   }

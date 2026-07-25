@@ -108,8 +108,7 @@ describe("OnboardingHost", () => {
     ).toBeInTheDocument();
   });
 
-  it("skips the modal when the locked Cloud backend has a configured LLM", async () => {
-    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
+  it("skips the modal when the active Cloud backend has a configured LLM", async () => {
     seedCloudBackend();
     const getSettings = vi
       .spyOn(SettingsService, "getSettings")
@@ -135,30 +134,34 @@ describe("OnboardingHost", () => {
     ).toBeNull();
   });
 
-  it("still shows the modal when a configured Cloud backend does not match the locked host", async () => {
+  it("skips the modal for a configured Cloud backend that does not match the locked host", async () => {
     vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://other-cloud.example.com");
     seedCloudBackend();
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
-      ...DEFAULT_SETTINGS,
-      llm_api_key_set: true,
-      agent_settings: {
-        ...DEFAULT_SETTINGS.agent_settings,
-        llm: { model: "anthropic/claude-sonnet-4-5", api_key: "stored" },
-      },
-    });
+    const getSettings = vi
+      .spyOn(SettingsService, "getSettings")
+      .mockResolvedValue({
+        ...DEFAULT_SETTINGS,
+        llm_api_key_set: true,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          llm: { model: "anthropic/claude-sonnet-4-5", api_key: "stored" },
+        },
+      });
 
     renderHost();
 
-    expect(
-      await screen.findByTestId("onboarding-modal-stub"),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(getSettings).toHaveBeenCalledOnce();
+      expect(
+        screen.queryByTestId("onboarding-modal-stub"),
+      ).not.toBeInTheDocument();
+    });
     expect(
       window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
     ).toBeNull();
   });
 
-  it("skips the modal when the locked Cloud backend uses subscription auth", async () => {
-    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
+  it("skips the modal when the active Cloud backend uses subscription auth", async () => {
     seedCloudBackend();
     const getSettings = vi
       .spyOn(SettingsService, "getSettings")
@@ -185,7 +188,6 @@ describe("OnboardingHost", () => {
   });
 
   it("still shows the modal for a Cloud user when an API key is set but no model is configured", async () => {
-    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://app.all-hands.dev");
     seedCloudBackend();
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
       ...DEFAULT_SETTINGS,
