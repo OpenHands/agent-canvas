@@ -566,10 +566,22 @@ export function startStaticServer(config) {
   // Env fallback so deployments that can only set container env vars (e.g.
   // the SaaS Helm chart execs this script directly and only has a generic
   // `env:` passthrough) can enable the flag without changing the CLI
-  // invocation. Env can only turn the flag ON.
+  // invocation. Env can only turn the flag ON, and only the exact string
+  // "true" does so — warn on anything unrecognized so a Helm typo (e.g.
+  // "True" or "1") surfaces in the container logs instead of silently
+  // no-oping.
+  const envDisableOnboarding = process.env.AGENT_CANVAS_DISABLE_ONBOARDING;
+  if (
+    envDisableOnboarding &&
+    envDisableOnboarding !== "true" &&
+    envDisableOnboarding !== "false"
+  ) {
+    console.warn(
+      `AGENT_CANVAS_DISABLE_ONBOARDING="${envDisableOnboarding}" is ignored — only "true" enables it`,
+    );
+  }
   const disableOnboarding =
-    config.disableOnboarding ||
-    process.env.AGENT_CANVAS_DISABLE_ONBOARDING === "true";
+    config.disableOnboarding || envDisableOnboarding === "true";
   const injectionOpts = {
     sessionApiKey: config.sessionApiKey || null,
     authRequired: config.authRequired || false,

@@ -12,6 +12,7 @@ describe("static-server.mjs", () => {
 
   afterEach(async () => {
     vi.unstubAllEnvs();
+    vi.restoreAllMocks();
 
     await Promise.all(
       servers.splice(0).map(
@@ -300,6 +301,27 @@ describe("static-server.mjs", () => {
       const body = await (await fetch(`${origin}/`)).text();
 
       expect(body).toContain("window.__AGENT_CANVAS_DISABLE_ONBOARDING__=true");
+    });
+
+    it("warns and stays off when the env var has an unrecognized value", async () => {
+      // A Helm typo like "True" or "1" must surface in the container logs
+      // instead of silently no-oping.
+      vi.stubEnv("AGENT_CANVAS_DISABLE_ONBOARDING", "True");
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const buildDir = mkdtempSync(path.join(tmpdir(), "agent-canvas-build-"));
+      tempDirs.push(buildDir);
+      writeFileSync(
+        path.join(buildDir, "index.html"),
+        "<html><head></head><body>app</body></html>",
+      );
+
+      const origin = await startServer(buildDir);
+      const body = await (await fetch(`${origin}/`)).text();
+
+      expect(body).not.toContain("__AGENT_CANVAS_DISABLE_ONBOARDING__");
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('AGENT_CANVAS_DISABLE_ONBOARDING="True"'),
+      );
     });
   });
 
