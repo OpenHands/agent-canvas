@@ -6,6 +6,7 @@ import { cn } from "#/utils/utils";
 import { I18nKey } from "#/i18n/declaration";
 import { transformVSCodeUrl } from "#/utils/vscode-url-helper";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
+import { getDisplayConversationTags } from "#/api/agent-server-adapter";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
 import { SandboxStatus } from "#/api/conversation-service/agent-server-conversation-service.types";
 import { RepositorySelection } from "#/api/open-hands.types";
@@ -38,6 +39,9 @@ interface ConversationCardProps {
   showLlmProfiles?: boolean;
   agentKind?: "openhands" | "acp" | null;
   acpServer?: string | null;
+  tags?: Record<string, string> | null;
+  /** Gates the tag-chip row; wired to the panel's "Tags" metadata toggle. */
+  showTags?: boolean;
   isPinned?: boolean;
   onTogglePin?: () => void;
   /** When true and pinned, keep the pin icon visible without hovering. */
@@ -66,6 +70,8 @@ export function ConversationCard({
   showLlmProfiles = false,
   agentKind = null,
   acpServer = null,
+  tags = null,
+  showTags = false,
   isPinned = false,
   onTogglePin,
   alwaysShowPinIcon = false,
@@ -179,7 +185,8 @@ export function ConversationCard({
   const showPersistentPinIcon = alwaysShowPinIcon && isPinned && !!onTogglePin;
   const shouldRenderFooter =
     showRepositoryMetadata ||
-    (showLlmProfiles && (agentKind === "acp" || !!llmModel));
+    (showLlmProfiles && (agentKind === "acp" || !!llmModel)) ||
+    (showTags && getDisplayConversationTags(tags).length > 0);
 
   return (
     <div
@@ -314,6 +321,8 @@ export function ConversationCard({
           showAgentChip={showLlmProfiles}
           agentKind={agentKind}
           acpServer={acpServer}
+          tags={tags}
+          showTags={showTags}
         />
       )}
     </div>
