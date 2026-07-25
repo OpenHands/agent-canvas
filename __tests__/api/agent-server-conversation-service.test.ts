@@ -31,6 +31,7 @@ const {
   mockGetSettingsForConversation,
   mockGetProfile,
   mockActivateProfile,
+  mockListProfiles,
 } = vi.hoisted(() => ({
   mockHttpGet: vi.fn(),
   mockHttpPost: vi.fn(),
@@ -44,6 +45,7 @@ const {
   mockGetSettingsForConversation: vi.fn(),
   mockGetProfile: vi.fn(),
   mockActivateProfile: vi.fn(),
+  mockListProfiles: vi.fn(),
 }));
 
 const originalFetch = global.fetch;
@@ -65,6 +67,7 @@ vi.mock("@openhands/typescript-client/clients", async () => {
       return {
         getProfile: mockGetProfile,
         activateProfile: mockActivateProfile,
+        listProfiles: mockListProfiles,
       };
     }),
     SettingsClient: vi.fn(function SettingsClientMock() {
@@ -105,6 +108,10 @@ describe("AgentServerConversationService", () => {
     mockHttpDelete.mockReset();
     mockGetProfile.mockReset();
     mockActivateProfile.mockReset();
+    mockListProfiles.mockReset().mockResolvedValue({
+      profiles: [],
+      active_profile: null,
+    });
     mockSwitchProfile.mockReset();
     mockSwitchLLM.mockReset();
     fetchMock.mockReset();
@@ -243,6 +250,44 @@ describe("AgentServerConversationService", () => {
   });
 
   describe("createConversation", () => {
+    it("passes the selected title profile to local conversation starts", async () => {
+      mockGetSettings.mockResolvedValue({
+        title_llm_profile: "Titles",
+        agent_settings: { llm: { model: "gpt-4o" } },
+        conversation_settings: {},
+      });
+      mockGetSettingsForConversation.mockResolvedValue({
+        agentSettings: { llm: { model: "gpt-4o" } },
+        conversationSettings: {},
+        secretsEncrypted: true,
+      });
+      mockListProfiles.mockResolvedValue({
+        profiles: [
+          {
+            name: "Titles",
+            model: "anthropic/claude-haiku-3-5",
+            base_url: null,
+            api_key_set: true,
+          },
+        ],
+        active_profile: null,
+      });
+      mockHttpPost.mockResolvedValue({
+        data: {
+          id: "ignored-server-id",
+          created_at: "2024-01-01",
+          updated_at: "2024-01-01",
+        },
+      });
+
+      await AgentServerConversationService.createConversation();
+
+      expect(mockHttpPost).toHaveBeenCalledWith(
+        "/api/conversations",
+        expect.objectContaining({ title_llm_profile: "Titles" }),
+      );
+    });
+
     it("generates a unique conversation_id and isolated working_dir per call", async () => {
       mockGetSettings.mockResolvedValue({
         agent_settings: { llm: { model: "gpt-4o" } },
@@ -806,10 +851,59 @@ describe("AgentServerConversationService", () => {
           "conv-malformed-tags",
         ]);
 
-      // ``acp_server`` is the surfaced field on AppConversation; tags is
-      // only on DirectConversationInfo. Asserting both via this read
-      // path keeps the test honest end-to-end.
       expect(conversation?.acp_server).toBe("codex");
+      // The normalized map is also surfaced on ``AppConversation.tags``
+      // (including reserved keys — display filtering happens later in
+      // ``getDisplayConversationTags``). Asserting the exact object here
+      // pins the wire → AppConversation boundary: only string-valued
+      // entries survive, and the field must not silently drop off the
+      // adapter again.
+      expect(conversation?.tags).toEqual({ acpserver: "codex" });
+    });
+
+    it("carries well-formed wire tags through to AppConversation.tags", async () => {
+      mockHttpGet.mockResolvedValue({
+        data: [
+          {
+            id: "conv-wire-tags",
+            created_at: "2024-01-01",
+            updated_at: "2024-01-01",
+            agent: { kind: "ACPAgent", llm: { model: "acp-managed" } },
+            tags: { acpserver: "claude-code", origin: "slack", owner: "alice" },
+          },
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-wire-tags",
+        ]);
+
+      expect(conversation?.tags).toEqual({
+        acpserver: "claude-code",
+        origin: "slack",
+        owner: "alice",
+      });
+    });
+
+    it("surfaces AppConversation.tags as null when the wire field is absent", async () => {
+      mockHttpGet.mockResolvedValue({
+        data: [
+          {
+            id: "conv-no-tags",
+            created_at: "2024-01-01",
+            updated_at: "2024-01-01",
+            agent: { kind: "ACPAgent", llm: { model: "acp-managed" } },
+          },
+        ],
+      });
+
+      const [conversation] =
+        await AgentServerConversationService.batchGetAppConversations([
+          "conv-no-tags",
+        ]);
+
+      expect(conversation?.tags).toBeNull();
     });
   });
 

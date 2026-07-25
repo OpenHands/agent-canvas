@@ -83,7 +83,9 @@ export function signalProcessTree(proc, signal) {
   }
 
   try {
-    if (process.platform === "win32" || !proc.pid) {
+    if (process.platform === "win32" && proc.pid) {
+      killWindowsProcessTree(proc, signal);
+    } else if (!proc.pid) {
       proc.kill(signal);
     } else {
       process.kill(-proc.pid, signal);
@@ -94,6 +96,30 @@ export function signalProcessTree(proc, signal) {
       return false;
     }
     throw err;
+  }
+}
+
+/**
+ * Windows has no POSIX process groups: ChildProcess#kill reaches only the
+ * direct child (e.g. the uvx wrapper), leaving grandchildren — the actual
+ * python agent-server holding its port — running. `taskkill /t` walks the
+ * child tree instead. Windows also has no graceful tree signal (taskkill
+ * without /f posts WM_CLOSE, which console processes ignore), so SIGTERM and
+ * SIGKILL both map to the same forceful /f kill; callers' delayed SIGKILL
+ * pass skips already-exited trees via isProcessRunning, so the repeat is a
+ * no-op. A non-zero taskkill exit just means the tree already exited — only
+ * a failure to spawn taskkill itself falls back to the direct kill.
+ */
+function killWindowsProcessTree(proc, signal) {
+  const result = spawnSync(
+    "taskkill",
+    ["/pid", String(proc.pid), "/t", "/f"],
+    // windowsHide avoids a console window flash when invoked from the
+    // packaged (GUI) Electron process.
+    { stdio: "ignore", windowsHide: true },
+  );
+  if (result.error) {
+    proc.kill(signal);
   }
 }
 

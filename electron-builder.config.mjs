@@ -334,6 +334,10 @@ const config = {
     allowToChangeInstallationDirectory: true,
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
+    // The default artifact name is "Agent Canvas Setup <version>.exe";
+    // GitHub release assets mangle spaces, so ship a space-free name.
+    // ${version}/${ext} are electron-builder macros, not JS interpolation.
+    artifactName: "Agent-Canvas-Setup-${version}.${ext}",
   },
 
   // ── Linux ──────────────────────────────────────────────────────────────────

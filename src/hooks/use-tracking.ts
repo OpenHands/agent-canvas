@@ -5,7 +5,7 @@ import type { WorkspaceMode } from "#/api/conversation-metadata-store";
 import type { CloudConnectionSource } from "#/services/cloud-funnel-analytics";
 import { getCachedAgentServerVersion } from "#/api/agent-server-compatibility";
 import { useActiveBackend } from "#/contexts/active-backend-context";
-import AutomationService from "#/api/automation-service/automation-service.api";
+import { useAutomationSdkVersion } from "#/hooks/query/use-automation-sdk-version";
 import { getBackendTelemetryProperties } from "#/services/telemetry-context";
 import { setTelemetryBackendContext, trackEvent } from "#/services/telemetry";
 
@@ -18,35 +18,8 @@ import { setTelemetryBackendContext, trackEvent } from "#/services/telemetry";
  * backend settings because they can be stale while a backend changes.
  */
 export const useTracking = () => {
-  const activeBackend = useActiveBackend();
-  const { backend } = activeBackend;
-  const [automationSdkVersion, setAutomationSdkVersion] = React.useState<
-    string | null
-  >(null);
-
-  React.useEffect(() => {
-    if (typeof AutomationService.getSdkVersion !== "function") {
-      setAutomationSdkVersion(null);
-      return undefined;
-    }
-
-    let isMounted = true;
-    setAutomationSdkVersion(null);
-    void AutomationService.getSdkVersion().then((version) => {
-      if (isMounted) {
-        setAutomationSdkVersion(version);
-      }
-    });
-    return () => {
-      isMounted = false;
-    };
-  }, [
-    activeBackend.orgId,
-    backend.apiKey,
-    backend.host,
-    backend.id,
-    backend.kind,
-  ]);
+  const { backend } = useActiveBackend();
+  const automationSdkVersion = useAutomationSdkVersion();
 
   const getBackendTelemetryContext = React.useCallback(
     () => ({
@@ -229,12 +202,12 @@ export const useTracking = () => {
     track("conversation_exported", { format });
   };
 
-  const trackAutomationCreated = ({
+  const trackAutomationCreatedButton = ({
     backendKind,
   }: {
     backendKind: BackendKind;
   }) => {
-    track("automation_created", { backend_kind: backendKind });
+    track("automation_created_button", { backend_kind: backendKind });
   };
 
   const trackAutomationExecuted = ({
@@ -253,12 +226,12 @@ export const useTracking = () => {
     track("automation_deleted", { backend_kind: backendKind });
   };
 
-  const trackAutomationDeactivated = ({
+  const trackAutomationDisableButton = ({
     backendKind,
   }: {
     backendKind: BackendKind;
   }) => {
-    track("automation_deactivated", { backend_kind: backendKind });
+    track("automation_disable_button", { backend_kind: backendKind });
   };
 
   const trackAutomationEdited = ({
@@ -373,10 +346,10 @@ export const useTracking = () => {
     trackMcpConfigUpdated,
     trackDownloadTrajectoryButtonClicked,
     trackConversationExported,
-    trackAutomationCreated,
+    trackAutomationCreatedButton,
     trackAutomationExecuted,
     trackAutomationDeleted,
-    trackAutomationDeactivated,
+    trackAutomationDisableButton,
     trackAutomationEdited,
     trackAutomationExported,
     trackAutomationImported,

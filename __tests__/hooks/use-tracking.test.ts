@@ -14,11 +14,11 @@ vi.mock("#/api/agent-server-compatibility", () => ({
   getCachedAgentServerVersion: compatibilityMocks.getCachedAgentServerVersion,
 }));
 
-const automationServiceMocks = vi.hoisted(() => ({
-  getSdkVersion: vi.fn(),
+const automationSdkVersionHookMock = vi.hoisted(() => ({
+  useAutomationSdkVersion: vi.fn(),
 }));
-vi.mock("#/api/automation-service/automation-service.api", () => ({
-  default: automationServiceMocks,
+vi.mock("#/hooks/query/use-automation-sdk-version", () => ({
+  useAutomationSdkVersion: automationSdkVersionHookMock.useAutomationSdkVersion,
 }));
 
 import { useTracking } from "#/hooks/use-tracking";
@@ -37,8 +37,8 @@ describe("useTracking", () => {
       .mockResolvedValue(undefined);
     setBackendContextMock = vi.spyOn(telemetry, "setTelemetryBackendContext");
     useSettingsMock.mockReset();
-    automationServiceMocks.getSdkVersion.mockReset();
-    automationServiceMocks.getSdkVersion.mockResolvedValue(null);
+    automationSdkVersionHookMock.useAutomationSdkVersion.mockReset();
+    automationSdkVersionHookMock.useAutomationSdkVersion.mockReturnValue(null);
     compatibilityMocks.getCachedAgentServerVersion.mockReset();
     compatibilityMocks.getCachedAgentServerVersion.mockReturnValue(null);
 
@@ -149,7 +149,9 @@ describe("useTracking", () => {
     });
 
     it("declares backend versions to the telemetry service when known", async () => {
-      automationServiceMocks.getSdkVersion.mockResolvedValue("1.36.3");
+      automationSdkVersionHookMock.useAutomationSdkVersion.mockReturnValue(
+        "1.36.3",
+      );
       compatibilityMocks.getCachedAgentServerVersion.mockReturnValue("1.36.2");
 
       const { result } = renderHook(() => useTracking());

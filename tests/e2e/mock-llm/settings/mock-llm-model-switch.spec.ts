@@ -99,14 +99,12 @@ test.describe("mock-LLM /model slash command", () => {
 
     // Create profile B as the switch target through the Settings UI — it has
     // a different model name but the same mock LLM base_url so post-switch
-    // inference still works.
-    await routeSessionApiKey(page);
-    await page.goto("/settings/llm", { waitUntil: "domcontentloaded" });
-    await dismissAnalyticsModal(page);
-    await waitForTestId(page, "add-llm-profile");
-
+    // inference still works. ensureMockLLMProfile leaves this page ready.
     await deleteProfileIfExists(page, PROFILE_B_NAME);
-    await createProfileViaUI(page, { profileName: PROFILE_B_NAME, model: MODEL_B });
+    await createProfileViaUI(page, {
+      profileName: PROFILE_B_NAME,
+      model: MODEL_B,
+    });
 
     // Verify profile B appears in the list
     const profileRows = page.getByTestId("profile-row");
@@ -138,7 +136,6 @@ test.describe("mock-LLM /model slash command", () => {
 
   test("step 2: start conversation, switch profile via /model, verify switch", async ({
     page,
-    request,
   }) => {
     test.setTimeout(120_000);
 
@@ -205,10 +202,9 @@ test.describe("mock-LLM /model slash command", () => {
     // ── Verify: the switch_llm POST was made ──
 
     await test.step("verify switch_llm API was called with profile B model", async () => {
-      expect(
-        switchLlmCalled,
-        "POST /switch_llm should have been called",
-      ).toBe(true);
+      expect(switchLlmCalled, "POST /switch_llm should have been called").toBe(
+        true,
+      );
       expect(switchLlmBody).toBeTruthy();
       // ConversationClient.switchLLM posts { llm: <config> } to switch_llm,
       // so the model is nested under the "llm" key in the HTTP body.

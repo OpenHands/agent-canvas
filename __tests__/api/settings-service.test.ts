@@ -172,6 +172,33 @@ describe("SettingsService", () => {
     ]);
   });
 
+  it("stores the title profile as a local app preference", async () => {
+    const patchBodies: Array<Record<string, unknown>> = [];
+    server.use(
+      http.patch("*/api/settings", async ({ request }) => {
+        patchBodies.push((await request.json()) as Record<string, unknown>);
+        return HttpResponse.json({
+          agent_settings: {},
+          conversation_settings: {},
+          llm_api_key_is_set: false,
+          misc_settings: {
+            app_preferences: { title_llm_profile: "Titles" },
+          },
+        });
+      }),
+    );
+
+    await SettingsService.saveSettings({ title_llm_profile: "Titles" });
+
+    expect(patchBodies).toEqual([
+      {
+        misc_settings_diff: {
+          app_preferences: { title_llm_profile: "Titles" },
+        },
+      },
+    ]);
+  });
+
   it("surfaces server-side misc_settings.app_preferences in getSettings on a local backend", async () => {
     // The local agent-server returns app_preferences nested under
     // `misc_settings` on GET /api/settings. The mock handler echoes whatever
@@ -183,6 +210,7 @@ describe("SettingsService", () => {
       git_user_email: "alice@example.com",
       enable_sound_notifications: true,
       user_consents_to_analytics: true,
+      title_llm_profile: "Titles",
       disabled_skills: ["SSH Microagent"],
     };
     await SettingsService.saveSettings(appPrefs);
@@ -196,6 +224,7 @@ describe("SettingsService", () => {
       git_user_email: settings.git_user_email,
       enable_sound_notifications: settings.enable_sound_notifications,
       user_consents_to_analytics: settings.user_consents_to_analytics,
+      title_llm_profile: settings.title_llm_profile,
       disabled_skills: settings.disabled_skills,
     }).toEqual(appPrefs);
   });
@@ -237,12 +266,17 @@ describe("SettingsService", () => {
     await SettingsService.saveSettings({
       language: "fr",
       git_user_name: "Alice",
+      title_llm_profile: null,
     });
 
     // Assert: cloud save received the fields under `app_preferences` so
     // `saveCloudSettings` can spread them into the POST body as flat keys.
     expect(mockSaveCloudSettings).toHaveBeenCalledWith({
-      app_preferences: { language: "fr", git_user_name: "Alice" },
+      app_preferences: {
+        language: "fr",
+        git_user_name: "Alice",
+        title_llm_profile: null,
+      },
     });
   });
 
