@@ -13,6 +13,7 @@ import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "test-utils";
 import { formatTimeDelta } from "#/utils/format-time-delta";
 import { ConversationCard } from "#/components/features/conversation-panel/conversation-card/conversation-card";
+import { MAX_VISIBLE_TAG_CHIPS } from "#/components/features/conversation-panel/conversation-card/conversation-card-footer";
 import { clickOnEditButton } from "./utils";
 import { ConversationCardActions } from "#/components/features/conversation-panel/conversation-card/conversation-card-actions";
 import { ExecutionStatus } from "#/types/agent-server/core/base/common";
@@ -585,6 +586,129 @@ describe("ConversationCard", () => {
       expect(screen.getByTestId("stop-button")).toHaveTextContent(
         "COMMON$CLOSE_CONVERSATION_STOP_RUNTIME",
       );
+    });
+  });
+
+  describe("Tag chips", () => {
+    // Tag chips surface the agent-server's server-side conversation tags
+    // (e.g. ``origin=slack`` stamped by an automation) and are gated by the
+    // conversation panel's "Tags" toggle (``showTags``).
+    it("renders non-reserved tags as key: value chips when showTags is on", () => {
+      renderWithProviders(
+        <ConversationCard
+          title="Conversation 1"
+          selectedRepository={null}
+          lastUpdatedAt="2021-10-01T12:00:00Z"
+          showTags
+          tags={{ origin: "slack", owner: "alice" }}
+        />,
+      );
+
+      const chips = screen.getAllByTestId("conversation-card-tag-chip");
+      // Chips are sorted by key ("origin" < "owner") for a stable order.
+      expect(chips).toHaveLength(2);
+      expect(chips[0]).toHaveTextContent("origin: slack");
+      expect(chips[1]).toHaveTextContent("owner: alice");
+    });
+
+    it("filters reserved tag keys out of the chip row", () => {
+      // ``acpserver`` is Canvas-internal routing state already surfaced via
+      // the agent chip — it must not double-render as a generic tag chip.
+      renderWithProviders(
+        <ConversationCard
+          title="Conversation 1"
+          selectedRepository={null}
+          lastUpdatedAt="2021-10-01T12:00:00Z"
+          showTags
+          tags={{ acpserver: "claude-code", origin: "review" }}
+        />,
+      );
+
+      const chips = screen.getAllByTestId("conversation-card-tag-chip");
+      expect(chips).toHaveLength(1);
+      expect(chips[0]).toHaveTextContent("origin: review");
+    });
+
+    it("hides the chips when showTags is omitted", () => {
+      renderWithProviders(
+        <ConversationCard
+          title="Conversation 1"
+          selectedRepository={null}
+          lastUpdatedAt="2021-10-01T12:00:00Z"
+          tags={{ origin: "slack" }}
+        />,
+      );
+
+      expect(
+        screen.queryByTestId("conversation-card-tag-chip"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("caps visible chips at the display budget with a +N overflow chip", () => {
+      // Tags are API-controlled with no useful size bound, so the card must
+      // not grow with the tag count: first MAX_VISIBLE_TAG_CHIPS sorted keys
+      // render as chips, the rest fold into "+N" with a tooltip listing them.
+      renderWithProviders(
+        <ConversationCard
+          title="Conversation 1"
+          selectedRepository={null}
+          lastUpdatedAt="2021-10-01T12:00:00Z"
+          showTags
+          tags={{
+            env: "prod",
+            origin: "slack",
+            owner: "alice",
+            repo: "goodday",
+            team: "infra",
+          }}
+        />,
+      );
+
+      const chips = screen.getAllByTestId("conversation-card-tag-chip");
+      expect(chips).toHaveLength(MAX_VISIBLE_TAG_CHIPS);
+      expect(chips[0]).toHaveTextContent("env: prod");
+      expect(chips[1]).toHaveTextContent("origin: slack");
+      expect(chips[2]).toHaveTextContent("owner: alice");
+
+      const overflow = screen.getByTestId("conversation-card-tag-overflow");
+      expect(overflow).toHaveTextContent("+2");
+      // The hidden remainder stays reachable via the overflow tooltip.
+      expect(overflow).toHaveAttribute("title", "repo: goodday\nteam: infra");
+    });
+
+    it("renders no overflow chip when tags fit the display budget", () => {
+      renderWithProviders(
+        <ConversationCard
+          title="Conversation 1"
+          selectedRepository={null}
+          lastUpdatedAt="2021-10-01T12:00:00Z"
+          showTags
+          tags={{ env: "prod", origin: "slack", owner: "alice" }}
+        />,
+      );
+
+      expect(
+        screen.getAllByTestId("conversation-card-tag-chip"),
+      ).toHaveLength(3);
+      expect(
+        screen.queryByTestId("conversation-card-tag-overflow"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("renders no chip row when every tag is reserved", () => {
+      renderWithProviders(
+        <ConversationCard
+          title="Conversation 1"
+          selectedRepository={null}
+          lastUpdatedAt="2021-10-01T12:00:00Z"
+          showTags
+          tags={{ acpserver: "claude-code" }}
+        />,
+      );
+
+      expect(
+        screen.queryByTestId("conversation-card-tag-chip"),
+      ).not.toBeInTheDocument();
     });
   });
 
