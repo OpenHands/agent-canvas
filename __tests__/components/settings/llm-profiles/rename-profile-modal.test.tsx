@@ -152,7 +152,9 @@ describe("RenameProfileModal", () => {
       );
     });
 
-    expect(handleClose).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(handleClose).toHaveBeenCalled();
+    });
   });
 
   it("disables submit button when name is invalid", async () => {
@@ -252,7 +254,9 @@ describe("RenameProfileModal", () => {
       );
     });
 
-    expect(handleClose).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(handleClose).toHaveBeenCalled();
+    });
   });
 
   it("does not submit form when Enter key is pressed with invalid name", async () => {

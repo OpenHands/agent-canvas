@@ -6,7 +6,7 @@ import { setTelemetryCloudContext } from "#/services/telemetry";
 
 /** Keep Cloud user event context aligned with the active backend. */
 export const useTelemetryIdentity = () => {
-  const { backend } = useActiveBackend();
+  const { backend, orgId } = useActiveBackend();
   const { data: settings } = useSettings();
   const userIds = useCloudCurrentUserId();
   const identity = backend.kind === "cloud" ? userIds[backend.id] : undefined;
@@ -27,6 +27,6 @@ export const useTelemetryIdentity = () => {
       return;
     }
 
-    setTelemetryCloudContext({ userId, email });
-  }, [backend.kind, email, isIdentityLoading, userId]);
+    setTelemetryCloudContext({ userId, email, orgId });
+  }, [backend.kind, email, isIdentityLoading, orgId, userId]);
 };

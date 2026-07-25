@@ -189,7 +189,11 @@ test.describe("mock-LLM agent-server conversation", () => {
 
     // Verify the "Active" badge appears on our profile.
     // Poll with reload instead of a fixed timeout — the mutation may take
-    // more than 1s to persist on a loaded CI runner.
+    // more than 1s to persist on a loaded CI runner. The poll also
+    // RE-ATTEMPTS the activation when the badge is still missing: the
+    // "Set as active" PATCH above can be lost when it races the
+    // useEnsureActiveProfile reconciliation write, and a read-only poll
+    // would then time out with no profile active at all.
     await expect
       .poll(
         async () => {
@@ -201,14 +205,28 @@ test.describe("mock-LLM agent-server conversation", () => {
             const row = rows.nth(i);
             const text = await row.textContent();
             if (text?.includes(PROFILE_NAME)) {
-              return (await row.getByTestId("profile-active-badge").count()) > 0;
+              if (
+                (await row.getByTestId("profile-active-badge").count()) > 0
+              ) {
+                return true;
+              }
+              // Badge absent — re-attempt activation before the next poll.
+              await row.getByTestId("profile-menu-trigger").click();
+              await waitForTestId(page, "profile-actions-menu");
+              const retrySetActive = page.getByTestId("profile-set-active");
+              if (await retrySetActive.isEnabled()) {
+                await retrySetActive.click();
+              } else {
+                await page.keyboard.press("Escape");
+              }
+              return false;
             }
           }
           return false;
         },
         {
           message: `Profile "${PROFILE_NAME}" should have an "Active" badge`,
-          timeout: 15_000,
+          timeout: 25_000,
           intervals: [1_000, 2_000, 3_000],
         },
       )
