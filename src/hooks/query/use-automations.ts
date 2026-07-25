@@ -35,7 +35,7 @@ export function useAutomations(options: UseAutomationsOptions = {}) {
 export function useToggleAutomation() {
   const queryClient = useQueryClient();
   const active = useActiveBackend();
-  const { trackAutomationDeactivated } = useTracking();
+  const { trackAutomationDisableButton } = useTracking();
   return useMutation({
     mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
       AutomationService.toggleAutomation(id, enabled),
@@ -43,7 +43,7 @@ export function useToggleAutomation() {
       queryClient.invalidateQueries({ queryKey: AUTOMATIONS_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: AUTOMATION_DETAIL_QUERY_KEY });
       if (!variables.enabled) {
-        trackAutomationDeactivated({ backendKind: active.backend.kind });
+        trackAutomationDisableButton({ backendKind: active.backend.kind });
       }
     },
   });

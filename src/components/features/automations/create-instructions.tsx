@@ -55,10 +55,10 @@ export function CreateInstructionsContent({
   const { t } = useTranslation("openhands");
   const launchInChat = useLaunchSkillInChat();
   const active = useActiveBackend();
-  const { trackAutomationCreated } = useTracking();
+  const { trackAutomationCreatedButton } = useTracking();
 
   const handleCreateAutomation = () => {
-    trackAutomationCreated({ backendKind: active.backend.kind });
+    trackAutomationCreatedButton({ backendKind: active.backend.kind });
     launchInChat(t(I18nKey.AUTOMATIONS$CREATE_AUTOMATION_PROMPT), onLaunch);
   };
 
