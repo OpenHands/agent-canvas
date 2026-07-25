@@ -166,6 +166,7 @@ export type Settings = {
   email_verified?: boolean;
   git_user_name?: string;
   git_user_email?: string;
+  title_llm_profile?: string | null;
   agent_settings_schema?: SettingsSchema | null;
   agent_settings?: Record<string, SettingsValue> | null;
   conversation_settings_schema?: SettingsSchema | null;

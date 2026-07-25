@@ -64,6 +64,23 @@ beforeEach(() => {
 });
 
 describe("buildStartConversationRequest", () => {
+  it("includes the resolved title LLM profile when configured", () => {
+    const payload = buildStartConversationRequest({
+      settings: DEFAULT_SETTINGS,
+      titleLlmProfile: "Titles",
+    });
+
+    expect(payload.title_llm_profile).toBe("Titles");
+  });
+
+  it("omits the title LLM profile in automatic mode without a default", () => {
+    const payload = buildStartConversationRequest({
+      settings: DEFAULT_SETTINGS,
+    });
+
+    expect(payload).not.toHaveProperty("title_llm_profile");
+  });
+
   it("uses nested settings as the source of truth and lets the SDK create the agent", () => {
     const payload = buildStartConversationRequest({
       settings: {

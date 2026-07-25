@@ -18,9 +18,14 @@ const {
   mockCallCloudProxy,
   mockGetActive,
   mockGetEffectiveLocal,
+  mockGetTelemetryDistinctId,
   capturedInterceptors,
 } = vi.hoisted(() => {
-  const interceptors: Array<(config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig> = [];
+  const interceptors: Array<
+    (
+      config: InternalAxiosRequestConfig,
+    ) => InternalAxiosRequestConfig | Promise<InternalAxiosRequestConfig>
+  > = [];
   return {
     mockGet: vi.fn(),
     mockPatch: vi.fn(),
@@ -29,6 +34,7 @@ const {
     mockCallCloudProxy: vi.fn(),
     mockGetActive: vi.fn(),
     mockGetEffectiveLocal: vi.fn(),
+    mockGetTelemetryDistinctId: vi.fn(),
     capturedInterceptors: interceptors,
   };
 });
@@ -43,7 +49,13 @@ vi.mock("axios", () => ({
       delete: mockDelete,
       interceptors: {
         request: {
-          use: (fn: (config: InternalAxiosRequestConfig) => InternalAxiosRequestConfig) => {
+          use: (
+            fn: (
+              config: InternalAxiosRequestConfig,
+            ) =>
+              | InternalAxiosRequestConfig
+              | Promise<InternalAxiosRequestConfig>,
+          ) => {
             capturedInterceptors.push(fn);
           },
         },
@@ -61,6 +73,10 @@ vi.mock("#/api/backend-registry/active-store", () => ({
   getEffectiveLocalBackend: mockGetEffectiveLocal,
 }));
 
+vi.mock("#/services/telemetry", () => ({
+  getTelemetryDistinctId: mockGetTelemetryDistinctId,
+}));
+
 // Import after mocking
 import AutomationService from "#/api/automation-service/automation-service.api";
 
@@ -70,6 +86,12 @@ const localBackend: Backend = {
   host: "http://localhost:8000",
   apiKey: "session-key",
   kind: "local",
+};
+
+const expectedAutomationTelemetryHeaders = {
+  "X-OpenHands-Client": "agent_canvas",
+  "X-OpenHands-Client-Version": expect.any(String),
+  "X-OpenHands-Telemetry-Distinct-Id": "ph-test-distinct-id",
 };
 
 const cloudBackend: Backend = {
@@ -133,6 +155,8 @@ describe("AutomationService", () => {
     mockGetActive.mockReturnValue({ backend: localBackend, orgId: null });
     mockGetEffectiveLocal.mockReset();
     mockGetEffectiveLocal.mockReturnValue(localBackend);
+    mockGetTelemetryDistinctId.mockReset();
+    mockGetTelemetryDistinctId.mockResolvedValue("ph-test-distinct-id");
   });
 
   describe("listAutomations", () => {
@@ -358,7 +382,9 @@ describe("AutomationService", () => {
       expect(mockCallCloudProxy).toHaveBeenCalledWith({
         backend: cloudBackend,
         method: "GET",
-        path: "/api/automation/v1?limit=10&offset=5",      });
+        path: "/api/automation/v1?limit=10&offset=5",
+        headers: expectedAutomationTelemetryHeaders,
+      });
       expect(mockGet).not.toHaveBeenCalled();
       expect(result).toEqual(response);
     });
@@ -371,7 +397,9 @@ describe("AutomationService", () => {
       expect(mockCallCloudProxy).toHaveBeenCalledWith({
         backend: cloudBackend,
         method: "GET",
-        path: "/api/automation/v1/abc",      });
+        path: "/api/automation/v1/abc",
+        headers: expectedAutomationTelemetryHeaders,
+      });
       expect(result).toEqual(mockAutomation);
     });
 
@@ -383,7 +411,9 @@ describe("AutomationService", () => {
       expect(mockCallCloudProxy).toHaveBeenCalledWith({
         backend: cloudBackend,
         method: "POST",
-        path: "/api/automation/v1/abc/dispatch",      });
+        path: "/api/automation/v1/abc/dispatch",
+        headers: expectedAutomationTelemetryHeaders,
+      });
       expect(mockPost).not.toHaveBeenCalled();
       expect(result).toEqual(mockRun);
     });
@@ -400,7 +430,9 @@ describe("AutomationService", () => {
         backend: cloudBackend,
         method: "PATCH",
         path: "/api/automation/v1/abc",
-        body: { enabled: false },      });
+        body: { enabled: false },
+        headers: expectedAutomationTelemetryHeaders,
+      });
       expect(mockPatch).not.toHaveBeenCalled();
       expect(result).toEqual(updated);
     });
@@ -413,7 +445,9 @@ describe("AutomationService", () => {
       expect(mockCallCloudProxy).toHaveBeenCalledWith({
         backend: cloudBackend,
         method: "DELETE",
-        path: "/api/automation/v1/abc",      });
+        path: "/api/automation/v1/abc",
+        headers: expectedAutomationTelemetryHeaders,
+      });
       expect(mockDelete).not.toHaveBeenCalled();
     });
 
@@ -434,7 +468,9 @@ describe("AutomationService", () => {
       expect(mockCallCloudProxy).toHaveBeenCalledWith({
         backend: cloudBackend,
         method: "POST",
-        path: "/api/automation/v1/abc/dispatch",      });
+        path: "/api/automation/v1/abc/dispatch",
+        headers: expectedAutomationTelemetryHeaders,
+      });
       expect(mockPost).not.toHaveBeenCalled();
       expect(result).toEqual(run);
     });
@@ -467,7 +503,7 @@ describe("AutomationService", () => {
   // registry rather than the build-time VITE_SESSION_API_KEY env var so that
   // the published npm package picks up the runtime-injected key (issue #829).
   describe("localAutomationAxios interceptor", () => {
-    it("sets X-Session-API-Key from the effective local backend apiKey", () => {
+    it("sets telemetry headers and X-Session-API-Key from the effective local backend apiKey", async () => {
       const interceptor = capturedInterceptors[0];
       expect(interceptor).toBeDefined();
 
@@ -478,15 +514,23 @@ describe("AutomationService", () => {
       mockGetEffectiveLocal.mockReturnValue(backendWithKey);
 
       const config = makeAxiosConfig();
-      interceptor(config);
+      await interceptor(config);
 
+      expect(config.headers.set).toHaveBeenCalledWith(
+        "X-OpenHands-Client",
+        "agent_canvas",
+      );
+      expect(config.headers.set).toHaveBeenCalledWith(
+        "X-OpenHands-Telemetry-Distinct-Id",
+        "ph-test-distinct-id",
+      );
       expect(config.headers.set).toHaveBeenCalledWith(
         "X-Session-API-Key",
         "runtime-injected-key",
       );
     });
 
-    it("does not set X-Session-API-Key when backend apiKey is empty", () => {
+    it("does not set X-Session-API-Key when backend apiKey is empty", async () => {
       const interceptor = capturedInterceptors[0];
       expect(interceptor).toBeDefined();
 
@@ -496,12 +540,15 @@ describe("AutomationService", () => {
       });
 
       const config = makeAxiosConfig();
-      interceptor(config);
+      await interceptor(config);
 
-      expect(config.headers.set).not.toHaveBeenCalled();
+      expect(config.headers.set).not.toHaveBeenCalledWith(
+        "X-Session-API-Key",
+        expect.anything(),
+      );
     });
 
-    it("sets baseURL from effective local backend host when not already set", () => {
+    it("sets baseURL from effective local backend host when not already set", async () => {
       const interceptor = capturedInterceptors[0];
       expect(interceptor).toBeDefined();
 
@@ -512,12 +559,12 @@ describe("AutomationService", () => {
       });
 
       const config = makeAxiosConfig();
-      interceptor(config);
+      await interceptor(config);
 
       expect(config.baseURL).toBe("http://custom-host:9000");
     });
 
-    it("does not overwrite an already-set baseURL", () => {
+    it("does not overwrite an already-set baseURL", async () => {
       const interceptor = capturedInterceptors[0];
       expect(interceptor).toBeDefined();
 
@@ -528,7 +575,7 @@ describe("AutomationService", () => {
       });
 
       const config = makeAxiosConfig({ baseURL: "http://already-set:8000" });
-      interceptor(config);
+      await interceptor(config);
 
       expect(config.baseURL).toBe("http://already-set:8000");
     });

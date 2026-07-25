@@ -887,6 +887,14 @@ export async function setChatInput(
   text: string,
   testId = "chat-input",
 ) {
+  // page.evaluate has no auto-waiting: right after a goto with
+  // `domcontentloaded`, the React app can take longer than
+  // dismissAnalyticsModal's give-up window to paint the composer on a
+  // loaded CI runner, and the querySelector below would throw. Wait for
+  // the input the way a locator action would before setting text.
+  await page
+    .getByTestId(testId)
+    .waitFor({ state: "visible", timeout: 30_000 });
   await page.evaluate(
     ({ tid, inputText }) => {
       const el = document.querySelector(`[data-testid="${tid}"]`);

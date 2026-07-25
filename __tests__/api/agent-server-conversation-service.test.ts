@@ -31,6 +31,7 @@ const {
   mockGetSettingsForConversation,
   mockGetProfile,
   mockActivateProfile,
+  mockListProfiles,
 } = vi.hoisted(() => ({
   mockHttpGet: vi.fn(),
   mockHttpPost: vi.fn(),
@@ -44,6 +45,7 @@ const {
   mockGetSettingsForConversation: vi.fn(),
   mockGetProfile: vi.fn(),
   mockActivateProfile: vi.fn(),
+  mockListProfiles: vi.fn(),
 }));
 
 const originalFetch = global.fetch;
@@ -65,6 +67,7 @@ vi.mock("@openhands/typescript-client/clients", async () => {
       return {
         getProfile: mockGetProfile,
         activateProfile: mockActivateProfile,
+        listProfiles: mockListProfiles,
       };
     }),
     SettingsClient: vi.fn(function SettingsClientMock() {
@@ -105,6 +108,10 @@ describe("AgentServerConversationService", () => {
     mockHttpDelete.mockReset();
     mockGetProfile.mockReset();
     mockActivateProfile.mockReset();
+    mockListProfiles.mockReset().mockResolvedValue({
+      profiles: [],
+      active_profile: null,
+    });
     mockSwitchProfile.mockReset();
     mockSwitchLLM.mockReset();
     fetchMock.mockReset();
@@ -243,6 +250,44 @@ describe("AgentServerConversationService", () => {
   });
 
   describe("createConversation", () => {
+    it("passes the selected title profile to local conversation starts", async () => {
+      mockGetSettings.mockResolvedValue({
+        title_llm_profile: "Titles",
+        agent_settings: { llm: { model: "gpt-4o" } },
+        conversation_settings: {},
+      });
+      mockGetSettingsForConversation.mockResolvedValue({
+        agentSettings: { llm: { model: "gpt-4o" } },
+        conversationSettings: {},
+        secretsEncrypted: true,
+      });
+      mockListProfiles.mockResolvedValue({
+        profiles: [
+          {
+            name: "Titles",
+            model: "anthropic/claude-haiku-3-5",
+            base_url: null,
+            api_key_set: true,
+          },
+        ],
+        active_profile: null,
+      });
+      mockHttpPost.mockResolvedValue({
+        data: {
+          id: "ignored-server-id",
+          created_at: "2024-01-01",
+          updated_at: "2024-01-01",
+        },
+      });
+
+      await AgentServerConversationService.createConversation();
+
+      expect(mockHttpPost).toHaveBeenCalledWith(
+        "/api/conversations",
+        expect.objectContaining({ title_llm_profile: "Titles" }),
+      );
+    });
+
     it("generates a unique conversation_id and isolated working_dir per call", async () => {
       mockGetSettings.mockResolvedValue({
         agent_settings: { llm: { model: "gpt-4o" } },

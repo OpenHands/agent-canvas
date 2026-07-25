@@ -61,6 +61,8 @@ RUN node -e " \
     'CONFIG_BASH_EVENTS=' + c.paths.bashEvents, \
     'CONFIG_AUTOMATION_DB=' + c.paths.automationDb, \
     'CONFIG_CANVAS_BASE_PATH=' + c.paths.canvasBasePath, \
+    'CONFIG_POSTHOG_API_KEY=' + c.telemetry.posthogApiKey, \
+    'CONFIG_POSTHOG_HOST=' + c.telemetry.posthogHost, \
   ]; \
   require('fs').writeFileSync('/tmp/defaults.env', lines.join('\n') + '\n'); \
 "
@@ -73,6 +75,7 @@ ARG AGENT_SERVER_SDK_GIT_REF=""
 ARG OPENHANDS_BUILD_GIT_SHA=unknown
 ARG OPENHANDS_BUILD_GIT_REF=unknown
 ARG VITE_BASE_PATH="/canvas"
+ARG VITE_POSTHOG_API_KEY=""
 
 ARG AGENT_CANVAS_VERSION=dev
 LABEL org.opencontainers.image.title="agent-canvas"
@@ -84,6 +87,7 @@ LABEL org.opencontainers.image.revision="${OPENHANDS_BUILD_GIT_SHA}"
 ENV AGENT_CANVAS_BUILD_GIT_SHA=${OPENHANDS_BUILD_GIT_SHA}
 ENV AGENT_CANVAS_BUILD_GIT_REF=${OPENHANDS_BUILD_GIT_REF}
 ENV AGENT_CANVAS_BASE_PATH=${VITE_BASE_PATH}
+ENV VITE_POSTHOG_API_KEY=${VITE_POSTHOG_API_KEY}
 
 USER root
 
