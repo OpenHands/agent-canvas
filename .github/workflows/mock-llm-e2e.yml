@@ -61,7 +61,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Read defaults from config/defaults.json
         id: defaults
@@ -71,7 +71,7 @@ jobs:
           echo "acp_constraint=$(node -p "require('./config/defaults.json').constraints.agentClientProtocol")" >> "$GITHUB_OUTPUT"
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           # Pin to 24.15.x — Node 24.16.0 has a zip-extraction regression
           # (nodejs/node#63487) that hangs `playwright install` for Playwright
@@ -88,7 +88,7 @@ jobs:
 
       - name: Cache Playwright browsers
         id: pw_cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw_version.outputs.version }}

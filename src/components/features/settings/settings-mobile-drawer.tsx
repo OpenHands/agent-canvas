@@ -85,8 +85,6 @@ export function SettingsMobileDrawer({
                 key={renderedItem.item.to}
                 item={renderedItem.item}
                 onClick={onCloseMobileMenu}
-                disabled={renderedItem.disabled}
-                disabledAgentName={renderedItem.disabledAgentName}
               />
             );
           })}

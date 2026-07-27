@@ -1,6 +1,6 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -108,43 +108,80 @@ describe("OnboardingHost", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows the modal for a fresh Cloud user even when the backend has a configured LLM", async () => {
+  it("skips the modal when the active Cloud backend has a configured LLM", async () => {
     seedCloudBackend();
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
-      ...DEFAULT_SETTINGS,
-      llm_api_key_set: true,
-      agent_settings: {
-        ...DEFAULT_SETTINGS.agent_settings,
-        llm: { model: "anthropic/claude-sonnet-4-5", api_key: "stored" },
-      },
-    });
+    const getSettings = vi
+      .spyOn(SettingsService, "getSettings")
+      .mockResolvedValue({
+        ...DEFAULT_SETTINGS,
+        llm_api_key_set: true,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          llm: { model: "anthropic/claude-sonnet-4-5", api_key: "stored" },
+        },
+      });
 
     renderHost();
 
-    expect(
-      await screen.findByTestId("onboarding-modal-stub"),
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(getSettings).toHaveBeenCalledOnce();
+      expect(
+        screen.queryByTestId("onboarding-modal-stub"),
+      ).not.toBeInTheDocument();
+    });
     expect(
       window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
     ).toBeNull();
   });
 
-  it("shows the modal for a fresh Cloud user even when the active LLM uses subscription auth", async () => {
+  it("skips the modal for a configured Cloud backend that does not match the locked host", async () => {
+    vi.stubEnv("VITE_LOCK_TO_CLOUD", "https://other-cloud.example.com");
     seedCloudBackend();
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
-      ...DEFAULT_SETTINGS,
-      llm_api_key_set: false,
-      agent_settings: {
-        ...DEFAULT_SETTINGS.agent_settings,
-        llm: { model: "openai/gpt-5.5", auth_type: "subscription" },
-      },
-    });
+    const getSettings = vi
+      .spyOn(SettingsService, "getSettings")
+      .mockResolvedValue({
+        ...DEFAULT_SETTINGS,
+        llm_api_key_set: true,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          llm: { model: "anthropic/claude-sonnet-4-5", api_key: "stored" },
+        },
+      });
 
     renderHost();
 
+    await waitFor(() => {
+      expect(getSettings).toHaveBeenCalledOnce();
+      expect(
+        screen.queryByTestId("onboarding-modal-stub"),
+      ).not.toBeInTheDocument();
+    });
     expect(
-      await screen.findByTestId("onboarding-modal-stub"),
-    ).toBeInTheDocument();
+      window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
+    ).toBeNull();
+  });
+
+  it("skips the modal when the active Cloud backend uses subscription auth", async () => {
+    seedCloudBackend();
+    const getSettings = vi
+      .spyOn(SettingsService, "getSettings")
+      .mockResolvedValue({
+        ...DEFAULT_SETTINGS,
+        llm_api_key_set: false,
+        agent_settings: {
+          ...DEFAULT_SETTINGS.agent_settings,
+          llm: { model: "openai/gpt-5.5", auth_type: "subscription" },
+        },
+      });
+
+    renderHost();
+
+    await waitFor(() => {
+      expect(getSettings).toHaveBeenCalledOnce();
+      expect(
+        screen.queryByTestId("onboarding-modal-stub"),
+      ).not.toBeInTheDocument();
+    });
     expect(
       window.localStorage.getItem(ONBOARDING_COMPLETED_STORAGE_KEY),
     ).toBeNull();

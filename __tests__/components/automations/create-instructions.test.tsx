@@ -95,14 +95,14 @@ describe("CreateInstructions", () => {
     captureMock.mockRestore();
   });
 
-  it("captures automation_created with the active backend kind when Create Automation is clicked", async () => {
+  it("captures automation_created_button with the active backend kind when Create Automation is clicked", async () => {
     const user = userEvent.setup();
     renderCreateInstructions();
 
     await user.click(screen.getByTestId("automations-create-automation"));
 
     expect(captureMock).toHaveBeenCalledWith(
-      "automation_created",
+      "automation_created_button",
       expect.objectContaining({ backend_kind: "local" }),
     );
   });

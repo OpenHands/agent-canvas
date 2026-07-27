@@ -56,6 +56,7 @@ import {
   setStoredConversationMetadata,
   type WorkspaceMode,
 } from "../conversation-metadata-store";
+import { resolveTitleLlmProfile } from "#/utils/title-llm-profile";
 import type {
   GetHooksResponse,
   PluginSpec,
@@ -410,7 +411,14 @@ class AgentServerConversationService {
       return createCloudAppConversation(request);
     }
 
-    const settings = await SettingsService.getSettings();
+    const [settings, profiles] = await Promise.all([
+      SettingsService.getSettings(),
+      ProfilesService.listProfiles().catch(() => undefined),
+    ]);
+    const titleLlmProfile = resolveTitleLlmProfile(
+      settings.title_llm_profile,
+      profiles,
+    );
     const conversationId = uuidv4();
     // @spec WUP-001 — Send an absolute working_dir to the agent-server.
     // The default is `workspace/project/<hex>` (relative); without
@@ -435,6 +443,7 @@ class AgentServerConversationService {
       worktree: resolvedWorkspaceMode === "new_worktree",
       agentProfileId,
       agentProfileKind,
+      titleLlmProfile,
     });
 
     const data = await new ConversationClient(
