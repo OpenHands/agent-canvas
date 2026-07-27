@@ -968,10 +968,7 @@ export function buildStartConversationRequest(
     //
     // Enrichment boundary: on the profile path the server rebuilds the agent
     // purely from the stored profile fields, so the client-owned enrichments
-    // this adapter folds into ``agent_settings`` do NOT apply — nor does the
-    // stored ``agent_settings.agent_context`` (profiles have no
-    // ``agent_context`` field, so ``load_memory`` is inline-launch only).
-    // The exec toolset
+    // this adapter folds into ``agent_settings`` do NOT apply. The exec toolset
     // (terminal/file_editor/task_tracker) and public-skill loading are the
     // server/SDK's responsibility to restore on the profile path — tracked in
     // software-agent-sdk#3967 (profile resolution must attach the default
@@ -979,6 +976,14 @@ export function buildStartConversationRequest(
     // Finish/Think). The dev ``RUNTIME_SERVICES`` system-message suffix remains
     // agent-settings-only; the Canvas UI tool is a top-level client tool and
     // therefore works on both inline-agent and profile launch paths.
+    //
+    // Persistent memory is NOT on that boundary: ``load_memory`` is a global
+    // user preference, so the agent-server stamps the stored
+    // ``agent_settings.agent_context.load_memory`` onto the profile-resolved
+    // agent the same way it already applies the global ``mcp_config``. The
+    // toggle therefore applies to both launch paths, and the client must not
+    // re-send it here (``agent_profile_id`` and ``agent_settings`` are
+    // mutually exclusive).
     ...(options.agentProfileId
       ? { agent_profile_id: options.agentProfileId }
       : { agent_settings: agentSettings }),

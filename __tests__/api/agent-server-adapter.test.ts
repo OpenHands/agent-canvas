@@ -491,10 +491,16 @@ describe("buildStartConversationRequest", () => {
     });
   });
 
-  it("passes a stored agent_context.load_memory through to the start payload", () => {
+  it("passes a stored agent_context.load_memory through on an inline launch", () => {
     // The persistent-memory toggle persists into
     // ``agent_settings.agent_context.load_memory``; buildAgentContext spreads
     // the stored context, so the flag needs no dedicated adapter wiring.
+    //
+    // This is the inline path only. A profile launch sends ``agent_profile_id``
+    // and no ``agent_settings`` at all (pinned in
+    // src/api/agent-server-adapter.test.ts), so there the agent-server reads the
+    // same stored preference itself — covered by the SDK's
+    // tests/agent_server/test_agent_profile_conv_start.py.
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
@@ -510,7 +516,10 @@ describe("buildStartConversationRequest", () => {
     expect(payload.agent_settings.agent_context.load_memory).toBe(true);
   });
 
-  it("passes a stored agent_context.load_memory through for ACP agents", () => {
+  it("passes a stored agent_context.load_memory through on an inline ACP launch", () => {
+    // Inline ACP settings are the fallback used when no agent profile is
+    // available; a normal ACP conversation launches from a profile (see
+    // use-create-conversation.test.tsx) and never reaches this branch.
     const payload = buildStartConversationRequest({
       settings: {
         ...DEFAULT_SETTINGS,
