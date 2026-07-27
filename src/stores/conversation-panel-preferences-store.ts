@@ -23,6 +23,7 @@ interface ConversationPanelPreferencesState {
   showOlderConversations: boolean;
   showRepoBranchMetadata: boolean;
   showLlmProfiles: boolean;
+  showTagsMetadata: boolean;
   showHoverMetadata: boolean;
   organizeMode: OrganizeMode;
   conversationSort: ConversationSortField;
@@ -37,6 +38,8 @@ interface ConversationPanelPreferencesActions {
   toggleShowRepoBranchMetadata: () => void;
   setShowLlmProfiles: (value: boolean) => void;
   toggleShowLlmProfiles: () => void;
+  setShowTagsMetadata: (value: boolean) => void;
+  toggleShowTagsMetadata: () => void;
   setShowHoverMetadata: (value: boolean) => void;
   toggleShowHoverMetadata: () => void;
   setOrganizeMode: (value: OrganizeMode) => void;
@@ -52,6 +55,7 @@ const initialState: ConversationPanelPreferencesState = {
   showOlderConversations: true,
   showRepoBranchMetadata: false,
   showLlmProfiles: true,
+  showTagsMetadata: true,
   showHoverMetadata: true,
   organizeMode: "chronological",
   conversationSort: "updated",
@@ -85,6 +89,13 @@ export const useConversationPanelPreferencesStore =
             showLlmProfiles: !state.showLlmProfiles,
           })),
 
+        setShowTagsMetadata: (value) =>
+          set(() => ({ showTagsMetadata: value })),
+        toggleShowTagsMetadata: () =>
+          set((state) => ({
+            showTagsMetadata: !state.showTagsMetadata,
+          })),
+
         setShowHoverMetadata: (value) =>
           set(() => ({ showHoverMetadata: value })),
         toggleShowHoverMetadata: () =>
@@ -107,6 +118,7 @@ export const useConversationPanelPreferencesStore =
           showOlderConversations: state.showOlderConversations,
           showRepoBranchMetadata: state.showRepoBranchMetadata,
           showLlmProfiles: state.showLlmProfiles,
+          showTagsMetadata: state.showTagsMetadata,
           showHoverMetadata: state.showHoverMetadata,
           organizeMode: state.organizeMode,
           conversationSort: state.conversationSort,

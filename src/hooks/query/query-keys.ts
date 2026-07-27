@@ -26,13 +26,7 @@ export const AGENT_PROFILES_QUERY_KEYS = {
   all: ["agent-profiles"] as const,
 } as const;
 
-/**
- * Shared retry policy for every `/api/agent-profiles` fetch (the launch path
- * in `useCreateConversation`, `redirectIfAcpActive`'s route guard, and
- * `useAgentProfiles`). An older backend without the surface fails every one
- * of these on every call — `retry: false` degrades immediately instead of
- * sitting through the default exponential backoff each time (#1571 review).
- */
+/** Fail fast when older backends lack the profile endpoint. */
 export const AGENT_PROFILES_RETRY_OPTIONS = {
   retry: false,
 } as const;

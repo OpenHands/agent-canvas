@@ -5932,23 +5932,6 @@
     "uk": "Зберігаються як секрети та вводяться в агент під час виконання. Залиште поле порожнім, щоб зберегти наявне значення.",
     "ca": "Desades com a secrets i injectades a l'agent en temps d'execució. Deixa un camp en blanc per conservar el valor existent."
   },
-  "SETTINGS$AGENT_DISABLED_TOOLTIP": {
-    "en": "Disabled while {{agentName}} is the active agent",
-    "ja": "{{agentName}}がアクティブなエージェントの間は無効です",
-    "zh-CN": "当 {{agentName}} 为活动代理时禁用",
-    "zh-TW": "當 {{agentName}} 為使用中代理時停用",
-    "ko-KR": "{{agentName}}이(가) 활성 에이전트인 동안 비활성화됩니다",
-    "no": "Deaktivert mens {{agentName}} er den aktive agenten",
-    "it": "Disabilitato finché {{agentName}} è l'agente attivo",
-    "pt": "Desativado enquanto {{agentName}} for o agente ativo",
-    "es": "Desactivado mientras {{agentName}} sea el agente activo",
-    "ar": "معطّل أثناء كون {{agentName}} هو الوكيل النشط",
-    "fr": "Désactivé tant que {{agentName}} est l'agent actif",
-    "tr": "{{agentName}} etkin aracıyken devre dışı",
-    "de": "Deaktiviert, solange {{agentName}} der aktive Agent ist",
-    "uk": "Вимкнено, поки {{agentName}} є активним агентом",
-    "ca": "Desactivat mentre {{agentName}} sigui l'agent actiu"
-  },
   "SETTINGS$NAV_VERIFICATION": {
     "en": "Verification",
     "ja": "検証",
@@ -17814,6 +17797,23 @@
     "ca": "Repo i branca",
     "tr": "Depo ve dal",
     "uk": "Репозиторій і гілка"
+  },
+  "CONVERSATION_PANEL$TAGS": {
+    "en": "Tags",
+    "ja": "タグ",
+    "zh-CN": "标签",
+    "zh-TW": "標籤",
+    "ko-KR": "태그",
+    "no": "Etiketter",
+    "ar": "الوسوم",
+    "de": "Tags",
+    "fr": "Étiquettes",
+    "it": "Tag",
+    "pt": "Etiquetas",
+    "es": "Etiquetas",
+    "ca": "Etiquetes",
+    "tr": "Etiketler",
+    "uk": "Теги"
   },
   "CONVERSATION_PANEL$HOVER_METADATA": {
     "en": "Hover metadata",

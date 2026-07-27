@@ -13,6 +13,7 @@ describe("conversation-panel-preferences store", () => {
     expect(state.showOlderConversations).toBe(true);
     expect(state.showRepoBranchMetadata).toBe(false);
     expect(state.showLlmProfiles).toBe(true);
+    expect(state.showTagsMetadata).toBe(true);
     expect(state.organizeMode).toBe("chronological");
     expect(state.conversationSort).toBe("updated");
     expect(state.threadScope).toBe("all");
@@ -77,6 +78,7 @@ describe("conversation-panel-preferences store", () => {
       "showLlmProfiles",
       "showOlderConversations",
       "showRepoBranchMetadata",
+      "showTagsMetadata",
       "threadScope",
     ]);
   });

@@ -163,6 +163,22 @@ export interface AppConversation {
    * "ACP" chip when the key is unknown or null.
    */
   acp_server?: string | null;
+  /**
+   * Server-side key-value tags from the agent-server's
+   * ``ConversationInfo.tags`` (settable at creation and via
+   * ``PATCH /api/conversations/{id}``). Automations and API clients use these
+   * for attribution (e.g. ``origin=slack``, ``owner=alice``). Includes
+   * reserved/internal keys such as ``acpserver`` — display consumers should
+   * go through ``getDisplayConversationTags`` in ``agent-server-adapter.ts``
+   * rather than reading this raw. ``null``/absent for Cloud conversations
+   * and agent-servers that don't return tags.
+   *
+   * PATCH semantics: the agent-server replaces the **complete** ``tags`` map
+   * on every PATCH — it does not merge individual keys. A writer adding one
+   * tag must read the current map, merge, and send the full desired result,
+   * or it will silently drop every other tag (including ``acpserver``).
+   */
+  tags?: Record<string, string> | null;
   llm_model: string | null;
   metrics: MetricsSnapshot | null;
   created_at: string;

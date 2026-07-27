@@ -27,14 +27,14 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag || github.ref }}
 
       # Trusted publishing requires Node 22.14.0+ and npm 11.5.1+
       # See: https://docs.npmjs.com/trusted-publishers/
       - name: Set up Node.js for npm trusted publishing
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm

@@ -328,6 +328,7 @@ export function toAppConversation(
     pr_number: [],
     agent_kind: isAcp ? "acp" : "openhands",
     acp_server: acpServer,
+    tags: info.tags ?? null,
     launched_agent_profile: info.launched_agent_profile ?? null,
     // Chip path: omit ``providerDefault`` so that when no concrete model
     // resolves, the chip falls back to the provider display name in
@@ -420,6 +421,31 @@ type ConversationSettingsPayload = SettingsRecord & {
 };
 
 export const ACP_SERVER_TAG_KEY = "acpserver";
+
+/**
+ * Conversation tag keys Canvas itself stamps/consumes for internal routing.
+ * They are already surfaced through dedicated UI (the ACP provider chip), so
+ * the generic tag-chip display filters them out.
+ */
+export const RESERVED_CONVERSATION_TAG_KEYS: ReadonlySet<string> = new Set([
+  ACP_SERVER_TAG_KEY,
+]);
+
+/**
+ * User-facing subset of a conversation's server-side tags: everything except
+ * {@link RESERVED_CONVERSATION_TAG_KEYS}, as stable ``[key, value]`` entries
+ * sorted by key so chip order doesn't shuffle between refetches.
+ */
+export function getDisplayConversationTags(
+  tags: Record<string, string> | null | undefined,
+): Array<[string, string]> {
+  if (!tags) {
+    return [];
+  }
+  return Object.entries(tags)
+    .filter(([key]) => !RESERVED_CONVERSATION_TAG_KEYS.has(key))
+    .sort(([a], [b]) => a.localeCompare(b));
+}
 
 const FERNET_TOKEN_PREFIX = "gAAAAA";
 
