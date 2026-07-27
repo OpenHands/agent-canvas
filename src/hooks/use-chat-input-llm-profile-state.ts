@@ -4,6 +4,7 @@ import type { ProfileInfo } from "@openhands/typescript-client";
 import { useOptionalConversationId } from "#/hooks/use-conversation-id";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useLlmProfiles } from "#/hooks/query/use-llm-profiles";
+import { useCanManageOrgProfiles } from "#/hooks/use-can-manage-org-profiles";
 import { useSwitchLlmProfileAndLog } from "#/hooks/mutation/use-switch-llm-profile-and-log";
 import { SWITCH_LLM_PROFILE_MUTATION_KEY } from "#/hooks/mutation/use-switch-llm-profile";
 import { useModelStore } from "#/stores/model-store";
@@ -16,6 +17,12 @@ export interface ChatInputLlmProfileState {
   currentProfileModel: string | null;
   isLoading: boolean;
   isSwitching: boolean;
+  /**
+   * Whether picking a profile here would actually land. False on a cloud
+   * start-task route and for a cloud member on the home page; the surfaces
+   * still name the active profile, they just drop the selectable rows.
+   */
+  canSwitchProfile: boolean;
   /**
    * Switch the LLM profile: live via `/switch_profile` when inside a
    * conversation, or activate it globally when on the home page (no
@@ -35,6 +42,7 @@ export function useChatInputLlmProfileState(): ChatInputLlmProfileState {
   const { conversationId } = useOptionalConversationId();
   const { data: conversation } = useActiveConversation();
   const { data, isLoading } = useLlmProfiles();
+  const canManageOrgProfiles = useCanManageOrgProfiles();
   const { switchAndLog } = useSwitchLlmProfileAndLog();
   // Read the switch's pending state globally by mutation key: the pill button
   // and the menu that fires the switch are separate hook instances, so a
@@ -73,12 +81,21 @@ export function useChatInputLlmProfileState(): ChatInputLlmProfileState {
     conversationModel ??
     null;
 
+  // A home pick activates the profile account-wide — on cloud that's the
+  // org-gated activate endpoint a member can only 403 on. A cloud `task-…`
+  // route has no real conversation id yet, so the per-conversation
+  // /switch_profile would 404. Either way the pill still names the active
+  // profile; only the selectable rows drop out.
+  const isTaskRoute = conversationId?.startsWith("task-") ?? false;
+  const canSwitchProfile =
+    !isTaskRoute && (!!conversationId || canManageOrgProfiles);
+
   const selectProfile = useCallback(
     (profileName: string) => {
-      if (profileName === currentProfileName) return;
+      if (!canSwitchProfile || profileName === currentProfileName) return;
       switchAndLog(conversationId, profileName);
     },
-    [conversationId, currentProfileName, switchAndLog],
+    [canSwitchProfile, conversationId, currentProfileName, switchAndLog],
   );
 
   return {
@@ -87,6 +104,7 @@ export function useChatInputLlmProfileState(): ChatInputLlmProfileState {
     currentProfileModel,
     isLoading,
     isSwitching,
+    canSwitchProfile,
     selectProfile,
   };
 }

@@ -243,14 +243,9 @@ export function ChatInputActions({
     setIsOverflowOpen(false);
   };
 
-  // Which chat-input LLM picker to show (pure matrix, unit-tested in
-  // `resolve-picker-kind.test.ts`).
-  const pickerKind = resolvePickerKind({
-    hasConversation: !!conversationId,
-    hasStartedConversation,
-    isCloud,
-    isAcp: modelState.isAcpContext,
-  });
+  // Which chat-input LLM picker to show — the constrained ACP model picker or
+  // the LLM-profile picker (unit-tested in `resolve-picker-kind.test.ts`).
+  const pickerKind = resolvePickerKind({ isAcp: modelState.isAcpContext });
 
   // Shared styling for the settings link inside the overflow submenu content.
   const overflowSettingsLinkClassName = cn(

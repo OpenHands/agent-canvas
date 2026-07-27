@@ -110,6 +110,24 @@ describe("ChatInputActions", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("renders the LLM-profile picker on the home page (cloud)", () => {
+    // Cloud used to fall back to a read-only model chip before a conversation
+    // started, surfacing the raw model path instead of the profile name (#1932
+    // review). The pill names the profile on every backend now.
+    setRegisteredBackends([cloudBackend]);
+    setActiveSelection({ backendId: cloudBackend.id });
+    useActiveConversationMock.mockReturnValue({ data: undefined });
+
+    renderWithProviders(<ChatInputActions disabled={false} />, {
+      navigation: { conversationId: null },
+    });
+
+    expect(screen.getByTestId("llm-profile-picker-stub")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("chat-input-llm-model"),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders the LLM-profile picker inside a blank local OpenHands conversation", () => {
     useActiveConversationMock.mockReturnValue({
       data: { conversation_id: "test-conversation-id", llm_model: null },
