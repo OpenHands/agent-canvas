@@ -12,9 +12,6 @@ const useActiveBackendMock = vi.fn<
   backend: { kind: "local" },
   orgId: null,
 }));
-// The active AgentProfile now drives the ACP-disable derivation; default to
-// "no active profile" so tests that set only `useSettings` exercise the
-// settings fallback path.
 const useActiveAgentProfileMock = vi.fn<
   () => { activeProfile: { agent_kind: string; name: string } | null }
 >(() => ({ activeProfile: null }));
@@ -53,10 +50,6 @@ const createConfig = (
 
 const openHandsSettings = {
   agent_settings: { agent_kind: "openhands" },
-};
-
-const acpClaudeCodeSettings = {
-  agent_settings: { agent_kind: "acp", acp_server: "claude-code" },
 };
 
 describe("useSettingsNavItems", () => {
@@ -122,26 +115,6 @@ describe("useSettingsNavItems", () => {
     }
   });
 
-  it("derives the ACP-disable from the active agent profile, not global settings", () => {
-    useConfigMock.mockReturnValue({ data: createConfig() });
-    // Global settings still say OpenHands, but the active profile is ACP —
-    // the active profile wins (activate is pointer-only, #1571).
-    useSettingsMock.mockReturnValue({ data: openHandsSettings });
-    useActiveAgentProfileMock.mockReturnValue({
-      activeProfile: { agent_kind: "acp", name: "MyClaude" },
-    });
-
-    const { result } = renderHook(() => useSettingsNavItems());
-    const llm = result.current.find(
-      (r) => r.type === "item" && r.item.to === "/settings/llm",
-    );
-    expect(llm?.type).toBe("item");
-    if (llm?.type === "item") {
-      expect(llm.disabled).toBe(true);
-      expect(llm.disabledAgentName).toBe("MyClaude");
-    }
-  });
-
   it("filters hidden routes from the OSS settings items", () => {
     useConfigMock.mockReturnValue({
       data: createConfig({ hide_llm_settings: true }),
@@ -171,9 +144,16 @@ describe("useSettingsNavItems", () => {
     expect(paths).not.toContain("/settings/mcp");
   });
 
-  it("disables LLM + Condenser when the active agent_kind is acp", () => {
+  it("keeps every settings library enabled while an ACP profile is active", () => {
     useConfigMock.mockReturnValue({ data: createConfig() });
-    useSettingsMock.mockReturnValue({ data: acpClaudeCodeSettings });
+    useSettingsMock.mockReturnValue({
+      data: {
+        agent_settings: { agent_kind: "acp", acp_server: "claude-code" },
+      },
+    });
+    useActiveAgentProfileMock.mockReturnValue({
+      activeProfile: { agent_kind: "acp", name: "MyClaude" },
+    });
 
     const { result } = renderHook(() => useSettingsNavItems());
     const byPath = new Map(
@@ -184,55 +164,16 @@ describe("useSettingsNavItems", () => {
         ),
     );
 
-    const llm = byPath.get("/settings/llm");
-    expect(llm?.type).toBe("item");
-    if (llm?.type === "item") {
-      expect(llm.disabled).toBe(true);
-      expect(llm.disabledAgentName).toBe("Claude Code");
-    }
-
-    const condenser = byPath.get("/settings/condenser");
-    expect(condenser?.type).toBe("item");
-    if (condenser?.type === "item") {
-      expect(condenser.disabled).toBe(true);
-    }
-
-    // Items without `disabledByAcp` stay enabled.
-    const secrets = byPath.get("/settings/secrets");
-    if (secrets?.type === "item") {
-      expect(secrets.disabled).toBeUndefined();
-    }
-
-    // The agent-settings entry itself is not gated.
-    const agent = byPath.get("/settings/agent");
-    if (agent?.type === "item") {
-      expect(agent.disabled).toBeUndefined();
-    }
-  });
-
-  it("falls back to 'ACP Agent' when the saved acp_server is unknown", () => {
-    useConfigMock.mockReturnValue({ data: createConfig() });
-    useSettingsMock.mockReturnValue({
-      data: { agent_settings: { agent_kind: "acp", acp_server: "custom" } },
-    });
-
-    const { result } = renderHook(() => useSettingsNavItems());
-    const llm = result.current.find(
-      (r) => r.type === "item" && r.item.to === "/settings/llm",
-    );
-    if (llm?.type === "item") {
-      expect(llm.disabledAgentName).toBe("ACP Agent");
-    }
-  });
-
-  it("leaves all items enabled when agent_kind is openhands", () => {
-    useConfigMock.mockReturnValue({ data: createConfig() });
-
-    const { result } = renderHook(() => useSettingsNavItems());
-    for (const rendered of result.current) {
-      if (rendered.type === "item") {
-        expect(rendered.disabled).toBeFalsy();
-      }
+    for (const path of [
+      "/settings/llm",
+      "/settings/condenser",
+      "/settings/verification",
+    ]) {
+      const renderedItem = byPath.get(path);
+      expect(renderedItem).toEqual({
+        type: "item",
+        item: OSS_NAV_ITEMS.find((item) => item.to === path),
+      });
     }
   });
 });

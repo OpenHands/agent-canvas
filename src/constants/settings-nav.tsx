@@ -10,13 +10,6 @@ export interface SettingsNavItem {
   text: string;
   /** Short grey subline under the page title (`settings.tsx`). */
   subtitle: string;
-  // When true, this item is greyed out (and its route redirects to
-  // ``/settings/agents``) while the active agent is ACP. The ACP sub-agent
-  // manages its own LLM / condenser / MCP, so these OpenHands-side
-  // surfaces have nothing useful to configure. Drives both the navigation
-  // disable in ``use-settings-nav-items.ts`` and the loader redirect in
-  // ``routes/settings.tsx`` from a single source.
-  disabledByAcp?: boolean;
 }
 
 export const OSS_NAV_ITEMS: SettingsNavItem[] = [
@@ -35,21 +28,18 @@ export const OSS_NAV_ITEMS: SettingsNavItem[] = [
     to: "/settings/llm",
     text: "SETTINGS$NAV_LLM",
     subtitle: "SETTINGS$PAGE_LLM_SUBLINE",
-    disabledByAcp: true,
   },
   {
     icon: <MemoryIcon width={16} height={16} />,
     to: "/settings/condenser",
     text: "SETTINGS$NAV_CONDENSER",
     subtitle: "SETTINGS$PAGE_CONDENSER_SUBLINE",
-    disabledByAcp: true,
   },
   {
     icon: <Shield className="size-4" strokeWidth={2} aria-hidden />,
     to: "/settings/verification",
     text: "SETTINGS$NAV_VERIFICATION",
     subtitle: "SETTINGS$PAGE_VERIFICATION_SUBLINE",
-    disabledByAcp: true,
   },
   {
     icon: <AppWindow className="size-4" strokeWidth={2} aria-hidden />,

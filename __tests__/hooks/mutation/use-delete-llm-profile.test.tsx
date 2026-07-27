@@ -5,14 +5,21 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useDeleteLlmProfile } from "#/hooks/mutation/use-delete-llm-profile";
 import ProfilesService from "#/api/profiles-service/profiles-service.api";
 import SettingsService from "#/api/settings-service/settings-service.api";
-import { LLM_PROFILES_QUERY_KEYS, SETTINGS_QUERY_KEYS } from "#/hooks/query/query-keys";
+import {
+  LLM_PROFILES_QUERY_KEYS,
+  SETTINGS_QUERY_KEYS,
+} from "#/hooks/query/query-keys";
 
 vi.mock("#/api/profiles-service/profiles-service.api");
 vi.mock("#/api/settings-service/settings-service.api");
 
 describe("useDeleteLlmProfile", () => {
   let queryClient: QueryClient;
-  let wrapper: ({ children }: { children: React.ReactNode }) => React.ReactElement;
+  let wrapper: ({
+    children,
+  }: {
+    children: React.ReactNode;
+  }) => React.ReactElement;
 
   beforeEach(() => {
     queryClient = new QueryClient({
@@ -56,7 +63,14 @@ describe("useDeleteLlmProfile", () => {
     });
 
     queryClient.setQueryData(LLM_PROFILES_QUERY_KEYS.all, {
-      profiles: [{ name: "deleted-profile", model: "gpt-4", base_url: null, api_key_set: true }],
+      profiles: [
+        {
+          name: "deleted-profile",
+          model: "gpt-4",
+          base_url: null,
+          api_key_set: true,
+        },
+      ],
     });
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     const invalidateCacheSpy = vi.spyOn(SettingsService, "invalidateCache");
@@ -74,6 +88,26 @@ describe("useDeleteLlmProfile", () => {
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: SETTINGS_QUERY_KEYS.personal(),
+    });
+  });
+
+  it("clears a deleted local title profile preference", async () => {
+    vi.mocked(ProfilesService.deleteProfile).mockResolvedValue({
+      name: "Titles",
+      message: "Profile deleted",
+    });
+    vi.mocked(SettingsService.getSettings).mockResolvedValue({
+      title_llm_profile: "Titles",
+    } as never);
+
+    const { result } = renderHook(() => useDeleteLlmProfile(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync("Titles");
+    });
+
+    expect(SettingsService.saveSettings).toHaveBeenCalledWith({
+      title_llm_profile: null,
     });
   });
 

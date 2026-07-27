@@ -14,16 +14,15 @@ vi.mock("#/api/agent-server-compatibility", () => ({
   getCachedAgentServerVersion: compatibilityMocks.getCachedAgentServerVersion,
 }));
 
-const automationServiceMocks = vi.hoisted(() => ({
-  getSdkVersion: vi.fn(),
+const automationSdkVersionHookMock = vi.hoisted(() => ({
+  useAutomationSdkVersion: vi.fn(),
 }));
-vi.mock("#/api/automation-service/automation-service.api", () => ({
-  default: automationServiceMocks,
+vi.mock("#/hooks/query/use-automation-sdk-version", () => ({
+  useAutomationSdkVersion: automationSdkVersionHookMock.useAutomationSdkVersion,
 }));
 
 import { useTracking } from "#/hooks/use-tracking";
 
-const TEST_EMAIL = "user@example.com";
 // Resolved at test-run time so it matches whatever URL jsdom is configured
 // with in the current environment (varies between local and CI).
 let COMMON: Record<string, unknown>;
@@ -38,17 +37,16 @@ describe("useTracking", () => {
       .mockResolvedValue(undefined);
     setBackendContextMock = vi.spyOn(telemetry, "setTelemetryBackendContext");
     useSettingsMock.mockReset();
-    automationServiceMocks.getSdkVersion.mockReset();
-    automationServiceMocks.getSdkVersion.mockResolvedValue(null);
+    automationSdkVersionHookMock.useAutomationSdkVersion.mockReset();
+    automationSdkVersionHookMock.useAutomationSdkVersion.mockReturnValue(null);
     compatibilityMocks.getCachedAgentServerVersion.mockReset();
     compatibilityMocks.getCachedAgentServerVersion.mockReturnValue(null);
 
     useSettingsMock.mockReturnValue({
-      data: { email: TEST_EMAIL, user_consents_to_analytics: true },
+      data: { email: "user@example.com", user_consents_to_analytics: true },
     });
     COMMON = {
       current_url: window.location.href,
-      user_email: TEST_EMAIL,
     };
   });
 
@@ -151,7 +149,9 @@ describe("useTracking", () => {
     });
 
     it("declares backend versions to the telemetry service when known", async () => {
-      automationServiceMocks.getSdkVersion.mockResolvedValue("1.36.3");
+      automationSdkVersionHookMock.useAutomationSdkVersion.mockReturnValue(
+        "1.36.3",
+      );
       compatibilityMocks.getCachedAgentServerVersion.mockReturnValue("1.36.2");
 
       const { result } = renderHook(() => useTracking());
@@ -423,7 +423,7 @@ describe("useTracking", () => {
   describe("shared telemetry boundary", () => {
     it("delegates consent enforcement when backend settings report false", () => {
       useSettingsMock.mockReturnValue({
-        data: { email: TEST_EMAIL, user_consents_to_analytics: false },
+        data: { email: "user@example.com", user_consents_to_analytics: false },
       });
 
       getTracking().trackPushButtonClick();
@@ -436,7 +436,7 @@ describe("useTracking", () => {
 
     it("delegates consent enforcement when backend settings report null", () => {
       useSettingsMock.mockReturnValue({
-        data: { email: TEST_EMAIL, user_consents_to_analytics: null },
+        data: { email: "user@example.com", user_consents_to_analytics: null },
       });
 
       getTracking().trackPushButtonClick();
@@ -463,44 +463,7 @@ describe("useTracking", () => {
           backend_kind: "cloud",
           connection_method: "cloud_login",
           source: "onboarding",
-          user_email: null,
         }),
-      );
-    });
-  });
-
-  describe("commonProperties", () => {
-    it("uses git_user_email as fallback when email is absent", () => {
-      useSettingsMock.mockReturnValue({
-        data: {
-          email: null,
-          git_user_email: "git@example.com",
-          user_consents_to_analytics: true,
-        },
-      });
-
-      getTracking().trackPushButtonClick();
-
-      expect(captureMock).toHaveBeenCalledWith(
-        "push_button_clicked",
-        expect.objectContaining({ user_email: "git@example.com" }),
-      );
-    });
-
-    it("sends null user_email when no email fields are present", () => {
-      useSettingsMock.mockReturnValue({
-        data: {
-          email: null,
-          git_user_email: null,
-          user_consents_to_analytics: true,
-        },
-      });
-
-      getTracking().trackPushButtonClick();
-
-      expect(captureMock).toHaveBeenCalledWith(
-        "push_button_clicked",
-        expect.objectContaining({ user_email: null }),
       );
     });
   });

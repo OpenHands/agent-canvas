@@ -21,15 +21,6 @@ vi.mock("#/hooks/use-settings-nav-items", () => ({
     ).map((item) => ({ type: "item", item })),
 }));
 
-// The ACP route guard now reads the active agent profile first, falling back to
-// settings. These tests drive the guard via `SettingsService`, so make the
-// agent-profiles lookup unavailable to force that deterministic fallback.
-vi.mock("#/api/agent-profiles-service/agent-profiles-service.api", () => ({
-  default: {
-    listProfiles: vi.fn().mockRejectedValue(new Error("no agent profiles")),
-  },
-}));
-
 describe("settings route", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -56,9 +47,6 @@ describe("settings route", () => {
   });
 
   it("prefers /settings/agents when LLM settings are visible", () => {
-    // /settings/agents wins unconditionally, so OpenHands users land
-    // there too and reach LLM via the left nav instead of bouncing
-    // through /settings/llm (which is disabled for ACP users).
     expect(
       getFirstAvailablePath({
         hide_llm_settings: false,
@@ -142,65 +130,56 @@ describe("settings route", () => {
     expect(screen.getByTestId("app-settings-screen")).toBeInTheDocument();
   });
 
-  it("redirects to /settings/agents when ACP is active and the path is disabled-by-ACP", async () => {
-    vi.spyOn(OptionService, "getConfig").mockResolvedValue({
-      feature_flags: {
-        hide_llm_settings: false,
-        hide_users_page: true,
-      },
-      providers_configured: [],
-      maintenance_start_time: null,
-      recaptcha_site_key: null,
-      faulty_models: [],
-      error_message: null,
-      updated_at: new Date().toISOString(),
-    });
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
-      ...MOCK_DEFAULT_USER_SETTINGS,
-      agent_settings: {
-        ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
-        agent_kind: "acp",
-        acp_server: "claude-code",
-      },
-    });
+  it.each(["/settings/llm", "/settings/condenser", "/settings/verification"])(
+    "renders %s directly when ACP settings are active",
+    async (path) => {
+      vi.spyOn(OptionService, "getConfig").mockResolvedValue({
+        feature_flags: {
+          hide_llm_settings: false,
+          hide_users_page: true,
+        },
+        providers_configured: [],
+        maintenance_start_time: null,
+        recaptcha_site_key: null,
+        faulty_models: [],
+        error_message: null,
+        updated_at: new Date().toISOString(),
+      });
+      const settingsSpy = vi
+        .spyOn(SettingsService, "getSettings")
+        .mockResolvedValue({
+          ...MOCK_DEFAULT_USER_SETTINGS,
+          agent_settings: {
+            ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+            agent_kind: "acp",
+            acp_server: "claude-code",
+          },
+        });
 
-    const response = (await clientLoader({
-      request: new Request("http://localhost/settings/llm"),
-      params: {},
-      context: {},
-    } as never)) as Response;
+      const RouterStub = createRoutesStub([
+        {
+          path: "/settings",
+          Component: SettingsScreen,
+          loader: clientLoader as never,
+          children: [
+            {
+              path,
+              Component: () => <div data-testid="direct-settings-page" />,
+            },
+          ],
+        },
+      ]);
 
-    expect(response.status).toBe(302);
-    expect(response.headers.get("Location")).toBe("/settings/agents");
-  });
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <ActiveBackendProvider>
+            <RouterStub initialEntries={[path]} />
+          </ActiveBackendProvider>
+        </QueryClientProvider>,
+      );
 
-  it("does not redirect when the active agent is OpenHands", async () => {
-    vi.spyOn(OptionService, "getConfig").mockResolvedValue({
-      feature_flags: {
-        hide_llm_settings: false,
-        hide_users_page: true,
-      },
-      providers_configured: [],
-      maintenance_start_time: null,
-      recaptcha_site_key: null,
-      faulty_models: [],
-      error_message: null,
-      updated_at: new Date().toISOString(),
-    });
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
-      ...MOCK_DEFAULT_USER_SETTINGS,
-      agent_settings: {
-        ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
-        agent_kind: "openhands",
-      },
-    });
-
-    const result = await clientLoader({
-      request: new Request("http://localhost/settings"),
-      params: {},
-      context: {},
-    } as never);
-
-    expect(result).toBeNull();
-  });
+      expect(await screen.findByTestId("direct-settings-page")).toBeVisible();
+      expect(settingsSpy).not.toHaveBeenCalled();
+    },
+  );
 });
